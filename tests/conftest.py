@@ -10,7 +10,7 @@ def setup_test_env():
     # Set test environment variables
     os.environ["LLM_API_KEY"] = "test_key_12345"
     os.environ["WHISPER_MODEL_SIZE"] = "base"
-    os.environ["DEFAULT_LANGUAGE"] = "auto"
+    os.environ["DEFAULT_LANGUAGE"] = "zh"
 
     yield
 

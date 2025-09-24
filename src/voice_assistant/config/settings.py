@@ -12,7 +12,7 @@ class VoiceAssistantConfig(BaseModel):
     llm_model: str = Field(default="anthropic/claude-3-5-nano", description="LLM model to use")
     llm_base_url: str = Field(default="https://openrouter.ai/api/v1", description="LLM API base URL")
     whisper_model_size: str = Field(default="base", description="Whisper model size (tiny, base, small, medium, large)")
-    default_language: str = Field(default="auto", description="Default language for processing (auto, en, zh)")
+    default_language: str = Field(default="zh", description="Default language for processing (auto, en, zh)")
     audio_duration: float = Field(default=5.0, description="Default audio recording duration in seconds")
     tts_voice_en: str = Field(default="en-US-JennyNeural", description="Default English TTS voice")
     tts_voice_zh: str = Field(default="zh-CN-XiaoxiaoNeural", description="Default Chinese TTS voice")
@@ -39,7 +39,7 @@ def load_config(config_path: Optional[Path] = None) -> VoiceAssistantConfig:
             llm_model=os.getenv("LLM_MODEL", "anthropic/claude-3-5-nano"),
             llm_base_url=os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
             whisper_model_size=os.getenv("WHISPER_MODEL_SIZE", "base"),
-            default_language=os.getenv("DEFAULT_LANGUAGE", "auto"),
+            default_language=os.getenv("DEFAULT_LANGUAGE", "zh"),
             audio_duration=float(os.getenv("AUDIO_DURATION", "5.0")),
             tts_voice_en=os.getenv("TTS_VOICE_EN", "en-US-JennyNeural"),
             tts_voice_zh=os.getenv("TTS_VOICE_ZH", "zh-CN-XiaoxiaoNeural"),
@@ -68,7 +68,7 @@ LLM_BASE_URL=https://openrouter.ai/api/v1
 WHISPER_MODEL_SIZE=base
 
 # Default language: auto, en, zh
-DEFAULT_LANGUAGE=auto
+DEFAULT_LANGUAGE=zh
 
 # Audio recording duration in seconds
 AUDIO_DURATION=5.0

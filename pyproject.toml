@@ -1,7 +1,7 @@
 [project]
 name = "tank"
 version = "0.1.0"
-description = "Bilingual voice assistant with speech recognition, TTS, and LLM capabilities"
+description = "Voice assistant with speech recognition, TTS, and LLM capabilities supporting Chinese and English"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

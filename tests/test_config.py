@@ -9,7 +9,7 @@ class TestConfig:
     def test_default_config(self):
         config = VoiceAssistantConfig(llm_api_key="test_key")
         assert config.whisper_model_size == "base"
-        assert config.default_language == "auto"
+        assert config.default_language == "zh"
         assert config.audio_duration == 5.0
 
     def test_config_with_custom_values(self):

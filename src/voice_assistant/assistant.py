@@ -154,8 +154,8 @@ Guidelines:
 
         try:
             await self.speaker.speak_async(
-                "Hello! I'm your bilingual voice assistant. You can speak to me in English or Chinese. Say 'quit' or 'exit' to stop.",
-                voice=self.config.tts_voice_en
+                "你好！我是Tank语音助手。你可以用中文或英文和我对话。说'退出'或'exit'来停止。",
+                voice=self.config.tts_voice_zh
             )
 
             while self.is_running:
@@ -165,7 +165,7 @@ Guidelines:
 
                 if user_input:
                     if user_input.lower().strip() in ["quit", "exit", "stop", "bye", "goodbye", "退出", "再见", "停止"]:
-                        await self.speaker.speak_async("Goodbye! Have a great day!")
+                        await self.speaker.speak_async("再见！祝你有美好的一天！", voice=self.config.tts_voice_zh)
                         break
 
                     print(f"🗣️  You said: {user_input}")
@@ -181,7 +181,7 @@ Guidelines:
             logger.error(f"Error in conversation loop: {e}")
         finally:
             self.is_running = False
-            await self.speaker.speak_async("Voice assistant stopped. Goodbye!")
+            await self.speaker.speak_async("语音助手已停止。再见！", voice=self.config.tts_voice_zh)
 
     def stop(self):
         self.is_running = False
