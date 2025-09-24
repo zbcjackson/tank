@@ -1,12 +1,12 @@
 import pytest
 import asyncio
 from unittest.mock import Mock, patch, AsyncMock
-from src.voice_assistant.llm.openrouter import OpenRouterLLM, Message
+from src.voice_assistant.llm.llm import LLM, Message
 
-class TestOpenRouterLLM:
+class TestLLM:
     @pytest.fixture
     def llm(self):
-        return OpenRouterLLM(api_key="test_key", model="test/model", base_url="https://test.api.com")
+        return LLM(api_key="test_key", model="test/model", base_url="https://test.api.com")
 
     def test_initialization(self, llm):
         assert llm.api_key == "test_key"
@@ -15,7 +15,7 @@ class TestOpenRouterLLM:
         assert "Authorization" in llm.headers
 
     def test_default_initialization(self):
-        llm = OpenRouterLLM(api_key="test_key")
+        llm = LLM(api_key="test_key")
         assert llm.api_key == "test_key"
         assert llm.model == "anthropic/claude-3-5-nano"
         assert llm.base_url == "https://openrouter.ai/api/v1"

@@ -10,7 +10,7 @@ class Message(BaseModel):
     role: str = Field(..., description="The role of the message sender")
     content: str = Field(..., description="The content of the message")
 
-class OpenRouterLLM:
+class LLM:
     def __init__(self, api_key: str, model: str = "anthropic/claude-3-5-nano", base_url: str = "https://openrouter.ai/api/v1"):
         self.api_key = api_key
         self.base_url = base_url

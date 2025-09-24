@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .audio.transcription import WhisperTranscriber
 from .audio.tts import EdgeTTSSpeaker
-from .llm.openrouter import OpenRouterLLM, Message
+from .llm.llm import LLM, Message
 from .tools.manager import ToolManager
 from .config.settings import VoiceAssistantConfig, load_config, setup_logging
 
@@ -18,7 +18,7 @@ class VoiceAssistant:
 
         self.transcriber = WhisperTranscriber(self.config.whisper_model_size)
         self.speaker = EdgeTTSSpeaker()
-        self.llm = OpenRouterLLM(
+        self.llm = LLM(
             api_key=self.config.llm_api_key,
             model=self.config.llm_model,
             base_url=self.config.llm_base_url
