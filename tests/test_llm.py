@@ -45,14 +45,26 @@ class TestLLM:
             assert result["choices"][0]["message"]["content"] == "Test response"
 
     @pytest.mark.asyncio
-    async def test_simple_chat_async(self, llm):
-        with patch.object(llm, 'chat_completion_async') as mock_completion:
-            mock_completion.return_value = {
-                "choices": [{"message": {"content": "Hello back!"}}]
-            }
+    async def test_chat_completion_with_messages(self, llm):
+        with patch.object(llm.client.chat.completions, 'create', new_callable=AsyncMock) as mock_create:
+            mock_response = Mock()
+            mock_response.choices = [Mock()]
+            mock_response.choices[0].message = Mock()
+            mock_response.choices[0].message.role = "assistant"
+            mock_response.choices[0].message.content = "Hello back!"
+            mock_response.choices[0].finish_reason = "stop"
+            mock_response.usage = Mock()
+            mock_response.usage.prompt_tokens = 10
+            mock_response.usage.completion_tokens = 5
+            mock_response.usage.total_tokens = 15
+            mock_response.model = "test/model"
+            mock_response.id = "test_id"
 
-            response = await llm.simple_chat_async("Hello")
-            assert response == "Hello back!"
+            mock_create.return_value = mock_response
+
+            messages = [Message(role="user", content="Hello")]
+            result = await llm.chat_completion_async(messages)
+            assert result["choices"][0]["message"]["content"] == "Hello back!"
 
     def test_message_model(self):
         message = Message(role="user", content="Test")
