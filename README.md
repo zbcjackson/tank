@@ -7,7 +7,8 @@ A powerful voice assistant that supports both Chinese and English, capable of an
 - 🎤 **Speech Recognition**: Uses OpenAI Whisper for accurate speech-to-text conversion
 - 🔊 **Text-to-Speech**: Uses Edge TTS for natural-sounding voice synthesis
 - 🧠 **AI Integration**: Powered by LLM via configurable API endpoint
-- 🛠️ **Tool Execution**: Built-in tools for calculations, weather, time, and more
+- 🛠️ **Tool Execution**: Built-in tools for calculations, weather, time, and web search
+- 🌐 **Web Search**: Real-time web search capability for current information and facts
 - 🌏 **Multi-language Support**: Seamless switching between Chinese and English
 - ⚙️ **Configurable**: Easy configuration through environment variables
 - 🧪 **Tested**: Comprehensive test suite with pytest
@@ -75,6 +76,7 @@ The assistant comes with built-in tools:
 - **Calculator**: Perform mathematical calculations
 - **Weather**: Get weather information (mock data for demo)
 - **Time**: Get current date and time
+- **Web Search**: Search the internet for current information when the assistant doesn't know the answer
 
 ## Configuration Options
 
@@ -155,6 +157,9 @@ Assistant: "现在的时间是2024年1月15日 14时30分25秒"
 
 User: "计算十五乘以八"
 Assistant: "15 × 8 = 120"
+
+User: "最新的人工智能发展怎么样？"
+Assistant: "让我为您搜索最新的人工智能发展信息... [搜索结果]"
 ```
 
 ### English Conversation
@@ -164,6 +169,9 @@ Assistant: "The current time is 2024-01-15 14:30:25"
 
 User: "Calculate 15 times 8"
 Assistant: "15 × 8 = 120"
+
+User: "What's the latest news about climate change?"
+Assistant: "Let me search for the latest climate change information... [search results]"
 ```
 
 ## Troubleshooting

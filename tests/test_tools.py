@@ -12,11 +12,13 @@ class TestToolManager:
         assert "get_weather" in tool_manager.tools
         assert "get_time" in tool_manager.tools
         assert "calculate" in tool_manager.tools
+        assert "web_search" in tool_manager.tools
 
     def test_get_tool_info(self, tool_manager):
         info_list = tool_manager.get_tool_info()
-        assert len(info_list) == 3
+        assert len(info_list) == 4
         assert any(tool.name == "get_weather" for tool in info_list)
+        assert any(tool.name == "web_search" for tool in info_list)
 
     @pytest.mark.asyncio
     async def test_calculator_tool(self, tool_manager):
@@ -58,3 +60,21 @@ class TestToolManager:
 
         result = tool_manager.parse_tool_call("nonexistent_tool()")
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_web_search_tool(self, tool_manager):
+        # Test that the tool can be called (mock the response since we don't want to make real web requests in tests)
+        with patch('requests.get') as mock_get:
+            # Mock the DuckDuckGo API response
+            mock_response = Mock()
+            mock_response.json.return_value = {
+                "AbstractText": "Test search result from DuckDuckGo",
+                "AbstractURL": "https://example.com"
+            }
+            mock_response.raise_for_status.return_value = None
+            mock_get.return_value = mock_response
+
+            result = await tool_manager.execute_tool("web_search", query="test query")
+            assert "answer" in result
+            assert result["query"] == "test query"
+            assert result["source"] == "DuckDuckGo"
