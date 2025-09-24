@@ -307,6 +307,57 @@ class ToolManager:
                 "parameters": kwargs
             }
 
+    def get_openai_tools(self) -> List[Dict[str, Any]]:
+        """Convert tools to OpenAI function calling format"""
+        openai_tools = []
+
+        for tool in self.tools.values():
+            info = tool.get_info()
+
+            # Build parameters schema
+            properties = {}
+            required = []
+
+            for param in info.parameters:
+                properties[param.name] = {
+                    "type": param.type,
+                    "description": param.description
+                }
+                if param.required:
+                    required.append(param.name)
+
+            # Create OpenAI tool format
+            openai_tool = {
+                "type": "function",
+                "function": {
+                    "name": info.name,
+                    "description": info.description,
+                    "parameters": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": required
+                    }
+                }
+            }
+
+            openai_tools.append(openai_tool)
+
+        return openai_tools
+
+    async def execute_openai_tool_call(self, tool_call) -> Dict[str, Any]:
+        """Execute tool from OpenAI function call format"""
+        function_name = tool_call.function.name
+        try:
+            import json
+            arguments = json.loads(tool_call.function.arguments)
+        except json.JSONDecodeError:
+            return {
+                "error": f"Could not parse arguments for {function_name}",
+                "arguments": tool_call.function.arguments
+            }
+
+        return await self.execute_tool(function_name, **arguments)
+
     def parse_tool_call(self, text: str) -> Optional[Dict[str, Any]]:
         import re
         import json

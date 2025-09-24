@@ -32,20 +32,13 @@ class VoiceAssistant:
         logger.info("Voice Assistant initialized successfully")
 
     def _get_system_prompt(self) -> str:
-        tools_description = self.tool_manager.get_tools_description()
-
-        return f"""You are Tank, a helpful voice assistant that can communicate in both Chinese and English.
-You can answer questions, have conversations, and use tools to accomplish tasks.
-
-Available tools:
-{tools_description}
-
-To use a tool, include the tool call in your response using this format: tool_name(parameters)
+        return """You are Tank, a helpful voice assistant that can communicate in both Chinese and English.
+You can answer questions, have conversations, and use available tools to accomplish tasks.
 
 Guidelines:
 - Be conversational and natural in your responses
 - Keep responses concise since they will be spoken aloud
-- When asked to perform calculations or get information, use the appropriate tools
+- When asked to perform calculations, get weather, time, or search for information, use the appropriate tools
 - If you don't know the answer to a question, use the web_search tool to find current information
 - Use web_search for current events, recent news, real-time information, or when you're unsure about facts
 - Respond in the same language as the user when possible
@@ -61,29 +54,26 @@ Guidelines:
         if len(self.conversation_history) > self.config.max_conversation_history * 2:
             self.conversation_history = self.conversation_history[-self.config.max_conversation_history * 2:]
 
-    async def _process_llm_response(self, response: str) -> str:
-        tool_call = self.tool_manager.parse_tool_call(response)
+    async def _process_llm_response(self, response: str, tool_calls=None) -> str:
+        if not tool_calls:
+            return response
 
-        if tool_call:
-            logger.info(f"Detected tool call: {tool_call}")
-            tool_result = await self.tool_manager.execute_tool(
-                tool_call["tool_name"],
-                **tool_call["parameters"]
-            )
+        # Execute tool calls
+        tool_results = []
+        for tool_call in tool_calls:
+            logger.info(f"Executing tool: {tool_call.function.name}")
+            result = await self.tool_manager.execute_openai_tool_call(tool_call)
 
-            if "error" in tool_result:
-                tool_response = f"I encountered an error: {tool_result['error']}"
+            if "error" in result:
+                tool_results.append(f"Error using {tool_call.function.name}: {result['error']}")
             else:
-                tool_response = tool_result.get("message", str(tool_result))
+                tool_results.append(result.get("message", str(result)))
 
-            final_response = response.replace(
-                f"{tool_call['tool_name']}({tool_call['parameters']})",
-                tool_response
-            )
-
-            return final_response
-
-        return response
+        # Combine response with tool results
+        if response:
+            return f"{response}\n\n{' '.join(tool_results)}"
+        else:
+            return ' '.join(tool_results)
 
     def _determine_voice(self, text: str, detected_language: str = None) -> str:
         if detected_language:
@@ -129,13 +119,24 @@ Guidelines:
             self._add_to_conversation_history("user", user_input)
 
             system_prompt = self._get_system_prompt()
-            response = await self.llm.simple_chat_async(
-                user_message=user_input,
-                system_message=system_prompt,
-                conversation_history=self.conversation_history[:-1]
+            tools = self.tool_manager.get_openai_tools()
+
+            # Build messages for the API call
+            messages = []
+            messages.append(Message(role="system", content=system_prompt))
+            messages.extend(self.conversation_history[:-1])  # Exclude the current user message
+            messages.append(Message(role="user", content=user_input))
+
+            response = await self.llm.chat_completion_async(
+                messages=messages,
+                tools=tools
             )
 
-            processed_response = await self._process_llm_response(response)
+            message = response["choices"][0]["message"]
+            content = message.get("content", "")
+            tool_calls = message.get("tool_calls")
+
+            processed_response = await self._process_llm_response(content, tool_calls)
             self._add_to_conversation_history("assistant", processed_response)
 
             return processed_response

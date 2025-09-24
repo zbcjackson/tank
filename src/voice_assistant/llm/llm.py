@@ -31,28 +31,37 @@ class LLM:
         messages: List[Message],
         temperature: float = 0.7,
         max_tokens: int = 1000,
-        stream: bool = False
+        stream: bool = False,
+        tools: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         try:
             # Convert Message objects to dict format expected by OpenAI client
             message_dicts = [{"role": msg.role, "content": msg.content} for msg in messages]
 
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=message_dicts,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                stream=stream
-            )
+            # Prepare kwargs for the API call
+            api_kwargs = {
+                "model": self.model,
+                "messages": message_dicts,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": stream
+            }
+
+            # Add tools if provided
+            if tools:
+                api_kwargs["tools"] = tools
+
+            response = await self.client.chat.completions.create(**api_kwargs)
 
             # Convert response to dict format for compatibility
-            return {
+            choice = response.choices[0]
+            result = {
                 "choices": [{
                     "message": {
-                        "role": response.choices[0].message.role,
-                        "content": response.choices[0].message.content
+                        "role": choice.message.role,
+                        "content": choice.message.content
                     },
-                    "finish_reason": response.choices[0].finish_reason
+                    "finish_reason": choice.finish_reason
                 }],
                 "usage": {
                     "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
@@ -62,6 +71,12 @@ class LLM:
                 "model": response.model,
                 "id": response.id
             }
+
+            # Add tool calls if present
+            if hasattr(choice.message, 'tool_calls') and choice.message.tool_calls:
+                result["choices"][0]["message"]["tool_calls"] = choice.message.tool_calls
+
+            return result
         except Exception as e:
             logger.error(f"Chat completion error: {e}")
             raise
