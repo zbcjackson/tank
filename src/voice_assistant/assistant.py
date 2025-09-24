@@ -32,7 +32,7 @@ class VoiceAssistant:
         logger.info("Voice Assistant initialized successfully")
 
     def _get_system_prompt(self) -> str:
-        return """You are Tank, a helpful voice assistant that can communicate in both Chinese and English.
+        return """You are Tank, a helpful voice assistant.
 You can answer questions, have conversations, and use available tools to accomplish tasks.
 
 Guidelines:
@@ -158,7 +158,7 @@ Guidelines:
 
         try:
             await self.speaker.speak_async(
-                "你好！我是Tank语音助手。你可以用中文或英文和我对话。说'退出'或'exit'来停止。",
+                "你好！我是Tank语音助手。说'退出'来停止。",
                 voice=self.config.tts_voice_zh
             )
 
