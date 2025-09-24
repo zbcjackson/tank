@@ -1,8 +1,9 @@
-import httpx
-import json
+import asyncio
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from pydantic import BaseModel, Field
 import logging
+from openai import AsyncOpenAI
+from openai import APIError, RateLimitError, APIConnectionError, AuthenticationError
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +16,16 @@ class LLM:
         self.api_key = api_key
         self.base_url = base_url
         self.model = model
-        self.headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost:3000",
-            "X-Title": "Voice Assistant"
-        }
+
+        # Initialize OpenAI client with custom base URL and headers
+        self.client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            default_headers={
+                "HTTP-Referer": "http://localhost:3000",
+                "X-Title": "Tank Voice Assistant"
+            }
+        )
 
     async def chat_completion_async(
         self,
@@ -29,25 +34,52 @@ class LLM:
         max_tokens: int = 1000,
         stream: bool = False
     ) -> Dict[str, Any]:
-        url = f"{self.base_url}/chat/completions"
+        try:
+            # Convert Message objects to dict format expected by OpenAI client
+            message_dicts = [{"role": msg.role, "content": msg.content} for msg in messages]
 
-        payload = {
-            "model": self.model,
-            "messages": [{"role": msg.role, "content": msg.content} for msg in messages],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "stream": stream
-        }
-
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url,
-                headers=self.headers,
-                json=payload,
-                timeout=60.0
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=message_dicts,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=stream
             )
-            response.raise_for_status()
-            return response.json()
+
+            # Convert response to dict format for compatibility
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "role": response.choices[0].message.role,
+                            "content": response.choices[0].message.content
+                        },
+                        "finish_reason": response.choices[0].finish_reason
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
+                    "completion_tokens": response.usage.completion_tokens if response.usage else 0,
+                    "total_tokens": response.usage.total_tokens if response.usage else 0
+                } if response.usage else None,
+                "model": response.model,
+                "id": response.id
+            }
+        except APIError as e:
+            logger.error(f"OpenAI API error: {e}")
+            raise
+        except RateLimitError as e:
+            logger.error(f"OpenAI rate limit exceeded: {e}")
+            raise
+        except APIConnectionError as e:
+            logger.error(f"OpenAI API connection error: {e}")
+            raise
+        except AuthenticationError as e:
+            logger.error(f"OpenAI authentication error: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Chat completion error: {e}")
+            raise
 
     async def chat_completion_stream_async(
         self,
@@ -55,38 +87,38 @@ class LLM:
         temperature: float = 0.7,
         max_tokens: int = 1000
     ) -> AsyncGenerator[str, None]:
-        url = f"{self.base_url}/chat/completions"
+        try:
+            # Convert Message objects to dict format expected by OpenAI client
+            message_dicts = [{"role": msg.role, "content": msg.content} for msg in messages]
 
-        payload = {
-            "model": self.model,
-            "messages": [{"role": msg.role, "content": msg.content} for msg in messages],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "stream": True
-        }
+            stream = await self.client.chat.completions.create(
+                model=self.model,
+                messages=message_dicts,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=True
+            )
 
-        async with httpx.AsyncClient() as client:
-            async with client.stream(
-                "POST",
-                url,
-                headers=self.headers,
-                json=payload,
-                timeout=60.0
-            ) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        data = line[6:]
-                        if data.strip() == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(data)
-                            if "choices" in chunk and len(chunk["choices"]) > 0:
-                                delta = chunk["choices"][0].get("delta", {})
-                                if "content" in delta:
-                                    yield delta["content"]
-                        except json.JSONDecodeError:
-                            continue
+            async for chunk in stream:
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta
+                    if delta and delta.content:
+                        yield delta.content
+        except APIError as e:
+            logger.error(f"OpenAI API stream error: {e}")
+            raise
+        except RateLimitError as e:
+            logger.error(f"OpenAI stream rate limit exceeded: {e}")
+            raise
+        except APIConnectionError as e:
+            logger.error(f"OpenAI stream API connection error: {e}")
+            raise
+        except AuthenticationError as e:
+            logger.error(f"OpenAI stream authentication error: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Chat completion stream error: {e}")
+            raise
 
     def chat_completion(
         self,
@@ -135,8 +167,20 @@ class LLM:
     async def check_connection(self) -> bool:
         try:
             test_messages = [Message(role="user", content="Hello, can you hear me?")]
-            await self.chat_completion_async(test_messages, max_tokens=10)
+            await self.chat_completion_async(test_messages, max_tokens=16)
             return True
+        except APIError as e:
+            logger.error(f"Connection check API error: {e}")
+            return False
+        except RateLimitError as e:
+            logger.error(f"Connection check rate limit exceeded: {e}")
+            return False
+        except APIConnectionError as e:
+            logger.error(f"Connection check API connection error: {e}")
+            return False
+        except AuthenticationError as e:
+            logger.error(f"Connection check authentication error: {e}")
+            return False
         except Exception as e:
             logger.error(f"Connection check failed: {e}")
             return False

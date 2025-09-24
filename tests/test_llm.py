@@ -12,7 +12,8 @@ class TestLLM:
         assert llm.api_key == "test_key"
         assert llm.model == "test/model"
         assert llm.base_url == "https://test.api.com"
-        assert "Authorization" in llm.headers
+        assert hasattr(llm, 'client')
+        assert llm.client.api_key == "test_key"
 
     def test_default_initialization(self):
         llm = LLM(api_key="test_key")
@@ -21,20 +22,27 @@ class TestLLM:
         assert llm.base_url == "https://openrouter.ai/api/v1"
 
     @pytest.mark.asyncio
-    @patch('httpx.AsyncClient')
-    async def test_chat_completion_async(self, mock_client, llm):
-        mock_response = Mock()
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "Test response"}}]
-        }
-        mock_response.raise_for_status.return_value = None
+    async def test_chat_completion_async(self, llm):
+        with patch.object(llm.client.chat.completions, 'create', new_callable=AsyncMock) as mock_create:
+            mock_response = Mock()
+            mock_response.choices = [Mock()]
+            mock_response.choices[0].message = Mock()
+            mock_response.choices[0].message.role = "assistant"
+            mock_response.choices[0].message.content = "Test response"
+            mock_response.choices[0].finish_reason = "stop"
+            mock_response.usage = Mock()
+            mock_response.usage.prompt_tokens = 10
+            mock_response.usage.completion_tokens = 5
+            mock_response.usage.total_tokens = 15
+            mock_response.model = "test/model"
+            mock_response.id = "test_id"
 
-        mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
+            mock_create.return_value = mock_response
 
-        messages = [Message(role="user", content="Hello")]
-        result = await llm.chat_completion_async(messages)
+            messages = [Message(role="user", content="Hello")]
+            result = await llm.chat_completion_async(messages)
 
-        assert result["choices"][0]["message"]["content"] == "Test response"
+            assert result["choices"][0]["message"]["content"] == "Test response"
 
     @pytest.mark.asyncio
     async def test_simple_chat_async(self, llm):
