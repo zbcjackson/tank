@@ -2,10 +2,11 @@ import asyncio
 import logging
 from typing import List, Optional, Dict, Any
 from pathlib import Path
+from openai.types.chat import ChatCompletionMessageParam
 
 from .audio.transcription import WhisperTranscriber
 from .audio.tts import EdgeTTSSpeaker
-from .llm.llm import LLM, Message
+from .llm.llm import LLM
 from .tools.manager import ToolManager
 from .config.settings import VoiceAssistantConfig, load_config, setup_logging
 
@@ -25,7 +26,7 @@ class VoiceAssistant:
         )
         self.tool_manager = ToolManager(serper_api_key=self.config.serper_api_key)
 
-        self.conversation_history: List[Message] = []
+        self.conversation_history: List[ChatCompletionMessageParam] = []
         self.current_language = self.config.default_language
         self.is_running = False
 
@@ -57,32 +58,12 @@ Your goal: Accomplish user requests accurately and completely through proper too
 """
 
     def _add_to_conversation_history(self, role: str, content: str):
-        message = Message(role=role, content=content)
+        message = {"role": role, "content": content}
         self.conversation_history.append(message)
 
         if len(self.conversation_history) > self.config.max_conversation_history * 2:
             self.conversation_history = self.conversation_history[-self.config.max_conversation_history * 2:]
 
-    async def _process_llm_response(self, response: str, tool_calls=None) -> str:
-        if not tool_calls:
-            return response
-
-        # Execute tool calls
-        tool_results = []
-        for tool_call in tool_calls:
-            logger.info(f"Executing tool: {tool_call.function.name}")
-            result = await self.tool_manager.execute_openai_tool_call(tool_call)
-
-            if "error" in result:
-                tool_results.append(f"Error using {tool_call.function.name}: {result['error']}")
-            else:
-                tool_results.append(result.get("message", str(result)))
-
-        # Combine response with tool results
-        if response:
-            return f"{response}\n\n{' '.join(tool_results)}"
-        else:
-            return ' '.join(tool_results)
 
     def _determine_voice(self, text: str, detected_language: str = None) -> str:
         if detected_language:
@@ -132,23 +113,26 @@ Your goal: Accomplish user requests accurately and completely through proper too
 
             # Build messages for the API call
             messages = []
-            messages.append(Message(role="system", content=system_prompt))
+            messages.append({"role": "system", "content": system_prompt})
             messages.extend(self.conversation_history[:-1])  # Exclude the current user message
-            messages.append(Message(role="user", content=user_input))
+            messages.append({"role": "user", "content": user_input})
 
+            # Pass the tool_manager as tool_executor to handle tool calls automatically
             response = await self.llm.chat_completion_async(
                 messages=messages,
-                tools=tools
+                tools=tools,
+                tool_executor=self.tool_manager
             )
 
             message = response["choices"][0]["message"]
             content = message.get("content", "")
-            tool_calls = message.get("tool_calls")
 
-            processed_response = await self._process_llm_response(content, tool_calls)
-            self._add_to_conversation_history("assistant", processed_response)
+            # Log tool iterations if any occurred
+            if response.get("tool_iterations", 0) > 1:
+                logger.info(f"Completed response after {response['tool_iterations']} tool iterations")
 
-            return processed_response
+            self._add_to_conversation_history("assistant", content)
+            return content
 
         except Exception as e:
             logger.error(f"Error generating response: {e}")
