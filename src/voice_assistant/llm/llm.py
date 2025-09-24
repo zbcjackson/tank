@@ -3,7 +3,6 @@ from typing import List, Dict, Any, Optional, AsyncGenerator
 from pydantic import BaseModel, Field
 import logging
 from openai import AsyncOpenAI
-from openai import APIError, RateLimitError, APIConnectionError, AuthenticationError
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +47,13 @@ class LLM:
 
             # Convert response to dict format for compatibility
             return {
-                "choices": [
-                    {
-                        "message": {
-                            "role": response.choices[0].message.role,
-                            "content": response.choices[0].message.content
-                        },
-                        "finish_reason": response.choices[0].finish_reason
-                    }
-                ],
+                "choices": [{
+                    "message": {
+                        "role": response.choices[0].message.role,
+                        "content": response.choices[0].message.content
+                    },
+                    "finish_reason": response.choices[0].finish_reason
+                }],
                 "usage": {
                     "prompt_tokens": response.usage.prompt_tokens if response.usage else 0,
                     "completion_tokens": response.usage.completion_tokens if response.usage else 0,
@@ -65,18 +62,6 @@ class LLM:
                 "model": response.model,
                 "id": response.id
             }
-        except APIError as e:
-            logger.error(f"OpenAI API error: {e}")
-            raise
-        except RateLimitError as e:
-            logger.error(f"OpenAI rate limit exceeded: {e}")
-            raise
-        except APIConnectionError as e:
-            logger.error(f"OpenAI API connection error: {e}")
-            raise
-        except AuthenticationError as e:
-            logger.error(f"OpenAI authentication error: {e}")
-            raise
         except Exception as e:
             logger.error(f"Chat completion error: {e}")
             raise
@@ -104,18 +89,6 @@ class LLM:
                     delta = chunk.choices[0].delta
                     if delta and delta.content:
                         yield delta.content
-        except APIError as e:
-            logger.error(f"OpenAI API stream error: {e}")
-            raise
-        except RateLimitError as e:
-            logger.error(f"OpenAI stream rate limit exceeded: {e}")
-            raise
-        except APIConnectionError as e:
-            logger.error(f"OpenAI stream API connection error: {e}")
-            raise
-        except AuthenticationError as e:
-            logger.error(f"OpenAI stream authentication error: {e}")
-            raise
         except Exception as e:
             logger.error(f"Chat completion stream error: {e}")
             raise
@@ -126,7 +99,6 @@ class LLM:
         temperature: float = 0.7,
         max_tokens: int = 1000
     ) -> str:
-        import asyncio
         result = asyncio.run(self.chat_completion_async(messages, temperature, max_tokens))
         return result["choices"][0]["message"]["content"]
 
@@ -161,7 +133,6 @@ class LLM:
         system_message: Optional[str] = None,
         conversation_history: Optional[List[Message]] = None
     ) -> str:
-        import asyncio
         return asyncio.run(self.simple_chat_async(user_message, system_message, conversation_history))
 
     async def check_connection(self) -> bool:
@@ -169,18 +140,6 @@ class LLM:
             test_messages = [Message(role="user", content="Hello, can you hear me?")]
             await self.chat_completion_async(test_messages, max_tokens=16)
             return True
-        except APIError as e:
-            logger.error(f"Connection check API error: {e}")
-            return False
-        except RateLimitError as e:
-            logger.error(f"Connection check rate limit exceeded: {e}")
-            return False
-        except APIConnectionError as e:
-            logger.error(f"Connection check API connection error: {e}")
-            return False
-        except AuthenticationError as e:
-            logger.error(f"Connection check authentication error: {e}")
-            return False
         except Exception as e:
             logger.error(f"Connection check failed: {e}")
             return False
