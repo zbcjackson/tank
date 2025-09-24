@@ -1,245 +1,16 @@
 import asyncio
 import inspect
 from typing import Dict, Any, Callable, Optional, List
-from abc import ABC, abstractmethod
-from pydantic import BaseModel
 import logging
-import requests
-from bs4 import BeautifulSoup
-import re
-from urllib.parse import quote_plus
+import json
+
+from .base import BaseTool, ToolInfo, ToolParameter
+from .weather import WeatherTool
+from .time import TimeTool
+from .calculator import CalculatorTool
+from .web_search import WebSearchTool
 
 logger = logging.getLogger(__name__)
-
-class ToolParameter(BaseModel):
-    name: str
-    type: str
-    description: str
-    required: bool = True
-    default: Any = None
-
-class ToolInfo(BaseModel):
-    name: str
-    description: str
-    parameters: List[ToolParameter]
-
-class BaseTool(ABC):
-    @abstractmethod
-    def get_info(self) -> ToolInfo:
-        pass
-
-    @abstractmethod
-    async def execute(self, **kwargs) -> Any:
-        pass
-
-class WeatherTool(BaseTool):
-    def get_info(self) -> ToolInfo:
-        return ToolInfo(
-            name="get_weather",
-            description="Get current weather information for a location",
-            parameters=[
-                ToolParameter(
-                    name="location",
-                    type="string",
-                    description="The location to get weather for (e.g., 'New York', 'Beijing')",
-                    required=True
-                )
-            ]
-        )
-
-    async def execute(self, location: str) -> Dict[str, Any]:
-        logger.info(f"Getting weather for: {location}")
-        return {
-            "location": location,
-            "temperature": "22°C",
-            "condition": "Sunny",
-            "message": f"The weather in {location} is sunny with a temperature of 22°C"
-        }
-
-class TimeTool(BaseTool):
-    def get_info(self) -> ToolInfo:
-        return ToolInfo(
-            name="get_time",
-            description="Get current time and date",
-            parameters=[]
-        )
-
-    async def execute(self) -> Dict[str, Any]:
-        import datetime
-        now = datetime.datetime.now()
-        return {
-            "current_time": now.strftime("%Y-%m-%d %H:%M:%S"),
-            "message": f"The current time is {now.strftime('%Y-%m-%d %H:%M:%S')}"
-        }
-
-class CalculatorTool(BaseTool):
-    def get_info(self) -> ToolInfo:
-        return ToolInfo(
-            name="calculate",
-            description="Perform basic mathematical calculations",
-            parameters=[
-                ToolParameter(
-                    name="expression",
-                    type="string",
-                    description="Mathematical expression to evaluate (e.g., '2 + 2', '10 * 5')",
-                    required=True
-                )
-            ]
-        )
-
-    async def execute(self, expression: str) -> Dict[str, Any]:
-        logger.info(f"Calculating: {expression}")
-        try:
-            import ast
-            import operator as op
-
-            # Supported operators
-            operators = {
-                ast.Add: op.add,
-                ast.Sub: op.sub,
-                ast.Mult: op.mul,
-                ast.Div: op.truediv,
-                ast.Pow: op.pow,
-                ast.BitXor: op.xor,
-                ast.USub: op.neg,
-            }
-
-            def eval_expr(expr):
-                return eval_(ast.parse(expr, mode='eval').body)
-
-            def eval_(node):
-                if isinstance(node, ast.Constant):
-                    return node.value
-                elif isinstance(node, ast.BinOp):
-                    return operators[type(node.op)](eval_(node.left), eval_(node.right))
-                elif isinstance(node, ast.UnaryOp):
-                    return operators[type(node.op)](eval_(node.operand))
-                else:
-                    raise TypeError(node)
-
-            result = eval_expr(expression)
-            return {
-                "expression": expression,
-                "result": result,
-                "message": f"{expression} = {result}"
-            }
-
-        except Exception as e:
-            error_message = f"Error calculating {expression}: {str(e)}"
-            logger.error(error_message)
-            return {
-                "expression": expression,
-                "error": str(e),
-                "message": error_message
-            }
-
-class WebSearchTool(BaseTool):
-    def get_info(self) -> ToolInfo:
-        return ToolInfo(
-            name="web_search",
-            description="Search the web for current information when you don't know the answer to a question",
-            parameters=[
-                ToolParameter(
-                    name="query",
-                    type="string",
-                    description="Search query to find information (e.g., 'current weather in Beijing', 'latest news about AI')",
-                    required=True
-                )
-            ]
-        )
-
-    async def execute(self, query: str) -> Dict[str, Any]:
-        logger.info(f"Web searching for: {query}")
-        try:
-            # Use DuckDuckGo Instant Answer API (doesn't require API key)
-            search_url = f"https://api.duckduckgo.com/?q={quote_plus(query)}&format=json&no_html=1&skip_disambig=1"
-
-            response = requests.get(search_url, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-
-            # Try to get instant answer first
-            if data.get("AbstractText"):
-                return {
-                    "query": query,
-                    "source": "DuckDuckGo",
-                    "answer": data["AbstractText"],
-                    "url": data.get("AbstractURL", ""),
-                    "message": f"Found information about '{query}': {data['AbstractText'][:200]}..."
-                }
-
-            # If no instant answer, try definition
-            if data.get("Definition"):
-                return {
-                    "query": query,
-                    "source": "DuckDuckGo",
-                    "answer": data["Definition"],
-                    "url": data.get("DefinitionURL", ""),
-                    "message": f"Definition of '{query}': {data['Definition'][:200]}..."
-                }
-
-            # If no structured data, search for basic web results
-            search_results = data.get("RelatedTopics", [])
-            if search_results and isinstance(search_results[0], dict):
-                first_result = search_results[0]
-                if "Text" in first_result:
-                    return {
-                        "query": query,
-                        "source": "DuckDuckGo",
-                        "answer": first_result["Text"],
-                        "url": first_result.get("FirstURL", ""),
-                        "message": f"Found information about '{query}': {first_result['Text'][:200]}..."
-                    }
-
-            # Fallback: simple Google search scraping (use sparingly)
-            return await self._fallback_search(query)
-
-        except Exception as e:
-            error_message = f"Error searching for '{query}': {str(e)}"
-            logger.error(error_message)
-            return {
-                "query": query,
-                "error": str(e),
-                "message": f"抱歉，我无法搜索到关于'{query}'的信息。请尝试重新表述您的问题。"
-            }
-
-    async def _fallback_search(self, query: str) -> Dict[str, Any]:
-        """Fallback search using basic web scraping"""
-        try:
-            # Use a simple search engine that allows scraping
-            search_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-
-            response = requests.get(search_url, headers=headers, timeout=10)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.content, 'html.parser')
-
-            # Look for search result snippets
-            results = soup.find_all('a', class_='result__snippet')
-            if results:
-                snippet = results[0].get_text(strip=True)
-                return {
-                    "query": query,
-                    "source": "Web Search",
-                    "answer": snippet,
-                    "message": f"找到关于'{query}'的信息: {snippet[:200]}..."
-                }
-
-            return {
-                "query": query,
-                "source": "Web Search",
-                "message": f"抱歉，没有找到关于'{query}'的具体信息。"
-            }
-
-        except Exception as e:
-            return {
-                "query": query,
-                "error": str(e),
-                "message": f"搜索时出现错误: {str(e)}"
-            }
 
 class ToolManager:
     def __init__(self):
@@ -348,7 +119,6 @@ class ToolManager:
         """Execute tool from OpenAI function call format"""
         function_name = tool_call.function.name
         try:
-            import json
             arguments = json.loads(tool_call.function.arguments)
         except json.JSONDecodeError:
             return {
@@ -360,7 +130,6 @@ class ToolManager:
 
     def parse_tool_call(self, text: str) -> Optional[Dict[str, Any]]:
         import re
-        import json
 
         tool_pattern = r'(\w+)\((.*?)\)'
         match = re.search(tool_pattern, text)
