@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from dotenv import load_dotenv
 import logging
 
@@ -20,9 +20,10 @@ class VoiceAssistantConfig(BaseModel):
     log_level: str = Field(default="INFO", description="Logging level")
     max_conversation_history: int = Field(default=10, description="Maximum number of conversation turns to keep")
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8"
+    )
 
 def load_config(config_path: Optional[Path] = None) -> VoiceAssistantConfig:
     if config_path is None:

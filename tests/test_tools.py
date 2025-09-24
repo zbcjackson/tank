@@ -6,17 +6,36 @@ from src.voice_assistant.tools.manager import ToolManager, WeatherTool, TimeTool
 class TestToolManager:
     @pytest.fixture
     def tool_manager(self):
+        # Tool manager without API key (no web search)
         return ToolManager()
+
+    @pytest.fixture
+    def tool_manager_with_search(self):
+        # Tool manager with API key (includes web search)
+        return ToolManager(serper_api_key="test_api_key")
 
     def test_tool_registration(self, tool_manager):
         assert "get_weather" in tool_manager.tools
         assert "get_time" in tool_manager.tools
         assert "calculate" in tool_manager.tools
-        assert "web_search" in tool_manager.tools
+        # Web search should not be available without API key
+        assert "web_search" not in tool_manager.tools
+
+    def test_tool_registration_with_search(self, tool_manager_with_search):
+        assert "get_weather" in tool_manager_with_search.tools
+        assert "get_time" in tool_manager_with_search.tools
+        assert "calculate" in tool_manager_with_search.tools
+        assert "web_search" in tool_manager_with_search.tools
 
     def test_get_tool_info(self, tool_manager):
         info_list = tool_manager.get_tool_info()
-        assert len(info_list) == 4
+        assert len(info_list) == 3  # Without web search
+        assert any(tool.name == "get_weather" for tool in info_list)
+        assert not any(tool.name == "web_search" for tool in info_list)
+
+    def test_get_tool_info_with_search(self, tool_manager_with_search):
+        info_list = tool_manager_with_search.get_tool_info()
+        assert len(info_list) == 4  # With web search
         assert any(tool.name == "get_weather" for tool in info_list)
         assert any(tool.name == "web_search" for tool in info_list)
 
@@ -62,19 +81,22 @@ class TestToolManager:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_web_search_tool(self, tool_manager):
+    async def test_web_search_tool(self, tool_manager_with_search):
         # Test that the tool can be called (mock the response since we don't want to make real web requests in tests)
-        with patch('requests.get') as mock_get:
-            # Mock the DuckDuckGo API response
+        with patch('requests.post') as mock_post:
+            # Mock the Serper API response
             mock_response = Mock()
             mock_response.json.return_value = {
-                "AbstractText": "Test search result from DuckDuckGo",
-                "AbstractURL": "https://example.com"
+                "organic": [{
+                    "title": "Test Title",
+                    "snippet": "Test search result from Serper",
+                    "link": "https://example.com"
+                }]
             }
             mock_response.raise_for_status.return_value = None
-            mock_get.return_value = mock_response
+            mock_post.return_value = mock_response
 
-            result = await tool_manager.execute_tool("web_search", query="test query")
+            result = await tool_manager_with_search.execute_tool("web_search", query="test query")
             assert "answer" in result
             assert result["query"] == "test query"
-            assert result["source"] == "DuckDuckGo"
+            assert result["source"] == "Serper (Google Search)"

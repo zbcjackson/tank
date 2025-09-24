@@ -43,8 +43,10 @@ class TestConfig:
             temp_path = f.name
 
         try:
-            config = load_config(Path(temp_path))
-            assert config.llm_api_key == "temp_key"
-            assert config.whisper_model_size == "medium"
+            # Clear environment variables that might interfere
+            with patch.dict(os.environ, {}, clear=True):
+                config = load_config(Path(temp_path))
+                assert config.llm_api_key == "temp_key"
+                assert config.whisper_model_size == "medium"
         finally:
             os.unlink(temp_path)
