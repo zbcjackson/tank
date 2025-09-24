@@ -23,7 +23,7 @@ class VoiceAssistant:
             model=self.config.llm_model,
             base_url=self.config.llm_base_url
         )
-        self.tool_manager = ToolManager()
+        self.tool_manager = ToolManager(serper_api_key=self.config.serper_api_key)
 
         self.conversation_history: List[Message] = []
         self.current_language = self.config.default_language

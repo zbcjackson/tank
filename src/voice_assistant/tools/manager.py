@@ -13,7 +13,8 @@ from .web_search import WebSearchTool
 logger = logging.getLogger(__name__)
 
 class ToolManager:
-    def __init__(self):
+    def __init__(self, serper_api_key: str = None):
+        self.serper_api_key = serper_api_key
         self.tools: Dict[str, BaseTool] = {}
         self.register_default_tools()
 
@@ -22,8 +23,11 @@ class ToolManager:
             WeatherTool(),
             TimeTool(),
             CalculatorTool(),
-            WebSearchTool()
         ]
+
+        # Only add WebSearchTool if we have the API key
+        if self.serper_api_key:
+            default_tools.append(WebSearchTool(self.serper_api_key))
 
         for tool in default_tools:
             self.register_tool(tool)

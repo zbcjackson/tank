@@ -1,7 +1,6 @@
 import logging
 import requests
-from bs4 import BeautifulSoup
-from urllib.parse import quote_plus
+import json
 from typing import Dict, Any
 from .base import BaseTool, ToolInfo, ToolParameter
 
@@ -9,6 +8,9 @@ logger = logging.getLogger(__name__)
 
 
 class WebSearchTool(BaseTool):
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+
     def get_info(self) -> ToolInfo:
         return ToolInfo(
             name="web_search",
@@ -26,48 +28,83 @@ class WebSearchTool(BaseTool):
     async def execute(self, query: str) -> Dict[str, Any]:
         logger.info(f"Web searching for: {query}")
         try:
-            # Use DuckDuckGo Instant Answer API (doesn't require API key)
-            search_url = f"https://api.duckduckgo.com/?q={quote_plus(query)}&format=json&no_html=1&skip_disambig=1"
+            # Use Serper API for web search
+            url = "https://google.serper.dev/search"
 
-            response = requests.get(search_url, timeout=10)
+            payload = json.dumps({
+                "q": query,
+                "num": 5  # Get top 5 results
+            })
+
+            headers = {
+                'X-API-KEY': self.api_key,
+                'Content-Type': 'application/json'
+            }
+
+            response = requests.post(url, headers=headers, data=payload, timeout=10)
             response.raise_for_status()
             data = response.json()
 
-            # Try to get instant answer first
-            if data.get("AbstractText"):
-                return {
-                    "query": query,
-                    "source": "DuckDuckGo",
-                    "answer": data["AbstractText"],
-                    "url": data.get("AbstractURL", ""),
-                    "message": f"Found information about '{query}': {data['AbstractText'][:200]}..."
-                }
+            # Process search results
+            if 'organic' in data and len(data['organic']) > 0:
+                results = data['organic'][:3]  # Take top 3 results
 
-            # If no instant answer, try definition
-            if data.get("Definition"):
-                return {
-                    "query": query,
-                    "source": "DuckDuckGo",
-                    "answer": data["Definition"],
-                    "url": data.get("DefinitionURL", ""),
-                    "message": f"Definition of '{query}': {data['Definition'][:200]}..."
-                }
+                # Build a comprehensive answer from multiple sources
+                answer_parts = []
+                sources = []
 
-            # If no structured data, search for basic web results
-            search_results = data.get("RelatedTopics", [])
-            if search_results and isinstance(search_results[0], dict):
-                first_result = search_results[0]
-                if "Text" in first_result:
+                for result in results:
+                    title = result.get('title', '')
+                    snippet = result.get('snippet', '')
+                    link = result.get('link', '')
+
+                    if snippet:
+                        answer_parts.append(f"{title}: {snippet}")
+                        sources.append(link)
+
+                # Check if there's a knowledge graph result
+                if 'knowledgeGraph' in data:
+                    kg = data['knowledgeGraph']
+                    kg_title = kg.get('title', '')
+                    kg_description = kg.get('description', '')
+                    if kg_title and kg_description:
+                        answer_parts.insert(0, f"{kg_title}: {kg_description}")
+
+                # Check if there's a featured snippet/answer box
+                if 'answerBox' in data:
+                    answer_box = data['answerBox']
+                    answer_text = answer_box.get('answer', '') or answer_box.get('snippet', '')
+                    if answer_text:
+                        answer_parts.insert(0, f"Direct Answer: {answer_text}")
+
+                if answer_parts:
+                    combined_answer = "\n\n".join(answer_parts[:3])  # Limit to 3 parts
                     return {
                         "query": query,
-                        "source": "DuckDuckGo",
-                        "answer": first_result["Text"],
-                        "url": first_result.get("FirstURL", ""),
-                        "message": f"Found information about '{query}': {first_result['Text'][:200]}..."
+                        "source": "Serper (Google Search)",
+                        "answer": combined_answer,
+                        "urls": sources[:3],
+                        "message": f"Found information about '{query}': {combined_answer[:200]}..."
                     }
 
-            # Fallback: simple Google search scraping (use sparingly)
-            return await self._fallback_search(query)
+            # If no organic results, try to provide any available information
+            if 'answerBox' in data:
+                answer_box = data['answerBox']
+                answer_text = answer_box.get('answer', '') or answer_box.get('snippet', '')
+                if answer_text:
+                    return {
+                        "query": query,
+                        "source": "Serper (Google Search)",
+                        "answer": answer_text,
+                        "url": answer_box.get('link', ''),
+                        "message": f"Found direct answer for '{query}': {answer_text[:200]}..."
+                    }
+
+            return {
+                "query": query,
+                "source": "Serper (Google Search)",
+                "message": f"Sorry, no specific information found for '{query}'. You may want to try rephrasing your search query."
+            }
 
         except Exception as e:
             error_message = f"Error searching for '{query}': {str(e)}"
@@ -75,43 +112,5 @@ class WebSearchTool(BaseTool):
             return {
                 "query": query,
                 "error": str(e),
-                "message": f"抱歉，我无法搜索到关于'{query}'的信息。请尝试重新表述您的问题。"
-            }
-
-    async def _fallback_search(self, query: str) -> Dict[str, Any]:
-        """Fallback search using basic web scraping"""
-        try:
-            # Use a simple search engine that allows scraping
-            search_url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-
-            response = requests.get(search_url, headers=headers, timeout=10)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.content, 'html.parser')
-
-            # Look for search result snippets
-            results = soup.find_all('a', class_='result__snippet')
-            if results:
-                snippet = results[0].get_text(strip=True)
-                return {
-                    "query": query,
-                    "source": "Web Search",
-                    "answer": snippet,
-                    "message": f"找到关于'{query}'的信息: {snippet[:200]}..."
-                }
-
-            return {
-                "query": query,
-                "source": "Web Search",
-                "message": f"抱歉，没有找到关于'{query}'的具体信息。"
-            }
-
-        except Exception as e:
-            return {
-                "query": query,
-                "error": str(e),
-                "message": f"搜索时出现错误: {str(e)}"
+                "message": f"抱歉，搜索'{query}'时出现错误。请稍后再试或重新表述您的问题。"
             }

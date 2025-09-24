@@ -11,6 +11,7 @@ class VoiceAssistantConfig(BaseModel):
     llm_api_key: str = Field(..., min_length=1, description="LLM API key for accessing the language model")
     llm_model: str = Field(default="anthropic/claude-3-5-nano", description="LLM model to use")
     llm_base_url: str = Field(default="https://openrouter.ai/api/v1", description="LLM API base URL")
+    serper_api_key: Optional[str] = Field(default=None, description="Serper API key for web search functionality")
     whisper_model_size: str = Field(default="base", description="Whisper model size (tiny, base, small, medium, large)")
     default_language: str = Field(default="zh", description="Default language for processing (auto, en, zh)")
     audio_duration: float = Field(default=5.0, description="Default audio recording duration in seconds")
@@ -38,6 +39,7 @@ def load_config(config_path: Optional[Path] = None) -> VoiceAssistantConfig:
             llm_api_key=os.getenv("LLM_API_KEY", ""),
             llm_model=os.getenv("LLM_MODEL", "anthropic/claude-3-5-nano"),
             llm_base_url=os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
+            serper_api_key=os.getenv("SERPER_API_KEY", ""),
             whisper_model_size=os.getenv("WHISPER_MODEL_SIZE", "base"),
             default_language=os.getenv("DEFAULT_LANGUAGE", "zh"),
             audio_duration=float(os.getenv("AUDIO_DURATION", "5.0")),
@@ -49,6 +51,10 @@ def load_config(config_path: Optional[Path] = None) -> VoiceAssistantConfig:
 
         if not config.llm_api_key:
             raise ValueError("LLM_API_KEY is required but not set")
+
+        # Serper API key is optional - web search will not be available without it
+        if not config.serper_api_key:
+            logger.warning("SERPER_API_KEY is not set. Web search functionality will not be available.")
 
         return config
 
@@ -63,6 +69,9 @@ LLM_API_KEY=your_api_key_here
 # LLM Configuration
 LLM_MODEL=anthropic/claude-3-5-nano
 LLM_BASE_URL=https://openrouter.ai/api/v1
+
+# Serper API Key - Get from https://serper.dev/
+SERPER_API_KEY=your_serper_api_key_here
 
 # Whisper model size: tiny, base, small, medium, large
 WHISPER_MODEL_SIZE=base
