@@ -5,7 +5,7 @@ description = "Voice assistant with speech recognition, TTS, and LLM capabilitie
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "openai-whisper>=20231117",
+    "openai-whisper>=20241220",
     "torch>=2.0.0",
     "torchaudio>=2.0.0",
     "openai>=1.0.0",
