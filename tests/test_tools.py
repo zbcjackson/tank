@@ -29,13 +29,13 @@ class TestToolManager:
 
     def test_get_tool_info(self, tool_manager):
         info_list = tool_manager.get_tool_info()
-        assert len(info_list) == 3  # Without web search
+        assert len(info_list) == 4  # Without web search (weather, time, calculator, web_scraper)
         assert any(tool.name == "get_weather" for tool in info_list)
         assert not any(tool.name == "web_search" for tool in info_list)
 
     def test_get_tool_info_with_search(self, tool_manager_with_search):
         info_list = tool_manager_with_search.get_tool_info()
-        assert len(info_list) == 4  # With web search
+        assert len(info_list) == 5  # With web search (weather, time, calculator, web_scraper, web_search)
         assert any(tool.name == "get_weather" for tool in info_list)
         assert any(tool.name == "web_search" for tool in info_list)
 

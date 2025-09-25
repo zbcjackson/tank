@@ -9,6 +9,7 @@ from .weather import WeatherTool
 from .time import TimeTool
 from .calculator import CalculatorTool
 from .web_search import WebSearchTool
+from .web_scraper import WebScraperTool
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ class ToolManager:
             WeatherTool(),
             TimeTool(),
             CalculatorTool(),
+            WebScraperTool(),
         ]
 
         # Only add WebSearchTool if we have the API key

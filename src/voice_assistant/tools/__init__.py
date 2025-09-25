@@ -3,6 +3,7 @@ from .weather import WeatherTool
 from .time import TimeTool
 from .calculator import CalculatorTool
 from .web_search import WebSearchTool
+from .web_scraper import WebScraperTool
 from .manager import ToolManager
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     "TimeTool",
     "CalculatorTool",
     "WebSearchTool",
+    "WebScraperTool",
     "ToolManager"
 ]
