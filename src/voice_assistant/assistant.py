@@ -136,7 +136,7 @@ Your goal: Accomplish user requests accurately and completely through proper too
 
         except Exception as e:
             logger.error(f"Error generating response: {e}")
-            return "I'm sorry, I encountered an error while processing your request. Please try again."
+            return "对不起，出现错误，请重试。"
 
     async def speak_response(self, text: str):
         try:
@@ -151,7 +151,7 @@ Your goal: Accomplish user requests accurately and completely through proper too
 
         try:
             await self.speaker.speak_async(
-                "你好！我是Tank语音助手。说'退出'来停止。",
+                "你好！我是Tank语音助手。",
                 voice=self.config.tts_voice_zh
             )
 
