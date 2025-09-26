@@ -229,10 +229,10 @@ Your goal: Accomplish user requests accurately and completely through proper too
                     response = await self.generate_response(user_input)
 
                     if response:  # Only speak if we got a response (not interrupted)
-                        print(f"🤖 Assistant: {response}")
-                        await self.speak_response(response)
                         # Clear transcription after LLM response is delivered
                         self.transcriber.clear_transcription_after_response()
+                        print(f"🤖 Assistant: {response}")
+                        await self.speak_response(response)
 
         except KeyboardInterrupt:
             logger.info("Conversation interrupted by user")
