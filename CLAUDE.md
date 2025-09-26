@@ -69,11 +69,11 @@ uv run python -m pytest tests/ --watch
 
 ### Core Components
 
-**VoiceAssistant** (`src/voice_assistant/assistant.py`): Main orchestrator that coordinates all components:
-- Manages conversation flow and history
-- Handles voice input/output processing
-- Integrates with LLM for response generation
-- Maintains language detection and TTS voice selection
+**VoiceAssistant** (`src/voice_assistant/assistant.py`): Main orchestrator with continuous operation:
+- Always-listening conversation flow with real-time interruption
+- Task management system that cancels LLM and TTS operations when speech detected
+- Seamless switching between listening, processing, and speaking states
+- Maintains conversation history and language detection across sessions
 
 **LLM** (`src/voice_assistant/llm/llm.py`): OpenAI-compatible API integration with automatic tool calling:
 - Supports any OpenAI-compatible endpoint (OpenRouter, OpenAI, custom)
@@ -89,14 +89,18 @@ uv run python -m pytest tests/ --watch
 
 ### Audio Processing
 
-**WhisperTranscriber** (`src/voice_assistant/audio/transcription.py`): Speech-to-text using OpenAI Whisper
-- Supports multiple model sizes (tiny to large)
-- Language detection and multi-language support
-- Microphone input with configurable duration
+**ContinuousTranscriber** (`src/voice_assistant/audio/continuous_transcription.py`): Always-on speech detection and transcription
+- Continuous voice activity detection using energy thresholds
+- Automatic speech start/end detection with 2-second silence timeout
+- Real-time audio streaming with 100ms chunks
+- Interruption callback system for stopping other tasks when speech detected
+- Non-blocking transcription using thread pool execution
 
-**EdgeTTSSpeaker** (`src/voice_assistant/audio/tts.py`): Text-to-speech using Microsoft Edge TTS
+**EdgeTTSSpeaker** (`src/voice_assistant/audio/tts.py`): Interruptible text-to-speech using Microsoft Edge TTS
 - Multiple voice options for Chinese and English
-- Async audio playback
+- Async audio playback with interruption support
+- Process management for audio playback termination
+- Graceful handling of TTS generation interruption
 
 ### Configuration System
 
@@ -123,6 +127,19 @@ All tools inherit from `BaseTool` (`src/voice_assistant/tools/base.py`) and are 
 - LLM handles iterative tool calling until completion
 - Tool results are properly formatted as tool messages in conversation history
 
+### Continuous Listening System
+- Always-on voice activity detection with configurable energy thresholds
+- Automatic speech segmentation: starts recording on speech, stops after 2 seconds of silence
+- Real-time interruption: any detected speech immediately cancels current LLM/TTS tasks
+- Non-blocking audio processing with 100ms chunk granularity
+- Thread-pool transcription to avoid blocking the event loop
+
+### Task Interruption Pattern
+- All long-running tasks (LLM completion, TTS generation/playback) are cancellable
+- Speech detection triggers immediate interruption of current operations
+- Graceful task cleanup with proper resource management
+- Conversation state preservation across interruptions
+
 ### Language Handling
 - Automatic language detection from speech input
 - Context-aware TTS voice selection (Chinese vs English)
@@ -140,8 +157,9 @@ All tools inherit from `BaseTool` (`src/voice_assistant/tools/base.py`) and are 
 
 ## Development Notes
 
-- The system uses async/await throughout for better performance
-- Conversation history is automatically managed with configurable limits
-- Tool calling supports multiple iterations per user request
-- The assistant maintains context across conversation turns
+- The system uses continuous listening with real-time speech interruption
+- All async tasks are designed to be cancellable for responsive interaction
+- Voice activity detection uses energy-based thresholds (configurable)
+- The assistant maintains context across interrupted conversations
 - Both Chinese and English are first-class supported languages
+- Test coverage includes voice activity detection, interruption, and async task management

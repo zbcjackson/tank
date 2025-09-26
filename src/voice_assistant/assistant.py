@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any
 from pathlib import Path
 from openai.types.chat import ChatCompletionMessageParam
 
-from .audio.transcription import WhisperTranscriber
+from .audio.continuous_transcription import ContinuousTranscriber
 from .audio.tts import EdgeTTSSpeaker
 from .llm.llm import LLM
 from .tools.manager import ToolManager
@@ -17,7 +17,7 @@ class VoiceAssistant:
         self.config = load_config(config_path)
         setup_logging(self.config.log_level)
 
-        self.transcriber = WhisperTranscriber(self.config.whisper_model_size)
+        self.transcriber = ContinuousTranscriber(self.config.whisper_model_size)
         self.speaker = EdgeTTSSpeaker()
         self.llm = LLM(
             api_key=self.config.llm_api_key,
@@ -30,7 +30,31 @@ class VoiceAssistant:
         self.current_language = self.config.default_language
         self.is_running = False
 
+        # Current task management for interruption
+        self.current_llm_task = None
+        self.current_tts_task = None
+
+        # Set up interruption callback
+        self.transcriber.set_interrupt_callback(self._handle_speech_interruption)
+
         logger.info("Voice Assistant initialized successfully")
+
+    def _handle_speech_interruption(self):
+        """Handle speech interruption - cancel current tasks"""
+        logger.info("Speech detected - interrupting current tasks")
+
+        # Interrupt TTS
+        self.speaker.interrupt_speech()
+
+        # Cancel current LLM task if running
+        if self.current_llm_task and not self.current_llm_task.done():
+            self.current_llm_task.cancel()
+            logger.info("Cancelled LLM task due to speech interruption")
+
+        # Cancel current TTS task if running
+        if self.current_tts_task and not self.current_tts_task.done():
+            self.current_tts_task.cancel()
+            logger.info("Cancelled TTS task due to speech interruption")
 
     def _get_system_prompt(self) -> str:
         return """You are Tank, a helpful voice assistant that provides conversational, spoken responses.
@@ -79,32 +103,33 @@ Your goal: Accomplish user requests accurately and completely through proper too
         else:
             return self.config.tts_voice_en
 
-    async def process_voice_input(self, duration: float = None) -> Optional[str]:
-        if duration is None:
-            duration = self.config.audio_duration
-
+    async def wait_for_speech_input(self) -> Optional[str]:
+        """Wait for speech input from continuous transcriber"""
         try:
-            logger.info("Listening for voice input...")
-            text, detected_language = self.transcriber.transcribe_from_microphone(
-                duration=duration,
-                language=self.current_language if self.current_language != "auto" else None
-            )
+            # Wait for transcription to become available
+            while self.is_running:
+                transcription = self.transcriber.get_latest_transcription()
+                if transcription:
+                    text, detected_language = transcription
+                    logger.info("latest transcription: " + str(text))
+                    if text.strip():
+                        self.current_language = detected_language
+                        logger.info(f"Received speech ({detected_language}): {text}")
+                        return text
+                else:
+                    logger.info("No transcription received")
 
-            if not text.strip():
-                logger.warning("No speech detected")
-                return None
+                # Small sleep to avoid busy waiting
+                await asyncio.sleep(0.1)
 
-            self.current_language = detected_language
-            logger.info(f"Transcribed ({detected_language}): {text}")
-
-            return text
+            return None
 
         except Exception as e:
-            logger.error(f"Error processing voice input: {e}")
-            await self.speaker.speak_async("Sorry, I couldn't hear you clearly. Please try again.")
+            logger.error(f"Error waiting for speech input: {e}")
             return None
 
     async def generate_response(self, user_input: str) -> str:
+        logger.info(f"Generating response: {user_input}")
         try:
             self._add_to_conversation_history("user", user_input)
 
@@ -117,12 +142,20 @@ Your goal: Accomplish user requests accurately and completely through proper too
             messages.extend(self.conversation_history[:-1])  # Exclude the current user message
             messages.append({"role": "user", "content": user_input})
 
-            # Pass the tool_manager as tool_executor to handle tool calls automatically
-            response = await self.llm.chat_completion_async(
-                messages=messages,
-                tools=tools,
-                tool_executor=self.tool_manager
+            # Create LLM task and track it for potential cancellation
+            self.current_llm_task = asyncio.create_task(
+                self.llm.chat_completion_async(
+                    messages=messages,
+                    tools=tools,
+                    tool_executor=self.tool_manager
+                )
             )
+
+            try:
+                response = await self.current_llm_task
+            except asyncio.CancelledError:
+                logger.info("LLM task was cancelled due to speech interruption")
+                return ""
 
             message = response["choices"][0]["message"]
             content = message.get("content", "")
@@ -137,40 +170,64 @@ Your goal: Accomplish user requests accurately and completely through proper too
         except Exception as e:
             logger.error(f"Error generating response: {e}")
             return "对不起，出现错误，请重试。"
+        finally:
+            self.current_llm_task = None
 
     async def speak_response(self, text: str):
+        if not text.strip():  # Don't speak empty responses
+            return
+
         try:
             voice = self._determine_voice(text, self.current_language)
-            await self.speaker.speak_async(text, voice=voice, language=self.current_language)
+
+            # Create TTS task and track it for potential cancellation
+            self.current_tts_task = asyncio.create_task(
+                self.speaker.speak_async(text, voice=voice, language=self.current_language)
+            )
+
+            try:
+                await self.current_tts_task
+            except asyncio.CancelledError:
+                logger.info("TTS task was cancelled due to speech interruption")
+
         except Exception as e:
             logger.error(f"Error speaking response: {e}")
+        finally:
+            self.current_tts_task = None
 
     async def conversation_loop(self):
         self.is_running = True
         logger.info("Starting voice assistant conversation loop")
 
         try:
-            await self.speaker.speak_async(
-                "你好！我是Tank语音助手。",
-                voice=self.config.tts_voice_zh
-            )
+            # Start welcome message
+            await self.speak_response("你好！我是Tank语音助手。")
+
+            # Start continuous listening in background
+            listening_task = asyncio.create_task(self.transcriber.start_continuous_listening())
+
+            print("🎤 Voice assistant is now listening continuously...")
+            print("Say something to interact. I will interrupt myself if you speak while I'm responding.")
+            print("Say 'quit', 'exit', 'stop', 'bye', 'goodbye', '退出', '再见', or '停止' to exit.")
 
             while self.is_running:
-                print("\n🎤 Listening... (Press Ctrl+C to stop)")
-
-                user_input = await self.process_voice_input()
+                # Wait for speech input
+                user_input = await self.wait_for_speech_input()
 
                 if user_input:
+                    # Check for exit commands
                     if user_input.lower().strip() in ["quit", "exit", "stop", "bye", "goodbye", "退出", "再见", "停止"]:
-                        await self.speaker.speak_async("再见！祝你有美好的一天！", voice=self.config.tts_voice_zh)
+                        await self.speak_response("再见！祝你有美好的一天！")
                         break
 
                     print(f"🗣️  You said: {user_input}")
 
+                    # Generate response (can be interrupted)
                     response = await self.generate_response(user_input)
-                    print(f"🤖 Assistant: {response}")
 
-                    await self.speak_response(response)
+                    if response:  # Only speak if we got a response (not interrupted)
+                        print(f"🤖 Assistant: {response}")
+                        await self.speak_response(response)
 
         except KeyboardInterrupt:
             logger.info("Conversation interrupted by user")
@@ -178,7 +235,17 @@ Your goal: Accomplish user requests accurately and completely through proper too
             logger.error(f"Error in conversation loop: {e}")
         finally:
             self.is_running = False
-            await self.speaker.speak_async("语音助手已停止。再见！", voice=self.config.tts_voice_zh)
+            self.transcriber.stop_listening()
+
+            # Wait for listening task to complete
+            if 'listening_task' in locals():
+                listening_task.cancel()
+                try:
+                    await listening_task
+                except asyncio.CancelledError:
+                    pass
+
+            await self.speak_response("语音助手已停止。再见！")
 
     def stop(self):
         self.is_running = False
@@ -186,7 +253,7 @@ Your goal: Accomplish user requests accurately and completely through proper too
 
     async def check_system_status(self) -> Dict[str, Any]:
         status = {
-            "transcriber": "unknown",
+            "continuous_transcriber": "unknown",
             "speaker": "unknown",
             "llm": "unknown",
             "tools": len(self.tool_manager.tools)
@@ -194,9 +261,9 @@ Your goal: Accomplish user requests accurately and completely through proper too
 
         try:
             self.transcriber.load_model()
-            status["transcriber"] = "ready"
+            status["continuous_transcriber"] = "ready"
         except Exception as e:
-            status["transcriber"] = f"error: {e}"
+            status["continuous_transcriber"] = f"error: {e}"
 
         try:
             await self.speaker.speak_async("System check", voice=self.config.tts_voice_en)
