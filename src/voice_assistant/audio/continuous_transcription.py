@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 class ContinuousTranscriber:
     def __init__(self, model_size: str = "base"):
         self.model_size = model_size
-        self.model = None
         self.sample_rate = 16000
         self.chunk_duration = 0.1  # 100ms chunks
         self.chunk_size = int(self.sample_rate * self.chunk_duration)
@@ -41,10 +40,9 @@ class ContinuousTranscriber:
         self.audio_queue = queue.Queue()
         self.loop = None
 
-    def load_model(self):
-        if self.model is None:
-            logger.info(f"Loading Whisper model: {self.model_size}")
-            self.model = whisper.load_model(self.model_size)
+        # Load Whisper model at initialization
+        logger.info(f"Loading Whisper model: {self.model_size}")
+        self.model = whisper.load_model(self.model_size)
 
     def has_voice_activity(self, audio_chunk: np.ndarray) -> bool:
         """Detect if audio chunk contains speech using spectral analysis"""
@@ -153,8 +151,6 @@ class ContinuousTranscriber:
 
     async def transcribe_audio_buffer(self, audio_data: np.ndarray, language: Optional[str] = None) -> Tuple[str, str]:
         """Transcribe audio buffer using Whisper"""
-        self.load_model()
-
         # Save to temporary file
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             with wave.open(f.name, 'wb') as wave_file:

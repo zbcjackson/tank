@@ -10,7 +10,12 @@ from src.voice_assistant.audio.tts import EdgeTTSSpeaker
 class TestContinuousTranscriber:
     @pytest.fixture
     def transcriber(self):
-        return ContinuousTranscriber(model_size="base")
+        # Mock whisper.load_model to avoid loading actual model in tests
+        with patch('src.voice_assistant.audio.continuous_transcription.whisper.load_model') as mock_load:
+            mock_model = Mock()
+            mock_load.return_value = mock_model
+            transcriber = ContinuousTranscriber(model_size="base")
+            return transcriber
 
     @pytest.fixture
     def mock_audio_stream(self):
@@ -275,6 +280,19 @@ class TestContinuousTranscriber:
         # Should not have triggered transcription
         assert not transcription_called
         assert transcriber.accumulated_text == ""
+
+    @pytest.mark.asyncio
+    async def test_whisper_model_loaded_at_initialization(self):
+        """Test that Whisper model is loaded during initialization"""
+        with patch('src.voice_assistant.audio.continuous_transcription.whisper.load_model') as mock_load:
+            mock_model = Mock()
+            mock_load.return_value = mock_model
+
+            transcriber = ContinuousTranscriber(model_size="tiny")
+
+            # Verify model was loaded during init
+            mock_load.assert_called_once_with("tiny")
+            assert transcriber.model is mock_model
 
     @pytest.mark.asyncio
     async def test_audio_queue_processing(self, transcriber):
