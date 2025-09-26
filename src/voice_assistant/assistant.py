@@ -215,7 +215,6 @@ Your goal: Accomplish user requests accurately and completely through proper too
                     # Check for exit commands
                     if user_input.lower().strip() in ["quit", "exit", "stop", "bye", "goodbye", "退出", "再见", "停止"]:
                         await self.speak_response("再见！祝你有美好的一天！")
-                        self.transcriber.clear_transcription_after_response()
                         break
 
                     print(f"🗣️  You said: {user_input}")
