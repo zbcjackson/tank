@@ -202,8 +202,6 @@ Your goal: Accomplish user requests accurately and completely through proper too
         try:
             # Start welcome message
             await self.speak_response("你好！我是Tank语音助手。")
-            # Clear any transcription that might have accumulated during startup
-            self.transcriber.clear_transcription_after_response()
 
             # Start continuous listening in background
             listening_task = asyncio.create_task(self.transcriber.start_continuous_listening())
