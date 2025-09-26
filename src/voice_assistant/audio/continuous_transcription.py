@@ -21,7 +21,7 @@ class ContinuousTranscriber:
 
         # Voice activity detection parameters
         self.energy_threshold = 0.01  # Adjust based on testing
-        self.silence_timeout = 2.0  # 2 seconds of silence before transcription
+        self.silence_timeout = 1.0  # 1 second of silence before transcription
 
         # State management
         self.is_listening = False
