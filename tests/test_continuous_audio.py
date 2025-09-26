@@ -179,7 +179,7 @@ class TestContinuousTranscriber:
 
     @pytest.mark.asyncio
     async def test_get_latest_transcription_returns_accumulated_text(self, transcriber):
-        """Test that get_latest_transcription returns accumulated text and clears it"""
+        """Test that get_latest_transcription returns accumulated text without clearing it"""
         # Set up accumulated text
         transcriber.accumulated_text = "hello world"
         transcriber.accumulated_language = "en"
@@ -187,13 +187,13 @@ class TestContinuousTranscriber:
         result = transcriber.get_latest_transcription()
 
         assert result == ("hello world", "en")
-        # Should clear after getting
-        assert transcriber.accumulated_text == ""
-        assert transcriber.accumulated_language is None
+        # Should NOT clear after getting (different behavior now)
+        assert transcriber.accumulated_text == "hello world"
+        assert transcriber.accumulated_language == "en"
 
-        # Second call should return None
+        # Second call should return the same text
         result2 = transcriber.get_latest_transcription()
-        assert result2 is None
+        assert result2 == ("hello world", "en")
 
     @pytest.mark.asyncio
     async def test_transcription_accumulation(self, transcriber):
@@ -223,15 +223,64 @@ class TestContinuousTranscriber:
         assert transcriber.accumulated_text == "phrase 1 phrase 2"
 
     @pytest.mark.asyncio
-    async def test_clear_accumulated_transcription(self, transcriber):
+    async def test_clear_transcription_method(self, transcriber):
         """Test clearing accumulated transcription"""
         transcriber.accumulated_text = "some text"
         transcriber.accumulated_language = "en"
 
-        transcriber.clear_accumulated_transcription()
+        transcriber.clear_transcription_after_response()
 
         assert transcriber.accumulated_text == ""
         assert transcriber.accumulated_language is None
+
+    @pytest.mark.asyncio
+    async def test_clear_transcription_after_response(self, transcriber):
+        """Test clearing transcription after LLM response"""
+        transcriber.accumulated_text = "user said something"
+        transcriber.accumulated_language = "en"
+
+        # Get transcription (should not clear)
+        result = transcriber.get_latest_transcription()
+        assert result == ("user said something", "en")
+        assert transcriber.accumulated_text == "user said something"
+
+        # Clear after LLM response
+        transcriber.clear_transcription_after_response()
+        assert transcriber.accumulated_text == ""
+        assert transcriber.accumulated_language is None
+
+        # Getting transcription now should return None
+        result2 = transcriber.get_latest_transcription()
+        assert result2 is None
+
+    @pytest.mark.asyncio
+    async def test_transcription_persists_until_cleared_after_response(self, transcriber):
+        """Test that transcription persists across multiple retrievals until cleared after response"""
+        # Set up initial transcription
+        transcriber.accumulated_text = "first part"
+        transcriber.accumulated_language = "en"
+
+        # Get transcription multiple times - should return same text each time
+        result1 = transcriber.get_latest_transcription()
+        result2 = transcriber.get_latest_transcription()
+        result3 = transcriber.get_latest_transcription()
+
+        assert result1 == ("first part", "en")
+        assert result2 == ("first part", "en")
+        assert result3 == ("first part", "en")
+        assert transcriber.accumulated_text == "first part"
+
+        # Add more transcription (simulating user continuing to speak)
+        transcriber.accumulated_text += " second part"
+
+        # Should now return the combined text
+        result4 = transcriber.get_latest_transcription()
+        assert result4 == ("first part second part", "en")
+
+        # Only after clearing should it reset
+        transcriber.clear_transcription_after_response()
+        result5 = transcriber.get_latest_transcription()
+        assert result5 is None
 
     @pytest.mark.asyncio
     async def test_silence_timeout_with_empty_audio_queue(self, transcriber):

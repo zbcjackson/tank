@@ -286,17 +286,15 @@ class ContinuousTranscriber:
         self.is_listening = False
 
     def get_latest_transcription(self) -> Optional[Tuple[str, str]]:
-        """Get and clear the accumulated transcription result"""
+        """Get the accumulated transcription result without clearing it"""
         if self.accumulated_text:
             result = (self.accumulated_text, self.accumulated_language or "unknown")
-            # Clear accumulated text after retrieval
-            self.accumulated_text = ""
-            self.accumulated_language = None
             logger.info(f"result: {self.accumulated_text}")
             return result
         return None
 
-    def clear_accumulated_transcription(self):
-        """Clear accumulated transcription without returning it"""
+    def clear_transcription_after_response(self):
+        """Clear accumulated transcription after LLM has responded"""
+        logger.info(f"Clearing transcription after LLM response: {self.accumulated_text}")
         self.accumulated_text = ""
         self.accumulated_language = None

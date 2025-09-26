@@ -202,6 +202,8 @@ Your goal: Accomplish user requests accurately and completely through proper too
         try:
             # Start welcome message
             await self.speak_response("你好！我是Tank语音助手。")
+            # Clear any transcription that might have accumulated during startup
+            self.transcriber.clear_transcription_after_response()
 
             # Start continuous listening in background
             listening_task = asyncio.create_task(self.transcriber.start_continuous_listening())
@@ -218,6 +220,7 @@ Your goal: Accomplish user requests accurately and completely through proper too
                     # Check for exit commands
                     if user_input.lower().strip() in ["quit", "exit", "stop", "bye", "goodbye", "退出", "再见", "停止"]:
                         await self.speak_response("再见！祝你有美好的一天！")
+                        self.transcriber.clear_transcription_after_response()
                         break
 
                     print(f"🗣️  You said: {user_input}")
@@ -228,6 +231,8 @@ Your goal: Accomplish user requests accurately and completely through proper too
                     if response:  # Only speak if we got a response (not interrupted)
                         print(f"🤖 Assistant: {response}")
                         await self.speak_response(response)
+                        # Clear transcription after LLM response is delivered
+                        self.transcriber.clear_transcription_after_response()
 
         except KeyboardInterrupt:
             logger.info("Conversation interrupted by user")
