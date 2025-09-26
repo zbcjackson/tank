@@ -109,15 +109,12 @@ Your goal: Accomplish user requests accurately and completely through proper too
             # Wait for transcription to become available
             while self.is_running:
                 transcription = self.transcriber.get_latest_transcription()
+                logger.info("Transcription received: %s", transcription)
                 if transcription:
                     text, detected_language = transcription
-                    logger.info("latest transcription: " + str(text))
                     if text.strip():
                         self.current_language = detected_language
                         logger.info(f"Received speech ({detected_language}): {text}")
-                        return text
-                else:
-                    logger.info("No transcription received")
 
                 # Small sleep to avoid busy waiting
                 await asyncio.sleep(0.1)
