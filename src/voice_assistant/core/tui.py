@@ -1,12 +1,7 @@
 from textual.app import App, ComposeResult
 from textual.widgets import Footer
-import queue
 
-from .shutdown import GracefulShutdown
-from .speaker import SpeakerHandler
-from .mic import MicHandler
-from .brain import Brain
-from .queues import display_queue, text_queue
+from .assistant import Assistant
 from .ui.header import TankHeader
 from .ui.conversation import ConversationArea
 from .ui.footer import InputFooter
@@ -20,10 +15,7 @@ class TankApp(App):
 
     def __init__(self):
         super().__init__()
-        self.shutdown_signal = GracefulShutdown()
-        self.speaker = SpeakerHandler(self.shutdown_signal)
-        self.mic = MicHandler(self.shutdown_signal)
-        self.brain = Brain(self.shutdown_signal, self.speaker)
+        self.assistant = Assistant()
 
     def compose(self) -> ComposeResult:
         yield TankHeader()
@@ -37,10 +29,8 @@ class TankApp(App):
     def on_mount(self) -> None:
         self.title = "Tank"
         
-        # Start background threads
-        self.mic.start()
-        self.speaker.start()
-        self.brain.start()
+        # Start core logic
+        self.assistant.start()
         
         # Start polling the display queue
         self.set_interval(0.1, self.check_display_queue)
@@ -49,13 +39,8 @@ class TankApp(App):
 
     def check_display_queue(self):
         """Check for new messages from the Brain/System to display."""
-        while not display_queue.empty():
-            try:
-                msg = display_queue.get_nowait()
-                self.query_one(ConversationArea).write(msg)
-                display_queue.task_done()
-            except queue.Empty:
-                break
+        for msg in self.assistant.get_messages():
+            self.query_one(ConversationArea).write(msg)
 
     def on_input_submitted(self, event: InputFooter.Submitted) -> None:
         user_input = event.value
@@ -66,10 +51,10 @@ class TankApp(App):
             if user_input.lower() in ["quit", "exit"]:
                 self.exit()
             else:
-                text_queue.put(user_input)
+                self.assistant.process_input(user_input)
             
             # Clear input
             self.query_one(InputFooter).value = ""
 
     def on_unmount(self) -> None:
-        self.shutdown_signal.stop()
+        self.assistant.stop()
