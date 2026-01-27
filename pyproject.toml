@@ -18,6 +18,7 @@ dependencies = [
     "edge-tts>=6.1.0",
     "requests>=2.32.5",
     "beautifulsoup4>=4.13.5",
+    "textual>=7.4.0",
 ]
 
 [project.optional-dependencies]

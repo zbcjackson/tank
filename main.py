@@ -1,14 +1,9 @@
-import asyncio
 import argparse
-from pathlib import Path
-from src.voice_assistant.core.cli import CLI
+from src.voice_assistant.core.tui import TankApp
 from src.voice_assistant.config.settings import create_example_env_file
 
-# Note: The original async main loop is replaced by the threaded CLI for the refactor.
-# We are keeping the file name main.py as requested but switching to the threaded implementation.
-
 def main():
-    parser = argparse.ArgumentParser(description="Bilingual Voice Assistant (Threaded Architecture)")
+    parser = argparse.ArgumentParser(description="Bilingual Voice Assistant (TUI)")
     parser.add_argument("--config", type=str, help="Path to config file", default=".env")
     parser.add_argument("--create-config", action="store_true", help="Create example config file")
 
@@ -20,9 +15,9 @@ def main():
         print("Please copy it to .env and fill in your API keys.")
         return
 
-    # Initialize and run the threaded CLI
-    app = CLI()
-    app.start()
+    # Initialize and run the Textual App
+    app = TankApp()
+    app.run()
 
 if __name__ == "__main__":
     main()
