@@ -1,5 +1,5 @@
 import argparse
-from src.voice_assistant.core.tui import TankApp
+from src.voice_assistant.tui.app import TankApp
 from src.voice_assistant.config.settings import create_example_env_file
 
 def main():

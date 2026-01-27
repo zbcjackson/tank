@@ -1,7 +1,7 @@
 from textual.app import App, ComposeResult
 from textual.widgets import Footer
 
-from .assistant import Assistant
+from ..core.assistant import Assistant
 from .ui.header import TankHeader
 from .ui.conversation import ConversationArea
 from .ui.footer import InputFooter
@@ -22,9 +22,6 @@ class TankApp(App):
         yield TankHeader()
         yield ConversationArea()
         yield InputFooter()
-        # Keeping standard Footer for potential key bindings/status if needed, 
-        # though visually the InputFooter acts as the main user interaction footer.
-        # Use standard footer for key hints if we add them later.
         yield Footer() 
 
     def on_mount(self) -> None:
