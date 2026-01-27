@@ -15,7 +15,8 @@ class TankApp(App):
 
     def __init__(self):
         super().__init__()
-        self.assistant = Assistant()
+        # Pass self.exit as the callback for when assistant requests an exit
+        self.assistant = Assistant(on_exit_request=self.exit)
 
     def compose(self) -> ComposeResult:
         yield TankHeader()
@@ -48,10 +49,7 @@ class TankApp(App):
             # Echo user input to log
             self.query_one(ConversationArea).write(f"[bold cyan]You:[/bold cyan] {user_input}")
             
-            if user_input.lower() in ["quit", "exit"]:
-                self.exit()
-            else:
-                self.assistant.process_input(user_input)
+            self.assistant.process_input(user_input)
             
             # Clear input
             self.query_one(InputFooter).value = ""
