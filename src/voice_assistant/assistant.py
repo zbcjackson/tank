@@ -115,6 +115,7 @@ Your goal: Accomplish user requests accurately and completely through proper too
                     if text.strip():
                         self.current_language = detected_language
                         logger.info(f"Received speech ({detected_language}): {text}")
+                        return text  # Return the transcribed text
 
                 # Small sleep to avoid busy waiting
                 await asyncio.sleep(0.1)

@@ -5,6 +5,7 @@ import numpy as np
 from unittest.mock import Mock, patch, AsyncMock, MagicMock
 from src.voice_assistant.audio.continuous_transcription import ContinuousTranscriber
 from src.voice_assistant.audio.tts import EdgeTTSSpeaker
+from src.voice_assistant.assistant import VoiceAssistant
 
 
 class TestContinuousTranscriber:
@@ -408,3 +409,108 @@ class TestInterruptibleTTSSpeaker:
                 await speaker.speak_async("New speech")
 
         assert not speaker.is_interrupted
+
+
+class TestVoiceAssistantSpeechInput:
+    @pytest.fixture
+    def assistant(self):
+        """Create a mock voice assistant for testing"""
+        with patch.multiple(
+            'src.voice_assistant.assistant',
+            load_config=Mock(return_value=Mock(
+                whisper_model_size="base",
+                llm_api_key="test_key",
+                llm_model="test_model",
+                llm_base_url="test_url",
+                serper_api_key=None,
+                log_level="INFO",
+                default_language="en",
+                max_conversation_history=10,
+                tts_voice_zh="test_zh",
+                tts_voice_en="test_en"
+            )),
+            setup_logging=Mock()
+        ):
+            with patch('src.voice_assistant.assistant.ContinuousTranscriber') as mock_transcriber_class:
+                with patch('src.voice_assistant.assistant.EdgeTTSSpeaker') as mock_speaker_class:
+                    with patch('src.voice_assistant.assistant.LLM') as mock_llm_class:
+                        with patch('src.voice_assistant.assistant.ToolManager') as mock_tool_manager_class:
+                            # Mock the transcriber instance
+                            mock_transcriber = Mock()
+                            mock_transcriber_class.return_value = mock_transcriber
+
+                            assistant = VoiceAssistant()
+                            assistant.transcriber = mock_transcriber
+                            return assistant
+
+    @pytest.mark.asyncio
+    async def test_wait_for_speech_input_returns_text_when_available(self, assistant):
+        """Test that wait_for_speech_input returns transcribed text when available"""
+        # Setup mock transcriber to return text
+        assistant.transcriber.get_latest_transcription.return_value = ("hello world", "en")
+        assistant.is_running = True
+
+        # Call wait_for_speech_input
+        result = await assistant.wait_for_speech_input()
+
+        # Should return the transcribed text
+        assert result == "hello world"
+        assert assistant.current_language == "en"
+
+    @pytest.mark.asyncio
+    async def test_wait_for_speech_input_waits_when_no_transcription(self, assistant):
+        """Test that wait_for_speech_input waits when no transcription is available"""
+        # Setup mock transcriber to return None initially, then text
+        call_count = 0
+        def mock_get_transcription():
+            nonlocal call_count
+            call_count += 1
+            if call_count <= 3:  # Return None for first few calls
+                return None
+            return ("delayed text", "zh")
+
+        assistant.transcriber.get_latest_transcription.side_effect = mock_get_transcription
+        assistant.is_running = True
+
+        # Call wait_for_speech_input
+        result = await assistant.wait_for_speech_input()
+
+        # Should eventually return the transcribed text
+        assert result == "delayed text"
+        assert assistant.current_language == "zh"
+        # Should have been called multiple times waiting
+        assert call_count > 3
+
+    @pytest.mark.asyncio
+    async def test_wait_for_speech_input_returns_none_when_stopped(self, assistant):
+        """Test that wait_for_speech_input returns None when assistant is stopped"""
+        assistant.transcriber.get_latest_transcription.return_value = None
+        assistant.is_running = False
+
+        result = await assistant.wait_for_speech_input()
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_wait_for_speech_input_ignores_empty_transcription(self, assistant):
+        """Test that wait_for_speech_input ignores empty or whitespace-only transcriptions"""
+        # Setup mock to return empty text first, then real text
+        call_count = 0
+        def mock_get_transcription():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return ("", "en")  # Empty text
+            elif call_count == 2:
+                return ("   ", "en")  # Whitespace only
+            else:
+                return ("real text", "en")
+
+        assistant.transcriber.get_latest_transcription.side_effect = mock_get_transcription
+        assistant.is_running = True
+
+        result = await assistant.wait_for_speech_input()
+
+        # Should skip empty/whitespace and return real text
+        assert result == "real text"
+        assert call_count == 3
