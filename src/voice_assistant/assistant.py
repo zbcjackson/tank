@@ -195,7 +195,6 @@ Your goal: Accomplish user requests accurately and completely through proper too
 
     async def conversation_loop(self):
         self.is_running = True
-        logger.info("Starting voice assistant conversation loop")
 
         try:
             # Start welcome message
@@ -204,9 +203,7 @@ Your goal: Accomplish user requests accurately and completely through proper too
             # Start continuous listening in background
             listening_task = asyncio.create_task(self.transcriber.start_continuous_listening())
 
-            print("🎤 Voice assistant is now listening continuously...")
-            print("Say something to interact. I will interrupt myself if you speak while I'm responding.")
-            print("Say 'quit', 'exit', 'stop', 'bye', 'goodbye', '退出', '再见', or '停止' to exit.")
+            print("🎤 Tank is listening ...")
 
             while self.is_running:
                 # Wait for speech input
@@ -246,10 +243,6 @@ Your goal: Accomplish user requests accurately and completely through proper too
                     pass
 
             await self.speak_response("语音助手已停止。再见！")
-
-    def stop(self):
-        self.is_running = False
-        logger.info("Voice assistant stop requested")
 
     async def check_system_status(self) -> Dict[str, Any]:
         status = {
