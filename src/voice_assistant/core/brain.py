@@ -78,5 +78,5 @@ class Brain(threading.Thread):
         time.sleep(1.5) # Simulate processing time
         response = f"I heard you say: {transcription}"
         
-        display_queue.put(f"Brain Response (to Audio): {response}")
+        display_queue.put(response)
         audio_output_queue.put({"type": "speech", "content": response})
