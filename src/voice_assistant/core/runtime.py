@@ -1,0 +1,30 @@
+"""Runtime context holding shared queues."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import queue
+
+from .queues import BrainInputEvent
+
+
+@dataclass
+class RuntimeContext:
+    """
+    Shared runtime objects owned by Assistant.
+
+    Queues live here (not as globals) and are injected into components that need them.
+    """
+
+    brain_input_queue: "queue.Queue[BrainInputEvent]"
+    audio_output_queue: "queue.Queue[dict]"
+    display_queue: "queue.Queue[str]"
+
+    @classmethod
+    def create(cls) -> "RuntimeContext":
+        return cls(
+            brain_input_queue=queue.Queue(),
+            audio_output_queue=queue.Queue(),
+            display_queue=queue.Queue(),
+        )
+

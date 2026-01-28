@@ -3,13 +3,12 @@
 import queue
 from typing import Callable, Optional
 from .shutdown import GracefulShutdown
-from .speaker import SpeakerHandler
-from .perception import Perception, PerceptionConfig
 from .brain import Brain
-from .queues import display_queue, brain_input_queue, InputType, BrainInputEvent
+from .queues import InputType, BrainInputEvent
+from .runtime import RuntimeContext
 
-# Import Audio subsystem
-from voice_assistant.audio import Audio, AudioConfig
+# Import Audio subsystem components
+from voice_assistant.audio import Audio, AudioConfig, Perception, PerceptionConfig, SpeakerHandler
 
 
 class Assistant:
@@ -30,6 +29,7 @@ class Assistant:
         perception_config: Optional[PerceptionConfig] = None,
     ):
         self.shutdown_signal = GracefulShutdown()
+        self.runtime = RuntimeContext.create()
         
         # Audio subsystem (mic + segmentation)
         self.audio = Audio(self.shutdown_signal, audio_config or AudioConfig())
@@ -38,13 +38,14 @@ class Assistant:
         # Uses internal thread pool for parallel ASR + voiceprint execution
         self.perception = Perception(
             self.shutdown_signal,
+            runtime=self.runtime,
             utterance_queue=self.audio.utterance_queue,
             config=perception_config or PerceptionConfig(),
         )
         
-        # Brain and Speaker (unchanged)
-        self.speaker = SpeakerHandler(self.shutdown_signal)
-        self.brain = Brain(self.shutdown_signal, self.speaker)
+        # Speaker consumes runtime.audio_output_queue
+        self.speaker = SpeakerHandler(self.shutdown_signal, audio_output_queue=self.runtime.audio_output_queue)
+        self.brain = Brain(self.shutdown_signal, runtime=self.runtime, speaker_ref=self.speaker)
         
         self.on_exit_request = on_exit_request
 
@@ -70,7 +71,7 @@ class Assistant:
                 self.on_exit_request()
             return
 
-        brain_input_queue.put(BrainInputEvent(
+        self.runtime.brain_input_queue.put(BrainInputEvent(
             type=InputType.TEXT,
             text=text,
             user="Keyboard",
@@ -80,9 +81,9 @@ class Assistant:
 
     def get_messages(self):
         """Yields all pending messages from the display queue."""
-        while not display_queue.empty():
+        while not self.runtime.display_queue.empty():
             try:
-                yield display_queue.get_nowait()
-                display_queue.task_done()
+                yield self.runtime.display_queue.get_nowait()
+                self.runtime.display_queue.task_done()
             except queue.Empty:
                 break

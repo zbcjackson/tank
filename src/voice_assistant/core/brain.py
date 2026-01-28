@@ -3,8 +3,9 @@ import time
 import logging
 import queue
 from .shutdown import GracefulShutdown
-from .queues import brain_input_queue, audio_output_queue, display_queue, BrainInputEvent
-from .speaker import SpeakerHandler
+from .queues import BrainInputEvent
+from .runtime import RuntimeContext
+from ..audio.speaker import SpeakerHandler
 
 logger = logging.getLogger("RefactoredAssistant")
 
@@ -12,9 +13,10 @@ class Brain(threading.Thread):
     """
     The Orchestrator: Process inputs and decide actions.
     """
-    def __init__(self, shutdown_signal: GracefulShutdown, speaker_ref: SpeakerHandler):
+    def __init__(self, shutdown_signal: GracefulShutdown, runtime: RuntimeContext, speaker_ref: SpeakerHandler):
         super().__init__(name="BrainThread")
         self.shutdown_signal = shutdown_signal
+        self._runtime = runtime
         self.speaker = speaker_ref
 
     def run(self):
@@ -22,10 +24,10 @@ class Brain(threading.Thread):
         while not self.shutdown_signal.is_set():
             # The Brain now reads from a single BrainInputQueue
             try:
-                if not brain_input_queue.empty():
-                    raw_input = brain_input_queue.get_nowait()
+                if not self._runtime.brain_input_queue.empty():
+                    raw_input = self._runtime.brain_input_queue.get_nowait()
                     self.process_input(raw_input)
-                    brain_input_queue.task_done()
+                    self._runtime.brain_input_queue.task_done()
                     continue
             except queue.Empty:
                 pass
@@ -44,15 +46,15 @@ class Brain(threading.Thread):
         # Check for commands
         if data.text.lower() == "stop":
             self.speaker.interrupt()
-            display_queue.put("System: Speaker interrupted.")
+            self._runtime.display_queue.put("System: Speaker interrupted.")
             return
 
         # Simulate LLM Processing
-        display_queue.put(f"Brain: Thinking about '{data.text}'...")
+        self._runtime.display_queue.put(f"Brain: Thinking about '{data.text}'...")
         time.sleep(2.0) # Simulate network latency
         
         response = f"I processed your input: {data.text}"
         
         # Send response to UI and Speaker
-        display_queue.put(f"{response}")
-        audio_output_queue.put({"type": "speech", "content": response})
+        self._runtime.display_queue.put(f"{response}")
+        self._runtime.audio_output_queue.put({"type": "speech", "content": response})
