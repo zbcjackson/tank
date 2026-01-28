@@ -64,26 +64,25 @@ class TestMic:
             # Wait a bit for thread to start and initialize stream
             time.sleep(0.3)
             
+            # Verify InputStream was called and callback was captured
+            assert captured_callback is not None, "sd.InputStream should have been called with callback parameter"
+            
             # Simulate callback being called with audio data
-            if captured_callback:
-                mock_audio_data = np.random.randn(320, 1).astype(np.float32)  # 20ms at 16kHz
-                captured_callback(mock_audio_data, 320, {}, {})
-                time.sleep(0.1)
-                
-                # Check that frame was added to queue
-                assert not frames_queue.empty()
-                frame = frames_queue.get_nowait()
-                assert isinstance(frame, AudioFrame)
-                assert frame.sample_rate == audio_format.sample_rate
-                assert frame.pcm.dtype == np.float32
-                assert len(frame.pcm) == 320
+            mock_audio_data = np.random.randn(320, 1).astype(np.float32)  # 20ms at 16kHz
+            captured_callback(mock_audio_data, 320, {}, {})
+            time.sleep(0.1)
+            
+            # Check that frame was added to queue
+            assert not frames_queue.empty()
+            frame = frames_queue.get_nowait()
+            assert isinstance(frame, AudioFrame)
+            assert frame.sample_rate == audio_format.sample_rate
+            assert frame.pcm.dtype == np.float32
+            assert len(frame.pcm) == 320
             
             # Stop mic
             stop_signal.stop()
             mic.join(timeout=1.0)
-            
-            # Verify InputStream was called
-            assert captured_callback is not None
 
     def test_mic_stops_on_stop_signal(self, audio_format, frame_config, frames_queue, stop_signal):
         """Test that Mic stops when stop_signal is set."""
