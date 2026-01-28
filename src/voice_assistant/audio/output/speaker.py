@@ -7,8 +7,8 @@ import time
 import logging
 import queue
 
-from ..core.shutdown import GracefulShutdown
-from ..core.worker import QueueWorker
+from ...core.shutdown import GracefulShutdown
+from ...core.worker import QueueWorker
 
 logger = logging.getLogger("RefactoredAssistant")
 
@@ -62,4 +62,3 @@ class SpeakerHandler(QueueWorker[dict]):
 
         if not self.interrupt_event.is_set():
             logger.info("✅ Playback finished.")
-

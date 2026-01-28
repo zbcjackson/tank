@@ -1,16 +1,22 @@
-"""Audio subsystem for microphone capture, segmentation, and perception."""
+"""Audio subsystem - input (capture/recognition) and output (TTS/playback)."""
 
-from .audio import Audio, AudioConfig
-from .types import AudioFormat, FrameConfig, SegmenterConfig
-from .perception import PerceptionConfig
-from .speaker import SpeakerHandler
+from .input import (
+    AudioInput,
+    AudioInputConfig,
+    AudioFormat,
+    FrameConfig,
+    SegmenterConfig,
+    PerceptionConfig,
+)
+from .output import AudioOutput, AudioOutputConfig
 
 __all__ = [
-    "Audio",
-    "AudioConfig",
+    "AudioInput",
+    "AudioInputConfig",
+    "AudioOutput",
+    "AudioOutputConfig",
     "AudioFormat",
     "FrameConfig",
     "SegmenterConfig",
     "PerceptionConfig",
-    "SpeakerHandler",
 ]

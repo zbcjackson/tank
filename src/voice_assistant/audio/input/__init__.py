@@ -1,4 +1,4 @@
-"""Audio subsystem facade - captures audio, segments, and recognizes speech."""
+"""Audio input subsystem - captures audio, segments, and recognizes speech."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ from .perception import Perception, PerceptionConfig
 
 
 @dataclass(frozen=True)
-class AudioConfig:
-    """Configuration for Audio subsystem."""
+class AudioInputConfig:
+    """Configuration for Audio input subsystem."""
     audio_format: AudioFormat = AudioFormat()
     frame: FrameConfig = FrameConfig()
     segmenter: SegmenterConfig = SegmenterConfig()
@@ -25,24 +25,23 @@ class AudioConfig:
     input_device: Optional[int] = None
 
 
-class Audio:
+class AudioInput:
     """
-    Audio subsystem facade.
+    Audio input subsystem facade.
     
     Responsibilities:
     - Microphone capture (Mic thread)
     - Utterance segmentation using VAD (UtteranceSegmenter thread)
     - Speech recognition and voiceprint (Perception thread)
     
-    All audio-related processing is encapsulated here.
-    core/Assistant should only call start/stop and never touch audio internals directly.
+    All audio input processing is encapsulated here.
     """
 
     def __init__(
         self,
         shutdown_signal: GracefulShutdown,
         runtime: RuntimeContext,
-        cfg: AudioConfig,
+        cfg: AudioInputConfig,
     ):
         self._shutdown_signal = shutdown_signal
         self._runtime = runtime
@@ -76,13 +75,25 @@ class Audio:
         )
 
     def start(self) -> None:
-        """Start all audio threads (mic, segmenter, perception)."""
+        """Start all audio input threads (mic, segmenter, perception)."""
         self._mic.start()
         self._segmenter.start()
         self._perception.start()
 
     def join(self) -> None:
-        """Wait for all audio threads to finish."""
+        """Wait for all audio input threads to finish."""
         self._mic.join()
         self._segmenter.join()
         self._perception.join()
+
+
+__all__ = [
+    "AudioInput",
+    "AudioInputConfig",
+    "AudioFormat",
+    "FrameConfig",
+    "SegmenterConfig",
+    "PerceptionConfig",
+    "AudioFrame",
+    "Utterance",
+]

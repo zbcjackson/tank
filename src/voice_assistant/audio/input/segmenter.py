@@ -8,9 +8,10 @@ from typing import Protocol
 
 import numpy as np
 
+from ...core.worker import QueueWorker
+
 from .types import SegmenterConfig
 from .mic import AudioFrame
-from ..core.worker import QueueWorker
 
 
 class StopSignal(Protocol):

@@ -8,7 +8,7 @@ from .events import InputType, BrainInputEvent
 from .runtime import RuntimeContext
 
 # Import Audio subsystem components
-from voice_assistant.audio import Audio, AudioConfig, SpeakerHandler
+from ..audio import AudioInput, AudioInputConfig, AudioOutput, AudioOutputConfig
 
 
 class Assistant:
@@ -16,50 +16,53 @@ class Assistant:
     Main orchestrator for voice assistant.
     
     Manages:
-    - Audio subsystem (mic capture + segmentation + perception)
+    - Audio input subsystem (mic capture + segmentation + perception)
+    - Audio output subsystem (TTS playback)
     - Brain thread (LLM processing)
-    - Speaker thread (TTS playback)
     """
 
     def __init__(
         self,
         on_exit_request: Optional[Callable[[], None]] = None,
-        audio_config: Optional[AudioConfig] = None,
+        audio_input_config: Optional[AudioInputConfig] = None,
+        audio_output_config: Optional[AudioOutputConfig] = None,
     ):
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()
         
-        # Audio subsystem (mic + segmentation + perception) - all managed internally
-        self.audio = Audio(
+        # Audio input subsystem (mic + segmentation + perception)
+        self.audio_input = AudioInput(
             shutdown_signal=self.shutdown_signal,
             runtime=self.runtime,
-            cfg=audio_config or AudioConfig(),
+            cfg=audio_input_config or AudioInputConfig(),
         )
         
-        # Speaker consumes runtime.audio_output_queue
-        self.speaker = SpeakerHandler(
+        # Audio output subsystem (TTS playback)
+        self.audio_output = AudioOutput(
             shutdown_signal=self.shutdown_signal,
             audio_output_queue=self.runtime.audio_output_queue,
+            cfg=audio_output_config or AudioOutputConfig(),
         )
+        
         self.brain = Brain(
             shutdown_signal=self.shutdown_signal,
             runtime=self.runtime,
-            speaker_ref=self.speaker,
+            speaker_ref=self.audio_output.speaker,
         )
         
         self.on_exit_request = on_exit_request
 
     def start(self):
         """Start all background threads."""
-        self.audio.start()
-        self.speaker.start()
+        self.audio_input.start()
+        self.audio_output.start()
         self.brain.start()
 
     def stop(self):
         """Signal threads to stop and wait for them to join."""
         self.shutdown_signal.stop()
-        self.audio.join()
-        self.speaker.join()
+        self.audio_input.join()
+        self.audio_output.join()
         self.brain.join()
 
     def process_input(self, text: str):

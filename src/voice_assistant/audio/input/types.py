@@ -1,4 +1,4 @@
-"""Audio subsystem data types and configuration."""
+"""Audio input subsystem data types and configuration."""
 
 from __future__ import annotations
 

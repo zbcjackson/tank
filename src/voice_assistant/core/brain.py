@@ -5,7 +5,7 @@ import queue
 from .shutdown import GracefulShutdown
 from .events import BrainInputEvent
 from .runtime import RuntimeContext
-from ..audio.speaker import SpeakerHandler
+from ..audio.output import SpeakerHandler
 
 logger = logging.getLogger("RefactoredAssistant")
 

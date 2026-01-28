@@ -8,10 +8,10 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from dataclasses import dataclass
 from typing import Optional
 
-from voice_assistant.core.shutdown import GracefulShutdown
-from voice_assistant.core.events import BrainInputEvent, InputType
-from voice_assistant.core.runtime import RuntimeContext
-from voice_assistant.core.worker import QueueWorker
+from ...core.shutdown import GracefulShutdown
+from ...core.events import BrainInputEvent, InputType
+from ...core.runtime import RuntimeContext
+from ...core.worker import QueueWorker
 
 from .segmenter import Utterance
 
@@ -103,4 +103,3 @@ class Perception(QueueWorker[Utterance]):
 
     def _run_voiceprint(self, utterance: Utterance) -> str:
         raise NotImplementedError("Voiceprint recognition not implemented in skeleton.")
-
