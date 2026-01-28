@@ -123,6 +123,7 @@ class TestMic:
             frames_queue.put_nowait(frame)
         
         assert frames_queue.full()
+        initial_queue_size = frames_queue.qsize()
         
         mic = Mic(
             stop_signal=stop_signal,
@@ -131,21 +132,32 @@ class TestMic:
             frames_queue=frames_queue,
         )
 
+        # Store callback for later use
+        captured_callback = None
         mock_stream_context = MagicMock()
         mock_stream = MagicMock()
         mock_stream_context.__enter__ = Mock(return_value=mock_stream)
         mock_stream_context.__exit__ = Mock(return_value=False)
         
-        with patch('src.voice_assistant.audio.input.mic.sd.InputStream', return_value=mock_stream_context):
+        def capture_callback(*args, **kwargs):
+            nonlocal captured_callback
+            captured_callback = kwargs.get('callback') or (args[0] if args else None)
+            return mock_stream_context
+        
+        with patch('src.voice_assistant.audio.input.mic.sd.InputStream', side_effect=capture_callback):
             mic.start()
-            time.sleep(0.2)
+            time.sleep(0.3)
             
-            # Simulate callback with full queue
-            call_kwargs = mock_stream_context.call_args[1] if mock_stream_context.call_args else {}
-            callback = call_kwargs.get('callback')
-            if callback:
-                mock_audio_data = np.random.randn(320, 1).astype(np.float32)
-                callback(mock_audio_data, 320, {}, {})
+            # Verify callback was captured
+            assert captured_callback is not None, "sd.InputStream should have been called with callback parameter"
+            
+            # Simulate callback with full queue - should not block or raise exception
+            mock_audio_data = np.random.randn(320, 1).astype(np.float32)
+            captured_callback(mock_audio_data, 320, {}, {})
+            
+            # Verify queue is still full (frame was dropped, not added)
+            assert frames_queue.full()
+            assert frames_queue.qsize() == initial_queue_size
             
             # Mic should not block even with full queue
             stop_signal.stop()
