@@ -6,8 +6,8 @@ import queue
 from dataclasses import dataclass
 from typing import Optional
 
-from voice_assistant.core.shutdown import GracefulShutdown
-from voice_assistant.core.runtime import RuntimeContext
+from ...core.shutdown import GracefulShutdown
+from ...core.runtime import RuntimeContext
 
 from .types import AudioFormat, FrameConfig, SegmenterConfig
 from .mic import Mic, AudioFrame

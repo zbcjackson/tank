@@ -4,19 +4,14 @@ from __future__ import annotations
 
 import queue
 from dataclasses import dataclass
-from typing import Protocol
 
 import numpy as np
 
 from ...core.worker import QueueWorker
+from ...core.shutdown import StopSignal
 
 from .types import SegmenterConfig
 from .mic import AudioFrame
-
-
-class StopSignal(Protocol):
-    """Protocol for shutdown signal."""
-    def is_set(self) -> bool: ...
 
 
 @dataclass

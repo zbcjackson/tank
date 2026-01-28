@@ -5,16 +5,13 @@ from __future__ import annotations
 import threading
 import queue
 from dataclasses import dataclass
-from typing import Optional, Protocol
+from typing import Optional
 
 import numpy as np
 
+from ...core.shutdown import StopSignal
+
 from .types import AudioFormat, FrameConfig
-
-
-class StopSignal(Protocol):
-    """Protocol for shutdown signal."""
-    def is_set(self) -> bool: ...
 
 
 @dataclass

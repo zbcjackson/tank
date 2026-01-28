@@ -7,7 +7,7 @@ import time
 import logging
 import queue
 
-from ...core.shutdown import GracefulShutdown
+from ...core.shutdown import StopSignal
 from ...core.worker import QueueWorker
 
 logger = logging.getLogger("RefactoredAssistant")
@@ -19,7 +19,7 @@ class SpeakerHandler(QueueWorker[dict]):
     Supports interruption.
     """
 
-    def __init__(self, shutdown_signal: GracefulShutdown, audio_output_queue: "queue.Queue[dict]"):
+    def __init__(self, shutdown_signal: StopSignal, audio_output_queue: "queue.Queue[dict]"):
         super().__init__(
             name="SpeakerThread",
             stop_signal=shutdown_signal,

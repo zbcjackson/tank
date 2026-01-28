@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from dataclasses import dataclass
 from typing import Optional
 
-from ...core.shutdown import GracefulShutdown
+from ...core.shutdown import StopSignal
 from ...core.events import BrainInputEvent, InputType
 from ...core.runtime import RuntimeContext
 from ...core.worker import QueueWorker
@@ -36,7 +36,7 @@ class Perception(QueueWorker[Utterance]):
 
     def __init__(
         self,
-        shutdown_signal: GracefulShutdown,
+        shutdown_signal: StopSignal,
         runtime: RuntimeContext,
         utterance_queue: "queue.Queue[Utterance]",
         config: PerceptionConfig = PerceptionConfig(),

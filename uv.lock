@@ -2547,18 +2547,11 @@ dependencies = [
     { name = "httpx" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "onnxruntime" },
     { name = "openai" },
-    { name = "openai-whisper" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "requests" },
-    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "sounddevice" },
     { name = "textual" },
-    { name = "torch" },
-    { name = "torchaudio" },
 ]
 
 [package.optional-dependencies]
@@ -2568,6 +2561,15 @@ dev = [
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+]
+speech = [
+    { name = "onnxruntime" },
+    { name = "openai-whisper" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "sounddevice" },
+    { name = "torch" },
+    { name = "torchaudio" },
 ]
 
 [package.dev-dependencies]
@@ -2586,21 +2588,21 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.24.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "numpy", specifier = ">=1.24.0" },
-    { name = "onnxruntime", specifier = ">=1.23.2" },
+    { name = "onnxruntime", marker = "extra == 'speech'", specifier = ">=1.23.2" },
     { name = "openai", specifier = ">=1.0.0" },
-    { name = "openai-whisper", specifier = ">=20241220" },
+    { name = "openai-whisper", marker = "extra == 'speech'", specifier = ">=20241220" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "requests", specifier = ">=2.32.5" },
-    { name = "scipy", specifier = ">=1.11.0" },
-    { name = "sounddevice", specifier = ">=0.4.6" },
+    { name = "scipy", marker = "extra == 'speech'", specifier = ">=1.11.0" },
+    { name = "sounddevice", marker = "extra == 'speech'", specifier = ">=0.4.6" },
     { name = "textual", specifier = ">=7.4.0" },
-    { name = "torch", specifier = ">=2.0.0" },
-    { name = "torchaudio", specifier = ">=2.0.0" },
+    { name = "torch", marker = "extra == 'speech'", specifier = ">=2.0.0" },
+    { name = "torchaudio", marker = "extra == 'speech'", specifier = ">=2.0.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["speech", "dev"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -5,14 +5,9 @@ from __future__ import annotations
 import threading
 import time
 import queue
-from typing import Generic, TypeVar, Protocol, Optional
+from typing import Generic, TypeVar, Optional
 
-
-class StopSignal(Protocol):
-    """Protocol for shutdown signal."""
-
-    def is_set(self) -> bool: ...
-
+from .shutdown import StopSignal
 
 T = TypeVar("T")
 

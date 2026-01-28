@@ -2,7 +2,7 @@ import threading
 import time
 import logging
 import queue
-from .shutdown import GracefulShutdown
+from .shutdown import StopSignal
 from .events import BrainInputEvent
 from .runtime import RuntimeContext
 from ..audio.output import SpeakerHandler
@@ -13,7 +13,7 @@ class Brain(threading.Thread):
     """
     The Orchestrator: Process inputs and decide actions.
     """
-    def __init__(self, shutdown_signal: GracefulShutdown, runtime: RuntimeContext, speaker_ref: SpeakerHandler):
+    def __init__(self, shutdown_signal: StopSignal, runtime: RuntimeContext, speaker_ref: SpeakerHandler):
         super().__init__(name="BrainThread")
         self.shutdown_signal = shutdown_signal
         self._runtime = runtime
