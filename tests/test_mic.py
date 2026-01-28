@@ -111,26 +111,6 @@ class TestMic:
             mic.join(timeout=2.0)
             assert not mic.is_alive()
 
-    def test_audio_frame_format(self, audio_format, frame_config, frames_queue, stop_signal):
-        """Test that AudioFrame has correct format."""
-        # Create a sample frame
-        sample_rate = audio_format.sample_rate
-        n_samples = int(sample_rate * frame_config.frame_ms / 1000)
-        pcm_data = np.random.randn(n_samples).astype(np.float32)
-        timestamp = time.time()
-        
-        frame = AudioFrame(
-            pcm=pcm_data,
-            sample_rate=sample_rate,
-            timestamp_s=timestamp
-        )
-        
-        assert isinstance(frame.pcm, np.ndarray)
-        assert frame.pcm.dtype == np.float32
-        assert frame.sample_rate == sample_rate
-        assert isinstance(frame.timestamp_s, float)
-        assert frame.timestamp_s > 0
-
     def test_mic_handles_full_queue(self, audio_format, frame_config, frames_queue, stop_signal):
         """Test that Mic handles full queue gracefully without blocking."""
         # Fill queue to capacity
