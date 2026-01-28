@@ -2,8 +2,9 @@ import threading
 import time
 import logging
 import queue
+import json
 from .shutdown import GracefulShutdown
-from .queues import text_queue, audio_input_queue, audio_output_queue, display_queue
+from .queues import brain_input_queue, audio_output_queue, display_queue
 from .speaker import SpeakerHandler
 
 logger = logging.getLogger("RefactoredAssistant")
@@ -20,22 +21,12 @@ class Brain(threading.Thread):
     def run(self):
         logger.info("Brain started. Thinking...")
         while not self.shutdown_signal.is_set():
-            # Check Text Queue first (High priority? or User commands)
+            # The Brain now reads from a single BrainInputQueue
             try:
-                if not text_queue.empty():
-                    text_input = text_queue.get_nowait()
-                    self.process_text(text_input)
-                    text_queue.task_done()
-                    continue
-            except queue.Empty:
-                pass
-
-            # Check Audio Input Queue
-            try:
-                if not audio_input_queue.empty():
-                    audio_input = audio_input_queue.get_nowait()
-                    self.process_audio(audio_input)
-                    audio_input_queue.task_done()
+                if not brain_input_queue.empty():
+                    raw_input = brain_input_queue.get_nowait()
+                    self.process_input(raw_input)
+                    brain_input_queue.task_done()
                     continue
             except queue.Empty:
                 pass
@@ -45,9 +36,22 @@ class Brain(threading.Thread):
 
         logger.info("Brain stopped.")
 
-    def process_text(self, text: str):
-        logger.info(f"🧠 Processing Text: {text}")
-        
+    def process_input(self, raw_data: str):
+        """
+        Handles inputs from both Keyboard and Perception.
+        """
+        try:
+            # Try to parse as JSON (Perception output)
+            data = json.loads(raw_data)
+            input_type = data.get("type")
+            text = data.get("text", "")
+            speaker = data.get("metadata", {}).get("speaker", "Unknown")
+            logger.info(f"🧠 Processing {input_type} from {speaker}: {text}")
+        except (json.JSONDecodeError, TypeError):
+            # Assume it's plain text from Keyboard
+            text = raw_data
+            logger.info(f"🧠 Processing Keyboard Input: {text}")
+
         # Check for commands
         if text.lower() == "stop":
             self.speaker.interrupt()
@@ -58,25 +62,8 @@ class Brain(threading.Thread):
         display_queue.put(f"Brain: Thinking about '{text}'...")
         time.sleep(2.0) # Simulate network latency
         
-        response = f"I processed your text: {text}"
+        response = f"I processed your input: {text}"
         
         # Send response to UI and Speaker
         display_queue.put(f"Brain Response: {response}")
-        audio_output_queue.put({"type": "speech", "content": response})
-
-    def process_audio(self, audio_data: dict):
-        content = audio_data.get("content")
-        logger.info(f"🧠 Processing Audio: {content}")
-        
-        # 1. ASR (Already simulated by Mic, but conceptually here)
-        transcription = content 
-        
-        # 2. Logic / LLM
-        # If user speaks, we might want to interrupt current speech?
-        # For now, let's just queue the response.
-        
-        time.sleep(1.5) # Simulate processing time
-        response = f"I heard you say: {transcription}"
-        
-        display_queue.put(response)
         audio_output_queue.put({"type": "speech", "content": response})
