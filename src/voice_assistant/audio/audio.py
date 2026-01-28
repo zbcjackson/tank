@@ -1,4 +1,4 @@
-"""Audio subsystem facade - captures audio and segments into utterances."""
+"""Audio subsystem facade - captures audio, segments, and recognizes speech."""
 
 from __future__ import annotations
 
@@ -7,10 +7,12 @@ from dataclasses import dataclass
 from typing import Optional
 
 from voice_assistant.core.shutdown import GracefulShutdown
+from voice_assistant.core.runtime import RuntimeContext
 
 from .types import AudioFormat, FrameConfig, SegmenterConfig
 from .mic import Mic, AudioFrame
 from .segmenter import UtteranceSegmenter, Utterance
+from .perception import Perception, PerceptionConfig
 
 
 @dataclass(frozen=True)
@@ -19,6 +21,7 @@ class AudioConfig:
     audio_format: AudioFormat = AudioFormat()
     frame: FrameConfig = FrameConfig()
     segmenter: SegmenterConfig = SegmenterConfig()
+    perception: PerceptionConfig = PerceptionConfig()
     input_device: Optional[int] = None
 
 
@@ -29,14 +32,20 @@ class Audio:
     Responsibilities:
     - Microphone capture (Mic thread)
     - Utterance segmentation using VAD (UtteranceSegmenter thread)
+    - Speech recognition and voiceprint (Perception thread)
     
-    Output: Utterance items in utterance_queue (consumed by Perception thread).
-    
-    core/Assistant should only call start/stop and never touch audio queues directly.
+    All audio-related processing is encapsulated here.
+    core/Assistant should only call start/stop and never touch audio internals directly.
     """
 
-    def __init__(self, shutdown_signal: GracefulShutdown, cfg: AudioConfig):
+    def __init__(
+        self,
+        shutdown_signal: GracefulShutdown,
+        runtime: RuntimeContext,
+        cfg: AudioConfig,
+    ):
         self._shutdown_signal = shutdown_signal
+        self._runtime = runtime
         self._cfg = cfg
 
         # Internal queues (not exposed to core)
@@ -59,21 +68,21 @@ class Audio:
             frames_queue=self._frames_queue,
             utterance_queue=self._utterance_queue,
         )
-
-    @property
-    def utterance_queue(self) -> queue.Queue[Utterance]:
-        """
-        Queue containing segmented utterances.
-        Intended for Perception thread consumption.
-        """
-        return self._utterance_queue
+        self._perception = Perception(
+            shutdown_signal=shutdown_signal,
+            runtime=runtime,
+            utterance_queue=self._utterance_queue,
+            config=cfg.perception,
+        )
 
     def start(self) -> None:
-        """Start all audio threads."""
+        """Start all audio threads (mic, segmenter, perception)."""
         self._mic.start()
         self._segmenter.start()
+        self._perception.start()
 
     def join(self) -> None:
         """Wait for all audio threads to finish."""
         self._mic.join()
         self._segmenter.join()
+        self._perception.join()

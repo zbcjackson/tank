@@ -8,7 +8,7 @@ from .events import InputType, BrainInputEvent
 from .runtime import RuntimeContext
 
 # Import Audio subsystem components
-from voice_assistant.audio import Audio, AudioConfig, Perception, PerceptionConfig, SpeakerHandler
+from voice_assistant.audio import Audio, AudioConfig, SpeakerHandler
 
 
 class Assistant:
@@ -16,8 +16,7 @@ class Assistant:
     Main orchestrator for voice assistant.
     
     Manages:
-    - Audio subsystem (mic capture + utterance segmentation)
-    - Perception thread (ASR + voiceprint)
+    - Audio subsystem (mic capture + segmentation + perception)
     - Brain thread (LLM processing)
     - Speaker thread (TTS playback)
     """
@@ -26,33 +25,33 @@ class Assistant:
         self,
         on_exit_request: Optional[Callable[[], None]] = None,
         audio_config: Optional[AudioConfig] = None,
-        perception_config: Optional[PerceptionConfig] = None,
     ):
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()
         
-        # Audio subsystem (mic + segmentation)
-        self.audio = Audio(self.shutdown_signal, audio_config or AudioConfig())
-        
-        # Perception (ASR + voiceprint) consumes from audio.utterance_queue
-        # Uses internal thread pool for parallel ASR + voiceprint execution
-        self.perception = Perception(
-            self.shutdown_signal,
+        # Audio subsystem (mic + segmentation + perception) - all managed internally
+        self.audio = Audio(
+            shutdown_signal=self.shutdown_signal,
             runtime=self.runtime,
-            utterance_queue=self.audio.utterance_queue,
-            config=perception_config or PerceptionConfig(),
+            cfg=audio_config or AudioConfig(),
         )
         
         # Speaker consumes runtime.audio_output_queue
-        self.speaker = SpeakerHandler(self.shutdown_signal, audio_output_queue=self.runtime.audio_output_queue)
-        self.brain = Brain(self.shutdown_signal, runtime=self.runtime, speaker_ref=self.speaker)
+        self.speaker = SpeakerHandler(
+            shutdown_signal=self.shutdown_signal,
+            audio_output_queue=self.runtime.audio_output_queue,
+        )
+        self.brain = Brain(
+            shutdown_signal=self.shutdown_signal,
+            runtime=self.runtime,
+            speaker_ref=self.speaker,
+        )
         
         self.on_exit_request = on_exit_request
 
     def start(self):
         """Start all background threads."""
         self.audio.start()
-        self.perception.start()
         self.speaker.start()
         self.brain.start()
 
@@ -60,7 +59,6 @@ class Assistant:
         """Signal threads to stop and wait for them to join."""
         self.shutdown_signal.stop()
         self.audio.join()
-        self.perception.join()
         self.speaker.join()
         self.brain.join()
 
