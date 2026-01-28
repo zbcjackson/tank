@@ -61,6 +61,7 @@ The core design philosophy emphasizes **responsiveness** and **interruption**. T
 - **Location**: `tests/`
 - **Conventions**:
     - Mock external APIs (LLM, Search) and hardware (Audio I/O) in tests.
+    - Prefer testing business logic/behavior; avoid standalone tests for simple data structures (e.g., plain `@dataclass`) unless they contain non-trivial validation or behavior.
     - Ensure async tests are properly marked or configured.
     - Run full suite before major commits.
 

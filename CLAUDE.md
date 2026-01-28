@@ -26,6 +26,7 @@ Tank is a voice assistant that supports both Chinese and English, combining spee
 - Use async tests for async components
 - Test error conditions and exception handling
 - Verify configuration validation and defaults
+- Prefer testing business logic/behavior over pure data structures; avoid standalone tests for simple containers (e.g., plain `@dataclass`) unless they contain non-trivial validation or behavior.
 
 ## Development Commands
 
