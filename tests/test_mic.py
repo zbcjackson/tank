@@ -57,14 +57,22 @@ class TestMic:
             captured_callback = kwargs.get('callback') or (args[0] if args else None)
             return mock_stream_context
         
-        with patch('src.voice_assistant.audio.input.mic.sd.InputStream', side_effect=capture_callback):
+        with patch('src.voice_assistant.audio.input.mic.sd.InputStream', side_effect=capture_callback) as mock_input_stream:
             # Start mic thread
             mic.start()
             
             # Wait a bit for thread to start and initialize stream
             time.sleep(0.3)
             
-            # Verify InputStream was called and callback was captured
+            # Verify InputStream was called with correct parameters
+            assert mock_input_stream.called
+            call_kwargs = mock_input_stream.call_args[1]
+            assert call_kwargs['samplerate'] == audio_format.sample_rate
+            assert call_kwargs['channels'] == audio_format.channels
+            assert call_kwargs['dtype'] == np.float32
+            assert 'callback' in call_kwargs
+            
+            # Verify callback was captured
             assert captured_callback is not None, "sd.InputStream should have been called with callback parameter"
             
             # Simulate callback being called with audio data
@@ -81,6 +89,57 @@ class TestMic:
             assert len(frame.pcm) == 320
             
             # Stop mic
+            stop_signal.stop()
+            mic.join(timeout=1.0)
+
+    def test_mic_works_with_custom_audio_format(self, frame_config, frames_queue, stop_signal):
+        """Test that Mic works correctly with custom audio format parameters."""
+        custom_format = AudioFormat(sample_rate=44100, channels=1, dtype="float32")
+        
+        mic = Mic(
+            stop_signal=stop_signal,
+            audio_format=custom_format,
+            frame_cfg=frame_config,
+            frames_queue=frames_queue,
+        )
+
+        # Store callback for later use
+        captured_callback = None
+        mock_stream_context = MagicMock()
+        mock_stream = MagicMock()
+        mock_stream_context.__enter__ = Mock(return_value=mock_stream)
+        mock_stream_context.__exit__ = Mock(return_value=False)
+        
+        def capture_callback(*args, **kwargs):
+            nonlocal captured_callback
+            captured_callback = kwargs.get('callback') or (args[0] if args else None)
+            return mock_stream_context
+        
+        with patch('src.voice_assistant.audio.input.mic.sd.InputStream', side_effect=capture_callback) as mock_input_stream:
+            mic.start()
+            time.sleep(0.3)
+            
+            # Verify InputStream was called with custom format parameters
+            assert mock_input_stream.called
+            call_kwargs = mock_input_stream.call_args[1]
+            assert call_kwargs['samplerate'] == 44100
+            assert call_kwargs['channels'] == 1
+            assert call_kwargs['dtype'] == np.float32
+            
+            # Verify callback was captured
+            assert captured_callback is not None
+            
+            # Simulate callback with audio data - verify it works with custom format
+            blocksize = int(custom_format.sample_rate * frame_config.frame_ms / 1000)
+            mock_audio_data = np.random.randn(blocksize, 1).astype(np.float32)
+            captured_callback(mock_audio_data, blocksize, {}, {})
+            time.sleep(0.1)
+            
+            # Verify frame was added with correct sample rate
+            assert not frames_queue.empty()
+            frame = frames_queue.get_nowait()
+            assert frame.sample_rate == 44100
+            
             stop_signal.stop()
             mic.join(timeout=1.0)
 
@@ -165,32 +224,3 @@ class TestMic:
             
             # Should complete without hanging
             assert not mic.is_alive()
-
-    def test_mic_uses_correct_audio_format(self, frame_config, frames_queue, stop_signal):
-        """Test that Mic uses AudioFormat parameters correctly."""
-        custom_format = AudioFormat(sample_rate=44100, channels=1, dtype="float32")
-        
-        mic = Mic(
-            stop_signal=stop_signal,
-            audio_format=custom_format,
-            frame_cfg=frame_config,
-            frames_queue=frames_queue,
-        )
-
-        mock_stream_context = MagicMock()
-        mock_stream = MagicMock()
-        mock_stream_context.__enter__ = Mock(return_value=mock_stream)
-        mock_stream_context.__exit__ = Mock(return_value=False)
-        
-        with patch('src.voice_assistant.audio.input.mic.sd.InputStream', return_value=mock_stream_context) as mock_input_stream:
-            mic.start()
-            time.sleep(0.2)
-            stop_signal.stop()
-            mic.join(timeout=1.0)
-            
-            # Verify custom format was used
-            assert mock_input_stream.called
-            call_kwargs = mock_input_stream.call_args[1]
-            assert call_kwargs['samplerate'] == 44100
-            assert call_kwargs['channels'] == 1
-            assert call_kwargs['dtype'] == np.float32
