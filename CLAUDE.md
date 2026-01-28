@@ -163,3 +163,14 @@ All tools inherit from `BaseTool` (`src/voice_assistant/tools/base.py`) and are 
 - The assistant maintains context across interrupted conversations
 - Both Chinese and English are first-class supported languages
 - Test coverage includes voice activity detection, interruption, and async task management
+
+## Import Rules (Critical)
+
+Within `src/voice_assistant/`, always use **relative imports** when referencing other modules in the same package tree.
+
+- **Do**:
+  - `from ...core.shutdown import StopSignal`
+  - `from ..audio.input import AudioInput`
+- **Do not**:
+  - `from voice_assistant.core.shutdown import StopSignal`
+  - `import voice_assistant.audio.input`

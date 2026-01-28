@@ -72,6 +72,16 @@ The core design philosophy emphasizes **responsiveness** and **interruption**. T
     - Use `try/except` blocks around external service calls.
 - **Logging**: Use `logging` module, not `print` (except for CLI user feedback).
 
+### Imports (Critical)
+Within `src/voice_assistant/`, always use **relative imports** for internal module references to avoid package-resolution issues across different runners/environments.
+
+- **Do**:
+  - `from ...core.shutdown import StopSignal`
+  - `from ..audio.output.speaker import SpeakerHandler`
+- **Do not**:
+  - `from voice_assistant.core.shutdown import StopSignal`
+  - `from voice_assistant.audio.output.speaker import SpeakerHandler`
+
 ## Context for Gemini
 
 1.  **Environment Setup**:
