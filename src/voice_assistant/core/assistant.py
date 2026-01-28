@@ -5,7 +5,8 @@ from .speaker import SpeakerHandler
 from .mic import MicHandler
 from .perception import Perception
 from .brain import Brain
-from .queues import display_queue, brain_input_queue
+from .queues import display_queue, brain_input_queue, InputType, BrainInputEvent
+
 
 class Assistant:
     def __init__(self, on_exit_request: Optional[Callable[[], None]] = None):
@@ -38,7 +39,13 @@ class Assistant:
                 self.on_exit_request()
             return
 
-        brain_input_queue.put(text)
+        brain_input_queue.put(BrainInputEvent(
+            type=InputType.TEXT,
+            text=text,
+            user="Keyboard",
+            language=None,
+            confidence=None
+        ))
 
     def get_messages(self):
         """Yields all pending messages from the display queue."""

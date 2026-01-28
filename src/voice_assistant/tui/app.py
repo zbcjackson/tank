@@ -1,10 +1,18 @@
+import logging
+
 from textual.app import App, ComposeResult
+from textual.logging import TextualHandler
 from textual.widgets import Footer
 
 from ..core.assistant import Assistant
 from .ui.header import TankHeader
 from .ui.conversation import ConversationArea
 from .ui.footer import InputFooter
+
+logging.basicConfig(
+    level="NOTSET",
+    handlers=[TextualHandler()],
+)
 
 class TankApp(App):
     CSS = """
