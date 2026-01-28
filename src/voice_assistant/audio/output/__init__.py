@@ -6,7 +6,7 @@ import queue
 from dataclasses import dataclass
 from typing import Optional
 
-from voice_assistant.core.shutdown import GracefulShutdown
+from ...core.shutdown import GracefulShutdown
 
 from .speaker import SpeakerHandler
 
