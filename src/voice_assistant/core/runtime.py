@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import queue
 
-from .queues import BrainInputEvent
+from .events import BrainInputEvent
 
 
 @dataclass

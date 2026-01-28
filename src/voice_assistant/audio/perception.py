@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from ..core.shutdown import GracefulShutdown
-from ..core.queues import BrainInputEvent, InputType
+from ..core.events import BrainInputEvent, InputType
 from ..core.runtime import RuntimeContext
 from ..core.worker import QueueWorker
 

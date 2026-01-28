@@ -4,7 +4,7 @@ import queue
 from typing import Callable, Optional
 from .shutdown import GracefulShutdown
 from .brain import Brain
-from .queues import InputType, BrainInputEvent
+from .events import InputType, BrainInputEvent
 from .runtime import RuntimeContext
 
 # Import Audio subsystem components

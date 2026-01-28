@@ -3,7 +3,7 @@ import time
 import logging
 import queue
 from .shutdown import GracefulShutdown
-from .queues import BrainInputEvent
+from .events import BrainInputEvent
 from .runtime import RuntimeContext
 from ..audio.speaker import SpeakerHandler
 
