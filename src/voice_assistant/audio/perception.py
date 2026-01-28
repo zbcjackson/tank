@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import threading
-import time
 import logging
 import queue
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from typing import Optional
 
-from voice_assistant.core.shutdown import GracefulShutdown
-from voice_assistant.core.queues import BrainInputEvent, InputType
-from voice_assistant.core.runtime import RuntimeContext
+from ..core.shutdown import GracefulShutdown
+from ..core.queues import BrainInputEvent, InputType
+from ..core.runtime import RuntimeContext
+from ..core.worker import QueueWorker
 
 from .segmenter import Utterance
 
@@ -28,7 +27,7 @@ class PerceptionConfig:
     default_user: str = "Unknown"
 
 
-class Perception(threading.Thread):
+class Perception(QueueWorker[Utterance]):
     """
     Consumes Utterance from Audio subsystem and emits BrainInputEvent into runtime.
 
@@ -42,31 +41,28 @@ class Perception(threading.Thread):
         utterance_queue: "queue.Queue[Utterance]",
         config: PerceptionConfig = PerceptionConfig(),
     ):
-        super().__init__(name="PerceptionThread")
-        self.shutdown_signal = shutdown_signal
+        super().__init__(
+            name="PerceptionThread",
+            stop_signal=shutdown_signal,
+            input_queue=utterance_queue,
+            poll_interval_s=0.1,
+        )
         self._runtime = runtime
-        self._utterance_queue = utterance_queue
         self._config = config
 
         self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="PerceptionWorker")
 
-    def run(self):
+    def run(self) -> None:
         logger.info("Perception started. Translating audio...")
-        while not self.shutdown_signal.is_set():
-            try:
-                if not self._utterance_queue.empty():
-                    utterance = self._utterance_queue.get_nowait()
-                    event = self.process(utterance)
-                    self._runtime.brain_input_queue.put(event)
-                    self._utterance_queue.task_done()
-                    continue
-            except queue.Empty:
-                pass
+        try:
+            super().run()
+        finally:
+            logger.info("Perception stopped.")
+            self._executor.shutdown(wait=True)
 
-            time.sleep(0.1)
-
-        logger.info("Perception stopped.")
-        self._executor.shutdown(wait=True)
+    def handle(self, utterance: Utterance) -> None:
+        event = self.process(utterance)
+        self._runtime.brain_input_queue.put(event)
 
     def process(self, utterance: Utterance) -> BrainInputEvent:
         """

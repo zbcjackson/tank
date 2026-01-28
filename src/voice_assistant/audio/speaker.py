@@ -8,63 +8,58 @@ import logging
 import queue
 
 from ..core.shutdown import GracefulShutdown
+from ..core.worker import QueueWorker
 
 logger = logging.getLogger("RefactoredAssistant")
 
 
-class SpeakerHandler(threading.Thread):
+class SpeakerHandler(QueueWorker[dict]):
     """
     The Mouth: Continuously checks AudioOutputQueue and plays audio.
     Supports interruption.
     """
 
     def __init__(self, shutdown_signal: GracefulShutdown, audio_output_queue: "queue.Queue[dict]"):
-        super().__init__(name="SpeakerThread")
-        self.shutdown_signal = shutdown_signal
-        self._audio_output_queue = audio_output_queue
+        super().__init__(
+            name="SpeakerThread",
+            stop_signal=shutdown_signal,
+            input_queue=audio_output_queue,
+            poll_interval_s=0.5,
+        )
         self.interrupt_event = threading.Event()
 
     def interrupt(self):
         """Signal to stop current playback immediately."""
         self.interrupt_event.set()
         # Also clear the queue of pending audio to fully reset
-        with self._audio_output_queue.mutex:
-            self._audio_output_queue.queue.clear()
+        with self._input_queue.mutex:
+            self._input_queue.queue.clear()
         logger.warning("🚫 Speaker Interrupted!")
 
-    def run(self):
+    def run(self) -> None:
         logger.info("SpeakerHandler started. Waiting for audio...")
-        while not self.shutdown_signal.is_set():
-            try:
-                # Wait for audio data with timeout to check shutdown signal
-                item = self._audio_output_queue.get(timeout=0.5)
+        try:
+            super().run()
+        finally:
+            logger.info("SpeakerHandler stopped.")
 
-                if item:
-                    text_to_speak = item.get("content", "")
-                    logger.info(f"🔊 Starting playback: '{text_to_speak}'")
+    def handle(self, item: dict) -> None:
+        text_to_speak = item.get("content", "")
+        logger.info(f"🔊 Starting playback: '{text_to_speak}'")
 
-                    # Simulate playback chunk by chunk to allow interruption
-                    # Assume roughly 0.1s per character for simulation
-                    duration = len(text_to_speak) * 0.1
-                    chunks = int(duration / 0.1)
+        # Simulate playback chunk by chunk to allow interruption
+        # Assume roughly 0.1s per character for simulation
+        duration = len(text_to_speak) * 0.1
+        chunks = int(duration / 0.1)
 
-                    self.interrupt_event.clear()  # Reset interrupt flag
+        self.interrupt_event.clear()  # Reset interrupt flag
 
-                    for _ in range(chunks):
-                        if self.shutdown_signal.is_set() or self.interrupt_event.is_set():
-                            logger.info("Playback stopped early.")
-                            break
-                        time.sleep(0.1)
+        for _ in range(chunks):
+            if self._stop_signal.is_set() or self.interrupt_event.is_set():
+                logger.info("Playback stopped early.")
+                break
+            time.sleep(0.1)
 
-                    if not self.interrupt_event.is_set():
-                        logger.info("✅ Playback finished.")
-
-                    self._audio_output_queue.task_done()
-
-            except queue.Empty:
-                continue
-            except Exception as e:
-                logger.error(f"Speaker error: {e}")
-
-        logger.info("SpeakerHandler stopped.")
+        if not self.interrupt_event.is_set():
+            logger.info("✅ Playback finished.")
 
