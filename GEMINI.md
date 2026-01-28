@@ -57,16 +57,8 @@ The core design philosophy emphasizes **responsiveness** and **interruption**. T
     - Run app: `uv run python main.py` (or just `python main.py` if venv is active)
 
 ### Testing
-- **Framework**: `pytest` with `pytest-asyncio`.
-- **Location**: `tests/`
-- **Conventions**:
-    - Mock external APIs (LLM, Search) and hardware (Audio I/O) in tests.
-    - Prefer testing business logic/behavior; avoid standalone tests for simple data structures (e.g., plain `@dataclass`) unless they contain non-trivial validation or behavior.
-    - Avoid redundant conditional checks in tests (e.g., `if callback:`); use assertions to fail fast with clear error messages instead of skipping test logic.
-    - Tests should verify actual behavior, not just pass trivially (avoid false positives). Ensure tests would fail if the behavior is broken.
-    - When testing configuration parameters, also verify functionality works with those parameters. Don't test only parameter passing without verifying behavior.
-    - Ensure async tests are properly marked or configured.
-    - Run full suite before major commits.
+- See [TESTING.md](TESTING.md) for comprehensive testing guidelines, framework details, conventions, and best practices.
+- All tests must follow the rules and practices defined in TESTING.md.
 
 ### Code Style & Patterns
 - **Async/Await**: The core system is asynchronous. Ensure strictly non-blocking code in the main thread.

@@ -8,28 +8,9 @@ Tank is a voice assistant that supports both Chinese and English, combining spee
 
 ## Development Methodology
 
-**Follow Test-Driven Development (TDD):**
-- Write tests BEFORE implementing any logic changes
-- Run tests frequently throughout development
-- Ensure all tests pass before committing changes
-- Maintain high test coverage for critical components
-
-**Testing Workflow:**
-1. Write a failing test that describes the desired behavior
-2. Implement the minimal code needed to make the test pass
-3. Refactor the code while keeping tests green
-4. Run the full test suite to ensure no regressions
-
-**Key Testing Practices:**
-- Test all tool functionality and edge cases
-- Mock external dependencies (API calls, file system operations)
-- Use async tests for async components
-- Test error conditions and exception handling
-- Verify configuration validation and defaults
-- Prefer testing business logic/behavior over pure data structures; avoid standalone tests for simple containers (e.g., plain `@dataclass`) unless they contain non-trivial validation or behavior.
-- Avoid redundant conditional checks in tests (e.g., `if callback:`); use assertions to fail fast with clear error messages instead of skipping test logic.
-- Tests should verify actual behavior, not just pass trivially (avoid false positives). Ensure tests would fail if the behavior is broken.
-- When testing configuration parameters, also verify functionality works with those parameters. Don't test only parameter passing without verifying behavior.
+**Testing Guidelines:**
+- See [TESTING.md](TESTING.md) for comprehensive testing guidelines, TDD workflow, and best practices.
+- All tests must follow the rules and practices defined in TESTING.md.
 
 ## Development Commands
 
@@ -55,19 +36,7 @@ python main.py --config /path/to/custom/.env
 ```
 
 ### Testing
-```bash
-# Run all tests
-uv run python -m pytest tests/
-
-# Run with coverage
-uv run python -m pytest tests/ --cov=src/voice_assistant
-
-# Run specific test file
-uv run python -m pytest tests/test_tools.py
-
-# Run tests in watch mode during development
-uv run python -m pytest tests/ --watch
-```
+See [TESTING.md](TESTING.md) for testing commands and guidelines.
 
 ## Architecture Overview
 
