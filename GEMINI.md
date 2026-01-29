@@ -14,7 +14,6 @@ This file provides specific context and instructions for the Gemini agent workin
 - **LLM**: OpenAI-compatible API (e.g., OpenRouter, OpenAI) for reasoning and conversation.
 - **Tools**: Capability to execute function calls (weather, time, web search/scraping, calculator).
 
-The core design philosophy emphasizes **responsiveness** and **interruption**. The assistant listens continuously and can be interrupted by the user at any time (during LLM processing or TTS playback).
 
 ## Architecture & Core Components
 
@@ -60,23 +59,6 @@ The core design philosophy emphasizes **responsiveness** and **interruption**. T
     - Run tests: `uv run python -m pytest tests/`
     - Run app: `uv run python main.py` (or just `python main.py` if venv is active)
 
-### Code Style & Patterns
-- **Async/Await**: The core system is asynchronous. Ensure strictly non-blocking code in the main thread.
-- **Type Hinting**: Use `typing` (e.g., `List`, `Optional`, `Dict`) extensively.
-- **Error Handling**:
-    - Graceful degradation (e.g., if TTS fails, log it but don't crash).
-    - Use `try/except` blocks around external service calls.
-- **Logging**: Use `logging` module, not `print` (except for CLI user feedback).
-
-### Imports (Critical)
-Within `src/voice_assistant/`, always use **relative imports** for internal module references to avoid package-resolution issues across different runners/environments.
-
-- **Do**:
-  - `from ...core.shutdown import StopSignal`
-  - `from ..audio.output.speaker import SpeakerHandler`
-- **Do not**:
-  - `from voice_assistant.core.shutdown import StopSignal`
-  - `from voice_assistant.audio.output.speaker import SpeakerHandler`
 
 ## Context for Gemini
 
@@ -85,13 +67,9 @@ Within `src/voice_assistant/`, always use **relative imports** for internal modu
     - Check `.env` for configuration (but don't print secrets).
     - `LLM_API_KEY` is critical for functionality.
 
-2.  **Modifying Code**:
-    - When modifying `assistant.py`, be extremely careful with the interruption logic (`_handle_speech_interruption`).
-    - When adding tools, inherit from `BaseTool` (`src/voice_assistant/tools/base.py`) and register in `ToolManager`.
-
-3.  **Common Tasks**:
+2.  **Common Tasks**:
     - **Fixing Bugs**: Check logs first. Interruption logic and async race conditions are common sources of issues.
     - **Adding Features**: Follow the pattern: define interface -> implement -> add tests -> register.
 
-4.  **Hardware Dependencies**:
+3.  **Hardware Dependencies**:
     - Note that `sounddevice` and `whisper` require actual hardware or mocked interfaces in a CI/headless environment. Be mindful when running code that accesses audio devices.
