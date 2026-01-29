@@ -72,26 +72,12 @@ class SileroVAD:
         
         # Model initialization - load immediately, fail fast if not available
         model = load_silero_vad(onnx=True, opset_version=16)
-        self._vad_iterator = VADIterator(model, sampling_rate=self._sample_rate)
-
-    def _infer_speech_prob(self, pcm: np.ndarray) -> float:
-        """
-        Infer speech probability using Silero VAD model.
-        
-        Args:
-            pcm: Audio chunk (should be 512 samples for 16kHz)
-            
-        Returns:
-            Speech probability [0.0, 1.0]
-        """
-        # VADIterator expects chunk and returns dict with 'start'/'end' or None
-        result = self._vad_iterator(pcm, return_seconds=False)
-        if result:
-            # Speech detected
-            return 1.0
-        else:
-            # No speech
-            return 0.0
+        # Pass speech_threshold to VADIterator, which will handle threshold comparison internally
+        self._vad_iterator = VADIterator(
+            model,
+            threshold=cfg.speech_threshold,
+            sampling_rate=self._sample_rate
+        )
 
     def _process_chunk(self, chunk: np.ndarray) -> bool:
         """
@@ -109,8 +95,10 @@ class SileroVAD:
             return energy > 0.01
         
         # Full chunk, use model inference
-        prob = self._infer_speech_prob(chunk)
-        return prob >= self._cfg.speech_threshold
+        # VADIterator already handles threshold comparison internally
+        # Returns {'start'}/{'end'} when speech detected, None otherwise
+        result = self._vad_iterator(chunk, return_seconds=False)
+        return result is not None  # True if speech detected, False otherwise
 
     def _process_pending_chunks(self) -> Optional[bool]:
         """

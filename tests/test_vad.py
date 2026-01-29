@@ -152,11 +152,16 @@ class TestVADModelIntegration:
             
             # Verify model was loaded during initialization
             mock_load.assert_called_once_with(onnx=True, opset_version=16)
-            mock_iterator_class.assert_called_once_with(mock_model, sampling_rate=16000)
+            # VADIterator should be called with threshold from config
+            mock_iterator_class.assert_called_once_with(
+                mock_model,
+                threshold=cfg.speech_threshold,
+                sampling_rate=16000
+            )
             assert vad._vad_iterator is not None
 
-    def test_inference_returns_probability(self):
-        """Test that inference method returns speech probability."""
+    def test_process_chunk_uses_vad_iterator(self):
+        """Test that _process_chunk uses VADIterator and returns boolean."""
         cfg = SegmenterConfig()
         
         # Mock model loading
@@ -164,7 +169,7 @@ class TestVADModelIntegration:
              patch('src.voice_assistant.audio.input.vad.VADIterator') as mock_iterator_class:
             mock_model = MagicMock()
             mock_iterator = MagicMock()
-            mock_iterator.return_value = {'start': 0.0, 'end': 0.032}  # Speech detected
+            mock_iterator.return_value = {'start': 0.0}  # Speech detected
             mock_load.return_value = mock_model
             mock_iterator_class.return_value = mock_iterator
             
@@ -172,11 +177,16 @@ class TestVADModelIntegration:
             # Model is loaded during initialization, mock_iterator is already set
             
             speech_pcm = np.random.randn(512).astype(np.float32)  # 512 samples chunk
-            prob = vad._infer_speech_prob(speech_pcm)
+            has_speech = vad._process_chunk(speech_pcm)
             
-            # Should return probability value
-            assert isinstance(prob, (float, int))
-            assert 0.0 <= prob <= 1.0
+            # Should return boolean
+            assert isinstance(has_speech, bool)
+            assert has_speech is True  # Speech detected
+            
+            # Test with no speech
+            mock_iterator.return_value = None  # No speech
+            has_speech = vad._process_chunk(speech_pcm)
+            assert has_speech is False  # No speech detected
 
     def test_state_transitions_use_model_output(self):
         """Test that state transitions use model inference output."""
