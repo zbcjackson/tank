@@ -13,6 +13,7 @@ from .types import AudioFormat, FrameConfig, SegmenterConfig
 from .mic import Mic, AudioFrame
 from .segmenter import UtteranceSegmenter, Utterance
 from .perception import Perception, PerceptionConfig
+from .vad import VADStatus, VADResult, SileroVAD
 
 
 @dataclass(frozen=True)
@@ -96,4 +97,7 @@ __all__ = [
     "PerceptionConfig",
     "AudioFrame",
     "Utterance",
+    "VADStatus",
+    "VADResult",
+    "SileroVAD",
 ]
