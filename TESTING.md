@@ -19,19 +19,7 @@ This document provides comprehensive testing guidelines for the Tank Voice Assis
 
 ## Testing Commands
 
-```bash
-# Run all tests
-uv run python -m pytest tests/
-
-# Run with coverage
-uv run python -m pytest tests/ --cov=src/voice_assistant
-
-# Run specific test file
-uv run python -m pytest tests/test_tools.py
-
-# Run tests in watch mode during development
-uv run python -m pytest tests/ --watch
-```
+See [DEVELOPMENT.md](DEVELOPMENT.md) for testing commands.
 
 ## Testing Framework
 
