@@ -48,6 +48,36 @@ class UtteranceSegmenter(QueueWorker[AudioFrame]):
         self._utterance_queue = utterance_queue
         self._vad = SileroVAD(cfg=cfg, sample_rate=16000)
 
+    def _put_utterance_with_drop_oldest(
+        self,
+        utterance_pcm: np.ndarray,
+        sample_rate: int,
+        started_at_s: float,
+        ended_at_s: float,
+    ) -> None:
+        """
+        Put utterance in queue with drop_oldest strategy.
+        
+        If queue is full, removes oldest utterance before adding new one.
+        """
+        utterance = Utterance(
+            pcm=utterance_pcm,
+            sample_rate=sample_rate,
+            started_at_s=started_at_s,
+            ended_at_s=ended_at_s,
+        )
+
+        try:
+            self._utterance_queue.put_nowait(utterance)
+        except queue.Full:
+            # Queue is full - drop oldest and add new one
+            try:
+                self._utterance_queue.get_nowait()  # Remove oldest
+                self._utterance_queue.put_nowait(utterance)  # Add new
+            except queue.Empty:
+                # Queue became empty between checks, just add
+                self._utterance_queue.put_nowait(utterance)
+
     def handle(self, item: AudioFrame) -> None:
         """Handle one AudioFrame; may emit Utterance(s)."""
         result = self._vad.process_frame(
@@ -56,24 +86,12 @@ class UtteranceSegmenter(QueueWorker[AudioFrame]):
         )
 
         if result.status == VADStatus.END_SPEECH and result.utterance_pcm is not None:
-            utterance = Utterance(
-                pcm=result.utterance_pcm,
+            self._put_utterance_with_drop_oldest(
+                utterance_pcm=result.utterance_pcm,
                 sample_rate=result.sample_rate or item.sample_rate,
                 started_at_s=result.started_at_s or item.timestamp_s,
                 ended_at_s=result.ended_at_s or item.timestamp_s,
             )
-
-            # Try to put utterance in queue with drop_oldest strategy
-            try:
-                self._utterance_queue.put_nowait(utterance)
-            except queue.Full:
-                # Queue is full - drop oldest and add new one
-                try:
-                    self._utterance_queue.get_nowait()  # Remove oldest
-                    self._utterance_queue.put_nowait(utterance)  # Add new
-                except queue.Empty:
-                    # Queue became empty between checks, just add
-                    self._utterance_queue.put_nowait(utterance)
 
     def cleanup(self) -> None:
         """Cleanup on shutdown - flush any in-progress speech."""
@@ -82,21 +100,9 @@ class UtteranceSegmenter(QueueWorker[AudioFrame]):
         result = self._vad.flush(now_s=now_s)
 
         if result.status == VADStatus.END_SPEECH and result.utterance_pcm is not None:
-            utterance = Utterance(
-                pcm=result.utterance_pcm,
+            self._put_utterance_with_drop_oldest(
+                utterance_pcm=result.utterance_pcm,
                 sample_rate=result.sample_rate or 16000,
                 started_at_s=result.started_at_s or now_s,
                 ended_at_s=result.ended_at_s or now_s,
             )
-
-            # Try to put final utterance in queue
-            try:
-                self._utterance_queue.put_nowait(utterance)
-            except queue.Full:
-                # Queue is full - drop oldest and add new one
-                try:
-                    self._utterance_queue.get_nowait()  # Remove oldest
-                    self._utterance_queue.put_nowait(utterance)  # Add new
-                except queue.Empty:
-                    # Queue became empty between checks, just add
-                    self._utterance_queue.put_nowait(utterance)
