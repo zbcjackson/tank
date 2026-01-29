@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Required Reading**: At the start of each session, you MUST read the following files:
+- [CODING_STANDARDS.md](CODING_STANDARDS.md) - Coding standards and design principles
+- [TESTING.md](TESTING.md) - Testing guidelines and TDD workflow
+
 ## Project Overview
 
 Tank is a voice assistant that supports both Chinese and English, combining speech recognition (OpenAI Whisper), text-to-speech (Edge TTS), and LLM integration for natural conversation. The assistant can execute tools like calculations, weather queries, web searches, and more through function calling.
@@ -11,6 +15,13 @@ Tank is a voice assistant that supports both Chinese and English, combining spee
 **Testing Guidelines:**
 - See [TESTING.md](TESTING.md) for comprehensive testing guidelines, TDD workflow, and best practices.
 - All tests must follow the rules and practices defined in TESTING.md.
+
+**Code Quality & Design Principles:**
+- **Simplify code by removing unnecessary abstraction layers** - If a dependency already provides the needed functionality, use it directly instead of wrapping it.
+- **Eliminate redundant logic** - Don't duplicate checks or comparisons that dependencies already handle.
+- **Test behavior, not implementation** - Tests should verify observable behavior through public interfaces, not internal implementation details.
+- **Avoid testing simple data structures** - Focus tests on business logic and behavior, not data structure definitions.
+- **IMPORTANT**: You MUST read [CODING_STANDARDS.md](CODING_STANDARDS.md) at the start of each session for detailed coding standards and design principles.
 
 ## Development Commands
 

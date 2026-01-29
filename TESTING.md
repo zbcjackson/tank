@@ -47,6 +47,16 @@ uv run python -m pytest tests/ --watch
   - Avoid standalone tests for simple containers (e.g., plain `@dataclass`) unless they contain non-trivial validation or behavior
   - Test the behavior and interactions, not just data structure properties
 
+### Test Behavior, Not Implementation Details
+
+- **Tests should verify observable behavior, not internal implementation**
+  - See [CODING_STANDARDS.md](CODING_STANDARDS.md) for detailed testing principles
+  - Test through public interfaces and input/output contracts
+  - Avoid testing private methods (`_method_name`) or internal attributes (`_attribute_name`)
+  - Avoid verifying specific implementation choices (e.g., which library function is called, internal state variables)
+  - Tests should remain stable when internal implementation changes, as long as behavior remains the same
+  - Example: Test that speech is detected correctly, not that `VADIterator` is called with specific parameters
+
 ### Avoid False Positives
 
 - **Tests should verify actual behavior, not just pass trivially**
@@ -98,6 +108,9 @@ Before committing tests, ensure:
 - [ ] External dependencies are properly mocked
 - [ ] Edge cases and error conditions are covered
 - [ ] Tests are focused on business logic, not simple data structures
+- [ ] Tests verify behavior through public interfaces, not implementation details (see [CODING_STANDARDS.md](CODING_STANDARDS.md))
+- [ ] Tests don't access private methods or internal attributes
+- [ ] Tests remain stable when internal implementation changes
 - [ ] Async tests are properly configured
 
 ## Testing Performance Principles
