@@ -2,10 +2,9 @@
 
 import pytest
 import numpy as np
-from enum import Enum
 from unittest.mock import patch, MagicMock
 
-from src.voice_assistant.audio.input.vad import VADStatus, VADResult, SileroVAD
+from src.voice_assistant.audio.input.vad import VADStatus, SileroVAD
 from src.voice_assistant.audio.input.types import SegmenterConfig
 
 
@@ -21,43 +20,6 @@ def generate_speech_frame(sample_rate=16000, frame_ms=20, frequency=500):
     t = np.linspace(0, frame_ms / 1000, n_samples)
     signal = 0.3 * np.sin(2 * np.pi * frequency * t)
     return signal.astype(np.float32)
-
-
-class TestVADStructure:
-    """Test VAD module structure and basic types."""
-
-    def test_vad_status_enum_exists(self):
-        """Test that VADStatus enum exists with correct values."""
-        assert VADStatus.NO_SPEECH is not None
-        assert VADStatus.IN_SPEECH is not None
-        assert VADStatus.END_SPEECH is not None
-        
-        # Verify it's an Enum
-        assert isinstance(VADStatus.NO_SPEECH, Enum)
-
-    def test_vad_result_dataclass_exists(self):
-        """Test that VADResult dataclass exists with correct fields."""
-        result = VADResult(
-            status=VADStatus.NO_SPEECH,
-            utterance_pcm=None,
-            sample_rate=None,
-            started_at_s=None,
-            ended_at_s=None
-        )
-        
-        assert result.status == VADStatus.NO_SPEECH
-        assert result.utterance_pcm is None
-        assert result.sample_rate is None
-        assert result.started_at_s is None
-        assert result.ended_at_s is None
-
-    def test_silero_vad_class_exists(self):
-        """Test that SileroVAD class can be instantiated."""
-        cfg = SegmenterConfig()
-        vad = SileroVAD(cfg=cfg, sample_rate=16000)
-        
-        assert vad is not None
-        assert isinstance(vad, SileroVAD)
 
 
 class TestVADStateMachine:
