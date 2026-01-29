@@ -60,17 +60,6 @@ The core design philosophy emphasizes **responsiveness** and **interruption**. T
     - Run tests: `uv run python -m pytest tests/`
     - Run app: `uv run python main.py` (or just `python main.py` if venv is active)
 
-### Testing
-- See [TESTING.md](TESTING.md) for comprehensive testing guidelines, framework details, conventions, and best practices.
-- All tests must follow the rules and practices defined in TESTING.md.
-
-### Code Quality & Design
-- **Simplify code by removing unnecessary abstraction layers** - If a dependency already provides the needed functionality, use it directly instead of wrapping it.
-- **Eliminate redundant logic** - Don't duplicate checks or comparisons that dependencies already handle.
-- **Test behavior, not implementation** - Tests should verify observable behavior through public interfaces, not internal implementation details.
-- **Avoid testing simple data structures** - Focus tests on business logic and behavior, not data structure definitions.
-- **IMPORTANT**: You MUST read [CODING_STANDARDS.md](CODING_STANDARDS.md) at the start of each session for detailed coding standards and design principles.
-
 ### Code Style & Patterns
 - **Async/Await**: The core system is asynchronous. Ensure strictly non-blocking code in the main thread.
 - **Type Hinting**: Use `typing` (e.g., `List`, `Optional`, `Dict`) extensively.
