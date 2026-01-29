@@ -137,12 +137,12 @@ class TestVADModelIntegration:
     """Test Silero VAD model integration."""
 
     def test_model_loading_on_initialization(self):
-        """Test that model loading is attempted on initialization."""
+        """Test that model loading happens on initialization."""
         cfg = SegmenterConfig()
         
         # Mock silero-vad module
-        with patch('silero_vad.load_silero_vad') as mock_load, \
-             patch('silero_vad.VADIterator') as mock_iterator_class:
+        with patch('src.voice_assistant.audio.input.vad.load_silero_vad') as mock_load, \
+             patch('src.voice_assistant.audio.input.vad.VADIterator') as mock_iterator_class:
             mock_model = MagicMock()
             mock_iterator = MagicMock()
             mock_load.return_value = mock_model
@@ -150,35 +150,18 @@ class TestVADModelIntegration:
             
             vad = SileroVAD(cfg=cfg, sample_rate=16000)
             
-            # Verify model loading attributes exist
-            assert hasattr(vad, '_has_silero_vad')
-            assert hasattr(vad, '_load_model')
+            # Verify model was loaded during initialization
+            mock_load.assert_called_once_with(onnx=True, opset_version=16)
+            mock_iterator_class.assert_called_once_with(mock_model, sampling_rate=16000)
+            assert vad._vad_iterator is not None
 
     def test_inference_returns_probability(self):
         """Test that inference method returns speech probability."""
         cfg = SegmenterConfig()
-        vad = SileroVAD(cfg=cfg, sample_rate=16000)
-        
-        # Mock the model and iterator
-        mock_iterator = MagicMock()
-        mock_iterator.return_value = {'start': 0.0, 'end': 0.032}  # Speech detected
-        vad._vad_iterator = mock_iterator
-        vad._model_loaded = True
-        
-        speech_pcm = np.random.randn(512).astype(np.float32)  # 512 samples chunk
-        prob = vad._infer_speech_prob(speech_pcm)
-        
-        # Should return probability value
-        assert isinstance(prob, (float, int))
-        assert 0.0 <= prob <= 1.0
-
-    def test_state_transitions_use_model_output(self):
-        """Test that state transitions use model inference output."""
-        cfg = SegmenterConfig()
         
         # Mock model loading
-        with patch('silero_vad.load_silero_vad') as mock_load, \
-             patch('silero_vad.VADIterator') as mock_iterator_class:
+        with patch('src.voice_assistant.audio.input.vad.load_silero_vad') as mock_load, \
+             patch('src.voice_assistant.audio.input.vad.VADIterator') as mock_iterator_class:
             mock_model = MagicMock()
             mock_iterator = MagicMock()
             mock_iterator.return_value = {'start': 0.0, 'end': 0.032}  # Speech detected
@@ -186,7 +169,30 @@ class TestVADModelIntegration:
             mock_iterator_class.return_value = mock_iterator
             
             vad = SileroVAD(cfg=cfg, sample_rate=16000)
-            vad._load_model()  # Load mocked model
+            # Model is loaded during initialization, mock_iterator is already set
+            
+            speech_pcm = np.random.randn(512).astype(np.float32)  # 512 samples chunk
+            prob = vad._infer_speech_prob(speech_pcm)
+            
+            # Should return probability value
+            assert isinstance(prob, (float, int))
+            assert 0.0 <= prob <= 1.0
+
+    def test_state_transitions_use_model_output(self):
+        """Test that state transitions use model inference output."""
+        cfg = SegmenterConfig()
+        
+        # Mock model loading
+        with patch('src.voice_assistant.audio.input.vad.load_silero_vad') as mock_load, \
+             patch('src.voice_assistant.audio.input.vad.VADIterator') as mock_iterator_class:
+            mock_model = MagicMock()
+            mock_iterator = MagicMock()
+            mock_iterator.return_value = {'start': 0.0, 'end': 0.032}  # Speech detected
+            mock_load.return_value = mock_model
+            mock_iterator_class.return_value = mock_iterator
+            
+            vad = SileroVAD(cfg=cfg, sample_rate=16000)
+            # Model is loaded during initialization, so mock_iterator is already set
             
             # Mock _has_voice_activity to use model
             with patch.object(vad, '_has_voice_activity', return_value=True):

@@ -8,6 +8,7 @@ from enum import Enum, auto
 from typing import Optional
 
 import numpy as np
+from silero_vad import load_silero_vad, VADIterator
 
 from .types import SegmenterConfig
 
@@ -69,36 +70,9 @@ class SileroVAD:
         pre_roll_frames = int(cfg.pre_roll_ms / frame_ms)
         self._pre_roll_buffer: deque[np.ndarray] = deque(maxlen=pre_roll_frames)
         
-        # Model initialization
-        self._vad_iterator = None
-        self._model_loaded = False
-        
-        # Try to import silero-vad, but don't fail if not available
-        try:
-            from silero_vad import load_silero_vad, VADIterator
-            self._load_silero_vad = load_silero_vad
-            self._VADIterator = VADIterator
-            self._has_silero_vad = True
-        except ImportError:
-            self._has_silero_vad = False
-            self._load_silero_vad = None
-            self._VADIterator = None
-
-    def _load_model(self) -> None:
-        """Load Silero VAD model."""
-        if not self._has_silero_vad:
-            return
-        
-        if self._model_loaded:
-            return
-        
-        try:
-            model = self._load_silero_vad(onnx=True, opset_version=16)
-            self._vad_iterator = self._VADIterator(model, sampling_rate=self._sample_rate)
-            self._model_loaded = True
-        except Exception:
-            # Model loading failed, fall back to energy threshold
-            self._model_loaded = False
+        # Model initialization - load immediately, fail fast if not available
+        model = load_silero_vad(onnx=True, opset_version=16)
+        self._vad_iterator = VADIterator(model, sampling_rate=self._sample_rate)
 
     def _infer_speech_prob(self, pcm: np.ndarray) -> float:
         """
@@ -110,24 +84,14 @@ class SileroVAD:
         Returns:
             Speech probability [0.0, 1.0]
         """
-        if not self._model_loaded or self._vad_iterator is None:
-            # Fall back to energy threshold
-            energy = np.sqrt(np.mean(pcm ** 2))
-            return 1.0 if energy > 0.01 else 0.0
-        
-        try:
-            # VADIterator expects chunk and returns dict with 'start'/'end' or None
-            result = self._vad_iterator(pcm, return_seconds=False)
-            if result:
-                # Speech detected
-                return 1.0
-            else:
-                # No speech
-                return 0.0
-        except Exception:
-            # Inference failed, fall back to energy threshold
-            energy = np.sqrt(np.mean(pcm ** 2))
-            return 1.0 if energy > 0.01 else 0.0
+        # VADIterator expects chunk and returns dict with 'start'/'end' or None
+        result = self._vad_iterator(pcm, return_seconds=False)
+        if result:
+            # Speech detected
+            return 1.0
+        else:
+            # No speech
+            return 0.0
 
     def _process_chunk(self, chunk: np.ndarray) -> bool:
         """
