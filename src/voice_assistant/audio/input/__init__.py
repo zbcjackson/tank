@@ -14,6 +14,7 @@ from .mic import Mic, AudioFrame
 from .segmenter import UtteranceSegmenter, Utterance
 from .asr import ASR
 from .perception import Perception, PerceptionConfig
+from .voiceprint import VoiceprintRecognizer
 from .vad import VADStatus, VADResult, SileroVAD
 
 
@@ -70,11 +71,13 @@ class AudioInput:
             utterance_queue=self._utterance_queue,
         )
         asr = ASR(model_size=cfg.perception.model_size, device="cpu")
+        voiceprint = VoiceprintRecognizer(default_user=cfg.perception.default_user)
         self._perception = Perception(
             shutdown_signal=shutdown_signal,
             runtime=runtime,
             utterance_queue=self._utterance_queue,
             asr=asr,
+            voiceprint=voiceprint,
             config=cfg.perception,
         )
 
@@ -103,5 +106,6 @@ __all__ = [
     "Utterance",
     "VADStatus",
     "VADResult",
+    "VoiceprintRecognizer",
     "SileroVAD",
 ]

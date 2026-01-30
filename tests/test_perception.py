@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 from src.voice_assistant.audio.input.perception import Perception, PerceptionConfig
 from src.voice_assistant.audio.input.segmenter import Utterance
+from src.voice_assistant.audio.input.voiceprint import VoiceprintRecognizer
 from src.voice_assistant.core.events import BrainInputEvent, DisplayMessage, InputType
 from src.voice_assistant.core.runtime import RuntimeContext
 from src.voice_assistant.core.shutdown import GracefulShutdown
@@ -41,11 +42,13 @@ class TestPerception:
         stop = GracefulShutdown()
         utterance_queue = queue.Queue()
         config = PerceptionConfig(default_user="Unknown")
+        voiceprint = VoiceprintRecognizer(default_user="Unknown")
         return Perception(
             shutdown_signal=stop,
             runtime=runtime,
             utterance_queue=utterance_queue,
             asr=mock_asr,
+            voiceprint=voiceprint,
             config=config,
         )
 

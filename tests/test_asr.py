@@ -23,7 +23,7 @@ class TestASR:
         segments = [MagicMock(text=" hello ", start=0.0, end=0.5)]
         info = MagicMock(language="en", language_probability=0.95)
         with patch(
-            "faster_whisper.WhisperModel",
+            "src.voice_assistant.audio.input.asr.WhisperModel",
             return_value=MagicMock(
                 transcribe=MagicMock(return_value=(iter(segments), info))
             ),
@@ -54,7 +54,7 @@ class TestASR:
         seg2 = MagicMock(text=" bar ", start=0.2, end=0.5)
         info = MagicMock(language="zh", language_probability=0.9)
         with patch(
-            "faster_whisper.WhisperModel",
+            "src.voice_assistant.audio.input.asr.WhisperModel",
             return_value=MagicMock(
                 transcribe=MagicMock(return_value=(iter([seg1, seg2]), info))
             ),

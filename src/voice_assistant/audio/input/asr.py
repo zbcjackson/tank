@@ -6,6 +6,7 @@ import logging
 from typing import Optional
 
 import numpy as np
+from faster_whisper import WhisperModel
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +20,10 @@ class ASR:
 
     def __init__(
         self,
-        model_size: str = "base",
+        model_size: str = "large-v3",
         device: str = "cpu",
         compute_type: str = "default",
     ):
-        from faster_whisper import WhisperModel
-
         logger.info("Loading ASR model: %s (device=%s)", model_size, device)
         self._model = WhisperModel(
             model_size,

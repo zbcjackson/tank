@@ -14,6 +14,7 @@ from ...core.shutdown import StopSignal
 from ...core.worker import QueueWorker
 
 from .segmenter import Utterance
+from .voiceprint import VoiceprintRecognizer
 
 if TYPE_CHECKING:
     from .asr import ASR
@@ -28,7 +29,7 @@ class PerceptionConfig:
     enable_voiceprint: bool = True
     voiceprint_timeout_s: float = 0.5
     default_user: str = "Unknown"
-    model_size: str = "base"
+    model_size: str = "large-v3"
 
 
 class Perception(QueueWorker[Utterance]):
@@ -44,6 +45,7 @@ class Perception(QueueWorker[Utterance]):
         runtime: RuntimeContext,
         utterance_queue: "queue.Queue[Utterance]",
         asr: "ASR",
+        voiceprint: VoiceprintRecognizer,
         config: PerceptionConfig = PerceptionConfig(),
     ):
         super().__init__(
@@ -55,6 +57,7 @@ class Perception(QueueWorker[Utterance]):
         self._runtime = runtime
         self._config = config
         self._asr = asr
+        self._voiceprint = voiceprint
 
         self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="PerceptionWorker")
 
@@ -112,4 +115,4 @@ class Perception(QueueWorker[Utterance]):
         return self._asr.transcribe(utterance.pcm, utterance.sample_rate)
 
     def _run_voiceprint(self, utterance: Utterance) -> str:
-        raise NotImplementedError("Voiceprint recognition not implemented in skeleton.")
+        return self._voiceprint.identify(utterance)
