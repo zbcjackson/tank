@@ -6,14 +6,17 @@ import logging
 import queue
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-from ...core.shutdown import StopSignal
-from ...core.events import BrainInputEvent, InputType
+from ...core.events import BrainInputEvent, DisplayMessage, InputType
 from ...core.runtime import RuntimeContext
+from ...core.shutdown import StopSignal
 from ...core.worker import QueueWorker
 
 from .segmenter import Utterance
+
+if TYPE_CHECKING:
+    from .asr import ASR
 
 logger = logging.getLogger("RefactoredAssistant")
 
@@ -25,6 +28,7 @@ class PerceptionConfig:
     enable_voiceprint: bool = True
     voiceprint_timeout_s: float = 0.5
     default_user: str = "Unknown"
+    model_size: str = "base"
 
 
 class Perception(QueueWorker[Utterance]):
@@ -39,6 +43,7 @@ class Perception(QueueWorker[Utterance]):
         shutdown_signal: StopSignal,
         runtime: RuntimeContext,
         utterance_queue: "queue.Queue[Utterance]",
+        asr: "ASR",
         config: PerceptionConfig = PerceptionConfig(),
     ):
         super().__init__(
@@ -49,6 +54,7 @@ class Perception(QueueWorker[Utterance]):
         )
         self._runtime = runtime
         self._config = config
+        self._asr = asr
 
         self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="PerceptionWorker")
 
@@ -63,6 +69,10 @@ class Perception(QueueWorker[Utterance]):
     def handle(self, utterance: Utterance) -> None:
         event = self.process(utterance)
         self._runtime.brain_input_queue.put(event)
+        if event.text.strip():
+            self._runtime.display_queue.put(
+                DisplayMessage(speaker=event.user, text=event.text)
+            )
 
     def process(self, utterance: Utterance) -> BrainInputEvent:
         """
@@ -99,7 +109,7 @@ class Perception(QueueWorker[Utterance]):
         )
 
     def _run_asr(self, utterance: Utterance) -> tuple[str, Optional[str], Optional[float]]:
-        raise NotImplementedError("ASR not implemented in skeleton.")
+        return self._asr.transcribe(utterance.pcm, utterance.sample_rate)
 
     def _run_voiceprint(self, utterance: Utterance) -> str:
         raise NotImplementedError("Voiceprint recognition not implemented in skeleton.")

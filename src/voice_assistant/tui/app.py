@@ -42,9 +42,16 @@ class TankApp(App):
         self.set_interval(0.5, self.check_display_queue)
 
     def check_display_queue(self):
-        """Check for new messages from the Brain/System to display."""
+        """Check for new messages from the Brain/System/User to display."""
         for msg in self.assistant.get_messages():
-            self.query_one(ConversationArea).write(f"[bold blue]Tank:[/bold blue] [white]{msg}[/white]")
+            if msg.speaker in ("User", "Unknown", "Keyboard"):
+                self.query_one(ConversationArea).write(
+                    f"[bold green]You:[/bold green] [white]{msg.text}[/white]"
+                )
+            else:
+                self.query_one(ConversationArea).write(
+                    f"[bold blue]Tank:[/bold blue] [white]{msg.text}[/white]"
+                )
 
     def on_input_submitted(self, event: InputFooter.Submitted) -> None:
         user_input = event.value

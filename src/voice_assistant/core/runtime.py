@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import queue
 
-from .events import BrainInputEvent
+from .events import BrainInputEvent, DisplayMessage
 
 
 @dataclass
@@ -18,7 +18,7 @@ class RuntimeContext:
 
     brain_input_queue: "queue.Queue[BrainInputEvent]"
     audio_output_queue: "queue.Queue[dict]"
-    display_queue: "queue.Queue[str]"
+    display_queue: "queue.Queue[DisplayMessage]"
 
     @classmethod
     def create(cls) -> "RuntimeContext":

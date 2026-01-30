@@ -65,21 +65,24 @@ Tank is a bilingual (Chinese/English) voice assistant that integrates:
 
 ## Audio Processing
 
-### ContinuousTranscriber (STT)
+### Audio Input Pipeline (Mic → Segmenter → Perception)
 
-**Location**: `src/voice_assistant/audio/continuous_transcription.py`
+**Locations**:
+- `src/voice_assistant/audio/input/mic.py` – microphone capture
+- `src/voice_assistant/audio/input/segmenter.py` – VAD + utterance segmentation
+- `src/voice_assistant/audio/input/asr.py` – ASR (Automatic Speech Recognition)
+- `src/voice_assistant/audio/input/perception.py` – Perception thread (ASR + future voiceprint)
 
-**Description**: Always-on speech detection and transcription
+**Data flow**: Mic → frames_queue → UtteranceSegmenter → utterance_queue → Perception → brain_input_queue + display_queue
 
-**Features**:
-- Uses a thread pool for blocking Whisper operations to avoid freezing the async loop
-- Continuous voice activity detection using energy thresholds
-- Implements voice activity detection (VAD) with energy thresholds
-- Automatic speech start/end detection with 2-second silence timeout
-- Real-time audio streaming with 100ms chunks
-- Streams audio in chunks
-- Interruption callback system for stopping other tasks when speech detected
-- Non-blocking transcription using thread pool execution
+**ASR** (faster-whisper):
+- Multi-language with auto-detect
+- Model loaded once (default `base`), cached by Hugging Face
+- Input: pcm (float32) + sample_rate; output: (text, language, confidence)
+
+**Perception**:
+- Consumes complete Utterances from segmenter (one per user utterance)
+- Runs ASR and (future) voiceprint in parallel; puts BrainInputEvent into brain_input_queue and DisplayMessage (speaker, text) into display_queue for UI
 
 ### EdgeTTSSpeaker (TTS)
 

@@ -1,10 +1,11 @@
-import threading
-import time
 import logging
 import queue
-from .shutdown import StopSignal
-from .events import BrainInputEvent
+import threading
+import time
+
+from .events import BrainInputEvent, DisplayMessage
 from .runtime import RuntimeContext
+from .shutdown import StopSignal
 from ..audio.output import SpeakerHandler
 
 logger = logging.getLogger("RefactoredAssistant")
@@ -46,15 +47,19 @@ class Brain(threading.Thread):
         # Check for commands
         if data.text.lower() == "stop":
             self.speaker.interrupt()
-            self._runtime.display_queue.put("System: Speaker interrupted.")
+            self._runtime.display_queue.put(
+                DisplayMessage(speaker="System", text="Speaker interrupted.")
+            )
             return
 
         # Simulate LLM Processing
-        self._runtime.display_queue.put(f"Brain: Thinking about '{data.text}'...")
-        time.sleep(2.0) # Simulate network latency
-        
+        self._runtime.display_queue.put(
+            DisplayMessage(speaker="Brain", text=f"Thinking about '{data.text}'...")
+        )
+        time.sleep(2.0)  # Simulate network latency
+
         response = f"I processed your input: {data.text}"
-        
+
         # Send response to UI and Speaker
-        self._runtime.display_queue.put(f"{response}")
+        self._runtime.display_queue.put(DisplayMessage(speaker="Brain", text=response))
         self._runtime.audio_output_queue.put({"type": "speech", "content": response})

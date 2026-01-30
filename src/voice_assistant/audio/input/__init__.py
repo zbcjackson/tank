@@ -12,6 +12,7 @@ from ...core.runtime import RuntimeContext
 from .types import AudioFormat, FrameConfig, SegmenterConfig
 from .mic import Mic, AudioFrame
 from .segmenter import UtteranceSegmenter, Utterance
+from .asr import ASR
 from .perception import Perception, PerceptionConfig
 from .vad import VADStatus, VADResult, SileroVAD
 
@@ -68,10 +69,12 @@ class AudioInput:
             frames_queue=self._frames_queue,
             utterance_queue=self._utterance_queue,
         )
+        asr = ASR(model_size=cfg.perception.model_size, device="cpu")
         self._perception = Perception(
             shutdown_signal=shutdown_signal,
             runtime=runtime,
             utterance_queue=self._utterance_queue,
+            asr=asr,
             config=cfg.perception,
         )
 
@@ -91,6 +94,7 @@ class AudioInput:
 __all__ = [
     "AudioInput",
     "AudioInputConfig",
+    "ASR",
     "AudioFormat",
     "FrameConfig",
     "SegmenterConfig",
