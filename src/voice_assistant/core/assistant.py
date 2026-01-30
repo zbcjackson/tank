@@ -1,6 +1,7 @@
 """Main Assistant orchestrator."""
 
 import queue
+from pathlib import Path
 from typing import Callable, Optional
 from .shutdown import GracefulShutdown
 from .brain import Brain
@@ -9,6 +10,9 @@ from .runtime import RuntimeContext
 
 # Import Audio subsystem components
 from ..audio import AudioInput, AudioInputConfig, AudioOutput, AudioOutputConfig
+from ..config.settings import load_config
+from ..llm.llm import LLM
+from ..tools.manager import ToolManager
 
 
 class Assistant:
@@ -23,10 +27,22 @@ class Assistant:
 
     def __init__(
         self,
+        config_path: Optional[Path] = None,
         on_exit_request: Optional[Callable[[], None]] = None,
         audio_input_config: Optional[AudioInputConfig] = None,
         audio_output_config: Optional[AudioOutputConfig] = None,
     ):
+        # Load configuration
+        self._config = load_config(config_path)
+        
+        # Create LLM and ToolManager
+        self._llm = LLM(
+            api_key=self._config.llm_api_key,
+            model=self._config.llm_model,
+            base_url=self._config.llm_base_url,
+        )
+        self._tool_manager = ToolManager(serper_api_key=self._config.serper_api_key)
+        
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()
         
