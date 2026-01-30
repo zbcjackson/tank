@@ -1,7 +1,7 @@
+import asyncio
 import logging
-import time
 from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING, Dict, Any
 
 from .events import BrainInputEvent, DisplayMessage
 from .runtime import RuntimeContext
@@ -53,6 +53,9 @@ class Brain(QueueWorker[BrainInputEvent]):
         self._conversation_history: List["ChatCompletionMessageParam"] = [
             {"role": "system", "content": self._system_prompt}
         ]
+        
+        # Event loop for async operations (created in run())
+        self._event_loop: Optional[asyncio.AbstractEventLoop] = None
     
     def _load_system_prompt(self) -> str:
         """Load system prompt from file."""
@@ -68,26 +71,112 @@ class Brain(QueueWorker[BrainInputEvent]):
             raise
 
     def run(self) -> None:
+        """Create event loop for this thread and run queue worker."""
         logger.info("Brain started. Thinking...")
+        # Create event loop for this thread
+        self._event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._event_loop)
         try:
             super().run()
         finally:
+            # Close event loop when thread stops
+            if self._event_loop:
+                self._event_loop.close()
             logger.info("Brain stopped.")
 
     def handle(self, event: BrainInputEvent) -> None:
         """
         Handles inputs from both Keyboard and Perception.
+        
+        Processes BrainInputEvent by:
+        1. Filtering blank text
+        2. Adding user message to conversation history
+        3. Calling LLM with conversation history
+        4. Adding assistant response to history
+        5. Outputting to display and audio queues
         """
+        # Filter blank text (defensive check)
+        if not event.text or not event.text.strip():
+            logger.debug(f"Skipping blank text from {event.user}")
+            return
+        
         logger.info(f"🧠 Processing {event.type} from {event.user}: {event.text}")
-
-        # Simulate LLM Processing
+        
+        # Add user message to conversation history
+        self._add_to_conversation_history("user", event.text)
+        
+        # Show thinking message
         self._runtime.display_queue.put(
             DisplayMessage(speaker="Brain", text=f"Thinking about '{event.text}'...")
         )
-        time.sleep(2.0)  # Simulate network latency
-
-        response = f"I processed your input: {event.text}"
-
-        # Send response to UI and Speaker
-        self._runtime.display_queue.put(DisplayMessage(speaker="Brain", text=response))
-        self._runtime.audio_output_queue.put({"type": "speech", "content": response})
+        
+        try:
+            # Call LLM with conversation history (already includes system prompt)
+            tools = self._tool_manager.get_openai_tools()
+            response = self._call_llm_async(self._conversation_history, tools)
+            
+            # Extract content from response
+            message = response["choices"][0]["message"]
+            content = message.get("content", "")
+            
+            if not content:
+                logger.warning("LLM returned empty content")
+                error_msg = self._get_error_message(event.language)
+                self._runtime.display_queue.put(
+                    DisplayMessage(speaker="Brain", text=error_msg)
+                )
+                return
+            
+            # Add assistant response to conversation history
+            self._add_to_conversation_history("assistant", content)
+            
+            # Log tool iterations if any occurred
+            if response.get("tool_iterations", 0) > 1:
+                logger.info(f"Completed response after {response['tool_iterations']} tool iterations")
+            
+            # Send response to UI and Speaker
+            self._runtime.display_queue.put(
+                DisplayMessage(speaker="Brain", text=content)
+            )
+            self._runtime.audio_output_queue.put({"type": "speech", "content": content})
+            
+        except Exception as e:
+            logger.error(f"Error processing input: {e}", exc_info=True)
+            # Don't update conversation history on error
+            # User message was already added, but we'll leave it for retry
+            error_msg = self._get_error_message(event.language)
+            self._runtime.display_queue.put(
+                DisplayMessage(speaker="Brain", text=error_msg)
+            )
+    
+    def _add_to_conversation_history(self, role: str, content: str) -> None:
+        """Add message to conversation history and enforce limit."""
+        self._conversation_history.append({"role": role, "content": content})
+        
+        # Limit: keep system (index 0) + last max_conversation_history * 2 messages
+        # (each conversation turn = 1 user + 1 assistant = 2 messages)
+        max_messages = self._config.max_conversation_history * 2 + 1
+        if len(self._conversation_history) > max_messages:
+            self._conversation_history = (
+                [self._conversation_history[0]] +  # Keep system prompt
+                self._conversation_history[-(max_messages - 1):]  # Keep last N messages
+            )
+    
+    def _call_llm_async(self, messages: List["ChatCompletionMessageParam"], tools: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Run async LLM call in sync context using event loop."""
+        if self._event_loop is None:
+            raise RuntimeError("Event loop not initialized. Brain must be running.")
+        
+        return self._event_loop.run_until_complete(
+            self._llm.chat_completion_async(
+                messages=messages,
+                tools=tools,
+                tool_executor=self._tool_manager
+            )
+        )
+    
+    def _get_error_message(self, language: Optional[str]) -> str:
+        """Get error message in user's language."""
+        if language and language.startswith("zh"):
+            return "对不起，出现错误，请重试。"
+        return "Sorry, an error occurred. Please try again."

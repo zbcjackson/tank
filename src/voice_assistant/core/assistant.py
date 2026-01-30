@@ -86,6 +86,10 @@ class Assistant:
 
     def process_input(self, text: str):
         """Submit user text input for processing."""
+        # Filter blank text (defensive check)
+        if not text or not text.strip():
+            return
+        
         if text.lower() in ["quit", "exit"]:
             if self.on_exit_request:
                 self.on_exit_request()
