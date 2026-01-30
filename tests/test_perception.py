@@ -77,12 +77,28 @@ class TestPerception:
         assert msg.text == "hello world"
 
     def test_handle_skips_display_when_text_empty(self, perception, runtime, mock_asr):
-        """When ASR returns empty text, no DisplayMessage is put."""
+        """When ASR returns empty text, no DisplayMessage and no BrainInputEvent is put."""
         mock_asr.transcribe.return_value = ("", None, None)
         utterance = make_utterance()
         perception.handle(utterance)
 
-        assert not runtime.brain_input_queue.empty()
-        runtime.brain_input_queue.get_nowait()
+        assert runtime.brain_input_queue.empty()
+        assert runtime.display_queue.empty()
 
+    def test_handle_skips_brain_input_when_text_empty(self, perception, runtime, mock_asr):
+        """When ASR returns empty text, no BrainInputEvent is put into brain_input_queue."""
+        mock_asr.transcribe.return_value = ("", None, None)
+        utterance = make_utterance()
+        perception.handle(utterance)
+
+        assert runtime.brain_input_queue.empty()
+        assert runtime.display_queue.empty()
+
+    def test_handle_skips_brain_input_when_text_whitespace_only(self, perception, runtime, mock_asr):
+        """When ASR returns whitespace-only text, no BrainInputEvent is put into brain_input_queue."""
+        mock_asr.transcribe.return_value = ("   \n\t  ", None, None)
+        utterance = make_utterance()
+        perception.handle(utterance)
+
+        assert runtime.brain_input_queue.empty()
         assert runtime.display_queue.empty()

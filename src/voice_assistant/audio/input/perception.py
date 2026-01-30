@@ -71,11 +71,14 @@ class Perception(QueueWorker[Utterance]):
 
     def handle(self, utterance: Utterance) -> None:
         event = self.process(utterance)
+        # Skip blank text: don't put into brain_input_queue or display_queue
+        if not event.text or not event.text.strip():
+            return
+        
         self._runtime.brain_input_queue.put(event)
-        if event.text.strip():
-            self._runtime.display_queue.put(
-                DisplayMessage(speaker=event.user, text=event.text)
-            )
+        self._runtime.display_queue.put(
+            DisplayMessage(speaker=event.user, text=event.text)
+        )
 
     def process(self, utterance: Utterance) -> BrainInputEvent:
         """
