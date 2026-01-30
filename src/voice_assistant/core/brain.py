@@ -72,7 +72,6 @@ class Brain(QueueWorker[BrainInputEvent]):
 
     def run(self) -> None:
         """Create event loop for this thread and run queue worker."""
-        logger.info("Brain started. Thinking...")
         # Create event loop for this thread
         self._event_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._event_loop)
@@ -82,7 +81,6 @@ class Brain(QueueWorker[BrainInputEvent]):
             # Close event loop when thread stops
             if self._event_loop:
                 self._event_loop.close()
-            logger.info("Brain stopped.")
 
     def handle(self, event: BrainInputEvent) -> None:
         """
@@ -99,17 +97,10 @@ class Brain(QueueWorker[BrainInputEvent]):
         if not event.text or not event.text.strip():
             logger.debug(f"Skipping blank text from {event.user}")
             return
-        
-        logger.info(f"🧠 Processing {event.type} from {event.user}: {event.text}")
-        
+
         # Add user message to conversation history
         self._add_to_conversation_history("user", event.text)
-        
-        # Show thinking message
-        self._runtime.display_queue.put(
-            DisplayMessage(speaker="Brain", text=f"Thinking about '{event.text}'...")
-        )
-        
+
         try:
             # Call LLM with conversation history (already includes system prompt)
             tools = self._tool_manager.get_openai_tools()
@@ -178,5 +169,5 @@ class Brain(QueueWorker[BrainInputEvent]):
     def _get_error_message(self, language: Optional[str]) -> str:
         """Get error message in user's language."""
         if language and language.startswith("zh"):
-            return "对不起，出现错误，请重试。"
+            return "对不对不起起，出现错误，请重试。"
         return "Sorry, an error occurred. Please try again."
