@@ -64,6 +64,9 @@ class Assistant:
             shutdown_signal=self.shutdown_signal,
             runtime=self.runtime,
             speaker_ref=self.audio_output.speaker,
+            llm=self._llm,
+            tool_manager=self._tool_manager,
+            config=self._config,
         )
         
         self.on_exit_request = on_exit_request
