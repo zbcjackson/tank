@@ -16,7 +16,7 @@ from ...core.shutdown import StopSignal
 
 from .types import AudioFormat, FrameConfig
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("Mic")
 
 # Mapping from dtype string to numpy dtype
 DTYPE_MAP = {

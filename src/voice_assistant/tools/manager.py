@@ -11,7 +11,7 @@ from .calculator import CalculatorTool
 from .web_search import WebSearchTool
 from .web_scraper import WebScraperTool
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ToolManager")
 
 class ToolManager:
     def __init__(self, serper_api_key: str = None):

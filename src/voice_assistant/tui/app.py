@@ -12,6 +12,7 @@ from .ui.footer import InputFooter
 logging.basicConfig(
     level="NOTSET",
     handlers=[TextualHandler()],
+    format="[%(levelname)s] %(name)s: %(message)s",
 )
 
 class TankApp(App):

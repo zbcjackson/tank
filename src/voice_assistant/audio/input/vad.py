@@ -14,7 +14,7 @@ from silero_vad import load_silero_vad, VADIterator
 
 from .types import SegmenterConfig
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("VAD")
 
 
 class VADStatus(Enum):

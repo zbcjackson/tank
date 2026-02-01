@@ -9,7 +9,9 @@ from typing import Optional
 import numpy as np
 from faster_whisper import WhisperModel
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("ASR")
+# Reduce noise from faster-whisper
+logging.getLogger("faster_whisper").setLevel(logging.WARNING)
 
 
 class ASR:

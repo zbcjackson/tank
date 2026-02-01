@@ -1,10 +1,13 @@
-import asyncio
 from typing import List, Dict, Any, Optional, Union
 import logging
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionAssistantMessageParam
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("LLM")
+# Reduce noise from OpenAI client and its HTTP transport
+logging.getLogger("openai").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 class LLM:
     def __init__(self, api_key: str, model: str = "anthropic/claude-3-5-nano", base_url: str = "https://openrouter.ai/api/v1"):
