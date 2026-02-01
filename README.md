@@ -18,6 +18,7 @@ A powerful voice assistant that supports both Chinese and English, capable of an
 - Python 3.10 or higher
 - An API key from your LLM provider (e.g., OpenRouter, OpenAI, etc.)
 - Audio input/output device (microphone and speakers)
+- **Optional**: [ffmpeg](https://ffmpeg.org/) on `PATH` — used for TTS MP3 decoding when available (lower latency, fewer audio glitches). Without it, the app falls back to in-process decoding (pydub).
 
 ## Installation
 

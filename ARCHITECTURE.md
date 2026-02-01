@@ -96,9 +96,17 @@ Tank is a bilingual (Chinese/English) voice assistant that integrates:
 
 **Description**: Interruptible text-to-speech via abstract TTSEngine; Edge TTS backend streams MP3, decodes to PCM, plays through sounddevice.
 
+**MP3 decoding (Edge TTS)**:
+- Edge TTS returns MP3 only; the backend decodes to PCM before playback.
+- **Preferred when ffmpeg is available**: subprocess with stdin→stdout pipes (no temp files). MP3 is fed to ffmpeg stdin, PCM is read from stdout. Single stateful decoder process yields continuous PCM and fewer chunk-boundary clicks; lower first-byte latency.
+- **Fallback (pydub)**: accumulate 12 KB MP3 per chunk, decode with `AudioSegment.from_file` in process. Fewer boundaries than per-tiny-chunk decode; no external process. Requires ffmpeg/avlib for pydub’s decode on many systems.
+
+**Playback**:
+- `play_stream` consumes an async stream of `AudioChunk`, writes to sounddevice. Short fade-in on the first chunk and fade-out on the last chunk (5 ms) to avoid start/stop pops; one-chunk buffering so the last chunk can be faded out before write. On interrupt, pending chunk is not written.
+
 **Features**:
 - Data class `AudioOutputRequest` (content, language, voice) in audio_output_queue
-- TTSEngine ABC for TTS abstraction; engines subclass it (e.g. EdgeTTSEngine with edge_tts + pydub); missing methods fail at instantiation
+- TTSEngine ABC for TTS abstraction; engines subclass it (e.g. EdgeTTSEngine); missing methods fail at instantiation
 - SpeakerHandler (queue worker with event loop) consumes requests, calls TTS generate_stream and play_stream
 - Streaming: generate and play PCM chunks for lower latency
 - Interruptible: interrupt_event stops TTS stream and playback
