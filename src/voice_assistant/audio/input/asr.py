@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from typing import Optional
 
@@ -10,8 +11,43 @@ import numpy as np
 from faster_whisper import WhisperModel
 
 logger = logging.getLogger("ASR")
+
+# Common Whisper hallucination phrases to strip from transcript start/end (case-insensitive)
+_HALLUCINATION_PHRASES = (
+    "thank you",
+    "thanks for watching",
+    "thanks for listening",
+)
+_HALLUCINATION_LEAD_PATTERNS = tuple(
+    re.compile(r"^\s*[.,!?]*\s*" + re.escape(p) + r"[.,!?\s]*", re.IGNORECASE)
+    for p in _HALLUCINATION_PHRASES
+)
+_HALLUCINATION_TRAIL_PATTERNS = tuple(
+    re.compile(r"[.,!?\s]*" + re.escape(p) + r"\s*[.,!?]*\s*$", re.IGNORECASE)
+    for p in _HALLUCINATION_PHRASES
+)
 # Reduce noise from faster-whisper
 logging.getLogger("faster_whisper").setLevel(logging.WARNING)
+
+
+def _strip_hallucination_phrases(text: str) -> str:
+    """
+    Remove common Whisper hallucination phrases from start and end of text.
+    Case-insensitive; allows optional punctuation/whitespace around phrases.
+    """
+    t = text.strip()
+    while True:
+        changed = False
+        for lead_re, trail_re in zip(_HALLUCINATION_LEAD_PATTERNS, _HALLUCINATION_TRAIL_PATTERNS):
+            t_new = lead_re.sub("", t).strip()
+            t_new = trail_re.sub("", t_new).strip()
+            if t_new != t:
+                t = t_new
+                changed = True
+                break
+        if not changed:
+            break
+    return t
 
 
 class ASR:
@@ -63,6 +99,7 @@ class ASR:
             log_progress=False,
         )
         text = " ".join(s.text.strip() for s in segments).strip()
+        text = _strip_hallucination_phrases(text)
         language = getattr(info, "language", None)
         confidence = getattr(info, "language_probability", None)
 

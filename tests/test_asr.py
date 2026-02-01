@@ -64,3 +64,72 @@ class TestASR:
         assert text == "foo bar"
         assert language == "zh"
         assert confidence == 0.9
+
+    def test_transcribe_strips_hallucination_at_end(self, mock_whisper_model):
+        """Common Whisper hallucination at end (e.g. thank you) is removed."""
+        segments = [MagicMock(text=" hello ", start=0.0, end=0.2), MagicMock(text=" thank you ", start=0.2, end=0.5)]
+        with patch(
+            "src.voice_assistant.audio.input.asr.WhisperModel",
+            return_value=MagicMock(
+                transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="en", language_probability=0.95)))
+            ),
+        ):
+            asr = ASR(model_size="base", device="cpu")
+            text, _, _ = asr.transcribe(generate_pcm(), 16000)
+        assert text == "hello"
+
+    def test_transcribe_strips_hallucination_at_start(self, mock_whisper_model):
+        """Hallucination at start (e.g. Thank you.) is removed."""
+        segments = [MagicMock(text=" Thank you. ", start=0.0, end=0.2), MagicMock(text=" 你好 ", start=0.2, end=0.5)]
+        with patch(
+            "src.voice_assistant.audio.input.asr.WhisperModel",
+            return_value=MagicMock(
+                transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="zh", language_probability=0.9)))
+            ),
+        ):
+            asr = ASR(model_size="base", device="cpu")
+            text, _, _ = asr.transcribe(generate_pcm(), 16000)
+        assert text == "你好"
+
+    def test_transcribe_strips_hallucination_only_phrase_returns_empty(self, mock_whisper_model):
+        """When transcript is only a hallucination phrase, result is empty."""
+        segments = [MagicMock(text=" Thank you ", start=0.0, end=0.3)]
+        with patch(
+            "src.voice_assistant.audio.input.asr.WhisperModel",
+            return_value=MagicMock(
+                transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="en", language_probability=0.95)))
+            ),
+        ):
+            asr = ASR(model_size="base", device="cpu")
+            text, _, _ = asr.transcribe(generate_pcm(), 16000)
+        assert text == ""
+
+    def test_transcribe_keeps_content_unchanged_when_no_hallucination(self, mock_whisper_model):
+        """Content without hallucination phrases is unchanged."""
+        segments = [MagicMock(text=" hello ", start=0.0, end=0.2), MagicMock(text=" world ", start=0.2, end=0.5)]
+        with patch(
+            "src.voice_assistant.audio.input.asr.WhisperModel",
+            return_value=MagicMock(
+                transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="en", language_probability=0.95)))
+            ),
+        ):
+            asr = ASR(model_size="base", device="cpu")
+            text, _, _ = asr.transcribe(generate_pcm(), 16000)
+        assert text == "hello world"
+
+    def test_transcribe_strips_hallucination_at_both_ends(self, mock_whisper_model):
+        """Hallucination at both start and end is removed."""
+        segments = [
+            MagicMock(text=" Thanks for watching. ", start=0.0, end=0.2),
+            MagicMock(text=" 内容。 ", start=0.2, end=0.4),
+            MagicMock(text=" Thanks for listening. ", start=0.4, end=0.7),
+        ]
+        with patch(
+            "src.voice_assistant.audio.input.asr.WhisperModel",
+            return_value=MagicMock(
+                transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="zh", language_probability=0.9)))
+            ),
+        ):
+            asr = ASR(model_size="base", device="cpu")
+            text, _, _ = asr.transcribe(generate_pcm(), 16000)
+        assert text == "内容。"
