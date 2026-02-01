@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from pathlib import Path
 from typing import List, Optional, TYPE_CHECKING, Dict, Any
 
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
     from ..llm.llm import LLM
     from ..tools.manager import ToolManager
 
-logger = logging.getLogger("RefactoredAssistant")
+logger = logging.getLogger("Brain")
 
 
 class Brain(QueueWorker[BrainInputEvent]):
@@ -98,6 +99,9 @@ class Brain(QueueWorker[BrainInputEvent]):
             logger.debug(f"Skipping blank text from {event.user}")
             return
 
+        started_at = time.time()
+        logger.info("Brain processing started for input at %.3f", started_at)
+
         # Add user message to conversation history
         self._add_to_conversation_history("user", event.text)
 
@@ -120,11 +124,14 @@ class Brain(QueueWorker[BrainInputEvent]):
             
             # Add assistant response to conversation history
             self._add_to_conversation_history("assistant", content)
-            
+
             # Log tool iterations if any occurred
             if response.get("tool_iterations", 0) > 1:
                 logger.info(f"Completed response after {response['tool_iterations']} tool iterations")
-            
+
+            ended_at = time.time()
+            logger.info("Brain response ready at %.3f", ended_at)
+
             # Send response to UI and Speaker
             self._runtime.display_queue.put(
                 DisplayMessage(speaker="Brain", text=content)

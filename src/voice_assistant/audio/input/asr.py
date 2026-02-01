@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Optional
 
 import numpy as np
@@ -50,12 +51,19 @@ class ASR:
         if pcm.size == 0:
             return ("", None, None)
 
+        started_at = time.time()
+        logger.info("ASR started at %.3f", started_at)
+
         segments, info = self._model.transcribe(
             pcm,
             language=None,
             vad_filter=False,
+            log_progress=False,
         )
         text = " ".join(s.text.strip() for s in segments).strip()
         language = getattr(info, "language", None)
         confidence = getattr(info, "language_probability", None)
+
+        ended_at = time.time()
+        logger.info("ASR ended at %.3f", ended_at)
         return (text, language, confidence)

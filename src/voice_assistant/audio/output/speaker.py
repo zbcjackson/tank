@@ -10,7 +10,7 @@ import queue
 from ...core.shutdown import StopSignal
 from ...core.worker import QueueWorker
 
-logger = logging.getLogger("RefactoredAssistant")
+logger = logging.getLogger("Speaker")
 
 
 class SpeakerHandler(QueueWorker[dict]):

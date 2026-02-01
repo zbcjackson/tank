@@ -19,7 +19,7 @@ from .voiceprint import VoiceprintRecognizer
 if TYPE_CHECKING:
     from .asr import ASR
 
-logger = logging.getLogger("RefactoredAssistant")
+logger = logging.getLogger("Perception")
 
 
 @dataclass(frozen=True)
