@@ -54,6 +54,8 @@ class SileroVAD:
             cfg: Segmenter configuration
             sample_rate: Audio sample rate (default: 16000 Hz)
         """
+        self._speech_process_started_at_s = None
+        self._speech_process_ended_at_s = None
         self._cfg = cfg
         self._sample_rate = sample_rate
         
@@ -200,7 +202,9 @@ class SileroVAD:
                 self._speech_started_at_s = None
                 self._last_voice_at_s = None
 
-                logger.info("VAD speech process ended at %.3f, speech started_at_s=%.3f, ended_at_s=%.3f", time.time(), started_at, ended_at)
+                self._speech_process_ended_at_s = time.time()
+                duration_s = self._speech_process_ended_at_s - self._speech_process_started_at_s
+                logger.info("VAD speech process ended at %.3f taking %.3f s, speech started_at_s=%.3f, ended_at_s=%.3f", self._speech_process_ended_at_s, duration_s, started_at, ended_at)
                 return VADResult(
                     status=VADStatus.END_SPEECH,
                     utterance_pcm=utterance_pcm,
@@ -219,7 +223,8 @@ class SileroVAD:
             self._in_speech = True
             self._speech_started_at_s = timestamp_s
             self._last_voice_at_s = timestamp_s  # Track last voice time for silence timeout
-            logger.info("VAD speech process started at %.3f, speech started at %.3f", time.time(), timestamp_s)
+            self._speech_process_started_at_s = time.time()
+            logger.info("VAD speech process started at %.3f, speech started at %.3f", self._speech_process_started_at_s, timestamp_s)
             
             # Include pre-roll frames + current frame
             pre_roll_parts = list(self._pre_roll_buffer)
@@ -243,7 +248,9 @@ class SileroVAD:
                 self._speech_started_at_s = None
                 self._last_voice_at_s = None
 
-                logger.info("VAD speech process ended at %.3f, speech started_at_s=%.3f, ended_at_s=%.3f", time.time(), started_at, timestamp_s)
+                self._speech_process_ended_at_s = time.time()
+                duration_s = self._speech_process_ended_at_s - self._speech_process_started_at_s
+                logger.info("VAD speech process ended at %.3f taking %.3f s, speech started_at_s=%.3f, ended_at_s=%.3f", self._speech_process_ended_at_s, duration_s, started_at, timestamp_s)
                 return VADResult(
                     status=VADStatus.END_SPEECH,
                     utterance_pcm=utterance_pcm,
@@ -286,7 +293,9 @@ class SileroVAD:
             self._speech_pcm_parts = []
             self._speech_started_at_s = None
 
-            logger.info("VAD speech flush process ended at %.3f, speech started_at_s=%.3f, ended_at_s=%.3f", time.time(), started_at, now_s)
+            self._speech_process_ended_at_s = time.time()
+            duration_s = self._speech_process_ended_at_s - self._speech_process_started_at_s
+            logger.info("VAD speech flush process ended at %.3f taking %.3f s, speech started_at_s=%.3f, ended_at_s=%.3f", self._speech_process_ended_at_s, duration_s, started_at, now_s)
             return VADResult(
                 status=VADStatus.END_SPEECH,
                 utterance_pcm=utterance_pcm,

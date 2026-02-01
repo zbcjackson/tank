@@ -67,5 +67,6 @@ class ASR:
         confidence = getattr(info, "language_probability", None)
 
         ended_at = time.time()
-        logger.info("ASR ended at %.3f", ended_at)
+        duration_s = ended_at - started_at
+        logger.info("ASR ended at %.3f, duration_s=%.3f", ended_at, duration_s)
         return (text, language, confidence)

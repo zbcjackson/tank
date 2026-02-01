@@ -2,7 +2,7 @@ import logging
 from typing import Dict, Any
 from .base import BaseTool, ToolInfo, ToolParameter
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("WeatherTool")
 
 
 class WeatherTool(BaseTool):

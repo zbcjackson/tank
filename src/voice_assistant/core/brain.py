@@ -130,7 +130,8 @@ class Brain(QueueWorker[BrainInputEvent]):
                 logger.info(f"Completed response after {response['tool_iterations']} tool iterations")
 
             ended_at = time.time()
-            logger.info("Brain response ready at %.3f", ended_at)
+            duration_s = ended_at - started_at
+            logger.info("Brain response ready at %.3f, duration_s=%.3f", ended_at, duration_s)
 
             # Send response to UI and Speaker
             self._runtime.display_queue.put(
