@@ -381,6 +381,102 @@ def generate_speech_frame(sample_rate=16000, frame_ms=20, frequency=500):
     return signal.astype(np.float32)
 ```
 
+## Reducing Duplication in Test Cases
+
+When multiple tests share the same setup, mocks, or patterns, extract shared helpers so tests stay short and changes stay in one place. This reduces repetition and keeps future test generation consistent.
+
+### Module constant for patch targets
+
+Define a single constant for the module under test and use it in all `patch()` targets. This avoids repeating long paths and makes renames easier.
+
+```python
+MODULE = "src.voice_assistant.audio.output.tts_engine_edge"
+
+with patch(f"{MODULE}.shutil.which", return_value=None), \
+     patch(f"{MODULE}.edge_tts") as mock_et:
+    ...
+```
+
+### Shared helpers for mock construction
+
+If several tests build the same kind of mock (e.g. a Communicate mock with a stream, a fake subprocess), extract a small function that returns the configured mock. Each test then calls the helper instead of inlining the same setup.
+
+```python
+def make_communicate_mock(mp3_chunks):
+    """Mock edge_tts.Communicate whose stream yields type=audio chunks."""
+    async def stream():
+        for data in mp3_chunks:
+            yield {"type": "audio", "data": data}
+    mock = MagicMock()
+    mock.stream = stream
+    return mock
+```
+
+Use the same idea for other repeated mocks (e.g. `make_pydub_segment(...)`, `make_ffmpeg_mock_proc(...)`).
+
+### Collecting async stream results
+
+When tests only need to assert on the list of items produced by an async generator, use a small async helper instead of repeating the same loop in every test.
+
+```python
+async def collect_chunks(engine, text, **kwargs):
+    """Run engine.generate_stream(text, **kwargs) and return list of AudioChunk."""
+    chunks = []
+    async for c in engine.generate_stream(text, **kwargs):
+        chunks.append(c)
+    return chunks
+
+# In tests:
+chunks = await collect_chunks(engine, "hello", language="en")
+assert len(chunks) == 1
+```
+
+### Single-level patch blocks
+
+Prefer one `with` block with multiple `patch()` calls over nested `with` blocks. This keeps the test body flat and makes it clear which patches apply together.
+
+```python
+with patch(f"{MODULE}.shutil.which", return_value=None), \
+     patch(f"{MODULE}.edge_tts") as mock_et, \
+     patch(f"{MODULE}.AudioSegment") as mock_as:
+    mock_et.Communicate.return_value = communicate
+    mock_as.from_file.return_value = segment
+    engine = EdgeTTSEngine(config)
+    chunks = await collect_chunks(engine, "hello", language="en")
+assert len(chunks) == 1
+mock_et.Communicate.assert_called_once_with("hello", "en-US-JennyNeural")
+```
+
+Put assertions that use mocks (e.g. `mock_et.Communicate.assert_called_once_with(...)`) after the `with` block if the mock is only needed for that assertion.
+
+### Parameterized callbacks (e.g. interrupt-after-N)
+
+When tests need a callable that changes behavior after N calls (e.g. `is_interrupted` that returns True after the first call), use a small factory instead of duplicating the same closure and counter in each test.
+
+```python
+def make_interrupt_after(threshold):
+    """Return is_interrupted callable that returns True after (threshold + 1) calls."""
+    call_count = [0]
+    def is_interrupted():
+        call_count[0] += 1
+        return call_count[0] > threshold
+    return is_interrupted
+
+# In tests:
+is_interrupted = make_interrupt_after(1)
+chunks = await collect_chunks(engine, "hi", is_interrupted=is_interrupted)
+```
+
+### Summary
+
+- **Module constant**: One `MODULE` (or similar) for all patch targets.
+- **Mock helpers**: `make_*` functions for repeated mock shapes (Communicate, segment, subprocess, etc.).
+- **Async collection**: One `collect_*` (or similar) helper for “run async generator, return list”.
+- **Flat patches**: One `with patch(...), patch(...):` per test; assertions outside when they only need mocks.
+- **Callback factories**: `make_interrupt_after(n)` or similar for “callable that flips after N calls”.
+
+Reference: `tests/test_tts_engine_edge.py` for a full example of these patterns.
+
 ## Test Quality Checklist (Updated)
 
 Before committing tests, ensure:
@@ -399,6 +495,7 @@ Before committing tests, ensure:
 - [ ] **Black-box tests verify behavior through input/output**
 - [ ] **Mocking is minimized** - only mock slow/unstable/external dependencies
 - [ ] **Real implementations used** for fast/stable components to get realistic results
+- [ ] **Duplication minimized** - shared helpers for mocks, patch targets (MODULE), async collection, and parameterized callbacks (see “Reducing Duplication in Test Cases”)
 
 ## Running Tests Before Commits
 
