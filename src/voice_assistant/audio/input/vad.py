@@ -157,6 +157,38 @@ class SileroVAD:
         # Fallback to last known state
         return self._last_chunk_has_voice
 
+    def _finalize_utterance(self, ended_at_s: float) -> VADResult:
+        """
+        Build END_SPEECH result from current speech state and reset.
+        Call when speech ends (silence timeout), max_utterance exceeded, or flush.
+        """
+        utterance_pcm = (
+            np.concatenate(self._speech_pcm_parts)
+            if self._speech_pcm_parts
+            else np.array([], dtype=np.float32)
+        )
+        started_at = self._speech_started_at_s or ended_at_s
+        self._in_speech = False
+        self._speech_pcm_parts = []
+        self._speech_started_at_s = None
+        self._last_voice_at_s = None
+        self._speech_process_ended_at_s = time.time()
+        duration_s = self._speech_process_ended_at_s - self._speech_process_started_at_s
+        logger.info(
+            "VAD speech process ended at %.3f taking %.3f s, speech started_at_s=%.3f, ended_at_s=%.3f",
+            self._speech_process_ended_at_s,
+            duration_s,
+            started_at,
+            ended_at_s,
+        )
+        return VADResult(
+            status=VADStatus.END_SPEECH,
+            utterance_pcm=utterance_pcm,
+            sample_rate=self._sample_rate,
+            started_at_s=started_at,
+            ended_at_s=ended_at_s,
+        )
+
     def process_frame(
         self,
         pcm: np.ndarray,
@@ -191,27 +223,7 @@ class SileroVAD:
                         self._last_voice_at_s = None
                         return VADResult(status=VADStatus.NO_SPEECH)
                 
-                # Finalize utterance
-                utterance_pcm = np.concatenate(self._speech_pcm_parts) if self._speech_pcm_parts else np.array([], dtype=np.float32)
-                started_at = self._speech_started_at_s or timestamp_s
-                ended_at = self._last_voice_at_s or timestamp_s
-                
-                # Reset state
-                self._in_speech = False
-                self._speech_pcm_parts = []
-                self._speech_started_at_s = None
-                self._last_voice_at_s = None
-
-                self._speech_process_ended_at_s = time.time()
-                duration_s = self._speech_process_ended_at_s - self._speech_process_started_at_s
-                logger.info("VAD speech process ended at %.3f taking %.3f s, speech started_at_s=%.3f, ended_at_s=%.3f", self._speech_process_ended_at_s, duration_s, started_at, ended_at)
-                return VADResult(
-                    status=VADStatus.END_SPEECH,
-                    utterance_pcm=utterance_pcm,
-                    sample_rate=self._sample_rate,
-                    started_at_s=started_at,
-                    ended_at_s=ended_at,
-                )
+                return self._finalize_utterance(self._last_voice_at_s or timestamp_s)
 
         has_voice = self._has_voice_activity(pcm)
         
@@ -238,26 +250,7 @@ class SileroVAD:
         if self._speech_started_at_s is not None:
             utterance_duration_ms = (timestamp_s - self._speech_started_at_s) * 1000.0
             if utterance_duration_ms >= self._cfg.max_utterance_ms:
-                # Force finalize
-                utterance_pcm = np.concatenate(self._speech_pcm_parts) if self._speech_pcm_parts else np.array([], dtype=np.float32)
-                started_at = self._speech_started_at_s
-                
-                # Reset state
-                self._in_speech = False
-                self._speech_pcm_parts = []
-                self._speech_started_at_s = None
-                self._last_voice_at_s = None
-
-                self._speech_process_ended_at_s = time.time()
-                duration_s = self._speech_process_ended_at_s - self._speech_process_started_at_s
-                logger.info("VAD speech process ended at %.3f taking %.3f s, speech started_at_s=%.3f, ended_at_s=%.3f", self._speech_process_ended_at_s, duration_s, started_at, timestamp_s)
-                return VADResult(
-                    status=VADStatus.END_SPEECH,
-                    utterance_pcm=utterance_pcm,
-                    sample_rate=self._sample_rate,
-                    started_at_s=started_at,
-                    ended_at_s=timestamp_s,
-                )
+                return self._finalize_utterance(timestamp_s)
 
         # Update last voice time if voice detected
         if has_voice:
@@ -283,30 +276,9 @@ class SileroVAD:
             has_voice = self._process_chunk(self._chunk_buffer)
             self._chunk_buffer = np.array([], dtype=np.float32)
         
-        # Finalize utterance
         if len(self._speech_pcm_parts) > 0:
-            utterance_pcm = np.concatenate(self._speech_pcm_parts)
-            started_at = self._speech_started_at_s or now_s
-            
-            # Reset state
-            self._in_speech = False
-            self._speech_pcm_parts = []
-            self._speech_started_at_s = None
-
-            self._speech_process_ended_at_s = time.time()
-            duration_s = self._speech_process_ended_at_s - self._speech_process_started_at_s
-            logger.info("VAD speech flush process ended at %.3f taking %.3f s, speech started_at_s=%.3f, ended_at_s=%.3f", self._speech_process_ended_at_s, duration_s, started_at, now_s)
-            return VADResult(
-                status=VADStatus.END_SPEECH,
-                utterance_pcm=utterance_pcm,
-                sample_rate=self._sample_rate,
-                started_at_s=started_at,
-                ended_at_s=now_s,
-            )
-
-        # Reset state
+            return self._finalize_utterance(now_s)
         self._in_speech = False
         self._speech_pcm_parts = []
         self._speech_started_at_s = None
-
         return VADResult(status=VADStatus.NO_SPEECH)
