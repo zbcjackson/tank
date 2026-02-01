@@ -26,6 +26,6 @@ class SegmenterConfig:
     """Utterance segmentation (VAD + endpointing) configuration."""
     speech_threshold: float = 0.5
     min_speech_ms: int = 200
-    min_silence_ms: int = 500
+    min_silence_ms: int = 1000
     pre_roll_ms: int = 200
     max_utterance_ms: int = 20000
