@@ -10,18 +10,17 @@ import edge_tts
 from pydub import AudioSegment
 
 from ...config.settings import VoiceAssistantConfig
-from .playback import play_stream
 from .types import AudioChunk
+from .tts import TTSEngine
 
 logger = logging.getLogger(__name__)
 
 
-class EdgeTTSEngine:
+class EdgeTTSEngine(TTSEngine):
     """TTS engine using Microsoft Edge TTS. Decodes MP3 stream to PCM."""
 
     def __init__(self, config: VoiceAssistantConfig):
         self._config = config
-        self._interrupted = False
 
     def _voice_for_language(self, language: str) -> str:
         if language.startswith("zh") or language == "chinese":
@@ -56,26 +55,3 @@ class EdgeTTSEngine:
                 sample_rate=seg.frame_rate,
                 channels=seg.channels,
             )
-
-    def interrupt_speech(self) -> None:
-        """Signal to stop current TTS generation and playback."""
-        self._interrupted = True
-
-    async def speak_async(
-        self,
-        text: str,
-        voice: Optional[str] = None,
-        language: str = "auto",
-    ) -> None:
-        """Generate and play TTS for text. Stops if interrupt_speech() was called."""
-        self._interrupted = False
-        chunk_stream = self.generate_stream(
-            text,
-            language=language,
-            voice=voice,
-            is_interrupted=lambda: self._interrupted,
-        )
-        await play_stream(
-            chunk_stream,
-            is_interrupted=lambda: self._interrupted,
-        )

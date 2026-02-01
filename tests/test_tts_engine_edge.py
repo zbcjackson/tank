@@ -4,8 +4,17 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.voice_assistant.audio.output.types import AudioChunk
+from src.voice_assistant.audio.output.tts import TTSEngine
 from src.voice_assistant.audio.output.tts_engine_edge import EdgeTTSEngine
 from src.voice_assistant.config.settings import VoiceAssistantConfig
+
+
+def test_tts_engine_abc_requires_generate_stream():
+    """Instantiating a TTSEngine subclass without implementing generate_stream fails early."""
+    class IncompleteEngine(TTSEngine):
+        pass
+    with pytest.raises(TypeError, match="generate_stream"):
+        IncompleteEngine()
 
 
 @pytest.fixture

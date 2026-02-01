@@ -4,6 +4,15 @@ from typing import Optional
 import time
 
 
+@dataclass(frozen=True)
+class AudioOutputRequest:
+    """Single item for audio output queue: text to speak."""
+
+    content: str
+    language: str = "auto"
+    voice: Optional[str] = None
+
+
 class InputType(Enum):
     TEXT = auto()
     AUDIO = auto()

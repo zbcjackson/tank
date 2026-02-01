@@ -6,9 +6,9 @@ import queue
 from dataclasses import dataclass
 
 from ...config.settings import VoiceAssistantConfig
+from ...core.events import AudioOutputRequest
 from ...core.shutdown import GracefulShutdown
 from .speaker import SpeakerHandler
-from .types import AudioOutputRequest
 from .tts_engine_edge import EdgeTTSEngine
 
 

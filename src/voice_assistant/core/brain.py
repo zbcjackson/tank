@@ -4,9 +4,8 @@ import time
 from pathlib import Path
 from typing import List, Optional, TYPE_CHECKING, Dict, Any
 
-from .events import BrainInputEvent, DisplayMessage
+from .events import AudioOutputRequest, BrainInputEvent, DisplayMessage
 from .runtime import RuntimeContext
-from ..audio.output.types import AudioOutputRequest
 from .shutdown import StopSignal
 from .worker import QueueWorker
 from ..audio.output import SpeakerHandler

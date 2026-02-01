@@ -4,8 +4,9 @@ import asyncio
 import queue
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.voice_assistant.audio.output.types import AudioChunk, AudioOutputRequest
 from src.voice_assistant.audio.output.speaker import SpeakerHandler
+from src.voice_assistant.audio.output.types import AudioChunk
+from src.voice_assistant.core.events import AudioOutputRequest
 from src.voice_assistant.core.shutdown import GracefulShutdown
 
 

@@ -1,3 +1,6 @@
+# Deprecated: this module will be removed. It relied on EdgeTTSEngine.speak_async
+# and interrupt_speech, which have been removed. Use core.assistant.Assistant instead.
+
 import asyncio
 import logging
 from typing import List, Optional, Dict, Any

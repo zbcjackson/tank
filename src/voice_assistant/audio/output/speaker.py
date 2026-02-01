@@ -6,12 +6,12 @@ import asyncio
 import logging
 import queue
 import threading
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
+from ...core.events import AudioOutputRequest
 from ...core.shutdown import StopSignal
 from ...core.worker import QueueWorker
 from .playback import play_stream
-from .types import AudioOutputRequest
 
 if TYPE_CHECKING:
     from .tts import TTSEngine
@@ -39,7 +39,7 @@ class SpeakerHandler(QueueWorker[AudioOutputRequest]):
         )
         self._tts_engine = tts_engine
         self.interrupt_event = threading.Event()
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
 
     def interrupt(self) -> None:
         """Signal to stop current playback immediately."""
@@ -61,9 +61,6 @@ class SpeakerHandler(QueueWorker[AudioOutputRequest]):
 
     def handle(self, item: AudioOutputRequest) -> None:
         self.interrupt_event.clear()
-        if self._loop is None:
-            logger.error("Event loop not initialized")
-            return
 
         async def do_speak() -> None:
             chunk_stream = self._tts_engine.generate_stream(

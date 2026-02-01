@@ -87,8 +87,9 @@ Tank is a bilingual (Chinese/English) voice assistant that integrates:
 ### Audio Output (TTS and playback)
 
 **Locations**:
-- `src/voice_assistant/audio/output/types.py` – AudioOutputRequest, AudioChunk
-- `src/voice_assistant/audio/output/tts.py` – TTSEngine Protocol (no edge_tts dependency)
+- `src/voice_assistant/core/events.py` – AudioOutputRequest (queue item type)
+- `src/voice_assistant/audio/output/types.py` – AudioChunk (PCM chunk)
+- `src/voice_assistant/audio/output/tts.py` – TTSEngine ABC (no edge_tts dependency)
 - `src/voice_assistant/audio/output/tts_engine_edge.py` – Edge TTS backend (only file that imports edge_tts)
 - `src/voice_assistant/audio/output/playback.py` – play_stream (PCM to sounddevice)
 - `src/voice_assistant/audio/output/speaker.py` – SpeakerHandler
@@ -97,7 +98,7 @@ Tank is a bilingual (Chinese/English) voice assistant that integrates:
 
 **Features**:
 - Data class `AudioOutputRequest` (content, language, voice) in audio_output_queue
-- TTSEngine Protocol for TTS abstraction; EdgeTTSEngine implements it with edge_tts + pydub
+- TTSEngine ABC for TTS abstraction; engines subclass it (e.g. EdgeTTSEngine with edge_tts + pydub); missing methods fail at instantiation
 - SpeakerHandler (queue worker with event loop) consumes requests, calls TTS generate_stream and play_stream
 - Streaming: generate and play PCM chunks for lower latency
 - Interruptible: interrupt_event stops TTS stream and playback

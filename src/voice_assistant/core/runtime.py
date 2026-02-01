@@ -4,12 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import queue
-from typing import TYPE_CHECKING
-
-from .events import BrainInputEvent, DisplayMessage
-
-if TYPE_CHECKING:
-    from ..audio.output.types import AudioOutputRequest
+from .events import AudioOutputRequest, BrainInputEvent, DisplayMessage
 
 
 @dataclass

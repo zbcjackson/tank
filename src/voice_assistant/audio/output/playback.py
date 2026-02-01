@@ -10,7 +10,7 @@ import sounddevice as sd
 
 from .types import AudioChunk
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("Playback")
 
 
 async def play_stream(
