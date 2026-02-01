@@ -6,6 +6,7 @@ from typing import List, Optional, TYPE_CHECKING, Dict, Any
 
 from .events import BrainInputEvent, DisplayMessage
 from .runtime import RuntimeContext
+from ..audio.output.types import AudioOutputRequest
 from .shutdown import StopSignal
 from .worker import QueueWorker
 from ..audio.output import SpeakerHandler
@@ -137,7 +138,10 @@ class Brain(QueueWorker[BrainInputEvent]):
             self._runtime.display_queue.put(
                 DisplayMessage(speaker="Brain", text=content)
             )
-            self._runtime.audio_output_queue.put({"type": "speech", "content": content})
+            language = (event.language or "auto").strip() or "auto"
+            self._runtime.audio_output_queue.put(
+                AudioOutputRequest(content=content, language=language)
+            )
             
         except Exception as e:
             logger.error(f"Error processing input: {e}", exc_info=True)

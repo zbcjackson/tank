@@ -5,7 +5,7 @@ from pathlib import Path
 from openai.types.chat import ChatCompletionMessageParam
 
 from .audio.continuous_transcription import ContinuousTranscriber
-from .audio.tts import EdgeTTSSpeaker
+from .audio.output.tts_engine_edge import EdgeTTSEngine
 from .llm.llm import LLM
 from .tools.manager import ToolManager
 from .config.settings import VoiceAssistantConfig, load_config, setup_logging
@@ -18,7 +18,7 @@ class VoiceAssistant:
         setup_logging(self.config.log_level)
 
         self.transcriber = ContinuousTranscriber(self.config.whisper_model_size)
-        self.speaker = EdgeTTSSpeaker()
+        self.speaker = EdgeTTSEngine(self.config)
         self.llm = LLM(
             api_key=self.config.llm_api_key,
             model=self.config.llm_model,

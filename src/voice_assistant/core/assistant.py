@@ -57,6 +57,7 @@ class Assistant:
         self.audio_output = AudioOutput(
             shutdown_signal=self.shutdown_signal,
             audio_output_queue=self.runtime.audio_output_queue,
+            config=self._config,
             cfg=audio_output_config or AudioOutputConfig(),
         )
         

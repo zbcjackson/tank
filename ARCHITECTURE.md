@@ -84,20 +84,23 @@ Tank is a bilingual (Chinese/English) voice assistant that integrates:
 - Consumes complete Utterances from segmenter (one per user utterance)
 - Runs ASR and (future) voiceprint in parallel; puts BrainInputEvent into brain_input_queue and DisplayMessage (speaker, text) into display_queue for UI
 
-### EdgeTTSSpeaker (TTS)
+### Audio Output (TTS and playback)
 
-**Location**: `src/voice_assistant/audio/tts.py`
+**Locations**:
+- `src/voice_assistant/audio/output/types.py` – AudioOutputRequest, AudioChunk
+- `src/voice_assistant/audio/output/tts.py` – TTSEngine Protocol (no edge_tts dependency)
+- `src/voice_assistant/audio/output/tts_engine_edge.py` – Edge TTS backend (only file that imports edge_tts)
+- `src/voice_assistant/audio/output/playback.py` – play_stream (PCM to sounddevice)
+- `src/voice_assistant/audio/output/speaker.py` – SpeakerHandler
 
-**Description**: Interruptible text-to-speech using Microsoft Edge TTS
+**Description**: Interruptible text-to-speech via abstract TTSEngine; Edge TTS backend streams MP3, decodes to PCM, plays through sounddevice.
 
 **Features**:
-- Wraps `edge-tts`
-- Multiple voice options for Chinese and English
-- Async generation and playback
-- Async audio playback with interruption support
-- Must be interruptible (handles `asyncio.CancelledError`)
-- Process management for audio playback termination
-- Graceful handling of TTS generation interruption
+- Data class `AudioOutputRequest` (content, language, voice) in audio_output_queue
+- TTSEngine Protocol for TTS abstraction; EdgeTTSEngine implements it with edge_tts + pydub
+- SpeakerHandler (queue worker with event loop) consumes requests, calls TTS generate_stream and play_stream
+- Streaming: generate and play PCM chunks for lower latency
+- Interruptible: interrupt_event stops TTS stream and playback
 
 ## Configuration System
 

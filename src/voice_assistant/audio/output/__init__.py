@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import queue
 from dataclasses import dataclass
-from typing import Optional
 
+from ...config.settings import VoiceAssistantConfig
 from ...core.shutdown import GracefulShutdown
-
 from .speaker import SpeakerHandler
+from .types import AudioOutputRequest
+from .tts_engine_edge import EdgeTTSEngine
 
 
 @dataclass(frozen=True)
@@ -21,27 +22,28 @@ class AudioOutputConfig:
 class AudioOutput:
     """
     Audio output subsystem facade.
-    
+
     Responsibilities:
     - Text-to-speech conversion
     - Audio playback with interruption support
-    
+
     All audio output processing is encapsulated here.
     """
 
     def __init__(
         self,
         shutdown_signal: GracefulShutdown,
-        audio_output_queue: "queue.Queue[dict]",
+        audio_output_queue: "queue.Queue[AudioOutputRequest]",
+        config: VoiceAssistantConfig,
         cfg: AudioOutputConfig = AudioOutputConfig(),
     ):
         self._shutdown_signal = shutdown_signal
         self._cfg = cfg
-
-        # Thread
+        tts_engine = EdgeTTSEngine(config)
         self._speaker = SpeakerHandler(
             shutdown_signal=shutdown_signal,
             audio_output_queue=audio_output_queue,
+            tts_engine=tts_engine,
         )
 
     @property
@@ -61,5 +63,6 @@ class AudioOutput:
 __all__ = [
     "AudioOutput",
     "AudioOutputConfig",
+    "AudioOutputRequest",
     "SpeakerHandler",
 ]

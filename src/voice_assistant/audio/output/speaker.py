@@ -2,63 +2,79 @@
 
 from __future__ import annotations
 
-import threading
-import time
+import asyncio
 import logging
 import queue
+import threading
+from typing import TYPE_CHECKING, Optional
 
 from ...core.shutdown import StopSignal
 from ...core.worker import QueueWorker
+from .playback import play_stream
+from .types import AudioOutputRequest
+
+if TYPE_CHECKING:
+    from .tts import TTSEngine
 
 logger = logging.getLogger("Speaker")
 
 
-class SpeakerHandler(QueueWorker[dict]):
+class SpeakerHandler(QueueWorker[AudioOutputRequest]):
     """
-    The Mouth: Continuously checks AudioOutputQueue and plays audio.
+    The Mouth: Consumes AudioOutputRequest from queue, runs TTS and playback.
     Supports interruption.
     """
 
-    def __init__(self, shutdown_signal: StopSignal, audio_output_queue: "queue.Queue[dict]"):
+    def __init__(
+        self,
+        shutdown_signal: StopSignal,
+        audio_output_queue: "queue.Queue[AudioOutputRequest]",
+        tts_engine: "TTSEngine",
+    ):
         super().__init__(
             name="SpeakerThread",
             stop_signal=shutdown_signal,
             input_queue=audio_output_queue,
             poll_interval_s=0.5,
         )
+        self._tts_engine = tts_engine
         self.interrupt_event = threading.Event()
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
-    def interrupt(self):
+    def interrupt(self) -> None:
         """Signal to stop current playback immediately."""
         self.interrupt_event.set()
-        # Also clear the queue of pending audio to fully reset
         with self._input_queue.mutex:
             self._input_queue.queue.clear()
         logger.warning("🚫 Speaker Interrupted!")
 
     def run(self) -> None:
-        logger.info("SpeakerHandler started. Waiting for audio...")
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
         try:
+            logger.info("SpeakerHandler started. Waiting for audio...")
             super().run()
         finally:
             logger.info("SpeakerHandler stopped.")
+            if self._loop:
+                self._loop.close()
 
-    def handle(self, item: dict) -> None:
-        text_to_speak = item.get("content", "")
-        logger.info(f"🔊 Starting playback: '{text_to_speak}'")
+    def handle(self, item: AudioOutputRequest) -> None:
+        self.interrupt_event.clear()
+        if self._loop is None:
+            logger.error("Event loop not initialized")
+            return
 
-        # Simulate playback chunk by chunk to allow interruption
-        # Assume roughly 0.1s per character for simulation
-        duration = len(text_to_speak) * 0.1
-        chunks = int(duration / 0.1)
+        async def do_speak() -> None:
+            chunk_stream = self._tts_engine.generate_stream(
+                item.content,
+                language=item.language,
+                voice=item.voice,
+                is_interrupted=lambda: self.interrupt_event.is_set(),
+            )
+            await play_stream(
+                chunk_stream,
+                is_interrupted=lambda: self.interrupt_event.is_set(),
+            )
 
-        self.interrupt_event.clear()  # Reset interrupt flag
-
-        for _ in range(chunks):
-            if self._stop_signal.is_set() or self.interrupt_event.is_set():
-                logger.info("Playback stopped early.")
-                break
-            time.sleep(0.1)
-
-        if not self.interrupt_event.is_set():
-            logger.info("✅ Playback finished.")
+        self._loop.run_until_complete(do_speak())
