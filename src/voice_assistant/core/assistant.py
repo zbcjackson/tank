@@ -92,6 +92,8 @@ class Assistant:
             return
         
         if text.lower() in ["quit", "exit"]:
+            self.audio_output.speaker.interrupt()
+            self.shutdown_signal.stop()
             if self.on_exit_request:
                 self.on_exit_request()
             return

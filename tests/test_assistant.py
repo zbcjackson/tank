@@ -80,3 +80,39 @@ class TestAssistant:
             serper_api_key=mock_config.serper_api_key,
         )
         assert assistant._tool_manager == mock_tool_manager_instance
+
+    @patch('src.voice_assistant.core.assistant.load_config')
+    @patch('src.voice_assistant.core.assistant.LLM')
+    @patch('src.voice_assistant.core.assistant.ToolManager')
+    @patch('src.voice_assistant.core.assistant.Brain')
+    @patch('src.voice_assistant.core.assistant.AudioOutput')
+    @patch('src.voice_assistant.core.assistant.AudioInput')
+    @pytest.mark.parametrize("text", ["quit", "exit"])
+    def test_process_input_quit_or_exit_interrupts_speaker_and_stops(
+        self,
+        mock_audio_input_cls,
+        mock_audio_output_cls,
+        mock_brain_cls,
+        mock_tool_manager,
+        mock_llm_class,
+        mock_load_config,
+        mock_config,
+        text,
+    ):
+        """process_input('quit' or 'exit') interrupts speaker, sets shutdown, and calls on_exit_request."""
+        mock_load_config.return_value = mock_config
+        mock_llm_class.return_value = MagicMock()
+        mock_tool_manager.return_value = MagicMock()
+        mock_audio_input_cls.return_value = MagicMock()
+        mock_speaker = MagicMock()
+        mock_audio_output_cls.return_value = MagicMock(speaker=mock_speaker)
+        mock_brain_cls.return_value = MagicMock()
+
+        on_exit_request = MagicMock()
+        assistant = Assistant(on_exit_request=on_exit_request)
+
+        assistant.process_input(text)
+
+        mock_speaker.interrupt.assert_called_once()
+        assert assistant.shutdown_signal.is_set()
+        on_exit_request.assert_called_once()
