@@ -11,13 +11,15 @@ import numpy as np
 import sounddevice as sd
 
 from ...core.shutdown import StopSignal
-from .playback import FADE_DURATION_MS
 from .types import AudioChunk
 
 logger = logging.getLogger("Speaker")
 
 # Callback block size: ~10 ms at 24 kHz
 PLAYBACK_BLOCKSIZE = 256
+
+# Short fade at start/end to avoid pops (ms). Used for fade-in and fade-out.
+FADE_DURATION_MS = 5
 
 
 class PlaybackWorker(threading.Thread):
