@@ -8,7 +8,7 @@ from .events import AudioOutputRequest, BrainInputEvent, DisplayMessage
 from .runtime import RuntimeContext
 from .shutdown import StopSignal
 from .worker import QueueWorker
-from ..audio.output import SpeakerHandler
+from ..audio.output import AudioOutput
 from ..config.settings import VoiceAssistantConfig
 
 if TYPE_CHECKING:
@@ -30,7 +30,7 @@ class Brain(QueueWorker[BrainInputEvent]):
         self,
         shutdown_signal: StopSignal,
         runtime: RuntimeContext,
-        speaker_ref: SpeakerHandler,
+        speaker_ref: AudioOutput,
         llm: "LLM",
         tool_manager: "ToolManager",
         config: VoiceAssistantConfig,

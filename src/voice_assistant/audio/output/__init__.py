@@ -8,8 +8,9 @@ from dataclasses import dataclass
 from ...config.settings import VoiceAssistantConfig
 from ...core.events import AudioOutputRequest
 from ...core.shutdown import GracefulShutdown
-from .speaker import SpeakerHandler
+from .speaker import PlaybackWorker, TTSWorker
 from .tts_engine_edge import EdgeTTSEngine
+from .types import AudioChunk
 
 
 @dataclass(frozen=True)
@@ -23,11 +24,8 @@ class AudioOutput:
     """
     Audio output subsystem facade.
 
-    Responsibilities:
-    - Text-to-speech conversion
-    - Audio playback with interruption support
-
-    All audio output processing is encapsulated here.
+    Two threads: TTSWorker (request -> chunks) and PlaybackWorker (chunks -> device).
+    Interruption not implemented yet; interrupt() is a no-op.
     """
 
     def __init__(
@@ -39,30 +37,46 @@ class AudioOutput:
     ):
         self._shutdown_signal = shutdown_signal
         self._cfg = cfg
+        self._audio_chunk_queue: "queue.Queue[AudioChunk | None]" = queue.Queue(maxsize=20)
         tts_engine = EdgeTTSEngine(config)
-        self._speaker = SpeakerHandler(
-            shutdown_signal=shutdown_signal,
-            audio_output_queue=audio_output_queue,
+        self._tts_worker = TTSWorker(
+            name="TTSThread",
+            stop_signal=shutdown_signal,
+            input_queue=audio_output_queue,
+            audio_chunk_queue=self._audio_chunk_queue,
             tts_engine=tts_engine,
+        )
+        self._playback_worker = PlaybackWorker(
+            name="PlaybackThread",
+            stop_signal=shutdown_signal,
+            audio_chunk_queue=self._audio_chunk_queue,
         )
 
     @property
-    def speaker(self) -> SpeakerHandler:
-        """Access to speaker for interruption control."""
-        return self._speaker
+    def speaker(self) -> AudioOutput:
+        """Access for interruption control (e.g. speaker.interrupt()). No-op for now."""
+        return self
+
+    def interrupt(self) -> None:
+        """Interrupt current playback. Not implemented yet; no-op."""
+        pass
 
     def start(self) -> None:
-        """Start audio output thread."""
-        self._speaker.start()
+        """Start TTS and playback threads."""
+        self._tts_worker.start()
+        self._playback_worker.start()
 
     def join(self) -> None:
-        """Wait for audio output thread to finish."""
-        self._speaker.join()
+        """Wait for both threads to finish."""
+        self._tts_worker.join()
+        self._playback_worker.join()
 
 
 __all__ = [
     "AudioOutput",
     "AudioOutputConfig",
     "AudioOutputRequest",
-    "SpeakerHandler",
+    "AudioChunk",
+    "PlaybackWorker",
+    "TTSWorker",
 ]

@@ -9,7 +9,7 @@ from src.voice_assistant.core.brain import Brain
 from src.voice_assistant.core.events import BrainInputEvent, DisplayMessage, InputType
 from src.voice_assistant.core.runtime import RuntimeContext
 from src.voice_assistant.core.shutdown import GracefulShutdown
-from src.voice_assistant.audio.output import SpeakerHandler
+from src.voice_assistant.audio.output import AudioOutput
 from src.voice_assistant.config.settings import VoiceAssistantConfig
 
 
@@ -26,7 +26,7 @@ class TestBrain:
 
     @pytest.fixture
     def mock_speaker(self):
-        return MagicMock(spec=SpeakerHandler)
+        return MagicMock(spec=AudioOutput)
 
     @pytest.fixture
     def mock_llm(self):
