@@ -4,7 +4,7 @@ import asyncio
 import queue
 from unittest.mock import MagicMock
 
-from src.voice_assistant.audio.output.speaker import TTSWorker
+from src.voice_assistant.audio.output.tts_worker import TTSWorker
 from src.voice_assistant.audio.output.types import AudioChunk
 from src.voice_assistant.core.events import AudioOutputRequest
 from src.voice_assistant.core.shutdown import GracefulShutdown

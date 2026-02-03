@@ -1,95 +1,23 @@
-"""Speaker: TTS worker and playback worker (callback mode)."""
+"""Playback worker: AudioChunk queue -> sounddevice output (callback mode)."""
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import queue
 import threading
 import time
-from typing import TYPE_CHECKING
 
 import numpy as np
 import sounddevice as sd
 
-from ...core.events import AudioOutputRequest
 from ...core.shutdown import StopSignal
-from ...core.worker import QueueWorker
 from .playback import FADE_DURATION_MS
 from .types import AudioChunk
-
-if TYPE_CHECKING:
-    from .tts import TTSEngine
 
 logger = logging.getLogger("Speaker")
 
 # Callback block size: ~10 ms at 24 kHz
 PLAYBACK_BLOCKSIZE = 256
-
-
-class TTSWorker(QueueWorker[AudioOutputRequest]):
-    """
-    Consumes AudioOutputRequest from queue, generates AudioChunk via TTS,
-    puts chunks into audio_chunk_queue and None as end marker.
-    """
-
-    def __init__(
-        self,
-        *,
-        name: str,
-        stop_signal: StopSignal,
-        input_queue: "queue.Queue[AudioOutputRequest]",
-        audio_chunk_queue: "queue.Queue[AudioChunk | None]",
-        tts_engine: "TTSEngine",
-        poll_interval_s: float = 0.1,
-    ):
-        super().__init__(
-            name=name,
-            stop_signal=stop_signal,
-            input_queue=input_queue,
-            poll_interval_s=poll_interval_s,
-        )
-        self._audio_chunk_queue = audio_chunk_queue
-        self._tts_engine = tts_engine
-        self._loop: asyncio.AbstractEventLoop | None = None
-
-    def run(self) -> None:
-        logger.info("TTSWorker started")
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
-        try:
-            super().run()
-        finally:
-            if self._loop:
-                self._loop.close()
-        logger.info("TTSWorker stopped")
-
-    def handle(self, item: AudioOutputRequest) -> None:
-        logger.info("TTSWorker: got request content=%r language=%s", item.content[:50] if item.content else "", item.language)
-
-        async def generate_chunks() -> None:
-            chunk_count = 0
-            try:
-                chunk_stream = self._tts_engine.generate_stream(
-                    item.content,
-                    language=item.language,
-                    voice=item.voice,
-                    is_interrupted=None,
-                )
-                logger.info("TTSWorker: starting generate_stream")
-                async for chunk in chunk_stream:
-                    self._audio_chunk_queue.put(chunk)
-                    chunk_count += 1
-                logger.info("TTSWorker: stream done, put %d chunks, sending end marker", chunk_count)
-            except Exception as e:
-                logger.exception("TTSWorker: generate_stream failed: %s", e)
-                raise
-            finally:
-                self._audio_chunk_queue.put(None)
-
-        assert self._loop is not None
-        self._loop.run_until_complete(generate_chunks())
-        logger.info("TTSWorker: handle finished for content=%r", item.content[:50] if item.content else "")
 
 
 class PlaybackWorker(threading.Thread):
@@ -121,7 +49,12 @@ class PlaybackWorker(threading.Thread):
             if first_chunk is None:
                 logger.info("PlaybackWorker: got None (end marker only), skipping")
                 continue
-            logger.info("PlaybackWorker: got first chunk sr=%s ch=%s len=%d bytes", first_chunk.sample_rate, first_chunk.channels, len(first_chunk.data))
+            logger.info(
+                "PlaybackWorker: got first chunk sr=%s ch=%s len=%d bytes",
+                first_chunk.sample_rate,
+                first_chunk.channels,
+                len(first_chunk.data),
+            )
             self._play_one_stream(first_chunk)
         logger.info("PlaybackWorker stopped")
 
@@ -137,14 +70,23 @@ class PlaybackWorker(threading.Thread):
             np.frombuffer(first_chunk.data, dtype=np.int16).copy()
         ]
         initial_samples = len(buf_container[0])
-        logger.info("PlaybackWorker: starting stream sr=%s ch=%s blocksize=%s initial_samples=%s", sample_rate, channels, PLAYBACK_BLOCKSIZE, initial_samples)
+        logger.info(
+            "PlaybackWorker: starting stream sr=%s ch=%s blocksize=%s initial_samples=%s",
+            sample_rate,
+            channels,
+            PLAYBACK_BLOCKSIZE,
+            initial_samples,
+        )
 
-        def callback(outdata: np.ndarray, frames: int, time: object, status: sd.CallbackFlags) -> None:
+        def callback(
+            outdata: np.ndarray, frames: int, time_info: object, status: sd.CallbackFlags
+        ) -> None:
             if status:
                 logger.warning("PlaybackWorker: callback status=%s", status)
             callback_count[0] += 1
             if callback_count[0] == 1:
                 logger.info("PlaybackWorker: first callback, frames=%s", frames)
+
             need = frames * channels
             buf = buf_container[0]
             while len(buf) < need and not stream_ended[0]:
@@ -181,7 +123,10 @@ class PlaybackWorker(threading.Thread):
                         out_flat[have - n_apply : have].astype(np.float64) * ramp
                     ).astype(np.int16)
                 outdata[:] = out
-                logger.info("PlaybackWorker: stream ended after %d callbacks, raising CallbackStop", callback_count[0])
+                logger.info(
+                    "PlaybackWorker: stream ended after %d callbacks, raising CallbackStop",
+                    callback_count[0],
+                )
                 raise sd.CallbackStop
 
             outdata[:] = out
@@ -204,3 +149,4 @@ class PlaybackWorker(threading.Thread):
             logger.debug("PlaybackWorker: stream aborted")
         except Exception as e:
             logger.warning("PlaybackWorker: stream error: %s", e, exc_info=True)
+

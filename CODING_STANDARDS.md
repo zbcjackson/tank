@@ -64,10 +64,20 @@ This document defines coding standards, design principles, and code quality guid
   - **Do**:
     - `from ...core.shutdown import StopSignal`
     - `from ..audio.input import AudioInput`
-    - `from ..audio.output.speaker import SpeakerHandler`
+    - `from ..audio.output import AudioOutput`
   - **Do not**:
     - `from voice_assistant.core.shutdown import StopSignal`
     - `import voice_assistant.audio.input`
+
+### Module Layout
+
+- **Keep `__init__.py` lightweight**
+  - `__init__.py` should contain **imports/exports only**
+  - Do not define real classes/functions in `__init__.py`
+
+- **One file, one class (except dataclasses)**
+  - Prefer **one class per file** to keep modules focused
+  - Exception: small `@dataclass` types may share a file when they are tightly related
 
 ## Technical Patterns
 
