@@ -42,18 +42,17 @@ class TTSWorker(QueueWorker[AudioOutputRequest]):
         )
         self._audio_chunk_queue = audio_chunk_queue
         self._tts_engine = tts_engine
-        self._loop: asyncio.AbstractEventLoop | None = None
+
+    def _setup_event_loop(self) -> asyncio.AbstractEventLoop:
+        """Create event loop for TTS async operations."""
+        return asyncio.new_event_loop()
 
     def run(self) -> None:
         logger.info("TTSWorker started")
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
         try:
             super().run()
         finally:
-            if self._loop:
-                self._loop.close()
-        logger.info("TTSWorker stopped")
+            logger.info("TTSWorker stopped")
 
     def handle(self, item: AudioOutputRequest) -> None:
         logger.info(

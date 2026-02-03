@@ -55,7 +55,8 @@ class Brain(QueueWorker[BrainInputEvent]):
             {"role": "system", "content": self._system_prompt}
         ]
         
-        # Event loop for async operations (created in run())
+        # Event loop for async operations (created by base class)
+        # Alias to base class _loop for backward compatibility
         self._event_loop: Optional[asyncio.AbstractEventLoop] = None
     
     def _load_system_prompt(self) -> str:
@@ -71,17 +72,17 @@ class Brain(QueueWorker[BrainInputEvent]):
             logger.error(f"Error loading system prompt: {e}")
             raise
 
-    def run(self) -> None:
-        """Create event loop for this thread and run queue worker."""
-        # Create event loop for this thread
-        self._event_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._event_loop)
-        try:
-            super().run()
-        finally:
-            # Close event loop when thread stops
-            if self._event_loop:
-                self._event_loop.close()
+    def _setup_event_loop(self) -> asyncio.AbstractEventLoop:
+        """Create event loop for async LLM operations."""
+        loop = asyncio.new_event_loop()
+        # Set alias for backward compatibility with existing code that uses self._event_loop
+        self._event_loop = loop
+        return loop
+
+    def _teardown_event_loop(self) -> None:
+        """Cleanup event loop and clear alias."""
+        super()._teardown_event_loop()
+        self._event_loop = None
 
     def handle(self, event: BrainInputEvent) -> None:
         """
