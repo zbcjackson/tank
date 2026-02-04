@@ -22,11 +22,12 @@ class TestASR:
         """Mock WhisperModel: transcribe returns (segments_iter, info)."""
         segments = [MagicMock(text=" hello ", start=0.0, end=0.5)]
         info = MagicMock(language="en", language_probability=0.95)
+        mock_transcribe = MagicMock(return_value=(iter(segments), info))
+        # Allow any keyword arguments to be passed
+        mock_transcribe.__call__ = MagicMock(return_value=(iter(segments), info))
         with patch(
             "src.voice_assistant.audio.input.asr.WhisperModel",
-            return_value=MagicMock(
-                transcribe=MagicMock(return_value=(iter(segments), info))
-            ),
+            return_value=MagicMock(transcribe=mock_transcribe),
         ) as mock_cls:
             yield mock_cls
 

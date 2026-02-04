@@ -56,6 +56,9 @@ class ASR:
     Automatic Speech Recognition using faster-whisper.
 
     Multi-language with auto-detect. Model is loaded once and cached by Hugging Face.
+    
+    Since this project uses custom VAD (SileroVAD), vad_filter is set to False
+    and threshold parameters are disabled by default to avoid double-filtering.
     """
 
     def __init__(
@@ -63,7 +66,40 @@ class ASR:
         model_size: str = "large-v3",
         device: str = "cpu",
         compute_type: str = "default",
+        # Hallucination prevention parameters
+        log_prob_threshold: Optional[float] = None,
+        no_speech_threshold: Optional[float] = None,
+        compression_ratio_threshold: Optional[float] = None,
+        hallucination_silence_threshold: Optional[float] = None,
+        language_detection_threshold: float = 0.5,
+        condition_on_previous_text: bool = False,
+        vad_filter: bool = False,
     ):
+        """
+        Initialize ASR model.
+
+        Args:
+            model_size: Whisper model size (e.g., "large-v3").
+            device: Device to use ("cpu", "cuda", etc.).
+            compute_type: Computation type ("default", "float16", etc.).
+            log_prob_threshold: If average log probability is below this value,
+                treat segment as failed. None to disable. Default None (disabled
+                since custom VAD is used).
+            no_speech_threshold: If no_speech probability exceeds this AND log_prob
+                is below threshold, consider segment silent. None to disable.
+                Default None (disabled since custom VAD is used).
+            compression_ratio_threshold: If compression ratio exceeds this value,
+                treat as failed (repetitive). None to disable. Default None.
+            hallucination_silence_threshold: When word_timestamps=True, skip silent
+                periods longer than this (seconds) when hallucination detected.
+                None to disable. Default None.
+            language_detection_threshold: Language detection confidence threshold.
+                Default 0.5.
+            condition_on_previous_text: If True, use previous output as prompt.
+                Setting False reduces repetition hallucinations. Default False.
+            vad_filter: Use faster-whisper's built-in VAD. Default False (project
+                uses custom SileroVAD).
+        """
         logger.info("Loading ASR model: %s (device=%s)", model_size, device)
         self._model = WhisperModel(
             model_size,
@@ -71,6 +107,13 @@ class ASR:
             compute_type=compute_type,
         )
         self._model_size = model_size
+        self._log_prob_threshold = log_prob_threshold
+        self._no_speech_threshold = no_speech_threshold
+        self._compression_ratio_threshold = compression_ratio_threshold
+        self._hallucination_silence_threshold = hallucination_silence_threshold
+        self._language_detection_threshold = language_detection_threshold
+        self._condition_on_previous_text = condition_on_previous_text
+        self._vad_filter = vad_filter
 
     def transcribe(
         self,
@@ -96,8 +139,14 @@ class ASR:
         segments, info = self._model.transcribe(
             pcm,
             language=None,
-            vad_filter=False,
+            vad_filter=self._vad_filter,
             log_progress=False,
+            log_prob_threshold=self._log_prob_threshold,
+            no_speech_threshold=self._no_speech_threshold,
+            compression_ratio_threshold=self._compression_ratio_threshold,
+            hallucination_silence_threshold=self._hallucination_silence_threshold,
+            language_detection_threshold=self._language_detection_threshold,
+            condition_on_previous_text=self._condition_on_previous_text,
         )
         text = " ".join(s.text.strip() for s in segments).strip()
         text = _strip_hallucination_phrases(text)
