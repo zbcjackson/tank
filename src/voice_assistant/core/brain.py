@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from typing import List, Optional, TYPE_CHECKING, Dict, Any
 
-from .events import AudioOutputRequest, BrainInputEvent, DisplayMessage
+from .events import AudioOutputRequest, BrainInputEvent, BrainInterrupted, DisplayMessage
 from .runtime import RuntimeContext
 from .shutdown import StopSignal
 from .worker import QueueWorker
@@ -87,11 +87,11 @@ class Brain(QueueWorker[BrainInputEvent]):
     def handle(self, event: BrainInputEvent) -> None:
         """
         Handles inputs from both Keyboard and Perception.
-        
+
         Processes BrainInputEvent by:
         1. Filtering blank text
         2. Adding user message to conversation history
-        3. Calling LLM with conversation history
+        3. Calling LLM with conversation history (interruptible when speech_interrupt_enabled)
         4. Adding assistant response to history
         5. Outputting to display and audio queues
         """
@@ -99,6 +99,9 @@ class Brain(QueueWorker[BrainInputEvent]):
         if not event.text or not event.text.strip():
             logger.debug(f"Skipping blank text from {event.user}")
             return
+
+        if self._runtime.interrupt_event is not None:
+            self._runtime.interrupt_event.clear()
 
         started_at = time.time()
         logger.info("Brain processing started for input at %.3f", started_at)
@@ -110,11 +113,11 @@ class Brain(QueueWorker[BrainInputEvent]):
             # Call LLM with conversation history (already includes system prompt)
             tools = self._tool_manager.get_openai_tools()
             response = self._call_llm_async(self._conversation_history, tools)
-            
+
             # Extract content from response
             message = response["choices"][0]["message"]
             content = message.get("content", "")
-            
+
             if not content:
                 logger.warning("LLM returned empty content")
                 error_msg = self._get_error_message(event.language)
@@ -122,7 +125,7 @@ class Brain(QueueWorker[BrainInputEvent]):
                     DisplayMessage(speaker="Brain", text=error_msg)
                 )
                 return
-            
+
             # Add assistant response to conversation history
             self._add_to_conversation_history("assistant", content)
 
@@ -142,7 +145,12 @@ class Brain(QueueWorker[BrainInputEvent]):
             self._runtime.audio_output_queue.put(
                 AudioOutputRequest(content=content, language=language)
             )
-            
+
+        except BrainInterrupted:
+            logger.info(
+                "Brain: processing interrupted by user speech; skipping response (no display/TTS/history update)"
+            )
+            # User message already in history; next input will be processed normally
         except Exception as e:
             logger.error(f"Error processing input: {e}", exc_info=True)
             # Don't update conversation history on error
@@ -166,20 +174,39 @@ class Brain(QueueWorker[BrainInputEvent]):
             )
     
     def _call_llm_async(self, messages: List["ChatCompletionMessageParam"], tools: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Run async LLM call in sync context using event loop."""
+        """Run async LLM call in sync context; when speech_interrupt_enabled, poll interrupt_event and cancel if set."""
         if self._event_loop is None:
             raise RuntimeError("Event loop not initialized. Brain must be running.")
-        
-        return self._event_loop.run_until_complete(
-            self._llm.chat_completion_async(
-                messages=messages,
-                tools=tools,
-                tool_executor=self._tool_manager
+
+        async def run_with_interrupt_check() -> Dict[str, Any]:
+            task = self._event_loop.create_task(
+                self._llm.chat_completion_async(
+                    messages=messages,
+                    tools=tools,
+                    tool_executor=self._tool_manager,
+                )
             )
-        )
+            poll_interval_s = 0.3
+            while not task.done():
+                if self._config.speech_interrupt_enabled and self._runtime.interrupt_event.is_set():
+                    logger.info("Brain: interrupt_event is set, cancelling LLM task")
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        logger.debug("Brain: LLM task cancelled (CancelledError received)")
+                    raise BrainInterrupted()
+                await asyncio.sleep(poll_interval_s)
+            # Task completed; check once more in case interrupt arrived as it finished
+            if self._config.speech_interrupt_enabled and self._runtime.interrupt_event.is_set():
+                logger.info("Brain: interrupt_event set after LLM completed, discarding response")
+                raise BrainInterrupted()
+            return await task
+
+        return self._event_loop.run_until_complete(run_with_interrupt_check())
     
     def _get_error_message(self, language: Optional[str]) -> str:
         """Get error message in user's language."""
         if language and language.startswith("zh"):
-            return "对不对不起起，出现错误，请重试。"
+            return "对不起，出现错误，请重试。"
         return "Sorry, an error occurred. Please try again."

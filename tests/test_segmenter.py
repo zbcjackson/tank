@@ -145,6 +145,66 @@ class TestSegmenterIntegration:
             # Verify no utterance was created
             assert utterance_queue.empty()
 
+    def test_vad_in_speech_triggers_interrupt_once_per_utterance(self, stop_signal, frames_queue, utterance_queue):
+        """When VAD enters IN_SPEECH, interrupt callback fires once per utterance."""
+        cfg = SegmenterConfig()
+        on_interrupt = Mock()
+        segmenter = UtteranceSegmenter(
+            stop_signal=stop_signal,
+            cfg=cfg,
+            frames_queue=frames_queue,
+            utterance_queue=utterance_queue,
+            on_speech_interrupt=on_interrupt,
+        )
+
+        frame = AudioFrame(
+            pcm=generate_speech_frame(),
+            sample_rate=16000,
+            timestamp_s=1000.0,
+        )
+
+        with patch.object(segmenter._vad, "process_frame") as mock_vad:
+            mock_vad.return_value = VADResult(status=VADStatus.IN_SPEECH)
+            segmenter.handle(frame)
+            segmenter.handle(frame)
+            segmenter.handle(frame)
+
+        assert on_interrupt.call_count == 1
+
+    def test_vad_interrupt_resets_after_end_speech(self, stop_signal, frames_queue, utterance_queue):
+        """After END_SPEECH (or NO_SPEECH), next utterance should trigger interrupt again."""
+        cfg = SegmenterConfig()
+        on_interrupt = Mock()
+        segmenter = UtteranceSegmenter(
+            stop_signal=stop_signal,
+            cfg=cfg,
+            frames_queue=frames_queue,
+            utterance_queue=utterance_queue,
+            on_speech_interrupt=on_interrupt,
+        )
+
+        frame = AudioFrame(
+            pcm=generate_speech_frame(),
+            sample_rate=16000,
+            timestamp_s=1000.0,
+        )
+
+        with patch.object(segmenter._vad, "process_frame") as mock_vad:
+            mock_vad.side_effect = [
+                VADResult(status=VADStatus.IN_SPEECH),
+                VADResult(status=VADStatus.IN_SPEECH),
+                VADResult(status=VADStatus.END_SPEECH, utterance_pcm=np.array([1], dtype=np.float32)),
+                VADResult(status=VADStatus.NO_SPEECH),
+                VADResult(status=VADStatus.IN_SPEECH),
+            ]
+            segmenter.handle(frame)  # IN_SPEECH -> trigger
+            segmenter.handle(frame)  # IN_SPEECH -> no trigger
+            segmenter.handle(frame)  # END_SPEECH -> reset
+            segmenter.handle(frame)  # NO_SPEECH -> ensure reset
+            segmenter.handle(frame)  # IN_SPEECH -> trigger again
+
+        assert on_interrupt.call_count == 2
+
     def test_drop_oldest_when_queue_full(self, segmenter, frames_queue, utterance_queue):
         """Test that drop_oldest strategy is used when queue is full."""
         # Fill queue to capacity

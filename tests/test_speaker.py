@@ -41,6 +41,7 @@ def test_tts_worker_handle_puts_chunks_and_none_to_queue():
     call_kw = mock_engine.generate_stream.call_args[1]
     assert call_kw["language"] == "en"
     assert call_kw["voice"] is None
+    # When interrupt_event is not passed, is_interrupted is None
     assert call_kw["is_interrupted"] is None
     # Queue should have one chunk then None
     assert audio_chunk_queue.get() == chunk

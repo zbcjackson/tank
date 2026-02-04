@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import queue
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ...config.settings import VoiceAssistantConfig
 from ...core.events import AudioOutputRequest
@@ -12,6 +14,11 @@ from .playback_worker import PlaybackWorker
 from .tts_engine_edge import EdgeTTSEngine
 from .tts_worker import TTSWorker
 from .types import AudioChunk
+
+if TYPE_CHECKING:
+    from ...core.runtime import RuntimeContext
+
+logger = logging.getLogger("Speaker")
 
 
 @dataclass(frozen=True)
@@ -27,17 +34,19 @@ class AudioOutput:
     Audio output subsystem facade.
 
     Two threads: TTSWorker (request -> chunks) and PlaybackWorker (chunks -> device).
-    Interruption not implemented yet; interrupt() is a no-op.
+    interrupt() sets runtime.interrupt_event and clears queues so playback stops quickly.
     """
 
     def __init__(
         self,
         shutdown_signal: GracefulShutdown,
+        runtime: "RuntimeContext",
         audio_output_queue: "queue.Queue[AudioOutputRequest]",
         config: VoiceAssistantConfig,
         cfg: AudioOutputConfig = AudioOutputConfig(),
     ):
         self._shutdown_signal = shutdown_signal
+        self._runtime = runtime
         self._cfg = cfg
         self._audio_chunk_queue: "queue.Queue[AudioChunk | None]" = queue.Queue(maxsize=20)
         tts_engine = EdgeTTSEngine(config)
@@ -47,23 +56,28 @@ class AudioOutput:
             input_queue=audio_output_queue,
             audio_chunk_queue=self._audio_chunk_queue,
             tts_engine=tts_engine,
+            interrupt_event=runtime.interrupt_event,
         )
         self._playback_worker = PlaybackWorker(
             name="PlaybackThread",
             stop_signal=shutdown_signal,
             audio_chunk_queue=self._audio_chunk_queue,
+            interrupt_event=runtime.interrupt_event,
         )
 
     @property
     def speaker(self) -> "AudioOutput":
-        """Access for interruption control (e.g. speaker.interrupt()). No-op for now."""
+        """Access for interruption control (e.g. speaker.interrupt())."""
 
         return self
 
     def interrupt(self) -> None:
-        """Interrupt current playback. Not implemented yet; no-op."""
+        """Interrupt current playback: set interrupt event and clear pending requests."""
 
-        pass
+        self._runtime.interrupt_event.set()
+        with self._runtime.audio_output_queue.mutex:
+            self._runtime.audio_output_queue.queue.clear()
+        logger.warning("Speaker interrupted")
 
     def start(self) -> None:
         """Start TTS and playback threads."""

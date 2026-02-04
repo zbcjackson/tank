@@ -19,6 +19,7 @@ class VoiceAssistantConfig(BaseModel):
     tts_voice_zh: str = Field(default="zh-CN-XiaoxiaoNeural", description="Default Chinese TTS voice")
     log_level: str = Field(default="INFO", description="Logging level")
     max_conversation_history: int = Field(default=10, description="Maximum number of conversation turns to keep")
+    speech_interrupt_enabled: bool = Field(default=True, description="When True, user speech interrupts TTS playback and current LLM processing")
 
     model_config = ConfigDict(
         env_file=".env",
@@ -47,7 +48,8 @@ def load_config(config_path: Optional[Path] = None) -> VoiceAssistantConfig:
             tts_voice_en=os.getenv("TTS_VOICE_EN", "en-US-JennyNeural"),
             tts_voice_zh=os.getenv("TTS_VOICE_ZH", "zh-CN-XiaoxiaoNeural"),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
-            max_conversation_history=int(os.getenv("MAX_CONVERSATION_HISTORY", "10"))
+            max_conversation_history=int(os.getenv("MAX_CONVERSATION_HISTORY", "10")),
+            speech_interrupt_enabled=os.getenv("SPEECH_INTERRUPT_ENABLED", "true").lower() in ("true", "1", "yes"),
         )
 
         if not config.llm_api_key:
@@ -92,6 +94,9 @@ LOG_LEVEL=INFO
 
 # Maximum conversation history to keep
 MAX_CONVERSATION_HISTORY=10
+
+# Speech interrupt: when True, user speech interrupts TTS and LLM (true/false)
+SPEECH_INTERRUPT_ENABLED=true
 """
 
     with open(path, "w") as f:

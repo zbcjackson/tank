@@ -15,6 +15,7 @@ logger = logging.getLogger("ASR")
 # Common Whisper hallucination phrases to strip from transcript start/end (case-insensitive)
 _HALLUCINATION_PHRASES = (
     "thank you",
+    "for watching",
     "thanks for watching",
     "thanks for listening",
 )

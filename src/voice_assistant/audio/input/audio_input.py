@@ -1,6 +1,6 @@
 import queue
 from dataclasses import dataclass
-from typing import Optional
+from typing import Callable, Optional
 
 from ...core.shutdown import GracefulShutdown
 from ...core.runtime import RuntimeContext
@@ -38,6 +38,7 @@ class AudioInput:
             shutdown_signal: GracefulShutdown,
             runtime: RuntimeContext,
             cfg: AudioInputConfig,
+            on_speech_interrupt: Optional[Callable[[], None]] = None,
     ):
         self._shutdown_signal = shutdown_signal
         self._runtime = runtime
@@ -62,6 +63,7 @@ class AudioInput:
             cfg=cfg.segmenter,
             frames_queue=self._frames_queue,
             utterance_queue=self._utterance_queue,
+            on_speech_interrupt=on_speech_interrupt,
         )
         asr = ASR(model_size=cfg.perception.model_size, device="cpu")
         voiceprint = VoiceprintRecognizer(default_user=cfg.perception.default_user)

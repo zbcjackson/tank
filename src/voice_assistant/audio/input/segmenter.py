@@ -5,6 +5,7 @@ from __future__ import annotations
 import queue
 from dataclasses import dataclass
 import time
+from typing import Callable, Optional
 
 import numpy as np
 
@@ -37,6 +38,7 @@ class UtteranceSegmenter(QueueWorker[AudioFrame]):
             cfg: SegmenterConfig,
             frames_queue: queue.Queue[AudioFrame],
             utterance_queue: queue.Queue[Utterance],
+            on_speech_interrupt: Optional[Callable[[], None]] = None,
     ):
         super().__init__(
             name="UtteranceSegmenterThread",
@@ -47,6 +49,8 @@ class UtteranceSegmenter(QueueWorker[AudioFrame]):
         self._cfg = cfg
         self._utterance_queue = utterance_queue
         self._vad = SileroVAD(cfg=cfg, sample_rate=16000)
+        self._on_speech_interrupt = on_speech_interrupt
+        self._interrupt_fired_for_current_utterance = False
 
     def _put_utterance_with_drop_oldest(
         self,
@@ -84,6 +88,15 @@ class UtteranceSegmenter(QueueWorker[AudioFrame]):
             pcm=item.pcm,
             timestamp_s=item.timestamp_s,
         )
+
+        if result.status == VADStatus.IN_SPEECH:
+            if not self._interrupt_fired_for_current_utterance:
+                self._interrupt_fired_for_current_utterance = True
+                if self._on_speech_interrupt is not None:
+                    self._on_speech_interrupt()
+        elif result.status in (VADStatus.NO_SPEECH, VADStatus.END_SPEECH):
+            # Reset when not in speech, so next utterance can trigger again.
+            self._interrupt_fired_for_current_utterance = False
 
         if result.status == VADStatus.END_SPEECH and result.utterance_pcm is not None:
             self._put_utterance_with_drop_oldest(

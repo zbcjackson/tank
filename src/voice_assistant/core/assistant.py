@@ -1,9 +1,12 @@
 """Main Assistant orchestrator."""
 
+import logging
 import queue
 from pathlib import Path
 from typing import Callable, Optional
 from .shutdown import GracefulShutdown
+
+logger = logging.getLogger("Assistant")
 from .brain import Brain
 from .events import InputType, BrainInputEvent
 from .runtime import RuntimeContext
@@ -46,16 +49,24 @@ class Assistant:
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()
         
+        # Speech interrupt callback: stop TTS and signal Brain (only when enabled)
+        def _on_speech_interrupt() -> None:
+            if self._config.speech_interrupt_enabled:
+                self.runtime.interrupt_event.set()
+                self.audio_output.interrupt()
+
         # Audio input subsystem (mic + segmentation + perception)
         self.audio_input = AudioInput(
             shutdown_signal=self.shutdown_signal,
             runtime=self.runtime,
             cfg=audio_input_config or AudioInputConfig(),
+            on_speech_interrupt=_on_speech_interrupt,
         )
-        
+
         # Audio output subsystem (TTS playback)
         self.audio_output = AudioOutput(
             shutdown_signal=self.shutdown_signal,
+            runtime=self.runtime,
             audio_output_queue=self.runtime.audio_output_queue,
             config=self._config,
             cfg=audio_output_config or AudioOutputConfig(),

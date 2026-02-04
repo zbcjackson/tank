@@ -6,6 +6,7 @@ import logging
 import queue
 import threading
 import time
+from typing import Optional
 
 import numpy as np
 import sounddevice as sd
@@ -35,10 +36,12 @@ class PlaybackWorker(threading.Thread):
         stop_signal: StopSignal,
         audio_chunk_queue: "queue.Queue[AudioChunk | None]",
         daemon: bool = True,
+        interrupt_event: Optional[threading.Event] = None,
     ):
         super().__init__(name=name, daemon=daemon)
         self._stop_signal = stop_signal
         self._audio_chunk_queue = audio_chunk_queue
+        self._interrupt_event = interrupt_event
 
     def run(self) -> None:
         logger.info("PlaybackWorker started")
@@ -46,10 +49,8 @@ class PlaybackWorker(threading.Thread):
             try:
                 first_chunk = self._audio_chunk_queue.get(timeout=0.5)
             except queue.Empty:
-                logger.debug("PlaybackWorker: queue empty, waiting...")
                 continue
             if first_chunk is None:
-                logger.info("PlaybackWorker: got None (end marker only), skipping")
                 continue
             logger.info(
                 "PlaybackWorker: got first chunk sr=%s ch=%s len=%d bytes",
@@ -83,6 +84,9 @@ class PlaybackWorker(threading.Thread):
         def callback(
             outdata: np.ndarray, frames: int, time_info: object, status: sd.CallbackFlags
         ) -> None:
+            if self._interrupt_event is not None and self._interrupt_event.is_set():
+                logger.warning("PlaybackWorker: interrupt_event is set in callback, raising CallbackAbort")
+                raise sd.CallbackAbort
             if status:
                 logger.warning("PlaybackWorker: callback status=%s", status)
             callback_count[0] += 1
@@ -148,7 +152,7 @@ class PlaybackWorker(threading.Thread):
                     time.sleep(0.01)
             logger.info("PlaybackWorker: stream closed normally")
         except sd.CallbackAbort:
-            logger.debug("PlaybackWorker: stream aborted")
+            logger.info("PlaybackWorker: stream aborted (CallbackAbort)")
         except Exception as e:
             logger.warning("PlaybackWorker: stream error: %s", e, exc_info=True)
 

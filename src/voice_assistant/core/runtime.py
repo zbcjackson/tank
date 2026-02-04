@@ -1,9 +1,11 @@
-"""Runtime context holding shared queues."""
+"""Runtime context holding shared queues and interrupt signal."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import queue
+import threading
+from dataclasses import dataclass
+
 from .events import AudioOutputRequest, BrainInputEvent, DisplayMessage
 
 
@@ -12,12 +14,13 @@ class RuntimeContext:
     """
     Shared runtime objects owned by Assistant.
 
-    Queues live here (not as globals) and are injected into components that need them.
+    Queues and interrupt_event live here and are injected into components that need them.
     """
 
     brain_input_queue: "queue.Queue[BrainInputEvent]"
     audio_output_queue: "queue.Queue[AudioOutputRequest]"
     display_queue: "queue.Queue[DisplayMessage]"
+    interrupt_event: threading.Event
 
     @classmethod
     def create(cls) -> "RuntimeContext":
@@ -25,5 +28,6 @@ class RuntimeContext:
             brain_input_queue=queue.Queue(),
             audio_output_queue=queue.Queue(),
             display_queue=queue.Queue(),
+            interrupt_event=threading.Event(),
         )
 

@@ -36,3 +36,7 @@ class BrainInputEvent:
     confidence: Optional[float]
     timestamp: float = field(default_factory=time.time)
     metadata: dict = field(default_factory=dict)
+
+
+class BrainInterrupted(Exception):
+    """Raised when Brain LLM processing is interrupted by user speech."""
