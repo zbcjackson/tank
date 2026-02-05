@@ -4,22 +4,18 @@ from typing import Callable, Optional
 
 from ...core.shutdown import GracefulShutdown
 from ...core.runtime import RuntimeContext
-from .types import AudioFormat, FrameConfig, SegmenterConfig
+from .types import AudioFormat, FrameConfig, PerceptionConfig
 from .mic import Mic, AudioFrame
-from .segmenter import UtteranceSegmenter, Utterance
-from .asr import ASR
-from .perception import Perception, PerceptionConfig
-from .voiceprint import VoiceprintRecognizer
+from .asr_sherpa import SherpaASR
+from .perception_streaming import StreamingPerception
 
 @dataclass(frozen=True)
 class AudioInputConfig:
     """Configuration for Audio input subsystem."""
     audio_format: AudioFormat = AudioFormat()
     frame: FrameConfig = FrameConfig()
-    segmenter: SegmenterConfig = SegmenterConfig()
     perception: PerceptionConfig = PerceptionConfig()
     input_device: Optional[int] = None
-
 
 class AudioInput:
     """
@@ -27,10 +23,9 @@ class AudioInput:
 
     Responsibilities:
     - Microphone capture (Mic thread)
-    - Utterance segmentation using VAD (UtteranceSegmenter thread)
-    - Speech recognition and voiceprint (Perception thread)
+    - Streaming Speech recognition (StreamingPerception thread)
 
-    All audio input processing is encapsulated here.
+    Simplifies the pipeline to Mic -> StreamingPerception for minimal latency.
     """
 
     def __init__(
@@ -44,12 +39,11 @@ class AudioInput:
         self._runtime = runtime
         self._cfg = cfg
 
-        # Internal queues (not exposed to core)
+        # Single queue for perception
         self._frames_queue: queue.Queue[AudioFrame] = queue.Queue(
             maxsize=cfg.frame.max_frames_queue
         )
-        self._utterance_queue: queue.Queue[Utterance] = queue.Queue(maxsize=20)
-
+        
         # Threads
         self._mic = Mic(
             stop_signal=shutdown_signal,
@@ -58,32 +52,25 @@ class AudioInput:
             frames_queue=self._frames_queue,
             device=cfg.input_device,
         )
-        self._segmenter = UtteranceSegmenter(
-            stop_signal=shutdown_signal,
-            cfg=cfg.segmenter,
-            frames_queue=self._frames_queue,
-            utterance_queue=self._utterance_queue,
-            on_speech_interrupt=on_speech_interrupt,
-        )
-        asr = ASR(model_size=cfg.perception.model_size, device="cpu")
-        voiceprint = VoiceprintRecognizer(default_user=cfg.perception.default_user)
-        self._perception = Perception(
+        
+        # Use SherpaASR for streaming
+        asr = SherpaASR(model_dir=cfg.perception.sherpa_model_dir)
+        
+        self._perception = StreamingPerception(
             shutdown_signal=shutdown_signal,
             runtime=runtime,
-            utterance_queue=self._utterance_queue,
+            frames_queue=self._frames_queue,
             asr=asr,
-            voiceprint=voiceprint,
-            config=cfg.perception,
+            user=cfg.perception.default_user,
+            on_speech_interrupt=on_speech_interrupt,
         )
 
     def start(self) -> None:
-        """Start all audio input threads (mic, segmenter, perception)."""
+        """Start mic and streaming perception."""
         self._mic.start()
-        self._segmenter.start()
         self._perception.start()
 
     def join(self) -> None:
-        """Wait for all audio input threads to finish."""
+        """Wait for threads to finish."""
         self._mic.join()
-        self._segmenter.join()
         self._perception.join()

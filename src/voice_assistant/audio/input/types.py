@@ -29,3 +29,13 @@ class SegmenterConfig:
     min_silence_ms: int = 1000
     pre_roll_ms: int = 200
     max_utterance_ms: int = 20000
+
+
+@dataclass(frozen=True)
+class PerceptionConfig:
+    """Configuration for Perception thread."""
+    enable_voiceprint: bool = True
+    voiceprint_timeout_s: float = 0.5
+    default_user: str = "Unknown"
+    model_size: str = "large-v3"
+    sherpa_model_dir: str = "models/sherpa-onnx-zipformer-en-zh"

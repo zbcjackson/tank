@@ -20,7 +20,12 @@ dependencies = [
     "silero-vad>=4.0.0",
     "onnxruntime>=1.16.1",
     "faster-whisper>=1.0.0",
+    "sherpa-onnx>=1.12.23",
 ]
+
+[project.scripts]
+download-models = "scripts.download_models:main"
+tank = "main:main"
 
 [dependency-groups]
 dev = [

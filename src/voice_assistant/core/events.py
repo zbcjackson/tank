@@ -25,6 +25,7 @@ class DisplayMessage:
 
     speaker: str  # e.g. "User", "Brain", "System", or voiceprint id
     text: str
+    is_final: bool = True
 
 
 @dataclass
