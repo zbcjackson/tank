@@ -82,7 +82,7 @@ class StreamingPerception(QueueWorker["AudioFrame"]):
                     type=InputType.AUDIO,
                     text=text,
                     user=self._user,
-                    language=None, # SherpaASR bilingual model handles this internally
+                    language='zh',
                     confidence=None,
                 ))
             self._last_text = "" # Reset for next utterance
