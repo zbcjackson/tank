@@ -114,6 +114,7 @@ class Assistant:
         self.runtime.display_queue.put(DisplayMessage(
             speaker="Keyboard",
             text=text,
+            is_user=True,
             is_final=True,
             msg_id=msg_id
         ))

@@ -69,6 +69,7 @@ class StreamingPerception(QueueWorker["AudioFrame"]):
                 self._runtime.display_queue.put(DisplayMessage(
                     speaker=self._user, 
                     text=text, 
+                    is_user=True,
                     is_final=is_final,
                     msg_id=self._current_msg_id
                 ))

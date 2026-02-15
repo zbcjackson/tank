@@ -123,7 +123,7 @@ class Brain(QueueWorker[BrainInputEvent]):
                 logger.warning("LLM returned empty content")
                 error_msg = self._get_error_message(event.language)
                 self._runtime.display_queue.put(
-                    DisplayMessage(speaker="Brain", text=error_msg, msg_id=f"brain_err_{uuid.uuid4().hex[:8]}")
+                    DisplayMessage(speaker="Brain", text=error_msg, is_user=False, msg_id=f"brain_err_{uuid.uuid4().hex[:8]}")
                 )
                 return
 
@@ -140,7 +140,7 @@ class Brain(QueueWorker[BrainInputEvent]):
 
             # Send response to UI and Speaker
             self._runtime.display_queue.put(
-                DisplayMessage(speaker="Brain", text=content, msg_id=f"brain_{uuid.uuid4().hex[:8]}")
+                DisplayMessage(speaker="Brain", text=content, is_user=False, msg_id=f"brain_{uuid.uuid4().hex[:8]}")
             )
             language = (event.language or "auto").strip() or "auto"
             self._runtime.audio_output_queue.put(
@@ -158,7 +158,7 @@ class Brain(QueueWorker[BrainInputEvent]):
             # User message was already added, but we'll leave it for retry
             error_msg = self._get_error_message(event.language)
             self._runtime.display_queue.put(
-                DisplayMessage(speaker="Brain", text=error_msg, msg_id=f"brain_err_{uuid.uuid4().hex[:8]}")
+                DisplayMessage(speaker="Brain", text=error_msg, is_user=False, msg_id=f"brain_err_{uuid.uuid4().hex[:8]}")
             )
     
     def _add_to_conversation_history(self, role: str, content: str) -> None:

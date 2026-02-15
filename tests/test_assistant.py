@@ -135,5 +135,6 @@ class TestAssistant:
         msg = assistant.runtime.display_queue.get_nowait()
         assert msg.speaker == "Keyboard"
         assert msg.text == "hello"
+        assert msg.is_user is True
         assert msg.msg_id is not None
         assert msg.msg_id.startswith("kbd_")

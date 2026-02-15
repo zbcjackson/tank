@@ -75,6 +75,7 @@ class TestPerception:
         assert isinstance(msg, DisplayMessage)
         assert msg.speaker == "Unknown"
         assert msg.text == "hello world"
+        assert msg.is_user is True
         assert msg.msg_id is not None
         assert msg.msg_id.startswith("user_")
 
