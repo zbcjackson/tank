@@ -1,13 +1,10 @@
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Union, AsyncGenerator, Tuple
 import logging
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionAssistantMessageParam
+from ..core.events import UpdateType
 
 logger = logging.getLogger("LLM")
-# Reduce noise from OpenAI client and its HTTP transport
-logging.getLogger("openai").setLevel(logging.WARNING)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 class LLM:
     def __init__(self, api_key: str, model: str = "anthropic/claude-3-5-nano", base_url: str = "https://openrouter.ai/api/v1"):
@@ -24,6 +21,160 @@ class LLM:
                 "X-Title": "Tank Voice Assistant"
             }
         )
+
+    async def chat_stream(
+        self,
+        messages: List[ChatCompletionMessageParam],
+        temperature: float = 0.7,
+        max_tokens: int = 1000,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        tool_executor: Any = None
+    ) -> AsyncGenerator[Tuple[UpdateType, str, Dict[str, Any]], None]:
+        """
+        Stream chat completion with automatic tool call handling.
+        Yields: (UpdateType, content_delta, metadata)
+        """
+        working_messages = messages.copy()
+        
+        while True:
+            logger.debug(f"LLM Stream iteration with {len(working_messages)} messages")
+            
+            api_kwargs = {
+                "model": self.model,
+                "messages": working_messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": True,
+                # Explicitly include usage for stream if supported (OpenAI/OpenRouter)
+                "stream_options": {"include_usage": True}
+            }
+            if tools:
+                api_kwargs["tools"] = tools
+
+            full_content = ""
+            full_reasoning = ""
+            tool_calls_data = {} # index -> {id, name, arguments}
+
+            stream = await self.client.chat.completions.create(**api_kwargs)
+            
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                
+                delta = chunk.choices[0].delta
+                
+                # 1. Handle Reasoning (Thought) - Provider specific (e.g. DeepSeek)
+                reasoning = getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None)
+                if reasoning:
+                    full_reasoning += reasoning
+                    yield UpdateType.THOUGHT, reasoning, {}
+
+                # 2. Handle Content (Text)
+                if delta.content:
+                    full_content += delta.content
+                    yield UpdateType.TEXT, delta.content, {}
+
+                # 3. Handle Tool Calls Delta
+                if delta.tool_calls:
+                    for tc_delta in delta.tool_calls:
+                        idx = tc_delta.index
+                        if idx not in tool_calls_data:
+                            tool_calls_data[idx] = {"id": None, "name": "", "arguments": ""}
+                        
+                        if tc_delta.id:
+                            tool_calls_data[idx]["id"] = tc_delta.id
+                        if tc_delta.function:
+                            if tc_delta.function.name:
+                                tool_calls_data[idx]["name"] += tc_delta.function.name
+                            if tc_delta.function.arguments:
+                                tool_calls_data[idx]["arguments"] += tc_delta.function.arguments
+                        
+                        # Yield partial tool call info for UI
+                        yield UpdateType.TOOL_CALL, "", {
+                            "index": idx,
+                            "name": tool_calls_data[idx]["name"],
+                            "arguments": tool_calls_data[idx]["arguments"],
+                            "status": "calling"
+                        }
+
+            # Prepare assistant message for history
+            assistant_msg: Dict[str, Any] = {"role": "assistant", "content": full_content}
+            if tool_calls_data:
+                # Convert accumulated tool calls to OpenAI format
+                formatted_tool_calls = []
+                for idx in sorted(tool_calls_data.keys()):
+                    formatted_tool_calls.append({
+                        "id": tool_calls_data[idx]["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tool_calls_data[idx]["name"],
+                            "arguments": tool_calls_data[idx]["arguments"]
+                        }
+                    })
+                assistant_msg["tool_calls"] = formatted_tool_calls
+            
+            working_messages.append(assistant_msg)
+
+            # If there are tool calls, execute them and continue the loop
+            if tool_calls_data and tool_executor:
+                for idx in sorted(tool_calls_data.keys()):
+                    tc = tool_calls_data[idx]
+                    try:
+                        # Yield status update
+                        yield UpdateType.TOOL_CALL, "", {
+                            "index": idx,
+                            "name": tc["name"],
+                            "arguments": tc["arguments"],
+                            "status": "executing"
+                        }
+                        
+                        # Mock the tool call object for executor if needed, 
+                        # but typically executor handles the raw dict or specific type.
+                        # Since tool_executor.execute_openai_tool_call expects a ToolCall object,
+                        # we might need to wrap it.
+                        from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall, Function
+                        
+                        tool_call_obj = ChatCompletionMessageToolCall(
+                            id=tc["id"],
+                            type="function",
+                            function=Function(name=tc["name"], arguments=tc["arguments"])
+                        )
+                        
+                        result = await tool_executor.execute_openai_tool_call(tool_call_obj)
+                        
+                        # Summary for UI (truncated)
+                        result_str = str(result)
+                        summary = (result_str[:200] + "...") if len(result_str) > 200 else result_str
+                        
+                        yield UpdateType.TOOL_RESULT, summary, {
+                            "index": idx,
+                            "name": tc["name"],
+                            "status": "success"
+                        }
+                        
+                        working_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc["id"],
+                            "name": tc["name"],
+                            "content": result_str
+                        })
+                    except Exception as e:
+                        yield UpdateType.TOOL_RESULT, f"Error: {str(e)}", {
+                            "index": idx,
+                            "name": tc["name"],
+                            "status": "error"
+                        }
+                        working_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc["id"],
+                            "name": tc["name"],
+                            "content": f"Error: {str(e)}"
+                        })
+                # Continue loop to get next response after tools
+                continue
+            else:
+                # No tool calls, we are done
+                break
 
     async def chat_completion_async(
         self,

@@ -84,6 +84,7 @@ class StreamingPerception(QueueWorker["AudioFrame"]):
                     user=self._user,
                     language='zh',
                     confidence=None,
+                    metadata={"msg_id": self._current_msg_id}
                 ))
             self._last_text = "" # Reset for next utterance
             self._interrupt_fired_for_current = False

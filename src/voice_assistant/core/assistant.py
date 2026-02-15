@@ -124,7 +124,8 @@ class Assistant:
             text=text,
             user="Keyboard",
             language=None,
-            confidence=None
+            confidence=None,
+            metadata={"msg_id": msg_id}
         ))
 
     def get_messages(self):

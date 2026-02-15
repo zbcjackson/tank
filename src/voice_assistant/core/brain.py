@@ -88,15 +88,7 @@ class Brain(QueueWorker[BrainInputEvent]):
     def handle(self, event: BrainInputEvent) -> None:
         """
         Handles inputs from both Keyboard and Perception.
-
-        Processes BrainInputEvent by:
-        1. Filtering blank text
-        2. Adding user message to conversation history
-        3. Calling LLM with conversation history (interruptible when speech_interrupt_enabled)
-        4. Adding assistant response to history
-        5. Outputting to display and audio queues
         """
-        # Filter blank text (defensive check)
         if not event.text or not event.text.strip():
             logger.debug(f"Skipping blank text from {event.user}")
             return
@@ -107,60 +99,129 @@ class Brain(QueueWorker[BrainInputEvent]):
         started_at = time.time()
         logger.info("Brain processing started for input at %.3f", started_at)
 
-        # Add user message to conversation history
+        # 1. User Message ID and Display
+        # If event has a msg_id (from Perception streaming), use it. Otherwise generate one.
+        user_msg_id = event.metadata.get("msg_id") or f"user_{uuid.uuid4().hex[:8]}"
+        
+        # Ensure user message is final in UI (if it was streaming)
+        self._runtime.display_queue.put(
+            DisplayMessage(
+                speaker=event.user,
+                text=event.text,
+                is_user=True,
+                msg_id=user_msg_id,
+                is_final=True
+            )
+        )
+
+        # 2. Add to history
         self._add_to_conversation_history("user", event.text)
 
+        # 3. Generate Assistant Message ID
+        assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
+        language = (event.language or "auto").strip() or "auto"
+
         try:
-            # Call LLM with conversation history (already includes system prompt)
             tools = self._tool_manager.get_openai_tools()
-            response = self._call_llm_async(self._conversation_history, tools)
-
-            # Extract content from response
-            message = response["choices"][0]["message"]
-            content = message.get("content", "")
-
-            if not content:
-                logger.warning("LLM returned empty content")
-                error_msg = self._get_error_message(event.language)
-                self._runtime.display_queue.put(
-                    DisplayMessage(speaker="Brain", text=error_msg, is_user=False, msg_id=f"brain_err_{uuid.uuid4().hex[:8]}")
-                )
-                return
-
-            # Add assistant response to conversation history
-            self._add_to_conversation_history("assistant", content)
-
-            # Log tool iterations if any occurred
-            if response.get("tool_iterations", 0) > 1:
-                logger.info(f"Completed response after {response['tool_iterations']} tool iterations")
-
+            self._process_stream(assistant_msg_id, language, tools)
+            
             ended_at = time.time()
-            duration_s = ended_at - started_at
-            logger.info("Brain response ready at %.3f, duration_s=%.3f", ended_at, duration_s)
-
-            # Send response to UI and Speaker
-            self._runtime.display_queue.put(
-                DisplayMessage(speaker="Brain", text=content, is_user=False, msg_id=f"brain_{uuid.uuid4().hex[:8]}")
-            )
-            language = (event.language or "auto").strip() or "auto"
-            self._runtime.audio_output_queue.put(
-                AudioOutputRequest(content=content, language=language)
-            )
+            logger.info("Brain response finished at %.3f, duration_s=%.3f", ended_at, ended_at - started_at)
 
         except BrainInterrupted:
-            logger.info(
-                "Brain: processing interrupted by user speech; skipping response (no display/TTS/history update)"
+            logger.info("Brain: processing interrupted by user speech")
+            # Mark the current assistant block as final/stopped
+            self._runtime.display_queue.put(
+                DisplayMessage(
+                    speaker="Brain",
+                    text="",
+                    is_user=False,
+                    msg_id=assistant_msg_id,
+                    is_final=True
+                )
             )
-            # User message already in history; next input will be processed normally
         except Exception as e:
             logger.error(f"Error processing input: {e}", exc_info=True)
-            # Don't update conversation history on error
-            # User message was already added, but we'll leave it for retry
             error_msg = self._get_error_message(event.language)
             self._runtime.display_queue.put(
-                DisplayMessage(speaker="Brain", text=error_msg, is_user=False, msg_id=f"brain_err_{uuid.uuid4().hex[:8]}")
+                DisplayMessage(
+                    speaker="Brain",
+                    text=error_msg,
+                    is_user=False,
+                    msg_id=f"brain_err_{uuid.uuid4().hex[:8]}",
+                    is_final=True
+                )
             )
-    
+
+    def _process_stream(self, msg_id: str, language: str, tools: List[Dict[str, Any]]) -> None:
+        """Run the streaming LLM process in the event loop."""
+        if self._event_loop is None:
+            raise RuntimeError("Event loop not initialized")
+
+        async def stream_task():
+            full_response_text = ""
+            from ..core.events import UpdateType
+            
+            try:
+                async for update_type, content, metadata in self._llm.chat_stream(
+                    messages=self._conversation_history,
+                    tools=tools,
+                    tool_executor=self._tool_manager,
+                ):
+                    # Check for interruption
+                    if self._config.speech_interrupt_enabled and self._runtime.interrupt_event.is_set():
+                        raise BrainInterrupted()
+
+                    # Push update to UI
+                    self._runtime.display_queue.put(
+                        DisplayMessage(
+                            speaker="Brain",
+                            text=content,
+                            is_user=False,
+                            msg_id=msg_id,
+                            is_final=False,
+                            update_type=update_type,
+                            metadata=metadata
+                        )
+                    )
+
+                    if update_type == UpdateType.TEXT:
+                        full_response_text += content
+
+                # Stream ended successfully
+                # 1. Finalize UI block
+                self._runtime.display_queue.put(
+                    DisplayMessage(
+                        speaker="Brain",
+                        text="",
+                        is_user=False,
+                        msg_id=msg_id,
+                        is_final=True
+                    )
+                )
+
+                # 2. Add to history
+                if full_response_text:
+                    self._add_to_conversation_history("assistant", full_response_text)
+                    
+                    # 3. Trigger TTS only after full response is generated
+                    self._runtime.audio_output_queue.put(
+                        AudioOutputRequest(content=full_response_text, language=language)
+                    )
+                elif not any(m["role"] == "assistant" for m in self._conversation_history[-1:]):
+                     # If no text was generated but the loop finished, 
+                     # we should still ensure something is in history if expected.
+                     # But chat_stream handles tool calls history internally.
+                     pass
+
+            except BrainInterrupted:
+                raise
+            except Exception as e:
+                logger.error(f"Stream processing error: {e}")
+                raise
+
+        self._event_loop.run_until_complete(stream_task())
+
     def _add_to_conversation_history(self, role: str, content: str) -> None:
         """Add message to conversation history and enforce limit."""
         self._conversation_history.append({"role": role, "content": content})
@@ -173,38 +234,6 @@ class Brain(QueueWorker[BrainInputEvent]):
                 [self._conversation_history[0]] +  # Keep system prompt
                 self._conversation_history[-(max_messages - 1):]  # Keep last N messages
             )
-    
-    def _call_llm_async(self, messages: List["ChatCompletionMessageParam"], tools: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Run async LLM call in sync context; when speech_interrupt_enabled, poll interrupt_event and cancel if set."""
-        if self._event_loop is None:
-            raise RuntimeError("Event loop not initialized. Brain must be running.")
-
-        async def run_with_interrupt_check() -> Dict[str, Any]:
-            task = self._event_loop.create_task(
-                self._llm.chat_completion_async(
-                    messages=messages,
-                    tools=tools,
-                    tool_executor=self._tool_manager,
-                )
-            )
-            poll_interval_s = 0.3
-            while not task.done():
-                if self._config.speech_interrupt_enabled and self._runtime.interrupt_event.is_set():
-                    logger.info("Brain: interrupt_event is set, cancelling LLM task")
-                    task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        logger.debug("Brain: LLM task cancelled (CancelledError received)")
-                    raise BrainInterrupted()
-                await asyncio.sleep(poll_interval_s)
-            # Task completed; check once more in case interrupt arrived as it finished
-            if self._config.speech_interrupt_enabled and self._runtime.interrupt_event.is_set():
-                logger.info("Brain: interrupt_event set after LLM completed, discarding response")
-                raise BrainInterrupted()
-            return await task
-
-        return self._event_loop.run_until_complete(run_with_interrupt_check())
     
     def _get_error_message(self, language: Optional[str]) -> str:
         """Get error message in user's language."""

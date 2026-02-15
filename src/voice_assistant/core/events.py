@@ -19,15 +19,24 @@ class InputType(Enum):
     SYSTEM = auto()
 
 
+class UpdateType(Enum):
+    """Types of updates for a streaming message."""
+    THOUGHT = auto()     # Thinking process
+    TOOL_CALL = auto()   # Tool call started/parameter update
+    TOOL_RESULT = auto() # Tool execution result
+    TEXT = auto()        # Final response text
+
+
 @dataclass(frozen=True)
 class DisplayMessage:
-    """One message for UI: who said it and what."""
-
+    """One message for UI: who said it and what, with streaming support."""
     speaker: str  # e.g. "User", "Brain", "System", or voiceprint id
     text: str
     is_user: bool
     is_final: bool = True
     msg_id: Optional[str] = None
+    update_type: UpdateType = UpdateType.TEXT
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass
