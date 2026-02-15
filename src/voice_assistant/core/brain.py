@@ -99,22 +99,7 @@ class Brain(QueueWorker[BrainInputEvent]):
         started_at = time.time()
         logger.info("Brain processing started for input at %.3f", started_at)
 
-        # 1. User Message ID and Display
-        # If event has a msg_id (from Perception streaming), use it. Otherwise generate one.
-        user_msg_id = event.metadata.get("msg_id") or f"user_{uuid.uuid4().hex[:8]}"
-        
-        # Ensure user message is final in UI (if it was streaming)
-        self._runtime.display_queue.put(
-            DisplayMessage(
-                speaker=event.user,
-                text=event.text,
-                is_user=True,
-                msg_id=user_msg_id,
-                is_final=True
-            )
-        )
-
-        # 2. Add to history
+        # Add to history
         self._add_to_conversation_history("user", event.text)
 
         # 3. Generate Assistant Message ID
