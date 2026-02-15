@@ -12,92 +12,100 @@ class AssistantMessageBlock(Vertical):
         height: auto;
         padding: 0 1;
         margin: 0 0 1 0;
-        background: $boost;
-        border-left: solid $accent;
     }
     
-    .thought-section {
+    .assistant-header {
+        color: $accent;
+        text-style: bold;
+        margin-bottom: 0;
+    }
+    
+    .thought-entry {
         color: $text-muted;
         text-style: italic;
-        padding: 0 1;
-        margin: 0 0 1 0;
-        border-left: solid gray;
-    }
-    
-    .tools-section {
-        background: $surface;
-        padding: 0 1;
-        margin: 0 0 1 0;
-        border: solid $primary;
+        margin: 0 0 0 2;
     }
     
     .tool-entry {
+        background: $surface;
+        color: $primary;
+        margin: 0 0 0 2;
         padding: 0 1;
-        border-bottom: solid gray;
+        border-left: solid $primary;
     }
     
-    .response-section {
+    .tool-result-entry {
+        background: $surface;
+        color: $success;
+        margin: 0 0 1 2;
         padding: 0 1;
+        border-left: solid $success;
+    }
+    
+    .text-entry {
+        margin: 0 0 0 2;
     }
     """
     
     def __init__(self, msg_id: str):
         super().__init__(id=msg_id)
-        self.thought_text = ""
-        self.response_text = ""
-        self.tool_calls: Dict[int, Dict] = {}
+        self.last_update_type: Optional[UpdateType] = None
+        self.last_widget: Optional[Static] = None
+        self.current_text_accumulated = ""
+        self.current_thought_accumulated = ""
 
     def compose(self) -> ComposeResult:
-        yield Static("", id="thought", classes="thought-section")
-        yield Vertical(id="tools", classes="tools-section")
-        yield Markdown("", id="response", classes="response-section")
-
-    def on_mount(self):
-        # Initial state: hide optional sections
-        self.query_one("#thought").display = False
-        self.query_one("#tools").display = False
+        yield Static("[bold blue]Tank:[/bold blue]", classes="assistant-header")
 
     def update_from_message(self, msg: DisplayMessage):
+        # Determine if we need a new widget or update the last one
+        is_new_type = msg.update_type != self.last_update_type
+        
         if msg.update_type == UpdateType.THOUGHT:
-            self.thought_text += msg.text
-            thought_widget = self.query_one("#thought", Static)
-            thought_widget.update(f"💭 {self.thought_text}")
-            thought_widget.display = True
+            if is_new_type:
+                self.current_thought_accumulated = msg.text
+                new_thought = Static(f"💭 {self.current_thought_accumulated}", classes="thought-entry")
+                self.mount(new_thought)
+                self.last_widget = new_thought
+            else:
+                self.current_thought_accumulated += msg.text
+                if self.last_widget:
+                    self.last_widget.update(f"💭 {self.current_thought_accumulated}")
         
         elif msg.update_type == UpdateType.TOOL_CALL:
-            idx = msg.metadata.get("index", 0)
-            self.tool_calls[idx] = msg.metadata
-            self.query_one("#tools").display = True
-            self._update_tools_section()
+            # For tool calls, if we get updates for the SAME tool call (same index), update it
+            name = msg.metadata.get("name", "")
+            args = msg.metadata.get("arguments", "")
+            content = f"🛠️ Calling: {name}({args[:50]}...)"
             
+            # If the last thing was a tool call (likely the start of this one), update it
+            if self.last_update_type == UpdateType.TOOL_CALL and self.last_widget:
+                 self.last_widget.update(content)
+            else:
+                new_tool = Static(content, classes="tool-entry")
+                self.mount(new_tool)
+                self.last_widget = new_tool
+
         elif msg.update_type == UpdateType.TOOL_RESULT:
-            idx = msg.metadata.get("index", 0)
-            if idx in self.tool_calls:
-                self.tool_calls[idx].update(msg.metadata)
-                self.tool_calls[idx]["result"] = msg.text
-            self.query_one("#tools").display = True
-            self._update_tools_section()
+            name = msg.metadata.get("name", "")
+            result = msg.text
+            summary = f"✅ Result [{name}]: {result[:200]}"
+            new_result = Static(summary, classes="tool-result-entry")
+            self.mount(new_result)
+            self.last_widget = new_result
             
         elif msg.update_type == UpdateType.TEXT:
-            self.response_text += msg.text
-            self.query_one("#response", Markdown).update(self.response_text)
+            if is_new_type:
+                self.current_text_accumulated = msg.text
+                new_text = Markdown(self.current_text_accumulated, classes="text-entry")
+                self.mount(new_text)
+                self.last_widget = new_text
+            else:
+                self.current_text_accumulated += msg.text
+                if isinstance(self.last_widget, Markdown):
+                    self.last_widget.update(self.current_text_accumulated)
 
-    def _update_tools_section(self):
-        tools_container = self.query_one("#tools", Vertical)
-        # Clear and rebuild or update intelligently. Rebuild is easier for now.
-        # But in Textual, rebuild means unmount/mount. 
-        # For simplicity, we'll just update a static summary if it's too complex.
-        content = "🛠️ **Tools Execution**\n"
-        for idx in sorted(self.tool_calls.keys()):
-            tc = self.tool_calls[idx]
-            status_icon = "⏳" if tc.get("status") in ["calling", "executing"] else "✅" if tc.get("status") == "success" else "❌"
-            content += f"{status_icon} {tc.get('name')}({tc.get('arguments', '')[:30]}...)\n"
-            if "result" in tc:
-                content += f"   └─ Result: {tc['result'][:100]}\n"
-        
-        # We'll use a single Static for tools for now for simplicity
-        tools_container.remove_children()
-        tools_container.mount(Static(content))
+        self.last_update_type = msg.update_type
 
 class ConversationArea(Container):
     DEFAULT_CSS = """
