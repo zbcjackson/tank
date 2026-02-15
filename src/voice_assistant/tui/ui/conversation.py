@@ -1,9 +1,10 @@
 from textual.widgets import Static, Markdown
-from textual.containers import Container, Vertical
+from textual.containers import Container, Vertical, ScrollableContainer
 from textual.app import ComposeResult
 from typing import Dict, Optional
 import uuid
 from ...core.events import UpdateType, DisplayMessage
+
 
 class AssistantMessageBlock(Vertical):
     DEFAULT_CSS = """
@@ -46,7 +47,7 @@ class AssistantMessageBlock(Vertical):
         margin: 0 0 0 2;
     }
     """
-    
+
     def __init__(self, msg_id: str):
         super().__init__(id=msg_id)
         self.last_update_type: Optional[UpdateType] = None
@@ -60,7 +61,7 @@ class AssistantMessageBlock(Vertical):
     def update_from_message(self, msg: DisplayMessage):
         # Determine if we need a new widget or update the last one
         is_new_type = msg.update_type != self.last_update_type
-        
+
         if msg.update_type == UpdateType.THOUGHT:
             if is_new_type:
                 self.current_thought_accumulated = msg.text
@@ -71,16 +72,16 @@ class AssistantMessageBlock(Vertical):
                 self.current_thought_accumulated += msg.text
                 if self.last_widget:
                     self.last_widget.update(f"💭 {self.current_thought_accumulated}")
-        
+
         elif msg.update_type == UpdateType.TOOL_CALL:
             # For tool calls, if we get updates for the SAME tool call (same index), update it
             name = msg.metadata.get("name", "")
             args = msg.metadata.get("arguments", "")
             content = f"🛠️ Calling: {name}({args[:50]}...)"
-            
+
             # If the last thing was a tool call (likely the start of this one), update it
             if self.last_update_type == UpdateType.TOOL_CALL and self.last_widget:
-                 self.last_widget.update(content)
+                self.last_widget.update(content)
             else:
                 new_tool = Static(content, classes="tool-entry")
                 self.mount(new_tool)
@@ -93,7 +94,7 @@ class AssistantMessageBlock(Vertical):
             new_result = Static(summary, classes="tool-result-entry")
             self.mount(new_result)
             self.last_widget = new_result
-            
+
         elif msg.update_type == UpdateType.TEXT:
             if is_new_type:
                 self.current_text_accumulated = msg.text
@@ -125,13 +126,13 @@ class ConversationArea(Container):
         text-style: bold;
     }
     """
-    
+
     def compose(self) -> ComposeResult:
-        yield Container(id="conversation_container")
+        yield ScrollableContainer(id="conversation_container")
         
     def write(self, msg: DisplayMessage) -> None:
         container = self.query_one("#conversation_container")
-        
+
         if msg.msg_id:
             # Try to find existing widget
             try:
@@ -141,12 +142,14 @@ class ConversationArea(Container):
                 else:
                     existing = self.query_one(f"#{msg.msg_id}", AssistantMessageBlock)
                     existing.update_from_message(msg)
-                
-                self.scroll_end(animate=False)
+
+                # After updating content, scroll to the new end
+                # Use call_after_refresh to ensure the layout has updated
+                self.call_after_refresh(container.scroll_end, animate=False)
                 return
             except Exception:
                 pass
-        
+
         # Create new
         if msg.is_user:
             new_entry = Static(f"[bold blue]You:[/bold blue] {msg.text}", classes="user-message")
@@ -157,5 +160,6 @@ class ConversationArea(Container):
             new_entry = AssistantMessageBlock(msg_id=msg.msg_id or f"brain_{uuid.uuid4().hex[:8]}")
             container.mount(new_entry)
             new_entry.update_from_message(msg)
-            
-        self.scroll_end(animate=False)
+
+        # Scroll after mounting new content
+        self.call_after_refresh(container.scroll_end, animate=False)
