@@ -2,13 +2,14 @@
 
 import logging
 import queue
+import uuid
 from pathlib import Path
 from typing import Callable, Optional
 from .shutdown import GracefulShutdown
 
 logger = logging.getLogger("Assistant")
 from .brain import Brain
-from .events import InputType, BrainInputEvent
+from .events import InputType, BrainInputEvent, DisplayMessage
 from .runtime import RuntimeContext
 
 # Import Audio subsystem components
@@ -108,6 +109,14 @@ class Assistant:
             if self.on_exit_request:
                 self.on_exit_request()
             return
+
+        msg_id = f"kbd_{uuid.uuid4().hex[:8]}"
+        self.runtime.display_queue.put(DisplayMessage(
+            speaker="Keyboard",
+            text=text,
+            is_final=True,
+            msg_id=msg_id
+        ))
 
         self.runtime.brain_input_queue.put(BrainInputEvent(
             type=InputType.TEXT,

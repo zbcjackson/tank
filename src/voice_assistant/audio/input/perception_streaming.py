@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 import queue
-from typing import TYPE_CHECKING
+import uuid
+from typing import TYPE_CHECKING, Optional, Callable
 
 from ...core.events import BrainInputEvent, DisplayMessage, InputType
 from ...core.runtime import RuntimeContext
@@ -45,6 +46,7 @@ class StreamingPerception(QueueWorker["AudioFrame"]):
         self._on_speech_interrupt = on_speech_interrupt
         self._last_text = ""
         self._interrupt_fired_for_current = False
+        self._current_msg_id: Optional[str] = None
 
     def handle(self, frame: "AudioFrame") -> None:
         text, is_final = self._asr.process_pcm(frame.pcm)
@@ -56,15 +58,19 @@ class StreamingPerception(QueueWorker["AudioFrame"]):
                 self._on_speech_interrupt()
             self._interrupt_fired_for_current = True
 
-        # Only update if text has changed
-        if text != self._last_text:
+        # Only update if text has changed OR it's the final result
+        if text != self._last_text or (is_final and text):
             self._last_text = text
             if text:
+                if self._current_msg_id is None:
+                    self._current_msg_id = f"user_{uuid.uuid4().hex[:8]}"
+                
                 # Push partial/final result to UI
                 self._runtime.display_queue.put(DisplayMessage(
                     speaker=self._user, 
                     text=text, 
-                    is_final=is_final
+                    is_final=is_final,
+                    msg_id=self._current_msg_id
                 ))
         
         if is_final:
@@ -80,3 +86,4 @@ class StreamingPerception(QueueWorker["AudioFrame"]):
                 ))
             self._last_text = "" # Reset for next utterance
             self._interrupt_fired_for_current = False
+            self._current_msg_id = None # Reset ID for next utterance

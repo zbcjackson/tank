@@ -116,3 +116,24 @@ class TestAssistant:
         mock_speaker.interrupt.assert_called_once()
         assert assistant.shutdown_signal.is_set()
         on_exit_request.assert_called_once()
+
+    @patch('src.voice_assistant.core.assistant.load_config')
+    @patch('src.voice_assistant.core.assistant.LLM')
+    @patch('src.voice_assistant.core.assistant.ToolManager')
+    def test_process_input_puts_display_message(
+        self, mock_tool_manager, mock_llm_class, mock_load_config, mock_config
+    ):
+        """process_input should put a DisplayMessage into the display_queue."""
+        mock_load_config.return_value = mock_config
+        mock_llm_class.return_value = MagicMock()
+        mock_tool_manager.return_value = MagicMock()
+
+        assistant = Assistant()
+        assistant.process_input("hello")
+
+        assert not assistant.runtime.display_queue.empty()
+        msg = assistant.runtime.display_queue.get_nowait()
+        assert msg.speaker == "Keyboard"
+        assert msg.text == "hello"
+        assert msg.msg_id is not None
+        assert msg.msg_id.startswith("kbd_")

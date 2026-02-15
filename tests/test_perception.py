@@ -75,6 +75,8 @@ class TestPerception:
         assert isinstance(msg, DisplayMessage)
         assert msg.speaker == "Unknown"
         assert msg.text == "hello world"
+        assert msg.msg_id is not None
+        assert msg.msg_id.startswith("user_")
 
     def test_handle_skips_display_when_text_empty(self, perception, runtime, mock_asr):
         """When ASR returns empty text, no DisplayMessage and no BrainInputEvent is put."""

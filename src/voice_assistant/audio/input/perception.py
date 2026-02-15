@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import queue
+import uuid
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from typing import Optional, TYPE_CHECKING
@@ -75,7 +76,8 @@ class Perception(QueueWorker[Utterance]):
         if not event.text or not event.text.strip():
             return
 
-        self._runtime.display_queue.put(DisplayMessage(speaker=event.user, text=event.text))
+        msg_id = f"user_{uuid.uuid4().hex[:8]}"
+        self._runtime.display_queue.put(DisplayMessage(speaker=event.user, text=event.text, msg_id=msg_id))
         self._runtime.brain_input_queue.put(event)
 
     def process(self, utterance: Utterance) -> BrainInputEvent:

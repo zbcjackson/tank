@@ -27,7 +27,6 @@ class TankApp(App):
         super().__init__()
         # Pass self.exit as the callback for when assistant requests an exit
         self.assistant = Assistant(on_exit_request=self.exit)
-        self.current_user_msg_id = None
 
     def compose(self) -> ComposeResult:
         yield TankHeader()
@@ -48,27 +47,18 @@ class TankApp(App):
         """Check for new messages from the Brain/System/User to display."""
         for msg in self.assistant.get_messages():
             if msg.speaker in ("User", "Unknown", "Keyboard"):
-                if self.current_user_msg_id is None:
-                    self.current_user_msg_id = f"msg_{uuid.uuid4().hex}"
-                
                 content = f"[bold green]You:[/bold green] [white]{msg.text}[/white]"
-                self.query_one(ConversationArea).write(content, msg_id=self.current_user_msg_id)
-                
-                if msg.is_final:
-                    self.current_user_msg_id = None
+                self.query_one(ConversationArea).write(content, msg_id=msg.msg_id)
             else:
                 self.query_one(ConversationArea).write(
-                    f"[bold blue]Tank:[/bold blue] [white]{msg.text}[/white]"
+                    f"[bold blue]Tank:[/bold blue] [white]{msg.text}[/white]",
+                    msg_id=msg.msg_id
                 )
 
     def on_input_submitted(self, event: InputFooter.Submitted) -> None:
         user_input = event.value
         if user_input:
-            # Echo user input to log
-            self.query_one(ConversationArea).write(f"[bold green]You:[/bold green] [gray]{user_input}[/gray]")
-            
             self.assistant.process_input(user_input)
-            
             # Clear input
             self.query_one(InputFooter).value = ""
 
