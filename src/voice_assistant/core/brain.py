@@ -104,7 +104,7 @@ class Brain(QueueWorker[BrainInputEvent]):
 
         # 3. Generate Assistant Message ID
         assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
-        language = (event.language or "auto").strip() or "auto"
+        language = "zh"
 
         try:
             tools = self._tool_manager.get_openai_tools()
