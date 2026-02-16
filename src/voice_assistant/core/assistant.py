@@ -19,6 +19,10 @@ from ..llm.llm import LLM
 from ..tools.manager import ToolManager
 
 
+from ..audio.input.types import AudioSource, AudioSourceFactory
+from ..audio.output.types import AudioSink, AudioSinkFactory
+
+
 class Assistant:
     """
     Main orchestrator for voice assistant.
@@ -35,6 +39,8 @@ class Assistant:
         on_exit_request: Optional[Callable[[], None]] = None,
         audio_input_config: Optional[AudioInputConfig] = None,
         audio_output_config: Optional[AudioOutputConfig] = None,
+        audio_source_factory: Optional[AudioSourceFactory] = None,
+        audio_sink_factory: Optional[AudioSinkFactory] = None,
     ):
         # Load configuration
         self._config = load_config(config_path)
@@ -62,6 +68,7 @@ class Assistant:
             runtime=self.runtime,
             cfg=audio_input_config or AudioInputConfig(),
             on_speech_interrupt=_on_speech_interrupt,
+            source_factory=audio_source_factory,
         )
 
         # Audio output subsystem (TTS playback)
@@ -71,6 +78,7 @@ class Assistant:
             audio_output_queue=self.runtime.audio_output_queue,
             config=self._config,
             cfg=audio_output_config or AudioOutputConfig(),
+            sink_factory=audio_sink_factory,
         )
         
         self.brain = Brain(

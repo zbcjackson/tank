@@ -4,8 +4,8 @@ from typing import Callable, Optional
 
 from ...core.shutdown import GracefulShutdown
 from ...core.runtime import RuntimeContext
-from .types import AudioFormat, FrameConfig, PerceptionConfig
-from .mic import Mic, AudioFrame
+from .types import AudioFormat, FrameConfig, PerceptionConfig, AudioSource, AudioFrame, AudioSourceFactory
+from .mic import Mic
 from .asr_sherpa import SherpaASR
 from .perception_streaming import StreamingPerception
 
@@ -22,10 +22,10 @@ class AudioInput:
     Audio input subsystem facade.
 
     Responsibilities:
-    - Microphone capture (Mic thread)
+    - Microphone capture (or other AudioSource)
     - Streaming Speech recognition (StreamingPerception thread)
 
-    Simplifies the pipeline to Mic -> StreamingPerception for minimal latency.
+    Simplifies the pipeline to Source -> StreamingPerception for minimal latency.
     """
 
     def __init__(
@@ -34,6 +34,7 @@ class AudioInput:
             runtime: RuntimeContext,
             cfg: AudioInputConfig,
             on_speech_interrupt: Optional[Callable[[], None]] = None,
+            source_factory: Optional[AudioSourceFactory] = None,
     ):
         self._shutdown_signal = shutdown_signal
         self._runtime = runtime
@@ -44,14 +45,17 @@ class AudioInput:
             maxsize=cfg.frame.max_frames_queue
         )
         
-        # Threads
-        self._mic = Mic(
-            stop_signal=shutdown_signal,
-            audio_format=cfg.audio_format,
-            frame_cfg=cfg.frame,
-            frames_queue=self._frames_queue,
-            device=cfg.input_device,
-        )
+        # Use provided source factory or default to Mic
+        if source_factory is not None:
+            self._source = source_factory(self._frames_queue, self._shutdown_signal)
+        else:
+            self._source = Mic(
+                stop_signal=shutdown_signal,
+                audio_format=cfg.audio_format,
+                frame_cfg=cfg.frame,
+                frames_queue=self._frames_queue,
+                device=cfg.input_device,
+            )
         
         # Use SherpaASR for streaming
         asr = SherpaASR(model_dir=cfg.perception.sherpa_model_dir)
@@ -66,11 +70,11 @@ class AudioInput:
         )
 
     def start(self) -> None:
-        """Start mic and streaming perception."""
-        self._mic.start()
+        """Start source and streaming perception."""
+        self._source.start()
         self._perception.start()
 
     def join(self) -> None:
         """Wait for threads to finish."""
-        self._mic.join()
+        self._source.join()
         self._perception.join()

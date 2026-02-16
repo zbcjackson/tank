@@ -3,7 +3,36 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+import queue
+import numpy as np
+from dataclasses import dataclass
+from typing import Optional, Protocol, runtime_checkable, Callable
+
+
+@dataclass
+class AudioFrame:
+    """Single audio frame from microphone or other source."""
+    pcm: np.ndarray          # shape: (n_samples,) float32
+    sample_rate: int
+    timestamp_s: float
+
+
+from ...core.shutdown import StopSignal
+
+
+@runtime_checkable
+class AudioSource(Protocol):
+    """Protocol for audio input sources."""
+    def start(self) -> None:
+        """Start capturing audio."""
+        ...
+
+    def join(self) -> None:
+        """Wait for the source to stop."""
+        ...
+
+
+AudioSourceFactory = Callable[[queue.Queue["AudioFrame"], StopSignal], AudioSource]
 
 
 @dataclass(frozen=True)

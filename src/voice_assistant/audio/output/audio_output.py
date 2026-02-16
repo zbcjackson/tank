@@ -13,7 +13,7 @@ from ...core.shutdown import GracefulShutdown
 from .playback_worker import PlaybackWorker
 from .tts_engine_edge import EdgeTTSEngine
 from .tts_worker import TTSWorker
-from .types import AudioChunk
+from .types import AudioChunk, AudioSink, AudioSinkFactory
 
 if TYPE_CHECKING:
     from ...core.runtime import RuntimeContext
@@ -33,7 +33,7 @@ class AudioOutput:
     """
     Audio output subsystem facade.
 
-    Two threads: TTSWorker (request -> chunks) and PlaybackWorker (chunks -> device).
+    Two threads: TTSWorker (request -> chunks) and Sink (chunks -> destination).
     interrupt() sets runtime.interrupt_event and clears queues so playback stops quickly.
     """
 
@@ -44,6 +44,7 @@ class AudioOutput:
         audio_output_queue: "queue.Queue[AudioOutputRequest]",
         config: VoiceAssistantConfig,
         cfg: AudioOutputConfig = AudioOutputConfig(),
+        sink_factory: Optional[AudioSinkFactory] = None,
     ):
         self._shutdown_signal = shutdown_signal
         self._runtime = runtime
@@ -58,12 +59,16 @@ class AudioOutput:
             tts_engine=tts_engine,
             interrupt_event=runtime.interrupt_event,
         )
-        self._playback_worker = PlaybackWorker(
-            name="PlaybackThread",
-            stop_signal=shutdown_signal,
-            audio_chunk_queue=self._audio_chunk_queue,
-            interrupt_event=runtime.interrupt_event,
-        )
+        
+        if sink_factory is not None:
+            self._sink = sink_factory(self._audio_chunk_queue, self._shutdown_signal)
+        else:
+            self._sink = PlaybackWorker(
+                name="PlaybackThread",
+                stop_signal=shutdown_signal,
+                audio_chunk_queue=self._audio_chunk_queue,
+                interrupt_event=runtime.interrupt_event,
+            )
 
     @property
     def speaker(self) -> "AudioOutput":
@@ -80,14 +85,14 @@ class AudioOutput:
         logger.warning("Speaker interrupted")
 
     def start(self) -> None:
-        """Start TTS and playback threads."""
+        """Start TTS and sink threads."""
 
         self._tts_worker.start()
-        self._playback_worker.start()
+        self._sink.start()
 
     def join(self) -> None:
         """Wait for both threads to finish."""
 
         self._tts_worker.join()
-        self._playback_worker.join()
+        self._sink.join()
 

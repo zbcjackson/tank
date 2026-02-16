@@ -14,7 +14,7 @@ import sounddevice as sd
 
 from ...core.shutdown import StopSignal
 
-from .types import AudioFormat, FrameConfig
+from .types import AudioFormat, FrameConfig, AudioFrame
 
 logger = logging.getLogger("Mic")
 
@@ -24,14 +24,6 @@ DTYPE_MAP = {
     "int16": np.int16,
     "int32": np.int32,
 }
-
-
-@dataclass
-class AudioFrame:
-    """Single audio frame from microphone."""
-    pcm: np.ndarray          # shape: (n_samples,) float32
-    sample_rate: int
-    timestamp_s: float
 
 
 class Mic(threading.Thread):
