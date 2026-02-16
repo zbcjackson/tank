@@ -21,6 +21,10 @@ dependencies = [
     "onnxruntime>=1.16.1",
     "faster-whisper>=1.0.0",
     "sherpa-onnx>=1.12.23",
+    "fastapi>=0.129.0",
+    "uvicorn>=0.40.0",
+    "python-multipart>=0.0.22",
+    "httpx-ws>=0.8.2",
 ]
 
 [project.scripts]
