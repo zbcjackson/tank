@@ -1,11 +1,74 @@
-import { Chat } from './components/Chat'
+import { useAssistant } from './hooks/useAssistant';
+import { VoiceMode } from './components/Assistant/VoiceMode';
+import { ChatMode } from './components/Assistant/ChatMode';
+import { ModeToggle } from './components/Assistant/ModeToggle';
+import { AnimatePresence, motion } from 'framer-motion';
+import { X } from 'lucide-react';
+
+// Simple session ID generator
+const SESSION_ID = Math.random().toString(36).substring(7);
 
 function App() {
+  const {
+    messages,
+    mode,
+    isAssistantTyping,
+    connectionStatus,
+    sendMessage,
+    toggleMode,
+    clearMessages
+  } = useAssistant(SESSION_ID);
+
   return (
-    <div className="min-h-screen bg-black">
-      <Chat />
+    <div className="h-screen w-full flex flex-col font-sans overflow-hidden relative">
+      {connectionStatus === 'error' && (
+        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md text-white p-8 text-center">
+            <div className="max-w-md">
+                <h2 className="text-2xl font-bold mb-2">连接错误</h2>
+                <p className="text-slate-400 mb-6">无法启动麦克风或连接到服务器，请检查权限并重试。</p>
+                <button onClick={() => window.location.reload()} className="bg-primary px-6 py-2 rounded-xl font-bold">重试</button>
+            </div>
+        </div>
+      )}
+      <main className="flex-1 relative overflow-hidden">
+        <AnimatePresence mode="wait">
+          {mode === 'voice' ? (
+            <VoiceMode 
+              isAssistantTyping={isAssistantTyping}
+              onMicClick={() => {}} // Audio is auto-starting in hook
+              statusText={connectionStatus === 'connected' ? undefined : `Status: ${connectionStatus}`}
+            />
+          ) : (
+            <ChatMode 
+              messages={messages}
+              isAssistantTyping={isAssistantTyping}
+              onSendMessage={sendMessage}
+            />
+          )}
+        </AnimatePresence>
+      </main>
+
+      <ModeToggle mode={mode} onToggle={toggleMode} />
+
+      {/* Reset Button */}
+      <div className="fixed bottom-24 right-8 flex flex-col gap-3">
+         <AnimatePresence>
+            {messages.length > 0 && (
+            <motion.button 
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                onClick={clearMessages}
+                className={`p-3 rounded-2xl shadow-xl transition-all flex items-center gap-2 border ${mode === 'voice' ? 'bg-white/10 text-white border-white/10 backdrop-blur-sm hover:bg-white/20' : 'bg-white dark:bg-zinc-800 text-red-500 border-slate-200 dark:border-zinc-700 hover:bg-red-50 dark:hover:bg-red-950/30'}`}
+                title="清除消息"
+            >
+                <X size={18} />
+            </motion.button>
+            )}
+         </AnimatePresence>
+      </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

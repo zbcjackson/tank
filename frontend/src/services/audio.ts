@@ -23,7 +23,7 @@ export class AudioProcessor {
       sampleRate: 16000,
     });
 
-    this.source = this.audioContext.createMediaStreamAudioSource(this.stream);
+    this.source = this.audioContext.createMediaStreamSource(this.stream);
     
     // Using ScriptProcessor for simplicity in this prototype. 
     // AudioWorklet is preferred but more complex to setup with Vite.
@@ -42,8 +42,10 @@ export class AudioProcessor {
       this.onAudio(int16Array);
     };
 
-    this.source.connect(this.processor);
-    this.processor.connect(this.audioContext.destination);
+    if (this.source && this.processor) {
+      this.source.connect(this.processor);
+      this.processor.connect(this.audioContext.destination);
+    }
   }
 
   stop() {

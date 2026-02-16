@@ -12,6 +12,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.34.0",
     "lucide-react": "^0.564.0",
     "onnxruntime-web": "^1.16.3",
     "react": "^19.2.0",
