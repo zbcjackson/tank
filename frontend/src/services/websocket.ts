@@ -3,7 +3,9 @@ export type MessageType = "signal" | "transcript" | "text" | "update" | "input";
 export interface WebsocketMessage {
   type: MessageType;
   content: string;
+  is_user: boolean;
   is_final: boolean;
+  msg_id?: string;
   session_id?: string;
   metadata: Record<string, any>;
 }

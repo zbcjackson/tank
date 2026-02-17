@@ -26,7 +26,7 @@ class LLM:
         self,
         messages: List[ChatCompletionMessageParam],
         temperature: float = 0.7,
-        max_tokens: int = 1000,
+        max_tokens: int = 10000,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_executor: Any = None
     ) -> AsyncGenerator[Tuple[UpdateType, str, Dict[str, Any]], None]:
@@ -35,9 +35,11 @@ class LLM:
         Yields: (UpdateType, content_delta, metadata)
         """
         working_messages = messages.copy()
+        turn = 0
         
         while True:
-            logger.debug(f"LLM Stream iteration with {len(working_messages)} messages")
+            turn += 1
+            logger.debug(f"LLM Stream iteration {turn} with {len(working_messages)} messages")
             
             api_kwargs = {
                 "model": self.model,
@@ -62,17 +64,18 @@ class LLM:
                     continue
                 
                 delta = chunk.choices[0].delta
-                
+
+                logger.info(f"Received chunk: {delta}")
                 # 1. Handle Reasoning (Thought) - Provider specific (e.g. DeepSeek)
                 reasoning = getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None)
                 if reasoning:
                     full_reasoning += reasoning
-                    yield UpdateType.THOUGHT, reasoning, {}
+                    yield UpdateType.THOUGHT, reasoning, {"turn": turn}
 
                 # 2. Handle Content (Text)
                 if delta.content:
                     full_content += delta.content
-                    yield UpdateType.TEXT, delta.content, {}
+                    yield UpdateType.TEXT, delta.content, {"turn": turn}
 
                 # 3. Handle Tool Calls Delta
                 if delta.tool_calls:
@@ -94,10 +97,11 @@ class LLM:
                             "index": idx,
                             "name": tool_calls_data[idx]["name"],
                             "arguments": tool_calls_data[idx]["arguments"],
-                            "status": "calling"
+                            "status": "calling",
+                            "turn": turn
                         }
 
-            # Prepare assistant message for history
+            # ... (Prepare assistant message)
             assistant_msg: Dict[str, Any] = {"role": "assistant", "content": full_content}
             if tool_calls_data:
                 # Convert accumulated tool calls to OpenAI format
@@ -125,13 +129,11 @@ class LLM:
                             "index": idx,
                             "name": tc["name"],
                             "arguments": tc["arguments"],
-                            "status": "executing"
+                            "status": "executing",
+                            "turn": turn
                         }
                         
-                        # Mock the tool call object for executor if needed, 
-                        # but typically executor handles the raw dict or specific type.
-                        # Since tool_executor.execute_openai_tool_call expects a ToolCall object,
-                        # we might need to wrap it.
+                        # Mock the tool call object for executor
                         from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall, Function
                         
                         tool_call_obj = ChatCompletionMessageToolCall(
@@ -149,7 +151,8 @@ class LLM:
                         yield UpdateType.TOOL_RESULT, summary, {
                             "index": idx,
                             "name": tc["name"],
-                            "status": "success"
+                            "status": "success",
+                            "turn": turn
                         }
                         
                         working_messages.append({
@@ -162,7 +165,8 @@ class LLM:
                         yield UpdateType.TOOL_RESULT, f"Error: {str(e)}", {
                             "index": idx,
                             "name": tc["name"],
-                            "status": "error"
+                            "status": "error",
+                            "turn": turn
                         }
                         working_messages.append({
                             "role": "tool",

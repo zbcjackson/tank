@@ -20,6 +20,8 @@ class WebsocketMessage(BaseModel):
     """Base schema for all WebSocket messages."""
     type: MessageType
     content: str = ""
+    is_user: bool = False
     is_final: bool = False
+    msg_id: Optional[str] = None
     session_id: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)

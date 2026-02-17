@@ -49,7 +49,7 @@ export const ChatMode = ({ messages, isAssistantTyping, onSendMessage }: ChatMod
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Conversation History</p>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-hide pt-2">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide pt-2">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4">
             <div className="w-16 h-16 bg-slate-100 dark:bg-zinc-900 rounded-3xl flex items-center justify-center">
@@ -58,20 +58,41 @@ export const ChatMode = ({ messages, isAssistantTyping, onSendMessage }: ChatMod
             <p className="text-sm font-medium italic">开始对话吧</p>
           </div>
         )}
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-white dark:bg-zinc-800 text-zinc-600 border dark:border-zinc-700'}`}>
-                {msg.role === 'user' ? <User size={20}/> : <Cpu size={20}/>}
-              </div>
-              <div className="space-y-3">
-                {msg.steps.map((step) => (
-                  <MessageStep key={step.id} step={step} role={msg.role} />
-                ))}
+        {messages.map((msg, i) => {
+          const prevMsg = i > 0 ? messages[i - 1] : null;
+          // IMPORTANT: Only start a new group if the ROLE changed (User <-> Assistant)
+          const isFirstInRoleGroup = !prevMsg || prevMsg.role !== msg.role;
+          
+          return (
+            <div key={msg.id} className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'} ${isFirstInRoleGroup ? 'mt-8' : 'mt-1'}`}>
+              <div className={`max-w-[90%] flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                {/* Avatar area: Only show if it's the start of a role's messages */}
+                <div className="w-9 h-9 shrink-0">
+                  {isFirstInRoleGroup && (
+                    <motion.div 
+                      initial={{ scale: 0.8, opacity: 0 }} 
+                      animate={{ scale: 1, opacity: 1 }}
+                      className={`w-9 h-9 rounded-full flex items-center justify-center shadow-md ${msg.role === 'user' ? 'bg-primary text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600'}`}
+                    >
+                      {msg.role === 'user' ? <User size={18}/> : <Cpu size={18}/>}
+                    </motion.div>
+                  )}
+                </div>
+
+                <div className={`flex flex-col gap-1.5 ${msg.role === 'user' ? 'items-end' : 'items-start'} flex-1`}>
+                  {isFirstInRoleGroup && (
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 mb-1">
+                      {msg.role === 'user' ? 'You' : 'TANK'}
+                    </span>
+                  )}
+                  <div className={`w-full transition-all duration-300 ${msg.role === 'assistant' ? 'animate-in fade-in slide-in-from-left-2' : ''}`}>
+                    <MessageStep step={{ id: msg.id, type: msg.type, content: msg.content }} role={msg.role} />
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {isAssistantTyping && (
             <div className="flex justify-start">
                 <div className="flex gap-4">

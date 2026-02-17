@@ -69,15 +69,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     ws_msg = WebsocketMessage(
                         type=MessageType.TRANSCRIPT if msg.is_user else MessageType.TEXT,
                         content=msg.text,
+                        is_user=msg.is_user,
                         is_final=msg.is_final,
+                        msg_id=msg.msg_id,
                         session_id=session_id,
                         metadata=msg.metadata.copy() if msg.metadata else {}
                     )
                     
-                    # Add msg_id to metadata for grouping
-                    if msg.msg_id:
-                        ws_msg.metadata["msg_id"] = msg.msg_id
-
                     # For non-text updates (tool calls, etc.)
                     if hasattr(msg, 'update_type') and msg.update_type is not None:
                          ws_msg.type = MessageType.UPDATE
