@@ -2,6 +2,8 @@ import { motion } from 'framer-motion';
 import { Cpu, Wrench } from 'lucide-react';
 import { WeatherCard } from './WeatherCard';
 import type { WeatherData } from './WeatherCard';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export type StepType = 'thinking' | 'tool' | 'text' | 'weather';
 
@@ -20,7 +22,18 @@ export const MessageStep = ({ step, role }: MessageStepProps) => {
   if (step.type === 'text') {
     return (
       <div className={`px-5 py-3 rounded-2xl text-[15px] leading-relaxed shadow-sm transition-all ${role === 'user' ? 'bg-primary text-white rounded-tr-none' : 'bg-white dark:bg-zinc-900 border dark:border-zinc-800 rounded-tl-none text-slate-800 dark:text-slate-200'}`}>
-        {step.content}
+        <ReactMarkdown 
+          remarkPlugins={[remarkGfm]}
+          components={{
+            p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
+            ul: ({node, ...props}) => <ul className="list-disc ml-4 mb-2" {...props} />,
+            ol: ({node, ...props}) => <ol className="list-decimal ml-4 mb-2" {...props} />,
+            code: ({node, ...props}) => <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded text-sm font-mono" {...props} />,
+            pre: ({node, ...props}) => <pre className="bg-zinc-100 dark:bg-zinc-800 p-3 rounded-xl overflow-x-auto my-2 font-mono text-sm" {...props} />,
+          }}
+        >
+          {step.content}
+        </ReactMarkdown>
       </div>
     );
   }
@@ -35,7 +48,9 @@ export const MessageStep = ({ step, role }: MessageStepProps) => {
             </motion.div>
             <span className="text-[10px] font-black uppercase tracking-widest">Internal Thought</span>
           </div>
-          {step.content}
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {step.content}
+          </ReactMarkdown>
         </div>
       </div>
     );
