@@ -3,7 +3,6 @@ import { VoiceMode } from './components/Assistant/VoiceMode';
 import { ChatMode } from './components/Assistant/ChatMode';
 import { ModeToggle } from './components/Assistant/ModeToggle';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X } from 'lucide-react';
 
 // Simple session ID generator
 const SESSION_ID = Math.random().toString(36).substring(7);
@@ -49,24 +48,6 @@ function App() {
       </main>
 
       <ModeToggle mode={mode} onToggle={toggleMode} />
-
-      {/* Reset Button */}
-      <div className="fixed bottom-24 right-8 flex flex-col gap-3">
-         <AnimatePresence>
-            {messages.length > 0 && (
-            <motion.button 
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                onClick={clearMessages}
-                className={`p-3 rounded-2xl shadow-xl transition-all flex items-center gap-2 border ${mode === 'voice' ? 'bg-white/10 text-white border-white/10 backdrop-blur-sm hover:bg-white/20' : 'bg-white dark:bg-zinc-800 text-red-500 border-slate-200 dark:border-zinc-700 hover:bg-red-50 dark:hover:bg-red-950/30'}`}
-                title="清除消息"
-            >
-                <X size={18} />
-            </motion.button>
-            )}
-         </AnimatePresence>
-      </div>
     </div>
   );
 }

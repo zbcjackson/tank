@@ -174,17 +174,12 @@ export const useAssistant = (sessionId: string) => {
     setMode(prev => prev === 'voice' ? 'chat' : 'voice');
   }, []);
 
-  const clearMessages = useCallback(() => {
-    setMessages([]);
-  }, []);
-
   return {
     messages,
     mode,
     isAssistantTyping,
     connectionStatus,
     sendMessage,
-    toggleMode,
-    clearMessages
+    toggleMode
   };
 };
