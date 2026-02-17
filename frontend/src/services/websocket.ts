@@ -13,15 +13,18 @@ export class VoiceAssistantClient {
   private url: string;
   private audioContext: AudioContext | null = null;
   private nextStartTime: number = 0;
+  private onSpeakingChange?: (isSpeaking: boolean) => void;
+  private speakingTimer: any = null;
 
   constructor(sessionId: string, baseUrl: string = "localhost:8000") {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     this.url = `${protocol}//${baseUrl}/ws/${sessionId}`;
   }
 
-  connect(onMessage: (msg: WebsocketMessage) => void, onOpen?: () => void) {
+  connect(onMessage: (msg: WebsocketMessage) => void, onSpeakingChange?: (isSpeaking: boolean) => void, onOpen?: () => void) {
     this.socket = new WebSocket(this.url);
     this.socket.binaryType = "arraybuffer";
+    this.onSpeakingChange = onSpeakingChange;
 
     this.socket.onopen = () => {
       console.log("WebSocket connected");
@@ -73,6 +76,19 @@ export class VoiceAssistantClient {
       const startTime = Math.max(this.nextStartTime, this.audioContext.currentTime);
       source.start(startTime);
       this.nextStartTime = startTime + buffer.duration;
+
+      // Update speaking state
+      if (this.onSpeakingChange) {
+        this.onSpeakingChange(true);
+        if (this.speakingTimer) clearTimeout(this.speakingTimer);
+        
+        // Set a timer to set speaking to false after the scheduled audio ends
+        const delayMs = (this.nextStartTime - this.audioContext.currentTime) * 1000;
+        this.speakingTimer = setTimeout(() => {
+          this.onSpeakingChange?.(false);
+          this.speakingTimer = null;
+        }, delayMs);
+      }
     } catch (e) {
       console.error("Error playing audio chunk:", e);
     }

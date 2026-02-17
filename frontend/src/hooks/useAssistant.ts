@@ -8,6 +8,7 @@ export const useAssistant = (sessionId: string) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [mode, setMode] = useState<'voice' | 'chat'>('voice');
   const [isAssistantTyping, setIsAssistantTyping] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error' | 'disconnected'>('connecting');
   
   const clientRef = useRef<VoiceAssistantClient | null>(null);
@@ -139,9 +140,13 @@ export const useAssistant = (sessionId: string) => {
     const client = new VoiceAssistantClient(sessionId);
     clientRef.current = client;
 
-    client.connect(handleMessage, () => {
-      setConnectionStatus('connected');
-    });
+    client.connect(
+        handleMessage, 
+        (speaking) => setIsSpeaking(speaking),
+        () => {
+            setConnectionStatus('connected');
+        }
+    );
 
     const audioProcessor = new AudioProcessor((data) => {
       client.sendAudio(data);
@@ -178,6 +183,7 @@ export const useAssistant = (sessionId: string) => {
     messages,
     mode,
     isAssistantTyping,
+    isSpeaking,
     connectionStatus,
     sendMessage,
     toggleMode

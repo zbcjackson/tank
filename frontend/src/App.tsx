@@ -12,10 +12,10 @@ function App() {
     messages,
     mode,
     isAssistantTyping,
+    isSpeaking,
     connectionStatus,
     sendMessage,
-    toggleMode,
-    clearMessages
+    toggleMode
   } = useAssistant(SESSION_ID);
 
   return (
@@ -33,7 +33,7 @@ function App() {
         <AnimatePresence mode="wait">
           {mode === 'voice' ? (
             <VoiceMode 
-              isAssistantTyping={isAssistantTyping}
+              isAssistantTyping={isSpeaking}
               onMicClick={() => {}} // Audio is auto-starting in hook
               statusText={connectionStatus === 'connected' ? undefined : `Status: ${connectionStatus}`}
             />
