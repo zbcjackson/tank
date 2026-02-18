@@ -65,7 +65,6 @@ class LLM:
                 
                 delta = chunk.choices[0].delta
 
-                logger.info(f"Received chunk: {delta}")
                 # 1. Handle Reasoning (Thought) - Provider specific (e.g. DeepSeek)
                 reasoning = getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None)
                 if reasoning:
