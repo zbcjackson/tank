@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 from typing import List, Optional, TYPE_CHECKING, Dict, Any
 
-from .events import AudioOutputRequest, BrainInputEvent, BrainInterrupted, DisplayMessage
+from .events import AudioOutputRequest, BrainInputEvent, BrainInterrupted, DisplayMessage, UpdateType
 from .runtime import RuntimeContext
 from .shutdown import StopSignal
 from .worker import QueueWorker
@@ -106,10 +106,22 @@ class Brain(QueueWorker[BrainInputEvent]):
         assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
         language = "zh"
 
+        # Send processing_started signal
+        self._runtime.display_queue.put(
+            DisplayMessage(
+                speaker="System",
+                text="processing_started",
+                is_user=False,
+                msg_id=assistant_msg_id,
+                is_final=False,
+                update_type=UpdateType.SIGNAL
+            )
+        )
+
         try:
             tools = self._tool_manager.get_openai_tools()
             self._process_stream(assistant_msg_id, language, tools)
-            
+
             ended_at = time.time()
             logger.info("Brain response finished at %.3f, duration_s=%.3f", ended_at, ended_at - started_at)
 
@@ -135,6 +147,18 @@ class Brain(QueueWorker[BrainInputEvent]):
                     is_user=False,
                     msg_id=f"brain_err_{uuid.uuid4().hex[:8]}",
                     is_final=True
+                )
+            )
+        finally:
+            # Always send processing_ended signal
+            self._runtime.display_queue.put(
+                DisplayMessage(
+                    speaker="System",
+                    text="processing_ended",
+                    is_user=False,
+                    msg_id=assistant_msg_id,
+                    is_final=True,
+                    update_type=UpdateType.SIGNAL
                 )
             )
 

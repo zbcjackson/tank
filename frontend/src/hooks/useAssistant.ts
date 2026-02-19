@@ -27,26 +27,24 @@ export const useAssistant = (sessionId: string) => {
   const handleMessage = useCallback((msg: WebsocketMessage) => {
     if (msg.type === 'signal') {
       if (msg.content === 'ready') setConnectionStatus('connected');
+      else if (msg.content === 'processing_started') setIsAssistantTyping(true);
+      else if (msg.content === 'processing_ended') setIsAssistantTyping(false);
       return;
     }
 
     const role = msg.is_user ? 'user' : 'assistant';
     const msgId = msg.msg_id || (msg.is_user ? 'user_default' : 'assistant_default');
-    
+
     // Parse activity type and turn
     const metadataType = msg.metadata?.update_type ? msg.metadata.update_type.split('.').pop() : null;
     const turn = msg.metadata?.turn || 0;
-    
+
     let activityType: StepType = 'text';
     if (metadataType === 'THOUGHT') activityType = 'thinking';
     else if (metadataType === 'TOOL_CALL' || metadataType === 'TOOL_RESULT') activityType = 'tool';
     else activityType = 'text';
 
     if (msg.type === 'transcript') activityType = 'text';
-
-    if (role === 'assistant') {
-      setIsAssistantTyping(!msg.is_final);
-    }
 
     // Unique ID including TURN to allow multiple separate thinking/text phases
     let stepId = `${msgId}_${activityType}_${turn}`;

@@ -76,10 +76,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         metadata=msg.metadata.copy() if msg.metadata else {}
                     )
                     
-                    # For non-text updates (tool calls, etc.)
+                    # For non-text updates (tool calls, signals, etc.)
                     if hasattr(msg, 'update_type') and msg.update_type is not None:
-                         ws_msg.type = MessageType.UPDATE
-                         ws_msg.metadata["update_type"] = str(msg.update_type)
+                        if msg.update_type.name == 'SIGNAL':
+                            ws_msg.type = MessageType.SIGNAL
+                        else:
+                            ws_msg.type = MessageType.UPDATE
+                            ws_msg.metadata["update_type"] = str(msg.update_type)
 
                     await websocket.send_text(ws_msg.model_dump_json())
                 await asyncio.sleep(0.05)

@@ -25,6 +25,7 @@ class UpdateType(Enum):
     TOOL_CALL = auto()   # Tool call started/parameter update
     TOOL_RESULT = auto() # Tool execution result
     TEXT = auto()        # Final response text
+    SIGNAL = auto()      # Status signals (processing_started/ended, etc.)
 
 
 @dataclass(frozen=True)
