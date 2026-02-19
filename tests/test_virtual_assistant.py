@@ -13,7 +13,7 @@ from src.voice_assistant.audio.input.queue_source import QueueAudioSource
 from src.voice_assistant.audio.output.callback_sink import CallbackAudioSink
 from src.voice_assistant.audio.input.types import AudioFrame
 from src.voice_assistant.audio.output.types import AudioChunk
-from src.voice_assistant.core.events import DisplayMessage, BrainInputEvent
+from src.voice_assistant.core.events import DisplayMessage, SignalMessage, BrainInputEvent
 
 
 @pytest.fixture
@@ -106,11 +106,11 @@ async def test_virtual_assistant_flow(mock_config):
                 all_msgs.extend(new_msgs)
                 
                 if not found_msg:
-                    if any(text_to_return in m.text.lower() for m in all_msgs if m.is_user):
+                    if any(text_to_return in m.text.lower() for m in all_msgs if isinstance(m, DisplayMessage) and m.is_user):
                         found_msg = True
-                
+
                 if not found_resp:
-                    if any("brain" in m.speaker.lower() for m in all_msgs):
+                    if any("brain" in m.speaker.lower() for m in all_msgs if isinstance(m, DisplayMessage)):
                         found_resp = True
                 
                 if found_msg and found_resp:

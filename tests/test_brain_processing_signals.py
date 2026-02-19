@@ -4,7 +4,7 @@ import pytest
 import asyncio
 from unittest.mock import MagicMock, AsyncMock
 from src.voice_assistant.core.brain import Brain
-from src.voice_assistant.core.events import BrainInputEvent, InputType, UpdateType, DisplayMessage
+from src.voice_assistant.core.events import BrainInputEvent, InputType, UpdateType, SignalMessage
 from src.voice_assistant.core.runtime import RuntimeContext
 from src.voice_assistant.core.shutdown import GracefulShutdown
 from src.voice_assistant.config.settings import VoiceAssistantConfig
@@ -56,16 +56,15 @@ def test_brain_sends_processing_started_signal(brain, runtime):
 
     # Collect all messages
     messages = []
-    while not runtime.display_queue.empty():
-        messages.append(runtime.display_queue.get_nowait())
+    while not runtime.ui_queue.empty():
+        messages.append(runtime.ui_queue.get_nowait())
 
     # Find processing_started signal
-    signal_msgs = [m for m in messages if m.update_type == UpdateType.SIGNAL]
-    started_signals = [m for m in signal_msgs if m.text == "processing_started"]
+    signal_msgs = [m for m in messages if isinstance(m, SignalMessage)]
+    started_signals = [m for m in signal_msgs if m.signal_type == "processing_started"]
 
     assert len(started_signals) == 1, "Should send exactly one processing_started signal"
-    assert started_signals[0].is_final is False
-    assert started_signals[0].speaker == "System"
+    assert started_signals[0].msg_id is not None
 
 
 def test_brain_sends_processing_ended_signal(brain, runtime):
@@ -82,16 +81,15 @@ def test_brain_sends_processing_ended_signal(brain, runtime):
 
     # Collect all messages
     messages = []
-    while not runtime.display_queue.empty():
-        messages.append(runtime.display_queue.get_nowait())
+    while not runtime.ui_queue.empty():
+        messages.append(runtime.ui_queue.get_nowait())
 
     # Find processing_ended signal
-    signal_msgs = [m for m in messages if m.update_type == UpdateType.SIGNAL]
-    ended_signals = [m for m in signal_msgs if m.text == "processing_ended"]
+    signal_msgs = [m for m in messages if isinstance(m, SignalMessage)]
+    ended_signals = [m for m in signal_msgs if m.signal_type == "processing_ended"]
 
     assert len(ended_signals) == 1, "Should send exactly one processing_ended signal"
-    assert ended_signals[0].is_final is True
-    assert ended_signals[0].speaker == "System"
+    assert ended_signals[0].msg_id is not None
 
 
 def test_brain_signals_order(brain, runtime):
@@ -108,13 +106,12 @@ def test_brain_signals_order(brain, runtime):
 
     # Collect all messages
     messages = []
-    while not runtime.display_queue.empty():
-        messages.append(runtime.display_queue.get_nowait())
+    while not runtime.ui_queue.empty():
+        messages.append(runtime.ui_queue.get_nowait())
 
     # Find signal positions
-    signal_msgs = [m for m in messages if m.update_type == UpdateType.SIGNAL]
-    started_idx = next((i for i, m in enumerate(messages) if m.update_type == UpdateType.SIGNAL and m.text == "processing_started"), None)
-    ended_idx = next((i for i, m in enumerate(messages) if m.update_type == UpdateType.SIGNAL and m.text == "processing_ended"), None)
+    started_idx = next((i for i, m in enumerate(messages) if isinstance(m, SignalMessage) and m.signal_type == "processing_started"), None)
+    ended_idx = next((i for i, m in enumerate(messages) if isinstance(m, SignalMessage) and m.signal_type == "processing_ended"), None)
 
     assert started_idx is not None, "Should have processing_started signal"
     assert ended_idx is not None, "Should have processing_ended signal"
@@ -142,12 +139,12 @@ def test_brain_sends_processing_ended_on_error(brain, runtime, mock_llm):
 
     # Collect all messages
     messages = []
-    while not runtime.display_queue.empty():
-        messages.append(runtime.display_queue.get_nowait())
+    while not runtime.ui_queue.empty():
+        messages.append(runtime.ui_queue.get_nowait())
 
     # Should still have processing_ended signal
-    signal_msgs = [m for m in messages if m.update_type == UpdateType.SIGNAL]
-    ended_signals = [m for m in signal_msgs if m.text == "processing_ended"]
+    signal_msgs = [m for m in messages if isinstance(m, SignalMessage)]
+    ended_signals = [m for m in signal_msgs if m.signal_type == "processing_ended"]
 
     assert len(ended_signals) == 1, "Should send processing_ended even on error"
 
@@ -166,13 +163,13 @@ def test_brain_signals_have_same_msg_id(brain, runtime):
 
     # Collect all messages
     messages = []
-    while not runtime.display_queue.empty():
-        messages.append(runtime.display_queue.get_nowait())
+    while not runtime.ui_queue.empty():
+        messages.append(runtime.ui_queue.get_nowait())
 
     # Find signals
-    signal_msgs = [m for m in messages if m.update_type == UpdateType.SIGNAL]
-    started = next((m for m in signal_msgs if m.text == "processing_started"), None)
-    ended = next((m for m in signal_msgs if m.text == "processing_ended"), None)
+    signal_msgs = [m for m in messages if isinstance(m, SignalMessage)]
+    started = next((m for m in signal_msgs if m.signal_type == "processing_started"), None)
+    ended = next((m for m in signal_msgs if m.signal_type == "processing_ended"), None)
 
     assert started is not None
     assert ended is not None

@@ -10,6 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from .manager import SessionManager
 from .schemas import WebsocketMessage, MessageType
+from ..core.events import SignalMessage, DisplayMessage
 from ..audio.input.queue_source import QueueAudioSource
 from ..audio.input.types import AudioFrame
 from ..audio.output.callback_sink import CallbackAudioSink
@@ -60,29 +61,39 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         audio_sink_factory=sink_factory
     )
 
-    # Task to pipe Assistant's display messages (transcripts, text) to WS
+    # Task to pipe Assistant's UI messages (signals, transcripts, text) to WS
     async def pipe_display_messages():
         try:
             while True:
                 for msg in assistant.get_messages():
-                    # Map DisplayMessage to WebsocketMessage
-                    ws_msg = WebsocketMessage(
-                        type=MessageType.TRANSCRIPT if msg.is_user else MessageType.TEXT,
-                        content=msg.text,
-                        is_user=msg.is_user,
-                        is_final=msg.is_final,
-                        msg_id=msg.msg_id,
-                        session_id=session_id,
-                        metadata=msg.metadata.copy() if msg.metadata else {}
-                    )
-                    
-                    # For non-text updates (tool calls, signals, etc.)
-                    if hasattr(msg, 'update_type') and msg.update_type is not None:
-                        if msg.update_type.name == 'SIGNAL':
-                            ws_msg.type = MessageType.SIGNAL
-                        else:
+                    # Handle SignalMessage
+                    if isinstance(msg, SignalMessage):
+                        ws_msg = WebsocketMessage(
+                            type=MessageType.SIGNAL,
+                            content=msg.signal_type,
+                            msg_id=msg.msg_id,
+                            session_id=session_id,
+                            metadata=msg.metadata.copy() if msg.metadata else {}
+                        )
+                    # Handle DisplayMessage
+                    elif isinstance(msg, DisplayMessage):
+                        ws_msg = WebsocketMessage(
+                            type=MessageType.TRANSCRIPT if msg.is_user else MessageType.TEXT,
+                            content=msg.text,
+                            is_user=msg.is_user,
+                            is_final=msg.is_final,
+                            msg_id=msg.msg_id,
+                            session_id=session_id,
+                            metadata=msg.metadata.copy() if msg.metadata else {}
+                        )
+
+                        # For non-text updates (tool calls, thoughts, etc.)
+                        if msg.update_type.name != 'TEXT':
                             ws_msg.type = MessageType.UPDATE
                             ws_msg.metadata["update_type"] = str(msg.update_type)
+                    else:
+                        logger.warning(f"Unknown message type: {type(msg)}")
+                        continue
 
                     await websocket.send_text(ws_msg.model_dump_json())
                 await asyncio.sleep(0.05)

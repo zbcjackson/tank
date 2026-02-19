@@ -45,35 +45,35 @@ def test_streaming_perception_msg_id_lifecycle(perception, runtime, mock_asr):
     mock_asr.process_pcm.return_value = ("hello", False)
     perception.handle(frame)
     
-    assert not runtime.display_queue.empty()
-    msg1 = runtime.display_queue.get_nowait()
+    assert not runtime.ui_queue.empty()
+    msg1 = runtime.ui_queue.get_nowait()
     assert msg1.text == "hello"
     assert msg1.is_final is False
     assert msg1.msg_id is not None
     assert msg1.msg_id.startswith("user_")
-    
+
     # 2. Second partial result - same ID
     mock_asr.process_pcm.return_value = ("hello world", False)
     perception.handle(frame)
-    
-    msg2 = runtime.display_queue.get_nowait()
+
+    msg2 = runtime.ui_queue.get_nowait()
     assert msg2.text == "hello world"
     assert msg2.msg_id == msg1.msg_id
-    
+
     # 3. Final result - same ID
     mock_asr.process_pcm.return_value = ("hello world", True)
     perception.handle(frame)
-    
-    msg3 = runtime.display_queue.get_nowait()
+
+    msg3 = runtime.ui_queue.get_nowait()
     assert msg3.text == "hello world"
     assert msg3.is_final is True
     assert msg3.msg_id == msg1.msg_id
-    
+
     # 4. Next utterance - NEW ID
     mock_asr.process_pcm.return_value = ("new sentence", False)
     perception.handle(frame)
-    
-    msg4 = runtime.display_queue.get_nowait()
+
+    msg4 = runtime.ui_queue.get_nowait()
     assert msg4.text == "new sentence"
     assert msg4.msg_id != msg1.msg_id
     assert msg4.msg_id is not None
@@ -85,16 +85,16 @@ def test_streaming_perception_skips_unchanged_text(perception, runtime, mock_asr
 
     mock_asr.process_pcm.return_value = ("hello", False)
     perception.handle(frame)
-    assert runtime.display_queue.qsize() == 1
-    runtime.display_queue.get()
+    assert runtime.ui_queue.qsize() == 1
+    runtime.ui_queue.get()
 
     # Same text, not final -> skip
     perception.handle(frame)
-    assert runtime.display_queue.empty()
+    assert runtime.ui_queue.empty()
 
     # Same text, BUT final -> don't skip
     mock_asr.process_pcm.return_value = ("hello", True)
     perception.handle(frame)
-    assert runtime.display_queue.qsize() == 1
-    msg = runtime.display_queue.get()
+    assert runtime.ui_queue.qsize() == 1
+    msg = runtime.ui_queue.get()
     assert msg.is_final is True

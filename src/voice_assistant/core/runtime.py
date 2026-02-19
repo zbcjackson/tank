@@ -6,7 +6,7 @@ import queue
 import threading
 from dataclasses import dataclass
 
-from .events import AudioOutputRequest, BrainInputEvent, DisplayMessage
+from .events import AudioOutputRequest, BrainInputEvent, UIMessage
 
 
 @dataclass
@@ -19,7 +19,7 @@ class RuntimeContext:
 
     brain_input_queue: "queue.Queue[BrainInputEvent]"
     audio_output_queue: "queue.Queue[AudioOutputRequest]"
-    display_queue: "queue.Queue[DisplayMessage]"
+    ui_queue: "queue.Queue[UIMessage]"
     interrupt_event: threading.Event
 
     @classmethod
@@ -27,7 +27,7 @@ class RuntimeContext:
         return cls(
             brain_input_queue=queue.Queue(),
             audio_output_queue=queue.Queue(),
-            display_queue=queue.Queue(),
+            ui_queue=queue.Queue(),
             interrupt_event=threading.Event(),
         )
 

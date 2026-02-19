@@ -90,14 +90,14 @@ class TestAssistant:
             on_exit_request.assert_called_once()
 
     def test_process_input_puts_display_message(self, mock_config):
-        """process_input should put a DisplayMessage into the display_queue."""
+        """process_input should put a DisplayMessage into the ui_queue."""
         with patch('src.voice_assistant.core.assistant.load_config') as mock_load_config:
             mock_load_config.return_value = mock_config
             assistant = Assistant()
             assistant.process_input("hello")
-            
-            assert not assistant.runtime.display_queue.empty()
-            msg = assistant.runtime.display_queue.get_nowait()
+
+            assert not assistant.runtime.ui_queue.empty()
+            msg = assistant.runtime.ui_queue.get_nowait()
             assert msg.speaker == "Keyboard"
             assert msg.text == "hello"
             assert msg.is_user is True

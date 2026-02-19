@@ -4,7 +4,7 @@ import pytest
 import asyncio
 from unittest.mock import MagicMock, AsyncMock
 from src.voice_assistant.core.assistant import Assistant
-from src.voice_assistant.core.events import UpdateType
+from src.voice_assistant.core.events import UpdateType, SignalMessage
 from src.voice_assistant.audio.input.types import AudioSource
 from src.voice_assistant.audio.output.types import AudioSink
 
@@ -80,9 +80,9 @@ def test_assistant_sends_processing_signals(assistant):
         messages = list(assistant.get_messages())
 
         # Find signals
-        signal_msgs = [m for m in messages if hasattr(m, 'update_type') and m.update_type == UpdateType.SIGNAL]
-        started = [m for m in signal_msgs if m.text == "processing_started"]
-        ended = [m for m in signal_msgs if m.text == "processing_ended"]
+        signal_msgs = [m for m in messages if isinstance(m, SignalMessage)]
+        started = [m for m in signal_msgs if m.signal_type == "processing_started"]
+        ended = [m for m in signal_msgs if m.signal_type == "processing_ended"]
 
         assert len(started) == 1, "Should have processing_started signal"
         assert len(ended) == 1, "Should have processing_ended signal"

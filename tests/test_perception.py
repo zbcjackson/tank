@@ -70,8 +70,8 @@ class TestPerception:
         assert event.language == "en"
         assert event.confidence == 0.95
 
-        assert not runtime.display_queue.empty()
-        msg = runtime.display_queue.get_nowait()
+        assert not runtime.ui_queue.empty()
+        msg = runtime.ui_queue.get_nowait()
         assert isinstance(msg, DisplayMessage)
         assert msg.speaker == "Unknown"
         assert msg.text == "hello world"
@@ -86,7 +86,7 @@ class TestPerception:
         perception.handle(utterance)
 
         assert runtime.brain_input_queue.empty()
-        assert runtime.display_queue.empty()
+        assert runtime.ui_queue.empty()
 
     def test_handle_skips_brain_input_when_text_empty(self, perception, runtime, mock_asr):
         """When ASR returns empty text, no BrainInputEvent is put into brain_input_queue."""
@@ -95,7 +95,7 @@ class TestPerception:
         perception.handle(utterance)
 
         assert runtime.brain_input_queue.empty()
-        assert runtime.display_queue.empty()
+        assert runtime.ui_queue.empty()
 
     def test_handle_skips_brain_input_when_text_whitespace_only(self, perception, runtime, mock_asr):
         """When ASR returns whitespace-only text, no BrainInputEvent is put into brain_input_queue."""
@@ -104,4 +104,4 @@ class TestPerception:
         perception.handle(utterance)
 
         assert runtime.brain_input_queue.empty()
-        assert runtime.display_queue.empty()
+        assert runtime.ui_queue.empty()

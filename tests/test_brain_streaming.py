@@ -2,7 +2,7 @@ import pytest
 import asyncio
 from unittest.mock import MagicMock, AsyncMock, patch
 from src.voice_assistant.core.brain import Brain
-from src.voice_assistant.core.events import BrainInputEvent, InputType, UpdateType, DisplayMessage, AudioOutputRequest
+from src.voice_assistant.core.events import BrainInputEvent, InputType, UpdateType, DisplayMessage, SignalMessage, AudioOutputRequest
 from src.voice_assistant.core.runtime import RuntimeContext
 from src.voice_assistant.core.shutdown import GracefulShutdown
 from src.voice_assistant.config.settings import VoiceAssistantConfig
@@ -55,11 +55,11 @@ def test_brain_streaming_full_flow(brain, runtime, mock_llm):
     
     # Check display queue for messages
     messages = []
-    while not runtime.display_queue.empty():
-        messages.append(runtime.display_queue.get_nowait())
-    
-    # 2. Assistant messages
-    assistant_msgs = [m for m in messages if not m.is_user]
+    while not runtime.ui_queue.empty():
+        messages.append(runtime.ui_queue.get_nowait())
+
+    # 2. Assistant messages (filter out SignalMessage)
+    assistant_msgs = [m for m in messages if isinstance(m, DisplayMessage) and not m.is_user]
     assert any(m.update_type == UpdateType.THOUGHT for m in assistant_msgs)
     assert any(m.update_type == UpdateType.TOOL_CALL for m in assistant_msgs)
     assert any(m.update_type == UpdateType.TOOL_RESULT for m in assistant_msgs)

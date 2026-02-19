@@ -77,7 +77,7 @@ class Perception(QueueWorker[Utterance]):
             return
 
         msg_id = f"user_{uuid.uuid4().hex[:8]}"
-        self._runtime.display_queue.put(DisplayMessage(speaker=event.user, text=event.text, is_user=True, msg_id=msg_id))
+        self._runtime.ui_queue.put(DisplayMessage(speaker=event.user, text=event.text, is_user=True, msg_id=msg_id))
         self._runtime.brain_input_queue.put(event)
 
     def process(self, utterance: Utterance) -> BrainInputEvent:

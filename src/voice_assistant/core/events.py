@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Optional
+from typing import Optional, Union
 import time
 
 
@@ -25,19 +25,30 @@ class UpdateType(Enum):
     TOOL_CALL = auto()   # Tool call started/parameter update
     TOOL_RESULT = auto() # Tool execution result
     TEXT = auto()        # Final response text
-    SIGNAL = auto()      # Status signals (processing_started/ended, etc.)
+
+
+@dataclass(frozen=True)
+class SignalMessage:
+    """System signal for UI state changes (e.g., processing_started, processing_ended)."""
+    signal_type: str
+    msg_id: Optional[str] = None
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
 class DisplayMessage:
-    """One message for UI: who said it and what, with streaming support."""
-    speaker: str  # e.g. "User", "Brain", "System", or voiceprint id
+    """Content message for UI display (user input, assistant response, etc.)."""
+    speaker: str  # e.g. "User", "Brain", or voiceprint id
     text: str
     is_user: bool
     is_final: bool = True
     msg_id: Optional[str] = None
     update_type: UpdateType = UpdateType.TEXT
     metadata: dict = field(default_factory=dict)
+
+
+# Type alias for messages in the UI queue
+UIMessage = Union[SignalMessage, DisplayMessage]
 
 
 @dataclass

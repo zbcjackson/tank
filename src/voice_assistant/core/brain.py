@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 from typing import List, Optional, TYPE_CHECKING, Dict, Any
 
-from .events import AudioOutputRequest, BrainInputEvent, BrainInterrupted, DisplayMessage, UpdateType
+from .events import AudioOutputRequest, BrainInputEvent, BrainInterrupted, DisplayMessage, UpdateType, SignalMessage
 from .runtime import RuntimeContext
 from .shutdown import StopSignal
 from .worker import QueueWorker
@@ -107,14 +107,10 @@ class Brain(QueueWorker[BrainInputEvent]):
         language = "zh"
 
         # Send processing_started signal
-        self._runtime.display_queue.put(
-            DisplayMessage(
-                speaker="System",
-                text="processing_started",
-                is_user=False,
-                msg_id=assistant_msg_id,
-                is_final=False,
-                update_type=UpdateType.SIGNAL
+        self._runtime.ui_queue.put(
+            SignalMessage(
+                signal_type="processing_started",
+                msg_id=assistant_msg_id
             )
         )
 
@@ -128,7 +124,7 @@ class Brain(QueueWorker[BrainInputEvent]):
         except BrainInterrupted:
             logger.info("Brain: processing interrupted by user speech")
             # Mark the current assistant block as final/stopped
-            self._runtime.display_queue.put(
+            self._runtime.ui_queue.put(
                 DisplayMessage(
                     speaker="Brain",
                     text="",
@@ -140,7 +136,7 @@ class Brain(QueueWorker[BrainInputEvent]):
         except Exception as e:
             logger.error(f"Error processing input: {e}", exc_info=True)
             error_msg = self._get_error_message(event.language)
-            self._runtime.display_queue.put(
+            self._runtime.ui_queue.put(
                 DisplayMessage(
                     speaker="Brain",
                     text=error_msg,
@@ -151,14 +147,10 @@ class Brain(QueueWorker[BrainInputEvent]):
             )
         finally:
             # Always send processing_ended signal
-            self._runtime.display_queue.put(
-                DisplayMessage(
-                    speaker="System",
-                    text="processing_ended",
-                    is_user=False,
-                    msg_id=assistant_msg_id,
-                    is_final=True,
-                    update_type=UpdateType.SIGNAL
+            self._runtime.ui_queue.put(
+                SignalMessage(
+                    signal_type="processing_ended",
+                    msg_id=assistant_msg_id
                 )
             )
 
@@ -182,7 +174,7 @@ class Brain(QueueWorker[BrainInputEvent]):
                         raise BrainInterrupted()
 
                     # Push update to UI
-                    self._runtime.display_queue.put(
+                    self._runtime.ui_queue.put(
                         DisplayMessage(
                             speaker="Brain",
                             text=content,
@@ -199,7 +191,7 @@ class Brain(QueueWorker[BrainInputEvent]):
 
                 # Stream ended successfully
                 # 1. Finalize UI block
-                self._runtime.display_queue.put(
+                self._runtime.ui_queue.put(
                     DisplayMessage(
                         speaker="Brain",
                         text="",

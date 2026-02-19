@@ -119,7 +119,7 @@ class Assistant:
             return
 
         msg_id = f"kbd_{uuid.uuid4().hex[:8]}"
-        self.runtime.display_queue.put(DisplayMessage(
+        self.runtime.ui_queue.put(DisplayMessage(
             speaker="Keyboard",
             text=text,
             is_user=True,
@@ -138,9 +138,9 @@ class Assistant:
 
     def get_messages(self):
         """Yields all pending messages from the display queue."""
-        while not self.runtime.display_queue.empty():
+        while not self.runtime.ui_queue.empty():
             try:
-                yield self.runtime.display_queue.get_nowait()
-                self.runtime.display_queue.task_done()
+                yield self.runtime.ui_queue.get_nowait()
+                self.runtime.ui_queue.task_done()
             except queue.Empty:
                 break

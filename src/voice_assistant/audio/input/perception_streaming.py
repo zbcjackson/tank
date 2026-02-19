@@ -66,7 +66,7 @@ class StreamingPerception(QueueWorker["AudioFrame"]):
                     self._current_msg_id = f"user_{uuid.uuid4().hex[:8]}"
                 
                 # Push partial/final result to UI
-                self._runtime.display_queue.put(DisplayMessage(
+                self._runtime.ui_queue.put(DisplayMessage(
                     speaker=self._user, 
                     text=text, 
                     is_user=True,
