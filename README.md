@@ -2,165 +2,162 @@
 
 A powerful voice assistant that supports both Chinese and English, capable of answering questions, having conversations, and executing tasks through various tools.
 
+## Architecture
+
+This is a monorepo containing three projects:
+
+- **`backend/`** - FastAPI-based backend server (Python)
+  - Speech recognition (ASR)
+  - Text-to-Speech (TTS)
+  - LLM integration
+  - Tool execution
+
+- **`cli/`** - CLI/TUI client (Python)
+  - Textual-based terminal interface
+  - Local audio capture and playback
+  - WebSocket client
+
+- **`web/`** - Web frontend (TypeScript/React)
+  - Browser-based interface
+  - WebRTC audio streaming
+  - Modern UI
+
+## Quick Start
+
+### 1. Start the Backend
+
+```bash
+cd backend
+uv sync
+uv run tank-backend --create-config  # Create .env.example
+cp .env.example .env                  # Edit with your API keys
+uv run tank-backend                   # Start server on :8000
+```
+
+### 2. Start a Client
+
+**Option A: CLI/TUI Client**
+```bash
+cd cli
+uv sync
+uv run tank                           # Connects to localhost:8000
+```
+
+**Option B: Web Client**
+```bash
+cd web
+npm install
+npm run dev                           # Opens browser
+```
+
 ## Features
 
-- 🎤 **Speech Recognition**: Uses OpenAI Whisper for accurate speech-to-text conversion
-- 🔊 **Text-to-Speech**: Uses Edge TTS for natural-sounding voice synthesis
-- 🧠 **AI Integration**: Powered by LLM via configurable API endpoint
-- 🛠️ **Tool Execution**: Built-in tools for calculations, weather, time, and web search
-- 🌐 **Web Search**: Real-time web search capability for current information and facts
-- 🌏 **Multi-language Support**: Seamless switching between Chinese and English
-- ⚙️ **Configurable**: Easy configuration through environment variables
-- 🧪 **Tested**: Comprehensive test suite with pytest
+- 🎤 **Speech Recognition**: OpenAI Whisper for accurate speech-to-text
+- 🔊 **Text-to-Speech**: Edge TTS for natural voice synthesis
+- 🧠 **AI Integration**: Powered by LLM (OpenAI, Gemini, etc.)
+- 🛠️ **Tool Execution**: Calculator, weather, time, web search
+- 🌐 **Web Search**: Real-time information retrieval
+- 🌏 **Multi-language**: Seamless Chinese/English switching
+- ⚙️ **Configurable**: Environment-based configuration
+- 🧪 **Tested**: Comprehensive test coverage
 
 ## Prerequisites
 
-- Python 3.10 or higher
-- An API key from your LLM provider (e.g., OpenRouter, OpenAI, etc.)
-- Audio input/output device (microphone and speakers)
-- **Optional**: [ffmpeg](https://ffmpeg.org/) on `PATH` — used for TTS MP3 decoding when available (lower latency, fewer audio glitches). Without it, the app falls back to in-process decoding (pydub).
-
-## Installation
-
-1. Clone or download this project
-2. Navigate to the project directory
-3. Install dependencies with uv:
-
-```bash
-uv sync
-```
+- Python 3.10+ (for backend and CLI)
+- Node.js 18+ (for web frontend)
+- Audio input/output device
+- LLM API key (OpenAI, OpenRouter, etc.)
+- **Optional**: [ffmpeg](https://ffmpeg.org/) for better TTS performance
 
 ## Configuration
 
-1. Create configuration file:
-```bash
-python main.py --create-config
-```
+### Backend Configuration
 
-2. Copy the example configuration:
-```bash
-cp .env.example .env
-```
+Edit `backend/.env`:
 
-3. Edit `.env` and add your LLM API key:
 ```env
 LLM_API_KEY=your_api_key_here
+LLM_MODEL=anthropic/claude-3-5-nano
+LLM_BASE_URL=https://openrouter.ai/api/v1
+WHISPER_MODEL_SIZE=base
+DEFAULT_LANGUAGE=zh
+TTS_VOICE_EN=en-US-JennyNeural
+TTS_VOICE_ZH=zh-CN-XiaoxiaoNeural
 ```
 
-## Usage
+See `backend/README.md` for full configuration options.
 
-### Basic Usage
+## Development
 
-Start the voice assistant:
+### Backend Development
+
 ```bash
-python main.py
+cd backend
+uv sync --group dev
+uv run pytest                         # Run tests
 ```
 
-### Check System Status
+### CLI Development
 
-Verify all components are working:
 ```bash
-python main.py --check
+cd cli
+uv sync --group dev
+uv run pytest                         # Run tests
+uv run textual console                # Debug TUI
 ```
 
-### Custom Configuration
+### Web Development
 
-Use a custom configuration file:
 ```bash
-python main.py --config /path/to/your/.env
+cd web
+npm install
+npm run dev                           # Dev server
+npm run build                         # Production build
+```
+
+## Project Structure
+
+```
+tank/
+├── backend/                # Backend API server
+│   ├── src/tank_backend/
+│   │   ├── api/           # FastAPI routes
+│   │   ├── audio/         # ASR & TTS
+│   │   ├── core/          # Brain & Assistant
+│   │   ├── llm/           # LLM integration
+│   │   └── tools/         # Tool execution
+│   ├── tests/
+│   └── pyproject.toml
+├── cli/                   # CLI/TUI client
+│   ├── src/tank_cli/
+│   │   ├── cli/           # WebSocket client
+│   │   ├── tui/           # Textual UI
+│   │   └── config/        # Configuration
+│   ├── tests/
+│   └── pyproject.toml
+├── web/                   # Web frontend
+│   ├── src/
+│   ├── public/
+│   └── package.json
+└── README.md             # This file
 ```
 
 ## Available Tools
 
-The assistant comes with built-in tools:
-
-- **Calculator**: Perform mathematical calculations
-- **Weather**: Get weather information (mock data for demo)
-- **Time**: Get current date and time
-- **Web Search**: Search the internet for current information when the assistant doesn't know the answer
-
-## Configuration Options
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `LLM_API_KEY` | *required* | Your LLM provider API key |
-| `LLM_MODEL` | `anthropic/claude-3-5-nano` | LLM model to use |
-| `LLM_BASE_URL` | `https://openrouter.ai/api/v1` | LLM API base URL |
-| `WHISPER_MODEL_SIZE` | `base` | Whisper model size (tiny/base/small/medium/large) |
-| `DEFAULT_LANGUAGE` | `zh` | Default language (auto/en/zh) |
-| `AUDIO_DURATION` | `5.0` | Recording duration in seconds |
-| `TTS_VOICE_EN` | `en-US-JennyNeural` | English TTS voice |
-| `TTS_VOICE_ZH` | `zh-CN-XiaoxiaoNeural` | Chinese TTS voice |
-| `LOG_LEVEL` | `INFO` | Logging level |
-| `MAX_CONVERSATION_HISTORY` | `10` | Max conversation turns to remember |
-
-## LLM Provider Examples
-
-The voice assistant now supports any OpenAI-compatible API. Here are some configuration examples:
-
-### OpenRouter (Default)
-```env
-LLM_API_KEY=your_openrouter_key
-LLM_MODEL=anthropic/claude-3-5-nano
-LLM_BASE_URL=https://openrouter.ai/api/v1
-```
-
-### OpenAI
-```env
-LLM_API_KEY=your_openai_key
-LLM_MODEL=gpt-4
-LLM_BASE_URL=https://api.openai.com/v1
-```
-
-### Custom/Self-hosted
-```env
-LLM_API_KEY=your_custom_key
-LLM_MODEL=your-model-name
-LLM_BASE_URL=https://your-api-endpoint.com/v1
-```
-
-## Development
-
-### Running Tests
-
-```bash
-# Run all tests
-uv run python -m pytest tests/
-
-# Run with coverage
-uv run python -m pytest tests/ --cov=src/voice_assistant
-
-# Run specific test file
-uv run python -m pytest tests/test_tools.py
-```
-
-### Project Structure
-
-```
-tank/
-├── src/voice_assistant/
-│   ├── audio/              # Speech recognition and TTS
-│   ├── llm/               # LLM integration
-│   ├── tools/             # Tool execution framework
-│   ├── config/            # Configuration management
-│   └── assistant.py       # Main assistant class
-├── tests/                 # Test suite
-├── main.py               # Entry point
-└── pyproject.toml        # Project configuration
-```
+- **Calculator**: Mathematical calculations
+- **Weather**: Weather information
+- **Time**: Current date and time
+- **Web Search**: Internet search for current information
 
 ## Usage Examples
 
-### Chinese Conversation (Default)
+### Chinese Conversation
 ```
 User: "现在几点了？"
 Assistant: "现在的时间是2024年1月15日 14时30分25秒"
 
 User: "计算十五乘以八"
 Assistant: "15 × 8 = 120"
-
-User: "最新的人工智能发展怎么样？"
-Assistant: "让我为您搜索最新的人工智能发展信息... [搜索结果]"
 ```
 
 ### English Conversation
@@ -170,25 +167,24 @@ Assistant: "The current time is 2024-01-15 14:30:25"
 
 User: "Calculate 15 times 8"
 Assistant: "15 × 8 = 120"
-
-User: "What's the latest news about climate change?"
-Assistant: "Let me search for the latest climate change information... [search results]"
 ```
 
 ## Troubleshooting
 
-### Common Issues
+### Backend Issues
+- Verify API keys in `backend/.env`
+- Check logs: `LOG_LEVEL=DEBUG`
+- Ensure port 8000 is available
 
-1. **No audio input/output**: Ensure your microphone and speakers are working
-2. **API errors**: Verify your LLM API key is correct
-3. **Dependencies**: Run `uv sync` to install all required packages
+### CLI Issues
+- Verify backend is running
+- Check audio device permissions
+- Test connection: `uv run tank --server localhost:8000`
 
-### Debug Mode
-
-Enable debug logging:
-```env
-LOG_LEVEL=DEBUG
-```
+### Web Issues
+- Check browser console for errors
+- Verify WebSocket connection
+- Ensure microphone permissions granted
 
 ## Contributing
 
