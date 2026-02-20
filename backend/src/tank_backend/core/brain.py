@@ -162,13 +162,14 @@ class Brain(QueueWorker[BrainInputEvent]):
         async def stream_task():
             full_response_text = ""
             from ..core.events import UpdateType
-            
+
+            gen = self._llm.chat_stream(
+                messages=self._conversation_history,
+                tools=tools,
+                tool_executor=self._tool_manager,
+            )
             try:
-                async for update_type, content, metadata in self._llm.chat_stream(
-                    messages=self._conversation_history,
-                    tools=tools,
-                    tool_executor=self._tool_manager,
-                ):
+                async for update_type, content, metadata in gen:
                     # Check for interruption
                     if self._config.speech_interrupt_enabled and self._runtime.interrupt_event.is_set():
                         raise BrainInterrupted()
@@ -204,22 +205,19 @@ class Brain(QueueWorker[BrainInputEvent]):
                 # 2. Add to history
                 if full_response_text:
                     self._add_to_conversation_history("assistant", full_response_text)
-                    
+
                     # 3. Trigger TTS only after full response is generated
                     self._runtime.audio_output_queue.put(
                         AudioOutputRequest(content=full_response_text, language=language)
                     )
-                elif not any(m["role"] == "assistant" for m in self._conversation_history[-1:]):
-                     # If no text was generated but the loop finished, 
-                     # we should still ensure something is in history if expected.
-                     # But chat_stream handles tool calls history internally.
-                     pass
 
             except BrainInterrupted:
                 raise
             except Exception as e:
                 logger.error(f"Stream processing error: {e}")
                 raise
+            finally:
+                await gen.aclose()
 
         self._event_loop.run_until_complete(stream_task())
 

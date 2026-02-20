@@ -58,47 +58,50 @@ class LLM:
             tool_calls_data = {} # index -> {id, name, arguments}
 
             stream = await self.client.chat.completions.create(**api_kwargs)
-            
-            async for chunk in stream:
-                if not chunk.choices:
-                    continue
-                
-                delta = chunk.choices[0].delta
 
-                # 1. Handle Reasoning (Thought) - Provider specific (e.g. DeepSeek)
-                reasoning = getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None)
-                if reasoning:
-                    full_reasoning += reasoning
-                    yield UpdateType.THOUGHT, reasoning, {"turn": turn}
+            try:
+                async for chunk in stream:
+                    if not chunk.choices:
+                        continue
 
-                # 2. Handle Content (Text)
-                if delta.content:
-                    full_content += delta.content
-                    yield UpdateType.TEXT, delta.content, {"turn": turn}
+                    delta = chunk.choices[0].delta
 
-                # 3. Handle Tool Calls Delta
-                if delta.tool_calls:
-                    for tc_delta in delta.tool_calls:
-                        idx = tc_delta.index
-                        if idx not in tool_calls_data:
-                            tool_calls_data[idx] = {"id": None, "name": "", "arguments": ""}
-                        
-                        if tc_delta.id:
-                            tool_calls_data[idx]["id"] = tc_delta.id
-                        if tc_delta.function:
-                            if tc_delta.function.name:
-                                tool_calls_data[idx]["name"] += tc_delta.function.name
-                            if tc_delta.function.arguments:
-                                tool_calls_data[idx]["arguments"] += tc_delta.function.arguments
-                        
-                        # Yield partial tool call info for UI
-                        yield UpdateType.TOOL_CALL, "", {
-                            "index": idx,
-                            "name": tool_calls_data[idx]["name"],
-                            "arguments": tool_calls_data[idx]["arguments"],
-                            "status": "calling",
-                            "turn": turn
-                        }
+                    # 1. Handle Reasoning (Thought) - Provider specific (e.g. DeepSeek)
+                    reasoning = getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None)
+                    if reasoning:
+                        full_reasoning += reasoning
+                        yield UpdateType.THOUGHT, reasoning, {"turn": turn}
+
+                    # 2. Handle Content (Text)
+                    if delta.content:
+                        full_content += delta.content
+                        yield UpdateType.TEXT, delta.content, {"turn": turn}
+
+                    # 3. Handle Tool Calls Delta
+                    if delta.tool_calls:
+                        for tc_delta in delta.tool_calls:
+                            idx = tc_delta.index
+                            if idx not in tool_calls_data:
+                                tool_calls_data[idx] = {"id": None, "name": "", "arguments": ""}
+
+                            if tc_delta.id:
+                                tool_calls_data[idx]["id"] = tc_delta.id
+                            if tc_delta.function:
+                                if tc_delta.function.name:
+                                    tool_calls_data[idx]["name"] += tc_delta.function.name
+                                if tc_delta.function.arguments:
+                                    tool_calls_data[idx]["arguments"] += tc_delta.function.arguments
+
+                            # Yield partial tool call info for UI
+                            yield UpdateType.TOOL_CALL, "", {
+                                "index": idx,
+                                "name": tool_calls_data[idx]["name"],
+                                "arguments": tool_calls_data[idx]["arguments"],
+                                "status": "calling",
+                                "turn": turn
+                            }
+            finally:
+                await stream.close()
 
             # ... (Prepare assistant message)
             assistant_msg: Dict[str, Any] = {"role": "assistant", "content": full_content}

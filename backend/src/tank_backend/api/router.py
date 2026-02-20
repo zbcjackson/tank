@@ -158,6 +158,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: {session_id}")
+    except RuntimeError as e:
+        if "disconnect message has been received" in str(e):
+            logger.info(f"WebSocket disconnected: {session_id}")
+        else:
+            logger.error(f"WebSocket error in {session_id}: {e}", exc_info=True)
     except Exception as e:
         logger.error(f"WebSocket error in {session_id}: {e}", exc_info=True)
     finally:
