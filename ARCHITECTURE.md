@@ -1,149 +1,122 @@
 # Architecture
 
-This document describes the architecture and core components of the Tank Voice Assistant project.
+This document describes the overall architecture of the Tank Voice Assistant monorepo.
 
-## Project Overview
+## Monorepo Structure
 
-Tank is a bilingual (Chinese/English) voice assistant that integrates:
-- **Speech-to-Text (STT)**: OpenAI Whisper (local, continuous listening)
-- **Text-to-Speech (TTS)**: Edge TTS (natural sounding, interruptible)
-- **LLM**: OpenAI-compatible API (e.g., OpenRouter, OpenAI) for reasoning and conversation
-- **Tools**: Capability to execute function calls (weather, time, web search/scraping, calculator)
+```
+tank/
+├── backend/          # FastAPI server — ASR, TTS, LLM, tools
+├── cli/              # Terminal UI client — Textual TUI, WebSocket
+├── web/              # Web frontend — React/TypeScript, browser audio
+├── ARCHITECTURE.md   # This file
+├── CLAUDE.md         # AI assistant guidance (entry point)
+└── README.md         # User-facing overview
+```
 
-## Main Entry Point
+Each sub-project is independently deployable with its own dependencies and tests.
 
-**`main.py`**:
-- Handles CLI arguments (`--config`, `--check`, `--create-config`)
-- Initializes `VoiceAssistant`
-- Runs the main async event loop
+## System Architecture
 
-## Core Components
+```
+┌─────────────────────────────────────────────────────────┐
+│                        Clients                          │
+│                                                         │
+│  ┌──────────────────┐      ┌──────────────────────┐    │
+│  │   CLI / TUI      │      │    Web Frontend       │    │
+│  │  (Python/Textual)│      │  (React/TypeScript)   │    │
+│  │                  │      │                       │    │
+│  │ • Mic capture    │      │ • Browser mic (WebRTC)│    │
+│  │ • VAD (Silero)   │      │ • Web Audio API       │    │
+│  │ • Speaker output │      │ • Voice + Chat modes  │    │
+│  └────────┬─────────┘      └──────────┬────────────┘    │
+│           │  WebSocket (binary+JSON)  │                  │
+└───────────┼───────────────────────────┼──────────────────┘
+            │                           │
+            ▼                           ▼
+┌─────────────────────────────────────────────────────────┐
+│                   Backend (FastAPI)                      │
+│                                                         │
+│  WebSocket /ws/{session_id}                             │
+│                                                         │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────┐ │
+│  │   ASR    │  │  Brain   │  │   TTS    │  │ Tools  │ │
+│  │ Whisper/ │→ │  (LLM +  │→ │ Edge TTS │  │ Calc   │ │
+│  │ Sherpa   │  │  Tools)  │  │ + PCM    │  │ Weather│ │
+│  └──────────┘  └──────────┘  └──────────┘  │ Search │ │
+│                                             └────────┘ │
+└─────────────────────────────────────────────────────────┘
+```
 
-### VoiceAssistant
+## Communication Protocol
 
-**Location**: `src/voice_assistant/assistant.py`
+### WebSocket: Client → Backend
 
-**Role**: Central orchestrator with continuous operation
+| Frame type | Format | Description |
+|------------|--------|-------------|
+| Audio | Binary (Int16 PCM, 16 kHz) | Microphone audio stream |
+| Text input | JSON `{type:"input", content}` | User typed message |
+| Interrupt | JSON `{type:"interrupt"}` | Cancel current response |
 
-**Key Features**:
-- Always-listening conversation flow with real-time interruption
-- Manages the `conversation_loop`
-- Task management system that cancels LLM and TTS operations when speech detected
-- Handles **interruption**: Cancels pending `current_llm_task` or `current_tts_task` when new speech is detected via `_handle_speech_interruption`
-- Seamless switching between listening, processing, and speaking states
-- Maintains conversation history and language detection across sessions
-- Determines language for TTS based on content or detection
+### WebSocket: Backend → Client
 
-### LLM
+| Frame type | Format | Description |
+|------------|--------|-------------|
+| Audio | Binary (Int16 PCM, 24 kHz) | TTS audio chunks |
+| Signal | JSON `{type:"signal", content}` | `ready`, `processing_started`, `processing_ended` |
+| Transcript | JSON `{type:"transcript", ...}` | ASR result (user speech) |
+| Text | JSON `{type:"text", ...}` | Streamed LLM response |
+| Update | JSON `{type:"update", metadata}` | Thinking / tool call steps |
 
-**Location**: `src/voice_assistant/llm/llm.py`
+## Sub-project Summaries
 
-**Description**: OpenAI-compatible API integration with automatic tool calling
+### Backend (`backend/`)
 
-**Features**:
-- Supports any OpenAI-compatible endpoint (OpenRouter, OpenAI, custom)
-- Handles API communication
-- Implements iterative tool calling workflow
-- Supports iterative tool calling loop
-- Handles multiple tool calls per conversation turn
-- Returns aggregated usage statistics
+- **Framework**: FastAPI + Uvicorn
+- **ASR**: faster-whisper or sherpa-onnx
+- **TTS**: Edge TTS → MP3 → PCM (ffmpeg or pydub)
+- **LLM**: OpenAI-compatible API (any provider)
+- **Tools**: Calculator, Weather, Time, WebSearch, WebScraper
+- **Docs**: [backend/ARCHITECTURE.md](backend/ARCHITECTURE.md)
 
-### ToolManager
+### CLI (`cli/`)
 
-**Location**: `src/voice_assistant/tools/manager.py`
+- **Framework**: Textual (TUI)
+- **Audio**: sounddevice + silero-vad
+- **Transport**: WebSocket client
+- **Docs**: [cli/ARCHITECTURE.md](cli/ARCHITECTURE.md)
 
-**Description**: Tool execution framework
+### Web (`web/`)
 
-**Features**:
-- Auto-registers available tools on initialization
-- Registers tools (`src/voice_assistant/tools/`)
-- Converts tools to OpenAI function calling format
-- Converts Python methods to OpenAI function schemas
-- Handles tool execution from LLM function calls
-- Executes tools securely
-- Supports conditional tool registration (e.g., WebSearchTool requires API key)
+- **Framework**: React 19 + TypeScript
+- **Audio**: Web Audio API + AudioWorklet
+- **Transport**: Browser WebSocket
+- **Docs**: [web/ARCHITECTURE.md](web/ARCHITECTURE.md)
 
-## Audio Processing
+## Data Flow (Voice Conversation)
 
-### Audio Input Pipeline (Mic → Segmenter → Perception)
+```
+User speaks
+    │
+    ▼
+[Client] Mic → VAD → Int16 PCM chunks → WebSocket (binary)
+    │
+    ▼
+[Backend] Audio buffer → ASR → transcript text
+    │
+    ▼
+[Backend] Brain → LLM (streaming) → tool calls → final text
+    │
+    ▼
+[Backend] TTS → MP3 → PCM chunks → WebSocket (binary)
+    │
+    ▼
+[Client] PCM → Speaker playback
+```
 
-**Locations**:
-- `src/voice_assistant/audio/input/mic.py` – microphone capture
-- `src/voice_assistant/audio/input/segmenter.py` – VAD + utterance segmentation
-- `src/voice_assistant/audio/input/asr.py` – ASR (Automatic Speech Recognition)
-- `src/voice_assistant/audio/input/perception.py` – Perception thread (ASR + future voiceprint)
+## Development Setup
 
-**Data flow**: Mic → frames_queue → UtteranceSegmenter → utterance_queue → Perception → brain_input_queue + display_queue
-
-**ASR** (faster-whisper):
-- Multi-language with auto-detect
-- Model loaded once (default `base`), cached by Hugging Face
-- Input: pcm (float32) + sample_rate; output: (text, language, confidence)
-
-**Perception**:
-- Consumes complete Utterances from segmenter (one per user utterance)
-- Runs ASR and (future) voiceprint in parallel; puts BrainInputEvent into brain_input_queue and DisplayMessage (speaker, text) into display_queue for UI
-
-### Audio Output (TTS and playback)
-
-**Locations**:
-- `src/voice_assistant/core/events.py` – AudioOutputRequest (queue item type)
-- `src/voice_assistant/audio/output/types.py` – AudioChunk (PCM chunk)
-- `src/voice_assistant/audio/output/tts.py` – TTSEngine ABC (no edge_tts dependency)
-- `src/voice_assistant/audio/output/tts_engine_edge.py` – Edge TTS backend (only file that imports edge_tts)
-- `src/voice_assistant/audio/output/playback.py` – play_stream (PCM to sounddevice)
-- `src/voice_assistant/audio/output/speaker.py` – SpeakerHandler
-
-**Description**: Interruptible text-to-speech via abstract TTSEngine; Edge TTS backend streams MP3, decodes to PCM, plays through sounddevice.
-
-**MP3 decoding (Edge TTS)**:
-- Edge TTS returns MP3 only; the backend decodes to PCM before playback.
-- **Preferred when ffmpeg is available**: subprocess with stdin→stdout pipes (no temp files). MP3 is fed to ffmpeg stdin, PCM is read from stdout. Single stateful decoder process yields continuous PCM and fewer chunk-boundary clicks; lower first-byte latency.
-- **Fallback (pydub)**: accumulate 12 KB MP3 per chunk, decode with `AudioSegment.from_file` in process. Fewer boundaries than per-tiny-chunk decode; no external process. Requires ffmpeg/avlib for pydub’s decode on many systems.
-
-**Playback**:
-- `play_stream` consumes an async stream of `AudioChunk`, writes to sounddevice. Short fade-in on the first chunk and fade-out on the last chunk (5 ms) to avoid start/stop pops; one-chunk buffering so the last chunk can be faded out before write. On interrupt, pending chunk is not written.
-
-**Features**:
-- Data class `AudioOutputRequest` (content, language, voice) in audio_output_queue
-- TTSEngine ABC for TTS abstraction; engines subclass it (e.g. EdgeTTSEngine); missing methods fail at instantiation
-- SpeakerHandler (queue worker with event loop) consumes requests, calls TTS generate_stream and play_stream
-- Streaming: generate and play PCM chunks for lower latency
-- Interruptible: interrupt_event stops TTS stream and playback
-
-## Configuration System
-
-### VoiceAssistantConfig
-
-**Location**: `src/voice_assistant/config/settings.py`
-
-**Description**: Centralized configuration management
-
-**Features**:
-- Environment variable loading with validation
-- Default values for all settings
-- Support for custom config file paths
-
-### Configuration Requirements
-
-- `LLM_API_KEY`: Required for any LLM provider
-- `SERPER_API_KEY`: Optional, enables web search functionality
-- All other settings have sensible defaults
-
-## Available Tools
-
-All tools inherit from `BaseTool` (`src/voice_assistant/tools/base.py`) and are automatically registered:
-
-- **Calculator**: Mathematical computations
-- **Weather**: Weather information (mock data for demo)
-- **Time**: Current date/time queries
-- **WebSearch**: Real-time web search (requires SERPER_API_KEY)
-- **WebScraper**: Web content extraction
-
-## System Characteristics
-
-- The system uses continuous listening with real-time speech interruption
-- All async tasks are designed to be cancellable for responsive interaction
-- Voice activity detection uses energy-based thresholds (configurable)
-- The assistant maintains context across interrupted conversations
-- Both Chinese and English are first-class supported languages
+See [README.md](README.md) for quick start. Each sub-project has its own `DEVELOPMENT.md`:
+- [backend/DEVELOPMENT.md](backend/DEVELOPMENT.md)
+- [cli/DEVELOPMENT.md](cli/DEVELOPMENT.md)
+- [web/DEVELOPMENT.md](web/DEVELOPMENT.md)

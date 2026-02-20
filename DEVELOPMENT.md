@@ -1,70 +1,63 @@
 # Development Guide
 
-This document provides development commands and workflows for the Tank Voice Assistant project.
+This document provides top-level development commands for the Tank monorepo.
 
-## Package Management
+For sub-project details, see:
+- [backend/DEVELOPMENT.md](backend/DEVELOPMENT.md)
+- [cli/DEVELOPMENT.md](cli/DEVELOPMENT.md)
+- [web/DEVELOPMENT.md](web/DEVELOPMENT.md)
 
-**Tool**: `uv` is the primary package manager.
+## Quick Start
 
-### Setup and Installation
+### 1. Start the Backend
 
 ```bash
-# Install dependencies
+cd backend
 uv sync
-
-# Create example configuration
-uv run python main.py --create-config
+cp .env.example .env   # Edit with your API keys
+uv run tank-backend
 ```
 
-## Running the Application
+### 2. Start a Client
 
 ```bash
-# Start the voice assistant
-uv run python main.py
+# CLI/TUI
+cd cli && uv sync && uv run tank
 
-# Check system status
-uv run python main.py --check
-
-# Use custom config file
-uv run python main.py --config /path/to/custom/.env
+# Web
+cd web && npm install && npm run dev
 ```
 
-## Testing
+## Running Tests
+
+Each sub-project has its own test suite. Run from within the sub-project directory:
 
 ```bash
-# Run all tests
-uv run python -m pytest tests/
+# Backend
+cd backend && uv run pytest
 
-# Run with coverage
-uv run python -m pytest tests/ --cov=src/voice_assistant
+# CLI
+cd cli && uv run pytest
 
-# Run specific test file
-uv run python -m pytest tests/test_tools.py
-
-# Run tests in watch mode during development
-uv run python -m pytest tests/ --watch
+# Web (once Vitest is configured)
+cd web && npx vitest run
 ```
 
-See [TESTING.md](TESTING.md) for comprehensive testing guidelines and TDD workflow.
+## Package Managers
+
+| Sub-project | Manager | Install | Test |
+|-------------|---------|---------|------|
+| `backend/`  | uv      | `uv sync` | `uv run pytest` |
+| `cli/`      | uv      | `uv sync` | `uv run pytest` |
+| `web/`      | npm     | `npm install` | `npx vitest run` |
 
 ## Environment Setup
 
-- Always assume `uv` is installed
-- Check `.env` for configuration (but don't print secrets)
-- `LLM_API_KEY` is critical for functionality
-- `SERPER_API_KEY` is optional (enables web search functionality)
-
-## Common Development Tasks
-
-### Fixing Bugs
-- Check logs first
-- Interruption logic and async race conditions are common sources of issues
-
-### Adding Features
-- Follow the TDD pattern: define interface → implement → add tests → register
-- See [TESTING.md](TESTING.md) for detailed TDD workflow
+- `backend/.env` — required; copy from `.env.example` and add `LLM_API_KEY`
+- `SERPER_API_KEY` — optional, enables web search tool
+- Python 3.10+ required for backend and CLI
+- Node.js 18+ required for web
 
 ## Hardware Dependencies
 
-- Note that `sounddevice` and `whisper` require actual hardware or mocked interfaces in a CI/headless environment
-- Be mindful when running code that accesses audio devices
+`sounddevice` and Whisper require audio hardware or mocked interfaces in CI/headless environments. The web client uses the browser's `getUserMedia` API.
