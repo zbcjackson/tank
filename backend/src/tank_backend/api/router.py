@@ -153,6 +153,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 if msg.type == MessageType.SIGNAL:
                     if msg.content == "interrupt":
                         assistant.audio_output.interrupt()
+                    elif msg.content == "disconnect":
+                        break
                 elif msg.type == MessageType.INPUT:
                     assistant.process_input(msg.content)
 
@@ -167,4 +169,4 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         logger.error(f"WebSocket error in {session_id}: {e}", exc_info=True)
     finally:
         display_task.cancel()
-        session_manager.close_session(session_id)
+        await asyncio.to_thread(session_manager.close_session, session_id)

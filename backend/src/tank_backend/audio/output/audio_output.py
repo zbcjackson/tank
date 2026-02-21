@@ -84,6 +84,10 @@ class AudioOutput:
             self._runtime.audio_output_queue.queue.clear()
         logger.warning("Speaker interrupted")
 
+    def cancel(self) -> None:
+        """Cancel the currently running TTS task (for graceful disconnect)."""
+        self._tts_worker.cancel()
+
     def start(self) -> None:
         """Start TTS and sink threads."""
 

@@ -114,6 +114,9 @@ export class VoiceAssistantClient {
   }
 
   disconnect() {
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.sendMessage('signal', 'disconnect');
+    }
     this.socket?.close();
     this.audioContext?.close();
   }

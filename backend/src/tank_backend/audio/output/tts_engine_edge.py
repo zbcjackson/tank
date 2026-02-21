@@ -64,8 +64,9 @@ class EdgeTTSEngine(TTSEngine):
         assert proc.stdin is not None and proc.stdout is not None
 
         async def write_mp3() -> None:
+            comm_stream = communicate.stream()
             try:
-                async for chunk in communicate.stream():
+                async for chunk in comm_stream:
                     if is_interrupted and is_interrupted():
                         break
                     if chunk.get("type") != "audio":
@@ -75,6 +76,7 @@ class EdgeTTSEngine(TTSEngine):
                         proc.stdin.write(data)
                         await proc.stdin.drain()
             finally:
+                await comm_stream.aclose()
                 proc.stdin.close()
 
         write_task = asyncio.create_task(write_mp3())
@@ -113,30 +115,34 @@ class EdgeTTSEngine(TTSEngine):
         sample_rate = EDGE_TTS_SAMPLE_RATE
         channels = EDGE_TTS_CHANNELS
 
-        async for chunk in communicate.stream():
-            if is_interrupted and is_interrupted():
-                break
-            if chunk.get("type") != "audio":
-                continue
-            data = chunk.get("data")
-            if not data:
-                continue
-            buffer.extend(data)
+        comm_stream = communicate.stream()
+        try:
+            async for chunk in comm_stream:
+                if is_interrupted and is_interrupted():
+                    break
+                if chunk.get("type") != "audio":
+                    continue
+                data = chunk.get("data")
+                if not data:
+                    continue
+                buffer.extend(data)
 
-            if len(buffer) >= MP3_ACCUMULATE_BYTES:
-                try:
-                    seg = AudioSegment.from_file(BytesIO(bytes(buffer)), format="mp3")
-                except Exception as e:
-                    logger.warning("Failed to decode MP3 chunk: %s", e)
-                else:
-                    sample_rate = seg.frame_rate
-                    channels = seg.channels
-                    yield AudioChunk(
-                        data=seg.raw_data,
-                        sample_rate=sample_rate,
-                        channels=channels,
-                    )
-                    buffer.clear()
+                if len(buffer) >= MP3_ACCUMULATE_BYTES:
+                    try:
+                        seg = AudioSegment.from_file(BytesIO(bytes(buffer)), format="mp3")
+                    except Exception as e:
+                        logger.warning("Failed to decode MP3 chunk: %s", e)
+                    else:
+                        sample_rate = seg.frame_rate
+                        channels = seg.channels
+                        yield AudioChunk(
+                            data=seg.raw_data,
+                            sample_rate=sample_rate,
+                            channels=channels,
+                        )
+                        buffer.clear()
+        finally:
+            await comm_stream.aclose()
 
         if buffer and not (is_interrupted and is_interrupted()):
             try:

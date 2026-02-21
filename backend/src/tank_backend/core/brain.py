@@ -81,9 +81,21 @@ class Brain(QueueWorker[BrainInputEvent]):
         return loop
 
     def _teardown_event_loop(self) -> None:
-        """Cleanup event loop and clear alias."""
-        super()._teardown_event_loop()
+        """Close all async generators and pending tasks before closing the loop."""
+        if self._loop is not None:
+            try:
+                self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+                pending = asyncio.all_tasks(self._loop)
+                if pending:
+                    for task in pending:
+                        task.cancel()
+                    self._loop.run_until_complete(
+                        asyncio.gather(*pending, return_exceptions=True)
+                    )
+            finally:
+                self._loop.close()
         self._event_loop = None
+        self._loop = None
 
     def handle(self, event: BrainInputEvent) -> None:
         """
@@ -219,7 +231,7 @@ class Brain(QueueWorker[BrainInputEvent]):
             finally:
                 await gen.aclose()
 
-        self._event_loop.run_until_complete(stream_task())
+        self._run_async(stream_task())
 
     def _add_to_conversation_history(self, role: str, content: str) -> None:
         """Add message to conversation history and enforce limit."""

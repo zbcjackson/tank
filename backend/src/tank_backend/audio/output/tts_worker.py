@@ -51,6 +51,22 @@ class TTSWorker(QueueWorker[AudioOutputRequest]):
         """Create event loop for TTS async operations."""
         return asyncio.new_event_loop()
 
+    def _teardown_event_loop(self) -> None:
+        """Close all async generators and pending tasks before closing the loop."""
+        if self._loop is not None:
+            try:
+                self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+                pending = asyncio.all_tasks(self._loop)
+                if pending:
+                    for task in pending:
+                        task.cancel()
+                    self._loop.run_until_complete(
+                        asyncio.gather(*pending, return_exceptions=True)
+                    )
+            finally:
+                self._loop.close()
+                self._loop = None
+
     def run(self) -> None:
         logger.info("TTSWorker started")
         try:
@@ -74,13 +90,13 @@ class TTSWorker(QueueWorker[AudioOutputRequest]):
 
         async def generate_chunks() -> None:
             chunk_count = 0
+            chunk_stream = self._tts_engine.generate_stream(
+                item.content,
+                language=item.language,
+                voice=item.voice,
+                is_interrupted=is_interrupted,
+            )
             try:
-                chunk_stream = self._tts_engine.generate_stream(
-                    item.content,
-                    language=item.language,
-                    voice=item.voice,
-                    is_interrupted=is_interrupted,
-                )
                 logger.info("TTSWorker: starting generate_stream")
                 async for chunk in chunk_stream:
                     if is_interrupted is not None and is_interrupted():
@@ -96,10 +112,10 @@ class TTSWorker(QueueWorker[AudioOutputRequest]):
                 logger.exception("TTSWorker: generate_stream failed: %s", e)
                 raise
             finally:
+                await chunk_stream.aclose()
                 self._audio_chunk_queue.put(None)
 
-        assert self._loop is not None
-        self._loop.run_until_complete(generate_chunks())
+        self._run_async(generate_chunks())
         logger.info(
             "TTSWorker: handle finished for content=%r",
             item.content[:50] if item.content else "",

@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import threading
 import time
 import queue
-from typing import Generic, TypeVar, Optional
+from typing import Any, Generic, TypeVar, Optional
 
 from .shutdown import StopSignal
 
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 
 class QueueWorker(threading.Thread, Generic[T]):
@@ -38,6 +41,7 @@ class QueueWorker(threading.Thread, Generic[T]):
         self._input_queue = input_queue
         self._poll_interval_s = poll_interval_s
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._current_task: Optional[asyncio.Task] = None
 
     def run(self) -> None:
         """Run the worker thread with optional event loop setup."""
@@ -72,6 +76,24 @@ class QueueWorker(threading.Thread, Generic[T]):
         if self._loop is not None:
             self._loop.close()
             self._loop = None
+
+    def _run_async(self, coro) -> Any:
+        """Run coroutine as a cancellable task in the worker's event loop."""
+        assert self._loop is not None, "Event loop not initialized"
+        self._current_task = self._loop.create_task(coro)
+        try:
+            return self._loop.run_until_complete(self._current_task)
+        except asyncio.CancelledError:
+            logger.debug(f"{self.name}: task cancelled")
+            return None
+        finally:
+            self._current_task = None
+
+    def cancel(self) -> None:
+        """Cancel the currently running async task from another thread."""
+        task = self._current_task
+        if task and self._loop and not self._loop.is_closed():
+            self._loop.call_soon_threadsafe(task.cancel)
 
     def handle(self, item: T) -> None:
         raise NotImplementedError

@@ -33,10 +33,11 @@ def brain(runtime, mock_llm):
     config = VoiceAssistantConfig(llm_api_key="test")
     
     b = Brain(shutdown_signal, runtime, mock_speaker, mock_llm, mock_tool_manager, config)
-    # Create a new event loop for testing
+    # Create a new event loop for testing (both aliases needed)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     b._event_loop = loop
+    b._loop = loop
     yield b
     loop.close()
 

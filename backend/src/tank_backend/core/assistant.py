@@ -99,8 +99,10 @@ class Assistant:
         self.brain.start()
 
     def stop(self):
-        """Signal threads to stop and wait for them to join."""
+        """Signal threads to stop, cancel running tasks, and wait for join."""
         self.shutdown_signal.stop()
+        self.brain.cancel()
+        self.audio_output.cancel()
         self.audio_input.join()
         self.audio_output.join()
         self.brain.join()

@@ -139,7 +139,13 @@ export const useAssistant = (sessionId: string) => {
         setConnectionStatus('error');
     });
 
+    const handleBeforeUnload = () => {
+      clientRef.current?.disconnect();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       client.disconnect();
       audioProcessor.stop();
     };

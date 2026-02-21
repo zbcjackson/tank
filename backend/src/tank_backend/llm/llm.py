@@ -101,7 +101,11 @@ class LLM:
                                 "turn": turn
                             }
             finally:
-                await stream.close()
+                # Explicitly close the internal async generator chain.
+                # AsyncStream.close() only closes the HTTP response, not _iterator.
+                # shutdown_asyncgens() in _teardown_event_loop handles remaining finalizers.
+                await stream._iterator.aclose()
+                await stream.response.aclose()
 
             # ... (Prepare assistant message)
             assistant_msg: Dict[str, Any] = {"role": "assistant", "content": full_content}
