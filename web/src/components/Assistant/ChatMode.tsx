@@ -2,12 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { User, Cpu, MessageSquare, Mic, Send } from 'lucide-react';
 import { MessageStep } from './MessageStep';
-import type { Step } from './MessageStep';
-
-export interface ChatMessage {
-  role: 'user' | 'assistant';
-  steps: Step[];
-}
+import type { ChatMessage } from '../../hooks/useAssistant';
 
 interface ChatModeProps {
   messages: ChatMessage[];

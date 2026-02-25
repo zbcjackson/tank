@@ -5,11 +5,25 @@ import { AudioProcessor } from '../services/audio';
 
 export type StepType = 'thinking' | 'tool' | 'text' | 'weather';
 
+interface ToolContent {
+  name: string;
+  arguments: string;
+  status: string;
+  result?: string;
+}
+
+interface WeatherData {
+  city: string;
+  temp: string;
+  condition: string;
+  wind: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   type: StepType;
-  content: string | Record<string, unknown>;
+  content: string | ToolContent | WeatherData;
   msgId: string;
   isFinal?: boolean;
 }
@@ -36,7 +50,8 @@ export const useAssistant = (sessionId: string) => {
     const msgId = msg.msg_id || (msg.is_user ? 'user_default' : 'assistant_default');
 
     // Parse activity type and turn
-    const metadataType = msg.metadata?.update_type ? msg.metadata.update_type.split('.').pop() : null;
+    const updateType = msg.metadata?.update_type;
+    const metadataType = typeof updateType === 'string' ? updateType.split('.').pop() : null;
     const turn = msg.metadata?.turn || 0;
 
     let activityType: StepType = 'text';
@@ -83,21 +98,22 @@ export const useAssistant = (sessionId: string) => {
 
       // --- TOOL ACTIVITIES ---
       if (activityType === 'tool') {
-        const toolData = {
-          name: msg.metadata?.name || '',
-          arguments: msg.metadata?.arguments || '',
-          status: msg.metadata?.status || 'calling',
+        const toolData: ToolContent = {
+          name: (msg.metadata?.name as string) || '',
+          arguments: (msg.metadata?.arguments as string) || '',
+          status: (msg.metadata?.status as string) || 'calling',
           result: metadataType === 'TOOL_RESULT' ? msg.content : undefined
         };
 
         if (existingIdx > -1) {
+          const existing = updated[existingIdx].content as ToolContent;
           updated[existingIdx] = {
             ...updated[existingIdx],
-            content: { 
-              ...updated[existingIdx].content, 
-              ...toolData, 
-              result: toolData.result || updated[existingIdx].content.result,
-              status: toolData.status || updated[existingIdx].content.status
+            content: {
+              ...existing,
+              ...toolData,
+              result: toolData.result || existing.result,
+              status: toolData.status || existing.status
             },
             isFinal: msg.is_final
           };
