@@ -10,7 +10,7 @@ This document provides testing guidelines for the Tank Web Frontend.
 
 > Note: The project currently has no test setup. When adding tests, install:
 > ```bash
-> npm install -D vitest @testing-library/react @testing-library/user-event jsdom
+> pnpm add -D vitest @testing-library/react @testing-library/user-event jsdom
 > ```
 > Add to `vite.config.ts`:
 > ```ts

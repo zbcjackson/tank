@@ -25,7 +25,7 @@ uv run tank-backend
 cd cli && uv sync && uv run tank
 
 # Web
-cd web && npm install && npm run dev
+cd web && pnpm install && pnpm dev
 ```
 
 ## Running Tests
@@ -49,7 +49,7 @@ cd web && npx vitest run
 |-------------|---------|---------|------|
 | `backend/`  | uv      | `uv sync` | `uv run pytest` |
 | `cli/`      | uv      | `uv sync` | `uv run pytest` |
-| `web/`      | npm     | `npm install` | `npx vitest run` |
+| `web/`      | pnpm    | `pnpm install` | `pnpm vitest run` |
 
 ## Environment Setup
 

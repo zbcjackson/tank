@@ -18,4 +18,4 @@ Tank Web is a React/TypeScript SPA providing a browser-based interface for the T
 - **Build**: Vite
 - **Styling**: Tailwind CSS v4
 - **Animation**: Framer Motion
-- **Package Manager**: npm
+- **Package Manager**: pnpm

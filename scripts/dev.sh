@@ -13,7 +13,7 @@ tmux send-keys -t "$SESSION" "uv run tank-backend" Enter
 
 # Split horizontally for web frontend
 tmux split-window -h -t "$SESSION" -c "$ROOT/web"
-tmux send-keys -t "$SESSION" "npm run dev" Enter
+tmux send-keys -t "$SESSION" "pnpm dev" Enter
 
 # Attach
 tmux attach-session -t "$SESSION"

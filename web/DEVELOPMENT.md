@@ -5,27 +5,27 @@ This document provides development commands and workflows for the Tank Web Front
 ## Prerequisites
 
 - Node.js 18+
-- npm (bundled with Node)
+- pnpm
 - Tank Backend running on `localhost:8000`
 
 ## Setup
 
 ```bash
 cd web
-npm install
+pnpm install
 ```
 
 ## Development
 
 ```bash
 # Start dev server with HMR (opens on http://localhost:5173)
-npm run dev
+pnpm dev
 
 # Type-check without building
 npx tsc --noEmit
 
 # Lint
-npm run lint
+pnpm lint
 ```
 
 > The dev server proxies WebSocket connections to `localhost:8000` — make sure the backend is running first.
@@ -34,10 +34,10 @@ npm run lint
 
 ```bash
 # Production build (output: dist/)
-npm run build
+pnpm build
 
 # Preview production build locally
-npm run preview
+pnpm preview
 ```
 
 ## Testing

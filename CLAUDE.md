@@ -43,7 +43,7 @@ Then read the docs for the sub-project(s) you are working on:
 |-------------|------------|-----------------|-------------------|
 | `backend/`  | Python     | uv              | `uv run pytest`   |
 | `cli/`      | Python     | uv              | `uv run pytest`   |
-| `web/`      | TypeScript | npm             | `npx vitest run`  |
+| `web/`      | TypeScript | pnpm            | `pnpm vitest run` |
 
 ## Cross-cutting Principles
 

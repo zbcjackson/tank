@@ -46,8 +46,8 @@ uv run tank                           # Connects to localhost:8000
 **Option B: Web Client**
 ```bash
 cd web
-npm install
-npm run dev                           # Opens browser
+pnpm install
+pnpm dev                              # Opens browser
 ```
 
 ## Features
@@ -110,9 +110,9 @@ uv run textual console                # Debug TUI
 
 ```bash
 cd web
-npm install
-npm run dev                           # Dev server
-npm run build                         # Production build
+pnpm install
+pnpm dev                              # Dev server
+pnpm build                            # Production build
 ```
 
 ## Project Structure
