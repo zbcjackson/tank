@@ -5,7 +5,7 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
     // VAD config — 128 samples/frame at 16kHz = 8ms/frame
     this.rmsThreshold = 0.01;
     this.preRollSize = 25;   // 200ms ÷ 8ms — buffer before speech onset
-    this.hangoverMax = 38;   // 300ms ÷ 8ms — keep sending after speech drops
+    this.hangoverMax = 188;  // 1500ms ÷ 8ms — send silence after speech for ASR endpoint detection
 
     // State
     this.isSpeech = false;

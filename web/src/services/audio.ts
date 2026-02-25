@@ -7,7 +7,7 @@ export interface VADConfig {
 export const DEFAULT_VAD_CONFIG: VADConfig = {
   threshold: 0.01,
   preRollSize: 25,   // ~200ms
-  hangoverMax: 38,    // ~300ms
+  hangoverMax: 188,   // ~1500ms — enough silence for backend ASR endpoint detection
 };
 
 interface AudioProcessorOptions {
