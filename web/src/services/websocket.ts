@@ -114,10 +114,21 @@ export class VoiceAssistantClient {
   }
 
   disconnect() {
-    if (this.socket?.readyState === WebSocket.OPEN) {
-      this.sendMessage('signal', 'disconnect');
+    if (this.socket) {
+      const socket = this.socket;
+      this.socket = null;
+
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: 'signal', content: 'disconnect', metadata: {} }));
+        socket.close();
+      } else if (socket.readyState === WebSocket.CONNECTING) {
+        // Let the handshake finish, then close cleanly
+        socket.onmessage = null;
+        socket.onerror = null;
+        socket.onclose = null;
+        socket.onopen = () => socket.close();
+      }
     }
-    this.socket?.close();
     this.audioContext?.close();
   }
 }
