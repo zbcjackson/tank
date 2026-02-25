@@ -26,6 +26,32 @@ export const Chat: React.FC = () => {
   const audioRef = useRef<AudioProcessor | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const updateOrAddMessage = React.useCallback((role: 'user' | 'assistant', content: string, id: string) => {
+    setMessages(prev => {
+      const idx = prev.findIndex(m => m.id === id);
+      if (idx !== -1) {
+        const next = [...prev];
+        next[idx] = { ...next[idx], content: next[idx].content + content };
+        if (role === 'user') next[idx].content = content;
+        return next;
+      }
+      return [...prev, { role, content, id }];
+    });
+  }, []);
+
+  const handleIncomingMessage = React.useCallback((msg: WebsocketMessage) => {
+    if (msg.type === 'transcript') {
+      updateOrAddMessage('user', msg.content, (msg.metadata.msg_id as string) || 'last-user');
+      if (msg.is_final) setStatus('processing');
+    } else if (msg.type === 'text') {
+      updateOrAddMessage('assistant', msg.content, (msg.metadata.msg_id as string) || 'last-ai');
+      setStatus('speaking');
+      if (msg.is_final) setStatus('idle');
+    } else if (msg.type === 'signal' && msg.content === 'ready') {
+      setStatus('idle');
+    }
+  }, [updateOrAddMessage]);
+
   useEffect(() => {
     const sessionId = Math.random().toString(36).substring(7);
     const client = new VoiceAssistantClient(sessionId);
@@ -41,39 +67,11 @@ export const Chat: React.FC = () => {
       client.disconnect();
       audioRef.current?.stop();
     };
-  }, []);
+  }, [handleIncomingMessage]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  const handleIncomingMessage = (msg: WebsocketMessage) => {
-    if (msg.type === 'transcript') {
-      updateOrAddMessage('user', msg.content, msg.metadata.msg_id || 'last-user');
-      if (msg.is_final) setStatus('processing');
-    } else if (msg.type === 'text') {
-      updateOrAddMessage('assistant', msg.content, msg.metadata.msg_id || 'last-ai');
-      setStatus('speaking');
-      if (msg.is_final) setStatus('idle');
-    } else if (msg.type === 'signal' && msg.content === 'ready') {
-      setStatus('idle');
-    }
-  };
-
-  const updateOrAddMessage = (role: 'user' | 'assistant', content: string, id: string) => {
-    setMessages(prev => {
-      const idx = prev.findIndex(m => m.id === id);
-      if (idx !== -1) {
-        const next = [...prev];
-        next[idx] = { ...next[idx], content: next[idx].content + content };
-        // If it's a full replacement (transcript usually replaces), we could handle that.
-        // For now, let's assume content delta for assistant, but full for transcript.
-        if (role === 'user') next[idx].content = content; 
-        return next;
-      }
-      return [...prev, { role, content, id }];
-    });
-  };
 
   const toggleListening = async () => {
     if (isListening) {

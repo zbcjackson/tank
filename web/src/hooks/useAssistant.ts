@@ -9,7 +9,7 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   type: StepType;
-  content: any;
+  content: string | Record<string, unknown>;
   msgId: string;
   isFinal?: boolean;
 }

@@ -7,7 +7,7 @@ export interface WebsocketMessage {
   is_final: boolean;
   msg_id?: string;
   session_id?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export class VoiceAssistantClient {
@@ -16,7 +16,7 @@ export class VoiceAssistantClient {
   private audioContext: AudioContext | null = null;
   private nextStartTime: number = 0;
   private onSpeakingChange?: (isSpeaking: boolean) => void;
-  private speakingTimer: any = null;
+  private speakingTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(sessionId: string, baseUrl: string = "localhost:8000") {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -54,7 +54,8 @@ export class VoiceAssistantClient {
 
   private async playAudioChunk(data: ArrayBuffer) {
     if (!this.audioContext) {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      this.audioContext = new AudioCtx({
         sampleRate: 24000,
       });
       this.nextStartTime = this.audioContext.currentTime;
@@ -102,7 +103,7 @@ export class VoiceAssistantClient {
     }
   }
 
-  sendMessage(type: MessageType, content: string, metadata: Record<string, any> = {}) {
+  sendMessage(type: MessageType, content: string, metadata: Record<string, unknown> = {}) {
     if (this.socket?.readyState === WebSocket.OPEN) {
       const msg: Partial<WebsocketMessage> = {
         type,

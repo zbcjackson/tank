@@ -7,10 +7,17 @@ import remarkGfm from 'remark-gfm';
 
 export type StepType = 'thinking' | 'tool' | 'text' | 'weather';
 
+interface ToolContent {
+  name: string;
+  arguments: string;
+  status: string;
+  result?: string;
+}
+
 export interface Step {
   id: string;
   type: StepType;
-  content: any;
+  content: string | ToolContent | WeatherData;
 }
 
 interface MessageStepProps {
@@ -25,14 +32,14 @@ export const MessageStep = ({ step, role }: MessageStepProps) => {
         <ReactMarkdown 
           remarkPlugins={[remarkGfm]}
           components={{
-            p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
-            ul: ({node, ...props}) => <ul className="list-disc ml-4 mb-2" {...props} />,
-            ol: ({node, ...props}) => <ol className="list-decimal ml-4 mb-2" {...props} />,
-            code: ({node, ...props}) => <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded text-sm font-mono" {...props} />,
-            pre: ({node, ...props}) => <pre className="bg-zinc-100 dark:bg-zinc-800 p-3 rounded-xl overflow-x-auto my-2 font-mono text-sm" {...props} />,
+            p: (props) => <p className="mb-2 last:mb-0" {...props} />,
+            ul: (props) => <ul className="list-disc ml-4 mb-2" {...props} />,
+            ol: (props) => <ol className="list-decimal ml-4 mb-2" {...props} />,
+            code: (props) => <code className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded text-sm font-mono" {...props} />,
+            pre: (props) => <pre className="bg-zinc-100 dark:bg-zinc-800 p-3 rounded-xl overflow-x-auto my-2 font-mono text-sm" {...props} />,
           }}
         >
-          {step.content}
+          {step.content as string}
         </ReactMarkdown>
       </div>
     );
@@ -49,7 +56,7 @@ export const MessageStep = ({ step, role }: MessageStepProps) => {
             <span className="text-[10px] font-black uppercase tracking-widest">Internal Thought</span>
           </div>
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {step.content}
+            {step.content as string}
           </ReactMarkdown>
         </div>
       </div>
@@ -57,7 +64,8 @@ export const MessageStep = ({ step, role }: MessageStepProps) => {
   }
 
   if (step.type === 'tool') {
-    return (
+      const content = step.content as ToolContent;
+      return (
       <div className="flex flex-col gap-1.5 w-full max-w-2xl">
         <div className="flex flex-col gap-2 p-1 bg-white dark:bg-zinc-900 border dark:border-zinc-800 rounded-2xl shadow-sm rounded-tl-none overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-2 border-b dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/50">
@@ -67,17 +75,17 @@ export const MessageStep = ({ step, role }: MessageStepProps) => {
             <div className="p-3 pt-1 space-y-2">
                 <div className="text-xs font-mono bg-zinc-950 text-zinc-300 p-3 rounded-xl border border-zinc-800 shadow-inner">
                     <span className="text-primary-foreground/50 mr-2">$</span>
-                    <span className="text-blue-400">{step.content.name}</span>
+                    <span className="text-blue-400">{content.name}</span>
                     <span className="text-zinc-500"> --args </span>
-                    <span className="text-orange-300">{JSON.stringify(step.content.arguments)}</span>
+                    <span className="text-orange-300">{JSON.stringify(content.arguments)}</span>
                 </div>
-                {step.content.result && (
+                {content.result && (
                   <div className="text-[11px] font-mono bg-zinc-50 dark:bg-black/40 p-3 rounded-xl border dark:border-zinc-800 text-zinc-500 max-h-48 overflow-y-auto">
                      <div className="flex justify-between mb-1 opacity-50">
                         <span className="font-bold uppercase text-[9px]">Output</span>
                         <span className="text-[9px]">Success</span>
                      </div>
-                     {typeof step.content.result === 'string' ? step.content.result : JSON.stringify(step.content.result)}
+                     {content.result}
                   </div>
                 )}
             </div>
