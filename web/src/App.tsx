@@ -13,6 +13,7 @@ function App() {
         mode,
         isAssistantTyping,
         isSpeaking,
+        isUserSpeaking,
         connectionStatus,
         sendMessage,
         toggleMode
@@ -37,6 +38,7 @@ function App() {
                     {mode === 'voice' ? (
                         <VoiceMode
                             isAssistantTyping={isSpeaking}
+                            isUserSpeaking={isUserSpeaking}
                             onMicClick={() => {
                             }} // Audio is auto-starting in hook
                             statusText={connectionStatus === 'connected' ? undefined : `Status: ${connectionStatus}`}

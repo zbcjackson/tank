@@ -1,12 +1,33 @@
+export interface VADConfig {
+  threshold: number;
+  preRollSize: number;  // frames (128 samples each at 16kHz)
+  hangoverMax: number;  // frames
+}
+
+export const DEFAULT_VAD_CONFIG: VADConfig = {
+  threshold: 0.01,
+  preRollSize: 25,   // ~200ms
+  hangoverMax: 38,    // ~300ms
+};
+
+interface AudioProcessorOptions {
+  onSpeechChange?: (isSpeech: boolean) => void;
+  vadConfig?: Partial<VADConfig>;
+}
+
 export class AudioProcessor {
   private audioContext: AudioContext | null = null;
   private stream: MediaStream | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
   private workletNode: AudioWorkletNode | null = null;
   private onAudio: (data: Int16Array) => void;
+  private onSpeechChange?: (isSpeech: boolean) => void;
+  private vadConfig: VADConfig;
 
-  constructor(onAudio: (data: Int16Array) => void) {
+  constructor(onAudio: (data: Int16Array) => void, options?: AudioProcessorOptions) {
     this.onAudio = onAudio;
+    this.onSpeechChange = options?.onSpeechChange;
+    this.vadConfig = { ...DEFAULT_VAD_CONFIG, ...options?.vadConfig };
   }
 
   async start() {
@@ -28,13 +49,30 @@ export class AudioProcessor {
     this.source = this.audioContext.createMediaStreamSource(this.stream);
     this.workletNode = new AudioWorkletNode(this.audioContext, 'audio-capture-processor');
 
+    // Send initial VAD config to worklet
+    this.workletNode.port.postMessage({
+      type: 'vad-config',
+      threshold: this.vadConfig.threshold,
+      preRollSize: this.vadConfig.preRollSize,
+      hangoverMax: this.vadConfig.hangoverMax,
+    });
+
     this.workletNode.port.onmessage = (event: MessageEvent) => {
-      const int16Array = new Int16Array(event.data);
-      this.onAudio(int16Array);
+      if (event.data instanceof ArrayBuffer) {
+        const int16Array = new Int16Array(event.data);
+        this.onAudio(int16Array);
+      } else if (event.data?.type === 'vad') {
+        this.onSpeechChange?.(event.data.isSpeech);
+      }
     };
 
     this.source.connect(this.workletNode);
     this.workletNode.connect(this.audioContext.destination);
+  }
+
+  setVADThreshold(threshold: number) {
+    this.vadConfig.threshold = threshold;
+    this.workletNode?.port.postMessage({ type: 'vad-config', threshold });
   }
 
   stop() {

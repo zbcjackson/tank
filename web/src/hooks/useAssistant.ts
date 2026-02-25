@@ -34,7 +34,8 @@ export const useAssistant = (sessionId: string) => {
   const [isAssistantTyping, setIsAssistantTyping] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error' | 'disconnected'>('connecting');
-  
+  const [isUserSpeaking, setIsUserSpeaking] = useState(false);
+
   const clientRef = useRef<VoiceAssistantClient | null>(null);
   const audioProcessorRef = useRef<AudioProcessor | null>(null);
 
@@ -148,7 +149,9 @@ export const useAssistant = (sessionId: string) => {
     clientRef.current = client;
     client.connect(handleMessage, (speaking) => setIsSpeaking(speaking), () => setConnectionStatus('connected'));
 
-    const audioProcessor = new AudioProcessor((data) => client.sendAudio(data));
+    const audioProcessor = new AudioProcessor((data) => client.sendAudio(data), {
+      onSpeechChange: (isSpeech) => setIsUserSpeaking(isSpeech),
+    });
     audioProcessorRef.current = audioProcessor;
     audioProcessor.start().catch(err => {
         console.error("Failed to start audio processor:", err);
@@ -175,5 +178,5 @@ export const useAssistant = (sessionId: string) => {
 
   const toggleMode = useCallback(() => setMode(prev => prev === 'voice' ? 'chat' : 'voice'), []);
 
-  return { messages, mode, isAssistantTyping, isSpeaking, connectionStatus, sendMessage, toggleMode };
+  return { messages, mode, isAssistantTyping, isSpeaking, isUserSpeaking, connectionStatus, sendMessage, toggleMode };
 };

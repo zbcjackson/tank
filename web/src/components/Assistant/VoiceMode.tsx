@@ -4,11 +4,12 @@ import { Waveform } from './Waveform';
 
 interface VoiceModeProps {
   isAssistantTyping: boolean;
+  isUserSpeaking: boolean;
   onMicClick: () => void;
   statusText?: string;
 }
 
-export const VoiceMode = ({ isAssistantTyping, onMicClick, statusText }: VoiceModeProps) => {
+export const VoiceMode = ({ isAssistantTyping, isUserSpeaking, onMicClick, statusText }: VoiceModeProps) => {
   return (
     <motion.div 
       key="voice"
@@ -33,7 +34,7 @@ export const VoiceMode = ({ isAssistantTyping, onMicClick, statusText }: VoiceMo
         
         <div className="space-y-4">
             <p className="text-2xl font-bold text-white/80">
-              {isAssistantTyping ? "TANK 正在回复..." : (statusText || "我在听，请说...")}
+              {isAssistantTyping ? "TANK 正在回复..." : isUserSpeaking ? "正在聆听..." : (statusText || "我在听，请说...")}
             </p>
             <p className="text-sm text-slate-500 font-medium">
                 提示：问问我“东京天气”试试看
@@ -41,11 +42,12 @@ export const VoiceMode = ({ isAssistantTyping, onMicClick, statusText }: VoiceMo
         </div>
 
         <div className="flex gap-4 justify-center pt-8">
-            <motion.button 
+            <motion.button
                 whileHover={{ scale: 1.1, boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)" }}
                 whileTap={{ scale: 0.9 }}
+                animate={isUserSpeaking ? { scale: [1, 1.08, 1], transition: { repeat: Infinity, duration: 1.2 } } : {}}
                 onClick={onMicClick}
-                className={`w-24 h-24 rounded-full flex items-center justify-center shadow-2xl transition-all ${isAssistantTyping ? 'bg-white/10 text-white/20' : 'bg-white text-slate-900'}`}
+                className={`w-24 h-24 rounded-full flex items-center justify-center shadow-2xl transition-all ${isAssistantTyping ? 'bg-white/10 text-white/20' : isUserSpeaking ? 'bg-red-500 text-white' : 'bg-white text-slate-900'}`}
             >
                 <Mic size={40} />
             </motion.button>
