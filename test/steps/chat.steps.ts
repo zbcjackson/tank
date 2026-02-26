@@ -42,30 +42,24 @@ Then('the typing indicator disappears', async function (this: TankWorld) {
   await chatPage.typingIndicator().waitFor({ state: 'hidden', timeout: 30000 });
 });
 
-Then('the send button is disabled', async function (this: TankWorld) {
+Then('the stop button is visible', async function (this: TankWorld) {
   const chatPage = new ChatModePage(this.page);
-  const btn = chatPage.sendButton();
-  await btn.waitFor({ state: 'visible', timeout: 5000 });
-  await this.page.waitForFunction(
-    () => {
-      const button = document.querySelector('button[type="submit"]');
-      return button?.hasAttribute('disabled');
-    },
-    { timeout: 30000 }
-  );
+  await chatPage.stopButton().waitFor({ state: 'visible', timeout: 30000 });
 });
 
-Then('eventually the send button is enabled', async function (this: TankWorld) {
+When('the user clicks the stop button', async function (this: TankWorld) {
   const chatPage = new ChatModePage(this.page);
-  const btn = chatPage.sendButton();
-  await btn.waitFor({ state: 'visible', timeout: 5000 });
-  await this.page.waitForFunction(
-    () => {
-      const button = document.querySelector('button[type="submit"]');
-      return button && !button.hasAttribute('disabled');
-    },
-    { timeout: 30000 }
-  );
+  await chatPage.stopButton().click();
+});
+
+Then('the send button is visible', async function (this: TankWorld) {
+  const chatPage = new ChatModePage(this.page);
+  await chatPage.sendButton().waitFor({ state: 'visible', timeout: 30000 });
+});
+
+Then('eventually the send button is visible', async function (this: TankWorld) {
+  const chatPage = new ChatModePage(this.page);
+  await chatPage.sendButton().waitFor({ state: 'visible', timeout: 30000 });
 });
 
 Then('the chat input is visible', async function (this: TankWorld) {

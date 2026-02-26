@@ -13,7 +13,7 @@ Feature: Chat mode
     And eventually an assistant message appears
     And the typing indicator disappears
 
-  Scenario: Send button disabled during processing
+  Scenario: Stop button replaces send button during processing
     When the user types "你好" and sends it
-    Then the send button is disabled
-    And eventually the send button is enabled
+    Then the stop button is visible
+    And eventually the send button is visible

@@ -17,4 +17,9 @@ export class VoiceModePage {
       hasText: '',
     }).first();
   }
+
+  stopButton(): Locator {
+    // The stop button appears next to the mic button with red styling and a Square icon
+    return this.page.locator('button.text-red-400');
+  }
 }

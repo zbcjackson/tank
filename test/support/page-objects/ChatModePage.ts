@@ -40,4 +40,8 @@ export class ChatModePage {
   weatherCard(): Locator {
     return this.page.locator('[data-type="weather"]');
   }
+
+  stopButton(): Locator {
+    return this.page.locator('button', { hasText: '停止' });
+  }
 }
