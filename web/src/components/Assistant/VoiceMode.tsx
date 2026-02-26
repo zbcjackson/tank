@@ -34,13 +34,13 @@ export const VoiceMode = ({ isAssistantTyping, isUserSpeaking, isMuted, isSpeaki
             TANK
           </motion.h1>
           <div className="absolute inset-0 flex items-center justify-center">
-            <Waveform active={isAssistantTyping} variant="white" getAnalyserNode={getAnalyserNode} />
+            <Waveform active={isSpeaking} variant="white" getAnalyserNode={getAnalyserNode} />
           </div>
         </div>
 
         <div className="space-y-4">
           <p className="text-2xl font-bold text-white/80">
-            {isAssistantTyping ? "TANK \u6b63\u5728\u56de\u590d..." : isMuted ? "\u9ea6\u514b\u98ce\u5df2\u9759\u97f3" : isUserSpeaking ? "\u6b63\u5728\u8046\u542c..." : (statusText || "\u6211\u5728\u542c\uff0c\u8bf7\u8bf4...")}
+            {isSpeaking ? "TANK \u6b63\u5728\u56de\u590d..." : isAssistantTyping ? "TANK \u6b63\u5728\u601d\u8003..." : isMuted ? "\u9ea6\u514b\u98ce\u5df2\u9759\u97f3" : isUserSpeaking ? "\u6b63\u5728\u8046\u542c..." : (statusText || "\u6211\u5728\u542c\uff0c\u8bf7\u8bf4...")}
           </p>
           <p className="text-sm text-slate-500 font-medium">
             {"\u63d0\u793a\uff1a\u95ee\u95ee\u6211\u201c\u4e1c\u4eac\u5929\u6c14\u201d\u8bd5\u8bd5\u770b"}

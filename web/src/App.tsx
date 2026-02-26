@@ -41,7 +41,7 @@ function App() {
                 <AnimatePresence mode="wait">
                     {mode === 'voice' ? (
                         <VoiceMode
-                            isAssistantTyping={isSpeaking}
+                            isAssistantTyping={isAssistantTyping}
                             isUserSpeaking={isUserSpeaking}
                             isMuted={isMuted}
                             onMicClick={toggleMute}
