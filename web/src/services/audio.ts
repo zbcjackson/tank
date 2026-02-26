@@ -18,6 +18,16 @@ export interface CalibrationState {
   error?: string;
 }
 
+export function computeCalibrationThreshold(rmsSamples: number[], calibrationConfig: CalibrationConfig, fallbackThreshold: number) {
+  if (!rmsSamples.length) {
+    return { threshold: fallbackThreshold, usedFallback: true };
+  }
+  const sum = rmsSamples.reduce((acc, v) => acc + v, 0);
+  const mean = sum / rmsSamples.length;
+  const threshold = Math.max(mean * calibrationConfig.multiplier, calibrationConfig.minThreshold);
+  return { threshold, usedFallback: false };
+}
+
 const DEFAULT_CALIBRATION_CONFIG: CalibrationConfig = {
   durationMs: 1000,
   multiplier: 3,
@@ -129,20 +139,14 @@ export class AudioProcessor {
   private finishCalibration(token: symbol) {
     if (this.calibrationToken !== token) return;
 
-    if (this.rmsSamples.length === 0) {
-      this.setVADThreshold(this.vadConfig.threshold);
-      this.gateSpeech = false;
-      this.updateCalibrationState({ status: 'error', error: 'No audio samples collected', threshold: this.vadConfig.threshold });
-      return;
-    }
-
-    const sum = this.rmsSamples.reduce((acc, v) => acc + v, 0);
-    const mean = sum / this.rmsSamples.length;
-    const threshold = Math.max(mean * this.calibrationConfig.multiplier, this.calibrationConfig.minThreshold);
-
+    const { threshold, usedFallback } = computeCalibrationThreshold(this.rmsSamples, this.calibrationConfig, this.vadConfig.threshold);
     this.setVADThreshold(threshold);
     this.gateSpeech = false;
-    this.updateCalibrationState({ status: 'ready', threshold });
+    if (usedFallback) {
+      this.updateCalibrationState({ status: 'error', error: 'No audio samples collected', threshold });
+    } else {
+      this.updateCalibrationState({ status: 'ready', threshold });
+    }
   }
 
   private updateCalibrationState(state: CalibrationState) {
