@@ -26,7 +26,7 @@ class TestASR:
         # Allow any keyword arguments to be passed
         mock_transcribe.__call__ = MagicMock(return_value=(iter(segments), info))
         with patch(
-            "src.voice_assistant.audio.input.asr.WhisperModel",
+            "tank_backend.audio.input.asr.WhisperModel",
             return_value=MagicMock(transcribe=mock_transcribe),
         ) as mock_cls:
             yield mock_cls
@@ -55,7 +55,7 @@ class TestASR:
         seg2 = MagicMock(text=" bar ", start=0.2, end=0.5)
         info = MagicMock(language="zh", language_probability=0.9)
         with patch(
-            "src.voice_assistant.audio.input.asr.WhisperModel",
+            "tank_backend.audio.input.asr.WhisperModel",
             return_value=MagicMock(
                 transcribe=MagicMock(return_value=(iter([seg1, seg2]), info))
             ),
@@ -70,7 +70,7 @@ class TestASR:
         """Common Whisper hallucination at end (e.g. thank you) is removed."""
         segments = [MagicMock(text=" hello ", start=0.0, end=0.2), MagicMock(text=" thank you ", start=0.2, end=0.5)]
         with patch(
-            "src.voice_assistant.audio.input.asr.WhisperModel",
+            "tank_backend.audio.input.asr.WhisperModel",
             return_value=MagicMock(
                 transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="en", language_probability=0.95)))
             ),
@@ -83,7 +83,7 @@ class TestASR:
         """Hallucination at start (e.g. Thank you.) is removed."""
         segments = [MagicMock(text=" Thank you. ", start=0.0, end=0.2), MagicMock(text=" 你好 ", start=0.2, end=0.5)]
         with patch(
-            "src.voice_assistant.audio.input.asr.WhisperModel",
+            "tank_backend.audio.input.asr.WhisperModel",
             return_value=MagicMock(
                 transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="zh", language_probability=0.9)))
             ),
@@ -96,7 +96,7 @@ class TestASR:
         """When transcript is only a hallucination phrase, result is empty."""
         segments = [MagicMock(text=" Thank you ", start=0.0, end=0.3)]
         with patch(
-            "src.voice_assistant.audio.input.asr.WhisperModel",
+            "tank_backend.audio.input.asr.WhisperModel",
             return_value=MagicMock(
                 transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="en", language_probability=0.95)))
             ),
@@ -109,7 +109,7 @@ class TestASR:
         """Content without hallucination phrases is unchanged."""
         segments = [MagicMock(text=" hello ", start=0.0, end=0.2), MagicMock(text=" world ", start=0.2, end=0.5)]
         with patch(
-            "src.voice_assistant.audio.input.asr.WhisperModel",
+            "tank_backend.audio.input.asr.WhisperModel",
             return_value=MagicMock(
                 transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="en", language_probability=0.95)))
             ),
@@ -126,7 +126,7 @@ class TestASR:
             MagicMock(text=" Thanks for listening. ", start=0.4, end=0.7),
         ]
         with patch(
-            "src.voice_assistant.audio.input.asr.WhisperModel",
+            "tank_backend.audio.input.asr.WhisperModel",
             return_value=MagicMock(
                 transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="zh", language_probability=0.9)))
             ),

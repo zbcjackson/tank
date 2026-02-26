@@ -18,7 +18,7 @@ from tank_backend.core.events import DisplayMessage, SignalMessage, BrainInputEv
 
 @pytest.fixture
 def mock_config():
-    with patch("src.voice_assistant.core.assistant.load_config") as mock_load:
+    with patch("tank_backend.core.assistant.load_config") as mock_load:
         config = MagicMock()
         config.llm_api_key = "test_key"
         config.llm_model = "test_model"
@@ -58,10 +58,10 @@ async def test_virtual_assistant_flow(mock_config):
     async def mock_generate_stream(*args, **kwargs):
         yield AudioChunk(data=b"dummy_pcm", sample_rate=24000, channels=1)
 
-    with patch("src.voice_assistant.llm.llm.LLM.chat_stream", side_effect=mock_chat_stream), \
-         patch("src.voice_assistant.audio.input.asr_sherpa.SherpaASR.__init__", return_value=None), \
-         patch("src.voice_assistant.audio.input.asr_sherpa.SherpaASR.process_pcm", side_effect=mock_process_pcm), \
-         patch("src.voice_assistant.audio.output.tts_engine_edge.EdgeTTSEngine.generate_stream", side_effect=mock_generate_stream):
+    with patch("tank_backend.llm.llm.LLM.chat_stream", side_effect=mock_chat_stream), \
+         patch("tank_backend.audio.input.asr_sherpa.SherpaASR.__init__", return_value=None), \
+         patch("tank_backend.audio.input.asr_sherpa.SherpaASR.process_pcm", side_effect=mock_process_pcm), \
+         patch("tank_backend.audio.output.tts_engine_edge.EdgeTTSEngine.generate_stream", side_effect=mock_generate_stream):
         
         # 2. Setup factories
         recorded_chunks = []

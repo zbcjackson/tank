@@ -57,7 +57,7 @@ class TestMic:
             captured_callback = kwargs.get('callback') or (args[0] if args else None)
             return mock_stream_context
         
-        with patch('src.voice_assistant.audio.input.mic.sd.InputStream', side_effect=capture_callback) as mock_input_stream:
+        with patch('tank_backend.audio.input.mic.sd.InputStream', side_effect=capture_callback) as mock_input_stream:
             # Start mic thread
             mic.start()
             
@@ -115,7 +115,7 @@ class TestMic:
             captured_callback = kwargs.get('callback') or (args[0] if args else None)
             return mock_stream_context
         
-        with patch('src.voice_assistant.audio.input.mic.sd.InputStream', side_effect=capture_callback) as mock_input_stream:
+        with patch('tank_backend.audio.input.mic.sd.InputStream', side_effect=capture_callback) as mock_input_stream:
             mic.start()
             time.sleep(0.3)
             
@@ -157,7 +157,7 @@ class TestMic:
         mock_stream_context.__enter__ = Mock(return_value=mock_stream)
         mock_stream_context.__exit__ = Mock(return_value=False)
         
-        with patch('src.voice_assistant.audio.input.mic.sd.InputStream', return_value=mock_stream_context):
+        with patch('tank_backend.audio.input.mic.sd.InputStream', return_value=mock_stream_context):
             mic.start()
             
             # Wait a bit for thread to start
@@ -203,7 +203,7 @@ class TestMic:
             captured_callback = kwargs.get('callback') or (args[0] if args else None)
             return mock_stream_context
         
-        with patch('src.voice_assistant.audio.input.mic.sd.InputStream', side_effect=capture_callback):
+        with patch('tank_backend.audio.input.mic.sd.InputStream', side_effect=capture_callback):
             mic.start()
             time.sleep(0.3)
             

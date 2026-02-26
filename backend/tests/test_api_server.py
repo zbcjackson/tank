@@ -23,7 +23,7 @@ def test_health_check(client):
 
 def test_websocket_lifecycle(client):
     """Test full WebSocket lifecycle: connect, receive ready, send audio, receive response."""
-    with patch("src.voice_assistant.api.router.session_manager.create_assistant") as mock_create:
+    with patch("tank_backend.api.router.session_manager.create_assistant") as mock_create:
         mock_assistant = MagicMock()
         mock_assistant.get_messages.return_value = []
         mock_create.return_value = mock_assistant
