@@ -4,6 +4,26 @@ export interface VADConfig {
   hangoverMax: number;  // frames
 }
 
+export interface CalibrationConfig {
+  durationMs: number;
+  multiplier: number;
+  minThreshold: number;
+}
+
+export type CalibrationStatus = 'idle' | 'calibrating' | 'ready' | 'error';
+
+export interface CalibrationState {
+  status: CalibrationStatus;
+  threshold?: number;
+  error?: string;
+}
+
+const DEFAULT_CALIBRATION_CONFIG: CalibrationConfig = {
+  durationMs: 1000,
+  multiplier: 3,
+  minThreshold: 0.004,
+};
+
 export const DEFAULT_VAD_CONFIG: VADConfig = {
   threshold: 0.01,
   preRollSize: 25,   // ~200ms
@@ -13,6 +33,8 @@ export const DEFAULT_VAD_CONFIG: VADConfig = {
 interface AudioProcessorOptions {
   onSpeechChange?: (isSpeech: boolean) => void;
   vadConfig?: Partial<VADConfig>;
+  calibrationConfig?: Partial<CalibrationConfig>;
+  onCalibrationChange?: (state: CalibrationState) => void;
 }
 
 export class AudioProcessor {
@@ -23,12 +45,20 @@ export class AudioProcessor {
   private onAudio: (data: Int16Array) => void;
   private onSpeechChange?: (isSpeech: boolean) => void;
   private vadConfig: VADConfig;
+  private calibrationConfig: CalibrationConfig;
+  private onCalibrationChange?: (state: CalibrationState) => void;
+  private calibrationState: CalibrationState = { status: 'idle' };
+  private gateSpeech = true;
+  private rmsSamples: number[] = [];
+  private calibrationToken: symbol | null = null;
   private muted = false;
 
   constructor(onAudio: (data: Int16Array) => void, options?: AudioProcessorOptions) {
     this.onAudio = onAudio;
     this.onSpeechChange = options?.onSpeechChange;
+    this.onCalibrationChange = options?.onCalibrationChange;
     this.vadConfig = { ...DEFAULT_VAD_CONFIG, ...options?.vadConfig };
+    this.calibrationConfig = { ...DEFAULT_CALIBRATION_CONFIG, ...options?.calibrationConfig };
   }
 
   async start() {
@@ -60,15 +90,73 @@ export class AudioProcessor {
 
     this.workletNode.port.onmessage = (event: MessageEvent) => {
       if (event.data instanceof ArrayBuffer) {
-        const int16Array = new Int16Array(event.data);
-        this.onAudio(int16Array);
+        if (!this.gateSpeech) {
+          const int16Array = new Int16Array(event.data);
+          this.onAudio(int16Array);
+        }
       } else if (event.data?.type === 'vad') {
-        this.onSpeechChange?.(event.data.isSpeech);
+        if (!this.gateSpeech) {
+          this.onSpeechChange?.(event.data.isSpeech);
+        }
+      } else if (event.data?.type === 'rms') {
+        this.handleRmsSample(event.data.value);
       }
     };
 
     this.source.connect(this.workletNode);
     this.workletNode.connect(this.audioContext.destination);
+
+    this.startCalibration();
+  }
+
+  private handleRmsSample(rms: number) {
+    if (this.calibrationState.status === 'calibrating') {
+      this.rmsSamples.push(rms);
+    }
+  }
+
+  private async startCalibration() {
+    const token = Symbol('calibration');
+    this.calibrationToken = token;
+    this.gateSpeech = true;
+    this.rmsSamples = [];
+    this.updateCalibrationState({ status: 'calibrating' });
+
+    await new Promise<void>((resolve) => window.setTimeout(resolve, this.calibrationConfig.durationMs));
+    this.finishCalibration(token);
+  }
+
+  private finishCalibration(token: symbol) {
+    if (this.calibrationToken !== token) return;
+
+    if (this.rmsSamples.length === 0) {
+      this.setVADThreshold(this.vadConfig.threshold);
+      this.gateSpeech = false;
+      this.updateCalibrationState({ status: 'error', error: 'No audio samples collected', threshold: this.vadConfig.threshold });
+      return;
+    }
+
+    const sum = this.rmsSamples.reduce((acc, v) => acc + v, 0);
+    const mean = sum / this.rmsSamples.length;
+    const threshold = Math.max(mean * this.calibrationConfig.multiplier, this.calibrationConfig.minThreshold);
+
+    this.setVADThreshold(threshold);
+    this.gateSpeech = false;
+    this.updateCalibrationState({ status: 'ready', threshold });
+  }
+
+  private updateCalibrationState(state: CalibrationState) {
+    this.calibrationState = state;
+    this.onCalibrationChange?.(state);
+  }
+
+  recalibrate() {
+    if (!this.workletNode) return;
+    this.startCalibration();
+  }
+
+  getCalibrationState(): CalibrationState {
+    return this.calibrationState;
   }
 
   setVADThreshold(threshold: number) {
@@ -88,6 +176,7 @@ export class AudioProcessor {
   }
 
   stop() {
+    this.calibrationToken = null;
     this.source?.disconnect();
     this.workletNode?.disconnect();
     this.workletNode?.port.close();

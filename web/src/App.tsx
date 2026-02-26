@@ -20,8 +20,16 @@ function App() {
         toggleMute,
         isMuted,
         getAnalyserNode,
-        stopSpeaking
+        stopSpeaking,
+        calibrationState
     } = useAssistant(SESSION_ID);
+
+    const calibrationStatusText = calibrationState.status === 'calibrating'
+        ? '正在校准背景噪声...'
+        : calibrationState.status === 'error'
+            ? '噪声校准失败，使用默认阈值'
+            : undefined;
+    const statusText = calibrationStatusText || (connectionStatus === 'connected' ? undefined : `Status: ${connectionStatus}`);
 
     return (
         <div className="h-screen w-full flex flex-col font-sans overflow-hidden relative">
@@ -47,7 +55,8 @@ function App() {
                             onMicClick={toggleMute}
                             onStopSpeaking={stopSpeaking}
                             isSpeaking={isSpeaking}
-                            statusText={connectionStatus === 'connected' ? undefined : `Status: ${connectionStatus}`}
+                            statusText={statusText}
+                            calibrationState={calibrationState}
                             getAnalyserNode={getAnalyserNode}
                         />
                     ) : (

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { VoiceAssistantClient } from '../services/websocket';
 import type { WebsocketMessage } from '../services/websocket';
-import { AudioProcessor } from '../services/audio';
+import { AudioProcessor, type CalibrationState } from '../services/audio';
 
 export type StepType = 'thinking' | 'tool' | 'text' | 'weather';
 
@@ -36,6 +36,7 @@ export const useAssistant = (sessionId: string) => {
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error' | 'disconnected'>('connecting');
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [calibrationState, setCalibrationState] = useState<CalibrationState>({ status: 'idle' });
 
   const clientRef = useRef<VoiceAssistantClient | null>(null);
   const audioProcessorRef = useRef<AudioProcessor | null>(null);
@@ -152,6 +153,10 @@ export const useAssistant = (sessionId: string) => {
 
     const audioProcessor = new AudioProcessor((data) => client.sendAudio(data), {
       onSpeechChange: (isSpeech) => setIsUserSpeaking(isSpeech),
+      onCalibrationChange: (state) => {
+        setCalibrationState(state);
+        if (state.status !== 'ready') setIsUserSpeaking(false);
+      },
     });
     audioProcessorRef.current = audioProcessor;
     audioProcessor.start().catch(err => {
@@ -164,8 +169,19 @@ export const useAssistant = (sessionId: string) => {
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
 
+    const handleDeviceChange = () => audioProcessorRef.current?.recalibrate();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        audioProcessorRef.current?.recalibrate();
+      }
+    };
+    navigator.mediaDevices?.addEventListener('devicechange', handleDeviceChange);
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      navigator.mediaDevices?.removeEventListener('devicechange', handleDeviceChange);
+      document.removeEventListener('visibilitychange', handleVisibility);
       client.disconnect();
       audioProcessor.stop();
     };
@@ -197,5 +213,5 @@ export const useAssistant = (sessionId: string) => {
     setIsAssistantTyping(false);
   }, []);
 
-  return { messages, mode, isAssistantTyping, isSpeaking, isUserSpeaking, isMuted, connectionStatus, sendMessage, toggleMode, toggleMute, getAnalyserNode, stopSpeaking };
+  return { messages, mode, isAssistantTyping, isSpeaking, isUserSpeaking, isMuted, connectionStatus, calibrationState, sendMessage, toggleMode, toggleMute, getAnalyserNode, stopSpeaking };
 };

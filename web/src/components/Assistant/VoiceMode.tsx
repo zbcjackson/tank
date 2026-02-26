@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Mic, MicOff, Square } from 'lucide-react';
 import { Waveform } from './Waveform';
+import type { CalibrationState } from '../../services/audio';
 
 interface VoiceModeProps {
   isAssistantTyping: boolean;
@@ -10,11 +11,24 @@ interface VoiceModeProps {
   onMicClick: () => void;
   onStopSpeaking: () => void;
   statusText?: string;
+  calibrationState: CalibrationState;
   getAnalyserNode?: () => AnalyserNode | null;
 }
 
-export const VoiceMode = ({ isAssistantTyping, isUserSpeaking, isMuted, isSpeaking, onMicClick, onStopSpeaking, statusText, getAnalyserNode }: VoiceModeProps) => {
+export const VoiceMode = ({ isAssistantTyping, isUserSpeaking, isMuted, isSpeaking, onMicClick, onStopSpeaking, statusText, calibrationState, getAnalyserNode }: VoiceModeProps) => {
   const micStatus = isMuted ? 'muted' : isUserSpeaking ? 'speaking' : 'idle';
+  const calibrationLabel = calibrationState.status === 'calibrating'
+    ? '噪声校准中'
+    : calibrationState.status === 'ready'
+      ? '已完成校准'
+      : calibrationState.status === 'error'
+        ? '使用默认阈值'
+        : undefined;
+  const calibrationTone = calibrationState.status === 'calibrating'
+    ? 'bg-amber-500/20 text-amber-300 border-amber-400/50'
+    : calibrationState.status === 'ready'
+      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/50'
+      : 'bg-rose-500/20 text-rose-300 border-rose-400/50';
 
   return (
     <motion.div
@@ -40,10 +54,18 @@ export const VoiceMode = ({ isAssistantTyping, isUserSpeaking, isMuted, isSpeaki
 
         <div className="space-y-4">
           <p className="text-2xl font-bold text-white/80">
-            {isSpeaking ? "TANK \u6b63\u5728\u56de\u590d..." : isAssistantTyping ? "TANK \u6b63\u5728\u601d\u8003..." : isMuted ? "\u9ea6\u514b\u98ce\u5df2\u9759\u97f3" : isUserSpeaking ? "\u6b63\u5728\u8046\u542c..." : (statusText || "\u6211\u5728\u542c\uff0c\u8bf7\u8bf4...")}
+            {isSpeaking ? "TANK 正在回复..." : isAssistantTyping ? "TANK 正在思考..." : isMuted ? "麦克风已静音" : isUserSpeaking ? "正在聆听..." : (statusText || "我在听，请说...")}
           </p>
+          {calibrationLabel && (
+            <div className="flex justify-center">
+              <span className={`inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold rounded-full border ${calibrationTone}`}>
+                <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
+                {calibrationLabel}
+              </span>
+            </div>
+          )}
           <p className="text-sm text-slate-500 font-medium">
-            {"\u63d0\u793a\uff1a\u95ee\u95ee\u6211\u201c\u4e1c\u4eac\u5929\u6c14\u201d\u8bd5\u8bd5\u770b"}
+            {"提示：问问我“东京天气”试试看"}
           </p>
         </div>
 

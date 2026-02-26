@@ -44,6 +44,8 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
       sumSq += float32[i] * float32[i];
     }
     const rms = Math.sqrt(sumSq / float32.length);
+    // Emit RMS so the main thread can calibrate ambient noise
+    this.port.postMessage({ type: 'rms', value: rms });
     const speechDetected = rms >= this.rmsThreshold;
 
     if (speechDetected) {
