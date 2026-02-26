@@ -14,6 +14,7 @@ export class VoiceAssistantClient {
   private socket: WebSocket | null = null;
   private url: string;
   private audioContext: AudioContext | null = null;
+  private analyserNode: AnalyserNode | null = null;
   private nextStartTime: number = 0;
   private onSpeakingChange?: (isSpeaking: boolean) => void;
   private speakingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -52,14 +53,25 @@ export class VoiceAssistantClient {
     };
   }
 
-  private async playAudioChunk(data: ArrayBuffer) {
+  getAnalyserNode(): AnalyserNode | null {
+    return this.analyserNode;
+  }
+
+  private ensureAudioContext() {
     if (!this.audioContext) {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.audioContext = new AudioCtx({
-        sampleRate: 24000,
-      });
+      this.audioContext = new AudioCtx({ sampleRate: 24000 });
       this.nextStartTime = this.audioContext.currentTime;
+
+      this.analyserNode = this.audioContext.createAnalyser();
+      this.analyserNode.fftSize = 512;
+      this.analyserNode.smoothingTimeConstant = 0.7;
+      this.analyserNode.connect(this.audioContext.destination);
     }
+  }
+
+  private async playAudioChunk(data: ArrayBuffer) {
+    this.ensureAudioContext();
 
     try {
       // Data is Int16 PCM, need to convert to Float32 for Web Audio
@@ -69,14 +81,14 @@ export class VoiceAssistantClient {
         float32Array[i] = int16Array[i] / 32768.0;
       }
 
-      const buffer = this.audioContext.createBuffer(1, float32Array.length, 24000);
+      const buffer = this.audioContext!.createBuffer(1, float32Array.length, 24000);
       buffer.getChannelData(0).set(float32Array);
 
-      const source = this.audioContext.createBufferSource();
+      const source = this.audioContext!.createBufferSource();
       source.buffer = buffer;
-      source.connect(this.audioContext.destination);
+      source.connect(this.analyserNode!);
 
-      const startTime = Math.max(this.nextStartTime, this.audioContext.currentTime);
+      const startTime = Math.max(this.nextStartTime, this.audioContext!.currentTime);
       source.start(startTime);
       this.nextStartTime = startTime + buffer.duration;
 
@@ -84,9 +96,9 @@ export class VoiceAssistantClient {
       if (this.onSpeakingChange) {
         this.onSpeakingChange(true);
         if (this.speakingTimer) clearTimeout(this.speakingTimer);
-        
+
         // Set a timer to set speaking to false after the scheduled audio ends
-        const delayMs = (this.nextStartTime - this.audioContext.currentTime) * 1000;
+        const delayMs = (this.nextStartTime - this.audioContext!.currentTime) * 1000;
         this.speakingTimer = setTimeout(() => {
           this.onSpeakingChange?.(false);
           this.speakingTimer = null;

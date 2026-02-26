@@ -7,9 +7,10 @@ interface VoiceModeProps {
   isUserSpeaking: boolean;
   onMicClick: () => void;
   statusText?: string;
+  getAnalyserNode?: () => AnalyserNode | null;
 }
 
-export const VoiceMode = ({ isAssistantTyping, isUserSpeaking, onMicClick, statusText }: VoiceModeProps) => {
+export const VoiceMode = ({ isAssistantTyping, isUserSpeaking, onMicClick, statusText, getAnalyserNode }: VoiceModeProps) => {
   return (
     <motion.div 
       key="voice"
@@ -28,7 +29,7 @@ export const VoiceMode = ({ isAssistantTyping, isUserSpeaking, onMicClick, statu
             TANK
           </motion.h1>
           <div className="absolute inset-0 flex items-center justify-center">
-             <Waveform active={isAssistantTyping} variant="white" />
+             <Waveform active={isAssistantTyping} variant="white" getAnalyserNode={getAnalyserNode} />
           </div>
         </div>
         

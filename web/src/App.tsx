@@ -16,7 +16,8 @@ function App() {
         isUserSpeaking,
         connectionStatus,
         sendMessage,
-        toggleMode
+        toggleMode,
+        getAnalyserNode
     } = useAssistant(SESSION_ID);
 
     return (
@@ -42,6 +43,7 @@ function App() {
                             onMicClick={() => {
                             }} // Audio is auto-starting in hook
                             statusText={connectionStatus === 'connected' ? undefined : `Status: ${connectionStatus}`}
+                            getAnalyserNode={getAnalyserNode}
                         />
                     ) : (
                         <ChatMode

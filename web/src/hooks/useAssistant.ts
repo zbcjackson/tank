@@ -178,5 +178,7 @@ export const useAssistant = (sessionId: string) => {
 
   const toggleMode = useCallback(() => setMode(prev => prev === 'voice' ? 'chat' : 'voice'), []);
 
-  return { messages, mode, isAssistantTyping, isSpeaking, isUserSpeaking, connectionStatus, sendMessage, toggleMode };
+  const getAnalyserNode = useCallback(() => clientRef.current?.getAnalyserNode() ?? null, []);
+
+  return { messages, mode, isAssistantTyping, isSpeaking, isUserSpeaking, connectionStatus, sendMessage, toggleMode, getAnalyserNode };
 };

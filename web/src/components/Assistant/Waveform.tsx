@@ -1,31 +1,75 @@
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 
-const BARS = Array.from({ length: 24 }, () => ({
-  height: Math.random() * 80 + 20,
-  duration: 0.5 + Math.random() * 0.5,
-}));
+const BAR_COUNT = 48;
 
 interface WaveformProps {
   active: boolean;
   variant?: 'primary' | 'white';
+  getAnalyserNode?: () => AnalyserNode | null;
 }
 
-export const Waveform = ({ active, variant = 'primary' }: WaveformProps) => {
+export const Waveform = ({ active, variant = 'primary', getAnalyserNode }: WaveformProps) => {
+  const [barHeights, setBarHeights] = useState<number[]>(() => new Array(BAR_COUNT).fill(2));
+  const rafRef = useRef<number>(0);
+  const dataArrayRef = useRef<Uint8Array | null>(null);
+
+  const animate = useCallback(() => {
+    const analyser = getAnalyserNode?.();
+    if (!analyser) {
+      rafRef.current = requestAnimationFrame(animate);
+      return;
+    }
+
+    if (!dataArrayRef.current || dataArrayRef.current.length !== analyser.frequencyBinCount) {
+      dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+    }
+
+    analyser.getByteFrequencyData(dataArrayRef.current);
+
+    const data = dataArrayRef.current;
+    const binCount = data.length; // 256 bins (fftSize=512), covering 0-12kHz
+    const step = Math.max(1, Math.floor(binCount / BAR_COUNT));
+
+    const heights = new Array(BAR_COUNT);
+    for (let i = 0; i < BAR_COUNT; i++) {
+      const startBin = i * step;
+      let max = 0;
+      for (let j = startBin; j < startBin + step && j < binCount; j++) {
+        if (data[j] > max) max = data[j];
+      }
+      // Power curve to widen dynamic range
+      const normalized = max / 255;
+      const boosted = Math.pow(normalized, 0.65);
+      // Min height 2px so silent bars are barely visible, max 100px
+      heights[i] = 2 + boosted * 98;
+    }
+
+    setBarHeights(heights);
+    rafRef.current = requestAnimationFrame(animate);
+  }, [getAnalyserNode]);
+
+  useEffect(() => {
+    if (active && getAnalyserNode) {
+      rafRef.current = requestAnimationFrame(animate);
+      return () => cancelAnimationFrame(rafRef.current);
+    }
+    setBarHeights(new Array(BAR_COUNT).fill(2));
+  }, [active, getAnalyserNode, animate]);
+
+  const colorClass = variant === 'white' ? 'bg-white' : 'bg-primary';
+
   return (
-    <div className="flex items-center justify-center gap-1.5 h-24">
-      {BARS.map((bar, i) => (
+    <div className="flex items-center justify-center gap-[3px] h-24">
+      {barHeights.map((height, i) => (
         <motion.div
           key={i}
-          className={`w-2 rounded-full ${variant === 'white' ? 'bg-white' : 'bg-primary'}`}
+          className={`w-1.5 rounded-full ${colorClass}`}
           animate={{
-            height: active ? [20, bar.height, 20] : 10,
-            opacity: active ? 1 : 0.4
+            height: active ? height : 2,
+            opacity: active ? Math.max(0.3, height / 100) : 0.2,
           }}
-          transition={{
-            repeat: Infinity,
-            duration: bar.duration,
-            ease: "easeInOut"
-          }}
+          transition={{ duration: 0.06, ease: 'linear' }}
         />
       ))}
     </div>
