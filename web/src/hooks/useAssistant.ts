@@ -35,6 +35,7 @@ export const useAssistant = (sessionId: string) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error' | 'disconnected'>('connecting');
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
   const clientRef = useRef<VoiceAssistantClient | null>(null);
   const audioProcessorRef = useRef<AudioProcessor | null>(null);
@@ -178,7 +179,17 @@ export const useAssistant = (sessionId: string) => {
 
   const toggleMode = useCallback(() => setMode(prev => prev === 'voice' ? 'chat' : 'voice'), []);
 
+  const toggleMute = useCallback(() => {
+    const processor = audioProcessorRef.current;
+    if (processor) {
+      const newMuted = !processor.isMuted();
+      processor.setMuted(newMuted);
+      setIsMuted(newMuted);
+      if (newMuted) setIsUserSpeaking(false);
+    }
+  }, []);
+
   const getAnalyserNode = useCallback(() => clientRef.current?.getAnalyserNode() ?? null, []);
 
-  return { messages, mode, isAssistantTyping, isSpeaking, isUserSpeaking, connectionStatus, sendMessage, toggleMode, getAnalyserNode };
+  return { messages, mode, isAssistantTyping, isSpeaking, isUserSpeaking, isMuted, connectionStatus, sendMessage, toggleMode, toggleMute, getAnalyserNode };
 };

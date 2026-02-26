@@ -17,6 +17,8 @@ function App() {
         connectionStatus,
         sendMessage,
         toggleMode,
+        toggleMute,
+        isMuted,
         getAnalyserNode
     } = useAssistant(SESSION_ID);
 
@@ -40,8 +42,8 @@ function App() {
                         <VoiceMode
                             isAssistantTyping={isSpeaking}
                             isUserSpeaking={isUserSpeaking}
-                            onMicClick={() => {
-                            }} // Audio is auto-starting in hook
+                            isMuted={isMuted}
+                            onMicClick={toggleMute}
                             statusText={connectionStatus === 'connected' ? undefined : `Status: ${connectionStatus}`}
                             getAnalyserNode={getAnalyserNode}
                         />

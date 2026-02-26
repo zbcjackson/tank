@@ -23,6 +23,7 @@ export class AudioProcessor {
   private onAudio: (data: Int16Array) => void;
   private onSpeechChange?: (isSpeech: boolean) => void;
   private vadConfig: VADConfig;
+  private muted = false;
 
   constructor(onAudio: (data: Int16Array) => void, options?: AudioProcessorOptions) {
     this.onAudio = onAudio;
@@ -73,6 +74,17 @@ export class AudioProcessor {
   setVADThreshold(threshold: number) {
     this.vadConfig.threshold = threshold;
     this.workletNode?.port.postMessage({ type: 'vad-config', threshold });
+  }
+
+  setMuted(muted: boolean) {
+    this.muted = muted;
+    this.stream?.getAudioTracks().forEach(track => {
+      track.enabled = !muted;
+    });
+  }
+
+  isMuted(): boolean {
+    return this.muted;
   }
 
   stop() {
