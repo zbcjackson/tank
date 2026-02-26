@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 
-const BAR_COUNT = 48;
+const BAR_COUNT = 96;
 
 interface WaveformProps {
   active: boolean;
@@ -28,7 +28,7 @@ export const Waveform = ({ active, variant = 'primary', getAnalyserNode }: Wavef
     analyser.getByteFrequencyData(dataArrayRef.current);
 
     const data = dataArrayRef.current;
-    const binCount = data.length; // 256 bins (fftSize=512), covering 0-12kHz
+    const binCount = data.length; // 512 bins (fftSize=1024), covering 0-12kHz
     const step = Math.max(1, Math.floor(binCount / BAR_COUNT));
 
     const heights = new Array(BAR_COUNT);
@@ -40,7 +40,7 @@ export const Waveform = ({ active, variant = 'primary', getAnalyserNode }: Wavef
       }
       // Power curve to widen dynamic range
       const normalized = max / 255;
-      const boosted = Math.pow(normalized, 0.65);
+      const boosted = Math.pow(normalized, 0.85);
       // Min height 2px so silent bars are barely visible, max 100px
       heights[i] = 2 + boosted * 98;
     }
@@ -60,11 +60,11 @@ export const Waveform = ({ active, variant = 'primary', getAnalyserNode }: Wavef
   const colorClass = variant === 'white' ? 'bg-white' : 'bg-primary';
 
   return (
-    <div className="flex items-center justify-center gap-[3px] h-24">
+    <div className="flex items-center justify-center gap-[2px] h-24">
       {barHeights.map((height, i) => (
         <motion.div
           key={i}
-          className={`w-1.5 rounded-full ${colorClass}`}
+          className={`w-1 rounded-full ${colorClass}`}
           animate={{
             height: active ? height : 2,
             opacity: active ? Math.max(0.3, height / 100) : 0.2,

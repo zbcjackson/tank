@@ -64,8 +64,10 @@ export class VoiceAssistantClient {
       this.nextStartTime = this.audioContext.currentTime;
 
       this.analyserNode = this.audioContext.createAnalyser();
-      this.analyserNode.fftSize = 512;
+      this.analyserNode.fftSize = 1024;
       this.analyserNode.smoothingTimeConstant = 0.7;
+      this.analyserNode.minDecibels = -70;
+      this.analyserNode.maxDecibels = -20;
       this.analyserNode.connect(this.audioContext.destination);
     }
   }
