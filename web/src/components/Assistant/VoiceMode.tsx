@@ -1,17 +1,19 @@
 import { motion } from 'framer-motion';
-import { Mic, MicOff } from 'lucide-react';
+import { Mic, MicOff, Square } from 'lucide-react';
 import { Waveform } from './Waveform';
 
 interface VoiceModeProps {
   isAssistantTyping: boolean;
   isUserSpeaking: boolean;
   isMuted: boolean;
+  isSpeaking: boolean;
   onMicClick: () => void;
+  onStopSpeaking: () => void;
   statusText?: string;
   getAnalyserNode?: () => AnalyserNode | null;
 }
 
-export const VoiceMode = ({ isAssistantTyping, isUserSpeaking, isMuted, onMicClick, statusText, getAnalyserNode }: VoiceModeProps) => {
+export const VoiceMode = ({ isAssistantTyping, isUserSpeaking, isMuted, isSpeaking, onMicClick, onStopSpeaking, statusText, getAnalyserNode }: VoiceModeProps) => {
   const micStatus = isMuted ? 'muted' : isUserSpeaking ? 'speaking' : 'idle';
 
   return (
@@ -45,21 +47,36 @@ export const VoiceMode = ({ isAssistantTyping, isUserSpeaking, isMuted, onMicCli
           </p>
         </div>
 
-        <div className="flex gap-4 justify-center pt-8">
-          <motion.button
-            whileHover={{ scale: 1.1, boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)" }}
-            whileTap={{ scale: 0.9 }}
-            animate={micStatus === 'speaking' ? { scale: [1, 1.08, 1], transition: { repeat: Infinity, duration: 1.2 } } : {}}
-            onClick={onMicClick}
-            className={`w-24 h-24 rounded-full flex items-center justify-center shadow-2xl transition-all ${
-              micStatus === 'muted' ? 'bg-slate-700 text-slate-400' :
-              micStatus === 'speaking' ? 'bg-red-500 text-white' :
-              isAssistantTyping ? 'bg-white/10 text-white/20' :
-              'bg-white text-slate-900'
-            }`}
-          >
-            {micStatus === 'muted' ? <MicOff size={40} /> : <Mic size={40} />}
-          </motion.button>
+        <div className="flex justify-center pt-8">
+          <div className="relative">
+            <motion.button
+              whileHover={{ scale: 1.1, boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)" }}
+              whileTap={{ scale: 0.9 }}
+              animate={micStatus === 'speaking' ? { scale: [1, 1.08, 1], transition: { repeat: Infinity, duration: 1.2 } } : {}}
+              onClick={onMicClick}
+              className={`w-24 h-24 rounded-full flex items-center justify-center shadow-2xl transition-all ${
+                micStatus === 'muted' ? 'bg-slate-700 text-slate-400' :
+                micStatus === 'speaking' ? 'bg-red-500 text-white' :
+                isAssistantTyping ? 'bg-white/10 text-white/20' :
+                'bg-white text-slate-900'
+              }`}
+            >
+              {micStatus === 'muted' ? <MicOff size={40} /> : <Mic size={40} />}
+            </motion.button>
+            {isSpeaking && (
+              <motion.button
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={onStopSpeaking}
+                className="absolute left-full top-1/2 -translate-y-1/2 ml-4 w-16 h-16 rounded-full flex items-center justify-center bg-red-500/20 text-red-400 border border-red-500/30 shadow-lg shadow-red-500/10 transition-all hover:bg-red-500/30"
+              >
+                <Square size={24} fill="currentColor" />
+              </motion.button>
+            )}
+          </div>
         </div>
       </div>
     </motion.div>

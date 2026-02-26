@@ -191,5 +191,11 @@ export const useAssistant = (sessionId: string) => {
 
   const getAnalyserNode = useCallback(() => clientRef.current?.getAnalyserNode() ?? null, []);
 
-  return { messages, mode, isAssistantTyping, isSpeaking, isUserSpeaking, isMuted, connectionStatus, sendMessage, toggleMode, toggleMute, getAnalyserNode };
+  const stopSpeaking = useCallback(() => {
+    clientRef.current?.stopSpeaking();
+    setIsSpeaking(false);
+    setIsAssistantTyping(false);
+  }, []);
+
+  return { messages, mode, isAssistantTyping, isSpeaking, isUserSpeaking, isMuted, connectionStatus, sendMessage, toggleMode, toggleMute, getAnalyserNode, stopSpeaking };
 };

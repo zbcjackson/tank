@@ -19,7 +19,8 @@ function App() {
         toggleMode,
         toggleMute,
         isMuted,
-        getAnalyserNode
+        getAnalyserNode,
+        stopSpeaking
     } = useAssistant(SESSION_ID);
 
     return (
@@ -44,6 +45,8 @@ function App() {
                             isUserSpeaking={isUserSpeaking}
                             isMuted={isMuted}
                             onMicClick={toggleMute}
+                            onStopSpeaking={stopSpeaking}
+                            isSpeaking={isSpeaking}
                             statusText={connectionStatus === 'connected' ? undefined : `Status: ${connectionStatus}`}
                             getAnalyserNode={getAnalyserNode}
                         />
@@ -51,7 +54,9 @@ function App() {
                         <ChatMode
                             messages={messages}
                             isAssistantTyping={isAssistantTyping}
+                            isSpeaking={isSpeaking}
                             onSendMessage={sendMessage}
+                            onStopSpeaking={stopSpeaking}
                         />
                     )}
                 </AnimatePresence>

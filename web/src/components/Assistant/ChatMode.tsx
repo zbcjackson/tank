@@ -1,16 +1,18 @@
 import React, { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { User, Cpu, MessageSquare, Mic, Send } from 'lucide-react';
+import { User, Cpu, MessageSquare, Mic, Send, Square } from 'lucide-react';
 import { MessageStep } from './MessageStep';
 import type { ChatMessage } from '../../hooks/useAssistant';
 
 interface ChatModeProps {
   messages: ChatMessage[];
   isAssistantTyping: boolean;
+  isSpeaking: boolean;
   onSendMessage: (text: string) => void;
+  onStopSpeaking: () => void;
 }
 
-export const ChatMode = ({ messages, isAssistantTyping, onSendMessage }: ChatModeProps) => {
+export const ChatMode = ({ messages, isAssistantTyping, isSpeaking, onSendMessage, onStopSpeaking }: ChatModeProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -117,14 +119,24 @@ export const ChatMode = ({ messages, isAssistantTyping, onSendMessage }: ChatMod
                 <Mic size={22} className="cursor-pointer hover:text-primary transition-colors" />
             </div>
           </div>
-          <button 
-            type="submit"
-            disabled={isAssistantTyping}
-            className={`bg-primary text-white px-6 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-primary/20 transition-all active:scale-95 ${isAssistantTyping ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:bg-primary/90'}`}
-          >
-            <Send size={20} />
-            <span>发送</span>
-          </button>
+          {(isAssistantTyping || isSpeaking) ? (
+            <button
+              type="button"
+              onClick={onStopSpeaking}
+              className="bg-red-500 text-white px-6 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-red-500/20 transition-all active:scale-95 hover:bg-red-600"
+            >
+              <Square size={18} fill="currentColor" />
+              <span>停止</span>
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="bg-primary text-white px-6 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-primary/20 transition-all active:scale-95 hover:bg-primary/90"
+            >
+              <Send size={20} />
+              <span>发送</span>
+            </button>
+          )}
         </form>
       </div>
     </motion.div>

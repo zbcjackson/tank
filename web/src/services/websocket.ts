@@ -128,6 +128,30 @@ export class VoiceAssistantClient {
     }
   }
 
+  stopSpeaking() {
+    // Send interrupt signal to backend to stop TTS/LLM
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.socket.send(JSON.stringify({ type: 'signal', content: 'interrupt', metadata: {} }));
+    }
+
+    // Clear local audio playback by closing and nulling the AudioContext
+    // Scheduled BufferSource nodes can't be cancelled individually,
+    // so closing the context is the cleanest way to silence everything.
+    if (this.audioContext) {
+      this.audioContext.close();
+      this.audioContext = null;
+      this.analyserNode = null;
+      this.nextStartTime = 0;
+    }
+
+    // Reset speaking state
+    if (this.speakingTimer) {
+      clearTimeout(this.speakingTimer);
+      this.speakingTimer = null;
+    }
+    this.onSpeakingChange?.(false);
+  }
+
   disconnect() {
     if (this.socket) {
       const socket = this.socket;
