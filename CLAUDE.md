@@ -50,3 +50,14 @@ Then read the docs for the sub-project(s) you are working on:
 - Follow TDD: write tests before implementing logic
 - Each sub-project has its own virtualenv/node_modules — run commands from within the sub-project directory
 - The backend must be running before starting the CLI or web client
+
+## Verification Checklist (MANDATORY)
+
+Run ALL of these every time you finish a task. Do not skip any step.
+
+1. `cd web && pnpm lint` — ESLint
+2. `cd web && npx tsc --noEmit` — TypeScript type checking
+3. `cd backend && uv run pytest` — Backend unit tests (69 tests)
+4. `cd test && pnpm test` — E2E cucumber tests (8 scenarios, requires backend + frontend running)
+
+All four must pass before considering work complete.
