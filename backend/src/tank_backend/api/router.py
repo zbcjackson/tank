@@ -106,6 +106,21 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         if msg.update_type.name != 'TEXT':
                             ws_msg.type = MessageType.UPDATE
                             ws_msg.metadata["update_type"] = str(msg.update_type)
+
+                        # Compute and add step_id for all messages (Phase 1: backwards compatible)
+                        if msg.msg_id:
+                            turn = msg.metadata.get("turn", 0)
+                            update_type_name = msg.update_type.name.lower()
+
+                            # Base step_id: msg_id + type + turn
+                            step_id = f"{msg.msg_id}_{update_type_name}_{turn}"
+
+                            # For tool steps, append index
+                            if msg.update_type.name in ('TOOL_CALL', 'TOOL_RESULT'):
+                                index = msg.metadata.get("index", 0)
+                                step_id += f"_{index}"
+
+                            ws_msg.metadata["step_id"] = step_id
                     else:
                         logger.warning(f"Unknown message type: {type(msg)}")
                         continue

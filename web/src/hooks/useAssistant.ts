@@ -64,10 +64,13 @@ export const useAssistant = (sessionId: string) => {
 
     if (msg.type === 'transcript') activityType = 'text';
 
-    // Unique ID including TURN to allow multiple separate thinking/text phases
-    let stepId = `${msgId}_${activityType}_${turn}`;
-    if (activityType === 'tool') {
-        stepId += `_${msg.metadata?.index || 0}`;
+    // Use step_id from server if available (Phase 1), otherwise compute (backwards compat)
+    let stepId = msg.metadata?.step_id as string | undefined;
+    if (!stepId) {
+        stepId = `${msgId}_${activityType}_${turn}`;
+        if (activityType === 'tool') {
+            stepId += `_${msg.metadata?.index || 0}`;
+        }
     }
 
     setMessages(prev => {
