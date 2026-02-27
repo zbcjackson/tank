@@ -9,7 +9,7 @@ const SESSION_ID = Math.random().toString(36).substring(7);
 
 function App() {
     const {
-        messages,
+        steps,
         mode,
         isAssistantTyping,
         isSpeaking,
@@ -61,7 +61,7 @@ function App() {
                         />
                     ) : (
                         <ChatMode
-                            messages={messages}
+                            messages={steps}
                             isAssistantTyping={isAssistantTyping}
                             isSpeaking={isSpeaking}
                             onSendMessage={sendMessage}

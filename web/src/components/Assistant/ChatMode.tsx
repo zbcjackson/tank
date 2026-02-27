@@ -2,10 +2,10 @@ import React, { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { User, Cpu, MessageSquare, Mic, Send, Square } from 'lucide-react';
 import { MessageStep } from './MessageStep';
-import type { ChatMessage } from '../../hooks/useAssistant';
+import type { Step } from '../../types/message';
 
 interface ChatModeProps {
-  messages: ChatMessage[];
+  messages: Step[];
   isAssistantTyping: boolean;
   isSpeaking: boolean;
   onSendMessage: (text: string) => void;

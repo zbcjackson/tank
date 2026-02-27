@@ -4,24 +4,10 @@ import { WeatherCard } from './WeatherCard';
 import type { WeatherData } from './WeatherCard';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-
-export type StepType = 'thinking' | 'tool' | 'text' | 'weather';
-
-interface ToolContent {
-  name: string;
-  arguments: string;
-  status: string;
-  result?: string;
-}
-
-export interface Step {
-  id: string;
-  type: StepType;
-  content: string | ToolContent | WeatherData;
-}
+import type { Step, ToolContent } from '../../types/message';
 
 interface MessageStepProps {
-  step: Step;
+  step: Pick<Step, 'id' | 'type' | 'content'>;
   role: 'user' | 'assistant';
 }
 

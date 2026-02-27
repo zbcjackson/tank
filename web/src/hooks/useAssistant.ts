@@ -1,35 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { VoiceAssistantClient } from '../services/websocket';
 import type { WebsocketMessage } from '../services/websocket';
 import { AudioProcessor, type CalibrationState } from '../services/audio';
+import type { Step, StepType, ToolContent, Message } from '../types/message';
 
-export type StepType = 'thinking' | 'tool' | 'text' | 'weather';
-
-interface ToolContent {
-  name: string;
-  arguments: string;
-  status: string;
-  result?: string;
-}
-
-interface WeatherData {
-  city: string;
-  temp: string;
-  condition: string;
-  wind: string;
-}
-
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  type: StepType;
-  content: string | ToolContent | WeatherData;
-  msgId: string;
-  isFinal?: boolean;
-}
+export type { Step, StepType, ToolContent, Message };
 
 export const useAssistant = (sessionId: string) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [steps, setSteps] = useState<Step[]>([]);
   const [mode, setMode] = useState<'voice' | 'chat'>('voice');
   const [isAssistantTyping, setIsAssistantTyping] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -73,7 +51,7 @@ export const useAssistant = (sessionId: string) => {
         }
     }
 
-    setMessages(prev => {
+    setSteps(prev => {
       const updated = [...prev];
       const existingIdx = updated.findIndex(m => m.id === stepId);
 
@@ -218,5 +196,20 @@ export const useAssistant = (sessionId: string) => {
     setIsAssistantTyping(false);
   }, []);
 
-  return { messages, mode, isAssistantTyping, isSpeaking, isUserSpeaking, isMuted, connectionStatus, calibrationState, sendMessage, toggleMode, toggleMute, getAnalyserNode, stopSpeaking };
+  // Group flat steps into messages by msgId
+  const messages = useMemo((): Message[] => {
+    const map = new Map<string, Message>();
+    for (const step of steps) {
+      let msg = map.get(step.msgId);
+      if (!msg) {
+        msg = { id: step.msgId, role: step.role, steps: [], isComplete: false };
+        map.set(step.msgId, msg);
+      }
+      msg.steps.push(step);
+      if (step.isFinal) msg.isComplete = true;
+    }
+    return Array.from(map.values());
+  }, [steps]);
+
+  return { steps, messages, mode, isAssistantTyping, isSpeaking, isUserSpeaking, isMuted, connectionStatus, calibrationState, sendMessage, toggleMode, toggleMute, getAnalyserNode, stopSpeaking };
 };
