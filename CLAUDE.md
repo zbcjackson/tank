@@ -58,6 +58,12 @@ Run ALL of these every time you finish a task. Do not skip any step.
 1. `cd web && pnpm lint` — ESLint
 2. `cd web && npx tsc --noEmit` — TypeScript type checking
 3. `cd backend && uv run pytest` — Backend unit tests (69 tests)
-4. `cd test && pnpm test` — E2E cucumber tests (8 scenarios, requires backend + frontend running)
+4. `cd test && pnpm test` — E2E cucumber tests (14 scenarios, requires backend + frontend running)
 
 All four must pass before considering work complete.
+
+## Planning Rules
+
+- Every plan MUST include a "Tests" section — write new E2E or unit tests for any behavior change
+- Every plan MUST include the full Verification Checklist as the final step
+- Do not create new feature files when existing ones cover the same domain — add scenarios to the existing file
