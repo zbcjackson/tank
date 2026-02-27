@@ -98,14 +98,23 @@ class Assistant:
         self.audio_output.start()
         self.brain.start()
 
+    _JOIN_TIMEOUT_S = 5.0
+
     def stop(self):
         """Signal threads to stop, cancel running tasks, and wait for join."""
         self.shutdown_signal.stop()
         self.brain.cancel()
         self.audio_output.cancel()
-        self.audio_input.join()
-        self.audio_output.join()
-        self.brain.join()
+
+        timeout = self._JOIN_TIMEOUT_S
+        for name, subsystem in [
+            ("audio_input", self.audio_input),
+            ("audio_output", self.audio_output),
+            ("brain", self.brain),
+        ]:
+            subsystem.join(timeout=timeout)
+            if hasattr(subsystem, 'is_alive') and subsystem.is_alive():
+                logger.warning("%s did not stop within %.1fs, abandoning", name, timeout)
 
     def process_input(self, text: str):
         """Submit user text input for processing."""

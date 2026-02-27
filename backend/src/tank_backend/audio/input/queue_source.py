@@ -36,7 +36,7 @@ class QueueAudioSource:
         """
         logger.info("QueueAudioSource started")
 
-    def join(self) -> None:
+    def join(self, timeout: float | None = None) -> None:
         """Satisfy the interface."""
         logger.info("QueueAudioSource joined")
 

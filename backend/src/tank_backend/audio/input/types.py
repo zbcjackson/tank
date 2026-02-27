@@ -27,7 +27,7 @@ class AudioSource(Protocol):
         """Start capturing audio."""
         ...
 
-    def join(self) -> None:
+    def join(self, timeout: float | None = None) -> None:
         """Wait for the source to stop."""
         ...
 

@@ -14,7 +14,7 @@ class MockAudioSource(AudioSource):
     def start(self):
         pass
 
-    def join(self):
+    def join(self, timeout=None):
         pass
 
 
@@ -23,7 +23,7 @@ class MockAudioSink(AudioSink):
     def start(self):
         pass
 
-    def join(self):
+    def join(self, timeout=None):
         pass
 
 

@@ -94,9 +94,9 @@ class AudioOutput:
         self._tts_worker.start()
         self._sink.start()
 
-    def join(self) -> None:
+    def join(self, timeout: float | None = None) -> None:
         """Wait for both threads to finish."""
 
-        self._tts_worker.join()
-        self._sink.join()
+        self._tts_worker.join(timeout=timeout)
+        self._sink.join(timeout=timeout)
 

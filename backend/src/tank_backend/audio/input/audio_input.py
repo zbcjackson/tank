@@ -74,7 +74,7 @@ class AudioInput:
         self._source.start()
         self._perception.start()
 
-    def join(self) -> None:
+    def join(self, timeout: float | None = None) -> None:
         """Wait for threads to finish."""
-        self._source.join()
-        self._perception.join()
+        self._source.join(timeout=timeout)
+        self._perception.join(timeout=timeout)

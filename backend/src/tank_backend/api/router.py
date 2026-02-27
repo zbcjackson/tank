@@ -26,21 +26,24 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await websocket.accept()
     logger.info(f"WebSocket connected: {session_id}")
 
-    # Local queues and state for this connection
-    # We'll bridge the Assistant's internal queues to this WebSocket
-    
+    # Guard flag: set to False before cleanup to prevent sends on dead socket
+    ws_connected = True
+
     def source_factory(q, stop_sig):
         return QueueAudioSource(q)
 
     def sink_factory(q, stop_sig):
         async def on_chunk_async(chunk: AudioChunk):
+            if not ws_connected:
+                return
             try:
-                # Send binary audio chunk directly
                 await websocket.send_bytes(chunk.data)
             except Exception as e:
-                logger.error(f"Error sending audio chunk: {e}")
+                logger.debug(f"Error sending audio chunk: {e}")
 
         async def on_stream_end_async():
+            if not ws_connected:
+                return
             try:
                 msg = WebsocketMessage(
                     type=MessageType.SIGNAL,
@@ -49,18 +52,17 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 await websocket.send_text(msg.model_dump_json())
             except Exception as e:
-                logger.error(f"Error sending tts_ended signal: {e}")
-
-        # Bridge: CallbackAudioSink's thread calls this callback
-        # Since WebSocket send is async, we need to bridge it to the sink's thread.
-        # However, CallbackAudioSink expects a synchronous callback.
-        # We can use the loop's call_soon_threadsafe or a wrapper.
+                logger.debug(f"Error sending tts_ended signal: {e}")
 
         loop = asyncio.get_event_loop()
         def on_chunk_sync(chunk: AudioChunk):
+            if not ws_connected:
+                return
             asyncio.run_coroutine_threadsafe(on_chunk_async(chunk), loop)
 
         def on_stream_end_sync():
+            if not ws_connected:
+                return
             asyncio.run_coroutine_threadsafe(on_stream_end_async(), loop)
 
         return CallbackAudioSink(
@@ -181,5 +183,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     except Exception as e:
         logger.error(f"WebSocket error in {session_id}: {e}", exc_info=True)
     finally:
+        ws_connected = False
         display_task.cancel()
+        try:
+            await display_task
+        except asyncio.CancelledError:
+            pass
         await asyncio.to_thread(session_manager.close_session, session_id)

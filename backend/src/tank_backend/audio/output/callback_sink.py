@@ -52,8 +52,8 @@ class CallbackAudioSink:
             except Exception as e:
                 logger.error(f"Error in CallbackAudioSink: {e}")
 
-    def join(self) -> None:
+    def join(self, timeout: float | None = None) -> None:
         """Wait for the thread to finish."""
         if self._thread:
-            self._thread.join()
+            self._thread.join(timeout=timeout)
         logger.info("CallbackAudioSink joined")

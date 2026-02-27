@@ -182,6 +182,9 @@ class Brain(QueueWorker[BrainInputEvent]):
             )
             try:
                 async for update_type, content, metadata in gen:
+                    # Exit cleanly on shutdown
+                    if self._stop_signal.is_set():
+                        return
                     # Check for interruption
                     if self._config.speech_interrupt_enabled and self._runtime.interrupt_event.is_set():
                         raise BrainInterrupted()
