@@ -2,11 +2,14 @@ export type MessageType = "signal" | "transcript" | "text" | "update" | "input";
 
 export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
 
+export type ErrorType = 'network' | 'server' | 'timeout' | 'unknown';
+
 export interface ConnectionMetadata {
   attempt?: number;
   maxAttempts?: number;
   nextRetryIn?: number; // milliseconds
   error?: string;
+  errorType?: ErrorType;
 }
 
 export interface WebsocketMessage {
@@ -36,10 +39,13 @@ export class VoiceAssistantClient {
   private readonly baseReconnectDelay: number = 1000; // 1s
   private readonly maxReconnectDelay: number = 30000; // 30s
   private readonly reconnectMultiplier: number = 1.5;
+  private readonly connectionTimeout: number = 10000; // 10s
   private shouldReconnect: boolean = true;
   private onConnectionStateChange?: (state: ConnectionState, metadata?: ConnectionMetadata) => void;
   private onMessageCallback?: (msg: WebsocketMessage) => void;
   private onOpenCallback?: () => void;
+  private connectionTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastError: { type: ErrorType; message: string } | null = null;
 
   constructor(sessionId: string, baseUrl: string = "localhost:8000") {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -70,9 +76,14 @@ export class VoiceAssistantClient {
     this.socket = new WebSocket(this.url);
     this.socket.binaryType = "arraybuffer";
 
+    // Set connection timeout
+    this.startConnectionTimeout();
+
     this.socket.onopen = () => {
       console.log("WebSocket connected");
+      this.clearConnectionTimeout();
       this.reconnectAttempts = 0; // Reset counter on successful connection
+      this.lastError = null; // Clear last error
       this.updateConnectionState('connected');
       this.onOpenCallback?.();
     };
@@ -89,19 +100,29 @@ export class VoiceAssistantClient {
 
     this.socket.onclose = (event) => {
       console.log("WebSocket disconnected", event.code, event.reason);
+      this.clearConnectionTimeout();
+
+      // Detect error type from close code
+      const errorInfo = this.detectErrorType(event);
+      this.lastError = errorInfo;
 
       // Only reconnect if it wasn't an intentional disconnect
       if (this.shouldReconnect && this.connectionState !== 'failed') {
-        this.scheduleReconnect();
+        this.scheduleReconnect(errorInfo);
       }
     };
 
     this.socket.onerror = (error) => {
       console.error("WebSocket error:", error);
+      this.clearConnectionTimeout();
+
+      // Network error
+      const errorInfo = { type: 'network' as ErrorType, message: 'Network connection failed' };
+      this.lastError = errorInfo;
 
       // Trigger reconnection on error
       if (this.shouldReconnect && this.connectionState !== 'failed') {
-        this.scheduleReconnect();
+        this.scheduleReconnect(errorInfo);
       }
     };
   }
@@ -205,6 +226,81 @@ export class VoiceAssistantClient {
     this.onSpeakingChange?.(false);
   }
 
+  private startConnectionTimeout() {
+    this.clearConnectionTimeout();
+    this.connectionTimeoutTimer = setTimeout(() => {
+      console.warn(`Connection timeout after ${this.connectionTimeout}ms`);
+
+      // Close the socket if still connecting
+      if (this.socket?.readyState === WebSocket.CONNECTING) {
+        this.socket.close();
+      }
+
+      const errorInfo = { type: 'timeout' as ErrorType, message: 'Connection timeout' };
+      this.lastError = errorInfo;
+
+      // Trigger reconnection
+      if (this.shouldReconnect && this.connectionState !== 'failed') {
+        this.scheduleReconnect(errorInfo);
+      }
+    }, this.connectionTimeout);
+  }
+
+  private clearConnectionTimeout() {
+    if (this.connectionTimeoutTimer) {
+      clearTimeout(this.connectionTimeoutTimer);
+      this.connectionTimeoutTimer = null;
+    }
+  }
+
+  private detectErrorType(event: CloseEvent): { type: ErrorType; message: string } {
+    // WebSocket close codes: https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent/code
+    const code = event.code;
+    const reason = event.reason || '';
+
+    // Normal closure
+    if (code === 1000) {
+      return { type: 'unknown', message: 'Connection closed normally' };
+    }
+
+    // Server errors (1001-1015)
+    if (code >= 1001 && code <= 1015) {
+      if (code === 1001) return { type: 'server', message: 'Server is shutting down' };
+      if (code === 1002) return { type: 'server', message: 'Protocol error' };
+      if (code === 1003) return { type: 'server', message: 'Unsupported data type' };
+      if (code === 1006) return { type: 'network', message: 'Connection lost abnormally' };
+      if (code === 1007) return { type: 'server', message: 'Invalid message data' };
+      if (code === 1008) return { type: 'server', message: 'Policy violation' };
+      if (code === 1009) return { type: 'server', message: 'Message too large' };
+      if (code === 1011) return { type: 'server', message: 'Server error' };
+      if (code === 1012) return { type: 'server', message: 'Service restart' };
+      if (code === 1013) return { type: 'server', message: 'Service overload' };
+      if (code === 1014) return { type: 'server', message: 'Bad gateway' };
+      if (code === 1015) return { type: 'network', message: 'TLS handshake failed' };
+    }
+
+    // Custom application codes (4000-4999)
+    if (code >= 4000 && code <= 4999) {
+      return { type: 'server', message: reason || 'Application error' };
+    }
+
+    // Network/unknown errors
+    return { type: 'network', message: reason || 'Connection failed' };
+  }
+
+  private getErrorMessage(errorInfo: { type: ErrorType; message: string }): string {
+    switch (errorInfo.type) {
+      case 'network':
+        return '网络连接失败，请检查网络设置';
+      case 'server':
+        return `服务器错误: ${errorInfo.message}`;
+      case 'timeout':
+        return '连接超时，请稍后重试';
+      default:
+        return errorInfo.message || '连接失败';
+    }
+  }
+
   private updateConnectionState(state: ConnectionState, metadata?: ConnectionMetadata) {
     this.connectionState = state;
     this.onConnectionStateChange?.(state, metadata);
@@ -215,7 +311,7 @@ export class VoiceAssistantClient {
     return Math.min(delay, this.maxReconnectDelay);
   }
 
-  private scheduleReconnect() {
+  private scheduleReconnect(errorInfo?: { type: ErrorType; message: string }) {
     // Clear any existing timer
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -224,10 +320,12 @@ export class VoiceAssistantClient {
 
     // Check if we've exceeded max attempts
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      const error = errorInfo || this.lastError;
       this.updateConnectionState('failed', {
         attempt: this.reconnectAttempts,
         maxAttempts: this.maxReconnectAttempts,
-        error: 'Max reconnection attempts exceeded'
+        error: error ? this.getErrorMessage(error) : '达到最大重连次数',
+        errorType: error?.type || 'unknown'
       });
       return;
     }
@@ -235,10 +333,13 @@ export class VoiceAssistantClient {
     const delay = this.calculateBackoffDelay(this.reconnectAttempts);
     this.reconnectAttempts++;
 
+    const error = errorInfo || this.lastError;
     this.updateConnectionState('reconnecting', {
       attempt: this.reconnectAttempts,
       maxAttempts: this.maxReconnectAttempts,
-      nextRetryIn: delay
+      nextRetryIn: delay,
+      error: error ? this.getErrorMessage(error) : undefined,
+      errorType: error?.type || 'unknown'
     });
 
     console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
@@ -254,12 +355,14 @@ export class VoiceAssistantClient {
     console.log("Manual reconnect triggered");
     this.reconnectAttempts = 0;
     this.shouldReconnect = true;
+    this.lastError = null; // Clear last error on manual reconnect
 
-    // Clear any existing timer
+    // Clear any existing timers
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this.clearConnectionTimeout();
 
     // Close existing socket if any
     if (this.socket) {
@@ -278,10 +381,13 @@ export class VoiceAssistantClient {
 
   getConnectionMetadata(): ConnectionMetadata {
     if (this.connectionState === 'reconnecting' || this.connectionState === 'failed') {
+      const error = this.lastError;
       return {
         attempt: this.reconnectAttempts,
         maxAttempts: this.maxReconnectAttempts,
-        nextRetryIn: this.reconnectTimer ? this.calculateBackoffDelay(this.reconnectAttempts - 1) : undefined
+        nextRetryIn: this.reconnectTimer ? this.calculateBackoffDelay(this.reconnectAttempts - 1) : undefined,
+        error: error ? this.getErrorMessage(error) : undefined,
+        errorType: error?.type || 'unknown'
       };
     }
     return {};
@@ -290,11 +396,12 @@ export class VoiceAssistantClient {
   disconnect() {
     this.shouldReconnect = false; // Prevent auto-reconnect
 
-    // Clear reconnect timer
+    // Clear all timers
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this.clearConnectionTimeout();
 
     if (this.socket) {
       const socket = this.socket;

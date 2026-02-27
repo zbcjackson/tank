@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
-import { WifiOff, RefreshCw, RotateCw } from 'lucide-react';
+import { WifiOff, RefreshCw, RotateCw, AlertCircle, Clock } from 'lucide-react';
 import type { ConnectionState, ConnectionMetadata } from '../../services/websocket';
 
 interface Props {
@@ -42,6 +42,37 @@ export const ConnectionStatusOverlay = ({ state, metadata, onReconnect }: Props)
     return null;
   }
 
+  // Get icon based on error type
+  const getIcon = () => {
+    if (state === 'failed') {
+      return <WifiOff className="w-6 h-6 text-red-400" />;
+    }
+
+    if (metadata.errorType === 'timeout') {
+      return (
+        <motion.div
+          animate={{ scale: [1, 1.1, 1] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        >
+          <Clock className="w-6 h-6 text-yellow-400" />
+        </motion.div>
+      );
+    }
+
+    if (metadata.errorType === 'server') {
+      return <AlertCircle className="w-6 h-6 text-orange-400" />;
+    }
+
+    return (
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+      >
+        <RefreshCw className="w-6 h-6 text-blue-400" />
+      </motion.div>
+    );
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -51,26 +82,22 @@ export const ConnectionStatusOverlay = ({ state, metadata, onReconnect }: Props)
     >
       <div className="flex items-start gap-4">
         <div className="flex-shrink-0">
-          {state === 'reconnecting' ? (
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-            >
-              <RefreshCw className="w-6 h-6 text-blue-400" />
-            </motion.div>
-          ) : (
-            <WifiOff className="w-6 h-6 text-red-400" />
-          )}
+          {getIcon()}
         </div>
 
         <div className="flex-1">
           {state === 'reconnecting' && (
             <>
               <h3 className="text-white font-semibold mb-1">正在重新连接...</h3>
-              <p className="text-slate-400 text-sm mb-3">
+              <p className="text-slate-400 text-sm mb-1">
                 尝试 {metadata.attempt}/{metadata.maxAttempts}
                 {countdown > 0 && ` · ${countdown}秒后重试`}
               </p>
+              {metadata.error && (
+                <p className="text-slate-500 text-xs mb-3">
+                  {metadata.error}
+                </p>
+              )}
               <button
                 onClick={onReconnect}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
