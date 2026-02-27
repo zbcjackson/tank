@@ -92,8 +92,8 @@ class LLM:
                                 if tc_delta.function.arguments:
                                     tool_calls_data[idx]["arguments"] += tc_delta.function.arguments
 
-                            # Yield partial tool call info for UI
-                            yield UpdateType.TOOL_CALL, "", {
+                            # Yield unified tool step update for UI
+                            yield UpdateType.TOOL, "", {
                                 "index": idx,
                                 "name": tool_calls_data[idx]["name"],
                                 "arguments": tool_calls_data[idx]["arguments"],
@@ -131,7 +131,7 @@ class LLM:
                     tc = tool_calls_data[idx]
                     try:
                         # Yield status update
-                        yield UpdateType.TOOL_CALL, "", {
+                        yield UpdateType.TOOL, "", {
                             "index": idx,
                             "name": tc["name"],
                             "arguments": tc["arguments"],
@@ -154,7 +154,7 @@ class LLM:
                         result_str = str(result)
                         summary = (result_str[:200] + "...") if len(result_str) > 200 else result_str
                         
-                        yield UpdateType.TOOL_RESULT, summary, {
+                        yield UpdateType.TOOL, summary, {
                             "index": idx,
                             "name": tc["name"],
                             "status": "success",
@@ -168,7 +168,7 @@ class LLM:
                             "content": result_str
                         })
                     except Exception as e:
-                        yield UpdateType.TOOL_RESULT, f"Error: {str(e)}", {
+                        yield UpdateType.TOOL, f"Error: {str(e)}", {
                             "index": idx,
                             "name": tc["name"],
                             "status": "error",

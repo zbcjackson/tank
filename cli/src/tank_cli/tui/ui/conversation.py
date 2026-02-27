@@ -63,15 +63,18 @@ class AssistantMessageBlock(Vertical):
         yield Static("[bold blue]Tank:[/bold blue]", classes="assistant-header")
 
     def update_from_message(self, msg: DisplayMessage):
-        # Get step_id from metadata (Phase 1: server-provided)
+        # Get step_id from metadata (server-provided)
         step_id = msg.metadata.get("step_id")
 
         # Fallback: compute step_id if not provided (backwards compat)
         if not step_id:
             turn = msg.metadata.get("turn", 0)
             update_type_name = msg.update_type.name.lower()
-            step_id = f"{msg.msg_id}_{update_type_name}_{turn}"
-            if msg.update_type in (UpdateType.TOOL_CALL, UpdateType.TOOL_RESULT):
+            step_type = update_type_name
+            if step_type in ('tool_call', 'tool_result'):
+                step_type = 'tool'
+            step_id = f"{msg.msg_id}_{step_type}_{turn}"
+            if msg.update_type in (UpdateType.TOOL_CALL, UpdateType.TOOL_RESULT, UpdateType.TOOL):
                 index = msg.metadata.get("index", 0)
                 step_id += f"_{index}"
 
@@ -90,37 +93,32 @@ class AssistantMessageBlock(Vertical):
                 if step_id in self.step_widgets:
                     self.step_widgets[step_id].update(f"💭 {self.current_thought_accumulated}")
 
-        elif msg.update_type == UpdateType.TOOL_CALL:
+        elif msg.update_type in (UpdateType.TOOL_CALL, UpdateType.TOOL, UpdateType.TOOL_RESULT):
             name = msg.metadata.get("name", "")
             args = msg.metadata.get("arguments", "")
             status = msg.metadata.get("status", "calling")
-            content = f"🛠️ {status.capitalize()}: {name}({args[:50]}...)"
+            result = msg.text
 
-            # Update existing tool widget if it exists (same step_id)
-            if step_id in self.step_widgets:
-                self.step_widgets[step_id].update(content)
+            # Determine display based on status
+            if status in ("success", "error"):
+                summary = f"✅ Result [{name}]: {result[:200]}" if status == "success" else f"❌ Error [{name}]: {result[:200]}"
+                css_class = "tool-result-entry"
             else:
-                new_tool = Static(content, classes="tool-entry")
+                content = f"🛠️ {status.capitalize()}: {name}({args[:50]}...)"
+                summary = content
+                css_class = "tool-entry"
+
+            if step_id in self.step_widgets:
+                self.step_widgets[step_id].update(summary)
+                # Swap CSS class when transitioning to result
+                if status in ("success", "error"):
+                    self.step_widgets[step_id].remove_class("tool-entry")
+                    self.step_widgets[step_id].add_class("tool-result-entry")
+            else:
+                new_tool = Static(summary, classes=css_class)
                 self.mount(new_tool)
                 self.last_widget = new_tool
                 self.step_widgets[step_id] = new_tool
-
-        elif msg.update_type == UpdateType.TOOL_RESULT:
-            name = msg.metadata.get("name", "")
-            result = msg.text
-            summary = f"✅ Result [{name}]: {result[:200]}"
-
-            # Update the existing tool widget with result (same step_id as TOOL_CALL)
-            if step_id in self.step_widgets:
-                self.step_widgets[step_id].update(summary)
-                self.step_widgets[step_id].remove_class("tool-entry")
-                self.step_widgets[step_id].add_class("tool-result-entry")
-            else:
-                # Fallback: create new result widget if tool call widget not found
-                new_result = Static(summary, classes="tool-result-entry")
-                self.mount(new_result)
-                self.last_widget = new_result
-                self.step_widgets[step_id] = new_result
 
         elif msg.update_type == UpdateType.TEXT:
             if is_new_step:
@@ -201,9 +199,11 @@ class ConversationArea(Container):
             if "THOUGHT" in raw:
                 update_type = UpdateType.THOUGHT
             elif "TOOL_CALL" in raw:
-                update_type = UpdateType.TOOL_CALL
+                update_type = UpdateType.TOOL
             elif "TOOL_RESULT" in raw:
-                update_type = UpdateType.TOOL_RESULT
+                update_type = UpdateType.TOOL
+            elif raw.endswith("TOOL"):
+                update_type = UpdateType.TOOL
 
         display_msg = DisplayMessage(
             speaker="You" if msg.is_user else "Tank",

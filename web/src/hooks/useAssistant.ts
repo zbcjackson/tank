@@ -59,7 +59,7 @@ export const useAssistant = (sessionId: string) => {
 
     let activityType: StepType = 'text';
     if (metadataType === 'THOUGHT') activityType = 'thinking';
-    else if (metadataType === 'TOOL_CALL' || metadataType === 'TOOL_RESULT') activityType = 'tool';
+    else if (metadataType === 'TOOL_CALL' || metadataType === 'TOOL_RESULT' || metadataType === 'TOOL') activityType = 'tool';
     else activityType = 'text';
 
     if (msg.type === 'transcript') activityType = 'text';
@@ -104,11 +104,13 @@ export const useAssistant = (sessionId: string) => {
 
       // --- TOOL ACTIVITIES ---
       if (activityType === 'tool') {
+        const status = (msg.metadata?.status as string) || 'calling';
+        const hasResult = status === 'success' || status === 'error';
         const toolData: ToolContent = {
           name: (msg.metadata?.name as string) || '',
           arguments: (msg.metadata?.arguments as string) || '',
-          status: (msg.metadata?.status as string) || 'calling',
-          result: metadataType === 'TOOL_RESULT' ? msg.content : undefined
+          status,
+          result: hasResult ? msg.content : undefined
         };
 
         if (existingIdx > -1) {
@@ -125,7 +127,7 @@ export const useAssistant = (sessionId: string) => {
           };
           
           // Weather Card
-          if (metadataType === 'TOOL_RESULT' && (toolData.name === 'get_weather' || toolData.name === 'weather')) {
+          if (hasResult && (toolData.name === 'get_weather' || toolData.name === 'weather')) {
              const weatherId = `${msgId}_weather_${turn}_${msg.metadata?.index || 0}`;
              if (!updated.some(m => m.id === weatherId)) {
                 try {
