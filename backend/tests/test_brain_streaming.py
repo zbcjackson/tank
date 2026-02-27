@@ -17,8 +17,8 @@ def mock_llm():
     # chat_stream needs to return an async generator
     async def async_gen(*args, **kwargs):
         yield UpdateType.THOUGHT, "Thinking...", {}
-        yield UpdateType.TOOL_CALL, "", {"index": 0, "name": "get_weather", "status": "calling"}
-        yield UpdateType.TOOL_RESULT, "Sunny", {"index": 0, "name": "get_weather", "status": "success"}
+        yield UpdateType.TOOL, "", {"index": 0, "name": "get_weather", "status": "calling"}
+        yield UpdateType.TOOL, "Sunny", {"index": 0, "name": "get_weather", "status": "success"}
         yield UpdateType.TEXT, "The weather is sunny.", {}
     
     llm.chat_stream.return_value = async_gen()
@@ -62,8 +62,7 @@ def test_brain_streaming_full_flow(brain, runtime, mock_llm):
     # 2. Assistant messages (filter out SignalMessage)
     assistant_msgs = [m for m in messages if isinstance(m, DisplayMessage) and not m.is_user]
     assert any(m.update_type == UpdateType.THOUGHT for m in assistant_msgs)
-    assert any(m.update_type == UpdateType.TOOL_CALL for m in assistant_msgs)
-    assert any(m.update_type == UpdateType.TOOL_RESULT for m in assistant_msgs)
+    assert any(m.update_type == UpdateType.TOOL for m in assistant_msgs)
     assert any(m.update_type == UpdateType.TEXT and m.text == "The weather is sunny." for m in assistant_msgs)
     
     # 3. Final message

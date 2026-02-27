@@ -110,18 +110,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         # Compute and add step_id for all messages
                         if msg.msg_id:
                             turn = msg.metadata.get("turn", 0)
-                            update_type_name = msg.update_type.name.lower()
+                            step_type = msg.update_type.name.lower()
 
-                            # Unified TOOL type uses "tool" prefix
-                            step_type = update_type_name
-                            if step_type in ('tool_call', 'tool_result'):
-                                step_type = 'tool'
-
-                            # Base step_id: msg_id + type + turn
                             step_id = f"{msg.msg_id}_{step_type}_{turn}"
 
-                            # For tool steps, append index
-                            if msg.update_type.name in ('TOOL_CALL', 'TOOL_RESULT', 'TOOL'):
+                            if msg.update_type == UpdateType.TOOL:
                                 index = msg.metadata.get("index", 0)
                                 step_id += f"_{index}"
 

@@ -22,8 +22,6 @@ class InputType(Enum):
 class UpdateType(Enum):
     """Types of updates for a streaming message."""
     THOUGHT = auto()     # Thinking process
-    TOOL_CALL = auto()   # Tool call started/parameter update (deprecated, use TOOL)
-    TOOL_RESULT = auto() # Tool execution result (deprecated, use TOOL)
     TEXT = auto()        # Final response text
     TOOL = auto()        # Unified tool step: calling → executing → success/error
 

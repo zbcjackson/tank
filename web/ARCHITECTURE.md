@@ -50,7 +50,8 @@ Root component. Generates a random `SESSION_ID`, calls `useAssistant`, and rende
 ### `useAssistant` hook (`hooks/useAssistant.ts`)
 
 The central state manager. Owns:
-- `messages: ChatMessage[]` — conversation history
+- `steps: Step[]` — flat list of conversation steps (streaming-friendly)
+- `messages: Message[]` — grouped by `msgId` via `useMemo` (1 message → N steps)
 - `mode: 'voice' | 'chat'` — current UI mode
 - `connectionStatus` — `connecting | connected | error | disconnected`
 - `isAssistantTyping` / `isSpeaking` — UI state flags
@@ -61,7 +62,7 @@ Message handling logic:
 - `signal` messages update connection/typing state
 - `transcript` messages create user text entries
 - `update` messages with `THOUGHT` metadata → thinking steps
-- `update` messages with `TOOL_CALL/TOOL_RESULT` → tool steps
+- `update` messages with `TOOL` metadata → tool steps (status: calling → executing → success/error)
 - `text` messages → assistant text (streamed, appended by `msg_id + turn`)
 - Weather tool results generate an additional `WeatherCard` entry
 
@@ -106,17 +107,26 @@ Handles microphone capture in the browser.
 ## State Model
 
 ```typescript
-interface ChatMessage {
-  id: string;        // stepId = `${msgId}_${type}_${turn}[_index]`
+// Flat step — the streaming-friendly unit of state
+interface Step {
+  id: string;        // step_id from server: `${msgId}_${type}_${turn}[_index]`
   role: 'user' | 'assistant';
   type: 'text' | 'thinking' | 'tool' | 'weather';
-  content: any;      // string for text/thinking, object for tool/weather
+  content: string | ToolContent | WeatherData;
   msgId: string;
   isFinal?: boolean;
 }
+
+// Grouped message — computed via useMemo at render time
+interface Message {
+  id: string;        // msgId
+  role: 'user' | 'assistant';
+  steps: Step[];
+  isComplete: boolean;
+}
 ```
 
-Streaming text/thinking messages are updated in-place by matching `id`. Tool messages are upserted by `id`. Weather cards are appended as separate entries.
+Streaming text/thinking steps are updated in-place by matching `id`. Tool steps are upserted by `id`. Weather cards are appended as separate entries. Messages group steps by `msgId`.
 
 ## UI Modes
 

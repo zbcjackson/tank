@@ -66,15 +66,12 @@ class AssistantMessageBlock(Vertical):
         # Get step_id from metadata (server-provided)
         step_id = msg.metadata.get("step_id")
 
-        # Fallback: compute step_id if not provided (backwards compat)
+        # Fallback: compute step_id if not provided
         if not step_id:
             turn = msg.metadata.get("turn", 0)
-            update_type_name = msg.update_type.name.lower()
-            step_type = update_type_name
-            if step_type in ('tool_call', 'tool_result'):
-                step_type = 'tool'
+            step_type = msg.update_type.name.lower()
             step_id = f"{msg.msg_id}_{step_type}_{turn}"
-            if msg.update_type in (UpdateType.TOOL_CALL, UpdateType.TOOL_RESULT, UpdateType.TOOL):
+            if msg.update_type == UpdateType.TOOL:
                 index = msg.metadata.get("index", 0)
                 step_id += f"_{index}"
 
@@ -93,7 +90,7 @@ class AssistantMessageBlock(Vertical):
                 if step_id in self.step_widgets:
                     self.step_widgets[step_id].update(f"💭 {self.current_thought_accumulated}")
 
-        elif msg.update_type in (UpdateType.TOOL_CALL, UpdateType.TOOL, UpdateType.TOOL_RESULT):
+        elif msg.update_type == UpdateType.TOOL:
             name = msg.metadata.get("name", "")
             args = msg.metadata.get("arguments", "")
             status = msg.metadata.get("status", "calling")
@@ -198,11 +195,7 @@ class ConversationArea(Container):
             raw = msg.metadata.get("update_type", "")
             if "THOUGHT" in raw:
                 update_type = UpdateType.THOUGHT
-            elif "TOOL_CALL" in raw:
-                update_type = UpdateType.TOOL
-            elif "TOOL_RESULT" in raw:
-                update_type = UpdateType.TOOL
-            elif raw.endswith("TOOL"):
+            elif "TOOL" in raw:
                 update_type = UpdateType.TOOL
 
         display_msg = DisplayMessage(

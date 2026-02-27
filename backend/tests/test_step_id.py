@@ -6,15 +6,11 @@ from tank_backend.core.events import DisplayMessage, UpdateType
 def _compute_step_id(msg: DisplayMessage) -> str:
     """Replicate the step_id logic from router.py."""
     turn = msg.metadata.get("turn", 0)
-    update_type_name = msg.update_type.name.lower()
-
-    step_type = update_type_name
-    if step_type in ('tool_call', 'tool_result'):
-        step_type = 'tool'
+    step_type = msg.update_type.name.lower()
 
     step_id = f"{msg.msg_id}_{step_type}_{turn}"
 
-    if msg.update_type.name in ('TOOL_CALL', 'TOOL_RESULT', 'TOOL'):
+    if msg.update_type == UpdateType.TOOL:
         index = msg.metadata.get("index", 0)
         step_id += f"_{index}"
 
@@ -39,8 +35,7 @@ def test_step_id_for_thinking_message():
     assert _compute_step_id(msg) == "msg_abc123_thought_1"
 
 
-def test_step_id_for_unified_tool():
-    """Unified TOOL type produces tool step_id."""
+def test_step_id_for_tool():
     msg = DisplayMessage(
         speaker="Brain", text="", is_user=False,
         msg_id="msg_abc123", update_type=UpdateType.TOOL,
@@ -49,55 +44,20 @@ def test_step_id_for_unified_tool():
     assert _compute_step_id(msg) == "msg_abc123_tool_1_0"
 
 
-def test_step_id_for_unified_tool_result():
-    """Unified TOOL with status=success still uses same step_id."""
-    call = DisplayMessage(
-        speaker="Brain", text="", is_user=False,
-        msg_id="msg_abc123", update_type=UpdateType.TOOL,
-        metadata={"turn": 1, "index": 0, "name": "get_weather", "status": "calling"}
-    )
-    result = DisplayMessage(
-        speaker="Brain", text="Sunny, 72°F", is_user=False,
-        msg_id="msg_abc123", update_type=UpdateType.TOOL,
-        metadata={"turn": 1, "index": 0, "name": "get_weather", "status": "success"}
-    )
-    assert _compute_step_id(call) == _compute_step_id(result)
-    assert _compute_step_id(call) == "msg_abc123_tool_1_0"
+def test_tool_status_transitions_share_step_id():
+    """All status transitions for the same tool share one step_id."""
+    base = {"turn": 1, "index": 0, "name": "get_weather"}
+    statuses = ["calling", "executing", "success"]
+    step_ids = []
+    for status in statuses:
+        msg = DisplayMessage(
+            speaker="Brain", text="", is_user=False,
+            msg_id="msg_abc123", update_type=UpdateType.TOOL,
+            metadata={**base, "status": status}
+        )
+        step_ids.append(_compute_step_id(msg))
 
-
-def test_legacy_tool_call_maps_to_tool_step_id():
-    """Legacy TOOL_CALL still produces 'tool' step_id (not 'tool_call')."""
-    msg = DisplayMessage(
-        speaker="Brain", text="", is_user=False,
-        msg_id="msg_abc123", update_type=UpdateType.TOOL_CALL,
-        metadata={"turn": 1, "index": 0, "name": "get_weather"}
-    )
-    assert _compute_step_id(msg) == "msg_abc123_tool_1_0"
-
-
-def test_legacy_tool_result_maps_to_tool_step_id():
-    """Legacy TOOL_RESULT still produces 'tool' step_id (not 'tool_result')."""
-    msg = DisplayMessage(
-        speaker="Brain", text="Sunny", is_user=False,
-        msg_id="msg_abc123", update_type=UpdateType.TOOL_RESULT,
-        metadata={"turn": 1, "index": 0, "name": "get_weather"}
-    )
-    assert _compute_step_id(msg) == "msg_abc123_tool_1_0"
-
-
-def test_legacy_tool_call_and_result_share_step_id():
-    """Legacy TOOL_CALL and TOOL_RESULT now produce the same step_id."""
-    call = DisplayMessage(
-        speaker="Brain", text="", is_user=False,
-        msg_id="msg_abc123", update_type=UpdateType.TOOL_CALL,
-        metadata={"turn": 1, "index": 0}
-    )
-    result = DisplayMessage(
-        speaker="Brain", text="done", is_user=False,
-        msg_id="msg_abc123", update_type=UpdateType.TOOL_RESULT,
-        metadata={"turn": 1, "index": 0}
-    )
-    assert _compute_step_id(call) == _compute_step_id(result)
+    assert all(sid == "msg_abc123_tool_1_0" for sid in step_ids)
 
 
 def test_step_id_for_multiple_turns():
@@ -161,19 +121,3 @@ def test_step_id_defaults_to_index_0_for_tools_when_missing():
         metadata={"turn": 1}
     )
     assert _compute_step_id(msg) == "msg_abc123_tool_1_0"
-
-
-def test_tool_status_transitions_share_step_id():
-    """All status transitions for the same tool share one step_id."""
-    base = {"turn": 1, "index": 0, "name": "get_weather"}
-    statuses = ["calling", "executing", "success"]
-    step_ids = []
-    for status in statuses:
-        msg = DisplayMessage(
-            speaker="Brain", text="", is_user=False,
-            msg_id="msg_abc123", update_type=UpdateType.TOOL,
-            metadata={**base, "status": status}
-        )
-        step_ids.append(_compute_step_id(msg))
-
-    assert all(sid == "msg_abc123_tool_1_0" for sid in step_ids)

@@ -37,19 +37,11 @@ export const useAssistant = (sessionId: string) => {
 
     let activityType: StepType = 'text';
     if (metadataType === 'THOUGHT') activityType = 'thinking';
-    else if (metadataType === 'TOOL_CALL' || metadataType === 'TOOL_RESULT' || metadataType === 'TOOL') activityType = 'tool';
-    else activityType = 'text';
+    else if (metadataType === 'TOOL') activityType = 'tool';
 
     if (msg.type === 'transcript') activityType = 'text';
 
-    // Use step_id from server if available (Phase 1), otherwise compute (backwards compat)
-    let stepId = msg.metadata?.step_id as string | undefined;
-    if (!stepId) {
-        stepId = `${msgId}_${activityType}_${turn}`;
-        if (activityType === 'tool') {
-            stepId += `_${msg.metadata?.index || 0}`;
-        }
-    }
+    const stepId = msg.metadata?.step_id as string;
 
     setSteps(prev => {
       const updated = [...prev];
