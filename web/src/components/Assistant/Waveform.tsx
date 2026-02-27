@@ -13,7 +13,7 @@ interface WaveformProps {
 export const Waveform = ({ active, variant = 'primary', getAnalyserNode }: WaveformProps) => {
   const [liveHeights, setLiveHeights] = useState<number[]>(IDLE_HEIGHTS);
   const rafRef = useRef<number>(0);
-  const dataArrayRef = useRef<Uint8Array | null>(null);
+  const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const getAnalyserRef = useRef(getAnalyserNode);
   useEffect(() => { getAnalyserRef.current = getAnalyserNode; }, [getAnalyserNode]);
 
@@ -32,7 +32,7 @@ export const Waveform = ({ active, variant = 'primary', getAnalyserNode }: Wavef
       }
 
       if (!dataArrayRef.current || dataArrayRef.current.length !== analyser.frequencyBinCount) {
-        dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+        dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
       }
 
       analyser.getByteFrequencyData(dataArrayRef.current);

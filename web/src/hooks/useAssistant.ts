@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { VoiceAssistantClient } from '../services/websocket';
+import { VoiceAssistantClient, type ConnectionState, type ConnectionMetadata } from '../services/websocket';
 import type { WebsocketMessage } from '../services/websocket';
 import { AudioProcessor, type CalibrationState } from '../services/audio';
 import type { Step, StepType, ToolContent, Message } from '../types/message';
@@ -11,7 +11,8 @@ export const useAssistant = (sessionId: string) => {
   const [mode, setMode] = useState<'voice' | 'chat'>('voice');
   const [isAssistantTyping, setIsAssistantTyping] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error' | 'disconnected'>('connecting');
+  const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
+  const [connectionMetadata, setConnectionMetadata] = useState<ConnectionMetadata>({});
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [calibrationState, setCalibrationState] = useState<CalibrationState>({ status: 'idle' });
@@ -21,7 +22,9 @@ export const useAssistant = (sessionId: string) => {
 
   const handleMessage = useCallback((msg: WebsocketMessage) => {
     if (msg.type === 'signal') {
-      if (msg.content === 'ready') setConnectionStatus('connected');
+      if (msg.content === 'ready') {
+        // Connection ready signal handled by onConnectionStateChange
+      }
       else if (msg.content === 'processing_started') setIsAssistantTyping(true);
       else if (msg.content === 'processing_ended') setIsAssistantTyping(false);
       return;
@@ -124,7 +127,22 @@ export const useAssistant = (sessionId: string) => {
   useEffect(() => {
     const client = new VoiceAssistantClient(sessionId);
     clientRef.current = client;
-    client.connect(handleMessage, (speaking) => setIsSpeaking(speaking), () => setConnectionStatus('connected'));
+    client.connect(
+      handleMessage,
+      (speaking) => setIsSpeaking(speaking),
+      () => {}, // onOpen - handled by onConnectionStateChange
+      (state, metadata) => {
+        setConnectionState(state);
+        setConnectionMetadata(metadata || {});
+
+        // Reset UI state on reconnecting
+        if (state === 'reconnecting') {
+          setIsAssistantTyping(false);
+          setIsSpeaking(false);
+          setIsUserSpeaking(false);
+        }
+      }
+    );
 
     const audioProcessor = new AudioProcessor((data) => client.sendAudio(data), {
       onSpeechChange: (isSpeech) => setIsUserSpeaking(isSpeech),
@@ -136,7 +154,8 @@ export const useAssistant = (sessionId: string) => {
     audioProcessorRef.current = audioProcessor;
     audioProcessor.start().catch(err => {
         console.error("Failed to start audio processor:", err);
-        setConnectionStatus('error');
+        setConnectionState('failed');
+        setConnectionMetadata({ error: 'Failed to start audio processor' });
     });
 
     const handleBeforeUnload = () => {
@@ -188,6 +207,10 @@ export const useAssistant = (sessionId: string) => {
     setIsAssistantTyping(false);
   }, []);
 
+  const manualReconnect = useCallback(() => {
+    clientRef.current?.reconnect();
+  }, []);
+
   // Group flat steps into messages by msgId
   const messages = useMemo((): Message[] => {
     const map = new Map<string, Message>();
@@ -203,5 +226,22 @@ export const useAssistant = (sessionId: string) => {
     return Array.from(map.values());
   }, [steps]);
 
-  return { steps, messages, mode, isAssistantTyping, isSpeaking, isUserSpeaking, isMuted, connectionStatus, calibrationState, sendMessage, toggleMode, toggleMute, getAnalyserNode, stopSpeaking };
+  return {
+    steps,
+    messages,
+    mode,
+    isAssistantTyping,
+    isSpeaking,
+    isUserSpeaking,
+    isMuted,
+    connectionState,
+    connectionMetadata,
+    calibrationState,
+    sendMessage,
+    toggleMode,
+    toggleMute,
+    getAnalyserNode,
+    stopSpeaking,
+    manualReconnect
+  };
 };

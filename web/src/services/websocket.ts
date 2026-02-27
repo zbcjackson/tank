@@ -1,5 +1,14 @@
 export type MessageType = "signal" | "transcript" | "text" | "update" | "input";
 
+export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
+
+export interface ConnectionMetadata {
+  attempt?: number;
+  maxAttempts?: number;
+  nextRetryIn?: number; // milliseconds
+  error?: string;
+}
+
 export interface WebsocketMessage {
   type: MessageType;
   content: string;
@@ -19,37 +28,81 @@ export class VoiceAssistantClient {
   private onSpeakingChange?: (isSpeaking: boolean) => void;
   private speakingTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Reconnection state
+  private connectionState: ConnectionState = 'idle';
+  private reconnectAttempts: number = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly maxReconnectAttempts: number = 10;
+  private readonly baseReconnectDelay: number = 1000; // 1s
+  private readonly maxReconnectDelay: number = 30000; // 30s
+  private readonly reconnectMultiplier: number = 1.5;
+  private shouldReconnect: boolean = true;
+  private onConnectionStateChange?: (state: ConnectionState, metadata?: ConnectionMetadata) => void;
+  private onMessageCallback?: (msg: WebsocketMessage) => void;
+  private onOpenCallback?: () => void;
+
   constructor(sessionId: string, baseUrl: string = "localhost:8000") {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     this.url = `${protocol}//${baseUrl}/ws/${sessionId}`;
   }
 
-  connect(onMessage: (msg: WebsocketMessage) => void, onSpeakingChange?: (isSpeaking: boolean) => void, onOpen?: () => void) {
+  connect(
+    onMessage: (msg: WebsocketMessage) => void,
+    onSpeakingChange?: (isSpeaking: boolean) => void,
+    onOpen?: () => void,
+    onConnectionStateChange?: (state: ConnectionState, metadata?: ConnectionMetadata) => void
+  ) {
+    this.onMessageCallback = onMessage;
+    this.onSpeakingChange = onSpeakingChange;
+    this.onOpenCallback = onOpen;
+    this.onConnectionStateChange = onConnectionStateChange;
+    this.shouldReconnect = true;
+
+    this.attemptConnect();
+  }
+
+  private attemptConnect() {
+    if (this.socket?.readyState === WebSocket.OPEN || this.socket?.readyState === WebSocket.CONNECTING) {
+      return; // Already connected or connecting
+    }
+
+    this.updateConnectionState('connecting');
     this.socket = new WebSocket(this.url);
     this.socket.binaryType = "arraybuffer";
-    this.onSpeakingChange = onSpeakingChange;
 
     this.socket.onopen = () => {
       console.log("WebSocket connected");
-      onOpen?.();
+      this.reconnectAttempts = 0; // Reset counter on successful connection
+      this.updateConnectionState('connected');
+      this.onOpenCallback?.();
     };
 
     this.socket.onmessage = (event) => {
       if (typeof event.data === "string") {
         const msg: WebsocketMessage = JSON.parse(event.data);
-        onMessage(msg);
+        this.onMessageCallback?.(msg);
       } else {
         // Handle binary audio chunk
         this.playAudioChunk(event.data);
       }
     };
 
-    this.socket.onclose = () => {
-      console.log("WebSocket disconnected");
+    this.socket.onclose = (event) => {
+      console.log("WebSocket disconnected", event.code, event.reason);
+
+      // Only reconnect if it wasn't an intentional disconnect
+      if (this.shouldReconnect && this.connectionState !== 'failed') {
+        this.scheduleReconnect();
+      }
     };
 
     this.socket.onerror = (error) => {
       console.error("WebSocket error:", error);
+
+      // Trigger reconnection on error
+      if (this.shouldReconnect && this.connectionState !== 'failed') {
+        this.scheduleReconnect();
+      }
     };
   }
 
@@ -152,7 +205,97 @@ export class VoiceAssistantClient {
     this.onSpeakingChange?.(false);
   }
 
+  private updateConnectionState(state: ConnectionState, metadata?: ConnectionMetadata) {
+    this.connectionState = state;
+    this.onConnectionStateChange?.(state, metadata);
+  }
+
+  private calculateBackoffDelay(attempt: number): number {
+    const delay = this.baseReconnectDelay * Math.pow(this.reconnectMultiplier, attempt);
+    return Math.min(delay, this.maxReconnectDelay);
+  }
+
+  private scheduleReconnect() {
+    // Clear any existing timer
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    // Check if we've exceeded max attempts
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.updateConnectionState('failed', {
+        attempt: this.reconnectAttempts,
+        maxAttempts: this.maxReconnectAttempts,
+        error: 'Max reconnection attempts exceeded'
+      });
+      return;
+    }
+
+    const delay = this.calculateBackoffDelay(this.reconnectAttempts);
+    this.reconnectAttempts++;
+
+    this.updateConnectionState('reconnecting', {
+      attempt: this.reconnectAttempts,
+      maxAttempts: this.maxReconnectAttempts,
+      nextRetryIn: delay
+    });
+
+    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.attemptConnect();
+    }, delay);
+  }
+
+  reconnect() {
+    // Public API for manual reconnect - resets counter
+    console.log("Manual reconnect triggered");
+    this.reconnectAttempts = 0;
+    this.shouldReconnect = true;
+
+    // Clear any existing timer
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    // Close existing socket if any
+    if (this.socket) {
+      this.socket.onclose = null; // Prevent triggering auto-reconnect
+      this.socket.onerror = null;
+      this.socket.close();
+      this.socket = null;
+    }
+
+    this.attemptConnect();
+  }
+
+  getConnectionState(): ConnectionState {
+    return this.connectionState;
+  }
+
+  getConnectionMetadata(): ConnectionMetadata {
+    if (this.connectionState === 'reconnecting' || this.connectionState === 'failed') {
+      return {
+        attempt: this.reconnectAttempts,
+        maxAttempts: this.maxReconnectAttempts,
+        nextRetryIn: this.reconnectTimer ? this.calculateBackoffDelay(this.reconnectAttempts - 1) : undefined
+      };
+    }
+    return {};
+  }
+
   disconnect() {
+    this.shouldReconnect = false; // Prevent auto-reconnect
+
+    // Clear reconnect timer
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
     if (this.socket) {
       const socket = this.socket;
       this.socket = null;

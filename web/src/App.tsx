@@ -2,6 +2,7 @@ import {useAssistant} from './hooks/useAssistant';
 import {VoiceMode} from './components/Assistant/VoiceMode';
 import {ChatMode} from './components/Assistant/ChatMode';
 import {ModeToggle} from './components/Assistant/ModeToggle';
+import {ConnectionStatusOverlay} from './components/Assistant/ConnectionStatusOverlay';
 import {AnimatePresence} from 'framer-motion';
 
 // Simple session ID generator
@@ -14,14 +15,16 @@ function App() {
         isAssistantTyping,
         isSpeaking,
         isUserSpeaking,
-        connectionStatus,
+        connectionState,
+        connectionMetadata,
         sendMessage,
         toggleMode,
         toggleMute,
         isMuted,
         getAnalyserNode,
         stopSpeaking,
-        calibrationState
+        calibrationState,
+        manualReconnect
     } = useAssistant(SESSION_ID);
 
     const calibrationStatusText = calibrationState.status === 'calibrating'
@@ -29,11 +32,11 @@ function App() {
         : calibrationState.status === 'error'
             ? '噪声校准失败，使用默认阈值'
             : undefined;
-    const statusText = calibrationStatusText || (connectionStatus === 'connected' ? undefined : `Status: ${connectionStatus}`);
+    const statusText = calibrationStatusText || (connectionState === 'connected' ? undefined : `Status: ${connectionState}`);
 
     return (
         <div className="h-screen w-full flex flex-col font-sans overflow-hidden relative">
-            {connectionStatus === 'error' && (
+            {connectionState === 'failed' && calibrationState.status === 'error' && (
                 <div
                     className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md text-white p-8 text-center">
                     <div className="max-w-md">
@@ -45,6 +48,12 @@ function App() {
                     </div>
                 </div>
             )}
+
+            <ConnectionStatusOverlay
+                state={connectionState}
+                metadata={connectionMetadata}
+                onReconnect={manualReconnect}
+            />
             <main className="flex-1 relative overflow-hidden">
                 <AnimatePresence mode="wait">
                     {mode === 'voice' ? (
