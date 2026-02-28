@@ -29,4 +29,4 @@ Tank Backend is a FastAPI-based server that provides:
 
 ## Development Notes
 
-- Uvicorn does NOT auto-reload by default — restart the server after code changes
+- Use `--reload` flag for auto-reload during development: `uv run tank-backend --reload`

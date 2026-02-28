@@ -72,6 +72,9 @@ LOG_LEVEL=INFO
 # Start server (default: localhost:8000)
 uv run tank-backend
 
+# Start with auto-reload (recommended for development)
+uv run tank-backend --reload
+
 # Start with custom config
 uv run tank-backend --config /path/to/.env
 
