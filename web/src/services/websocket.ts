@@ -47,6 +47,12 @@ export class VoiceAssistantClient {
   private connectionTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
   private lastError: { type: ErrorType; message: string } | null = null;
 
+  // Heartbeat state
+  private readonly heartbeatInterval: number = 30000; // 30s
+  private readonly heartbeatTimeout: number = 5000; // 5s
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private heartbeatTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(sessionId: string, baseUrl: string = "localhost:8000") {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     this.url = `${protocol}//${baseUrl}/ws/${sessionId}`;
@@ -73,57 +79,62 @@ export class VoiceAssistantClient {
     }
 
     this.updateConnectionState('connecting');
-    this.socket = new WebSocket(this.url);
-    this.socket.binaryType = "arraybuffer";
+    const socket = new WebSocket(this.url);
+    socket.binaryType = "arraybuffer";
+    this.socket = socket;
 
     // Set connection timeout
     this.startConnectionTimeout();
 
-    this.socket.onopen = () => {
+    socket.onopen = () => {
+      if (this.socket !== socket) return; // Stale socket
       console.log("WebSocket connected");
       this.clearConnectionTimeout();
-      this.reconnectAttempts = 0; // Reset counter on successful connection
-      this.lastError = null; // Clear last error
+      this.reconnectAttempts = 0;
+      this.lastError = null;
       this.updateConnectionState('connected');
+      this.startHeartbeat();
       this.onOpenCallback?.();
     };
 
-    this.socket.onmessage = (event) => {
+    socket.onmessage = (event) => {
+      if (this.socket !== socket) return; // Stale socket
       if (typeof event.data === "string") {
         const msg: WebsocketMessage = JSON.parse(event.data);
+
+        // Handle pong response
+        if (msg.type === 'signal' && msg.content === 'pong') {
+          this.handlePong(msg);
+          return;
+        }
+
         this.onMessageCallback?.(msg);
       } else {
-        // Handle binary audio chunk
         this.playAudioChunk(event.data);
       }
     };
 
-    this.socket.onclose = (event) => {
+    socket.onclose = (event) => {
+      if (this.socket !== socket) return; // Stale socket — ignore
       console.log("WebSocket disconnected", event.code, event.reason);
       this.clearConnectionTimeout();
+      this.stopHeartbeat();
 
-      // Detect error type from close code
-      const errorInfo = this.detectErrorType(event);
+      // Use error from onerror if already set (more specific), otherwise detect from close code
+      const errorInfo = this.lastError || this.detectErrorType(event);
       this.lastError = errorInfo;
 
-      // Only reconnect if it wasn't an intentional disconnect
       if (this.shouldReconnect && this.connectionState !== 'failed') {
         this.scheduleReconnect(errorInfo);
       }
     };
 
-    this.socket.onerror = (error) => {
-      console.error("WebSocket error:", error);
-      this.clearConnectionTimeout();
-
-      // Network error
-      const errorInfo = { type: 'network' as ErrorType, message: 'Network connection failed' };
-      this.lastError = errorInfo;
-
-      // Trigger reconnection on error
-      if (this.shouldReconnect && this.connectionState !== 'failed') {
-        this.scheduleReconnect(errorInfo);
-      }
+    socket.onerror = () => {
+      if (this.socket !== socket) return; // Stale socket
+      console.error("WebSocket error");
+      // Only record the error — onclose always fires after onerror,
+      // so reconnection is handled exclusively in onclose to avoid double-scheduling.
+      this.lastError = { type: 'network' as ErrorType, message: 'Network connection failed' };
     };
   }
 
@@ -230,18 +241,11 @@ export class VoiceAssistantClient {
     this.clearConnectionTimeout();
     this.connectionTimeoutTimer = setTimeout(() => {
       console.warn(`Connection timeout after ${this.connectionTimeout}ms`);
+      this.lastError = { type: 'timeout' as ErrorType, message: 'Connection timeout' };
 
-      // Close the socket if still connecting
+      // Close the socket — onclose will handle reconnection
       if (this.socket?.readyState === WebSocket.CONNECTING) {
         this.socket.close();
-      }
-
-      const errorInfo = { type: 'timeout' as ErrorType, message: 'Connection timeout' };
-      this.lastError = errorInfo;
-
-      // Trigger reconnection
-      if (this.shouldReconnect && this.connectionState !== 'failed') {
-        this.scheduleReconnect(errorInfo);
       }
     }, this.connectionTimeout);
   }
@@ -301,6 +305,59 @@ export class VoiceAssistantClient {
     }
   }
 
+  private startHeartbeat() {
+    this.stopHeartbeat();
+
+    // First ping after one full interval — no immediate ping to avoid
+    // racing with the backend's ready signal or slow startup.
+    this.heartbeatTimer = setInterval(() => {
+      this.sendPing();
+    }, this.heartbeatInterval);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+
+    if (this.heartbeatTimeoutTimer) {
+      clearTimeout(this.heartbeatTimeoutTimer);
+      this.heartbeatTimeoutTimer = null;
+    }
+  }
+
+  private sendPing() {
+    if (this.socket?.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    const timestamp = Date.now();
+    this.sendMessage('signal', 'ping', { timestamp });
+
+    // Set timeout for pong response
+    this.heartbeatTimeoutTimer = setTimeout(() => {
+      console.warn(`Heartbeat timeout: no pong within ${this.heartbeatTimeout}ms`);
+
+      // Close the socket to trigger reconnection
+      if (this.socket) {
+        this.lastError = { type: 'timeout', message: 'Heartbeat timeout' };
+        this.socket.close();
+      }
+    }, this.heartbeatTimeout);
+  }
+
+  private handlePong(msg: WebsocketMessage) {
+    const pingTimestamp = msg.metadata?.timestamp as number;
+    const roundTripTime = Date.now() - pingTimestamp;
+    console.log(`Pong RTT: ${roundTripTime}ms`);
+
+    if (this.heartbeatTimeoutTimer) {
+      clearTimeout(this.heartbeatTimeoutTimer);
+      this.heartbeatTimeoutTimer = null;
+    }
+  }
+
   private updateConnectionState(state: ConnectionState, metadata?: ConnectionMetadata) {
     this.connectionState = state;
     this.onConnectionStateChange?.(state, metadata);
@@ -357,12 +414,13 @@ export class VoiceAssistantClient {
     this.shouldReconnect = true;
     this.lastError = null; // Clear last error on manual reconnect
 
-    // Clear any existing timers
+    // Clear all timers
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
     this.clearConnectionTimeout();
+    this.stopHeartbeat();
 
     // Close existing socket if any
     if (this.socket) {
@@ -375,24 +433,6 @@ export class VoiceAssistantClient {
     this.attemptConnect();
   }
 
-  getConnectionState(): ConnectionState {
-    return this.connectionState;
-  }
-
-  getConnectionMetadata(): ConnectionMetadata {
-    if (this.connectionState === 'reconnecting' || this.connectionState === 'failed') {
-      const error = this.lastError;
-      return {
-        attempt: this.reconnectAttempts,
-        maxAttempts: this.maxReconnectAttempts,
-        nextRetryIn: this.reconnectTimer ? this.calculateBackoffDelay(this.reconnectAttempts - 1) : undefined,
-        error: error ? this.getErrorMessage(error) : undefined,
-        errorType: error?.type || 'unknown'
-      };
-    }
-    return {};
-  }
-
   disconnect() {
     this.shouldReconnect = false; // Prevent auto-reconnect
 
@@ -402,6 +442,7 @@ export class VoiceAssistantClient {
       this.reconnectTimer = null;
     }
     this.clearConnectionTimeout();
+    this.stopHeartbeat();
 
     if (this.socket) {
       const socket = this.socket;

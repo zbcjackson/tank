@@ -52,9 +52,39 @@ def test_websocket_lifecycle(client):
             messages_to_yield.append(DisplayMessage(
                 speaker="Brain", text="Hello from server", is_user=False, is_final=True, msg_id="123"
             ))
-            
+
             # Wait for text message (TestClient is synchronous and should receive it)
             data = ws.receive_text()
             msg = WebsocketMessage.model_validate_json(data)
             # It might be TEXT or UPDATE depending on DisplayMessage attributes
             assert msg.content == "Hello from server"
+
+
+def test_websocket_ping_pong(client):
+    """Test that the server responds to ping signals with pong."""
+    with patch("tank_backend.api.router.session_manager.create_assistant") as mock_create:
+        mock_assistant = MagicMock()
+        mock_assistant.get_messages.return_value = []
+        mock_create.return_value = mock_assistant
+
+        with client.websocket_connect("/ws/test_session") as ws:
+            # Receive ready signal
+            data = ws.receive_text()
+            msg = WebsocketMessage.model_validate_json(data)
+            assert msg.type == MessageType.SIGNAL
+            assert msg.content == "ready"
+
+            # Send ping
+            ping_msg = WebsocketMessage(
+                type=MessageType.SIGNAL,
+                content="ping",
+                metadata={"timestamp": 1234567890}
+            )
+            ws.send_text(ping_msg.model_dump_json())
+
+            # Receive pong
+            data = ws.receive_text()
+            msg = WebsocketMessage.model_validate_json(data)
+            assert msg.type == MessageType.SIGNAL
+            assert msg.content == "pong"
+            assert msg.metadata["timestamp"] == 1234567890

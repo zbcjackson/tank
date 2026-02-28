@@ -10,7 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from .manager import SessionManager
 from .schemas import WebsocketMessage, MessageType
-from ..core.events import SignalMessage, DisplayMessage
+from ..core.events import SignalMessage, DisplayMessage, UpdateType
 from ..audio.input.queue_source import QueueAudioSource
 from ..audio.input.types import AudioFrame
 from ..audio.output.callback_sink import CallbackAudioSink
@@ -170,6 +170,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         assistant.audio_output.interrupt()
                     elif msg.content == "disconnect":
                         break
+                    elif msg.content == "ping":
+                        pong_msg = WebsocketMessage(
+                            type=MessageType.SIGNAL,
+                            content="pong",
+                            session_id=session_id,
+                            metadata=msg.metadata.copy() if msg.metadata else {}
+                        )
+                        await websocket.send_text(pong_msg.model_dump_json())
                 elif msg.type == MessageType.INPUT:
                     assistant.process_input(msg.content)
 
