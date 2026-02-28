@@ -19,9 +19,15 @@ Tank Web is a React/TypeScript SPA providing a browser-based interface for the T
 - **Styling**: Tailwind CSS v4
 - **Animation**: Framer Motion
 - **Package Manager**: pnpm
+- **Testing**: Vitest with jsdom environment (`pnpm test`)
 
 ## State Model (key distinctions)
 
 - `isAssistantTyping` — true from `processing_started` signal until `processing_ended` (covers thinking + speaking)
 - `isSpeaking` — true only when TTS audio is actively playing via AudioContext
 - VoiceMode receives both: `isAssistantTyping` for status text/mic dimming, `isSpeaking` for waveform animation
+
+## WebSocket Patterns
+
+- Only trigger reconnection from `onclose` — never from `onerror` (which always fires before `onclose`)
+- Use stale socket guards: capture socket ref in closure, check `if (this.socket !== socket) return` in all handlers

@@ -43,7 +43,7 @@ Then read the docs for the sub-project(s) you are working on:
 |-------------|------------|-----------------|-------------------|
 | `backend/`  | Python     | uv              | `uv run pytest`   |
 | `cli/`      | Python     | uv              | `uv run pytest`   |
-| `web/`      | TypeScript | pnpm            | `pnpm vitest run` |
+| `web/`      | TypeScript | pnpm            | `pnpm test`        |
 
 ## Cross-cutting Principles
 
@@ -57,7 +57,7 @@ Run ALL of these every time you finish a task. Do not skip any step.
 
 1. `cd web && pnpm lint` — ESLint
 2. `cd web && npx tsc --noEmit` — TypeScript type checking
-3. `cd backend && uv run pytest` — Backend unit tests (69 tests)
+3. `cd backend && uv run pytest` — Backend unit tests (78 tests)
 4. `cd test && pnpm test` — E2E cucumber tests (14 scenarios, requires backend + frontend running)
 
 All four must pass before considering work complete.

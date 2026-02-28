@@ -26,3 +26,7 @@ Tank Backend is a FastAPI-based server that provides:
 - **TTS**: edge-tts
 - **LLM**: OpenAI-compatible API
 - **Audio**: sounddevice, pydub, silero-vad
+
+## Development Notes
+
+- Uvicorn does NOT auto-reload by default — restart the server after code changes
