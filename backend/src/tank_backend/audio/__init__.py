@@ -1,12 +1,12 @@
 """Audio subsystem - input (capture/recognition) and output (TTS/playback)."""
 
 from .input import (
+    AudioFormat,
     AudioInput,
     AudioInputConfig,
-    AudioFormat,
     FrameConfig,
-    SegmenterConfig,
     PerceptionConfig,
+    SegmenterConfig,
 )
 from .output import AudioOutput, AudioOutputConfig
 

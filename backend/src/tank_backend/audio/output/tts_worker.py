@@ -6,7 +6,7 @@ import asyncio
 import logging
 import queue
 import threading
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from ...core.events import AudioOutputRequest
 from ...core.shutdown import StopSignal
@@ -31,11 +31,11 @@ class TTSWorker(QueueWorker[AudioOutputRequest]):
         *,
         name: str,
         stop_signal: StopSignal,
-        input_queue: "queue.Queue[AudioOutputRequest]",
-        audio_chunk_queue: "queue.Queue[AudioChunk | None]",
-        tts_engine: "TTSEngine",
+        input_queue: queue.Queue[AudioOutputRequest],
+        audio_chunk_queue: queue.Queue[AudioChunk | None],
+        tts_engine: TTSEngine,
         poll_interval_s: float = 0.1,
-        interrupt_event: Optional[threading.Event] = None,
+        interrupt_event: threading.Event | None = None,
     ):
         super().__init__(
             name=name,
@@ -60,9 +60,7 @@ class TTSWorker(QueueWorker[AudioOutputRequest]):
                 if pending:
                     for task in pending:
                         task.cancel()
-                    self._loop.run_until_complete(
-                        asyncio.gather(*pending, return_exceptions=True)
-                    )
+                    self._loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
             finally:
                 self._loop.close()
                 self._loop = None
@@ -100,7 +98,11 @@ class TTSWorker(QueueWorker[AudioOutputRequest]):
                 logger.info("TTSWorker: starting generate_stream")
                 async for chunk in chunk_stream:
                     if is_interrupted is not None and is_interrupted():
-                        logger.warning("TTSWorker: interrupt_event is set, stopping generate_stream after %d chunks", chunk_count)
+                        logger.warning(
+                            "TTSWorker: interrupt_event is set, "
+                            "stopping generate_stream after %d chunks",
+                            chunk_count,
+                        )
                         break
                     self._audio_chunk_queue.put(chunk)
                     chunk_count += 1
@@ -120,4 +122,3 @@ class TTSWorker(QueueWorker[AudioOutputRequest]):
             "TTSWorker: handle finished for content=%r",
             item.content[:50] if item.content else "",
         )
-

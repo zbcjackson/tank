@@ -13,7 +13,7 @@ from ...core.shutdown import GracefulShutdown
 from .playback_worker import PlaybackWorker
 from .tts_engine_edge import EdgeTTSEngine
 from .tts_worker import TTSWorker
-from .types import AudioChunk, AudioSink, AudioSinkFactory
+from .types import AudioChunk, AudioSinkFactory
 
 if TYPE_CHECKING:
     from ...core.runtime import RuntimeContext
@@ -40,16 +40,16 @@ class AudioOutput:
     def __init__(
         self,
         shutdown_signal: GracefulShutdown,
-        runtime: "RuntimeContext",
-        audio_output_queue: "queue.Queue[AudioOutputRequest]",
+        runtime: RuntimeContext,
+        audio_output_queue: queue.Queue[AudioOutputRequest],
         config: VoiceAssistantConfig,
-        cfg: AudioOutputConfig = AudioOutputConfig(),
-        sink_factory: Optional[AudioSinkFactory] = None,
+        cfg: AudioOutputConfig | None = None,
+        sink_factory: AudioSinkFactory | None = None,
     ):
         self._shutdown_signal = shutdown_signal
         self._runtime = runtime
-        self._cfg = cfg
-        self._audio_chunk_queue: "queue.Queue[AudioChunk | None]" = queue.Queue(maxsize=20)
+        self._cfg = cfg if cfg is not None else AudioOutputConfig()
+        self._audio_chunk_queue: queue.Queue[AudioChunk | None] = queue.Queue(maxsize=20)
         tts_engine = EdgeTTSEngine(config)
         self._tts_worker = TTSWorker(
             name="TTSThread",
@@ -59,7 +59,7 @@ class AudioOutput:
             tts_engine=tts_engine,
             interrupt_event=runtime.interrupt_event,
         )
-        
+
         if sink_factory is not None:
             self._sink = sink_factory(self._audio_chunk_queue, self._shutdown_signal)
         else:
@@ -71,7 +71,7 @@ class AudioOutput:
             )
 
     @property
-    def speaker(self) -> "AudioOutput":
+    def speaker(self) -> AudioOutput:
         """Access for interruption control (e.g. speaker.interrupt())."""
 
         return self
@@ -99,4 +99,3 @@ class AudioOutput:
 
         self._tts_worker.join(timeout=timeout)
         self._sink.join(timeout=timeout)
-

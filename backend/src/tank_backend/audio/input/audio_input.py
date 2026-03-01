@@ -1,21 +1,30 @@
 import queue
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
 
-from ...core.shutdown import GracefulShutdown
 from ...core.runtime import RuntimeContext
-from .types import AudioFormat, FrameConfig, PerceptionConfig, AudioSource, AudioFrame, AudioSourceFactory
-from .mic import Mic
+from ...core.shutdown import GracefulShutdown
 from .asr_sherpa import SherpaASR
+from .mic import Mic
 from .perception_streaming import StreamingPerception
+from .types import (
+    AudioFormat,
+    AudioFrame,
+    AudioSourceFactory,
+    FrameConfig,
+    PerceptionConfig,
+)
+
 
 @dataclass(frozen=True)
 class AudioInputConfig:
     """Configuration for Audio input subsystem."""
+
     audio_format: AudioFormat = AudioFormat()
     frame: FrameConfig = FrameConfig()
     perception: PerceptionConfig = PerceptionConfig()
-    input_device: Optional[int] = None
+    input_device: int | None = None
+
 
 class AudioInput:
     """
@@ -29,12 +38,12 @@ class AudioInput:
     """
 
     def __init__(
-            self,
-            shutdown_signal: GracefulShutdown,
-            runtime: RuntimeContext,
-            cfg: AudioInputConfig,
-            on_speech_interrupt: Optional[Callable[[], None]] = None,
-            source_factory: Optional[AudioSourceFactory] = None,
+        self,
+        shutdown_signal: GracefulShutdown,
+        runtime: RuntimeContext,
+        cfg: AudioInputConfig,
+        on_speech_interrupt: Callable[[], None] | None = None,
+        source_factory: AudioSourceFactory | None = None,
     ):
         self._shutdown_signal = shutdown_signal
         self._runtime = runtime
@@ -44,7 +53,7 @@ class AudioInput:
         self._frames_queue: queue.Queue[AudioFrame] = queue.Queue(
             maxsize=cfg.frame.max_frames_queue
         )
-        
+
         # Use provided source factory or default to Mic
         if source_factory is not None:
             self._source = source_factory(self._frames_queue, self._shutdown_signal)
@@ -56,10 +65,10 @@ class AudioInput:
                 frames_queue=self._frames_queue,
                 device=cfg.input_device,
             )
-        
+
         # Use SherpaASR for streaming
         asr = SherpaASR(model_dir=cfg.perception.sherpa_model_dir)
-        
+
         self._perception = StreamingPerception(
             shutdown_signal=shutdown_signal,
             runtime=runtime,

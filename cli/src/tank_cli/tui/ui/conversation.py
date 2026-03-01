@@ -1,10 +1,11 @@
-from textual.widgets import Static, Markdown
-from textual.containers import Container, Vertical, ScrollableContainer
-from textual.app import ComposeResult
-from typing import Dict, Optional, Union
 import uuid
-from ...core.events import UpdateType, DisplayMessage
-from ...schemas import WebsocketMessage, MessageType
+
+from textual.app import ComposeResult
+from textual.containers import Container, ScrollableContainer, Vertical
+from textual.widgets import Markdown, Static
+
+from ...core.events import DisplayMessage, UpdateType
+from ...schemas import MessageType, WebsocketMessage
 
 
 class AssistantMessageBlock(Vertical):
@@ -51,13 +52,13 @@ class AssistantMessageBlock(Vertical):
 
     def __init__(self, msg_id: str):
         super().__init__(id=msg_id)
-        self.last_update_type: Optional[UpdateType] = None
-        self.last_widget: Optional[Static] = None
-        self.last_step_id: Optional[str] = None
+        self.last_update_type: UpdateType | None = None
+        self.last_widget: Static | None = None
+        self.last_step_id: str | None = None
         self.current_text_accumulated = ""
         self.current_thought_accumulated = ""
         # Track widgets by step_id for tool call/result pairing
-        self.step_widgets: Dict[str, Static] = {}
+        self.step_widgets: dict[str, Static] = {}
 
     def compose(self) -> ComposeResult:
         yield Static("[bold blue]Tank:[/bold blue]", classes="assistant-header")
@@ -81,7 +82,10 @@ class AssistantMessageBlock(Vertical):
         if msg.update_type == UpdateType.THOUGHT:
             if is_new_step:
                 self.current_thought_accumulated = msg.text
-                new_thought = Static(f"💭 {self.current_thought_accumulated}", classes="thought-entry")
+                new_thought = Static(
+                    f"💭 {self.current_thought_accumulated}",
+                    classes="thought-entry",
+                )
                 self.mount(new_thought)
                 self.last_widget = new_thought
                 self.step_widgets[step_id] = new_thought
@@ -98,7 +102,10 @@ class AssistantMessageBlock(Vertical):
 
             # Determine display based on status
             if status in ("success", "error"):
-                summary = f"✅ Result [{name}]: {result[:200]}" if status == "success" else f"❌ Error [{name}]: {result[:200]}"
+                if status == "success":
+                    summary = f"✅ Result [{name}]: {result[:200]}"
+                else:
+                    summary = f"❌ Error [{name}]: {result[:200]}"
                 css_class = "tool-result-entry"
             else:
                 content = f"🛠️ {status.capitalize()}: {name}({args[:50]}...)"
@@ -126,11 +133,14 @@ class AssistantMessageBlock(Vertical):
                 self.step_widgets[step_id] = new_text
             else:
                 self.current_text_accumulated += msg.text
-                if step_id in self.step_widgets and isinstance(self.step_widgets[step_id], Markdown):
+                if step_id in self.step_widgets and isinstance(
+                    self.step_widgets[step_id], Markdown
+                ):
                     self.step_widgets[step_id].update(self.current_text_accumulated)
 
         self.last_update_type = msg.update_type
         self.last_step_id = step_id
+
 
 class ConversationArea(Container):
     DEFAULT_CSS = """
@@ -153,7 +163,7 @@ class ConversationArea(Container):
 
     def compose(self) -> ComposeResult:
         yield ScrollableContainer(id="conversation_container")
-        
+
     def write(self, msg: DisplayMessage) -> None:
         container = self.query_one("#conversation_container")
 

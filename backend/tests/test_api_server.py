@@ -1,13 +1,13 @@
 """Integration tests for the API Server and WebSocket interaction."""
 
-import pytest
-import numpy as np
-import json
-from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch
 
+import numpy as np
+import pytest
+from fastapi.testclient import TestClient
+
+from tank_backend.api.schemas import MessageType, WebsocketMessage
 from tank_backend.api.server import app
-from tank_backend.api.schemas import WebsocketMessage, MessageType
 
 
 @pytest.fixture
@@ -27,10 +27,12 @@ def test_websocket_lifecycle(client):
         mock_assistant = MagicMock()
         mock_assistant.get_messages.return_value = []
         mock_create.return_value = mock_assistant
-        
+
         # Bridge mock to allow us to push messages manually
         messages_to_yield = []
-        mock_assistant.get_messages.side_effect = lambda: [messages_to_yield.pop(0)] if messages_to_yield else []
+        mock_assistant.get_messages.side_effect = lambda: (
+            [messages_to_yield.pop(0)] if messages_to_yield else []
+        )
 
         with client.websocket_connect("/ws/test_session") as ws:
             # 1. Check ready signal
@@ -38,20 +40,27 @@ def test_websocket_lifecycle(client):
             msg = WebsocketMessage.model_validate_json(data)
             assert msg.type == MessageType.SIGNAL
             assert msg.content == "ready"
-            
+
             # 2. Send dummy binary audio
             dummy_audio = np.zeros(1600, dtype=np.int16).tobytes()
             ws.send_bytes(dummy_audio)
-            
+
             # 3. Send interrupt signal
             interrupt_msg = WebsocketMessage(type=MessageType.SIGNAL, content="interrupt")
             ws.send_text(interrupt_msg.model_dump_json())
-            
+
             # 4. Trigger a message from assistant
             from tank_backend.core.events import DisplayMessage
-            messages_to_yield.append(DisplayMessage(
-                speaker="Brain", text="Hello from server", is_user=False, is_final=True, msg_id="123"
-            ))
+
+            messages_to_yield.append(
+                DisplayMessage(
+                    speaker="Brain",
+                    text="Hello from server",
+                    is_user=False,
+                    is_final=True,
+                    msg_id="123",
+                )
+            )
 
             # Wait for text message (TestClient is synchronous and should receive it)
             data = ws.receive_text()
@@ -76,9 +85,7 @@ def test_websocket_ping_pong(client):
 
             # Send ping
             ping_msg = WebsocketMessage(
-                type=MessageType.SIGNAL,
-                content="ping",
-                metadata={"timestamp": 1234567890}
+                type=MessageType.SIGNAL, content="ping", metadata={"timestamp": 1234567890}
             )
             ws.send_text(ping_msg.model_dump_json())
 

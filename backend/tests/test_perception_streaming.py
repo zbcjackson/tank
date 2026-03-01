@@ -1,19 +1,20 @@
 """Tests for StreamingPerception thread."""
 
 import queue
-import uuid
-import numpy as np
-import pytest
 from unittest.mock import MagicMock
 
+import numpy as np
+import pytest
+
 from tank_backend.audio.input.perception_streaming import StreamingPerception
-from tank_backend.core.events import BrainInputEvent, DisplayMessage, InputType
 from tank_backend.core.runtime import RuntimeContext
 from tank_backend.core.shutdown import GracefulShutdown
+
 
 @pytest.fixture
 def runtime():
     return RuntimeContext.create()
+
 
 @pytest.fixture
 def mock_asr():
@@ -22,21 +23,19 @@ def mock_asr():
     asr.process_pcm.return_value = ("", False)
     return asr
 
+
 @pytest.fixture
 def perception(runtime, mock_asr):
     stop = GracefulShutdown()
     frames_queue = queue.Queue()
     return StreamingPerception(
-        shutdown_signal=stop,
-        runtime=runtime,
-        frames_queue=frames_queue,
-        asr=mock_asr,
-        user="User"
+        shutdown_signal=stop, runtime=runtime, frames_queue=frames_queue, asr=mock_asr, user="User"
     )
+
 
 def test_streaming_perception_msg_id_lifecycle(perception, runtime, mock_asr):
     """Verify that msg_id is generated and reused until final."""
-    
+
     # Mock some AudioFrame
     frame = MagicMock()
     frame.pcm = np.zeros(160, dtype=np.float32)
@@ -44,7 +43,7 @@ def test_streaming_perception_msg_id_lifecycle(perception, runtime, mock_asr):
     # 1. First partial result
     mock_asr.process_pcm.return_value = ("hello", False)
     perception.handle(frame)
-    
+
     assert not runtime.ui_queue.empty()
     msg1 = runtime.ui_queue.get_nowait()
     assert msg1.text == "hello"
@@ -77,6 +76,7 @@ def test_streaming_perception_msg_id_lifecycle(perception, runtime, mock_asr):
     assert msg4.text == "new sentence"
     assert msg4.msg_id != msg1.msg_id
     assert msg4.msg_id is not None
+
 
 def test_streaming_perception_skips_unchanged_text(perception, runtime, mock_asr):
     """Verify that it doesn't spam the queue if text doesn't change."""

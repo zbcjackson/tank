@@ -15,7 +15,9 @@ export const Waveform = ({ active, variant = 'primary', getAnalyserNode }: Wavef
   const rafRef = useRef<number>(0);
   const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const getAnalyserRef = useRef(getAnalyserNode);
-  useEffect(() => { getAnalyserRef.current = getAnalyserNode; }, [getAnalyserNode]);
+  useEffect(() => {
+    getAnalyserRef.current = getAnalyserNode;
+  }, [getAnalyserNode]);
 
   useEffect(() => {
     if (!active || !getAnalyserNode) return;
@@ -32,7 +34,9 @@ export const Waveform = ({ active, variant = 'primary', getAnalyserNode }: Wavef
       }
 
       if (!dataArrayRef.current || dataArrayRef.current.length !== analyser.frequencyBinCount) {
-        dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
+        dataArrayRef.current = new Uint8Array(
+          analyser.frequencyBinCount,
+        ) as Uint8Array<ArrayBuffer>;
       }
 
       analyser.getByteFrequencyData(dataArrayRef.current);

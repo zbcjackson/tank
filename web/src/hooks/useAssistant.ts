@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { VoiceAssistantClient, type ConnectionState, type ConnectionMetadata } from '../services/websocket';
+import {
+  VoiceAssistantClient,
+  type ConnectionState,
+  type ConnectionMetadata,
+} from '../services/websocket';
 import type { WebsocketMessage } from '../services/websocket';
 import { AudioProcessor, type CalibrationState } from '../services/audio';
 import type { Step, StepType, ToolContent, Message } from '../types/message';
@@ -24,8 +28,7 @@ export const useAssistant = (sessionId: string) => {
     if (msg.type === 'signal') {
       if (msg.content === 'ready') {
         // Connection ready signal handled by onConnectionStateChange
-      }
-      else if (msg.content === 'processing_started') setIsAssistantTyping(true);
+      } else if (msg.content === 'processing_started') setIsAssistantTyping(true);
       else if (msg.content === 'processing_ended') setIsAssistantTyping(false);
       return;
     }
@@ -46,32 +49,38 @@ export const useAssistant = (sessionId: string) => {
 
     const stepId = msg.metadata?.step_id as string;
 
-    setSteps(prev => {
+    setSteps((prev) => {
       const updated = [...prev];
-      const existingIdx = updated.findIndex(m => m.id === stepId);
+      const existingIdx = updated.findIndex((m) => m.id === stepId);
 
       // --- TEXT & THINKING (Streaming) ---
       if (activityType === 'text' || activityType === 'thinking') {
         if (existingIdx > -1) {
           updated[existingIdx] = {
             ...updated[existingIdx],
-            content: msg.type === 'transcript' ? msg.content : (updated[existingIdx].content + (msg.content || '')),
-            isFinal: msg.is_final
+            content:
+              msg.type === 'transcript'
+                ? msg.content
+                : updated[existingIdx].content + (msg.content || ''),
+            isFinal: msg.is_final,
           };
           return updated;
         } else {
           // If we see a FINAL empty message for an ID that doesn't exist, ignore it.
           // But if it has content or is a start of a stream, create it.
           if (!msg.content && msg.is_final) return prev;
-          
-          return [...prev, { 
-            id: stepId, 
-            role, 
-            type: activityType, 
-            content: msg.content || '', 
-            msgId, 
-            isFinal: msg.is_final 
-          }];
+
+          return [
+            ...prev,
+            {
+              id: stepId,
+              role,
+              type: activityType,
+              content: msg.content || '',
+              msgId,
+              isFinal: msg.is_final,
+            },
+          ];
         }
       }
 
@@ -83,7 +92,7 @@ export const useAssistant = (sessionId: string) => {
           name: (msg.metadata?.name as string) || '',
           arguments: (msg.metadata?.arguments as string) || '',
           status,
-          result: hasResult ? msg.content : undefined
+          result: hasResult ? msg.content : undefined,
         };
 
         if (existingIdx > -1) {
@@ -94,29 +103,40 @@ export const useAssistant = (sessionId: string) => {
               ...existing,
               ...toolData,
               result: toolData.result || existing.result,
-              status: toolData.status || existing.status
+              status: toolData.status || existing.status,
             },
-            isFinal: msg.is_final
+            isFinal: msg.is_final,
           };
-          
+
           // Weather Card
           if (hasResult && (toolData.name === 'get_weather' || toolData.name === 'weather')) {
-             const weatherId = `${msgId}_weather_${turn}_${msg.metadata?.index || 0}`;
-             if (!updated.some(m => m.id === weatherId)) {
-                try {
-                    const res = msg.content;
-                    const t = res.match(/'temperature':\s*'([^']+)'/);
-                    const c = res.match(/'condition':\s*'([^']+)'/);
-                    const l = res.match(/'location':\s*'([^']+)'/);
-                    if (t && c && l) {
-                        updated.push({ id: weatherId, role: 'assistant', type: 'weather', content: { city: l[1], temp: t[1], condition: c[1], wind: '4km/h' }, msgId });
-                    }
-                } catch (e) { console.error(e); }
-             }
+            const weatherId = `${msgId}_weather_${turn}_${msg.metadata?.index || 0}`;
+            if (!updated.some((m) => m.id === weatherId)) {
+              try {
+                const res = msg.content;
+                const t = res.match(/'temperature':\s*'([^']+)'/);
+                const c = res.match(/'condition':\s*'([^']+)'/);
+                const l = res.match(/'location':\s*'([^']+)'/);
+                if (t && c && l) {
+                  updated.push({
+                    id: weatherId,
+                    role: 'assistant',
+                    type: 'weather',
+                    content: { city: l[1], temp: t[1], condition: c[1], wind: '4km/h' },
+                    msgId,
+                  });
+                }
+              } catch (e) {
+                console.error(e);
+              }
+            }
           }
           return updated;
         } else {
-          return [...prev, { id: stepId, role, type: 'tool', content: toolData, msgId, isFinal: msg.is_final }];
+          return [
+            ...prev,
+            { id: stepId, role, type: 'tool', content: toolData, msgId, isFinal: msg.is_final },
+          ];
         }
       }
 
@@ -141,7 +161,7 @@ export const useAssistant = (sessionId: string) => {
           setIsSpeaking(false);
           setIsUserSpeaking(false);
         }
-      }
+      },
     );
 
     const audioProcessor = new AudioProcessor((data) => client.sendAudio(data), {
@@ -152,10 +172,10 @@ export const useAssistant = (sessionId: string) => {
       },
     });
     audioProcessorRef.current = audioProcessor;
-    audioProcessor.start().catch(err => {
-        console.error("Failed to start audio processor:", err);
-        setConnectionState('failed');
-        setConnectionMetadata({ error: 'Failed to start audio processor' });
+    audioProcessor.start().catch((err) => {
+      console.error('Failed to start audio processor:', err);
+      setConnectionState('failed');
+      setConnectionMetadata({ error: 'Failed to start audio processor' });
     });
 
     const handleBeforeUnload = () => {
@@ -187,7 +207,10 @@ export const useAssistant = (sessionId: string) => {
     }
   }, []);
 
-  const toggleMode = useCallback(() => setMode(prev => prev === 'voice' ? 'chat' : 'voice'), []);
+  const toggleMode = useCallback(
+    () => setMode((prev) => (prev === 'voice' ? 'chat' : 'voice')),
+    [],
+  );
 
   const toggleMute = useCallback(() => {
     const processor = audioProcessorRef.current;
@@ -242,6 +265,6 @@ export const useAssistant = (sessionId: string) => {
     toggleMute,
     getAnalyserNode,
     stopSpeaking,
-    manualReconnect
+    manualReconnect,
   };
 };

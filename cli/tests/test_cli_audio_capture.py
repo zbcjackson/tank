@@ -1,13 +1,13 @@
 """Tests for ClientAudioCapture."""
 
 import asyncio
-import queue
-import pytest
-import numpy as np
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock, patch
 
-from tank_cli.cli.audio_capture import ClientAudioCapture
+import numpy as np
+import pytest
+
 from tank_cli.audio.input.types import AudioFrame
+from tank_cli.cli.audio_capture import ClientAudioCapture
 from tank_cli.core.shutdown import GracefulShutdown
 
 MODULE = "tank_cli.cli.audio_capture"

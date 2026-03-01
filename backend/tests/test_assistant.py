@@ -1,11 +1,12 @@
 """Tests for Assistant orchestrator."""
 
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from tank_backend.config.settings import VoiceAssistantConfig
 from tank_backend.core.assistant import Assistant
-from tank_backend.config.settings import VoiceAssistantConfig, load_config
 
 
 class TestAssistant:
@@ -24,17 +25,19 @@ class TestAssistant:
     @pytest.fixture(autouse=True)
     def mock_subsystems(self):
         """Patch all major subsystems by default for Assistant tests."""
-        with patch('tank_backend.core.assistant.AudioInput'), \
-             patch('tank_backend.core.assistant.AudioOutput'), \
-             patch('tank_backend.core.assistant.Brain'), \
-             patch('tank_backend.core.assistant.LLM'), \
-             patch('tank_backend.core.assistant.ToolManager'), \
-             patch('tank_backend.core.assistant.load_config'):
+        with (
+            patch("tank_backend.core.assistant.AudioInput"),
+            patch("tank_backend.core.assistant.AudioOutput"),
+            patch("tank_backend.core.assistant.Brain"),
+            patch("tank_backend.core.assistant.LLM"),
+            patch("tank_backend.core.assistant.ToolManager"),
+            patch("tank_backend.core.assistant.load_config"),
+        ):
             yield
 
     def test_assistant_loads_config(self, mock_config):
         """Assistant should load config on initialization."""
-        with patch('tank_backend.core.assistant.load_config') as mock_load_config:
+        with patch("tank_backend.core.assistant.load_config") as mock_load_config:
             mock_load_config.return_value = mock_config
             assistant = Assistant(config_path=Path(".env"))
             mock_load_config.assert_called_once_with(Path(".env"))
@@ -42,14 +45,16 @@ class TestAssistant:
 
     def test_assistant_creates_llm(self, mock_config):
         """Assistant should create LLM instance."""
-        with patch('tank_backend.core.assistant.load_config') as mock_load_config, \
-             patch('tank_backend.core.assistant.LLM') as mock_llm_class:
+        with (
+            patch("tank_backend.core.assistant.load_config") as mock_load_config,
+            patch("tank_backend.core.assistant.LLM") as mock_llm_class,
+        ):
             mock_load_config.return_value = mock_config
             mock_llm_instance = MagicMock()
             mock_llm_class.return_value = mock_llm_instance
-            
+
             assistant = Assistant()
-            
+
             mock_llm_class.assert_called_once_with(
                 api_key=mock_config.llm_api_key,
                 model=mock_config.llm_model,
@@ -59,14 +64,16 @@ class TestAssistant:
 
     def test_assistant_creates_tool_manager(self, mock_config):
         """Assistant should create ToolManager instance."""
-        with patch('tank_backend.core.assistant.load_config') as mock_load_config, \
-             patch('tank_backend.core.assistant.ToolManager') as mock_tool_manager:
+        with (
+            patch("tank_backend.core.assistant.load_config") as mock_load_config,
+            patch("tank_backend.core.assistant.ToolManager") as mock_tool_manager,
+        ):
             mock_load_config.return_value = mock_config
             mock_tool_manager_instance = MagicMock()
             mock_tool_manager.return_value = mock_tool_manager_instance
-            
+
             assistant = Assistant()
-            
+
             mock_tool_manager.assert_called_once_with(
                 serper_api_key=mock_config.serper_api_key,
             )
@@ -74,24 +81,26 @@ class TestAssistant:
 
     @pytest.mark.parametrize("text", ["quit", "exit"])
     def test_process_input_quit_or_exit_interrupts_speaker_and_stops(self, mock_config, text):
-        """process_input('quit' or 'exit') interrupts speaker, sets shutdown, and calls on_exit_request."""
-        with patch('tank_backend.core.assistant.load_config') as mock_load_config, \
-             patch('tank_backend.core.assistant.AudioOutput') as mock_audio_output_cls:
+        """process_input('quit'/'exit') interrupts speaker, sets shutdown, calls on_exit_request."""
+        with (
+            patch("tank_backend.core.assistant.load_config") as mock_load_config,
+            patch("tank_backend.core.assistant.AudioOutput") as mock_audio_output_cls,
+        ):
             mock_load_config.return_value = mock_config
             mock_speaker = MagicMock()
             mock_audio_output_cls.return_value = MagicMock(speaker=mock_speaker)
-            
+
             on_exit_request = MagicMock()
             assistant = Assistant(on_exit_request=on_exit_request)
             assistant.process_input(text)
-            
+
             mock_speaker.interrupt.assert_called_once()
             assert assistant.shutdown_signal.is_set()
             on_exit_request.assert_called_once()
 
     def test_process_input_puts_display_message(self, mock_config):
         """process_input should put a DisplayMessage into the ui_queue."""
-        with patch('tank_backend.core.assistant.load_config') as mock_load_config:
+        with patch("tank_backend.core.assistant.load_config") as mock_load_config:
             mock_load_config.return_value = mock_config
             assistant = Assistant()
             assistant.process_input("hello")

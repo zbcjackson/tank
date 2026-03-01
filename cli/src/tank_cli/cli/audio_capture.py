@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import queue
-from typing import Awaitable, Callable, Optional
+from collections.abc import Awaitable, Callable
 
 import numpy as np
 
@@ -26,11 +26,15 @@ class ClientAudioCapture:
     def __init__(
         self,
         shutdown: GracefulShutdown,
-        audio_format: AudioFormat = AudioFormat(),
-        frame_cfg: FrameConfig = FrameConfig(),
-        device: Optional[int] = None,
+        audio_format: AudioFormat | None = None,
+        frame_cfg: FrameConfig | None = None,
+        device: int | None = None,
     ):
         self._shutdown = shutdown
+        if audio_format is None:
+            audio_format = AudioFormat()
+        if frame_cfg is None:
+            frame_cfg = FrameConfig()
         self._frames_queue: queue.Queue[AudioFrame] = queue.Queue(maxsize=400)
         self._mic = Mic(
             stop_signal=shutdown,
@@ -44,9 +48,7 @@ class ClientAudioCapture:
         """Start the Mic capture thread."""
         self._mic.start()
 
-    async def drain_to_ws(
-        self, send_audio: Callable[[bytes], Awaitable[None]]
-    ) -> None:
+    async def drain_to_ws(self, send_audio: Callable[[bytes], Awaitable[None]]) -> None:
         """
         Async loop: drain frames_queue and send as Int16 PCM bytes via WebSocket.
 

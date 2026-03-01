@@ -6,7 +6,6 @@ import logging
 import queue
 import threading
 import time
-from typing import Optional
 
 import numpy as np
 import sounddevice as sd
@@ -34,9 +33,9 @@ class PlaybackWorker(threading.Thread):
         *,
         name: str,
         stop_signal: StopSignal,
-        audio_chunk_queue: "queue.Queue[AudioChunk | None]",
+        audio_chunk_queue: queue.Queue[AudioChunk | None],
         daemon: bool = True,
-        interrupt_event: Optional[threading.Event] = None,
+        interrupt_event: threading.Event | None = None,
     ):
         super().__init__(name=name, daemon=daemon)
         self._stop_signal = stop_signal
@@ -69,9 +68,7 @@ class PlaybackWorker(threading.Thread):
         first_callback_done = [False]
         callback_count = [0]
         queue_ref = self._audio_chunk_queue
-        buf_container: list[np.ndarray] = [
-            np.frombuffer(first_chunk.data, dtype=np.int16).copy()
-        ]
+        buf_container: list[np.ndarray] = [np.frombuffer(first_chunk.data, dtype=np.int16).copy()]
         initial_samples = len(buf_container[0])
         logger.info(
             "PlaybackWorker: starting stream sr=%s ch=%s blocksize=%s initial_samples=%s",
@@ -85,7 +82,9 @@ class PlaybackWorker(threading.Thread):
             outdata: np.ndarray, frames: int, time_info: object, status: sd.CallbackFlags
         ) -> None:
             if self._interrupt_event is not None and self._interrupt_event.is_set():
-                logger.warning("PlaybackWorker: interrupt_event is set in callback, raising CallbackAbort")
+                logger.warning(
+                    "PlaybackWorker: interrupt_event is set in callback, raising CallbackAbort"
+                )
                 raise sd.CallbackAbort
             if status:
                 logger.warning("PlaybackWorker: callback status=%s", status)
@@ -117,9 +116,9 @@ class PlaybackWorker(threading.Thread):
                 n_apply = min(n_fade, have)
                 if n_apply > 0:
                     ramp = np.linspace(0.0, 1.0, n_apply, dtype=np.float64)
-                    out_flat[:n_apply] = (
-                        out_flat[:n_apply].astype(np.float64) * ramp
-                    ).astype(np.int16)
+                    out_flat[:n_apply] = (out_flat[:n_apply].astype(np.float64) * ramp).astype(
+                        np.int16
+                    )
 
             if stream_ended[0] and len(buf_container[0]) == 0:
                 n_apply = min(n_fade, have)
@@ -155,4 +154,3 @@ class PlaybackWorker(threading.Thread):
             logger.info("PlaybackWorker: stream aborted (CallbackAbort)")
         except Exception as e:
             logger.warning("PlaybackWorker: stream error: %s", e, exc_info=True)
-

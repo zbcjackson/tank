@@ -1,14 +1,15 @@
 """Tests for UtteranceSegmenter."""
 
 import queue
-import pytest
-import numpy as np
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 
-from tank_backend.audio.input.segmenter import UtteranceSegmenter, Utterance
-from tank_backend.audio.input.types import SegmenterConfig
+import numpy as np
+import pytest
+
 from tank_backend.audio.input.mic import AudioFrame
-from tank_backend.audio.input.vad import VADStatus, VADResult
+from tank_backend.audio.input.segmenter import Utterance, UtteranceSegmenter
+from tank_backend.audio.input.types import SegmenterConfig
+from tank_backend.audio.input.vad import VADResult, VADStatus
 from tank_backend.core.shutdown import GracefulShutdown
 
 
@@ -63,20 +64,20 @@ class TestSegmenterIntegration:
             sample_rate=16000,
             timestamp_s=1000.0,
         )
-        
+
         frames_queue.put(frame)
-        
+
         # Mock VAD to return controllable result
-        with patch.object(segmenter._vad, 'process_frame') as mock_vad:
+        with patch.object(segmenter._vad, "process_frame") as mock_vad:
             mock_vad.return_value = VADResult(status=VADStatus.NO_SPEECH)
-            
+
             segmenter.handle(frame)
-            
+
             # Verify VAD was called with correct frame
             mock_vad.assert_called_once()
             call_args = mock_vad.call_args
-            assert np.array_equal(call_args[1]['pcm'], frame_pcm)
-            assert call_args[1]['timestamp_s'] == 1000.0
+            assert np.array_equal(call_args[1]["pcm"], frame_pcm)
+            assert call_args[1]["timestamp_s"] == 1000.0
 
     def test_end_speech_creates_utterance_in_queue(self, segmenter, frames_queue, utterance_queue):
         """Test that END_SPEECH creates Utterance in queue."""
@@ -86,10 +87,10 @@ class TestSegmenterIntegration:
             sample_rate=16000,
             timestamp_s=1000.0,
         )
-        
+
         # Mock VAD to return END_SPEECH with utterance
         utterance_pcm = np.concatenate([frame_pcm, frame_pcm])
-        with patch.object(segmenter._vad, 'process_frame') as mock_vad:
+        with patch.object(segmenter._vad, "process_frame") as mock_vad:
             mock_vad.return_value = VADResult(
                 status=VADStatus.END_SPEECH,
                 utterance_pcm=utterance_pcm,
@@ -97,9 +98,9 @@ class TestSegmenterIntegration:
                 started_at_s=999.0,
                 ended_at_s=1000.0,
             )
-            
+
             segmenter.handle(frame)
-            
+
             # Verify utterance was created and put in queue
             assert not utterance_queue.empty()
             utterance = utterance_queue.get()
@@ -117,13 +118,13 @@ class TestSegmenterIntegration:
             sample_rate=16000,
             timestamp_s=1000.0,
         )
-        
+
         # Mock VAD to return NO_SPEECH
-        with patch.object(segmenter._vad, 'process_frame') as mock_vad:
+        with patch.object(segmenter._vad, "process_frame") as mock_vad:
             mock_vad.return_value = VADResult(status=VADStatus.NO_SPEECH)
-            
+
             segmenter.handle(frame)
-            
+
             # Verify no utterance was created
             assert utterance_queue.empty()
 
@@ -135,17 +136,19 @@ class TestSegmenterIntegration:
             sample_rate=16000,
             timestamp_s=1000.0,
         )
-        
+
         # Mock VAD to return IN_SPEECH
-        with patch.object(segmenter._vad, 'process_frame') as mock_vad:
+        with patch.object(segmenter._vad, "process_frame") as mock_vad:
             mock_vad.return_value = VADResult(status=VADStatus.IN_SPEECH)
-            
+
             segmenter.handle(frame)
-            
+
             # Verify no utterance was created
             assert utterance_queue.empty()
 
-    def test_vad_in_speech_triggers_interrupt_once_per_utterance(self, stop_signal, frames_queue, utterance_queue):
+    def test_vad_in_speech_triggers_interrupt_once_per_utterance(
+        self, stop_signal, frames_queue, utterance_queue
+    ):
         """When VAD enters IN_SPEECH, interrupt callback fires once per utterance."""
         cfg = SegmenterConfig()
         on_interrupt = Mock()
@@ -171,7 +174,9 @@ class TestSegmenterIntegration:
 
         assert on_interrupt.call_count == 1
 
-    def test_vad_interrupt_resets_after_end_speech(self, stop_signal, frames_queue, utterance_queue):
+    def test_vad_interrupt_resets_after_end_speech(
+        self, stop_signal, frames_queue, utterance_queue
+    ):
         """After END_SPEECH (or NO_SPEECH), next utterance should trigger interrupt again."""
         cfg = SegmenterConfig()
         on_interrupt = Mock()
@@ -193,7 +198,9 @@ class TestSegmenterIntegration:
             mock_vad.side_effect = [
                 VADResult(status=VADStatus.IN_SPEECH),
                 VADResult(status=VADStatus.IN_SPEECH),
-                VADResult(status=VADStatus.END_SPEECH, utterance_pcm=np.array([1], dtype=np.float32)),
+                VADResult(
+                    status=VADStatus.END_SPEECH, utterance_pcm=np.array([1], dtype=np.float32)
+                ),
                 VADResult(status=VADStatus.NO_SPEECH),
                 VADResult(status=VADStatus.IN_SPEECH),
             ]
@@ -216,19 +223,19 @@ class TestSegmenterIntegration:
                 ended_at_s=1000.1 + i,
             )
             utterance_queue.put(utterance)
-        
+
         assert utterance_queue.full()
-        
+
         frame_pcm = generate_speech_frame()
         frame = AudioFrame(
             pcm=frame_pcm,
             sample_rate=16000,
             timestamp_s=2000.0,
         )
-        
+
         # Mock VAD to return END_SPEECH
         utterance_pcm = frame_pcm
-        with patch.object(segmenter._vad, 'process_frame') as mock_vad:
+        with patch.object(segmenter._vad, "process_frame") as mock_vad:
             mock_vad.return_value = VADResult(
                 status=VADStatus.END_SPEECH,
                 utterance_pcm=utterance_pcm,
@@ -236,31 +243,31 @@ class TestSegmenterIntegration:
                 started_at_s=1999.0,
                 ended_at_s=2000.0,
             )
-            
+
             segmenter.handle(frame)
-            
+
             # Verify queue is still full
             assert utterance_queue.full()
-            
+
             # Verify oldest utterance (with pcm=[0]) was removed
             # and new utterance was added
             utterances = []
             while not utterance_queue.empty():
                 utterances.append(utterance_queue.get())
-            
+
             # Should have 20 utterances
             assert len(utterances) == 20
-            
+
             # First utterance should NOT be the one with pcm=[0]
             assert not np.array_equal(utterances[0].pcm, np.array([0], dtype=np.float32))
-            
+
             # Last utterance should be the new one
             assert np.array_equal(utterances[-1].pcm, utterance_pcm)
 
     def test_flush_on_shutdown(self, segmenter, utterance_queue):
         """Test that flush is called on shutdown."""
         # Mock VAD flush
-        with patch.object(segmenter._vad, 'flush') as mock_flush:
+        with patch.object(segmenter._vad, "flush") as mock_flush:
             mock_flush.return_value = VADResult(
                 status=VADStatus.END_SPEECH,
                 utterance_pcm=np.array([1, 2, 3], dtype=np.float32),
@@ -268,12 +275,12 @@ class TestSegmenterIntegration:
                 started_at_s=1000.0,
                 ended_at_s=1001.0,
             )
-            
+
             # Simulate shutdown
             segmenter._stop_signal.stop()
-            
+
             # Call cleanup (normally called by QueueWorker on shutdown)
             segmenter.cleanup()
-            
+
             # Verify flush was called
             mock_flush.assert_called_once()

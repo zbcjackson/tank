@@ -82,6 +82,28 @@ uv run textual run --dev src/tank_cli/tui/app.py --screenshot
 2. Document in this file
 3. Update `.env.example` if needed
 
+## Code Quality
+
+### Linting
+
+```bash
+# Check for lint errors
+uv run ruff check src/ tests/
+
+# Auto-fix issues
+uv run ruff check --fix src/ tests/
+```
+
+### Formatting
+
+```bash
+# Format code
+uv run ruff format src/ tests/
+
+# Check formatting without changing files
+uv run ruff format --check src/ tests/
+```
+
 ## Troubleshooting
 
 ### Audio Device Issues

@@ -1,9 +1,10 @@
 """Tests for Perception thread (ASR + display)."""
 
 import queue
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock
 
 from tank_backend.audio.input.perception import Perception, PerceptionConfig
 from tank_backend.audio.input.segmenter import Utterance
@@ -52,9 +53,7 @@ class TestPerception:
             config=config,
         )
 
-    def test_handle_puts_brain_input_event_and_display_message(
-        self, perception, runtime, mock_asr
-    ):
+    def test_handle_puts_brain_input_event_and_display_message(self, perception, runtime, mock_asr):
         """Perception.handle puts BrainInputEvent and DisplayMessage with ASR result."""
         utterance = make_utterance()
         perception.handle(utterance)
@@ -97,8 +96,10 @@ class TestPerception:
         assert runtime.brain_input_queue.empty()
         assert runtime.ui_queue.empty()
 
-    def test_handle_skips_brain_input_when_text_whitespace_only(self, perception, runtime, mock_asr):
-        """When ASR returns whitespace-only text, no BrainInputEvent is put into brain_input_queue."""
+    def test_handle_skips_brain_input_when_text_whitespace_only(
+        self, perception, runtime, mock_asr
+    ):
+        """Whitespace-only ASR text should not produce a BrainInputEvent."""
         mock_asr.transcribe.return_value = ("   \n\t  ", None, None)
         utterance = make_utterance()
         perception.handle(utterance)

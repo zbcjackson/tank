@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import threading
-import time
 import queue
-from typing import Any, Generic, TypeVar, Optional
+import threading
+from typing import Any, Generic, TypeVar
 
 from .shutdown import StopSignal
 
@@ -32,7 +31,7 @@ class QueueWorker(threading.Thread, Generic[T]):
         *,
         name: str,
         stop_signal: StopSignal,
-        input_queue: "queue.Queue[T]",
+        input_queue: queue.Queue[T],
         poll_interval_s: float = 0.1,
         daemon: bool = True,
     ):
@@ -40,8 +39,8 @@ class QueueWorker(threading.Thread, Generic[T]):
         self._stop_signal = stop_signal
         self._input_queue = input_queue
         self._poll_interval_s = poll_interval_s
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._current_task: Optional[asyncio.Task] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._current_task: asyncio.Task | None = None
 
     def run(self) -> None:
         """Run the worker thread with optional event loop setup."""
@@ -62,7 +61,7 @@ class QueueWorker(threading.Thread, Generic[T]):
         finally:
             self._teardown_event_loop()
 
-    def _setup_event_loop(self) -> Optional[asyncio.AbstractEventLoop]:
+    def _setup_event_loop(self) -> asyncio.AbstractEventLoop | None:
         """
         Override in subclasses that need an event loop.
 
@@ -97,4 +96,3 @@ class QueueWorker(threading.Thread, Generic[T]):
 
     def handle(self, item: T) -> None:
         raise NotImplementedError
-

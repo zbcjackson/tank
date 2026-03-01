@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import queue
 import threading
@@ -49,10 +50,8 @@ class ClientAudioPlayback:
 
     def end_stream(self) -> None:
         """Signal end of current audio stream (push None marker)."""
-        try:
+        with contextlib.suppress(queue.Full):
             self._chunk_queue.put_nowait(None)
-        except queue.Full:
-            pass
 
     def interrupt(self) -> None:
         """Interrupt current playback."""

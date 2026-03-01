@@ -1,16 +1,15 @@
 """Tests for microphone audio capture."""
 
-import pytest
 import queue
-import threading
 import time
-import numpy as np
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
-from tank_backend.audio.input.mic import Mic, AudioFrame
+import numpy as np
+import pytest
+
+from tank_backend.audio.input.mic import AudioFrame, Mic
 from tank_backend.audio.input.types import AudioFormat, FrameConfig
 from tank_backend.core.shutdown import GracefulShutdown
-import sounddevice as sd
 
 
 class TestMic:
@@ -51,35 +50,39 @@ class TestMic:
         mock_stream = MagicMock()
         mock_stream_context.__enter__ = Mock(return_value=mock_stream)
         mock_stream_context.__exit__ = Mock(return_value=False)
-        
+
         def capture_callback(*args, **kwargs):
             nonlocal captured_callback
-            captured_callback = kwargs.get('callback') or (args[0] if args else None)
+            captured_callback = kwargs.get("callback") or (args[0] if args else None)
             return mock_stream_context
-        
-        with patch('tank_backend.audio.input.mic.sd.InputStream', side_effect=capture_callback) as mock_input_stream:
+
+        with patch(
+            "tank_backend.audio.input.mic.sd.InputStream", side_effect=capture_callback
+        ) as mock_input_stream:
             # Start mic thread
             mic.start()
-            
+
             # Wait a bit for thread to start and initialize stream
             time.sleep(0.3)
-            
+
             # Verify InputStream was called with correct parameters
             assert mock_input_stream.called
             call_kwargs = mock_input_stream.call_args[1]
-            assert call_kwargs['samplerate'] == audio_format.sample_rate
-            assert call_kwargs['channels'] == audio_format.channels
-            assert call_kwargs['dtype'] == np.float32
-            assert 'callback' in call_kwargs
-            
+            assert call_kwargs["samplerate"] == audio_format.sample_rate
+            assert call_kwargs["channels"] == audio_format.channels
+            assert call_kwargs["dtype"] == np.float32
+            assert "callback" in call_kwargs
+
             # Verify callback was captured
-            assert captured_callback is not None, "sd.InputStream should have been called with callback parameter"
-            
+            assert captured_callback is not None, (
+                "sd.InputStream should have been called with callback parameter"
+            )
+
             # Simulate callback being called with audio data
             mock_audio_data = np.random.randn(320, 1).astype(np.float32)  # 20ms at 16kHz
             captured_callback(mock_audio_data, 320, {}, {})
             time.sleep(0.1)
-            
+
             # Check that frame was added to queue
             assert not frames_queue.empty()
             frame = frames_queue.get_nowait()
@@ -87,7 +90,7 @@ class TestMic:
             assert frame.sample_rate == audio_format.sample_rate
             assert frame.pcm.dtype == np.float32
             assert len(frame.pcm) == 320
-            
+
             # Stop mic
             stop_signal.stop()
             mic.join(timeout=1.0)
@@ -95,7 +98,7 @@ class TestMic:
     def test_mic_works_with_custom_audio_format(self, frame_config, frames_queue, stop_signal):
         """Test that Mic works correctly with custom audio format parameters."""
         custom_format = AudioFormat(sample_rate=44100, channels=1, dtype="float32")
-        
+
         mic = Mic(
             stop_signal=stop_signal,
             audio_format=custom_format,
@@ -109,37 +112,39 @@ class TestMic:
         mock_stream = MagicMock()
         mock_stream_context.__enter__ = Mock(return_value=mock_stream)
         mock_stream_context.__exit__ = Mock(return_value=False)
-        
+
         def capture_callback(*args, **kwargs):
             nonlocal captured_callback
-            captured_callback = kwargs.get('callback') or (args[0] if args else None)
+            captured_callback = kwargs.get("callback") or (args[0] if args else None)
             return mock_stream_context
-        
-        with patch('tank_backend.audio.input.mic.sd.InputStream', side_effect=capture_callback) as mock_input_stream:
+
+        with patch(
+            "tank_backend.audio.input.mic.sd.InputStream", side_effect=capture_callback
+        ) as mock_input_stream:
             mic.start()
             time.sleep(0.3)
-            
+
             # Verify InputStream was called with custom format parameters
             assert mock_input_stream.called
             call_kwargs = mock_input_stream.call_args[1]
-            assert call_kwargs['samplerate'] == 44100
-            assert call_kwargs['channels'] == 1
-            assert call_kwargs['dtype'] == np.float32
-            
+            assert call_kwargs["samplerate"] == 44100
+            assert call_kwargs["channels"] == 1
+            assert call_kwargs["dtype"] == np.float32
+
             # Verify callback was captured
             assert captured_callback is not None
-            
+
             # Simulate callback with audio data - verify it works with custom format
             blocksize = int(custom_format.sample_rate * frame_config.frame_ms / 1000)
             mock_audio_data = np.random.randn(blocksize, 1).astype(np.float32)
             captured_callback(mock_audio_data, blocksize, {}, {})
             time.sleep(0.1)
-            
+
             # Verify frame was added with correct sample rate
             assert not frames_queue.empty()
             frame = frames_queue.get_nowait()
             assert frame.sample_rate == 44100
-            
+
             stop_signal.stop()
             mic.join(timeout=1.0)
 
@@ -156,16 +161,16 @@ class TestMic:
         mock_stream = MagicMock()
         mock_stream_context.__enter__ = Mock(return_value=mock_stream)
         mock_stream_context.__exit__ = Mock(return_value=False)
-        
-        with patch('tank_backend.audio.input.mic.sd.InputStream', return_value=mock_stream_context):
+
+        with patch("tank_backend.audio.input.mic.sd.InputStream", return_value=mock_stream_context):
             mic.start()
-            
+
             # Wait a bit for thread to start
             time.sleep(0.2)
-            
+
             # Set stop signal
             stop_signal.stop()
-            
+
             # Mic should stop within reasonable time
             mic.join(timeout=2.0)
             assert not mic.is_alive()
@@ -177,13 +182,13 @@ class TestMic:
             frame = AudioFrame(
                 pcm=np.random.randn(320).astype(np.float32),
                 sample_rate=audio_format.sample_rate,
-                timestamp_s=time.time()
+                timestamp_s=time.time(),
             )
             frames_queue.put_nowait(frame)
-        
+
         assert frames_queue.full()
         initial_queue_size = frames_queue.qsize()
-        
+
         mic = Mic(
             stop_signal=stop_signal,
             audio_format=audio_format,
@@ -197,30 +202,32 @@ class TestMic:
         mock_stream = MagicMock()
         mock_stream_context.__enter__ = Mock(return_value=mock_stream)
         mock_stream_context.__exit__ = Mock(return_value=False)
-        
+
         def capture_callback(*args, **kwargs):
             nonlocal captured_callback
-            captured_callback = kwargs.get('callback') or (args[0] if args else None)
+            captured_callback = kwargs.get("callback") or (args[0] if args else None)
             return mock_stream_context
-        
-        with patch('tank_backend.audio.input.mic.sd.InputStream', side_effect=capture_callback):
+
+        with patch("tank_backend.audio.input.mic.sd.InputStream", side_effect=capture_callback):
             mic.start()
             time.sleep(0.3)
-            
+
             # Verify callback was captured
-            assert captured_callback is not None, "sd.InputStream should have been called with callback parameter"
-            
+            assert captured_callback is not None, (
+                "sd.InputStream should have been called with callback parameter"
+            )
+
             # Simulate callback with full queue - should not block or raise exception
             mock_audio_data = np.random.randn(320, 1).astype(np.float32)
             captured_callback(mock_audio_data, 320, {}, {})
-            
+
             # Verify queue is still full (frame was dropped, not added)
             assert frames_queue.full()
             assert frames_queue.qsize() == initial_queue_size
-            
+
             # Mic should not block even with full queue
             stop_signal.stop()
             mic.join(timeout=1.0)
-            
+
             # Should complete without hanging
             assert not mic.is_alive()

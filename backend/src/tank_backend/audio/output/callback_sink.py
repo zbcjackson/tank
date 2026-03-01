@@ -5,10 +5,10 @@ from __future__ import annotations
 import logging
 import queue
 import threading
-from typing import Optional, Callable
+from collections.abc import Callable
 
-from .types import AudioSink, AudioChunk
 from ...core.shutdown import StopSignal
+from .types import AudioChunk
 
 logger = logging.getLogger("CallbackSink")
 
@@ -24,13 +24,13 @@ class CallbackAudioSink:
         stop_signal: StopSignal,
         audio_chunk_queue: queue.Queue[AudioChunk | None],
         on_chunk: Callable[[AudioChunk], None],
-        on_stream_end: Optional[Callable[[], None]] = None,
+        on_stream_end: Callable[[], None] | None = None,
     ):
         self._stop_signal = stop_signal
         self._audio_chunk_queue = audio_chunk_queue
         self._on_chunk = on_chunk
         self._on_stream_end = on_stream_end
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
     def start(self) -> None:
         """Start the sink thread."""

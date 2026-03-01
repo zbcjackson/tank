@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import queue
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable, Callable, Optional
-
+from typing import Optional, Protocol, runtime_checkable
 
 from ...core.shutdown import StopSignal
 
@@ -13,6 +13,7 @@ from ...core.shutdown import StopSignal
 @runtime_checkable
 class AudioSink(Protocol):
     """Protocol for audio output destinations."""
+
     def start(self) -> None:
         """Start playing audio."""
         ...

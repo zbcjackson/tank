@@ -1,7 +1,8 @@
 import ast
-import operator as op
 import logging
-from typing import Dict, Any
+import operator as op
+from typing import Any
+
 from .base import BaseTool, ToolInfo, ToolParameter
 
 logger = logging.getLogger(__name__)
@@ -17,12 +18,12 @@ class CalculatorTool(BaseTool):
                     name="expression",
                     type="string",
                     description="Mathematical expression to evaluate (e.g., '2 + 2', '10 * 5')",
-                    required=True
+                    required=True,
                 )
-            ]
+            ],
         )
 
-    async def execute(self, expression: str) -> Dict[str, Any]:
+    async def execute(self, expression: str) -> dict[str, Any]:
         logger.info(f"Calculating: {expression}")
         try:
             # Supported operators
@@ -37,7 +38,7 @@ class CalculatorTool(BaseTool):
             }
 
             def eval_expr(expr):
-                return eval_(ast.parse(expr, mode='eval').body)
+                return eval_(ast.parse(expr, mode="eval").body)
 
             def eval_(node):
                 if isinstance(node, ast.Constant):
@@ -53,14 +54,10 @@ class CalculatorTool(BaseTool):
             return {
                 "expression": expression,
                 "result": result,
-                "message": f"{expression} = {result}"
+                "message": f"{expression} = {result}",
             }
 
         except Exception as e:
             error_message = f"Error calculating {expression}: {str(e)}"
             logger.error(error_message)
-            return {
-                "expression": expression,
-                "error": str(e),
-                "message": error_message
-            }
+            return {"expression": expression, "error": str(e), "message": error_message}

@@ -1,8 +1,9 @@
 """Tests for ASR (Automatic Speech Recognition)."""
 
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, patch
 
 from tank_backend.audio.input.asr import ASR
 
@@ -56,9 +57,7 @@ class TestASR:
         info = MagicMock(language="zh", language_probability=0.9)
         with patch(
             "tank_backend.audio.input.asr.WhisperModel",
-            return_value=MagicMock(
-                transcribe=MagicMock(return_value=(iter([seg1, seg2]), info))
-            ),
+            return_value=MagicMock(transcribe=MagicMock(return_value=(iter([seg1, seg2]), info))),
         ):
             asr = ASR(model_size="base", device="cpu")
             text, language, confidence = asr.transcribe(generate_pcm(), 16000)
@@ -68,11 +67,19 @@ class TestASR:
 
     def test_transcribe_strips_hallucination_at_end(self, mock_whisper_model):
         """Common Whisper hallucination at end (e.g. thank you) is removed."""
-        segments = [MagicMock(text=" hello ", start=0.0, end=0.2), MagicMock(text=" thank you ", start=0.2, end=0.5)]
+        segments = [
+            MagicMock(text=" hello ", start=0.0, end=0.2),
+            MagicMock(text=" thank you ", start=0.2, end=0.5),
+        ]
         with patch(
             "tank_backend.audio.input.asr.WhisperModel",
             return_value=MagicMock(
-                transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="en", language_probability=0.95)))
+                transcribe=MagicMock(
+                    return_value=(
+                        iter(segments),
+                        MagicMock(language="en", language_probability=0.95),
+                    )
+                )
             ),
         ):
             asr = ASR(model_size="base", device="cpu")
@@ -81,11 +88,19 @@ class TestASR:
 
     def test_transcribe_strips_hallucination_at_start(self, mock_whisper_model):
         """Hallucination at start (e.g. Thank you.) is removed."""
-        segments = [MagicMock(text=" Thank you. ", start=0.0, end=0.2), MagicMock(text=" 你好 ", start=0.2, end=0.5)]
+        segments = [
+            MagicMock(text=" Thank you. ", start=0.0, end=0.2),
+            MagicMock(text=" 你好 ", start=0.2, end=0.5),
+        ]
         with patch(
             "tank_backend.audio.input.asr.WhisperModel",
             return_value=MagicMock(
-                transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="zh", language_probability=0.9)))
+                transcribe=MagicMock(
+                    return_value=(
+                        iter(segments),
+                        MagicMock(language="zh", language_probability=0.9),
+                    )
+                )
             ),
         ):
             asr = ASR(model_size="base", device="cpu")
@@ -98,7 +113,12 @@ class TestASR:
         with patch(
             "tank_backend.audio.input.asr.WhisperModel",
             return_value=MagicMock(
-                transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="en", language_probability=0.95)))
+                transcribe=MagicMock(
+                    return_value=(
+                        iter(segments),
+                        MagicMock(language="en", language_probability=0.95),
+                    )
+                )
             ),
         ):
             asr = ASR(model_size="base", device="cpu")
@@ -107,11 +127,19 @@ class TestASR:
 
     def test_transcribe_keeps_content_unchanged_when_no_hallucination(self, mock_whisper_model):
         """Content without hallucination phrases is unchanged."""
-        segments = [MagicMock(text=" hello ", start=0.0, end=0.2), MagicMock(text=" world ", start=0.2, end=0.5)]
+        segments = [
+            MagicMock(text=" hello ", start=0.0, end=0.2),
+            MagicMock(text=" world ", start=0.2, end=0.5),
+        ]
         with patch(
             "tank_backend.audio.input.asr.WhisperModel",
             return_value=MagicMock(
-                transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="en", language_probability=0.95)))
+                transcribe=MagicMock(
+                    return_value=(
+                        iter(segments),
+                        MagicMock(language="en", language_probability=0.95),
+                    )
+                )
             ),
         ):
             asr = ASR(model_size="base", device="cpu")
@@ -128,7 +156,12 @@ class TestASR:
         with patch(
             "tank_backend.audio.input.asr.WhisperModel",
             return_value=MagicMock(
-                transcribe=MagicMock(return_value=(iter(segments), MagicMock(language="zh", language_probability=0.9)))
+                transcribe=MagicMock(
+                    return_value=(
+                        iter(segments),
+                        MagicMock(language="zh", language_probability=0.9),
+                    )
+                )
             ),
         ):
             asr = ASR(model_size="base", device="cpu")

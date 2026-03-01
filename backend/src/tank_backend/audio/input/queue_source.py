@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import queue
 import logging
+import queue
 import threading
-import time
-from typing import Optional
 
-from .types import AudioSource, AudioFrame
+from .types import AudioFrame
 
 logger = logging.getLogger("QueueSource")
 
@@ -25,12 +23,12 @@ class QueueAudioSource:
     ):
         self._frames_queue = frames_queue
         self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
     def start(self) -> None:
         """
-        In this implementation, start doesn't need to do much as the 
-        actual 'pushing' into the queue happens externally. 
+        In this implementation, start doesn't need to do much as the
+        actual 'pushing' into the queue happens externally.
         But we might want a thread to monitor or manage the source.
         For now, we just satisfy the interface.
         """

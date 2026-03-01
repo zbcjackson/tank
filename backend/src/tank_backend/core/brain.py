@@ -3,17 +3,24 @@ import logging
 import time
 import uuid
 from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING, Dict, Any
+from typing import TYPE_CHECKING, Any
 
-from .events import AudioOutputRequest, BrainInputEvent, BrainInterrupted, DisplayMessage, UpdateType, SignalMessage
+from ..audio.output import AudioOutput
+from ..config.settings import VoiceAssistantConfig
+from .events import (
+    AudioOutputRequest,
+    BrainInputEvent,
+    BrainInterrupted,
+    DisplayMessage,
+    SignalMessage,
+)
 from .runtime import RuntimeContext
 from .shutdown import StopSignal
 from .worker import QueueWorker
-from ..audio.output import AudioOutput
-from ..config.settings import VoiceAssistantConfig
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam
+
     from ..llm.llm import LLM
     from ..tools.manager import ToolManager
 
@@ -23,10 +30,10 @@ logger = logging.getLogger("Brain")
 class Brain(QueueWorker[BrainInputEvent]):
     """
     The Orchestrator: Process inputs and decide actions.
-    
+
     Consumes BrainInputEvent from brain_input_queue and processes them using LLM.
     """
-    
+
     def __init__(
         self,
         shutdown_signal: StopSignal,
@@ -47,24 +54,24 @@ class Brain(QueueWorker[BrainInputEvent]):
         self._llm = llm
         self._tool_manager = tool_manager
         self._config = config
-        
+
         # Load system prompt from file
         self._system_prompt = self._load_system_prompt()
-        
+
         # Initialize conversation history with system prompt as first message
-        self._conversation_history: List["ChatCompletionMessageParam"] = [
+        self._conversation_history: list[ChatCompletionMessageParam] = [
             {"role": "system", "content": self._system_prompt}
         ]
-        
+
         # Event loop for async operations (created by base class)
         # Alias to base class _loop for backward compatibility
-        self._event_loop: Optional[asyncio.AbstractEventLoop] = None
-    
+        self._event_loop: asyncio.AbstractEventLoop | None = None
+
     def _load_system_prompt(self) -> str:
         """Load system prompt from file."""
         prompt_path = Path(__file__).parent.parent / "prompts" / "system_prompt.txt"
         try:
-            with open(prompt_path, "r", encoding="utf-8") as f:
+            with open(prompt_path, encoding="utf-8") as f:
                 return f.read().strip()
         except FileNotFoundError:
             logger.error(f"System prompt file not found at {prompt_path}")
@@ -89,9 +96,7 @@ class Brain(QueueWorker[BrainInputEvent]):
                 if pending:
                     for task in pending:
                         task.cancel()
-                    self._loop.run_until_complete(
-                        asyncio.gather(*pending, return_exceptions=True)
-                    )
+                    self._loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
             finally:
                 self._loop.close()
         self._event_loop = None
@@ -120,10 +125,7 @@ class Brain(QueueWorker[BrainInputEvent]):
 
         # Send processing_started signal
         self._runtime.ui_queue.put(
-            SignalMessage(
-                signal_type="processing_started",
-                msg_id=assistant_msg_id
-            )
+            SignalMessage(signal_type="processing_started", msg_id=assistant_msg_id)
         )
 
         try:
@@ -131,18 +133,16 @@ class Brain(QueueWorker[BrainInputEvent]):
             self._process_stream(assistant_msg_id, language, tools)
 
             ended_at = time.time()
-            logger.info("Brain response finished at %.3f, duration_s=%.3f", ended_at, ended_at - started_at)
+            logger.info(
+                "Brain response finished at %.3f, duration_s=%.3f", ended_at, ended_at - started_at
+            )
 
         except BrainInterrupted:
             logger.info("Brain: processing interrupted by user speech")
             # Mark the current assistant block as final/stopped
             self._runtime.ui_queue.put(
                 DisplayMessage(
-                    speaker="Brain",
-                    text="",
-                    is_user=False,
-                    msg_id=assistant_msg_id,
-                    is_final=True
+                    speaker="Brain", text="", is_user=False, msg_id=assistant_msg_id, is_final=True
                 )
             )
         except Exception as e:
@@ -154,19 +154,16 @@ class Brain(QueueWorker[BrainInputEvent]):
                     text=error_msg,
                     is_user=False,
                     msg_id=f"brain_err_{uuid.uuid4().hex[:8]}",
-                    is_final=True
+                    is_final=True,
                 )
             )
         finally:
             # Always send processing_ended signal
             self._runtime.ui_queue.put(
-                SignalMessage(
-                    signal_type="processing_ended",
-                    msg_id=assistant_msg_id
-                )
+                SignalMessage(signal_type="processing_ended", msg_id=assistant_msg_id)
             )
 
-    def _process_stream(self, msg_id: str, language: str, tools: List[Dict[str, Any]]) -> None:
+    def _process_stream(self, msg_id: str, language: str, tools: list[dict[str, Any]]) -> None:
         """Run the streaming LLM process in the event loop."""
         if self._event_loop is None:
             raise RuntimeError("Event loop not initialized")
@@ -186,7 +183,10 @@ class Brain(QueueWorker[BrainInputEvent]):
                     if self._stop_signal.is_set():
                         return
                     # Check for interruption
-                    if self._config.speech_interrupt_enabled and self._runtime.interrupt_event.is_set():
+                    if (
+                        self._config.speech_interrupt_enabled
+                        and self._runtime.interrupt_event.is_set()
+                    ):
                         raise BrainInterrupted()
 
                     # Push update to UI
@@ -198,7 +198,7 @@ class Brain(QueueWorker[BrainInputEvent]):
                             msg_id=msg_id,
                             is_final=False,
                             update_type=update_type,
-                            metadata=metadata
+                            metadata=metadata,
                         )
                     )
 
@@ -209,11 +209,7 @@ class Brain(QueueWorker[BrainInputEvent]):
                 # 1. Finalize UI block
                 self._runtime.ui_queue.put(
                     DisplayMessage(
-                        speaker="Brain",
-                        text="",
-                        is_user=False,
-                        msg_id=msg_id,
-                        is_final=True
+                        speaker="Brain", text="", is_user=False, msg_id=msg_id, is_final=True
                     )
                 )
 
@@ -239,17 +235,17 @@ class Brain(QueueWorker[BrainInputEvent]):
     def _add_to_conversation_history(self, role: str, content: str) -> None:
         """Add message to conversation history and enforce limit."""
         self._conversation_history.append({"role": role, "content": content})
-        
+
         # Limit: keep system (index 0) + last max_conversation_history * 2 messages
         # (each conversation turn = 1 user + 1 assistant = 2 messages)
         max_messages = self._config.max_conversation_history * 2 + 1
         if len(self._conversation_history) > max_messages:
             self._conversation_history = (
-                [self._conversation_history[0]] +  # Keep system prompt
-                self._conversation_history[-(max_messages - 1):]  # Keep last N messages
+                [self._conversation_history[0]]  # Keep system prompt
+                + self._conversation_history[-(max_messages - 1) :]  # Keep last N messages
             )
-    
-    def _get_error_message(self, language: Optional[str]) -> str:
+
+    def _get_error_message(self, language: str | None) -> str:
         """Get error message in user's language."""
         if language and language.startswith("zh"):
             return "对不起，出现错误，请重试。"

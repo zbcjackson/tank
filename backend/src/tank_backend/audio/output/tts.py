@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import AsyncIterator, Callable, Optional
+from collections.abc import AsyncIterator, Callable
 
 from .types import AudioChunk
 
@@ -17,8 +17,8 @@ class TTSEngine(ABC):
         text: str,
         *,
         language: str = "auto",
-        voice: Optional[str] = None,
-        is_interrupted: Optional[Callable[[], bool]] = None,
+        voice: str | None = None,
+        is_interrupted: Callable[[], bool] | None = None,
     ) -> AsyncIterator[AudioChunk]:
         """
         Stream TTS for text. Yields PCM chunks as they are produced.

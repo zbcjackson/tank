@@ -1,13 +1,15 @@
 """Tests for Brain processing_started/ended signals."""
 
-import pytest
 import asyncio
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock
+
+import pytest
+
+from tank_backend.config.settings import VoiceAssistantConfig
 from tank_backend.core.brain import Brain
-from tank_backend.core.events import BrainInputEvent, InputType, UpdateType, SignalMessage
+from tank_backend.core.events import BrainInputEvent, InputType, SignalMessage, UpdateType
 from tank_backend.core.runtime import RuntimeContext
 from tank_backend.core.shutdown import GracefulShutdown
-from tank_backend.config.settings import VoiceAssistantConfig
 
 
 @pytest.fixture
@@ -45,11 +47,7 @@ def brain(runtime, mock_llm):
 def test_brain_sends_processing_started_signal(brain, runtime):
     """Test that Brain sends processing_started signal when starting to process input."""
     event = BrainInputEvent(
-        type=InputType.TEXT,
-        text="Hello",
-        user="User",
-        language="en",
-        confidence=None
+        type=InputType.TEXT, text="Hello", user="User", language="en", confidence=None
     )
 
     brain.handle(event)
@@ -70,11 +68,7 @@ def test_brain_sends_processing_started_signal(brain, runtime):
 def test_brain_sends_processing_ended_signal(brain, runtime):
     """Test that Brain sends processing_ended signal when processing completes."""
     event = BrainInputEvent(
-        type=InputType.TEXT,
-        text="Hello",
-        user="User",
-        language="en",
-        confidence=None
+        type=InputType.TEXT, text="Hello", user="User", language="en", confidence=None
     )
 
     brain.handle(event)
@@ -95,11 +89,7 @@ def test_brain_sends_processing_ended_signal(brain, runtime):
 def test_brain_signals_order(brain, runtime):
     """Test that processing_started comes before processing_ended."""
     event = BrainInputEvent(
-        type=InputType.TEXT,
-        text="Hello",
-        user="User",
-        language="en",
-        confidence=None
+        type=InputType.TEXT, text="Hello", user="User", language="en", confidence=None
     )
 
     brain.handle(event)
@@ -110,8 +100,22 @@ def test_brain_signals_order(brain, runtime):
         messages.append(runtime.ui_queue.get_nowait())
 
     # Find signal positions
-    started_idx = next((i for i, m in enumerate(messages) if isinstance(m, SignalMessage) and m.signal_type == "processing_started"), None)
-    ended_idx = next((i for i, m in enumerate(messages) if isinstance(m, SignalMessage) and m.signal_type == "processing_ended"), None)
+    started_idx = next(
+        (
+            i
+            for i, m in enumerate(messages)
+            if isinstance(m, SignalMessage) and m.signal_type == "processing_started"
+        ),
+        None,
+    )
+    ended_idx = next(
+        (
+            i
+            for i, m in enumerate(messages)
+            if isinstance(m, SignalMessage) and m.signal_type == "processing_ended"
+        ),
+        None,
+    )
 
     assert started_idx is not None, "Should have processing_started signal"
     assert ended_idx is not None, "Should have processing_ended signal"
@@ -120,6 +124,7 @@ def test_brain_signals_order(brain, runtime):
 
 def test_brain_sends_processing_ended_on_error(brain, runtime, mock_llm):
     """Test that Brain sends processing_ended signal even when an error occurs."""
+
     # Make LLM raise an error
     async def error_gen(*args, **kwargs):
         raise RuntimeError("LLM error")
@@ -128,11 +133,7 @@ def test_brain_sends_processing_ended_on_error(brain, runtime, mock_llm):
     mock_llm.chat_stream.return_value = error_gen()
 
     event = BrainInputEvent(
-        type=InputType.TEXT,
-        text="Hello",
-        user="User",
-        language="en",
-        confidence=None
+        type=InputType.TEXT, text="Hello", user="User", language="en", confidence=None
     )
 
     brain.handle(event)
@@ -152,11 +153,7 @@ def test_brain_sends_processing_ended_on_error(brain, runtime, mock_llm):
 def test_brain_signals_have_same_msg_id(brain, runtime):
     """Test that processing_started and processing_ended share the same msg_id."""
     event = BrainInputEvent(
-        type=InputType.TEXT,
-        text="Hello",
-        user="User",
-        language="en",
-        confidence=None
+        type=InputType.TEXT, text="Hello", user="User", language="en", confidence=None
     )
 
     brain.handle(event)

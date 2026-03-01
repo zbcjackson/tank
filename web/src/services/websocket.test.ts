@@ -50,12 +50,15 @@ function latestWs(): MockWebSocket {
   return wsInstances[wsInstances.length - 1];
 }
 
-vi.stubGlobal('WebSocket', class extends MockWebSocket {
-  constructor() {
-    super();
-    wsInstances.push(this);
-  }
-});
+vi.stubGlobal(
+  'WebSocket',
+  class extends MockWebSocket {
+    constructor() {
+      super();
+      wsInstances.push(this);
+    }
+  },
+);
 
 vi.stubGlobal('AudioContext', vi.fn());
 
@@ -77,7 +80,7 @@ describe('VoiceAssistantClient', () => {
       (msg) => messages.push(msg),
       undefined,
       undefined,
-      (state, metadata) => stateChanges.push({ state, metadata })
+      (state, metadata) => stateChanges.push({ state, metadata }),
     );
   });
 
@@ -110,7 +113,7 @@ describe('VoiceAssistantClient', () => {
         vi.advanceTimersByTime(30_000);
       }
 
-      const failed = stateChanges.find(s => s.state === 'failed');
+      const failed = stateChanges.find((s) => s.state === 'failed');
       expect(failed).toBeDefined();
       expect(failed!.metadata?.attempt).toBe(10);
     });
@@ -121,7 +124,7 @@ describe('VoiceAssistantClient', () => {
       latestWs().simulateOpen();
       latestWs().simulateClose(1006);
 
-      const reconnecting = stateChanges.find(s => s.state === 'reconnecting');
+      const reconnecting = stateChanges.find((s) => s.state === 'reconnecting');
       expect(reconnecting!.metadata!.nextRetryIn).toBe(1000);
     });
 
@@ -131,7 +134,7 @@ describe('VoiceAssistantClient', () => {
       vi.advanceTimersByTime(1000);
       latestWs().simulateClose(1006);
 
-      const attempts = stateChanges.filter(s => s.state === 'reconnecting');
+      const attempts = stateChanges.filter((s) => s.state === 'reconnecting');
       expect(attempts[1].metadata!.nextRetryIn).toBe(1500);
     });
 
@@ -143,7 +146,7 @@ describe('VoiceAssistantClient', () => {
         vi.advanceTimersByTime(30_000);
       }
 
-      const attempts = stateChanges.filter(s => s.state === 'reconnecting');
+      const attempts = stateChanges.filter((s) => s.state === 'reconnecting');
       const lastDelay = attempts.at(-1)!.metadata!.nextRetryIn!;
       expect(lastDelay).toBeLessThanOrEqual(30_000);
     });
@@ -160,7 +163,7 @@ describe('VoiceAssistantClient', () => {
       latestWs().simulateOpen();
       latestWs().simulateClose(1006);
 
-      const lastReconnecting = stateChanges.filter(s => s.state === 'reconnecting').at(-1)!;
+      const lastReconnecting = stateChanges.filter((s) => s.state === 'reconnecting').at(-1)!;
       expect(lastReconnecting.metadata!.attempt).toBe(1);
     });
   });
@@ -193,13 +196,15 @@ describe('VoiceAssistantClient', () => {
 
       const pingMsg = JSON.parse(latestWs().send.mock.calls[0][0]);
 
-      latestWs().simulateMessage(JSON.stringify({
-        type: 'signal',
-        content: 'pong',
-        is_user: false,
-        is_final: false,
-        metadata: { timestamp: pingMsg.metadata.timestamp }
-      }));
+      latestWs().simulateMessage(
+        JSON.stringify({
+          type: 'signal',
+          content: 'pong',
+          is_user: false,
+          is_final: false,
+          metadata: { timestamp: pingMsg.metadata.timestamp },
+        }),
+      );
 
       vi.advanceTimersByTime(5000);
       expect(stateChanges.at(-1)!.state).toBe('connected');
@@ -221,7 +226,7 @@ describe('VoiceAssistantClient', () => {
       latestWs().simulateOpen();
       latestWs().simulateClose(1006);
 
-      const meta = stateChanges.find(s => s.state === 'reconnecting')!.metadata!;
+      const meta = stateChanges.find((s) => s.state === 'reconnecting')!.metadata!;
       expect(meta.errorType).toBe('network');
     });
 
@@ -229,7 +234,7 @@ describe('VoiceAssistantClient', () => {
       latestWs().simulateOpen();
       latestWs().simulateClose(1011);
 
-      const meta = stateChanges.find(s => s.state === 'reconnecting')!.metadata!;
+      const meta = stateChanges.find((s) => s.state === 'reconnecting')!.metadata!;
       expect(meta.errorType).toBe('server');
     });
 
@@ -238,7 +243,7 @@ describe('VoiceAssistantClient', () => {
       latestWs().simulateError();
       latestWs().simulateClose(1000);
 
-      const meta = stateChanges.find(s => s.state === 'reconnecting')!.metadata!;
+      const meta = stateChanges.find((s) => s.state === 'reconnecting')!.metadata!;
       expect(meta.errorType).toBe('network');
     });
   });
@@ -246,13 +251,15 @@ describe('VoiceAssistantClient', () => {
   describe('message forwarding', () => {
     it('forwards non-pong messages to callback', () => {
       latestWs().simulateOpen();
-      latestWs().simulateMessage(JSON.stringify({
-        type: 'text',
-        content: 'hello',
-        is_user: false,
-        is_final: true,
-        metadata: {}
-      }));
+      latestWs().simulateMessage(
+        JSON.stringify({
+          type: 'text',
+          content: 'hello',
+          is_user: false,
+          is_final: true,
+          metadata: {},
+        }),
+      );
 
       expect(messages).toHaveLength(1);
       expect(messages[0].content).toBe('hello');
@@ -260,13 +267,15 @@ describe('VoiceAssistantClient', () => {
 
     it('does not forward pong to callback', () => {
       latestWs().simulateOpen();
-      latestWs().simulateMessage(JSON.stringify({
-        type: 'signal',
-        content: 'pong',
-        is_user: false,
-        is_final: false,
-        metadata: { timestamp: 123 }
-      }));
+      latestWs().simulateMessage(
+        JSON.stringify({
+          type: 'signal',
+          content: 'pong',
+          is_user: false,
+          is_final: false,
+          metadata: { timestamp: 123 },
+        }),
+      );
 
       expect(messages).toHaveLength(0);
     });
@@ -277,7 +286,7 @@ describe('VoiceAssistantClient', () => {
       latestWs().simulateOpen();
       client.disconnect();
 
-      const hasReconnecting = stateChanges.some(s => s.state === 'reconnecting');
+      const hasReconnecting = stateChanges.some((s) => s.state === 'reconnecting');
       expect(hasReconnecting).toBe(false);
     });
 

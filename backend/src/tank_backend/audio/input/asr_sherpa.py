@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import logging
-import os
-import sys
 import ctypes
+import logging
+import sys
 from pathlib import Path
-from typing import Optional, Tuple
 
 import numpy as np
 
@@ -17,6 +15,7 @@ logger = logging.getLogger("SherpaASR")
 if sys.platform == "darwin":
     try:
         import onnxruntime
+
         ort_dir = Path(onnxruntime.__file__).parent
         possible_paths = [
             ort_dir / "capi" / "libonnxruntime.1.23.2.dylib",
@@ -30,28 +29,27 @@ if sys.platform == "darwin":
     except Exception as e:
         logger.debug(f"macOS dylib patch failed: {e}")
 
-import sherpa_onnx
 
 # Import everything from the internal lib to ensure compatibility
-from sherpa_onnx.lib._sherpa_onnx import (
-    OnlineRecognizer,
-    OnlineRecognizerConfig,
-    OnlineModelConfig,
-    OnlineTransducerModelConfig,
-    OnlineLMConfig,
+from sherpa_onnx.lib._sherpa_onnx import (  # noqa: E402
     EndpointConfig,
     EndpointRule,
     FeatureExtractorConfig,
     OnlineCtcFstDecoderConfig,
-    HomophoneReplacerConfig,
+    OnlineLMConfig,
+    OnlineModelConfig,
+    OnlineRecognizer,
+    OnlineRecognizerConfig,
+    OnlineTransducerModelConfig,
 )
 
 # --------------------------------
 
+
 class SherpaASR:
     """
     Streaming ASR using sherpa-onnx.
-    
+
     This class manages the sherpa-onnx OnlineRecognizer and its stream.
     """
 
@@ -70,20 +68,20 @@ class SherpaASR:
             sampling_rate=sample_rate,
             feature_dim=80,
         )
-        
+
         transducer_config = OnlineTransducerModelConfig(
             encoder=str(model_path / "encoder-epoch-99-avg-1.onnx"),
             decoder=str(model_path / "decoder-epoch-99-avg-1.onnx"),
             joiner=str(model_path / "joiner-epoch-99-avg-1.onnx"),
         )
-        
+
         model_config = OnlineModelConfig(
             transducer=transducer_config,
             tokens=str(model_path / "tokens.txt"),
             num_threads=num_threads,
             model_type="zipformer",
         )
-        
+
         endpoint_config = EndpointConfig(
             rule1=EndpointRule(False, 2.4, 0.0),
             rule2=EndpointRule(True, 1.2, 0.0),
@@ -104,8 +102,8 @@ class SherpaASR:
             OnlineLMConfig(),
             endpoint_config,
             OnlineCtcFstDecoderConfig(),
-            True,               # enable_endpoint
-            "greedy_search",    # decoding_method
+            True,  # enable_endpoint
+            "greedy_search",  # decoding_method
         )
 
         self._recognizer = OnlineRecognizer(recognizer_config)
@@ -113,24 +111,24 @@ class SherpaASR:
         self._sample_rate = sample_rate
         logger.info("SherpaASR initialized with model from %s", model_dir)
 
-    def process_pcm(self, pcm: np.ndarray) -> Tuple[str, bool]:
+    def process_pcm(self, pcm: np.ndarray) -> tuple[str, bool]:
         """
         Process a chunk of PCM audio.
-        
+
         Returns:
             (text, is_endpoint)
         """
         self._stream.accept_waveform(self._sample_rate, pcm)
-        
+
         while self._recognizer.is_ready(self._stream):
             self._recognizer.decode_stream(self._stream)
-            
+
         is_endpoint = self._recognizer.is_endpoint(self._stream)
         text = self._recognizer.get_result(self._stream).text.strip()
-        
+
         if is_endpoint:
             self._recognizer.reset(self._stream)
-            
+
         return text, is_endpoint
 
     def reset(self):

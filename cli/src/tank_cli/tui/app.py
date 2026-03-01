@@ -1,20 +1,21 @@
 """TUI client that connects to the Tank backend via WebSocket."""
 
 import asyncio
+import contextlib
 import logging
 
 from textual.app import App, ComposeResult
 from textual.logging import TextualHandler
 from textual.widgets import Footer
 
-from ..schemas import WebsocketMessage, MessageType
-from ..cli.client import TankClient
 from ..cli.audio_capture import ClientAudioCapture
 from ..cli.audio_playback import ClientAudioPlayback
+from ..cli.client import TankClient
 from ..core.shutdown import GracefulShutdown
-from .ui.header import TankHeader
+from ..schemas import MessageType, WebsocketMessage
 from .ui.conversation import ConversationArea
 from .ui.footer import InputFooter
+from .ui.header import TankHeader
 
 logging.basicConfig(
     level="NOTSET",
@@ -56,9 +57,7 @@ class TankApp(App):
         self._playback.start()
 
         self._tasks.append(asyncio.create_task(self._client.receive_loop()))
-        self._tasks.append(asyncio.create_task(
-            self._capture.drain_to_ws(self._client.send_audio)
-        ))
+        self._tasks.append(asyncio.create_task(self._capture.drain_to_ws(self._client.send_audio)))
 
     def _handle_ws_message(self, msg: WebsocketMessage) -> None:
         """Handle text messages from the backend WebSocket."""
@@ -76,11 +75,8 @@ class TankApp(App):
         # Check if app is still running and screen exists
         if not self.is_running or not self.screen_stack:
             return
-        try:
+        with contextlib.suppress(Exception):
             self.query_one(ConversationArea).write_ws_message(msg)
-        except Exception:
-            # Ignore errors during shutdown
-            pass
 
     def on_input_submitted(self, event: InputFooter.Submitted) -> None:
         user_input = event.value

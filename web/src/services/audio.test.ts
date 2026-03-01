@@ -28,4 +28,3 @@ describe('computeCalibrationThreshold', () => {
     expect(threshold).toBe(0.02);
   });
 });
-

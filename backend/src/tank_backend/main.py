@@ -1,6 +1,7 @@
 """Tank Backend - Entry point for the API server."""
 
 import argparse
+
 import uvicorn
 
 from tank_backend.config.settings import create_example_env_file
@@ -31,6 +32,7 @@ def main():
         )
     else:
         from tank_backend.api.server import app
+
         uvicorn.run(app, host=args.host, port=args.port)
 
 

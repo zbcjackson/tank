@@ -3,25 +3,28 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, Optional, Union
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
 class MessageType(str, Enum):
     """Types of messages exchanged over WebSocket."""
-    SIGNAL = "signal"       # Control signals (ready, interrupt, error)
-    TRANSCRIPT = "transcript" # Real-time ASR results
-    TEXT = "text"           # LLM text response deltas
-    UPDATE = "update"       # UI/State updates (tool calls, etc.)
-    INPUT = "input"         # Client-side text input (keyboard)
+
+    SIGNAL = "signal"  # Control signals (ready, interrupt, error)
+    TRANSCRIPT = "transcript"  # Real-time ASR results
+    TEXT = "text"  # LLM text response deltas
+    UPDATE = "update"  # UI/State updates (tool calls, etc.)
+    INPUT = "input"  # Client-side text input (keyboard)
 
 
 class WebsocketMessage(BaseModel):
     """Base schema for all WebSocket messages."""
+
     type: MessageType
     content: str = ""
     is_user: bool = False
     is_final: bool = False
-    msg_id: Optional[str] = None
-    session_id: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    msg_id: str | None = None
+    session_id: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)

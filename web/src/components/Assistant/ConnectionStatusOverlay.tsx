@@ -50,10 +50,7 @@ export const ConnectionStatusOverlay = ({ state, metadata, onReconnect }: Props)
 
     if (metadata.errorType === 'timeout') {
       return (
-        <motion.div
-          animate={{ scale: [1, 1.1, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
+        <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 2, repeat: Infinity }}>
           <Clock className="w-6 h-6 text-yellow-400" />
         </motion.div>
       );
@@ -81,9 +78,7 @@ export const ConnectionStatusOverlay = ({ state, metadata, onReconnect }: Props)
       className="fixed bottom-6 right-6 z-50 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-6 max-w-sm"
     >
       <div className="flex items-start gap-4">
-        <div className="flex-shrink-0">
-          {getIcon()}
-        </div>
+        <div className="flex-shrink-0">{getIcon()}</div>
 
         <div className="flex-1">
           {state === 'reconnecting' && (
@@ -93,11 +88,7 @@ export const ConnectionStatusOverlay = ({ state, metadata, onReconnect }: Props)
                 尝试 {metadata.attempt}/{metadata.maxAttempts}
                 {countdown > 0 && ` · ${countdown}秒后重试`}
               </p>
-              {metadata.error && (
-                <p className="text-slate-500 text-xs mb-3">
-                  {metadata.error}
-                </p>
-              )}
+              {metadata.error && <p className="text-slate-500 text-xs mb-3">{metadata.error}</p>}
               <button
                 onClick={onReconnect}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"

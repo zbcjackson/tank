@@ -15,20 +15,32 @@ interface VoiceModeProps {
   getAnalyserNode?: () => AnalyserNode | null;
 }
 
-export const VoiceMode = ({ isAssistantTyping, isUserSpeaking, isMuted, isSpeaking, onMicClick, onStopSpeaking, statusText, calibrationState, getAnalyserNode }: VoiceModeProps) => {
+export const VoiceMode = ({
+  isAssistantTyping,
+  isUserSpeaking,
+  isMuted,
+  isSpeaking,
+  onMicClick,
+  onStopSpeaking,
+  statusText,
+  calibrationState,
+  getAnalyserNode,
+}: VoiceModeProps) => {
   const micStatus = isMuted ? 'muted' : isUserSpeaking ? 'speaking' : 'idle';
-  const calibrationLabel = calibrationState.status === 'calibrating'
-    ? '噪声校准中'
-    : calibrationState.status === 'ready'
-      ? '已完成校准'
-      : calibrationState.status === 'error'
-        ? '使用默认阈值'
-        : undefined;
-  const calibrationTone = calibrationState.status === 'calibrating'
-    ? 'bg-amber-500/20 text-amber-300 border-amber-400/50'
-    : calibrationState.status === 'ready'
-      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/50'
-      : 'bg-rose-500/20 text-rose-300 border-rose-400/50';
+  const calibrationLabel =
+    calibrationState.status === 'calibrating'
+      ? '噪声校准中'
+      : calibrationState.status === 'ready'
+        ? '已完成校准'
+        : calibrationState.status === 'error'
+          ? '使用默认阈值'
+          : undefined;
+  const calibrationTone =
+    calibrationState.status === 'calibrating'
+      ? 'bg-amber-500/20 text-amber-300 border-amber-400/50'
+      : calibrationState.status === 'ready'
+        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/50'
+        : 'bg-rose-500/20 text-rose-300 border-rose-400/50';
 
   return (
     <motion.div
@@ -54,33 +66,48 @@ export const VoiceMode = ({ isAssistantTyping, isUserSpeaking, isMuted, isSpeaki
 
         <div className="space-y-4">
           <p className="text-2xl font-bold text-white/80">
-            {isSpeaking ? "TANK 正在回复..." : isAssistantTyping ? "TANK 正在思考..." : isMuted ? "麦克风已静音" : isUserSpeaking ? "正在聆听..." : (statusText || "我在听，请说...")}
+            {isSpeaking
+              ? 'TANK 正在回复...'
+              : isAssistantTyping
+                ? 'TANK 正在思考...'
+                : isMuted
+                  ? '麦克风已静音'
+                  : isUserSpeaking
+                    ? '正在聆听...'
+                    : statusText || '我在听，请说...'}
           </p>
           {calibrationLabel && (
             <div className="flex justify-center">
-              <span className={`inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold rounded-full border ${calibrationTone}`}>
+              <span
+                className={`inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold rounded-full border ${calibrationTone}`}
+              >
                 <span className="h-2 w-2 rounded-full bg-current animate-pulse" />
                 {calibrationLabel}
               </span>
             </div>
           )}
-          <p className="text-sm text-slate-500 font-medium">
-            {"提示：问问我“东京天气”试试看"}
-          </p>
+          <p className="text-sm text-slate-500 font-medium">{'提示：问问我“东京天气”试试看'}</p>
         </div>
 
         <div className="flex justify-center pt-8">
           <div className="relative">
             <motion.button
-              whileHover={{ scale: 1.1, boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)" }}
+              whileHover={{ scale: 1.1, boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}
               whileTap={{ scale: 0.9 }}
-              animate={micStatus === 'speaking' ? { scale: [1, 1.08, 1], transition: { repeat: Infinity, duration: 1.2 } } : {}}
+              animate={
+                micStatus === 'speaking'
+                  ? { scale: [1, 1.08, 1], transition: { repeat: Infinity, duration: 1.2 } }
+                  : {}
+              }
               onClick={onMicClick}
               className={`w-24 h-24 rounded-full flex items-center justify-center shadow-2xl transition-all ${
-                micStatus === 'muted' ? 'bg-slate-700 text-slate-400' :
-                micStatus === 'speaking' ? 'bg-red-500 text-white' :
-                isAssistantTyping ? 'bg-white/10 text-white/20' :
-                'bg-white text-slate-900'
+                micStatus === 'muted'
+                  ? 'bg-slate-700 text-slate-400'
+                  : micStatus === 'speaking'
+                    ? 'bg-red-500 text-white'
+                    : isAssistantTyping
+                      ? 'bg-white/10 text-white/20'
+                      : 'bg-white text-slate-900'
               }`}
             >
               {micStatus === 'muted' ? <MicOff size={40} /> : <Mic size={40} />}

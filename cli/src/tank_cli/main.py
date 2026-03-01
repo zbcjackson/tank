@@ -19,6 +19,7 @@ def main():
         return
 
     from tank_cli.tui.app import TankApp
+
     app = TankApp(server_url=args.server)
     app.run()
 

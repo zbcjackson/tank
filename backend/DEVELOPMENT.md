@@ -237,25 +237,21 @@ import ipdb; ipdb.set_trace()
 ### Linting
 
 ```bash
-# Run ruff (if configured)
-uv run ruff check src/
+# Check for lint errors
+uv run ruff check src/ tests/
 
 # Auto-fix issues
-uv run ruff check --fix src/
-```
-
-### Type Checking
-
-```bash
-# Run mypy (if configured)
-uv run mypy src/tank_backend/
+uv run ruff check --fix src/ tests/
 ```
 
 ### Formatting
 
 ```bash
-# Format with black (if configured)
-uv run black src/ tests/
+# Format code
+uv run ruff format src/ tests/
+
+# Check formatting without changing files
+uv run ruff format --check src/ tests/
 ```
 
 ## Common Tasks

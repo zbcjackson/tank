@@ -5,15 +5,15 @@ from __future__ import annotations
 import logging
 import queue
 import uuid
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from ...core.events import BrainInputEvent, DisplayMessage, InputType
 from ...core.runtime import RuntimeContext
 from ...core.shutdown import StopSignal
 from ...core.worker import QueueWorker
-
 from .segmenter import Utterance
 from .voiceprint import VoiceprintRecognizer
 
@@ -44,10 +44,10 @@ class Perception(QueueWorker[Utterance]):
         self,
         shutdown_signal: StopSignal,
         runtime: RuntimeContext,
-        utterance_queue: "queue.Queue[Utterance]",
-        asr: "ASR",
+        utterance_queue: queue.Queue[Utterance],
+        asr: ASR,
         voiceprint: VoiceprintRecognizer,
-        config: PerceptionConfig = PerceptionConfig(),
+        config: PerceptionConfig | None = None,
     ):
         super().__init__(
             name="PerceptionThread",
@@ -56,7 +56,7 @@ class Perception(QueueWorker[Utterance]):
             poll_interval_s=0.1,
         )
         self._runtime = runtime
-        self._config = config
+        self._config = config if config is not None else PerceptionConfig()
         self._asr = asr
         self._voiceprint = voiceprint
 
@@ -77,7 +77,9 @@ class Perception(QueueWorker[Utterance]):
             return
 
         msg_id = f"user_{uuid.uuid4().hex[:8]}"
-        self._runtime.ui_queue.put(DisplayMessage(speaker=event.user, text=event.text, is_user=True, msg_id=msg_id))
+        self._runtime.ui_queue.put(
+            DisplayMessage(speaker=event.user, text=event.text, is_user=True, msg_id=msg_id)
+        )
         self._runtime.brain_input_queue.put(event)
 
     def process(self, utterance: Utterance) -> BrainInputEvent:
@@ -114,7 +116,7 @@ class Perception(QueueWorker[Utterance]):
             confidence=confidence,
         )
 
-    def _run_asr(self, utterance: Utterance) -> tuple[str, Optional[str], Optional[float]]:
+    def _run_asr(self, utterance: Utterance) -> tuple[str, str | None, float | None]:
         return self._asr.transcribe(utterance.pcm, utterance.sample_rate)
 
     def _run_voiceprint(self, utterance: Utterance) -> str:

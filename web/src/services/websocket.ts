@@ -1,4 +1,4 @@
-export type MessageType = "signal" | "transcript" | "text" | "update" | "input";
+export type MessageType = 'signal' | 'transcript' | 'text' | 'update' | 'input';
 
 export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
 
@@ -53,8 +53,8 @@ export class VoiceAssistantClient {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(sessionId: string, baseUrl: string = "localhost:8000") {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  constructor(sessionId: string, baseUrl: string = 'localhost:8000') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     this.url = `${protocol}//${baseUrl}/ws/${sessionId}`;
   }
 
@@ -62,7 +62,7 @@ export class VoiceAssistantClient {
     onMessage: (msg: WebsocketMessage) => void,
     onSpeakingChange?: (isSpeaking: boolean) => void,
     onOpen?: () => void,
-    onConnectionStateChange?: (state: ConnectionState, metadata?: ConnectionMetadata) => void
+    onConnectionStateChange?: (state: ConnectionState, metadata?: ConnectionMetadata) => void,
   ) {
     this.onMessageCallback = onMessage;
     this.onSpeakingChange = onSpeakingChange;
@@ -74,13 +74,16 @@ export class VoiceAssistantClient {
   }
 
   private attemptConnect() {
-    if (this.socket?.readyState === WebSocket.OPEN || this.socket?.readyState === WebSocket.CONNECTING) {
+    if (
+      this.socket?.readyState === WebSocket.OPEN ||
+      this.socket?.readyState === WebSocket.CONNECTING
+    ) {
       return; // Already connected or connecting
     }
 
     this.updateConnectionState('connecting');
     const socket = new WebSocket(this.url);
-    socket.binaryType = "arraybuffer";
+    socket.binaryType = 'arraybuffer';
     this.socket = socket;
 
     // Set connection timeout
@@ -88,7 +91,7 @@ export class VoiceAssistantClient {
 
     socket.onopen = () => {
       if (this.socket !== socket) return; // Stale socket
-      console.log("WebSocket connected");
+      console.log('WebSocket connected');
       this.clearConnectionTimeout();
       this.reconnectAttempts = 0;
       this.lastError = null;
@@ -99,7 +102,7 @@ export class VoiceAssistantClient {
 
     socket.onmessage = (event) => {
       if (this.socket !== socket) return; // Stale socket
-      if (typeof event.data === "string") {
+      if (typeof event.data === 'string') {
         const msg: WebsocketMessage = JSON.parse(event.data);
 
         // Handle pong response
@@ -116,7 +119,7 @@ export class VoiceAssistantClient {
 
     socket.onclose = (event) => {
       if (this.socket !== socket) return; // Stale socket — ignore
-      console.log("WebSocket disconnected", event.code, event.reason);
+      console.log('WebSocket disconnected', event.code, event.reason);
       this.clearConnectionTimeout();
       this.stopHeartbeat();
 
@@ -131,7 +134,7 @@ export class VoiceAssistantClient {
 
     socket.onerror = () => {
       if (this.socket !== socket) return; // Stale socket
-      console.error("WebSocket error");
+      console.error('WebSocket error');
       // Only record the error — onclose always fires after onerror,
       // so reconnection is handled exclusively in onclose to avoid double-scheduling.
       this.lastError = { type: 'network' as ErrorType, message: 'Network connection failed' };
@@ -144,7 +147,9 @@ export class VoiceAssistantClient {
 
   private ensureAudioContext() {
     if (!this.audioContext) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.audioContext = new AudioCtx({ sampleRate: 24000 });
       this.nextStartTime = this.audioContext.currentTime;
 
@@ -192,7 +197,7 @@ export class VoiceAssistantClient {
         }, delayMs);
       }
     } catch (e) {
-      console.error("Error playing audio chunk:", e);
+      console.error('Error playing audio chunk:', e);
     }
   }
 
@@ -382,7 +387,7 @@ export class VoiceAssistantClient {
         attempt: this.reconnectAttempts,
         maxAttempts: this.maxReconnectAttempts,
         error: error ? this.getErrorMessage(error) : '达到最大重连次数',
-        errorType: error?.type || 'unknown'
+        errorType: error?.type || 'unknown',
       });
       return;
     }
@@ -396,10 +401,12 @@ export class VoiceAssistantClient {
       maxAttempts: this.maxReconnectAttempts,
       nextRetryIn: delay,
       error: error ? this.getErrorMessage(error) : undefined,
-      errorType: error?.type || 'unknown'
+      errorType: error?.type || 'unknown',
     });
 
-    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    console.log(
+      `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`,
+    );
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
@@ -409,7 +416,7 @@ export class VoiceAssistantClient {
 
   reconnect() {
     // Public API for manual reconnect - resets counter
-    console.log("Manual reconnect triggered");
+    console.log('Manual reconnect triggered');
     this.reconnectAttempts = 0;
     this.shouldReconnect = true;
     this.lastError = null; // Clear last error on manual reconnect

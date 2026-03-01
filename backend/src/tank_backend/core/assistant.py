@@ -3,30 +3,27 @@
 import logging
 import queue
 import uuid
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
-from .shutdown import GracefulShutdown
 
-logger = logging.getLogger("Assistant")
-from .brain import Brain
-from .events import InputType, BrainInputEvent, DisplayMessage
-from .runtime import RuntimeContext
-
-# Import Audio subsystem components
 from ..audio import AudioInput, AudioInputConfig, AudioOutput, AudioOutputConfig
+from ..audio.input.types import AudioSourceFactory
+from ..audio.output.types import AudioSinkFactory
 from ..config.settings import load_config
 from ..llm.llm import LLM
 from ..tools.manager import ToolManager
+from .brain import Brain
+from .events import BrainInputEvent, DisplayMessage, InputType
+from .runtime import RuntimeContext
+from .shutdown import GracefulShutdown
 
-
-from ..audio.input.types import AudioSource, AudioSourceFactory
-from ..audio.output.types import AudioSink, AudioSinkFactory
+logger = logging.getLogger("Assistant")
 
 
 class Assistant:
     """
     Main orchestrator for voice assistant.
-    
+
     Manages:
     - Audio input subsystem (mic capture + segmentation + perception)
     - Audio output subsystem (TTS playback)
@@ -35,16 +32,16 @@ class Assistant:
 
     def __init__(
         self,
-        config_path: Optional[Path] = None,
-        on_exit_request: Optional[Callable[[], None]] = None,
-        audio_input_config: Optional[AudioInputConfig] = None,
-        audio_output_config: Optional[AudioOutputConfig] = None,
-        audio_source_factory: Optional[AudioSourceFactory] = None,
-        audio_sink_factory: Optional[AudioSinkFactory] = None,
+        config_path: Path | None = None,
+        on_exit_request: Callable[[], None] | None = None,
+        audio_input_config: AudioInputConfig | None = None,
+        audio_output_config: AudioOutputConfig | None = None,
+        audio_source_factory: AudioSourceFactory | None = None,
+        audio_sink_factory: AudioSinkFactory | None = None,
     ):
         # Load configuration
         self._config = load_config(config_path)
-        
+
         # Create LLM and ToolManager
         self._llm = LLM(
             api_key=self._config.llm_api_key,
@@ -52,10 +49,10 @@ class Assistant:
             base_url=self._config.llm_base_url,
         )
         self._tool_manager = ToolManager(serper_api_key=self._config.serper_api_key)
-        
+
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()
-        
+
         # Speech interrupt callback: stop TTS and signal Brain (only when enabled)
         def _on_speech_interrupt() -> None:
             if self._config.speech_interrupt_enabled:
@@ -80,7 +77,7 @@ class Assistant:
             cfg=audio_output_config or AudioOutputConfig(),
             sink_factory=audio_sink_factory,
         )
-        
+
         self.brain = Brain(
             shutdown_signal=self.shutdown_signal,
             runtime=self.runtime,
@@ -89,7 +86,7 @@ class Assistant:
             tool_manager=self._tool_manager,
             config=self._config,
         )
-        
+
         self.on_exit_request = on_exit_request
 
     def start(self):
@@ -113,7 +110,7 @@ class Assistant:
             ("brain", self.brain),
         ]:
             subsystem.join(timeout=timeout)
-            if hasattr(subsystem, 'is_alive') and subsystem.is_alive():
+            if hasattr(subsystem, "is_alive") and subsystem.is_alive():
                 logger.warning("%s did not stop within %.1fs, abandoning", name, timeout)
 
     def process_input(self, text: str):
@@ -121,7 +118,7 @@ class Assistant:
         # Filter blank text (defensive check)
         if not text or not text.strip():
             return
-        
+
         if text.lower() in ["quit", "exit"]:
             self.audio_output.speaker.interrupt()
             self.shutdown_signal.stop()
@@ -130,22 +127,22 @@ class Assistant:
             return
 
         msg_id = f"kbd_{uuid.uuid4().hex[:8]}"
-        self.runtime.ui_queue.put(DisplayMessage(
-            speaker="Keyboard",
-            text=text,
-            is_user=True,
-            is_final=True,
-            msg_id=msg_id
-        ))
+        self.runtime.ui_queue.put(
+            DisplayMessage(
+                speaker="Keyboard", text=text, is_user=True, is_final=True, msg_id=msg_id
+            )
+        )
 
-        self.runtime.brain_input_queue.put(BrainInputEvent(
-            type=InputType.TEXT,
-            text=text,
-            user="Keyboard",
-            language=None,
-            confidence=None,
-            metadata={"msg_id": msg_id}
-        ))
+        self.runtime.brain_input_queue.put(
+            BrainInputEvent(
+                type=InputType.TEXT,
+                text=text,
+                user="Keyboard",
+                language=None,
+                confidence=None,
+                metadata={"msg_id": msg_id},
+            )
+        )
 
     def get_messages(self):
         """Yields all pending messages from the display queue."""

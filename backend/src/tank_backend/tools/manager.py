@@ -1,22 +1,21 @@
-import asyncio
-import inspect
-from typing import Dict, Any, Callable, Optional, List
-import logging
 import json
+import logging
+from typing import Any
 
-from .base import BaseTool, ToolInfo, ToolParameter
-from .weather import WeatherTool
-from .time import TimeTool
+from .base import BaseTool, ToolInfo
 from .calculator import CalculatorTool
-from .web_search import WebSearchTool
+from .time import TimeTool
+from .weather import WeatherTool
 from .web_scraper import WebScraperTool
+from .web_search import WebSearchTool
 
 logger = logging.getLogger("ToolManager")
+
 
 class ToolManager:
     def __init__(self, serper_api_key: str = None):
         self.serper_api_key = serper_api_key
-        self.tools: Dict[str, BaseTool] = {}
+        self.tools: dict[str, BaseTool] = {}
         self.register_default_tools()
 
     def register_default_tools(self):
@@ -39,7 +38,7 @@ class ToolManager:
         self.tools[info.name] = tool
         logger.info(f"Registered tool: {info.name}")
 
-    def get_tool_info(self) -> List[ToolInfo]:
+    def get_tool_info(self) -> list[ToolInfo]:
         return [tool.get_info() for tool in self.tools.values()]
 
     def get_tools_description(self) -> str:
@@ -49,7 +48,9 @@ class ToolManager:
             params_desc = []
             for param in info.parameters:
                 required_str = "required" if param.required else "optional"
-                params_desc.append(f"  - {param.name} ({param.type}, {required_str}): {param.description}")
+                params_desc.append(
+                    f"  - {param.name} ({param.type}, {required_str}): {param.description}"
+                )
 
             tool_desc = f"**{info.name}**: {info.description}"
             if params_desc:
@@ -59,14 +60,11 @@ class ToolManager:
 
         return "\n\n".join(descriptions)
 
-    async def execute_tool(self, tool_name: str, **kwargs) -> Dict[str, Any]:
+    async def execute_tool(self, tool_name: str, **kwargs) -> dict[str, Any]:
         if tool_name not in self.tools:
             error_msg = f"Tool '{tool_name}' not found. Available tools: {list(self.tools.keys())}"
             logger.error(error_msg)
-            return {
-                "error": error_msg,
-                "available_tools": list(self.tools.keys())
-            }
+            return {"error": error_msg, "available_tools": list(self.tools.keys())}
 
         try:
             tool = self.tools[tool_name]
@@ -78,13 +76,9 @@ class ToolManager:
         except Exception as e:
             error_msg = f"Error executing tool '{tool_name}': {str(e)}"
             logger.error(error_msg)
-            return {
-                "error": error_msg,
-                "tool_name": tool_name,
-                "parameters": kwargs
-            }
+            return {"error": error_msg, "tool_name": tool_name, "parameters": kwargs}
 
-    def get_openai_tools(self) -> List[Dict[str, Any]]:
+    def get_openai_tools(self) -> list[dict[str, Any]]:
         """Convert tools to OpenAI function calling format"""
         openai_tools = []
 
@@ -96,10 +90,7 @@ class ToolManager:
             required = []
 
             for param in info.parameters:
-                properties[param.name] = {
-                    "type": param.type,
-                    "description": param.description
-                }
+                properties[param.name] = {"type": param.type, "description": param.description}
                 if param.required:
                     required.append(param.name)
 
@@ -112,16 +103,16 @@ class ToolManager:
                     "parameters": {
                         "type": "object",
                         "properties": properties,
-                        "required": required
-                    }
-                }
+                        "required": required,
+                    },
+                },
             }
 
             openai_tools.append(openai_tool)
 
         return openai_tools
 
-    async def execute_openai_tool_call(self, tool_call) -> Dict[str, Any]:
+    async def execute_openai_tool_call(self, tool_call) -> dict[str, Any]:
         """Execute tool from OpenAI function call format"""
         function_name = tool_call.function.name
         try:
@@ -129,15 +120,15 @@ class ToolManager:
         except json.JSONDecodeError:
             return {
                 "error": f"Could not parse arguments for {function_name}",
-                "arguments": tool_call.function.arguments
+                "arguments": tool_call.function.arguments,
             }
 
         return await self.execute_tool(function_name, **arguments)
 
-    def parse_tool_call(self, text: str) -> Optional[Dict[str, Any]]:
+    def parse_tool_call(self, text: str) -> dict[str, Any] | None:
         import re
 
-        tool_pattern = r'(\w+)\((.*?)\)'
+        tool_pattern = r"(\w+)\((.*?)\)"
         match = re.search(tool_pattern, text)
 
         if match:
@@ -147,17 +138,14 @@ class ToolManager:
             if tool_name in self.tools:
                 try:
                     if params_str.strip():
-                        if params_str.strip().startswith('{'):
+                        if params_str.strip().startswith("{"):
                             params = json.loads(params_str)
                         else:
-                            params = {"input": params_str.strip().strip('\'"')}
+                            params = {"input": params_str.strip().strip("'\"")}
                     else:
                         params = {}
 
-                    return {
-                        "tool_name": tool_name,
-                        "parameters": params
-                    }
+                    return {"tool_name": tool_name, "parameters": params}
                 except json.JSONDecodeError:
                     logger.warning(f"Could not parse parameters for tool call: {text}")
 

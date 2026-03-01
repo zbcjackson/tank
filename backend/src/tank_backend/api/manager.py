@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import logging
-import asyncio
-from typing import Dict, Optional
 from pathlib import Path
 
-from ..core.assistant import Assistant
 from ..audio.input.types import AudioSourceFactory
 from ..audio.output.types import AudioSinkFactory
+from ..core.assistant import Assistant
 
 logger = logging.getLogger("SessionManager")
 
@@ -20,19 +18,19 @@ class SessionManager:
     Maps session_id to Assistant instance.
     """
 
-    def __init__(self, config_path: Optional[Path] = None):
-        self._sessions: Dict[str, Assistant] = {}
+    def __init__(self, config_path: Path | None = None):
+        self._sessions: dict[str, Assistant] = {}
         self._config_path = config_path
 
-    def get_assistant(self, session_id: str) -> Optional[Assistant]:
+    def get_assistant(self, session_id: str) -> Assistant | None:
         """Retrieve assistant instance for a session."""
         return self._sessions.get(session_id)
 
     def create_assistant(
-        self, 
+        self,
         session_id: str,
         audio_source_factory: AudioSourceFactory,
-        audio_sink_factory: AudioSinkFactory
+        audio_sink_factory: AudioSinkFactory,
     ) -> Assistant:
         """Create and start a new assistant instance for a session."""
         if session_id in self._sessions:
@@ -42,7 +40,7 @@ class SessionManager:
         assistant = Assistant(
             config_path=self._config_path,
             audio_source_factory=audio_source_factory,
-            audio_sink_factory=audio_sink_factory
+            audio_sink_factory=audio_sink_factory,
         )
         self._sessions[session_id] = assistant
         assistant.start()

@@ -57,10 +57,12 @@ Run ALL of these every time you finish a task. Do not skip any step.
 
 1. `cd web && pnpm lint` — ESLint
 2. `cd web && npx tsc --noEmit` — TypeScript type checking
-3. `cd backend && uv run pytest` — Backend unit tests (78 tests)
-4. `cd test && pnpm test` — E2E cucumber tests (14 scenarios, requires backend + frontend running)
+3. `cd backend && uv run ruff check src/ tests/` — Python lint
+4. `cd backend && uv run pytest` — Backend unit tests (78 tests)
+5. `cd cli && uv run ruff check src/ tests/` — CLI Python lint
+6. `cd test && pnpm test` — E2E cucumber tests (14 scenarios, requires backend + frontend running)
 
-All four must pass before considering work complete.
+All six must pass before considering work complete.
 
 ## Planning Rules
 

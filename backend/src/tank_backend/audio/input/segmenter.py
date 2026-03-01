@@ -3,23 +3,23 @@
 from __future__ import annotations
 
 import queue
-from dataclasses import dataclass
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
+from dataclasses import dataclass
 
 import numpy as np
 
-from ...core.worker import QueueWorker
 from ...core.shutdown import StopSignal
-
-from .types import SegmenterConfig
+from ...core.worker import QueueWorker
 from .mic import AudioFrame
-from .vad import SileroVAD, VADStatus, VADResult
+from .types import SegmenterConfig
+from .vad import SileroVAD, VADStatus
 
 
 @dataclass
 class Utterance:
     """Complete utterance audio segment."""
+
     pcm: np.ndarray  # full utterance audio float32
     sample_rate: int
     started_at_s: float
@@ -33,12 +33,12 @@ class UtteranceSegmenter(QueueWorker[AudioFrame]):
     """
 
     def __init__(
-            self,
-            stop_signal: StopSignal,
-            cfg: SegmenterConfig,
-            frames_queue: queue.Queue[AudioFrame],
-            utterance_queue: queue.Queue[Utterance],
-            on_speech_interrupt: Optional[Callable[[], None]] = None,
+        self,
+        stop_signal: StopSignal,
+        cfg: SegmenterConfig,
+        frames_queue: queue.Queue[AudioFrame],
+        utterance_queue: queue.Queue[Utterance],
+        on_speech_interrupt: Callable[[], None] | None = None,
     ):
         super().__init__(
             name="UtteranceSegmenterThread",
@@ -61,7 +61,7 @@ class UtteranceSegmenter(QueueWorker[AudioFrame]):
     ) -> None:
         """
         Put utterance in queue with drop_oldest strategy.
-        
+
         If queue is full, removes oldest utterance before adding new one.
         """
         utterance = Utterance(

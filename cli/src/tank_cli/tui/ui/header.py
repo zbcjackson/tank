@@ -1,5 +1,6 @@
 from textual.widgets import Header
 
+
 class TankHeader(Header):
     DEFAULT_CSS = """
     TankHeader {
@@ -8,5 +9,6 @@ class TankHeader(Header):
         content-align: center middle;
     }
     """
+
     def __init__(self):
         super().__init__(show_clock=True)

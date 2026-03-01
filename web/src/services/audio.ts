@@ -1,7 +1,7 @@
 export interface VADConfig {
   threshold: number;
-  preRollSize: number;  // frames (128 samples each at 16kHz)
-  hangoverMax: number;  // frames
+  preRollSize: number; // frames (128 samples each at 16kHz)
+  hangoverMax: number; // frames
 }
 
 export interface CalibrationConfig {
@@ -18,7 +18,11 @@ export interface CalibrationState {
   error?: string;
 }
 
-export function computeCalibrationThreshold(rmsSamples: number[], calibrationConfig: CalibrationConfig, fallbackThreshold: number) {
+export function computeCalibrationThreshold(
+  rmsSamples: number[],
+  calibrationConfig: CalibrationConfig,
+  fallbackThreshold: number,
+) {
   if (!rmsSamples.length) {
     return { threshold: fallbackThreshold, usedFallback: true };
   }
@@ -36,8 +40,8 @@ const DEFAULT_CALIBRATION_CONFIG: CalibrationConfig = {
 
 export const DEFAULT_VAD_CONFIG: VADConfig = {
   threshold: 0.01,
-  preRollSize: 25,   // ~200ms
-  hangoverMax: 188,   // ~1500ms — enough silence for backend ASR endpoint detection
+  preRollSize: 25, // ~200ms
+  hangoverMax: 188, // ~1500ms — enough silence for backend ASR endpoint detection
 };
 
 interface AudioProcessorOptions {
@@ -81,7 +85,10 @@ export class AudioProcessor {
       },
     });
 
-    this.audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)({
+    this.audioContext = new (
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    )({
       sampleRate: 16000,
     });
 
@@ -132,18 +139,28 @@ export class AudioProcessor {
     this.rmsSamples = [];
     this.updateCalibrationState({ status: 'calibrating' });
 
-    await new Promise<void>((resolve) => window.setTimeout(resolve, this.calibrationConfig.durationMs));
+    await new Promise<void>((resolve) =>
+      window.setTimeout(resolve, this.calibrationConfig.durationMs),
+    );
     this.finishCalibration(token);
   }
 
   private finishCalibration(token: symbol) {
     if (this.calibrationToken !== token) return;
 
-    const { threshold, usedFallback } = computeCalibrationThreshold(this.rmsSamples, this.calibrationConfig, this.vadConfig.threshold);
+    const { threshold, usedFallback } = computeCalibrationThreshold(
+      this.rmsSamples,
+      this.calibrationConfig,
+      this.vadConfig.threshold,
+    );
     this.setVADThreshold(threshold);
     this.gateSpeech = false;
     if (usedFallback) {
-      this.updateCalibrationState({ status: 'error', error: 'No audio samples collected', threshold });
+      this.updateCalibrationState({
+        status: 'error',
+        error: 'No audio samples collected',
+        threshold,
+      });
     } else {
       this.updateCalibrationState({ status: 'ready', threshold });
     }
@@ -170,7 +187,7 @@ export class AudioProcessor {
 
   setMuted(muted: boolean) {
     this.muted = muted;
-    this.stream?.getAudioTracks().forEach(track => {
+    this.stream?.getAudioTracks().forEach((track) => {
       track.enabled = !muted;
     });
   }
@@ -184,7 +201,7 @@ export class AudioProcessor {
     this.source?.disconnect();
     this.workletNode?.disconnect();
     this.workletNode?.port.close();
-    this.stream?.getTracks().forEach(t => t.stop());
+    this.stream?.getTracks().forEach((t) => t.stop());
     this.audioContext?.close();
   }
 }

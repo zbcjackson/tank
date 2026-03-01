@@ -2,24 +2,26 @@
 
 from __future__ import annotations
 
-import logging
 import asyncio
+import contextlib
 import json
-from typing import Optional
+import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from .manager import SessionManager
-from .schemas import WebsocketMessage, MessageType
-from ..core.events import SignalMessage, DisplayMessage, UpdateType
+
 from ..audio.input.queue_source import QueueAudioSource
 from ..audio.input.types import AudioFrame
 from ..audio.output.callback_sink import CallbackAudioSink
 from ..audio.output.types import AudioChunk
+from ..core.events import DisplayMessage, SignalMessage, UpdateType
+from .manager import SessionManager
+from .schemas import MessageType, WebsocketMessage
 
 logger = logging.getLogger("ApiRouter")
 
 router = APIRouter()
 session_manager = SessionManager()
+
 
 @router.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
@@ -46,15 +48,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 return
             try:
                 msg = WebsocketMessage(
-                    type=MessageType.SIGNAL,
-                    content="tts_ended",
-                    session_id=session_id
+                    type=MessageType.SIGNAL, content="tts_ended", session_id=session_id
                 )
                 await websocket.send_text(msg.model_dump_json())
             except Exception as e:
                 logger.debug(f"Error sending tts_ended signal: {e}")
 
         loop = asyncio.get_event_loop()
+
         def on_chunk_sync(chunk: AudioChunk):
             if not ws_connected:
                 return
@@ -69,13 +70,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             stop_signal=stop_sig,
             audio_chunk_queue=q,
             on_chunk=on_chunk_sync,
-            on_stream_end=on_stream_end_sync
+            on_stream_end=on_stream_end_sync,
         )
 
     assistant = session_manager.create_assistant(
-        session_id=session_id,
-        audio_source_factory=source_factory,
-        audio_sink_factory=sink_factory
+        session_id=session_id, audio_source_factory=source_factory, audio_sink_factory=sink_factory
     )
 
     # Task to pipe Assistant's UI messages (signals, transcripts, text) to WS
@@ -90,7 +89,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                             content=msg.signal_type,
                             msg_id=msg.msg_id,
                             session_id=session_id,
-                            metadata=msg.metadata.copy() if msg.metadata else {}
+                            metadata=msg.metadata.copy() if msg.metadata else {},
                         )
                     # Handle DisplayMessage
                     elif isinstance(msg, DisplayMessage):
@@ -101,11 +100,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                             is_final=msg.is_final,
                             msg_id=msg.msg_id,
                             session_id=session_id,
-                            metadata=msg.metadata.copy() if msg.metadata else {}
+                            metadata=msg.metadata.copy() if msg.metadata else {},
                         )
 
                         # For non-text updates (tool calls, thoughts, etc.)
-                        if msg.update_type.name != 'TEXT':
+                        if msg.update_type.name != "TEXT":
                             ws_msg.type = MessageType.UPDATE
                             ws_msg.metadata["update_type"] = str(msg.update_type)
 
@@ -135,9 +134,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     try:
         # Send 'ready' signal
         ready_msg = WebsocketMessage(
-            type=MessageType.SIGNAL,
-            content="ready",
-            session_id=session_id
+            type=MessageType.SIGNAL, content="ready", session_id=session_id
         )
         await websocket.send_text(ready_msg.model_dump_json())
 
@@ -145,26 +142,23 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             # Main loop: receive from client
             # Could be bytes (audio) or text (signals/keyboard)
             data = await websocket.receive()
-            
+
             if "bytes" in data:
                 # Binary: push to Assistant's QueueAudioSource
-                import numpy as np
                 import time
-                
+
+                import numpy as np
+
                 # Assume 16kHz, 16bit, Mono PCM from client
                 pcm_data = np.frombuffer(data["bytes"], dtype=np.int16).astype(np.float32) / 32768.0
-                frame = AudioFrame(
-                    pcm=pcm_data,
-                    sample_rate=16000,
-                    timestamp_s=time.time()
-                )
+                frame = AudioFrame(pcm=pcm_data, sample_rate=16000, timestamp_s=time.time())
                 assistant.audio_input._source.push(frame)
-                
+
             elif "text" in data:
                 # Text: parse WebsocketMessage
                 msg_json = json.loads(data["text"])
                 msg = WebsocketMessage(**msg_json)
-                
+
                 if msg.type == MessageType.SIGNAL:
                     if msg.content == "interrupt":
                         assistant.audio_output.interrupt()
@@ -175,7 +169,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                             type=MessageType.SIGNAL,
                             content="pong",
                             session_id=session_id,
-                            metadata=msg.metadata.copy() if msg.metadata else {}
+                            metadata=msg.metadata.copy() if msg.metadata else {},
                         )
                         await websocket.send_text(pong_msg.model_dump_json())
                 elif msg.type == MessageType.INPUT:
@@ -193,8 +187,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     finally:
         ws_connected = False
         display_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await display_task
-        except asyncio.CancelledError:
-            pass
         await asyncio.to_thread(session_manager.close_session, session_id)

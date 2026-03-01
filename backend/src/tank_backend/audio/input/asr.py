@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import re
 import time
-from typing import Optional
 
 import numpy as np
 from faster_whisper import WhisperModel
@@ -39,7 +38,9 @@ def _strip_hallucination_phrases(text: str) -> str:
     t = text.strip()
     while True:
         changed = False
-        for lead_re, trail_re in zip(_HALLUCINATION_LEAD_PATTERNS, _HALLUCINATION_TRAIL_PATTERNS):
+        for lead_re, trail_re in zip(
+            _HALLUCINATION_LEAD_PATTERNS, _HALLUCINATION_TRAIL_PATTERNS, strict=False
+        ):
             t_new = lead_re.sub("", t).strip()
             t_new = trail_re.sub("", t_new).strip()
             if t_new != t:
@@ -56,7 +57,7 @@ class ASR:
     Automatic Speech Recognition using faster-whisper.
 
     Multi-language with auto-detect. Model is loaded once and cached by Hugging Face.
-    
+
     Since this project uses custom VAD (SileroVAD), vad_filter is set to False
     and threshold parameters are disabled by default to avoid double-filtering.
     """
@@ -67,10 +68,10 @@ class ASR:
         device: str = "cpu",
         compute_type: str = "default",
         # Hallucination prevention parameters
-        log_prob_threshold: Optional[float] = None,
-        no_speech_threshold: Optional[float] = None,
-        compression_ratio_threshold: Optional[float] = None,
-        hallucination_silence_threshold: Optional[float] = None,
+        log_prob_threshold: float | None = None,
+        no_speech_threshold: float | None = None,
+        compression_ratio_threshold: float | None = None,
+        hallucination_silence_threshold: float | None = None,
         language_detection_threshold: float = 0.5,
         condition_on_previous_text: bool = False,
         vad_filter: bool = False,
@@ -119,7 +120,7 @@ class ASR:
         self,
         pcm: np.ndarray,
         sample_rate: int,
-    ) -> tuple[str, Optional[str], Optional[float]]:
+    ) -> tuple[str, str | None, float | None]:
         """
         Transcribe audio to text with language auto-detect.
 

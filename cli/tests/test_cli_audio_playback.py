@@ -1,11 +1,11 @@
 """Tests for ClientAudioPlayback."""
 
-import queue
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from tank_cli.cli.audio_playback import ClientAudioPlayback
+import pytest
+
 from tank_cli.audio.output.types import AudioChunk
+from tank_cli.cli.audio_playback import ClientAudioPlayback
 from tank_cli.core.shutdown import GracefulShutdown
 
 MODULE = "tank_cli.cli.audio_playback"

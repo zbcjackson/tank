@@ -1,7 +1,6 @@
 """Tests for VoiceprintRecognizer."""
 
 import numpy as np
-import pytest
 
 from tank_backend.audio.input.segmenter import Utterance
 from tank_backend.audio.input.voiceprint import VoiceprintRecognizer

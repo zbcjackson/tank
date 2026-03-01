@@ -1,12 +1,12 @@
 """Tests for TankClient WebSocket client."""
 
-import asyncio
 import json
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from tank_cli.cli.client import TankClient
-from tank_cli.schemas import WebsocketMessage, MessageType
+from tank_cli.schemas import MessageType, WebsocketMessage
 
 MODULE = "tank_cli.cli.client"
 

@@ -1,6 +1,6 @@
 """Core module."""
 
+from .events import DisplayMessage, UpdateType
 from .shutdown import GracefulShutdown, StopSignal
-from .events import UpdateType, DisplayMessage
 
 __all__ = ["GracefulShutdown", "StopSignal", "UpdateType", "DisplayMessage"]

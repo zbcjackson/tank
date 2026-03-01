@@ -8,7 +8,7 @@ interface ModeToggleProps {
 
 export const ModeToggle = ({ mode, onToggle }: ModeToggleProps) => {
   return (
-    <motion.button 
+    <motion.button
       initial={{ scale: 0 }}
       animate={{ scale: 1 }}
       whileHover={{ scale: 1.1 }}

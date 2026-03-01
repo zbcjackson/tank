@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Any, List
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -14,7 +15,7 @@ class ToolParameter(BaseModel):
 class ToolInfo(BaseModel):
     name: str
     description: str
-    parameters: List[ToolParameter]
+    parameters: list[ToolParameter]
 
 
 class BaseTool(ABC):

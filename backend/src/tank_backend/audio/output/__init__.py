@@ -9,4 +9,11 @@ from .playback_worker import PlaybackWorker
 from .tts_worker import TTSWorker
 from .types import AudioChunk
 
-__all__ = ["AudioChunk", "AudioOutput", "AudioOutputConfig", "AudioOutputRequest", "PlaybackWorker", "TTSWorker"]
+__all__ = [
+    "AudioChunk",
+    "AudioOutput",
+    "AudioOutputConfig",
+    "AudioOutputRequest",
+    "PlaybackWorker",
+    "TTSWorker",
+]

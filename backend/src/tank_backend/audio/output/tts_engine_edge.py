@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import shutil
+from collections.abc import AsyncIterator, Callable
 from io import BytesIO
-from typing import AsyncIterator, Callable, Optional
 
 import edge_tts
 from pydub import AudioSegment
 
 from ...config.settings import VoiceAssistantConfig
-from .types import AudioChunk
 from .tts import TTSEngine
+from .types import AudioChunk
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class EdgeTTSEngine(TTSEngine):
     async def _generate_stream_ffmpeg(
         self,
         communicate: edge_tts.Communicate,
-        is_interrupted: Optional[Callable[[], bool]],
+        is_interrupted: Callable[[], bool] | None,
     ) -> AsyncIterator[AudioChunk]:
         """Decode MP3 via ffmpeg stdin→stdout for continuous PCM and minimal latency."""
         proc = await asyncio.create_subprocess_exec(
@@ -94,10 +95,8 @@ class EdgeTTSEngine(TTSEngine):
                 )
         finally:
             write_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await write_task
-            except asyncio.CancelledError:
-                pass
             if proc.returncode is None:
                 proc.terminate()
                 try:
@@ -108,7 +107,7 @@ class EdgeTTSEngine(TTSEngine):
     async def _generate_stream_pydub(
         self,
         communicate: edge_tts.Communicate,
-        is_interrupted: Optional[Callable[[], bool]],
+        is_interrupted: Callable[[], bool] | None,
     ) -> AsyncIterator[AudioChunk]:
         """Fallback: accumulate MP3 then decode with pydub (fewer boundaries than per-chunk)."""
         buffer = bytearray()
@@ -160,8 +159,8 @@ class EdgeTTSEngine(TTSEngine):
         text: str,
         *,
         language: str = "auto",
-        voice: Optional[str] = None,
-        is_interrupted: Optional[Callable[[], bool]] = None,
+        voice: str | None = None,
+        is_interrupted: Callable[[], bool] | None = None,
     ) -> AsyncIterator[AudioChunk]:
         voice = voice or self._voice_for_language(language)
         communicate = edge_tts.Communicate(text, voice)

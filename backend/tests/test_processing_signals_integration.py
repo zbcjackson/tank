@@ -1,16 +1,18 @@
 """Integration test for processing_started/ended signals through WebSocket."""
 
+from unittest.mock import AsyncMock
+
 import pytest
-import asyncio
-from unittest.mock import MagicMock, AsyncMock
-from tank_backend.core.assistant import Assistant
-from tank_backend.core.events import UpdateType, SignalMessage
+
 from tank_backend.audio.input.types import AudioSource
 from tank_backend.audio.output.types import AudioSink
+from tank_backend.core.assistant import Assistant
+from tank_backend.core.events import SignalMessage, UpdateType
 
 
 class MockAudioSource(AudioSource):
     """Mock audio source for testing."""
+
     def start(self):
         pass
 
@@ -20,6 +22,7 @@ class MockAudioSource(AudioSource):
 
 class MockAudioSink(AudioSink):
     """Mock audio sink for testing."""
+
     def start(self):
         pass
 
@@ -31,6 +34,7 @@ class MockAudioSink(AudioSink):
 def mock_audio_source_factory():
     def factory(q, stop_sig):
         return MockAudioSource()
+
     return factory
 
 
@@ -38,6 +42,7 @@ def mock_audio_source_factory():
 def mock_audio_sink_factory():
     def factory(q, stop_sig):
         return MockAudioSink()
+
     return factory
 
 
@@ -51,7 +56,7 @@ def assistant(mock_audio_source_factory, mock_audio_sink_factory, tmp_path):
     assistant = Assistant(
         config_path=config_file,
         audio_source_factory=mock_audio_source_factory,
-        audio_sink_factory=mock_audio_sink_factory
+        audio_sink_factory=mock_audio_sink_factory,
     )
 
     # Mock LLM
@@ -74,6 +79,7 @@ def test_assistant_sends_processing_signals(assistant):
 
         # Give Brain time to process
         import time
+
         time.sleep(1.0)
 
         # Collect messages

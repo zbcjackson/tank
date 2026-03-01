@@ -2,19 +2,16 @@
 
 from __future__ import annotations
 
-import threading
-import queue
-import time
 import logging
-from dataclasses import dataclass
-from typing import Optional
+import queue
+import threading
+import time
 
 import numpy as np
 import sounddevice as sd
 
 from ...core import StopSignal
-
-from .types import AudioFormat, FrameConfig, AudioFrame
+from .types import AudioFormat, AudioFrame, FrameConfig
 
 logger = logging.getLogger("Mic")
 
@@ -39,7 +36,7 @@ class Mic(threading.Thread):
         audio_format: AudioFormat,
         frame_cfg: FrameConfig,
         frames_queue: queue.Queue[AudioFrame],
-        device: Optional[int] = None,
+        device: int | None = None,
     ):
         super().__init__(name="MicThread", daemon=True)
         self._stop_signal = stop_signal
@@ -52,26 +49,24 @@ class Mic(threading.Thread):
         """Start microphone capture loop."""
         blocksize = int(self._audio_format.sample_rate * self._frame_cfg.frame_ms / 1000)
         dtype = DTYPE_MAP.get(self._audio_format.dtype, np.float32)
-        
+
         def audio_callback(indata, frames, time_info, status):
             """Callback function for sounddevice audio stream."""
             if status:
                 logger.warning(f"Audio callback status: {status}")
-            
+
             # Convert to float32: indata shape is (frames, channels)
             pcm = indata[:, 0].astype(np.float32) if indata.ndim > 1 else indata.astype(np.float32)
-            
+
             frame = AudioFrame(
-                pcm=pcm,
-                sample_rate=self._audio_format.sample_rate,
-                timestamp_s=time.time()
+                pcm=pcm, sample_rate=self._audio_format.sample_rate, timestamp_s=time.time()
             )
-            
+
             try:
                 self._frames_queue.put_nowait(frame)
             except queue.Full:
                 logger.warning("Frames queue is full, dropping audio frame")
-        
+
         try:
             with sd.InputStream(
                 callback=audio_callback,

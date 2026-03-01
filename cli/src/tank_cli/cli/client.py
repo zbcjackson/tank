@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import uuid
-from typing import Callable, Optional
+from collections.abc import Callable
 
 import websockets
 
-from ..schemas import WebsocketMessage, MessageType
+from ..schemas import MessageType, WebsocketMessage
 
 logger = logging.getLogger("TankClient")
 
@@ -24,13 +23,13 @@ class TankClient:
     def __init__(
         self,
         base_url: str = "localhost:8000",
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
     ):
         self._session_id = session_id or uuid.uuid4().hex[:8]
         self._url = f"ws://{base_url}/ws/{self._session_id}"
-        self._ws: Optional[websockets.ClientConnection] = None
-        self._on_text_message: Optional[Callable[[WebsocketMessage], None]] = None
-        self._on_audio_chunk: Optional[Callable[[bytes], None]] = None
+        self._ws: websockets.ClientConnection | None = None
+        self._on_text_message: Callable[[WebsocketMessage], None] | None = None
+        self._on_audio_chunk: Callable[[bytes], None] | None = None
         self._running = False
 
     @property
