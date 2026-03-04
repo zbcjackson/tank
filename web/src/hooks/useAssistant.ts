@@ -244,6 +244,14 @@ export const useAssistant = (sessionId: string) => {
     clientRef.current?.reconnect();
   }, []);
 
+  const pauseAudioCapture = useCallback(() => {
+    audioProcessorRef.current?.pause();
+  }, []);
+
+  const resumeAudioCapture = useCallback(() => {
+    audioProcessorRef.current?.resume();
+  }, []);
+
   // Group flat steps into messages by msgId
   const messages = useMemo((): Message[] => {
     const map = new Map<string, Message>();
@@ -276,5 +284,7 @@ export const useAssistant = (sessionId: string) => {
     getAnalyserNode,
     stopSpeaking,
     manualReconnect,
+    pauseAudioCapture,
+    resumeAudioCapture,
   };
 };

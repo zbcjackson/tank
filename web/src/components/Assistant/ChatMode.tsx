@@ -11,6 +11,8 @@ interface ChatModeProps {
   isSpeaking: boolean;
   onSendMessage: (text: string) => void;
   onStopSpeaking: () => void;
+  pauseAudioCapture: () => void;
+  resumeAudioCapture: () => void;
 }
 
 export const ChatMode = ({
@@ -19,6 +21,8 @@ export const ChatMode = ({
   isSpeaking,
   onSendMessage,
   onStopSpeaking,
+  pauseAudioCapture,
+  resumeAudioCapture,
 }: ChatModeProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -66,6 +70,8 @@ export const ChatMode = ({
         key={enrollmentKey}
         speaker={lastUserSpeaker}
         onEnrollComplete={() => setEnrollmentKey((k) => k + 1)}
+        pauseAudioCapture={pauseAudioCapture}
+        resumeAudioCapture={resumeAudioCapture}
       />
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide pt-2">

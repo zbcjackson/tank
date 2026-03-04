@@ -25,6 +25,8 @@ function App() {
     stopSpeaking,
     calibrationState,
     manualReconnect,
+    pauseAudioCapture,
+    resumeAudioCapture,
   } = useAssistant(SESSION_ID);
 
   const calibrationStatusText =
@@ -80,6 +82,8 @@ function App() {
               isSpeaking={isSpeaking}
               onSendMessage={sendMessage}
               onStopSpeaking={stopSpeaking}
+              pauseAudioCapture={pauseAudioCapture}
+              resumeAudioCapture={resumeAudioCapture}
             />
           )}
         </AnimatePresence>

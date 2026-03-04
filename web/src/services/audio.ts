@@ -196,6 +196,15 @@ export class AudioProcessor {
     return this.muted;
   }
 
+  pause() {
+    this.gateSpeech = true;
+    this.onSpeechChange?.(false);
+  }
+
+  resume() {
+    this.gateSpeech = false;
+  }
+
   stop() {
     this.calibrationToken = null;
     this.source?.disconnect();
