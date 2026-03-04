@@ -109,3 +109,61 @@ class TestBrain:
         assert len(brain._conversation_history) == 1
         assert brain._conversation_history[0]["role"] == "system"
         assert brain._conversation_history[0]["content"] == brain._system_prompt
+
+    def test_brain_includes_speaker_name_in_conversation_history(
+        self, brain, runtime, shutdown_signal, mock_llm
+    ):
+        """Brain should include speaker name in conversation history."""
+        # Mock LLM to return immediately
+        async def mock_chat_stream(*args, **kwargs):
+            yield ("text", "Hello!", {})
+
+        mock_llm.chat_stream = mock_chat_stream
+
+        event = BrainInputEvent(
+            type=InputType.TEXT,
+            text="What's the weather?",
+            user="Jackson",
+            language="en",
+            confidence=None,
+        )
+
+        # Process the event
+        brain.handle(event)
+
+        # Check conversation history includes speaker name
+        assert len(brain._conversation_history) >= 2  # system + user message
+        user_message = brain._conversation_history[1]
+        assert user_message["role"] == "user"
+        assert "Jackson:" in user_message["content"]
+        assert "What's the weather?" in user_message["content"]
+
+    def test_brain_handles_unknown_speaker(self, brain, runtime, shutdown_signal, mock_llm):
+        """Brain should handle Unknown speaker gracefully."""
+        # Mock LLM to return immediately
+        async def mock_chat_stream(*args, **kwargs):
+            yield ("text", "Hello!", {})
+
+        mock_llm.chat_stream = mock_chat_stream
+
+        event = BrainInputEvent(
+            type=InputType.TEXT,
+            text="Hello",
+            user="Unknown",
+            language="en",
+            confidence=None,
+        )
+
+        # Process the event
+        brain.handle(event)
+
+        # Check conversation history includes Unknown speaker
+        assert len(brain._conversation_history) >= 2
+        user_message = brain._conversation_history[1]
+        assert user_message["role"] == "user"
+        assert "Unknown:" in user_message["content"]
+
+    def test_system_prompt_includes_speaker_awareness(self, brain):
+        """System prompt should mention speaker awareness."""
+        assert "SPEAKER AWARENESS" in brain._system_prompt
+        assert "speaker" in brain._system_prompt.lower()

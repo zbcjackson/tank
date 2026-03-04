@@ -116,8 +116,9 @@ class Brain(QueueWorker[BrainInputEvent]):
         started_at = time.time()
         logger.info("Brain processing started for input at %.3f", started_at)
 
-        # Add to history
-        self._add_to_conversation_history("user", event.text)
+        # Add to history with speaker context
+        user_message = f"{event.user}: {event.text}"
+        self._add_to_conversation_history("user", user_message)
 
         # 3. Generate Assistant Message ID
         assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
