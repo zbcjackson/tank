@@ -23,6 +23,7 @@ class WebsocketMessage(BaseModel):
 
     type: MessageType
     content: str = ""
+    speaker: str | None = None
     is_user: bool = False
     is_final: bool = False
     msg_id: str | None = None

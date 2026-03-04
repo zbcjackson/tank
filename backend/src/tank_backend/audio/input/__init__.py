@@ -5,11 +5,10 @@ from __future__ import annotations
 from .asr import ASR
 from .audio_input import AudioInput, AudioInputConfig
 from .mic import AudioFrame, Mic
-from .perception import Perception, PerceptionConfig
-from .segmenter import Utterance, UtteranceSegmenter
-from .types import AudioFormat, FrameConfig, SegmenterConfig
+from .types import AudioFormat, FrameConfig, PerceptionConfig, SegmenterConfig
 from .vad import SileroVAD, VADResult, VADStatus
-from .voiceprint import VoiceprintRecognizer
+from .voiceprint import Utterance, VoiceprintRecognizer
+from .voiceprint_streaming import StreamingVoiceprintRecognizer
 
 __all__ = [
     "AudioInput",
@@ -21,11 +20,10 @@ __all__ = [
     "PerceptionConfig",
     "AudioFrame",
     "Mic",
-    "Perception",
     "Utterance",
-    "UtteranceSegmenter",
     "VADStatus",
     "VADResult",
     "VoiceprintRecognizer",
+    "StreamingVoiceprintRecognizer",
     "SileroVAD",
 ]

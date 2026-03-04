@@ -15,6 +15,7 @@ export interface ConnectionMetadata {
 export interface WebsocketMessage {
   type: MessageType;
   content: string;
+  speaker?: string;
   is_user: boolean;
   is_final: boolean;
   msg_id?: string;

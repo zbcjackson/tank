@@ -44,6 +44,23 @@ class VoiceAssistantConfig(BaseModel):
         default=True,
         description="When True, user speech interrupts TTS playback and current LLM processing",
     )
+    enable_speaker_id: bool = Field(
+        default=False, description="Enable speaker identification (voiceprint recognition)"
+    )
+    speaker_model_path: str = Field(
+        default="models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
+        description="Path to speaker embedding model (ONNX format)",
+    )
+    speaker_db_path: str = Field(
+        default="data/speakers.db", description="Path to speaker database (SQLite)"
+    )
+    speaker_threshold: float = Field(
+        default=0.6,
+        description="Speaker identification threshold (0.0-1.0, higher = stricter)",
+    )
+    speaker_default_user: str = Field(
+        default="Unknown", description="Default user when speaker not identified"
+    )
 
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8")
 
@@ -74,6 +91,15 @@ def load_config(config_path: Path | None = None) -> VoiceAssistantConfig:
             max_conversation_history=int(os.getenv("MAX_CONVERSATION_HISTORY", "10")),
             speech_interrupt_enabled=os.getenv("SPEECH_INTERRUPT_ENABLED", "true").lower()
             in ("true", "1", "yes"),
+            enable_speaker_id=os.getenv("ENABLE_SPEAKER_ID", "false").lower()
+            in ("true", "1", "yes"),
+            speaker_model_path=os.getenv(
+                "SPEAKER_MODEL_PATH",
+                "models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
+            ),
+            speaker_db_path=os.getenv("SPEAKER_DB_PATH", "data/speakers.db"),
+            speaker_threshold=float(os.getenv("SPEAKER_THRESHOLD", "0.6")),
+            speaker_default_user=os.getenv("SPEAKER_DEFAULT_USER", "Unknown"),
         )
 
         if not config.llm_api_key:
@@ -124,6 +150,13 @@ MAX_CONVERSATION_HISTORY=10
 
 # Speech interrupt: when True, user speech interrupts TTS and LLM (true/false)
 SPEECH_INTERRUPT_ENABLED=true
+
+# Speaker identification (voiceprint recognition)
+ENABLE_SPEAKER_ID=false
+SPEAKER_MODEL_PATH=models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx
+SPEAKER_DB_PATH=data/speakers.db
+SPEAKER_THRESHOLD=0.6
+SPEAKER_DEFAULT_USER=Unknown
 """
 
     with open(path, "w") as f:

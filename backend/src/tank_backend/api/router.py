@@ -96,6 +96,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         ws_msg = WebsocketMessage(
                             type=MessageType.TRANSCRIPT if msg.is_user else MessageType.TEXT,
                             content=msg.text,
+                            speaker=msg.speaker,
                             is_user=msg.is_user,
                             is_final=msg.is_final,
                             msg_id=msg.msg_id,

@@ -66,6 +66,7 @@ class Assistant:
             cfg=audio_input_config or AudioInputConfig(),
             on_speech_interrupt=_on_speech_interrupt,
             source_factory=audio_source_factory,
+            config=self._config,
         )
 
         # Audio output subsystem (TTS playback)

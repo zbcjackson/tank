@@ -1,7 +1,8 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { User, Cpu, MessageSquare, Mic, Send, Square } from 'lucide-react';
 import { MessageStep } from './MessageStep';
+import { EnrollmentBanner } from './EnrollmentBanner';
 import type { Step } from '../../types/message';
 
 interface ChatModeProps {
@@ -21,6 +22,13 @@ export const ChatMode = ({
 }: ChatModeProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [enrollmentKey, setEnrollmentKey] = useState(0);
+
+  // Get the most recent user message speaker
+  const lastUserSpeaker = messages
+    .slice()
+    .reverse()
+    .find((m) => m.role === 'user')?.speaker;
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -53,6 +61,12 @@ export const ChatMode = ({
           Conversation History
         </p>
       </div>
+
+      <EnrollmentBanner
+        key={enrollmentKey}
+        speaker={lastUserSpeaker}
+        onEnrollComplete={() => setEnrollmentKey((k) => k + 1)}
+      />
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide pt-2">
         {messages.length === 0 && (
@@ -94,7 +108,11 @@ export const ChatMode = ({
                 >
                   {isFirstInRoleGroup && (
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 mb-1">
-                      {msg.role === 'user' ? 'You' : 'TANK'}
+                      {msg.role === 'user'
+                        ? msg.speaker && msg.speaker !== 'Unknown'
+                          ? msg.speaker
+                          : 'You'
+                        : 'TANK'}
                     </span>
                   )}
                   <div

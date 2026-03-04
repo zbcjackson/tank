@@ -63,6 +63,7 @@ export const useAssistant = (sessionId: string) => {
                 ? msg.content
                 : updated[existingIdx].content + (msg.content || ''),
             isFinal: msg.is_final,
+            speaker: msg.speaker || updated[existingIdx].speaker,
           };
           return updated;
         } else {
@@ -79,6 +80,7 @@ export const useAssistant = (sessionId: string) => {
               content: msg.content || '',
               msgId,
               isFinal: msg.is_final,
+              speaker: msg.speaker || undefined,
             },
           ];
         }
@@ -135,7 +137,15 @@ export const useAssistant = (sessionId: string) => {
         } else {
           return [
             ...prev,
-            { id: stepId, role, type: 'tool', content: toolData, msgId, isFinal: msg.is_final },
+            {
+              id: stepId,
+              role,
+              type: 'tool',
+              content: toolData,
+              msgId,
+              isFinal: msg.is_final,
+              speaker: msg.speaker || undefined,
+            },
           ];
         }
       }

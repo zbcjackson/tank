@@ -16,6 +16,7 @@ export interface Step {
   content: string | ToolContent | WeatherData;
   msgId: string;
   isFinal?: boolean;
+  speaker?: string;
 }
 
 export interface Message {

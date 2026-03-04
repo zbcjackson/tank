@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ..audio.input.types import AudioSourceFactory
 from ..audio.output.types import AudioSinkFactory
+from ..config.settings import load_config
 from ..core.assistant import Assistant
+
+if TYPE_CHECKING:
+    from ..audio.input.voiceprint import VoiceprintRecognizer
 
 logger = logging.getLogger("SessionManager")
 
@@ -16,11 +21,28 @@ class SessionManager:
     """
     Manages active voice assistant sessions.
     Maps session_id to Assistant instance.
+    Holds a shared VoiceprintRecognizer for all sessions.
     """
 
     def __init__(self, config_path: Path | None = None):
         self._sessions: dict[str, Assistant] = {}
         self._config_path = config_path
+        self._voiceprint_recognizer: VoiceprintRecognizer | None = None
+
+        # Initialize shared voiceprint recognizer
+        try:
+            config = load_config(config_path)
+            if config.enable_speaker_id:
+                from ..audio.input.voiceprint_factory import create_voiceprint_recognizer
+
+                self._voiceprint_recognizer = create_voiceprint_recognizer(config)
+                logger.info("Shared voiceprint recognizer initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize voiceprint recognizer: {e}")
+
+    def get_voiceprint_recognizer(self) -> VoiceprintRecognizer | None:
+        """Get the shared voiceprint recognizer."""
+        return self._voiceprint_recognizer
 
     def get_assistant(self, session_id: str) -> Assistant | None:
         """Retrieve assistant instance for a session."""
@@ -59,3 +81,8 @@ class SessionManager:
         ids = list(self._sessions.keys())
         for sid in ids:
             self.close_session(sid)
+
+        # Close shared voiceprint recognizer
+        if self._voiceprint_recognizer:
+            self._voiceprint_recognizer.close()
+            logger.info("Closed shared voiceprint recognizer")
