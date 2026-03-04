@@ -106,9 +106,9 @@ class StreamingPerception(QueueWorker["AudioFrame"]):
                     )
                 )
             else:
-                # No text but is_final — reset voiceprint buffer
+                # No text but is_final — discard accumulated audio
                 if self._voiceprint:
-                    self._voiceprint.identify_and_reset()
+                    self._voiceprint.reset()
             self._last_text = ""  # Reset for next utterance
             self._interrupt_fired_for_current = False
             self._current_msg_id = None  # Reset ID for next utterance

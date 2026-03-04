@@ -58,6 +58,21 @@ class VoiceprintRecognizer:
         else:
             logger.info("Voiceprint recognition disabled (using default user)")
 
+    @property
+    def default_user(self) -> str:
+        """Default user when identification fails or is disabled."""
+        return self._default_user
+
+    @property
+    def enabled(self) -> bool:
+        """Whether voiceprint recognition is enabled."""
+        return self._enabled
+
+    @property
+    def repository(self) -> SpeakerRepository | None:
+        """Speaker repository (None if disabled)."""
+        return self._repository
+
     def identify(self, utterance: Utterance) -> str:
         """
         Identify speaker from utterance.

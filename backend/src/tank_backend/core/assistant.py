@@ -59,6 +59,18 @@ class Assistant:
                 self.runtime.interrupt_event.set()
                 self.audio_output.interrupt()
 
+        # Create voiceprint recognizer if enabled
+        voiceprint_streaming = None
+        if self._config.enable_speaker_id:
+            from ..audio.input.voiceprint_factory import create_voiceprint_recognizer
+            from ..audio.input.voiceprint_streaming import StreamingVoiceprintRecognizer
+
+            recognizer = create_voiceprint_recognizer(self._config)
+            voiceprint_streaming = StreamingVoiceprintRecognizer(
+                recognizer,
+                sample_rate=(audio_input_config or AudioInputConfig()).audio_format.sample_rate,
+            )
+
         # Audio input subsystem (mic + segmentation + perception)
         self.audio_input = AudioInput(
             shutdown_signal=self.shutdown_signal,
@@ -66,7 +78,7 @@ class Assistant:
             cfg=audio_input_config or AudioInputConfig(),
             on_speech_interrupt=_on_speech_interrupt,
             source_factory=audio_source_factory,
-            config=self._config,
+            voiceprint=voiceprint_streaming,
         )
 
         # Audio output subsystem (TTS playback)

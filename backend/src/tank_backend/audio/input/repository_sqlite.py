@@ -153,14 +153,30 @@ class SQLiteSpeakerRepository(SpeakerRepository):
             List of all speakers
         """
         cursor = self._conn.cursor()
-        cursor.execute("SELECT user_id FROM speakers")
-        user_ids = [row[0] for row in cursor.fetchall()]
-        speakers = []
-        for uid in user_ids:
-            speaker = self.get_speaker(uid)
-            if speaker:
-                speakers.append(speaker)
-        return speakers
+        cursor.execute("""
+            SELECT s.user_id, s.name, s.created_at, s.updated_at, e.embedding
+            FROM speakers s
+            LEFT JOIN embeddings e ON s.user_id = e.user_id
+            ORDER BY s.user_id
+        """)
+
+        speakers_map: dict[str, Speaker] = {}
+        for row in cursor.fetchall():
+            uid, name, created_at, updated_at, emb_blob = row
+            if uid not in speakers_map:
+                speakers_map[uid] = Speaker(
+                    user_id=uid,
+                    name=name,
+                    embeddings=[],
+                    created_at=created_at,
+                    updated_at=updated_at,
+                )
+            if emb_blob is not None:
+                speakers_map[uid].embeddings.append(
+                    np.frombuffer(emb_blob, dtype=np.float32)
+                )
+
+        return list(speakers_map.values())
 
     def delete_speaker(self, user_id: str) -> bool:
         """

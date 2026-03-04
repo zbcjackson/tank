@@ -43,6 +43,10 @@ class StreamingVoiceprintRecognizer:
         """
         self._audio_buffer.append(frame.pcm)
 
+    def reset(self) -> None:
+        """Discard accumulated audio without running identification."""
+        self._audio_buffer.clear()
+
     def identify_and_reset(self) -> str:
         """
         Identify speaker from accumulated audio, then reset buffer.
@@ -51,7 +55,7 @@ class StreamingVoiceprintRecognizer:
             User identifier (user_id or default_user if no match)
         """
         if not self._audio_buffer:
-            return self._recognizer._default_user
+            return self._recognizer.default_user
 
         # Concatenate all accumulated frames
         audio = np.concatenate(self._audio_buffer)

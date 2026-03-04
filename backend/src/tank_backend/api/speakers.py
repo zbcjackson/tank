@@ -35,10 +35,12 @@ def _get_recognizer():
 
 
 def _get_repository():
-    recognizer = _get_recognizer()
-    if recognizer._repository is None:
+    if _session_manager is None:
+        raise HTTPException(503, "Speaker service not initialized")
+    recognizer = _session_manager.get_voiceprint_recognizer()
+    if recognizer is None or not recognizer.enabled:
         raise HTTPException(503, "Speaker identification is disabled")
-    return recognizer._repository
+    return recognizer.repository
 
 
 class SpeakerInfo(BaseModel):

@@ -23,7 +23,7 @@ def make_frame(pcm_len=320, sample_rate=16000):
 def mock_recognizer():
     """Create a mock VoiceprintRecognizer."""
     recognizer = MagicMock(spec=VoiceprintRecognizer)
-    recognizer._default_user = "Unknown"
+    recognizer.default_user = "Unknown"
     recognizer.identify.return_value = "alice"
     return recognizer
 

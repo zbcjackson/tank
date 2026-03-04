@@ -13,6 +13,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger("VoiceprintFactory")
 
 
+def _create_disabled_recognizer(config: VoiceAssistantConfig) -> VoiceprintRecognizer:
+    """Create a disabled voiceprint recognizer."""
+    return VoiceprintRecognizer(
+        extractor=None,
+        repository=None,
+        default_user=config.speaker_default_user,
+    )
+
+
 def create_voiceprint_recognizer(config: VoiceAssistantConfig) -> VoiceprintRecognizer:
     """
     Create a VoiceprintRecognizer instance based on configuration.
@@ -25,11 +34,7 @@ def create_voiceprint_recognizer(config: VoiceAssistantConfig) -> VoiceprintReco
     """
     if not config.enable_speaker_id:
         logger.info("Speaker identification disabled by configuration")
-        return VoiceprintRecognizer(
-            extractor=None,
-            repository=None,
-            default_user=config.speaker_default_user,
-        )
+        return _create_disabled_recognizer(config)
 
     try:
         from .embedding_sherpa import SherpaEmbeddingExtractor
@@ -61,16 +66,8 @@ def create_voiceprint_recognizer(config: VoiceAssistantConfig) -> VoiceprintReco
     except FileNotFoundError as e:
         logger.warning(f"Speaker model not found: {e}")
         logger.warning("Falling back to disabled speaker identification")
-        return VoiceprintRecognizer(
-            extractor=None,
-            repository=None,
-            default_user=config.speaker_default_user,
-        )
+        return _create_disabled_recognizer(config)
     except Exception as e:
         logger.error(f"Failed to initialize speaker identification: {e}")
         logger.warning("Falling back to disabled speaker identification")
-        return VoiceprintRecognizer(
-            extractor=None,
-            repository=None,
-            default_user=config.speaker_default_user,
-        )
+        return _create_disabled_recognizer(config)
