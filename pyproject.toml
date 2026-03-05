@@ -1,0 +1,15 @@
+[project]
+name = "tank"
+version = "0.1.0"
+description = "Tank Voice Assistant - Monorepo"
+requires-python = ">=3.10"
+
+[tool.uv.workspace]
+members = [
+    "backend",
+    "contracts",
+    "plugins/tts-edge",
+]
+
+[tool.uv.sources]
+tank-contracts = { workspace = true }

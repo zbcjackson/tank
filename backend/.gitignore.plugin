@@ -1,0 +1,6 @@
+# Plugin-specific ignores
+plugins/*/build/
+plugins/*/dist/
+plugins/*/*.egg-info/
+plugins/*/__pycache__/
+plugins/*/tests/__pycache__/

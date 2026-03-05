@@ -32,10 +32,6 @@ class VoiceAssistantConfig(BaseModel):
     audio_duration: float = Field(
         default=5.0, description="Default audio recording duration in seconds"
     )
-    tts_voice_en: str = Field(default="en-US-JennyNeural", description="Default English TTS voice")
-    tts_voice_zh: str = Field(
-        default="zh-CN-XiaoxiaoNeural", description="Default Chinese TTS voice"
-    )
     log_level: str = Field(default="INFO", description="Logging level")
     max_conversation_history: int = Field(
         default=10, description="Maximum number of conversation turns to keep"
@@ -85,8 +81,6 @@ def load_config(config_path: Path | None = None) -> VoiceAssistantConfig:
             sherpa_model_dir=os.getenv("SHERPA_MODEL_DIR", "models/sherpa-onnx-zipformer-en-zh"),
             default_language=os.getenv("DEFAULT_LANGUAGE", "zh"),
             audio_duration=float(os.getenv("AUDIO_DURATION", "5.0")),
-            tts_voice_en=os.getenv("TTS_VOICE_EN", "en-US-JennyNeural"),
-            tts_voice_zh=os.getenv("TTS_VOICE_ZH", "zh-CN-XiaoxiaoNeural"),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
             max_conversation_history=int(os.getenv("MAX_CONVERSATION_HISTORY", "10")),
             speech_interrupt_enabled=os.getenv("SPEECH_INTERRUPT_ENABLED", "true").lower()
@@ -137,10 +131,6 @@ DEFAULT_LANGUAGE=zh
 
 # Audio recording duration in seconds
 AUDIO_DURATION=5.0
-
-# TTS voices
-TTS_VOICE_EN=en-US-JennyNeural
-TTS_VOICE_ZH=zh-CN-XiaoxiaoNeural
 
 # Logging level
 LOG_LEVEL=INFO

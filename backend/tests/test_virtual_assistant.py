@@ -25,8 +25,6 @@ def mock_config():
         config.serper_api_key = "test_serper"
         config.speech_interrupt_enabled = True
         config.max_conversation_history = 5
-        config.tts_voice_zh = "zh-CN-XiaoxiaoNeural"
-        config.tts_voice_en = "en-US-JennyNeural"
         mock_load.return_value = config
         yield config
 
@@ -60,6 +58,17 @@ async def test_virtual_assistant_flow(mock_config):
     async def mock_generate_stream(*args, **kwargs):
         yield AudioChunk(data=b"dummy_pcm", sample_rate=24000, channels=1)
 
+    # Mock plugin loader to return mock TTS engine
+    mock_tts_engine = MagicMock()
+    mock_tts_engine.generate_stream = mock_generate_stream
+
+    # Mock plugin config
+    mock_plugin_config = MagicMock()
+    mock_plugin_config.get_slot_config.return_value = {
+        "plugin": "tts-edge",
+        "config": {"voice_en": "en-US-JennyNeural", "voice_zh": "zh-CN-XiaoxiaoNeural"},
+    }
+
     with (
         patch("tank_backend.llm.llm.LLM.chat_stream", side_effect=mock_chat_stream),
         patch("tank_backend.audio.input.asr_sherpa.SherpaASR.__init__", return_value=None),
@@ -68,8 +77,12 @@ async def test_virtual_assistant_flow(mock_config):
             side_effect=mock_process_pcm,
         ),
         patch(
-            "tank_backend.audio.output.tts_engine_edge.EdgeTTSEngine.generate_stream",
-            side_effect=mock_generate_stream,
+            "tank_backend.audio.output.audio_output.PluginConfig",
+            return_value=mock_plugin_config,
+        ),
+        patch(
+            "tank_backend.audio.output.audio_output.load_plugin",
+            return_value=mock_tts_engine,
         ),
     ):
         # 2. Setup factories

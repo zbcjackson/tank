@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import queue
 from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
+
+from tank_contracts.tts import AudioChunk
 
 from ...core.shutdown import StopSignal
 
@@ -23,13 +24,6 @@ class AudioSink(Protocol):
         ...
 
 
-AudioSinkFactory = Callable[[queue.Queue[Optional["AudioChunk"]], StopSignal], AudioSink]
+AudioSinkFactory = Callable[[queue.Queue[AudioChunk | None], StopSignal], AudioSink]
 
-
-@dataclass(frozen=True)
-class AudioChunk:
-    """One chunk of PCM audio for playback."""
-
-    data: bytes
-    sample_rate: int
-    channels: int = 1
+__all__ = ["AudioChunk", "AudioSink", "AudioSinkFactory"]

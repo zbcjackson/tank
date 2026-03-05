@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 from ...config.settings import VoiceAssistantConfig
 from ...core.events import AudioOutputRequest
 from ...core.shutdown import GracefulShutdown
+from ...plugin import PluginConfig, load_plugin
 from .playback_worker import PlaybackWorker
-from .tts_engine_edge import EdgeTTSEngine
 from .tts_worker import TTSWorker
 from .types import AudioChunk, AudioSinkFactory
 
@@ -50,7 +50,32 @@ class AudioOutput:
         self._runtime = runtime
         self._cfg = cfg if cfg is not None else AudioOutputConfig()
         self._audio_chunk_queue: queue.Queue[AudioChunk | None] = queue.Queue(maxsize=20)
-        tts_engine = EdgeTTSEngine(config)
+
+        # Load TTS plugin from plugins.yaml
+        # Search upward from current file to find plugins/ directory
+        from pathlib import Path
+        current = Path(__file__).resolve()
+        project_root = None
+        for parent in current.parents:
+            if (parent / "plugins" / "plugins.yaml").exists():
+                project_root = parent
+                break
+
+        if project_root is None:
+            raise FileNotFoundError(
+                "Could not find plugins/plugins.yaml. "
+                "Make sure you're running from the project root or backend/ directory."
+            )
+
+        plugin_config_path = project_root / "plugins" / "plugins.yaml"
+        plugin_config = PluginConfig(plugin_config_path)
+        slot_config = plugin_config.get_slot_config("tts")
+        tts_engine = load_plugin(
+            slot="tts",
+            plugin_name=slot_config["plugin"],
+            config=slot_config["config"],
+        )
+
         self._tts_worker = TTSWorker(
             name="TTSThread",
             stop_signal=shutdown_signal,
