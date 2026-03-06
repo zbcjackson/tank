@@ -281,8 +281,8 @@ uv add --group dev package-name
 ```bash
 # Whisper models are auto-downloaded on first use
 # Sherpa models need manual download
-cd models/
-# Download from sherpa-onnx releases
+cd backend
+uv run python scripts/download_models.py
 ```
 
 ### Speaker Identification
@@ -290,10 +290,10 @@ cd models/
 #### Enable Speaker ID
 
 ```bash
-# In backend/.env, add:
+# In backend/core/.env, add:
 ENABLE_SPEAKER_ID=true
-SPEAKER_MODEL_PATH=models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx
-SPEAKER_DB_PATH=data/speakers.db
+SPEAKER_MODEL_PATH=../models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx
+SPEAKER_DB_PATH=../data/speakers.db
 SPEAKER_THRESHOLD=0.6
 SPEAKER_DEFAULT_USER=Unknown
 ```
@@ -309,10 +309,10 @@ uv run python scripts/download_models.py
 
 ```bash
 # Record 5 seconds of audio
-uv run python scripts/record_audio.py data/my_voice.npy --duration 5
+uv run python scripts/record_audio.py ../data/my_voice.npy --duration 5
 
 # Record with custom sample rate
-uv run python scripts/record_audio.py data/my_voice.npy --duration 3 --sample-rate 16000
+uv run python scripts/record_audio.py ../data/my_voice.npy --duration 3 --sample-rate 16000
 ```
 
 #### Manage Speakers
@@ -322,16 +322,16 @@ uv run python scripts/record_audio.py data/my_voice.npy --duration 3 --sample-ra
 uv run python scripts/manage_speakers.py list
 
 # Enroll a speaker (single audio sample)
-uv run python scripts/manage_speakers.py enroll user123 "John Doe" data/john_voice.npy
+uv run python scripts/manage_speakers.py enroll user123 "John Doe" ../data/john_voice.npy
 
 # Enroll with multiple samples (improves accuracy)
 uv run python scripts/manage_speakers.py enroll user123 "John Doe" \
-    data/john_sample1.npy \
-    data/john_sample2.npy \
-    data/john_sample3.npy
+    ../data/john_sample1.npy \
+    ../data/john_sample2.npy \
+    ../data/john_sample3.npy
 
 # Test speaker identification
-uv run python scripts/manage_speakers.py test data/test_voice.npy
+uv run python scripts/manage_speakers.py test ../data/test_voice.npy
 
 # Delete a speaker
 uv run python scripts/manage_speakers.py delete user123
@@ -354,7 +354,7 @@ curl http://localhost:8000/api/speakers
 
 # Enroll a speaker (requires audio file)
 curl -X POST "http://localhost:8000/api/speakers/enroll?name=Jackson" \
-    -F "audio=@data/jackson_voice.npy"
+    -F "audio=@../data/jackson_voice.npy"
 
 # Delete a speaker
 curl -X DELETE http://localhost:8000/api/speakers/user123
