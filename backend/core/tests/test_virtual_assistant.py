@@ -13,6 +13,7 @@ from tank_backend.audio.output.callback_sink import CallbackAudioSink
 from tank_backend.audio.output.types import AudioChunk
 from tank_backend.core.assistant import Assistant
 from tank_backend.core.events import DisplayMessage
+from tank_backend.plugin.config import SlotConfig
 
 
 @pytest.fixture
@@ -64,10 +65,10 @@ async def test_virtual_assistant_flow(mock_config):
 
     # Mock plugin config
     mock_plugin_config = MagicMock()
-    mock_plugin_config.get_slot_config.return_value = {
-        "plugin": "tts-edge",
-        "config": {"voice_en": "en-US-JennyNeural", "voice_zh": "zh-CN-XiaoxiaoNeural"},
-    }
+    mock_plugin_config.get_slot_config.return_value = SlotConfig(
+        plugin="tts-edge",
+        config={"voice_en": "en-US-JennyNeural", "voice_zh": "zh-CN-XiaoxiaoNeural"},
+    )
 
     with (
         patch("tank_backend.llm.llm.LLM.chat_stream", side_effect=mock_chat_stream),

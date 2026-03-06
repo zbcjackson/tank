@@ -7,6 +7,34 @@ from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
 
+# Mapping from env var name → (model field name, type coercion).
+# Only fields that need env-var loading are listed here.
+# Fields not listed use their Field(default=...) value.
+_ENV_FIELD_MAP: dict[str, tuple[str, type]] = {
+    "LLM_API_KEY": ("llm_api_key", str),
+    "LLM_MODEL": ("llm_model", str),
+    "LLM_BASE_URL": ("llm_base_url", str),
+    "SERPER_API_KEY": ("serper_api_key", str),
+    "WHISPER_MODEL_SIZE": ("whisper_model_size", str),
+    "SHERPA_MODEL_DIR": ("sherpa_model_dir", str),
+    "DEFAULT_LANGUAGE": ("default_language", str),
+    "AUDIO_DURATION": ("audio_duration", float),
+    "LOG_LEVEL": ("log_level", str),
+    "MAX_CONVERSATION_HISTORY": ("max_conversation_history", int),
+    "SPEECH_INTERRUPT_ENABLED": ("speech_interrupt_enabled", str),
+    "ENABLE_SPEAKER_ID": ("enable_speaker_id", str),
+    "SPEAKER_MODEL_PATH": ("speaker_model_path", str),
+    "SPEAKER_DB_PATH": ("speaker_db_path", str),
+    "SPEAKER_THRESHOLD": ("speaker_threshold", float),
+    "SPEAKER_DEFAULT_USER": ("speaker_default_user", str),
+}
+
+_TRUTHY = {"true", "1", "yes"}
+
+
+def _parse_bool(value: str) -> bool:
+    return value.lower() in _TRUTHY
+
 
 class VoiceAssistantConfig(BaseModel):
     llm_api_key: str = Field(
@@ -61,6 +89,29 @@ class VoiceAssistantConfig(BaseModel):
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
+def _read_env_overrides() -> dict:
+    """Read set env vars and coerce them to the expected types."""
+    overrides: dict = {}
+    for env_key, (field_name, coerce) in _ENV_FIELD_MAP.items():
+        raw = os.getenv(env_key)
+        if raw is None:
+            continue
+        if coerce is float:
+            overrides[field_name] = float(raw)
+        elif coerce is int:
+            overrides[field_name] = int(raw)
+        else:
+            overrides[field_name] = raw
+    # Coerce bool fields that arrived as strings
+    for bool_field in ("speech_interrupt_enabled", "enable_speaker_id"):
+        if bool_field in overrides and isinstance(overrides[bool_field], str):
+            overrides[bool_field] = _parse_bool(overrides[bool_field])
+    # Treat empty SERPER_API_KEY as None
+    if overrides.get("serper_api_key") == "":
+        overrides["serper_api_key"] = None
+    return overrides
+
+
 def load_config(config_path: Path | None = None) -> VoiceAssistantConfig:
     if config_path is None:
         config_path = Path(".env")
@@ -72,34 +123,8 @@ def load_config(config_path: Path | None = None) -> VoiceAssistantConfig:
         logger.warning(f"Config file {config_path} not found, using environment variables only")
 
     try:
-        config = VoiceAssistantConfig(
-            llm_api_key=os.getenv("LLM_API_KEY", ""),
-            llm_model=os.getenv("LLM_MODEL", "anthropic/claude-3-5-nano"),
-            llm_base_url=os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
-            serper_api_key=os.getenv("SERPER_API_KEY", ""),
-            whisper_model_size=os.getenv("WHISPER_MODEL_SIZE", "base"),
-            sherpa_model_dir=os.getenv("SHERPA_MODEL_DIR", "../models/sherpa-onnx-zipformer-en-zh"),
-            default_language=os.getenv("DEFAULT_LANGUAGE", "zh"),
-            audio_duration=float(os.getenv("AUDIO_DURATION", "5.0")),
-            log_level=os.getenv("LOG_LEVEL", "INFO"),
-            max_conversation_history=int(os.getenv("MAX_CONVERSATION_HISTORY", "10")),
-            speech_interrupt_enabled=os.getenv("SPEECH_INTERRUPT_ENABLED", "true").lower()
-            in ("true", "1", "yes"),
-            enable_speaker_id=os.getenv("ENABLE_SPEAKER_ID", "false").lower()
-            in ("true", "1", "yes"),
-            speaker_model_path=os.getenv(
-                "SPEAKER_MODEL_PATH",
-                "../models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
-            ),
-            speaker_db_path=os.getenv("SPEAKER_DB_PATH", "../data/speakers.db"),
-            speaker_threshold=float(os.getenv("SPEAKER_THRESHOLD", "0.6")),
-            speaker_default_user=os.getenv("SPEAKER_DEFAULT_USER", "Unknown"),
-        )
+        config = VoiceAssistantConfig(**_read_env_overrides())
 
-        if not config.llm_api_key:
-            raise ValueError("LLM_API_KEY is required but not set")
-
-        # Serper API key is optional - web search will not be available without it
         if not config.serper_api_key:
             logger.warning(
                 "SERPER_API_KEY is not set. Web search functionality will not be available."

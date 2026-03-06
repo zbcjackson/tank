@@ -246,3 +246,9 @@ class SQLiteSpeakerRepository(SpeakerRepository):
         """Close database connection."""
         self._conn.close()
         logger.info("SQLite speaker repository closed")
+
+    def __enter__(self) -> SQLiteSpeakerRepository:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()

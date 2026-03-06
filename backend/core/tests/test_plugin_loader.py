@@ -19,9 +19,9 @@ tts:
     config = PluginConfig(config_file)
     slot_config = config.get_slot_config("tts")
 
-    assert slot_config["plugin"] == "tts-edge"
-    assert slot_config["config"]["voice_en"] == "en-US-JennyNeural"
-    assert slot_config["config"]["voice_zh"] == "zh-CN-XiaoxiaoNeural"
+    assert slot_config.plugin == "tts-edge"
+    assert slot_config.config["voice_en"] == "en-US-JennyNeural"
+    assert slot_config.config["voice_zh"] == "zh-CN-XiaoxiaoNeural"
 
 
 def test_plugin_config_missing_slot():

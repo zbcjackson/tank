@@ -60,13 +60,13 @@ class Assistant:
                 self.audio_output.interrupt()
 
         # Create voiceprint recognizer if enabled
-        voiceprint_streaming = None
+        self._voiceprint_streaming = None
         if self._config.enable_speaker_id:
             from ..audio.input.voiceprint_factory import create_voiceprint_recognizer
             from ..audio.input.voiceprint_streaming import StreamingVoiceprintRecognizer
 
             recognizer = create_voiceprint_recognizer(self._config)
-            voiceprint_streaming = StreamingVoiceprintRecognizer(
+            self._voiceprint_streaming = StreamingVoiceprintRecognizer(
                 recognizer,
                 sample_rate=(audio_input_config or AudioInputConfig()).audio_format.sample_rate,
             )
@@ -78,7 +78,7 @@ class Assistant:
             cfg=audio_input_config or AudioInputConfig(),
             on_speech_interrupt=_on_speech_interrupt,
             source_factory=audio_source_factory,
-            voiceprint=voiceprint_streaming,
+            voiceprint=self._voiceprint_streaming,
         )
 
         # Audio output subsystem (TTS playback)
@@ -125,6 +125,9 @@ class Assistant:
             subsystem.join(timeout=timeout)
             if hasattr(subsystem, "is_alive") and subsystem.is_alive():
                 logger.warning("%s did not stop within %.1fs, abandoning", name, timeout)
+
+        if self._voiceprint_streaming is not None:
+            self._voiceprint_streaming.close()
 
     def process_input(self, text: str):
         """Submit user text input for processing."""
