@@ -293,6 +293,7 @@ if config.serper_api_key:
 ```python
 from pydantic_settings import BaseSettings
 
+
 class BackendConfig(BaseSettings):
     """Backend configuration."""
 
@@ -301,7 +302,7 @@ class BackendConfig(BaseSettings):
     whisper_model_size: str = "base"
 
     class Config:
-        env_file = ".env"
+        env_file = "core/.env"
         env_file_encoding = "utf-8"
 ```
 

@@ -8,6 +8,13 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 
+[manifest]
+members = [
+    "tank-backend",
+    "tank-contracts",
+    "tts-edge",
+]
+
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
@@ -2290,11 +2297,9 @@ wheels = [
 [[package]]
 name = "tank-backend"
 version = "0.1.0"
-source = { editable = "." }
+source = { editable = "core" }
 dependencies = [
-    { name = "audioop-lts", marker = "python_full_version >= '3.13'" },
     { name = "beautifulsoup4" },
-    { name = "edge-tts" },
     { name = "fastapi" },
     { name = "faster-whisper" },
     { name = "httpx" },
@@ -2303,14 +2308,15 @@ dependencies = [
     { name = "onnxruntime" },
     { name = "openai" },
     { name = "pydantic" },
-    { name = "pydub" },
     { name = "python-dotenv" },
     { name = "python-multipart" },
+    { name = "pyyaml" },
     { name = "requests" },
     { name = "sherpa-onnx" },
     { name = "sherpa-onnx-core" },
     { name = "silero-vad" },
     { name = "sounddevice" },
+    { name = "tank-contracts" },
     { name = "uvicorn" },
     { name = "websockets" },
 ]
@@ -2324,9 +2330,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "audioop-lts", marker = "python_full_version >= '3.13'", specifier = ">=0.2.0" },
     { name = "beautifulsoup4", specifier = ">=4.13.5" },
-    { name = "edge-tts", specifier = ">=6.1.0" },
     { name = "fastapi", specifier = ">=0.129.0" },
     { name = "faster-whisper", specifier = ">=1.0.0" },
     { name = "httpx", specifier = ">=0.24.0" },
@@ -2334,14 +2338,15 @@ requires-dist = [
     { name = "onnxruntime", specifier = ">=1.16.1" },
     { name = "openai", specifier = ">=1.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "pydub", specifier = ">=0.25.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "python-multipart", specifier = ">=0.0.22" },
+    { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "requests", specifier = ">=2.32.5" },
     { name = "sherpa-onnx", specifier = ">=1.12.23" },
     { name = "sherpa-onnx-core", specifier = ">=1.12.25" },
     { name = "silero-vad", specifier = ">=4.0.0" },
     { name = "sounddevice", specifier = ">=0.5.5" },
+    { name = "tank-contracts", editable = "contracts" },
     { name = "uvicorn", specifier = ">=0.40.0" },
     { name = "websockets", specifier = ">=12.0" },
 ]
@@ -2352,6 +2357,11 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=1.2.0" },
     { name = "ruff", specifier = ">=0.11.0" },
 ]
+
+[[package]]
+name = "tank-contracts"
+version = "0.1.0"
+source = { editable = "contracts" }
 
 [[package]]
 name = "tokenizers"
@@ -2565,6 +2575,37 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/35/f8/9c66bfc55361ec6d0e4040a0337fb5924ceb23de4648b8a81ae9d33b2b38/triton-3.6.0-cp313-cp313t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d002e07d7180fd65e622134fbd980c9a3d4211fb85224b56a0a0efbd422ab72f", size = 188400296, upload-time = "2026-01-20T16:00:56.042Z" },
     { url = "https://files.pythonhosted.org/packages/df/3d/9e7eee57b37c80cec63322c0231bb6da3cfe535a91d7a4d64896fcb89357/triton-3.6.0-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:a17a5d5985f0ac494ed8a8e54568f092f7057ef60e1b0fa09d3fd1512064e803", size = 188273063, upload-time = "2026-01-20T16:01:07.278Z" },
     { url = "https://files.pythonhosted.org/packages/f6/56/6113c23ff46c00aae423333eb58b3e60bdfe9179d542781955a5e1514cb3/triton-3.6.0-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:46bd1c1af4b6704e554cad2eeb3b0a6513a980d470ccfa63189737340c7746a7", size = 188397994, upload-time = "2026-01-20T16:01:14.236Z" },
+]
+
+[[package]]
+name = "tts-edge"
+version = "0.1.0"
+source = { editable = "plugins/tts-edge" }
+dependencies = [
+    { name = "audioop-lts", marker = "python_full_version >= '3.13'" },
+    { name = "edge-tts" },
+    { name = "pydub" },
+    { name = "tank-contracts" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "audioop-lts", marker = "python_full_version >= '3.13'", specifier = ">=0.2.0" },
+    { name = "edge-tts", specifier = ">=6.1.0" },
+    { name = "pydub", specifier = ">=0.25.0" },
+    { name = "tank-contracts", editable = "contracts" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23.0" },
 ]
 
 [[package]]

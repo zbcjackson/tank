@@ -8,7 +8,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 tmux kill-session -t "$SESSION" 2>/dev/null || true
 
 # Create session with backend pane
-tmux new-session -d -s "$SESSION" -n "dev" -c "$ROOT/backend"
+tmux new-session -d -s "$SESSION" -n "dev" -c "$ROOT/backend/core"
 tmux send-keys -t "$SESSION" "uv run tank-backend --reload" Enter
 
 # Split horizontally for web frontend
