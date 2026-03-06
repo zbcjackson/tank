@@ -12,14 +12,14 @@ ASR_URL = (
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/"
     "sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20.tar.bz2"
 )
-ASR_DIR = Path("models/sherpa-onnx-zipformer-en-zh")
+ASR_DIR = Path("../models/sherpa-onnx-zipformer-en-zh")
 
 # --- Speaker embedding models ---
 SPEAKER_BASE_URL = (
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/"
     "speaker-recongition-models"
 )
-SPEAKER_DIR = Path("models/speaker")
+SPEAKER_DIR = Path("../models/speaker")
 
 SPEAKER_MODELS = {
     # 3D-Speaker (Alibaba) — Chinese + English

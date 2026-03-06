@@ -184,8 +184,8 @@ def main():
     parser = argparse.ArgumentParser(description="Manage speaker database")
     parser.add_argument(
         "--db",
-        default="data/speakers.db",
-        help="Path to speaker database (default: data/speakers.db)",
+        default="../data/speakers.db",
+        help="Path to speaker database (default: ../data/speakers.db)",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Command to execute")
