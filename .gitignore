@@ -57,3 +57,5 @@ Thumbs.db
 IMPLEMENTATION_*.md
 PLUGIN_QUICKSTART.md
 FINAL_STRUCTURE.md
+
+.worktrees/
