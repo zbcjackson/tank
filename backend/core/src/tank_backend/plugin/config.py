@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import logging
-import os
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from ..llm.profile import LLMProfile, resolve_profile
+from .yaml_loader import load_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -59,53 +56,12 @@ class AppConfig:
     def _load(self) -> None:
         """Load configuration from YAML file with ${VAR} interpolation."""
         try:
-            with open(self._config_path) as f:
-                raw_yaml = f.read()
-
-            # Interpolate ${VAR} with environment variables
-            interpolated = self._interpolate_env_vars(raw_yaml)
-
-            self._config = yaml.safe_load(interpolated) or {}
-            logger.info(f"Loaded config from {self._config_path}")
-        except FileNotFoundError:
-            logger.warning(f"Config not found: {self._config_path}")
+            self._config = load_yaml(self._config_path)
+            if self._config:
+                logger.info(f"Loaded config from {self._config_path}")
         except Exception as e:
             logger.error(f"Failed to load config: {e}")
             raise
-
-    def _interpolate_env_vars(self, text: str) -> str:
-        """Replace ${VAR} patterns with environment variable values.
-
-        Skips YAML comment lines (starting with #) to avoid false matches.
-
-        Args:
-            text: Raw YAML text with ${VAR} placeholders.
-
-        Returns:
-            Text with ${VAR} replaced by os.environ[VAR].
-
-        Raises:
-            ValueError: If a referenced env var is not set.
-        """
-        pattern = re.compile(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}')
-
-        def replacer(match: re.Match) -> str:
-            var_name = match.group(1)
-            value = os.environ.get(var_name)
-            if value is None:
-                raise ValueError(
-                    f"Environment variable '{var_name}' referenced in "
-                    f"{self._config_path} is not set"
-                )
-            return value
-
-        lines = []
-        for line in text.splitlines(keepends=True):
-            if line.lstrip().startswith("#"):
-                lines.append(line)
-            else:
-                lines.append(pattern.sub(replacer, line))
-        return "".join(lines)
 
     def get_slot_config(self, slot: str) -> SlotConfig:
         """Get configuration for a plugin slot (e.g. "tts")."""
