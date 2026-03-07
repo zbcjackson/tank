@@ -11,7 +11,7 @@ from ..audio.input.types import AudioSourceFactory
 from ..audio.output.types import AudioSinkFactory
 from ..config.settings import load_config
 from ..llm.profile import create_llm_from_profile
-from ..plugin import AppConfig, find_config_yaml
+from ..plugin import AppConfig
 from ..tools.manager import ToolManager
 from .brain import Brain
 from .events import BrainInputEvent, DisplayMessage, InputType
@@ -44,7 +44,7 @@ class Assistant:
         self._config = load_config(config_path)
 
         # Create LLM from config.yaml profile and ToolManager
-        app_config = AppConfig(find_config_yaml())
+        app_config = AppConfig()
         profile = app_config.get_llm_profile("default")
         self._llm = create_llm_from_profile(profile)
         self._tool_manager = ToolManager(serper_api_key=self._config.serper_api_key)
@@ -86,6 +86,7 @@ class Assistant:
             runtime=self.runtime,
             audio_output_queue=self.runtime.audio_output_queue,
             config=self._config,
+            app_config=app_config,
             cfg=audio_output_config or AudioOutputConfig(),
             sink_factory=audio_sink_factory,
         )

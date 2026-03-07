@@ -75,24 +75,12 @@ def assistant(mock_audio_source_factory, mock_audio_sink_factory, tmp_path):
             return_value=("", False),
         ),
         patch(
-            "tank_backend.audio.output.audio_output.AppConfig",
-            return_value=mock_plugin_config,
-        ),
-        patch(
-            "tank_backend.audio.output.audio_output.find_config_yaml",
-            return_value="core/config.yaml",
-        ),
-        patch(
             "tank_backend.audio.output.audio_output.load_plugin",
             return_value=MagicMock(),
         ),
         patch(
             "tank_backend.core.assistant.AppConfig",
             return_value=mock_plugin_config,
-        ),
-        patch(
-            "tank_backend.core.assistant.find_config_yaml",
-            return_value="core/config.yaml",
         ),
         patch(
             "tank_backend.core.assistant.create_llm_from_profile",

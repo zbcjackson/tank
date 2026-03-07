@@ -14,14 +14,18 @@ class LLM:
     def __init__(
         self,
         api_key: str,
-        model: str = "anthropic/claude-3-5-nano",
-        base_url: str = "https://openrouter.ai/api/v1",
+        model: str,
+        base_url: str,
+        temperature: float = 0.7,
+        max_tokens: int = 10000,
         extra_headers: dict[str, str] | None = None,
         stream_options: bool = True,
     ):
         self.api_key = api_key
         self.base_url = base_url
         self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
         self.stream_options = stream_options
 
         # Initialize OpenAI client with custom base URL and headers
@@ -34,8 +38,8 @@ class LLM:
     async def chat_stream(
         self,
         messages: list[ChatCompletionMessageParam],
-        temperature: float = 0.7,
-        max_tokens: int = 10000,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
         tools: list[dict[str, Any]] | None = None,
         tool_executor: Any = None,
     ) -> AsyncGenerator[tuple[UpdateType, str, dict[str, Any]], None]:
@@ -53,8 +57,8 @@ class LLM:
             api_kwargs = {
                 "model": self.model,
                 "messages": working_messages,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
+                "temperature": temperature if temperature is not None else self.temperature,
+                "max_tokens": max_tokens if max_tokens is not None else self.max_tokens,
                 "stream": True,
             }
             if self.stream_options:

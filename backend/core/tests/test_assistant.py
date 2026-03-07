@@ -30,7 +30,6 @@ class TestAssistant:
             patch(f"{MODULE}.Brain"),
             patch(f"{MODULE}.create_llm_from_profile") as mock_create,
             patch(f"{MODULE}.AppConfig"),
-            patch(f"{MODULE}.find_config_yaml"),
             patch(f"{MODULE}.ToolManager"),
             patch(f"{MODULE}.load_config"),
         ):
@@ -50,11 +49,9 @@ class TestAssistant:
         with (
             patch(f"{MODULE}.load_config") as mock_load_config,
             patch(f"{MODULE}.AppConfig") as mock_app_config_cls,
-            patch(f"{MODULE}.find_config_yaml") as mock_find,
             patch(f"{MODULE}.create_llm_from_profile") as mock_create,
         ):
             mock_load_config.return_value = mock_config
-            mock_find.return_value = Path("core/config.yaml")
             mock_app_config = MagicMock()
             mock_profile = MagicMock()
             mock_app_config.get_llm_profile.return_value = mock_profile

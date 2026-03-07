@@ -47,15 +47,22 @@ def resolve_profile(name: str, raw: dict[str, Any]) -> LLMProfile:
     if not base_url:
         raise ValueError(f"LLM profile '{name}': missing 'base_url'")
 
+    optional: dict[str, Any] = {}
+    if "temperature" in raw:
+        optional["temperature"] = float(raw["temperature"])
+    if "max_tokens" in raw:
+        optional["max_tokens"] = int(raw["max_tokens"])
+    if "extra_headers" in raw and raw["extra_headers"]:
+        optional["extra_headers"] = dict(raw["extra_headers"])
+    if "stream_options" in raw:
+        optional["stream_options"] = bool(raw["stream_options"])
+
     return LLMProfile(
         name=name,
         api_key=api_key,
         model=model,
         base_url=base_url,
-        temperature=float(raw.get("temperature", 0.7)),
-        max_tokens=int(raw.get("max_tokens", 10000)),
-        extra_headers=dict(raw.get("extra_headers") or {}),
-        stream_options=bool(raw.get("stream_options", True)),
+        **optional,
     )
 
 
@@ -65,6 +72,8 @@ def create_llm_from_profile(profile: LLMProfile) -> LLM:
         api_key=profile.api_key,
         model=profile.model,
         base_url=profile.base_url,
-        extra_headers=profile.extra_headers or None,
+        temperature=profile.temperature,
+        max_tokens=profile.max_tokens,
+        extra_headers=profile.extra_headers,
         stream_options=profile.stream_options,
     )

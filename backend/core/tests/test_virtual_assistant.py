@@ -79,24 +79,12 @@ async def test_virtual_assistant_flow(mock_config):
             side_effect=mock_process_pcm,
         ),
         patch(
-            "tank_backend.audio.output.audio_output.AppConfig",
-            return_value=mock_plugin_config,
-        ),
-        patch(
-            "tank_backend.audio.output.audio_output.find_config_yaml",
-            return_value="core/config.yaml",
-        ),
-        patch(
             "tank_backend.audio.output.audio_output.load_plugin",
             return_value=mock_tts_engine,
         ),
         patch(
             "tank_backend.core.assistant.AppConfig",
             return_value=mock_plugin_config,
-        ),
-        patch(
-            "tank_backend.core.assistant.find_config_yaml",
-            return_value="core/config.yaml",
         ),
         patch(
             "tank_backend.core.assistant.create_llm_from_profile",

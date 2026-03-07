@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from ...config.settings import VoiceAssistantConfig
 from ...core.events import AudioOutputRequest
 from ...core.shutdown import GracefulShutdown
-from ...plugin import AppConfig, find_config_yaml, load_plugin
+from ...plugin import AppConfig, load_plugin
 from .playback_worker import PlaybackWorker
 from .tts_worker import TTSWorker
 from .types import AudioChunk, AudioSinkFactory
@@ -43,6 +43,7 @@ class AudioOutput:
         runtime: RuntimeContext,
         audio_output_queue: queue.Queue[AudioOutputRequest],
         config: VoiceAssistantConfig,
+        app_config: AppConfig,
         cfg: AudioOutputConfig | None = None,
         sink_factory: AudioSinkFactory | None = None,
     ):
@@ -51,8 +52,7 @@ class AudioOutput:
         self._cfg = cfg if cfg is not None else AudioOutputConfig()
         self._audio_chunk_queue: queue.Queue[AudioChunk | None] = queue.Queue(maxsize=20)
 
-        # Load TTS plugin from config.yaml
-        app_config = AppConfig(find_config_yaml())
+        # Load TTS plugin from config
         slot_config = app_config.get_slot_config("tts")
         tts_engine = load_plugin(
             slot="tts",
