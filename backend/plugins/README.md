@@ -17,21 +17,20 @@ backend/
 │   └── tank_contracts/
 │       └── tts.py         # TTSEngine ABC
 └── plugins/                # Plugin implementations
-    ├── plugins.yaml        # Configuration
     ├── tts-edge/          # Edge TTS plugin
     └── tts-cosyvoice/     # CosyVoice TTS plugin
 ```
 
 ### How It Works
 
-1. **Configuration** - `plugins.yaml` specifies which plugin to use
+1. **Configuration** - `core/config.yaml` specifies which plugin to use
 2. **Loading** - Core application loads plugin module dynamically
 3. **Instantiation** - Calls plugin's `create_engine(config)` factory function
 4. **Usage** - Core uses plugin via `TTSEngine` interface
 
 ## Plugin Configuration
 
-Edit `plugins/plugins.yaml` to configure active plugins:
+Edit `core/config.yaml` to configure active plugins:
 
 ```yaml
 tts:
@@ -94,7 +93,7 @@ class MyTTSEngine(TTSEngine):
         Initialize TTS engine.
 
         Args:
-            config: Configuration from plugins.yaml
+            config: Configuration from config.yaml
         """
         self.config = config
         # Initialize your TTS engine here
@@ -228,7 +227,7 @@ members = [
 
 ### 7. Configure Plugin
 
-Update `plugins/plugins.yaml`:
+Update `core/config.yaml`:
 
 ```yaml
 tts:
@@ -306,7 +305,7 @@ async for chunk in tts_engine.generate_stream("Hello", language="en"):
 
 ### Loading Process
 
-1. Read `plugins/plugins.yaml`
+1. Read `core/config.yaml`
 2. Find plugin configuration for slot (e.g., "tts")
 3. Import plugin module: `plugins.<plugin-name>`
 4. Call `create_engine(config)` factory function
@@ -397,7 +396,7 @@ uv run tank-backend
 
 ### Plugin Not Loading
 
-1. Check `plugins/plugins.yaml` syntax
+1. Check `core/config.yaml` syntax
 2. Verify plugin folder name matches configuration
 3. Check `create_engine` function exists
 4. Review backend logs for errors
@@ -410,7 +409,7 @@ uv run tank-backend
 
 ### Configuration Errors
 
-1. Validate YAML syntax in `plugins/plugins.yaml`
+1. Validate YAML syntax in `core/config.yaml`
 2. Check required configuration keys
 3. Verify data types match expectations
 

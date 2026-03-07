@@ -34,7 +34,7 @@ def brain(runtime, mock_llm):
     mock_speaker = MagicMock()
     mock_tool_manager = MagicMock()
     mock_tool_manager.get_openai_tools.return_value = []
-    config = VoiceAssistantConfig(llm_api_key="test")
+    config = VoiceAssistantConfig()
 
     b = Brain(shutdown_signal, runtime, mock_speaker, mock_llm, mock_tool_manager, config)
     loop = asyncio.new_event_loop()

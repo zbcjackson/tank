@@ -184,7 +184,7 @@ Audio Input → VAD → ASR → Brain → LLM + Tools → TTS → Audio Output
 
 The core application loads TTS plugins dynamically from `../plugins/`:
 
-1. Reads `../plugins/plugins.yaml` for configuration
+1. Reads `core/config.yaml` for configuration
 2. Loads plugin module specified in config
 3. Calls `create_engine(config)` to instantiate TTS engine
 4. Uses `TTSEngine` interface from `tank_contracts.tts`

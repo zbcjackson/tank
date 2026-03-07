@@ -18,12 +18,12 @@ Backend API server for the Tank Voice Assistant with pluggable architecture.
 backend/
 ├── core/                    # Main application
 │   ├── src/tank_backend/   # Source code
-│   ├── tests/              # Tests (107 tests)
-│   ├── .env                # Configuration
+│   ├── tests/              # Tests (123 tests)
+│   ├── config.yaml         # LLM profiles + plugin config
+│   ├── .env                # Secrets (API keys)
 │   └── pyproject.toml      # Dependencies
 ├── contracts/              # Shared interfaces (TTSEngine ABC)
 ├── plugins/                # TTS plugins
-│   ├── plugins.yaml        # Plugin configuration
 │   └── tts-edge/          # Edge TTS plugin
 ├── data/                   # Runtime data (speakers.db)
 ├── models/                 # ML models (Whisper, Sherpa, speaker models)
@@ -64,12 +64,8 @@ uv run tank-backend --reload
 Copy `core/.env.example` to `core/.env` and configure:
 
 ```env
-# Required
+# Required — referenced by core/config.yaml via ${LLM_API_KEY}
 LLM_API_KEY=your_api_key_here
-
-# LLM Configuration
-LLM_MODEL=anthropic/claude-3-5-nano
-LLM_BASE_URL=https://openrouter.ai/api/v1
 
 # Optional: Web Search
 SERPER_API_KEY=your_serper_key
@@ -78,8 +74,7 @@ SERPER_API_KEY=your_serper_key
 WHISPER_MODEL_SIZE=base
 ASR_ENGINE=whisper  # or sherpa
 
-# TTS Configuration (via plugins/plugins.yaml)
-# See plugins/plugins.yaml for TTS voice settings
+# LLM profiles and TTS voices are configured in core/config.yaml
 
 # Speaker Identification (optional)
 ENABLE_SPEAKER_ID=false
@@ -87,9 +82,29 @@ SPEAKER_MODEL_PATH=../models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3ds
 SPEAKER_DB_PATH=../data/speakers.db
 ```
 
+## LLM Configuration
+
+LLM settings are defined as named profiles in `core/config.yaml`:
+
+```yaml
+llm:
+  default:
+    api_key: ${LLM_API_KEY}          # resolved from .env at load time
+    model: anthropic/claude-3-5-nano
+    base_url: https://openrouter.ai/api/v1
+    temperature: 0.7
+    max_tokens: 10000
+    extra_headers:
+      HTTP-Referer: "http://localhost:3000"
+      X-Title: "Tank Voice Assistant"
+    stream_options: true
+```
+
+Add more profiles (e.g. `fast`, `local`) under the `llm:` key for future agent/subagent use.
+
 ## Plugin System
 
-The backend uses a pluggable architecture for TTS engines. Configure plugins in `plugins/plugins.yaml`:
+The backend uses a pluggable architecture for TTS engines. Configure plugins in `core/config.yaml`:
 
 ```yaml
 tts:
@@ -105,7 +120,7 @@ tts:
 2. Implement `TTSEngine` from `tank_contracts.tts`
 3. Export `create_engine(config: dict)` function
 4. Add to workspace in `backend/pyproject.toml`
-5. Configure in `plugins/plugins.yaml`
+5. Configure in `core/config.yaml`
 
 See `plugins/tts-edge/` for reference implementation.
 

@@ -1,6 +1,6 @@
 """Integration test for processing_started/ended signals through WebSocket."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -8,6 +8,7 @@ from tank_backend.audio.input.types import AudioSource
 from tank_backend.audio.output.types import AudioSink
 from tank_backend.core.assistant import Assistant
 from tank_backend.core.events import SignalMessage, UpdateType
+from tank_backend.plugin.config import SlotConfig
 
 
 class MockAudioSource(AudioSource):
@@ -51,19 +52,58 @@ def assistant(mock_audio_source_factory, mock_audio_sink_factory, tmp_path):
     """Create assistant with mocked audio."""
     # Create a minimal config file
     config_file = tmp_path / ".env"
-    config_file.write_text("LLM_API_KEY=test_key\n")
+    config_file.write_text("")
 
-    assistant = Assistant(
-        config_path=config_file,
-        audio_source_factory=mock_audio_source_factory,
-        audio_sink_factory=mock_audio_sink_factory,
+    # Mock plugin config for TTS
+    mock_plugin_config = MagicMock()
+    mock_plugin_config.get_slot_config.return_value = SlotConfig(
+        plugin="tts-edge",
+        config={"voice_en": "en-US-JennyNeural", "voice_zh": "zh-CN-XiaoxiaoNeural"},
     )
 
-    # Mock LLM
+    # Mock LLM with streaming support
     async def mock_stream(*args, **kwargs):
         yield UpdateType.TEXT, "Hello", {}
 
-    assistant._llm.chat_stream = AsyncMock(return_value=mock_stream())
+    mock_llm = MagicMock()
+    mock_llm.chat_stream = mock_stream
+
+    with (
+        patch("tank_backend.audio.input.asr_sherpa.SherpaASR.__init__", return_value=None),
+        patch(
+            "tank_backend.audio.input.asr_sherpa.SherpaASR.process_pcm",
+            return_value=("", False),
+        ),
+        patch(
+            "tank_backend.audio.output.audio_output.AppConfig",
+            return_value=mock_plugin_config,
+        ),
+        patch(
+            "tank_backend.audio.output.audio_output.find_config_yaml",
+            return_value="core/config.yaml",
+        ),
+        patch(
+            "tank_backend.audio.output.audio_output.load_plugin",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "tank_backend.core.assistant.AppConfig",
+            return_value=mock_plugin_config,
+        ),
+        patch(
+            "tank_backend.core.assistant.find_config_yaml",
+            return_value="core/config.yaml",
+        ),
+        patch(
+            "tank_backend.core.assistant.create_llm_from_profile",
+            return_value=mock_llm,
+        ),
+    ):
+        assistant = Assistant(
+            config_path=config_file,
+            audio_source_factory=mock_audio_source_factory,
+            audio_sink_factory=mock_audio_sink_factory,
+        )
 
     yield assistant
 

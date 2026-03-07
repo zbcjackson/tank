@@ -10,7 +10,8 @@ from ..audio import AudioInput, AudioInputConfig, AudioOutput, AudioOutputConfig
 from ..audio.input.types import AudioSourceFactory
 from ..audio.output.types import AudioSinkFactory
 from ..config.settings import load_config
-from ..llm.llm import LLM
+from ..llm.profile import create_llm_from_profile
+from ..plugin import AppConfig, find_config_yaml
 from ..tools.manager import ToolManager
 from .brain import Brain
 from .events import BrainInputEvent, DisplayMessage, InputType
@@ -42,12 +43,10 @@ class Assistant:
         # Load configuration
         self._config = load_config(config_path)
 
-        # Create LLM and ToolManager
-        self._llm = LLM(
-            api_key=self._config.llm_api_key,
-            model=self._config.llm_model,
-            base_url=self._config.llm_base_url,
-        )
+        # Create LLM from config.yaml profile and ToolManager
+        app_config = AppConfig(find_config_yaml())
+        profile = app_config.get_llm_profile("default")
+        self._llm = create_llm_from_profile(profile)
         self._tool_manager = ToolManager(serper_api_key=self._config.serper_api_key)
 
         self.shutdown_signal = GracefulShutdown()

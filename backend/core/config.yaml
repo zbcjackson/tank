@@ -1,0 +1,24 @@
+# Tank Core Configuration
+#
+# LLM profiles: named configurations for different LLM providers/models.
+# Use ${VAR} syntax to reference environment variables (secrets stay in .env).
+#
+# TTS plugin: which TTS engine to use and its settings.
+
+llm:
+  default:
+    api_key: ${LLM_API_KEY}
+    model: openai/gpt-5-nano
+    base_url: https://openrouter.ai/api/v1
+    temperature: 0.7
+    max_tokens: 10000
+    extra_headers:
+      HTTP-Referer: "http://localhost:3000"
+      X-Title: "Tank Voice Assistant"
+    stream_options: true
+
+tts:
+  plugin: tts-edge
+  config:
+    voice_en: en-US-JennyNeural
+    voice_zh: zh-CN-XiaoxiaoNeural

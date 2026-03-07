@@ -8,6 +8,8 @@ import pytest
 from tank_backend.config.settings import VoiceAssistantConfig
 from tank_backend.core.assistant import Assistant
 
+MODULE = "tank_backend.core.assistant"
+
 
 class TestAssistant:
     """Unit tests for Assistant."""
@@ -16,9 +18,6 @@ class TestAssistant:
     def mock_config(self):
         """Create a mock config."""
         return VoiceAssistantConfig(
-            llm_api_key="test_key",
-            llm_model="test_model",
-            llm_base_url="https://test.com/v1",
             serper_api_key="test_serper_key",
         )
 
@@ -26,47 +25,54 @@ class TestAssistant:
     def mock_subsystems(self):
         """Patch all major subsystems by default for Assistant tests."""
         with (
-            patch("tank_backend.core.assistant.AudioInput"),
-            patch("tank_backend.core.assistant.AudioOutput"),
-            patch("tank_backend.core.assistant.Brain"),
-            patch("tank_backend.core.assistant.LLM"),
-            patch("tank_backend.core.assistant.ToolManager"),
-            patch("tank_backend.core.assistant.load_config"),
+            patch(f"{MODULE}.AudioInput"),
+            patch(f"{MODULE}.AudioOutput"),
+            patch(f"{MODULE}.Brain"),
+            patch(f"{MODULE}.create_llm_from_profile") as mock_create,
+            patch(f"{MODULE}.AppConfig"),
+            patch(f"{MODULE}.find_config_yaml"),
+            patch(f"{MODULE}.ToolManager"),
+            patch(f"{MODULE}.load_config"),
         ):
+            mock_create.return_value = MagicMock()
             yield
 
     def test_assistant_loads_config(self, mock_config):
         """Assistant should load config on initialization."""
-        with patch("tank_backend.core.assistant.load_config") as mock_load_config:
+        with patch(f"{MODULE}.load_config") as mock_load_config:
             mock_load_config.return_value = mock_config
             assistant = Assistant(config_path=Path(".env"))
             mock_load_config.assert_called_once_with(Path(".env"))
             assert assistant._config == mock_config
 
-    def test_assistant_creates_llm(self, mock_config):
-        """Assistant should create LLM instance."""
+    def test_assistant_creates_llm_from_profile(self, mock_config):
+        """Assistant should create LLM via profile system."""
         with (
-            patch("tank_backend.core.assistant.load_config") as mock_load_config,
-            patch("tank_backend.core.assistant.LLM") as mock_llm_class,
+            patch(f"{MODULE}.load_config") as mock_load_config,
+            patch(f"{MODULE}.AppConfig") as mock_app_config_cls,
+            patch(f"{MODULE}.find_config_yaml") as mock_find,
+            patch(f"{MODULE}.create_llm_from_profile") as mock_create,
         ):
             mock_load_config.return_value = mock_config
+            mock_find.return_value = Path("core/config.yaml")
+            mock_app_config = MagicMock()
+            mock_profile = MagicMock()
+            mock_app_config.get_llm_profile.return_value = mock_profile
+            mock_app_config_cls.return_value = mock_app_config
             mock_llm_instance = MagicMock()
-            mock_llm_class.return_value = mock_llm_instance
+            mock_create.return_value = mock_llm_instance
 
             assistant = Assistant()
 
-            mock_llm_class.assert_called_once_with(
-                api_key=mock_config.llm_api_key,
-                model=mock_config.llm_model,
-                base_url=mock_config.llm_base_url,
-            )
+            mock_app_config.get_llm_profile.assert_called_once_with("default")
+            mock_create.assert_called_once_with(mock_profile)
             assert assistant._llm == mock_llm_instance
 
     def test_assistant_creates_tool_manager(self, mock_config):
         """Assistant should create ToolManager instance."""
         with (
-            patch("tank_backend.core.assistant.load_config") as mock_load_config,
-            patch("tank_backend.core.assistant.ToolManager") as mock_tool_manager,
+            patch(f"{MODULE}.load_config") as mock_load_config,
+            patch(f"{MODULE}.ToolManager") as mock_tool_manager,
         ):
             mock_load_config.return_value = mock_config
             mock_tool_manager_instance = MagicMock()
@@ -83,8 +89,8 @@ class TestAssistant:
     def test_process_input_quit_or_exit_interrupts_speaker_and_stops(self, mock_config, text):
         """process_input('quit'/'exit') interrupts speaker, sets shutdown, calls on_exit_request."""
         with (
-            patch("tank_backend.core.assistant.load_config") as mock_load_config,
-            patch("tank_backend.core.assistant.AudioOutput") as mock_audio_output_cls,
+            patch(f"{MODULE}.load_config") as mock_load_config,
+            patch(f"{MODULE}.AudioOutput") as mock_audio_output_cls,
         ):
             mock_load_config.return_value = mock_config
             mock_speaker = MagicMock()
@@ -100,7 +106,7 @@ class TestAssistant:
 
     def test_process_input_puts_display_message(self, mock_config):
         """process_input should put a DisplayMessage into the ui_queue."""
-        with patch("tank_backend.core.assistant.load_config") as mock_load_config:
+        with patch(f"{MODULE}.load_config") as mock_load_config:
             mock_load_config.return_value = mock_config
             assistant = Assistant()
             assistant.process_input("hello")

@@ -24,19 +24,21 @@ tts:
     assert slot_config.config["voice_zh"] == "zh-CN-XiaoxiaoNeural"
 
 
-def test_plugin_config_missing_slot():
+def test_plugin_config_missing_slot(tmp_path):
     """Test PluginConfig raises error for missing slot."""
-    config = PluginConfig()
-    config._config = {}
+    empty_yaml = tmp_path / "config.yaml"
+    empty_yaml.write_text("{}")
+    config = PluginConfig(empty_yaml)
 
     with pytest.raises(ValueError, match="No configuration found for slot"):
         config.get_slot_config("nonexistent")
 
 
-def test_plugin_config_missing_plugin_name():
+def test_plugin_config_missing_plugin_name(tmp_path):
     """Test PluginConfig raises error when plugin name not specified."""
-    config = PluginConfig()
-    config._config = {"tts": {"config": {"voice": "test"}}}  # Has config but no plugin name
+    yaml_file = tmp_path / "config.yaml"
+    yaml_file.write_text("tts:\n  config:\n    voice: test\n")
+    config = PluginConfig(yaml_file)
 
     with pytest.raises(ValueError, match="No plugin specified for slot"):
         config.get_slot_config("tts")

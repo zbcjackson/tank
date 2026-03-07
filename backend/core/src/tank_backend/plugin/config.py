@@ -1,13 +1,17 @@
-"""Plugin configuration loader."""
+"""Application configuration loader (YAML-based)."""
 
 from __future__ import annotations
 
 import logging
+import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from ..llm.profile import LLMProfile, resolve_profile
 
 logger = logging.getLogger(__name__)
 
@@ -20,36 +24,91 @@ class SlotConfig:
     config: dict[str, Any] = field(default_factory=dict)
 
 
-class PluginConfig:
-    """Plugin configuration loaded from plugins.yaml."""
+def find_config_yaml() -> Path:
+    """Locate ``core/config.yaml`` by walking up from this file and CWD.
 
-    def __init__(self, config_path: Path | str = "plugins/plugins.yaml"):
+    Search order:
+      1. Ancestors of this source file (works inside the installed package).
+      2. Ancestors of the current working directory (works for scripts).
+
+    Raises:
+        FileNotFoundError: If the file cannot be found.
+    """
+    roots = [Path(__file__).resolve(), Path.cwd().resolve()]
+    for root in roots:
+        for parent in (root, *root.parents):
+            candidate = parent / "core" / "config.yaml"
+            if candidate.exists():
+                return candidate
+    raise FileNotFoundError(
+        "Could not find core/config.yaml. "
+        "Make sure you're running from the project root or backend/ directory."
+    )
+
+
+class AppConfig:
+    """Application configuration loaded from core/config.yaml."""
+
+    def __init__(self, config_path: Path | str | None = None):
+        if config_path is None:
+            config_path = find_config_yaml()
         self._config_path = Path(config_path)
         self._config: dict[str, Any] = {}
         self._load()
 
     def _load(self) -> None:
-        """Load configuration from YAML file."""
+        """Load configuration from YAML file with ${VAR} interpolation."""
         try:
             with open(self._config_path) as f:
-                self._config = yaml.safe_load(f) or {}
-            logger.info(f"Loaded plugin config from {self._config_path}")
+                raw_yaml = f.read()
+
+            # Interpolate ${VAR} with environment variables
+            interpolated = self._interpolate_env_vars(raw_yaml)
+
+            self._config = yaml.safe_load(interpolated) or {}
+            logger.info(f"Loaded config from {self._config_path}")
         except FileNotFoundError:
-            logger.warning(f"Plugin config not found: {self._config_path}")
+            logger.warning(f"Config not found: {self._config_path}")
         except Exception as e:
-            logger.error(f"Failed to load plugin config: {e}")
+            logger.error(f"Failed to load config: {e}")
             raise
 
-    def get_slot_config(self, slot: str) -> SlotConfig:
-        """
-        Get configuration for a plugin slot.
+    def _interpolate_env_vars(self, text: str) -> str:
+        """Replace ${VAR} patterns with environment variable values.
+
+        Skips YAML comment lines (starting with #) to avoid false matches.
 
         Args:
-            slot: Plugin slot name (e.g., "tts", "asr", "llm")
+            text: Raw YAML text with ${VAR} placeholders.
 
         Returns:
-            SlotConfig with plugin name and config dict.
+            Text with ${VAR} replaced by os.environ[VAR].
+
+        Raises:
+            ValueError: If a referenced env var is not set.
         """
+        pattern = re.compile(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}')
+
+        def replacer(match: re.Match) -> str:
+            var_name = match.group(1)
+            value = os.environ.get(var_name)
+            if value is None:
+                raise ValueError(
+                    f"Environment variable '{var_name}' referenced in "
+                    f"{self._config_path} is not set"
+                )
+            return value
+
+        lines = []
+        for line in text.splitlines(keepends=True):
+            if line.lstrip().startswith("#"):
+                lines.append(line)
+            else:
+                lines.append(pattern.sub(replacer, line))
+        return "".join(lines)
+
+    def get_slot_config(self, slot: str) -> SlotConfig:
+        """Get configuration for a plugin slot (e.g. "tts")."""
         slot_config = self._config.get(slot, {})
         if not slot_config:
             raise ValueError(f"No configuration found for slot '{slot}'")
@@ -62,3 +121,27 @@ class PluginConfig:
             plugin=plugin_name,
             config=slot_config.get("config", {}),
         )
+
+    # ── LLM profiles ──────────────────────────────────────────────
+
+    def get_llm_profile(self, name: str = "default") -> LLMProfile:
+        """Resolve and return a named LLM profile.
+
+        Raises:
+            ValueError: If the profile name doesn't exist or is invalid.
+        """
+        llm_section = self._config.get("llm", {})
+        raw = llm_section.get(name)
+        if raw is None:
+            raise ValueError(
+                f"LLM profile '{name}' not found in {self._config_path}"
+            )
+        return resolve_profile(name, raw)
+
+    def list_llm_profiles(self) -> list[str]:
+        """Return the names of all configured LLM profiles."""
+        return list(self._config.get("llm", {}).keys())
+
+
+# Backward-compatible alias
+PluginConfig = AppConfig

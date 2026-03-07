@@ -38,9 +38,6 @@ class TestBrain:
     @pytest.fixture
     def mock_config(self):
         return VoiceAssistantConfig(
-            llm_api_key="test_key",
-            llm_model="test_model",
-            llm_base_url="https://test.com/v1",
             max_conversation_history=10,
         )
 

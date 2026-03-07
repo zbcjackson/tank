@@ -5,13 +5,12 @@ from __future__ import annotations
 import logging
 import queue
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ...config.settings import VoiceAssistantConfig
 from ...core.events import AudioOutputRequest
 from ...core.shutdown import GracefulShutdown
-from ...plugin import PluginConfig, load_plugin
+from ...plugin import AppConfig, find_config_yaml, load_plugin
 from .playback_worker import PlaybackWorker
 from .tts_worker import TTSWorker
 from .types import AudioChunk, AudioSinkFactory
@@ -20,19 +19,6 @@ if TYPE_CHECKING:
     from ...core.runtime import RuntimeContext
 
 logger = logging.getLogger("Speaker")
-
-
-def _find_plugins_yaml() -> Path:
-    """Walk up from this file to locate plugins/plugins.yaml."""
-    current = Path(__file__).resolve()
-    for parent in current.parents:
-        candidate = parent / "plugins" / "plugins.yaml"
-        if candidate.exists():
-            return candidate
-    raise FileNotFoundError(
-        "Could not find plugins/plugins.yaml. "
-        "Make sure you're running from the project root or backend/ directory."
-    )
 
 
 @dataclass(frozen=True)
@@ -65,9 +51,9 @@ class AudioOutput:
         self._cfg = cfg if cfg is not None else AudioOutputConfig()
         self._audio_chunk_queue: queue.Queue[AudioChunk | None] = queue.Queue(maxsize=20)
 
-        # Load TTS plugin from plugins.yaml
-        plugin_config = PluginConfig(_find_plugins_yaml())
-        slot_config = plugin_config.get_slot_config("tts")
+        # Load TTS plugin from config.yaml
+        app_config = AppConfig(find_config_yaml())
+        slot_config = app_config.get_slot_config("tts")
         tts_engine = load_plugin(
             slot="tts",
             plugin_name=slot_config.plugin,

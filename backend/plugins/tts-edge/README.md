@@ -37,7 +37,7 @@ members = [
 
 ## Configuration
 
-Configure in `backend/plugins/plugins.yaml`:
+Configure in `backend/core/config.yaml`:
 
 ```yaml
 tts:
@@ -185,7 +185,7 @@ See [Microsoft Edge TTS Voice Gallery](https://speech.microsoft.com/portal/voice
 
 1. Check ffmpeg installation: `which ffmpeg`
 2. Check pydub installation: `uv pip list | grep pydub`
-3. Check plugin configuration in `plugins/plugins.yaml`
+3. Check plugin configuration in `core/config.yaml`
 
 ### Slow generation
 
@@ -196,7 +196,7 @@ See [Microsoft Edge TTS Voice Gallery](https://speech.microsoft.com/portal/voice
 ### Voice not found
 
 1. Verify voice name in [Voice Gallery](https://speech.microsoft.com/portal/voicegallery)
-2. Check spelling in `plugins/plugins.yaml`
+2. Check spelling in `core/config.yaml`
 3. Ensure voice supports the target language
 
 ## Development
@@ -204,7 +204,7 @@ See [Microsoft Edge TTS Voice Gallery](https://speech.microsoft.com/portal/voice
 ### Adding a New Voice
 
 1. Find voice name in [Voice Gallery](https://speech.microsoft.com/portal/voicegallery)
-2. Update `plugins/plugins.yaml`:
+2. Update `core/config.yaml`:
    ```yaml
    tts:
      plugin: tts-edge

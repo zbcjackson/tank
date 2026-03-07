@@ -33,35 +33,51 @@ cp .env.example .env
 
 ### Configuration
 
-Edit `backend/.env`:
+Edit `backend/.env` for secrets:
 
 ```env
-# Required
+# Required — referenced by core/config.yaml via ${LLM_API_KEY}
 LLM_API_KEY=your_api_key_here
-
-# LLM Configuration
-LLM_MODEL=anthropic/claude-3-5-nano
-LLM_BASE_URL=https://openrouter.ai/api/v1
-LLM_TEMPERATURE=0.7
-LLM_MAX_TOKENS=2000
-
-# ASR Configuration
-WHISPER_MODEL_SIZE=base
-ASR_ENGINE=whisper  # or sherpa
-
-# TTS Configuration
-TTS_VOICE_EN=en-US-JennyNeural
-TTS_VOICE_ZH=zh-CN-XiaoxiaoNeural
-
-# Audio Configuration
-SAMPLE_RATE=16000
-CHUNK_SIZE=1600
 
 # Optional: Web Search
 SERPER_API_KEY=your_serper_key
 
 # Logging
 LOG_LEVEL=INFO
+```
+
+Edit `backend/core/config.yaml` for LLM profiles and plugin settings:
+
+```yaml
+llm:
+  default:
+    api_key: ${LLM_API_KEY}
+    model: anthropic/claude-3-5-nano
+    base_url: https://openrouter.ai/api/v1
+    temperature: 0.7
+    max_tokens: 10000
+    extra_headers:
+      HTTP-Referer: "http://localhost:3000"
+      X-Title: "Tank Voice Assistant"
+    stream_options: true
+
+tts:
+  plugin: tts-edge
+  config:
+    voice_en: en-US-JennyNeural
+    voice_zh: zh-CN-XiaoxiaoNeural
+```
+
+Other settings in `.env`:
+
+```env
+# ASR Configuration
+WHISPER_MODEL_SIZE=base
+ASR_ENGINE=whisper  # or sherpa
+
+# Audio Configuration
+SAMPLE_RATE=16000
+CHUNK_SIZE=1600
 ```
 
 ## Running the Server

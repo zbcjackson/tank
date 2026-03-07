@@ -11,9 +11,6 @@ logger = logging.getLogger(__name__)
 # Only fields that need env-var loading are listed here.
 # Fields not listed use their Field(default=...) value.
 _ENV_FIELD_MAP: dict[str, tuple[str, type]] = {
-    "LLM_API_KEY": ("llm_api_key", str),
-    "LLM_MODEL": ("llm_model", str),
-    "LLM_BASE_URL": ("llm_base_url", str),
     "SERPER_API_KEY": ("serper_api_key", str),
     "WHISPER_MODEL_SIZE": ("whisper_model_size", str),
     "SHERPA_MODEL_DIR": ("sherpa_model_dir", str),
@@ -37,13 +34,6 @@ def _parse_bool(value: str) -> bool:
 
 
 class VoiceAssistantConfig(BaseModel):
-    llm_api_key: str = Field(
-        ..., min_length=1, description="LLM API key for accessing the language model"
-    )
-    llm_model: str = Field(default="anthropic/claude-3-5-nano", description="LLM model to use")
-    llm_base_url: str = Field(
-        default="https://openrouter.ai/api/v1", description="LLM API base URL"
-    )
     serper_api_key: str | None = Field(
         default=None, description="Serper API key for web search functionality"
     )
@@ -138,12 +128,8 @@ def load_config(config_path: Path | None = None) -> VoiceAssistantConfig:
 
 
 def create_example_env_file(path: Path = Path(".env.example")):
-    example_content = """# LLM API Key - Get from your LLM provider (e.g., OpenRouter, OpenAI, etc.)
+    example_content = """# LLM API Key - Referenced by core/config.yaml via ${LLM_API_KEY}
 LLM_API_KEY=your_api_key_here
-
-# LLM Configuration
-LLM_MODEL=anthropic/claude-3-5-nano
-LLM_BASE_URL=https://openrouter.ai/api/v1
 
 # Serper API Key - Get from https://serper.dev/
 SERPER_API_KEY=your_serper_api_key_here

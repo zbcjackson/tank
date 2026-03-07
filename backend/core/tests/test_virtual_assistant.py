@@ -20,12 +20,10 @@ from tank_backend.plugin.config import SlotConfig
 def mock_config():
     with patch("tank_backend.core.assistant.load_config") as mock_load:
         config = MagicMock()
-        config.llm_api_key = "test_key"
-        config.llm_model = "test_model"
-        config.llm_base_url = "https://api.openai.com/v1"
         config.serper_api_key = "test_serper"
         config.speech_interrupt_enabled = True
         config.max_conversation_history = 5
+        config.enable_speaker_id = False
         mock_load.return_value = config
         yield config
 
@@ -70,20 +68,39 @@ async def test_virtual_assistant_flow(mock_config):
         config={"voice_en": "en-US-JennyNeural", "voice_zh": "zh-CN-XiaoxiaoNeural"},
     )
 
+    # Mock LLM instance with chat_stream
+    mock_llm_instance = MagicMock()
+    mock_llm_instance.chat_stream = mock_chat_stream
+
     with (
-        patch("tank_backend.llm.llm.LLM.chat_stream", side_effect=mock_chat_stream),
         patch("tank_backend.audio.input.asr_sherpa.SherpaASR.__init__", return_value=None),
         patch(
             "tank_backend.audio.input.asr_sherpa.SherpaASR.process_pcm",
             side_effect=mock_process_pcm,
         ),
         patch(
-            "tank_backend.audio.output.audio_output.PluginConfig",
+            "tank_backend.audio.output.audio_output.AppConfig",
             return_value=mock_plugin_config,
+        ),
+        patch(
+            "tank_backend.audio.output.audio_output.find_config_yaml",
+            return_value="core/config.yaml",
         ),
         patch(
             "tank_backend.audio.output.audio_output.load_plugin",
             return_value=mock_tts_engine,
+        ),
+        patch(
+            "tank_backend.core.assistant.AppConfig",
+            return_value=mock_plugin_config,
+        ),
+        patch(
+            "tank_backend.core.assistant.find_config_yaml",
+            return_value="core/config.yaml",
+        ),
+        patch(
+            "tank_backend.core.assistant.create_llm_from_profile",
+            return_value=mock_llm_instance,
         ),
     ):
         # 2. Setup factories

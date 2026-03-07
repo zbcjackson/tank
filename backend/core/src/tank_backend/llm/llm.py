@@ -16,19 +16,19 @@ class LLM:
         api_key: str,
         model: str = "anthropic/claude-3-5-nano",
         base_url: str = "https://openrouter.ai/api/v1",
+        extra_headers: dict[str, str] | None = None,
+        stream_options: bool = True,
     ):
         self.api_key = api_key
         self.base_url = base_url
         self.model = model
+        self.stream_options = stream_options
 
         # Initialize OpenAI client with custom base URL and headers
         self.client = AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
-            default_headers={
-                "HTTP-Referer": "http://localhost:3000",
-                "X-Title": "Tank Voice Assistant",
-            },
+            default_headers=extra_headers or {},
         )
 
     async def chat_stream(
@@ -56,9 +56,9 @@ class LLM:
                 "temperature": temperature,
                 "max_tokens": max_tokens,
                 "stream": True,
-                # Explicitly include usage for stream if supported (OpenAI/OpenRouter)
-                "stream_options": {"include_usage": True},
             }
+            if self.stream_options:
+                api_kwargs["stream_options"] = {"include_usage": True}
             if tools:
                 api_kwargs["tools"] = tools
 
