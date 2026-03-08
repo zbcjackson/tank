@@ -68,15 +68,24 @@ def assistant(mock_audio_source_factory, mock_audio_sink_factory, tmp_path):
     mock_llm = MagicMock()
     mock_llm.chat_stream = mock_stream
 
+    # Mock ASR engine
+    mock_asr_engine = MagicMock()
+    mock_asr_engine.process_pcm = MagicMock(return_value=("", False))
+    mock_asr_engine.reset = MagicMock()
+
+    def mock_load_plugin(slot, plugin_name, config):
+        if slot == "asr":
+            return mock_asr_engine
+        return MagicMock()  # TTS or other slots
+
     with (
-        patch("tank_backend.audio.input.asr_sherpa.SherpaASR.__init__", return_value=None),
         patch(
-            "tank_backend.audio.input.asr_sherpa.SherpaASR.process_pcm",
-            return_value=("", False),
+            "tank_backend.audio.input.audio_input.load_plugin",
+            side_effect=mock_load_plugin,
         ),
         patch(
             "tank_backend.audio.output.audio_output.load_plugin",
-            return_value=MagicMock(),
+            side_effect=mock_load_plugin,
         ),
         patch(
             "tank_backend.core.assistant.AppConfig",

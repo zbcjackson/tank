@@ -41,7 +41,7 @@ async def test_virtual_assistant_flow(mock_config):
 
         yield UpdateType.TEXT, "Hello! I am your virtual assistant.", {}
 
-    # Mock SherpaASR to avoid model loading and provide fixed results
+    # Mock ASR to avoid model loading and provide fixed results
     text_to_return = "hello"
     call_count = [0]
 
@@ -72,15 +72,26 @@ async def test_virtual_assistant_flow(mock_config):
     mock_llm_instance = MagicMock()
     mock_llm_instance.chat_stream = mock_chat_stream
 
+    # Mock ASR engine
+    mock_asr_engine = MagicMock()
+    mock_asr_engine.process_pcm = MagicMock(side_effect=mock_process_pcm)
+    mock_asr_engine.reset = MagicMock()
+
+    def mock_load_plugin(slot, plugin_name, config):
+        if slot == "asr":
+            return mock_asr_engine
+        if slot == "tts":
+            return mock_tts_engine
+        raise ValueError(f"Unknown slot: {slot}")
+
     with (
-        patch("tank_backend.audio.input.asr_sherpa.SherpaASR.__init__", return_value=None),
         patch(
-            "tank_backend.audio.input.asr_sherpa.SherpaASR.process_pcm",
-            side_effect=mock_process_pcm,
+            "tank_backend.audio.input.audio_input.load_plugin",
+            side_effect=mock_load_plugin,
         ),
         patch(
             "tank_backend.audio.output.audio_output.load_plugin",
-            return_value=mock_tts_engine,
+            side_effect=mock_load_plugin,
         ),
         patch(
             "tank_backend.core.assistant.AppConfig",

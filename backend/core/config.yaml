@@ -17,6 +17,13 @@ llm:
       X-Title: "Tank Voice Assistant"
     stream_options: true
 
+asr:
+  plugin: asr-sherpa
+  config:
+    model_dir: ../models/sherpa-onnx-zipformer-en-zh
+    num_threads: 4
+    sample_rate: 16000
+
 tts:
   plugin: tts-edge
   config:

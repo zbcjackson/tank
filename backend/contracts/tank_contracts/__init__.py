@@ -1,5 +1,6 @@
 """Tank plugin contracts."""
 
+from .asr import StreamingASREngine
 from .tts import AudioChunk, TTSEngine
 
-__all__ = ["TTSEngine", "AudioChunk"]
+__all__ = ["StreamingASREngine", "TTSEngine", "AudioChunk"]

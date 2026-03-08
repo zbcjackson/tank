@@ -5,7 +5,7 @@ from typing import Any
 
 from ...core.runtime import RuntimeContext
 from ...core.shutdown import GracefulShutdown
-from .asr_sherpa import SherpaASR
+from ...plugin import AppConfig, load_plugin
 from .mic import Mic
 from .perception_streaming import StreamingPerception
 from .types import (
@@ -44,6 +44,7 @@ class AudioInput:
         shutdown_signal: GracefulShutdown,
         runtime: RuntimeContext,
         cfg: AudioInputConfig,
+        app_config: AppConfig,
         on_speech_interrupt: Callable[[], None] | None = None,
         source_factory: AudioSourceFactory | None = None,
         voiceprint: Any = None,  # StreamingVoiceprintRecognizer | None
@@ -69,8 +70,9 @@ class AudioInput:
                 device=cfg.input_device,
             )
 
-        # Use SherpaASR for streaming
-        asr = SherpaASR(model_dir=cfg.perception.sherpa_model_dir)
+        # Load ASR engine via plugin system
+        slot = app_config.get_slot_config("asr")
+        asr = load_plugin(slot="asr", plugin_name=slot.plugin, config=slot.config)
 
         self._perception = StreamingPerception(
             shutdown_signal=shutdown_signal,

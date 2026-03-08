@@ -1,4 +1,4 @@
-"""Streaming Perception thread: Real-time ASR using Sherpa-ONNX."""
+"""Streaming Perception thread: Real-time ASR via pluggable engine."""
 
 from __future__ import annotations
 
@@ -8,13 +8,14 @@ import uuid
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+from tank_contracts import StreamingASREngine
+
 from ...core.events import BrainInputEvent, DisplayMessage, InputType
 from ...core.runtime import RuntimeContext
 from ...core.shutdown import StopSignal
 from ...core.worker import QueueWorker
 
 if TYPE_CHECKING:
-    from .asr_sherpa import SherpaASR
     from .mic import AudioFrame
     from .voiceprint_streaming import StreamingVoiceprintRecognizer
 
@@ -25,7 +26,7 @@ class StreamingPerception(QueueWorker["AudioFrame"]):
     """
     Consumes AudioFrame directly from Mic and emits real-time BrainInputEvent/DisplayMessage.
 
-    Uses SherpaASR for streaming recognition.
+    Uses a pluggable StreamingASREngine for streaming recognition.
     Optionally identifies speaker via StreamingVoiceprintRecognizer.
     """
 
@@ -34,7 +35,7 @@ class StreamingPerception(QueueWorker["AudioFrame"]):
         shutdown_signal: StopSignal,
         runtime: RuntimeContext,
         frames_queue: queue.Queue[AudioFrame],
-        asr: SherpaASR,
+        asr: StreamingASREngine,
         user: str = "User",
         on_speech_interrupt: Callable[[], None] | None = None,
         voiceprint: StreamingVoiceprintRecognizer | None = None,

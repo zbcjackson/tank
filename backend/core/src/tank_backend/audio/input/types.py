@@ -72,5 +72,3 @@ class PerceptionConfig:
     enable_voiceprint: bool = True
     voiceprint_timeout_s: float = 0.5
     default_user: str = "Unknown"
-    model_size: str = "large-v3"
-    sherpa_model_dir: str = "../models/sherpa-onnx-zipformer-en-zh"

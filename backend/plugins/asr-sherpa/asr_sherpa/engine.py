@@ -1,4 +1,4 @@
-"""ASR (Automatic Speech Recognition) using sherpa-onnx for streaming."""
+"""Sherpa-ONNX streaming ASR engine."""
 
 from __future__ import annotations
 
@@ -8,8 +8,9 @@ import sys
 from pathlib import Path
 
 import numpy as np
+from tank_contracts import StreamingASREngine
 
-logger = logging.getLogger("SherpaASR")
+logger = logging.getLogger("SherpaASREngine")
 
 # --- macOS Library Path Patch ---
 if sys.platform == "darwin":
@@ -30,7 +31,6 @@ if sys.platform == "darwin":
         logger.debug(f"macOS dylib patch failed: {e}")
 
 
-# Import everything from the internal lib to ensure compatibility
 from sherpa_onnx.lib._sherpa_onnx import (  # noqa: E402
     EndpointConfig,
     EndpointRule,
@@ -43,14 +43,11 @@ from sherpa_onnx.lib._sherpa_onnx import (  # noqa: E402
     OnlineTransducerModelConfig,
 )
 
-# --------------------------------
 
+class SherpaASREngine(StreamingASREngine):
+    """Streaming ASR using sherpa-onnx.
 
-class SherpaASR:
-    """
-    Streaming ASR using sherpa-onnx.
-
-    This class manages the sherpa-onnx OnlineRecognizer and its stream.
+    Manages the sherpa-onnx OnlineRecognizer and its stream.
     """
 
     def __init__(
@@ -63,7 +60,6 @@ class SherpaASR:
         if not model_path.exists():
             raise FileNotFoundError(f"Sherpa-ONNX model directory not found: {model_dir}")
 
-        # Use positional arguments for robustness with pybind11
         feat_config = FeatureExtractorConfig(
             sampling_rate=sample_rate,
             feature_dim=80,
@@ -88,14 +84,6 @@ class SherpaASR:
             rule3=EndpointRule(False, 20.0, 0.0),
         )
 
-        # OnlineRecognizerConfig positional arguments:
-        # 1. feat_config
-        # 2. model_config
-        # 3. lm_config (default provided)
-        # 4. endpoint_config (default provided)
-        # 5. ctc_fst_decoder_config (default provided)
-        # 6. enable_endpoint (bool)
-        # 7. decoding_method (str)
         recognizer_config = OnlineRecognizerConfig(
             feat_config,
             model_config,
@@ -109,11 +97,10 @@ class SherpaASR:
         self._recognizer = OnlineRecognizer(recognizer_config)
         self._stream = self._recognizer.create_stream()
         self._sample_rate = sample_rate
-        logger.info("SherpaASR initialized with model from %s", model_dir)
+        logger.info("SherpaASREngine initialized with model from %s", model_dir)
 
     def process_pcm(self, pcm: np.ndarray) -> tuple[str, bool]:
-        """
-        Process a chunk of PCM audio.
+        """Process a chunk of PCM audio.
 
         Returns:
             (text, is_endpoint)
@@ -131,6 +118,6 @@ class SherpaASR:
 
         return text, is_endpoint
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the internal stream."""
         self._recognizer.reset(self._stream)

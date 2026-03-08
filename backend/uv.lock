@@ -10,6 +10,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "asr-sherpa",
     "tank-backend",
     "tank-contracts",
     "tts-cosyvoice",
@@ -189,6 +190,32 @@ sdist = { url = "https://files.pythonhosted.org/packages/96/f0/5eb65b2bb0d09ac67
 wheels = [
     { url = "https://files.pythonhosted.org/packages/38/0e/27be9fdef66e72d64c0cdc3cc2823101b80585f8119b5c112c2e8f5f7dab/anyio-4.12.1-py3-none-any.whl", hash = "sha256:d405828884fc140aa80a3c667b8beed277f1dfedec42ba031bd6ac3db606ab6c", size = 113592, upload-time = "2026-01-06T11:45:19.497Z" },
 ]
+
+[[package]]
+name = "asr-sherpa"
+version = "0.1.0"
+source = { editable = "plugins/asr-sherpa" }
+dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "sherpa-onnx" },
+    { name = "tank-contracts" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "numpy", specifier = ">=1.24.0" },
+    { name = "sherpa-onnx", specifier = ">=1.10.0" },
+    { name = "tank-contracts", editable = "contracts" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8.0.0" }]
 
 [[package]]
 name = "async-timeout"
@@ -2376,6 +2403,13 @@ dev = [
 name = "tank-contracts"
 version = "0.1.0"
 source = { editable = "contracts" }
+dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "numpy", specifier = ">=1.24.0" }]
 
 [[package]]
 name = "tokenizers"

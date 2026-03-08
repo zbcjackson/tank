@@ -12,8 +12,6 @@ logger = logging.getLogger(__name__)
 # Fields not listed use their Field(default=...) value.
 _ENV_FIELD_MAP: dict[str, tuple[str, type]] = {
     "SERPER_API_KEY": ("serper_api_key", str),
-    "WHISPER_MODEL_SIZE": ("whisper_model_size", str),
-    "SHERPA_MODEL_DIR": ("sherpa_model_dir", str),
     "DEFAULT_LANGUAGE": ("default_language", str),
     "AUDIO_DURATION": ("audio_duration", float),
     "LOG_LEVEL": ("log_level", str),
@@ -36,13 +34,6 @@ def _parse_bool(value: str) -> bool:
 class VoiceAssistantConfig(BaseModel):
     serper_api_key: str | None = Field(
         default=None, description="Serper API key for web search functionality"
-    )
-    whisper_model_size: str = Field(
-        default="base", description="Whisper model size (tiny, base, small, medium, large)"
-    )
-    sherpa_model_dir: str = Field(
-        default="../models/sherpa-onnx-zipformer-en-zh",
-        description="Path to Sherpa-ONNX model directory",
     )
     default_language: str = Field(
         default="zh", description="Default language for processing (auto, en, zh)"

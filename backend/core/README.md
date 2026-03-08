@@ -6,7 +6,7 @@ Main application code for the Tank Voice Assistant backend.
 
 This is the core backend application that provides:
 - FastAPI WebSocket server for real-time communication
-- Speech recognition (ASR) with Faster Whisper or Sherpa-ONNX
+- Speech recognition (ASR) via pluggable architecture
 - Text-to-Speech (TTS) via pluggable architecture
 - LLM integration with tool calling
 - Speaker identification (optional)
@@ -69,21 +69,6 @@ Create `core/.env` from `core/.env.example`:
 # Required
 LLM_API_KEY=your_api_key_here
 
-# LLM Configuration
-LLM_MODEL=anthropic/claude-3-5-nano
-LLM_BASE_URL=https://openrouter.ai/api/v1
-LLM_TEMPERATURE=0.7
-LLM_MAX_TOKENS=2000
-
-# ASR Configuration
-WHISPER_MODEL_SIZE=base
-ASR_ENGINE=whisper  # or sherpa
-SHERPA_MODEL_DIR=../models/sherpa-onnx-zipformer-en-zh
-
-# Audio Configuration
-SAMPLE_RATE=16000
-CHUNK_SIZE=1600
-
 # Optional: Web Search
 SERPER_API_KEY=your_serper_key
 
@@ -96,6 +81,23 @@ SPEAKER_DEFAULT_USER=Unknown
 
 # Logging
 LOG_LEVEL=INFO
+```
+
+Plugin settings (ASR, TTS, LLM) are configured in `core/config.yaml`:
+
+```yaml
+asr:
+  plugin: asr-sherpa
+  config:
+    model_dir: ../models/sherpa-onnx-zipformer-en-zh
+    num_threads: 4
+    sample_rate: 16000
+
+tts:
+  plugin: tts-edge
+  config:
+    voice_en: en-US-JennyNeural
+    voice_zh: zh-CN-XiaoxiaoNeural
 ```
 
 ## Development
@@ -182,12 +184,16 @@ Audio Input → VAD → ASR → Brain → LLM + Tools → TTS → Audio Output
 
 ## Plugin System
 
-The core application loads TTS plugins dynamically from `../plugins/`:
+The core application loads ASR and TTS plugins dynamically from `../plugins/`:
 
-1. Reads `core/config.yaml` for configuration
-2. Loads plugin module specified in config
-3. Calls `create_engine(config)` to instantiate TTS engine
-4. Uses `TTSEngine` interface from `tank_contracts.tts`
+1. Reads `core/config.yaml` for plugin slot configuration
+2. Loads plugin module specified in config (e.g. `asr-sherpa` → `asr_sherpa`)
+3. Calls `create_engine(config)` to instantiate the engine
+4. Uses `StreamingASREngine` or `TTSEngine` interface from `tank_contracts`
+
+Available plugins:
+- `asr-sherpa` — Sherpa-ONNX streaming ASR (implements `StreamingASREngine`)
+- `tts-edge` — Edge TTS (implements `TTSEngine`)
 
 See `plugin/loader.py` for implementation details.
 

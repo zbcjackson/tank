@@ -75,6 +75,7 @@ class Assistant:
             shutdown_signal=self.shutdown_signal,
             runtime=self.runtime,
             cfg=audio_input_config or AudioInputConfig(),
+            app_config=app_config,
             on_speech_interrupt=_on_speech_interrupt,
             source_factory=audio_source_factory,
             voiceprint=self._voiceprint_streaming,

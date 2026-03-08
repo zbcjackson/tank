@@ -5,7 +5,7 @@ Backend API server for the Tank Voice Assistant with pluggable architecture.
 ## Features
 
 - **FastAPI-based WebSocket server** - Real-time bidirectional communication
-- **Speech recognition (ASR)** - Faster Whisper or Sherpa-ONNX
+- **Speech recognition (ASR)** - Pluggable architecture (Sherpa-ONNX default)
 - **Pluggable TTS** - Edge TTS (default), extensible via plugin system
 - **LLM integration** - OpenAI-compatible API (OpenAI, OpenRouter, Gemini, etc.)
 - **Tool calling** - Calculator, weather, time, web search, web scraper
@@ -22,8 +22,9 @@ backend/
 │   ├── config.yaml         # LLM profiles + plugin config
 │   ├── .env                # Secrets (API keys)
 │   └── pyproject.toml      # Dependencies
-├── contracts/              # Shared interfaces (TTSEngine ABC)
-├── plugins/                # TTS plugins
+├── contracts/              # Shared interfaces (StreamingASREngine, TTSEngine ABCs)
+├── plugins/                # ASR and TTS plugins
+│   ├── asr-sherpa/        # Sherpa-ONNX streaming ASR plugin
 │   └── tts-edge/          # Edge TTS plugin
 ├── data/                   # Runtime data (speakers.db)
 ├── models/                 # ML models (Whisper, Sherpa, speaker models)
@@ -70,11 +71,7 @@ LLM_API_KEY=your_api_key_here
 # Optional: Web Search
 SERPER_API_KEY=your_serper_key
 
-# ASR Configuration
-WHISPER_MODEL_SIZE=base
-ASR_ENGINE=whisper  # or sherpa
-
-# LLM profiles and TTS voices are configured in core/config.yaml
+# LLM profiles, ASR, and TTS are configured in core/config.yaml
 
 # Speaker Identification (optional)
 ENABLE_SPEAKER_ID=false
@@ -104,25 +101,32 @@ Add more profiles (e.g. `fast`, `local`) under the `llm:` key for future agent/s
 
 ## Plugin System
 
-The backend uses a pluggable architecture for TTS engines. Configure plugins in `core/config.yaml`:
+The backend uses a pluggable architecture for ASR and TTS engines. Configure plugins in `core/config.yaml`:
 
 ```yaml
+asr:
+  plugin: asr-sherpa           # Plugin folder name
+  config:
+    model_dir: ../models/sherpa-onnx-zipformer-en-zh
+    num_threads: 4
+    sample_rate: 16000
+
 tts:
-  plugin: tts-edge           # Plugin folder name
+  plugin: tts-edge             # Plugin folder name
   config:
     voice_en: en-US-JennyNeural
     voice_zh: zh-CN-XiaoxiaoNeural
 ```
 
-### Adding a New TTS Plugin
+### Adding a New Plugin
 
-1. Create plugin directory: `plugins/tts-myplugin/`
-2. Implement `TTSEngine` from `tank_contracts.tts`
+1. Create plugin directory: `plugins/<slot>-<name>/`
+2. Implement the contract from `tank_contracts` (`StreamingASREngine` or `TTSEngine`)
 3. Export `create_engine(config: dict)` function
 4. Add to workspace in `backend/pyproject.toml`
 5. Configure in `core/config.yaml`
 
-See `plugins/tts-edge/` for reference implementation.
+See `plugins/asr-sherpa/` or `plugins/tts-edge/` for reference implementations.
 
 ## Development
 
