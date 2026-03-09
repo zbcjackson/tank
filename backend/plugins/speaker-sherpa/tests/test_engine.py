@@ -7,17 +7,19 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from tank_backend.audio.input.embedding_sherpa import SherpaEmbeddingExtractor
+from speaker_sherpa.engine import SherpaEmbeddingExtractor
+
+MODULE = "speaker_sherpa.engine"
 
 
 @pytest.fixture
 def mock_sherpa_extractor():
     """Mock sherpa-onnx extractor."""
-    with patch("tank_backend.audio.input.embedding_sherpa._SherpaExtractor") as mock_cls:
+    with patch(f"{MODULE}._SherpaExtractor") as mock_cls:
         mock_instance = MagicMock()
         mock_instance.dim = 192
         mock_instance.create_stream.return_value = MagicMock()
-        mock_instance.compute.return_value = [0.1] * 192  # Mock embedding
+        mock_instance.compute.return_value = [0.1] * 192
         mock_cls.return_value = mock_instance
         yield mock_instance
 
@@ -46,14 +48,9 @@ def test_sherpa_embedding_extractor_extract(mock_sherpa_extractor, tmp_path):
 
     extractor = SherpaEmbeddingExtractor(str(model_path))
 
-    # Create test audio
-    audio = np.random.randn(16000).astype(np.float32)  # 1 second at 16kHz
-    sample_rate = 16000
+    audio = np.random.randn(16000).astype(np.float32)
+    embedding = extractor.extract(audio, 16000)
 
-    # Extract embedding
-    embedding = extractor.extract(audio, sample_rate)
-
-    # Verify
     assert isinstance(embedding, np.ndarray)
     assert embedding.dtype == np.float32
     assert embedding.shape == (192,)
@@ -68,18 +65,12 @@ def test_sherpa_embedding_extractor_extract_normalizes_audio(mock_sherpa_extract
 
     extractor = SherpaEmbeddingExtractor(str(model_path))
 
-    # Create audio with values > 1.0
     audio = np.array([2.0, -3.0, 1.5, -2.5], dtype=np.float32)
-    sample_rate = 16000
+    extractor.extract(audio, 16000)
 
-    # Extract embedding (result unused — we're testing the normalization side effect)
-    extractor.extract(audio, sample_rate)
-
-    # Verify stream.accept_waveform was called
     mock_stream = mock_sherpa_extractor.create_stream.return_value
     mock_stream.accept_waveform.assert_called_once()
 
-    # Check that audio was normalized (max abs value should be 1.0)
     call_args = mock_stream.accept_waveform.call_args
     normalized_audio = call_args.kwargs["waveform"]
     assert np.abs(normalized_audio).max() <= 1.0
@@ -92,14 +83,9 @@ def test_sherpa_embedding_extractor_extract_converts_dtype(mock_sherpa_extractor
 
     extractor = SherpaEmbeddingExtractor(str(model_path))
 
-    # Create audio with int16 dtype
     audio = np.array([100, -200, 300], dtype=np.int16)
-    sample_rate = 16000
+    extractor.extract(audio, 16000)
 
-    # Extract embedding (result unused — we're testing the dtype conversion side effect)
-    extractor.extract(audio, sample_rate)
-
-    # Verify stream.accept_waveform was called with float32
     mock_stream = mock_sherpa_extractor.create_stream.return_value
     call_args = mock_stream.accept_waveform.call_args
     converted_audio = call_args.kwargs["waveform"]
@@ -113,6 +99,3 @@ def test_sherpa_embedding_extractor_close(mock_sherpa_extractor, tmp_path):
 
     extractor = SherpaEmbeddingExtractor(str(model_path))
     extractor.close()
-
-    # Sherpa-ONNX handles cleanup automatically, so no assertions needed
-    # Just verify no exceptions are raised

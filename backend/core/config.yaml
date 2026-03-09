@@ -24,6 +24,16 @@ asr:
     num_threads: 4
     sample_rate: 16000
 
+speaker:
+  plugin: speaker-sherpa
+  config:
+    model_path: ../models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx
+    num_threads: 1
+    provider: cpu
+    db_path: ../data/speakers.db
+    threshold: 0.6
+    default_user: Unknown
+
 tts:
   plugin: tts-edge
   config:

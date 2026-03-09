@@ -34,8 +34,10 @@ class SessionManager:
             config = load_config(config_path)
             if config.enable_speaker_id:
                 from ..audio.input.voiceprint_factory import create_voiceprint_recognizer
+                from ..plugin import AppConfig
 
-                self._voiceprint_recognizer = create_voiceprint_recognizer(config)
+                app_config = AppConfig()
+                self._voiceprint_recognizer = create_voiceprint_recognizer(app_config)
                 logger.info("Shared voiceprint recognizer initialized")
         except Exception as e:
             logger.warning(f"Failed to initialize voiceprint recognizer: {e}")

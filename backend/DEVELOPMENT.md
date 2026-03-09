@@ -306,12 +306,22 @@ uv run python scripts/download_models.py
 #### Enable Speaker ID
 
 ```bash
-# In backend/core/.env, add:
+# In backend/.env, enable the toggle:
 ENABLE_SPEAKER_ID=true
-SPEAKER_MODEL_PATH=../models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx
-SPEAKER_DB_PATH=../data/speakers.db
-SPEAKER_THRESHOLD=0.6
-SPEAKER_DEFAULT_USER=Unknown
+```
+
+Speaker plugin settings live in `backend/core/config.yaml`:
+
+```yaml
+speaker:
+  plugin: speaker-sherpa
+  config:
+    model_path: ../models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx
+    num_threads: 1
+    provider: cpu
+    db_path: ../data/speakers.db
+    threshold: 0.6
+    default_user: Unknown
 ```
 
 #### Download Speaker Model

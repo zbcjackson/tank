@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+from tank_contracts import SpeakerEmbeddingExtractor
 
 logger = logging.getLogger("SherpaEmbedding")
 
@@ -35,28 +36,14 @@ from sherpa_onnx.lib._sherpa_onnx import (  # noqa: E402, I001
     SpeakerEmbeddingExtractorConfig,
 )
 
-from .embedding import SpeakerEmbeddingExtractor  # noqa: E402, I001
-
 
 class SherpaEmbeddingExtractor(SpeakerEmbeddingExtractor):
-    """
-    Speaker embedding extraction using sherpa-onnx.
+    """Speaker embedding extraction using sherpa-onnx.
 
     Supports models like 3D-Speaker (Alibaba) and WeSpeaker in ONNX format.
     """
 
     def __init__(self, model_path: str, num_threads: int = 1, provider: str = "cpu"):
-        """
-        Initialize Sherpa-ONNX speaker embedding extractor.
-
-        Args:
-            model_path: Path to ONNX model file (e.g., 3D-Speaker or WeSpeaker)
-            num_threads: Number of threads for inference
-            provider: Execution provider ("cpu" or "cuda")
-
-        Raises:
-            FileNotFoundError: If model file does not exist
-        """
         model_file = Path(model_path)
         if not model_file.exists():
             raise FileNotFoundError(f"Speaker model not found: {model_path}")
@@ -68,42 +55,25 @@ class SherpaEmbeddingExtractor(SpeakerEmbeddingExtractor):
         )
         self._extractor = _SherpaExtractor(config)
         self._dim = self._extractor.dim
-        logger.info(f"Sherpa embedding extractor initialized (dim={self._dim}, model={model_path})")
+        logger.info(f"Sherpa embedding extractor initialized (dim={self._dim})")
 
     def extract(self, audio: np.ndarray, sample_rate: int) -> np.ndarray:
-        """
-        Extract speaker embedding from audio.
-
-        Args:
-            audio: Audio samples (float32, shape: [n_samples])
-            sample_rate: Sample rate in Hz
-
-        Returns:
-            Embedding vector (float32, shape: [embedding_dim])
-        """
-        # Sherpa expects float32 in range [-1, 1]
         if audio.dtype != np.float32:
             audio = audio.astype(np.float32)
 
-        # Normalize to [-1, 1] if needed
         max_val = np.abs(audio).max()
         if max_val > 1.0:
             audio = audio / max_val
 
-        # Create stream and feed audio
         stream = self._extractor.create_stream()
         stream.accept_waveform(sample_rate=sample_rate, waveform=audio)
 
-        # Extract embedding
         embedding = self._extractor.compute(stream)
         return np.array(embedding, dtype=np.float32)
 
     @property
     def embedding_dim(self) -> int:
-        """Return the dimension of the embedding vector."""
         return self._dim
 
     def close(self) -> None:
-        """Release resources."""
-        # Sherpa-ONNX handles cleanup automatically via RAII
         pass

@@ -4,6 +4,7 @@ members = [
     "contracts",
     "plugins/tts-edge",
     "plugins/asr-sherpa",
+    "plugins/speaker-sherpa",
     "plugins/tts-cosyvoice",
 ]
 

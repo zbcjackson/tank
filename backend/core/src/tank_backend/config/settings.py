@@ -18,10 +18,6 @@ _ENV_FIELD_MAP: dict[str, tuple[str, type]] = {
     "MAX_CONVERSATION_HISTORY": ("max_conversation_history", int),
     "SPEECH_INTERRUPT_ENABLED": ("speech_interrupt_enabled", str),
     "ENABLE_SPEAKER_ID": ("enable_speaker_id", str),
-    "SPEAKER_MODEL_PATH": ("speaker_model_path", str),
-    "SPEAKER_DB_PATH": ("speaker_db_path", str),
-    "SPEAKER_THRESHOLD": ("speaker_threshold", float),
-    "SPEAKER_DEFAULT_USER": ("speaker_default_user", str),
 }
 
 _TRUTHY = {"true", "1", "yes"}
@@ -51,20 +47,6 @@ class VoiceAssistantConfig(BaseModel):
     )
     enable_speaker_id: bool = Field(
         default=False, description="Enable speaker identification (voiceprint recognition)"
-    )
-    speaker_model_path: str = Field(
-        default="../models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
-        description="Path to speaker embedding model (ONNX format)",
-    )
-    speaker_db_path: str = Field(
-        default="../data/speakers.db", description="Path to speaker database (SQLite)"
-    )
-    speaker_threshold: float = Field(
-        default=0.6,
-        description="Speaker identification threshold (0.0-1.0, higher = stricter)",
-    )
-    speaker_default_user: str = Field(
-        default="Unknown", description="Default user when speaker not identified"
     )
 
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8")
@@ -143,12 +125,8 @@ MAX_CONVERSATION_HISTORY=10
 # Speech interrupt: when True, user speech interrupts TTS and LLM (true/false)
 SPEECH_INTERRUPT_ENABLED=true
 
-# Speaker identification (voiceprint recognition)
+# Speaker identification — enable/disable toggle (config in core/config.yaml)
 ENABLE_SPEAKER_ID=false
-SPEAKER_MODEL_PATH=../models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx
-SPEAKER_DB_PATH=../data/speakers.db
-SPEAKER_THRESHOLD=0.6
-SPEAKER_DEFAULT_USER=Unknown
 """
 
     with open(path, "w") as f:

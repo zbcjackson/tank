@@ -8,66 +8,64 @@ from typing import TYPE_CHECKING
 from .voiceprint import VoiceprintRecognizer
 
 if TYPE_CHECKING:
-    from ...config.settings import VoiceAssistantConfig
+    from ...plugin import AppConfig
 
 logger = logging.getLogger("VoiceprintFactory")
 
 
-def _create_disabled_recognizer(config: VoiceAssistantConfig) -> VoiceprintRecognizer:
-    """Create a disabled voiceprint recognizer."""
-    return VoiceprintRecognizer(
-        extractor=None,
-        repository=None,
-        default_user=config.speaker_default_user,
-    )
-
-
-def create_voiceprint_recognizer(config: VoiceAssistantConfig) -> VoiceprintRecognizer:
-    """
-    Create a VoiceprintRecognizer instance based on configuration.
+def create_voiceprint_recognizer(app_config: AppConfig) -> VoiceprintRecognizer:
+    """Create a VoiceprintRecognizer instance based on plugin configuration.
 
     Args:
-        config: Voice assistant configuration
+        app_config: Application configuration (reads speaker slot from config.yaml)
 
     Returns:
         VoiceprintRecognizer instance (enabled or disabled based on config)
     """
-    if not config.enable_speaker_id:
-        logger.info("Speaker identification disabled by configuration")
-        return _create_disabled_recognizer(config)
-
     try:
-        from .embedding_sherpa import SherpaEmbeddingExtractor
+        from ...plugin import load_plugin
+
+        slot_config = app_config.get_slot_config("speaker")
+        plugin_cfg = slot_config.config
+
+        # Load the embedding extractor via plugin system
+        extractor = load_plugin("speaker", slot_config.plugin, plugin_cfg)
+
+        # Repository stays in core — it's storage, not an engine
         from .repository_sqlite import SQLiteSpeakerRepository
 
-        logger.info("Initializing speaker identification components...")
+        db_path = plugin_cfg.get("db_path", "../data/speakers.db")
+        repository = SQLiteSpeakerRepository(db_path=db_path)
 
-        # Create embedding extractor
-        extractor = SherpaEmbeddingExtractor(
-            model_path=config.speaker_model_path,
-            num_threads=1,
-            provider="cpu",
-        )
+        threshold = plugin_cfg.get("threshold", 0.6)
+        default_user = plugin_cfg.get("default_user", "Unknown")
 
-        # Create speaker repository
-        repository = SQLiteSpeakerRepository(db_path=config.speaker_db_path)
-
-        # Create voiceprint recognizer
         recognizer = VoiceprintRecognizer(
             extractor=extractor,
             repository=repository,
-            default_user=config.speaker_default_user,
-            threshold=config.speaker_threshold,
+            default_user=default_user,
+            threshold=threshold,
         )
 
-        logger.info("Speaker identification enabled successfully")
+        logger.info("Speaker identification enabled via plugin '%s'", slot_config.plugin)
         return recognizer
 
+    except ValueError:
+        # No speaker slot in config.yaml
+        logger.info("No speaker slot in config.yaml — speaker ID disabled")
+        return _create_disabled_recognizer()
     except FileNotFoundError as e:
         logger.warning(f"Speaker model not found: {e}")
-        logger.warning("Falling back to disabled speaker identification")
-        return _create_disabled_recognizer(config)
+        return _create_disabled_recognizer()
     except Exception as e:
         logger.error(f"Failed to initialize speaker identification: {e}")
-        logger.warning("Falling back to disabled speaker identification")
-        return _create_disabled_recognizer(config)
+        return _create_disabled_recognizer()
+
+
+def _create_disabled_recognizer() -> VoiceprintRecognizer:
+    """Create a disabled voiceprint recognizer."""
+    return VoiceprintRecognizer(
+        extractor=None,
+        repository=None,
+        default_user="Unknown",
+    )

@@ -64,7 +64,7 @@ class Assistant:
             from ..audio.input.voiceprint_factory import create_voiceprint_recognizer
             from ..audio.input.voiceprint_streaming import StreamingVoiceprintRecognizer
 
-            recognizer = create_voiceprint_recognizer(self._config)
+            recognizer = create_voiceprint_recognizer(app_config)
             self._voiceprint_streaming = StreamingVoiceprintRecognizer(
                 recognizer,
                 sample_rate=(audio_input_config or AudioInputConfig()).audio_format.sample_rate,
