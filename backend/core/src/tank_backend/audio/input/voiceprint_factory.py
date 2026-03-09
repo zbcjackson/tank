@@ -29,7 +29,7 @@ def create_voiceprint_recognizer(app_config: AppConfig) -> VoiceprintRecognizer:
         plugin_cfg = slot_config.config
 
         # Load the embedding extractor via plugin system
-        extractor = load_plugin("speaker", slot_config.plugin, plugin_cfg)
+        extractor = load_plugin(slot="speaker", plugin_name=slot_config.plugin, config=plugin_cfg)
 
         # Repository stays in core — it's storage, not an engine
         from .repository_sqlite import SQLiteSpeakerRepository
@@ -50,15 +50,8 @@ def create_voiceprint_recognizer(app_config: AppConfig) -> VoiceprintRecognizer:
         logger.info("Speaker identification enabled via plugin '%s'", slot_config.plugin)
         return recognizer
 
-    except ValueError:
-        # No speaker slot in config.yaml
-        logger.info("No speaker slot in config.yaml — speaker ID disabled")
-        return _create_disabled_recognizer()
-    except FileNotFoundError as e:
-        logger.warning(f"Speaker model not found: {e}")
-        return _create_disabled_recognizer()
-    except Exception as e:
-        logger.error(f"Failed to initialize speaker identification: {e}")
+    except (ValueError, FileNotFoundError, ImportError) as e:
+        logger.warning(f"Speaker identification not available: {e}")
         return _create_disabled_recognizer()
 
 

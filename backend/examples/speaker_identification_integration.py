@@ -8,10 +8,9 @@ existing Perception pipeline for real-time speaker recognition.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 from tank_backend.audio.input.voiceprint_factory import create_voiceprint_recognizer
-from tank_backend.config.settings import VoiceAssistantConfig
+from tank_backend.plugin import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -24,17 +23,17 @@ class SpeakerAwarePerception:
     audio processing pipeline.
     """
 
-    def __init__(self, config: VoiceAssistantConfig):
+    def __init__(self, app_config: AppConfig):
         """
         Initialize speaker-aware perception.
 
         Args:
-            config: Voice assistant configuration
+            app_config: Application configuration
         """
-        self.config = config
+        self.app_config = app_config
 
         # Create voiceprint recognizer
-        self.voiceprint = create_voiceprint_recognizer(config)
+        self.voiceprint = create_voiceprint_recognizer(app_config)
 
         # Track speaker statistics
         self.speaker_stats = {}
@@ -177,10 +176,10 @@ class SpeakerEnrollmentWorkflow:
     including multiple samples and quality checks.
     """
 
-    def __init__(self, config: VoiceAssistantConfig):
+    def __init__(self, app_config: AppConfig):
         """Initialize enrollment workflow."""
-        self.config = config
-        self.voiceprint = create_voiceprint_recognizer(config)
+        self.app_config = app_config
+        self.voiceprint = create_voiceprint_recognizer(app_config)
         self.min_samples = 3
         self.max_samples = 5
         self.min_duration_s = 2.0
@@ -318,10 +317,10 @@ class ConversationTracker:
     who said what in a conversation.
     """
 
-    def __init__(self, config: VoiceAssistantConfig):
+    def __init__(self, app_config: AppConfig):
         """Initialize conversation tracker."""
-        self.config = config
-        self.voiceprint = create_voiceprint_recognizer(config)
+        self.app_config = app_config
+        self.voiceprint = create_voiceprint_recognizer(app_config)
         self.conversation_history = []
 
     def add_utterance(self, utterance, text: str):
@@ -441,15 +440,16 @@ class ConversationTracker:
 # Example usage
 def example_integration():
     """Example of integrating speaker identification into Tank."""
-    from tank_backend.config.settings import load_config
+    app_config = AppConfig()
 
-    # Load configuration
-    config = load_config()
-
-    if not config.enable_speaker_id:
+    # Quick check: try creating a recognizer to see if speaker ID is available
+    recognizer = create_voiceprint_recognizer(app_config)
+    if not recognizer.enabled:
         print("⚠️  Speaker identification is disabled.")
         print("   Set ENABLE_SPEAKER_ID=true in .env to enable.")
+        recognizer.close()
         return
+    recognizer.close()
 
     print("=" * 60)
     print("Speaker Identification Integration Example")
@@ -457,7 +457,7 @@ def example_integration():
 
     # Example 1: Speaker-aware perception
     print("\n1. Speaker-aware perception")
-    perception = SpeakerAwarePerception(config)
+    perception = SpeakerAwarePerception(app_config)
     print("   ✓ Initialized")
 
     # Example 2: Personalized responses
@@ -469,13 +469,13 @@ def example_integration():
 
     # Example 3: Enrollment workflow
     print("\n3. Speaker enrollment workflow")
-    enrollment = SpeakerEnrollmentWorkflow(config)
+    enrollment = SpeakerEnrollmentWorkflow(app_config)
     print("   ✓ Workflow initialized")
     print("   ℹ️  Use enrollment.enroll_speaker() to enroll new speakers")
 
     # Example 4: Conversation tracking
     print("\n4. Conversation tracking")
-    tracker = ConversationTracker(config)
+    tracker = ConversationTracker(app_config)
     print("   ✓ Tracker initialized")
     print("   ℹ️  Use tracker.add_utterance() to track conversations")
 

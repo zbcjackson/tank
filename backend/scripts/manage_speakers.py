@@ -11,7 +11,7 @@ import numpy as np
 
 from tank_backend.audio.input.repository_sqlite import SQLiteSpeakerRepository
 from tank_backend.audio.input.voiceprint_factory import create_voiceprint_recognizer
-from tank_backend.config.settings import load_config
+from tank_backend.plugin import AppConfig
 
 
 def list_speakers(db_path: str) -> None:
@@ -56,10 +56,10 @@ def enroll_speaker(
     db_path: str, user_id: str, name: str, audio_files: list[str], sample_rate: int = 16000
 ) -> None:
     """Enroll a speaker from audio files."""
-    config = load_config()
-    recognizer = create_voiceprint_recognizer(config)
+    app_config = AppConfig()
+    recognizer = create_voiceprint_recognizer(app_config)
 
-    if not recognizer._enabled:
+    if not recognizer.enabled:
         print("✗ Speaker identification is disabled in configuration")
         sys.exit(1)
 
@@ -93,10 +93,10 @@ def enroll_speaker(
 
 def test_identification(db_path: str, audio_file: str, sample_rate: int = 16000) -> None:
     """Test speaker identification on an audio file."""
-    config = load_config()
-    recognizer = create_voiceprint_recognizer(config)
+    app_config = AppConfig()
+    recognizer = create_voiceprint_recognizer(app_config)
 
-    if not recognizer._enabled:
+    if not recognizer.enabled:
         print("✗ Speaker identification is disabled in configuration")
         sys.exit(1)
 

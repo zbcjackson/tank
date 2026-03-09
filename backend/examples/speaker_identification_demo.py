@@ -8,8 +8,12 @@ from pathlib import Path
 
 from tank_backend.audio.input.voiceprint_factory import create_voiceprint_recognizer
 from tank_backend.audio.input.voiceprint import Utterance
-from tank_backend.config.settings import load_config
 from tank_backend.plugin import AppConfig
+
+
+def _get_speaker_db_path(app_config: AppConfig) -> str:
+    """Read the speaker DB path from config.yaml."""
+    return app_config.get_slot_config("speaker").config.get("db_path", "../data/speakers.db")
 
 
 def generate_sample_audio(duration_s: float = 3.0, sample_rate: int = 16000) -> np.ndarray:
@@ -36,7 +40,7 @@ def example_enrollment():
     # Create recognizer
     recognizer = create_voiceprint_recognizer(app_config)
 
-    if not recognizer._enabled:
+    if not recognizer.enabled:
         print("\n⚠️  Speaker identification is disabled in configuration.")
         print("   Set ENABLE_SPEAKER_ID=true in .env to enable.")
         return
@@ -65,7 +69,7 @@ def example_enrollment():
         print(f"   ✓ Sample {i+1}/3 enrolled")
 
     print("\n✅ Enrollment complete!")
-    print(f"   Total speakers: 3 (Alice, Bob, Charlie)")
+    print("   Total speakers: 3 (Alice, Bob, Charlie)")
 
     recognizer.close()
 
@@ -82,7 +86,7 @@ def example_identification():
     # Create recognizer
     recognizer = create_voiceprint_recognizer(app_config)
 
-    if not recognizer._enabled:
+    if not recognizer.enabled:
         print("\n⚠️  Speaker identification is disabled.")
         return
 
@@ -121,8 +125,7 @@ def example_list_speakers():
     from tank_backend.audio.input.repository_sqlite import SQLiteSpeakerRepository
 
     app_config = AppConfig()
-    speaker_cfg = app_config.get_slot_config("speaker").config
-    repo = SQLiteSpeakerRepository(speaker_cfg.get("db_path", "../data/speakers.db"))
+    repo = SQLiteSpeakerRepository(_get_speaker_db_path(app_config))
 
     speakers = repo.list_speakers()
 
@@ -152,8 +155,7 @@ def example_delete_speaker():
     from tank_backend.audio.input.repository_sqlite import SQLiteSpeakerRepository
 
     app_config = AppConfig()
-    speaker_cfg = app_config.get_slot_config("speaker").config
-    repo = SQLiteSpeakerRepository(speaker_cfg.get("db_path", "../data/speakers.db"))
+    repo = SQLiteSpeakerRepository(_get_speaker_db_path(app_config))
 
     # Try to delete a speaker
     user_id = "charlie"
@@ -175,14 +177,14 @@ def example_threshold_tuning():
     print("Example 5: Threshold Tuning")
     print("=" * 60)
 
-    from tank_backend.audio.input.voiceprint_factory import create_voiceprint_recognizer
-    from tank_backend.config.settings import load_config
+    app_config = AppConfig()
+    recognizer = create_voiceprint_recognizer(app_config)
 
-    config = load_config()
-
-    if not config.enable_speaker_id:
+    if not recognizer.enabled:
         print("\n⚠️  Speaker identification is disabled.")
         return
+
+    recognizer.close()
 
     print("\n🎯 Testing different thresholds...")
     print("   (Lower threshold = more lenient, Higher = more strict)")
@@ -233,8 +235,7 @@ def example_export_import():
     from tank_backend.audio.input.repository_sqlite import SQLiteSpeakerRepository
 
     app_config = AppConfig()
-    speaker_cfg = app_config.get_slot_config("speaker").config
-    repo = SQLiteSpeakerRepository(speaker_cfg.get("db_path", "../data/speakers.db"))
+    repo = SQLiteSpeakerRepository(_get_speaker_db_path(app_config))
 
     # Export
     print("\n📤 Exporting speaker database...")
@@ -261,7 +262,7 @@ def example_export_import():
     print("\n📥 Import process (demonstration):")
     print(f"   • Load data from {export_file}")
     print(f"   • Parse {len(export_data)} speaker records")
-    print(f"   • Restore embeddings and metadata")
+    print("   • Restore embeddings and metadata")
     print("   ℹ️  Actual import not performed to preserve existing data")
 
     repo.close()
