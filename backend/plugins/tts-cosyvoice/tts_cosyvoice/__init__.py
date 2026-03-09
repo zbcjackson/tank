@@ -37,7 +37,11 @@ def create_engine(config: dict) -> CosyVoiceTTSEngine:
         base_url = server.ensure_running()
         config = {**config, "base_url": base_url}
 
-    return CosyVoiceTTSEngine(config)
+    engine = CosyVoiceTTSEngine(config)
+    # Keep a reference so the server isn't GC'd (its atexit hook needs self).
+    if config.get("docker", False):
+        engine._server = server  # type: ignore[assignment]
+    return engine
 
 
 __all__ = ["create_engine", "CosyVoiceTTSEngine"]

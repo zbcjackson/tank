@@ -12,17 +12,19 @@ import sounddevice as sd
 from .engine import CosyVoiceTTSEngine, COSYVOICE_SAMPLE_RATE
 
 
-async def _speak(engine: CosyVoiceTTSEngine, text: str, language: str) -> None:
+async def _speak(engine: CosyVoiceTTSEngine, text: str, language: str, voice: str | None = None) -> None:
     pcm = bytearray()
-    async for chunk in engine.generate_stream(text, language=language):
+    sample_rate = COSYVOICE_SAMPLE_RATE
+    async for chunk in engine.generate_stream(text, language=language, voice=voice):
         pcm.extend(chunk.data)
+        sample_rate = chunk.sample_rate
 
     if not pcm:
         print("No audio generated.", file=sys.stderr)
         return
 
     samples = np.frombuffer(bytes(pcm), dtype=np.int16).astype(np.float32) / 32768.0
-    sd.play(samples, samplerate=engine._sample_rate, blocking=True)
+    sd.play(samples, samplerate=sample_rate, blocking=True)
 
 
 def main() -> None:
@@ -44,7 +46,7 @@ def main() -> None:
         # Simple heuristic: if any CJK character, assume Chinese
         language = "zh" if any("\u4e00" <= c <= "\u9fff" for c in args.text) else "en"
 
-    asyncio.run(_speak(engine, args.text, language if not args.spk else "en"), debug=False)
+    asyncio.run(_speak(engine, args.text, language, voice=args.spk), debug=False)
 
 
 if __name__ == "__main__":

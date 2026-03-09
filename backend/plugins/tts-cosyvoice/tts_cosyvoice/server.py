@@ -95,10 +95,6 @@ class CosyVoiceServer:
 
     def _build_image(self) -> None:
         dockerfile_dir = Path(__file__).resolve().parent.parent / "docker"
-        if not (dockerfile_dir / "Dockerfile").exists():
-            raise CosyVoiceServerError(
-                f"Dockerfile not found at {dockerfile_dir / 'Dockerfile'}"
-            )
         logger.info(
             "Building CosyVoice Docker image '%s' (this may take a while)…",
             self._image,
