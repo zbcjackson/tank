@@ -18,7 +18,8 @@ backend/
 │       └── tts.py         # TTSEngine ABC
 └── plugins/                # Plugin implementations
     ├── plugins.yaml        # Configuration
-    └── tts-edge/          # Edge TTS plugin
+    ├── tts-edge/          # Edge TTS plugin
+    └── tts-cosyvoice/     # CosyVoice TTS plugin
 ```
 
 ### How It Works
@@ -56,7 +57,7 @@ tts:
 | Plugin | Description | Status |
 |--------|-------------|--------|
 | **tts-edge** | Microsoft Edge TTS | ✅ Production |
-| tts-cosyvoice | CosyVoice TTS | 🚧 Planned |
+| **tts-cosyvoice** | CosyVoice TTS (requires server) | ✅ Production |
 | tts-vits | VITS TTS | 🚧 Planned |
 
 ## Creating a Plugin

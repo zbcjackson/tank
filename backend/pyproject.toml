@@ -3,6 +3,7 @@ members = [
     "core",
     "contracts",
     "plugins/tts-edge",
+    "plugins/tts-cosyvoice",
 ]
 
 [tool.uv.sources]
