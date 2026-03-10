@@ -49,5 +49,11 @@ if [[ -f "$ROOT/backend/core/.env" ]]; then
   echo "Copied backend/core/.env"
 fi
 
+# --- .claude/ → copy (settings, rules, project config) ---
+if [[ -d "$ROOT/.claude" ]]; then
+  cp -r "$ROOT/.claude" "$DEST/.claude"
+  echo "Copied .claude/"
+fi
+
 echo ""
 echo "Done! cd .worktrees/$NAME to start working."

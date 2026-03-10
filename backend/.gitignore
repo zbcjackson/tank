@@ -43,9 +43,9 @@ htmlcov/
 .env
 .env.local
 
-# Runtime data
-data/
-models/
+# Runtime data (no trailing slash — matches both dirs and symlinks in worktrees)
+data
+models
 *.db
 *.db-journal
 
