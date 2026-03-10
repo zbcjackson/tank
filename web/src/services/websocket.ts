@@ -4,6 +4,12 @@ export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnectin
 
 export type ErrorType = 'network' | 'server' | 'timeout' | 'unknown';
 
+export interface Capabilities {
+  asr: boolean;
+  tts: boolean;
+  speaker_id: boolean;
+}
+
 export interface ConnectionMetadata {
   attempt?: number;
   maxAttempts?: number;

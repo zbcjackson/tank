@@ -3,12 +3,15 @@ import {
   VoiceAssistantClient,
   type ConnectionState,
   type ConnectionMetadata,
+  type Capabilities,
 } from '../services/websocket';
 import type { WebsocketMessage } from '../services/websocket';
 import { AudioProcessor, type CalibrationState } from '../services/audio';
 import type { Step, StepType, ToolContent, Message } from '../types/message';
 
 export type { Step, StepType, ToolContent, Message };
+
+const DEFAULT_CAPABILITIES: Capabilities = { asr: true, tts: true, speaker_id: false };
 
 export const useAssistant = (sessionId: string) => {
   const [steps, setSteps] = useState<Step[]>([]);
@@ -20,14 +23,24 @@ export const useAssistant = (sessionId: string) => {
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [calibrationState, setCalibrationState] = useState<CalibrationState>({ status: 'idle' });
+  const [capabilities, setCapabilities] = useState<Capabilities>(DEFAULT_CAPABILITIES);
 
   const clientRef = useRef<VoiceAssistantClient | null>(null);
   const audioProcessorRef = useRef<AudioProcessor | null>(null);
+  const audioStartedRef = useRef(false);
 
   const handleMessage = useCallback((msg: WebsocketMessage) => {
     if (msg.type === 'signal') {
       if (msg.content === 'ready') {
-        // Connection ready signal handled by onConnectionStateChange
+        // Extract capabilities from ready signal metadata
+        const caps = msg.metadata?.capabilities as Capabilities | undefined;
+        if (caps) {
+          setCapabilities(caps);
+          // Force chat mode when ASR is disabled
+          if (!caps.asr) {
+            setMode('chat');
+          }
+        }
       } else if (msg.content === 'processing_started') setIsAssistantTyping(true);
       else if (msg.content === 'processing_ended') setIsAssistantTyping(false);
       return;
@@ -174,6 +187,7 @@ export const useAssistant = (sessionId: string) => {
       },
     );
 
+    // AudioProcessor is created eagerly but started lazily (after capabilities arrive)
     const audioProcessor = new AudioProcessor((data) => client.sendAudio(data), {
       onSpeechChange: (isSpeech) => setIsUserSpeaking(isSpeech),
       onCalibrationChange: (state) => {
@@ -182,11 +196,7 @@ export const useAssistant = (sessionId: string) => {
       },
     });
     audioProcessorRef.current = audioProcessor;
-    audioProcessor.start().catch((err) => {
-      console.error('Failed to start audio processor:', err);
-      setConnectionState('failed');
-      setConnectionMetadata({ error: 'Failed to start audio processor' });
-    });
+    audioStartedRef.current = false;
 
     const handleBeforeUnload = () => {
       clientRef.current?.disconnect();
@@ -211,6 +221,20 @@ export const useAssistant = (sessionId: string) => {
     };
   }, [sessionId, handleMessage]);
 
+  // Start AudioProcessor only after capabilities confirm ASR is enabled
+  useEffect(() => {
+    const processor = audioProcessorRef.current;
+    if (!processor || audioStartedRef.current) return;
+    if (!capabilities.asr) return;
+
+    audioStartedRef.current = true;
+    processor.start().catch((err) => {
+      console.error('Failed to start audio processor:', err);
+      setConnectionState('failed');
+      setConnectionMetadata({ error: 'Failed to start audio processor' });
+    });
+  }, [capabilities.asr]);
+
   const sendMessage = useCallback((text: string) => {
     if (clientRef.current) {
       clientRef.current.sendMessage('input', text);
@@ -218,8 +242,8 @@ export const useAssistant = (sessionId: string) => {
   }, []);
 
   const toggleMode = useCallback(
-    () => setMode((prev) => (prev === 'voice' ? 'chat' : 'voice')),
-    [],
+    () => setMode((prev) => (prev === 'voice' ? 'chat' : capabilities.asr ? 'voice' : 'chat')),
+    [capabilities.asr],
   );
 
   const toggleMute = useCallback(() => {
@@ -278,6 +302,7 @@ export const useAssistant = (sessionId: string) => {
     connectionState,
     connectionMetadata,
     calibrationState,
+    capabilities,
     sendMessage,
     toggleMode,
     toggleMute,

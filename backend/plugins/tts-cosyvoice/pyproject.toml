@@ -26,5 +26,15 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.tank]
+plugin_name = "tts-cosyvoice"
+display_name = "CosyVoice TTS"
+description = "CosyVoice TTS plugin with SFT and zero-shot modes"
+
+[[tool.tank.extensions]]
+name = "tts"
+type = "tts"
+factory = "tts_cosyvoice:create_engine"
+
 [tool.uv.sources]
 tank-contracts = { workspace = true }

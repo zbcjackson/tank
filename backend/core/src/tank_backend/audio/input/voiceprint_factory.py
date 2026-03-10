@@ -26,6 +26,11 @@ def create_voiceprint_recognizer(app_config: AppConfig) -> VoiceprintRecognizer:
         from ...plugin import load_plugin
 
         slot_config = app_config.get_slot_config("speaker")
+
+        # Slot disabled or absent — return disabled recognizer
+        if not slot_config.enabled:
+            return _create_disabled_recognizer()
+
         plugin_cfg = slot_config.config
 
         # Load the embedding extractor via plugin system

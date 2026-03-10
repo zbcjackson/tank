@@ -3,7 +3,9 @@
 # LLM profiles: named configurations for different LLM providers/models.
 # Use ${VAR} syntax to reference environment variables (secrets stay in .env).
 #
-# TTS plugin: which TTS engine to use and its settings.
+# Plugin slots: each slot can be enabled/disabled independently.
+# Use "extension: plugin-name:ext-name" to reference a specific extension.
+# Set "enabled: false" or remove the section entirely to disable a feature.
 
 llm:
   default:
@@ -18,14 +20,23 @@ llm:
     stream_options: true
 
 asr:
-  plugin: asr-sherpa
+  enabled: true
+  extension: asr-sherpa:asr
   config:
     model_dir: ../models/sherpa-onnx-zipformer-en-zh
     num_threads: 4
     sample_rate: 16000
 
+tts:
+  enabled: true
+  extension: tts-edge:tts
+  config:
+    voice_en: en-US-JennyNeural
+    voice_zh: zh-CN-XiaoxiaoNeural
+
 speaker:
-  plugin: speaker-sherpa
+  enabled: true
+  extension: speaker-sherpa:speaker_id
   config:
     model_path: ../models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx
     num_threads: 1
@@ -34,11 +45,6 @@ speaker:
     threshold: 0.6
     default_user: Unknown
 
-tts:
-  plugin: tts-edge
-  config:
-    voice_en: en-US-JennyNeural
-    voice_zh: zh-CN-XiaoxiaoNeural
 
 sandbox:
   enabled: true

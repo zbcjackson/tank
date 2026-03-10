@@ -18,5 +18,15 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.tank]
+plugin_name = "asr-sherpa"
+display_name = "Sherpa-ONNX ASR"
+description = "Sherpa-ONNX streaming ASR plugin"
+
+[[tool.tank.extensions]]
+name = "asr"
+type = "asr"
+factory = "asr_sherpa:create_engine"
+
 [tool.uv.sources]
 tank-contracts = { workspace = true }

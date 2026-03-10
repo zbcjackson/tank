@@ -38,10 +38,11 @@ class Brain(QueueWorker[BrainInputEvent]):
         self,
         shutdown_signal: StopSignal,
         runtime: RuntimeContext,
-        speaker_ref: AudioOutput,
+        speaker_ref: "AudioOutput | None",
         llm: "LLM",
         tool_manager: "ToolManager",
         config: VoiceAssistantConfig,
+        tts_enabled: bool = True,
     ):
         super().__init__(
             name="BrainThread",
@@ -54,6 +55,7 @@ class Brain(QueueWorker[BrainInputEvent]):
         self._llm = llm
         self._tool_manager = tool_manager
         self._config = config
+        self._tts_enabled = tts_enabled
 
         # Load system prompt from file
         self._system_prompt = self._load_system_prompt()
@@ -218,10 +220,11 @@ class Brain(QueueWorker[BrainInputEvent]):
                 if full_response_text:
                     self._add_to_conversation_history("assistant", full_response_text)
 
-                    # 3. Trigger TTS only after full response is generated
-                    self._runtime.audio_output_queue.put(
-                        AudioOutputRequest(content=full_response_text, language=language)
-                    )
+                    # 3. Trigger TTS only when enabled and response is non-empty
+                    if self._tts_enabled:
+                        self._runtime.audio_output_queue.put(
+                            AudioOutputRequest(content=full_response_text, language=language)
+                        )
 
             except BrainInterrupted:
                 raise

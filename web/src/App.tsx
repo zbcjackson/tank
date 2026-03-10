@@ -27,6 +27,7 @@ function App() {
     manualReconnect,
     pauseAudioCapture,
     resumeAudioCapture,
+    capabilities,
   } = useAssistant(SESSION_ID);
 
   const calibrationStatusText =
@@ -92,7 +93,7 @@ function App() {
         </AnimatePresence>
       </main>
 
-      <ModeToggle mode={mode} onToggle={toggleMode} />
+      {capabilities.asr && <ModeToggle mode={mode} onToggle={toggleMode} />}
     </div>
   );
 }

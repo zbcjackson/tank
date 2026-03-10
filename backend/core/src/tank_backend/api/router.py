@@ -133,9 +133,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     display_task = asyncio.create_task(pipe_display_messages())
 
     try:
-        # Send 'ready' signal
+        # Send 'ready' signal with capabilities
         ready_msg = WebsocketMessage(
-            type=MessageType.SIGNAL, content="ready", session_id=session_id
+            type=MessageType.SIGNAL,
+            content="ready",
+            session_id=session_id,
+            metadata={"capabilities": assistant.capabilities},
         )
         await websocket.send_text(ready_msg.model_dump_json())
 
@@ -146,6 +149,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             if "bytes" in data:
                 # Binary: push to Assistant's QueueAudioSource
+                if assistant.audio_input is None:
+                    continue  # ASR disabled — silently drop audio
+
                 import time
 
                 import numpy as np
@@ -162,7 +168,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
                 if msg.type == MessageType.SIGNAL:
                     if msg.content == "interrupt":
-                        assistant.audio_output.interrupt()
+                        if assistant.audio_output is not None:
+                            assistant.audio_output.interrupt()
                     elif msg.content == "disconnect":
                         break
                     elif msg.content == "ping":

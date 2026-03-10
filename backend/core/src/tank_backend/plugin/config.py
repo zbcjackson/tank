@@ -12,13 +12,27 @@ from .yaml_loader import load_yaml
 
 logger = logging.getLogger(__name__)
 
+# Sentinel for "no plugin" (disabled slot)
+_DISABLED_PLUGIN = ""
+
 
 @dataclass(frozen=True)
 class SlotConfig:
-    """Typed configuration for a single plugin slot."""
+    """Typed configuration for a single plugin slot.
 
-    plugin: str
+    When ``enabled`` is False the slot is inactive — callers should skip
+    loading the plugin entirely.
+
+    ``extension`` holds the ``{plugin}:{ext}`` reference when using the
+    new manifest-aware format.  For legacy configs that only specify
+    ``plugin:``, it is ``None`` and the loader falls back to
+    ``create_engine()``.
+    """
+
+    plugin: str = _DISABLED_PLUGIN
     config: dict[str, Any] = field(default_factory=dict)
+    enabled: bool = True
+    extension: str | None = None
 
 
 def find_config_yaml() -> Path:
@@ -63,20 +77,54 @@ class AppConfig:
             logger.error(f"Failed to load config: {e}")
             raise
 
-    def get_slot_config(self, slot: str) -> SlotConfig:
-        """Get configuration for a plugin slot (e.g. "tts")."""
-        slot_config = self._config.get(slot, {})
-        if not slot_config:
-            raise ValueError(f"No configuration found for slot '{slot}'")
+    # ── Slot helpers ─────────────────────────────────────────────
 
-        plugin_name = slot_config.get("plugin")
+    def get_slot_config(self, slot: str) -> SlotConfig:
+        """Get configuration for a plugin slot (e.g. ``"tts"``).
+
+        Returns a *disabled* ``SlotConfig`` when the slot section is
+        absent from the YAML or has ``enabled: false``.  This lets
+        callers skip plugin loading without catching exceptions.
+        """
+        slot_data = self._config.get(slot, {})
+        if not slot_data:
+            return SlotConfig(enabled=False)
+
+        # Explicit ``enabled: false`` in YAML
+        if not slot_data.get("enabled", True):
+            return SlotConfig(enabled=False)
+
+        # New format: ``extension: plugin:ext``
+        extension_ref = slot_data.get("extension")
+
+        # Legacy format: ``plugin: plugin-name``
+        plugin_name = slot_data.get("plugin", "")
+
+        # Derive plugin name from extension ref if present
+        if extension_ref and not plugin_name:
+            plugin_name = extension_ref.split(":")[0]
+
         if not plugin_name:
-            raise ValueError(f"No plugin specified for slot '{slot}'")
+            return SlotConfig(enabled=False)
 
         return SlotConfig(
             plugin=plugin_name,
-            config=slot_config.get("config", {}),
+            config=slot_data.get("config", {}),
+            enabled=True,
+            extension=extension_ref,
         )
+
+    def is_slot_enabled(self, slot: str) -> bool:
+        """Check whether a feature slot is enabled."""
+        return self.get_slot_config(slot).enabled
+
+    def get_capabilities(self) -> dict[str, bool]:
+        """Return a dict of feature capabilities for the frontend."""
+        return {
+            "asr": self.is_slot_enabled("asr"),
+            "tts": self.is_slot_enabled("tts"),
+            "speaker_id": self.is_slot_enabled("speaker"),
+        }
 
     # ── LLM profiles ──────────────────────────────────────────────
 
