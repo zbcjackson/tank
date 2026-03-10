@@ -1,19 +1,34 @@
 import { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 
-const BAR_COUNT = 96;
-const IDLE_HEIGHTS = new Array(BAR_COUNT).fill(2);
+const BAR_COUNT = 64;
+const IDLE_HEIGHTS = new Array(BAR_COUNT).fill(1);
+const BAR_TRANSITION = { duration: 0.06, ease: 'linear' as const };
+const WAVEFORM_STYLE = { width: 200, height: 80 };
+
+// Pre-compute per-bar static values (centerDist, envelope, active/idle opacities)
+const BAR_CENTER_DISTS = new Array(BAR_COUNT);
+const BAR_ENVELOPES = new Array(BAR_COUNT);
+const BAR_ACTIVE_STYLES = new Array<React.CSSProperties>(BAR_COUNT);
+const BAR_IDLE_STYLES = new Array<React.CSSProperties>(BAR_COUNT);
+for (let i = 0; i < BAR_COUNT; i++) {
+  const centerDist = Math.abs(i - BAR_COUNT / 2) / (BAR_COUNT / 2);
+  BAR_CENTER_DISTS[i] = centerDist;
+  BAR_ENVELOPES[i] = 1 - centerDist * centerDist * 0.6;
+  const activeOpacity = Math.max(0.2, 1 - centerDist * 0.7);
+  BAR_ACTIVE_STYLES[i] = { width: 2, background: `rgba(212, 160, 84, ${activeOpacity})` };
+  BAR_IDLE_STYLES[i] = { width: 2, background: 'rgba(212, 160, 84, 0.1)' };
+}
 
 interface WaveformProps {
   active: boolean;
-  variant?: 'primary' | 'white';
   getAnalyserNode?: () => AnalyserNode | null;
 }
 
-export const Waveform = ({ active, variant = 'primary', getAnalyserNode }: WaveformProps) => {
+export const Waveform = ({ active, getAnalyserNode }: WaveformProps) => {
   const [liveHeights, setLiveHeights] = useState<number[]>(IDLE_HEIGHTS);
   const rafRef = useRef<number>(0);
-  const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
+  const dataArrayRef = useRef<Uint8Array | null>(null);
   const getAnalyserRef = useRef(getAnalyserNode);
   useEffect(() => {
     getAnalyserRef.current = getAnalyserNode;
@@ -34,9 +49,7 @@ export const Waveform = ({ active, variant = 'primary', getAnalyserNode }: Wavef
       }
 
       if (!dataArrayRef.current || dataArrayRef.current.length !== analyser.frequencyBinCount) {
-        dataArrayRef.current = new Uint8Array(
-          analyser.frequencyBinCount,
-        ) as Uint8Array<ArrayBuffer>;
+        dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
       }
 
       analyser.getByteFrequencyData(dataArrayRef.current);
@@ -52,9 +65,8 @@ export const Waveform = ({ active, variant = 'primary', getAnalyserNode }: Wavef
         for (let j = startBin; j < startBin + step && j < binCount; j++) {
           if (data[j] > max) max = data[j];
         }
-        const normalized = max / 255;
-        const boosted = Math.pow(normalized, 0.85);
-        heights[i] = 2 + boosted * 98;
+        const boosted = Math.pow(max / 255, 0.8) * BAR_ENVELOPES[i];
+        heights[i] = 1 + boosted * 60;
       }
 
       setLiveHeights(heights);
@@ -69,19 +81,16 @@ export const Waveform = ({ active, variant = 'primary', getAnalyserNode }: Wavef
   }, [active, getAnalyserNode]);
 
   const barHeights = active ? liveHeights : IDLE_HEIGHTS;
-  const colorClass = variant === 'white' ? 'bg-white' : 'bg-primary';
 
   return (
-    <div className="flex items-center justify-center gap-[2px] h-24">
+    <div className="flex items-center justify-center gap-[1.5px]" style={WAVEFORM_STYLE}>
       {barHeights.map((height, i) => (
         <motion.div
           key={i}
-          className={`w-1 rounded-full ${colorClass}`}
-          animate={{
-            height: active ? height : 2,
-            opacity: active ? Math.max(0.3, height / 100) : 0.2,
-          }}
-          transition={{ duration: 0.06, ease: 'linear' }}
+          className="rounded-full"
+          style={active ? BAR_ACTIVE_STYLES[i] : BAR_IDLE_STYLES[i]}
+          animate={{ height: active ? height : 1 }}
+          transition={BAR_TRANSITION}
         />
       ))}
     </div>

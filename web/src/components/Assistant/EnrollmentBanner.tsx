@@ -2,6 +2,15 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserPlus, X, Mic, Check, Loader2 } from 'lucide-react';
 
+const RECORDING_PULSE_ANIMATE = { scale: [1, 1.2, 1] };
+const RECORDING_PULSE_TRANSITION = { repeat: Infinity, duration: 1.5 };
+const MODAL_INITIAL = { scale: 0.96, opacity: 0 };
+const MODAL_ANIMATE = { scale: 1, opacity: 1 };
+const MODAL_TRANSITION = { duration: 0.2 };
+const BANNER_INITIAL = { opacity: 0, y: -10 };
+const BANNER_ANIMATE = { opacity: 1, y: 0 };
+const BANNER_EXIT = { opacity: 0, y: -10 };
+
 interface EnrollmentBannerProps {
   speaker: string | undefined;
   onEnrollComplete: () => void;
@@ -23,17 +32,17 @@ export const EnrollmentBanner = ({
     <>
       <AnimatePresence>
         <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          className="mx-6 mt-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 flex items-center gap-3"
+          initial={BANNER_INITIAL}
+          animate={BANNER_ANIMATE}
+          exit={BANNER_EXIT}
+          className="mx-6 mt-2 bg-amber-500/5 border border-amber-500/10 rounded-xl px-4 py-3 flex items-center gap-3"
         >
-          <UserPlus size={18} className="text-amber-600 dark:text-amber-400 shrink-0" />
-          <p className="text-sm text-amber-700 dark:text-amber-300 flex-1">
+          <UserPlus size={16} className="text-amber-500/60 shrink-0" />
+          <p className="text-[13px] text-text-secondary flex-1">
             未识别的说话者。
             <button
               onClick={() => setShowModal(true)}
-              className="ml-1 underline font-semibold hover:text-amber-900 dark:hover:text-amber-100 transition-colors"
+              className="ml-1 underline underline-offset-2 font-medium text-amber-400 hover:text-amber-300 transition-colors"
             >
               录制声纹
             </button>
@@ -81,7 +90,6 @@ const EnrollmentModal = ({
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Resume main audio capture when modal unmounts
   useEffect(() => {
     return () => {
       resumeAudioCapture();
@@ -103,7 +111,6 @@ const EnrollmentModal = ({
 
   const startRecording = async () => {
     try {
-      // Pause main audio capture so enrollment audio doesn't go to Brain
       pauseAudioCapture();
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -114,7 +121,6 @@ const EnrollmentModal = ({
       const audioContext = new AudioContext({ sampleRate: 16000 });
       audioContextRef.current = audioContext;
 
-      // Reuse the same AudioWorklet processor as the main app
       await audioContext.audioWorklet.addModule('/audio-processor.js');
 
       const source = audioContext.createMediaStreamSource(stream);
@@ -123,10 +129,9 @@ const EnrollmentModal = ({
       const workletNode = new AudioWorkletNode(audioContext, 'audio-capture-processor');
       workletNodeRef.current = workletNode;
 
-      // Disable VAD — collect all audio frames for enrollment
       workletNode.port.postMessage({
         type: 'vad-config',
-        threshold: 0, // treat everything as speech so all frames are emitted
+        threshold: 0,
         preRollSize: 0,
         hangoverMax: 999999,
       });
@@ -155,7 +160,6 @@ const EnrollmentModal = ({
         clearInterval(countdownInterval);
         cleanupRecording();
 
-        // Merge Int16 chunks into a single blob
         const totalLength = chunks.reduce((acc, c) => acc + c.byteLength, 0);
         const merged = new Uint8Array(totalLength);
         let offset = 0;
@@ -209,33 +213,34 @@ const EnrollmentModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+        initial={MODAL_INITIAL}
+        animate={MODAL_ANIMATE}
+        transition={MODAL_TRANSITION}
+        className="bg-surface-raised border border-border-subtle rounded-2xl shadow-2xl shadow-black/50 w-full max-w-md mx-4 overflow-hidden"
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b dark:border-zinc-800">
-          <h3 className="text-lg font-bold dark:text-white">录制声纹</h3>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle">
+          <h3 className="text-sm font-semibold text-text-primary">录制声纹</h3>
           <button
             onClick={handleClose}
-            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1 rounded-lg hover:bg-white/5 transition-colors"
           >
-            <X size={20} className="text-slate-500" />
+            <X size={18} className="text-text-muted" />
           </button>
         </div>
 
         <div className="p-6 space-y-5">
           {state === 'idle' && (
             <>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
+              <p className="text-sm text-text-secondary">
                 点击录制按钮，朗读任意内容 5 秒钟。系统将记录您的声纹特征。
               </p>
               <button
                 onClick={startRecording}
-                className="w-full flex items-center justify-center gap-2 bg-primary text-white py-3 rounded-xl font-semibold hover:bg-primary/90 transition-colors"
+                className="w-full flex items-center justify-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 py-3 rounded-xl font-medium hover:bg-amber-500/15 transition-colors"
               >
-                <Mic size={20} />
+                <Mic size={18} />
                 开始录制
               </button>
             </>
@@ -243,24 +248,27 @@ const EnrollmentModal = ({
 
           {state === 'recording' && (
             <div className="text-center space-y-4">
-              <div className="w-20 h-20 mx-auto bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center animate-pulse">
-                <Mic size={32} className="text-red-500" />
+              <div className="w-16 h-16 mx-auto rounded-full flex items-center justify-center bg-red-500/10 border border-red-500/20">
+                <motion.div
+                  animate={RECORDING_PULSE_ANIMATE}
+                  transition={RECORDING_PULSE_TRANSITION}
+                >
+                  <Mic size={24} className="text-red-400" />
+                </motion.div>
               </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                正在录制... 请朗读任意内容
-              </p>
-              <p className="text-3xl font-bold text-red-500">{countdown}s</p>
+              <p className="text-sm text-text-secondary">正在录制... 请朗读任意内容</p>
+              <p className="text-2xl font-mono font-semibold text-red-400">{countdown}s</p>
             </div>
           )}
 
           {state === 'recorded' && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                <Check size={20} />
+              <div className="flex items-center gap-2 text-emerald-400">
+                <Check size={18} />
                 <span className="text-sm font-medium">录制完成</span>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-xs font-mono tracking-wider text-text-muted uppercase mb-2">
                   您的名字
                 </label>
                 <input
@@ -268,14 +276,14 @@ const EnrollmentModal = ({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="输入您的名字..."
-                  className="w-full bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary dark:text-white"
+                  className="w-full bg-surface border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-amber-500/30 transition-colors"
                   autoFocus
                 />
               </div>
               <button
                 onClick={submitEnrollment}
                 disabled={!name.trim()}
-                className="w-full flex items-center justify-center gap-2 bg-primary text-white py-3 rounded-xl font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 py-3 rounded-xl font-medium hover:bg-amber-500/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 保存声纹
               </button>
@@ -283,33 +291,31 @@ const EnrollmentModal = ({
           )}
 
           {state === 'submitting' && (
-            <div className="text-center space-y-3">
-              <Loader2 size={32} className="mx-auto text-primary animate-spin" />
-              <p className="text-sm text-slate-600 dark:text-slate-400">正在保存...</p>
+            <div className="text-center space-y-3 py-4">
+              <Loader2 size={24} className="mx-auto text-amber-400 animate-spin" />
+              <p className="text-sm text-text-secondary">正在保存...</p>
             </div>
           )}
 
           {state === 'done' && (
-            <div className="text-center space-y-3">
-              <div className="w-16 h-16 mx-auto bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
-                <Check size={32} className="text-green-500" />
+            <div className="text-center space-y-3 py-4">
+              <div className="w-14 h-14 mx-auto rounded-full flex items-center justify-center bg-emerald-500/10 border border-emerald-500/20">
+                <Check size={24} className="text-emerald-400" />
               </div>
-              <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                声纹注册成功
-              </p>
+              <p className="text-sm font-medium text-emerald-400">声纹注册成功</p>
             </div>
           )}
 
           {state === 'error' && (
             <div className="space-y-4">
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              <p className="text-sm text-red-400">{error}</p>
               <button
                 onClick={() => {
                   setState('idle');
                   setError('');
                   setAudioBlob(null);
                 }}
-                className="w-full bg-slate-100 dark:bg-zinc-800 py-3 rounded-xl font-semibold text-sm hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors dark:text-white"
+                className="w-full bg-white/5 border border-border-subtle py-3 rounded-xl font-medium text-sm text-text-secondary hover:bg-white/8 transition-colors"
               >
                 重试
               </button>

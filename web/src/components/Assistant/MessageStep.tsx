@@ -1,10 +1,40 @@
 import { motion } from 'framer-motion';
-import { Cpu, Wrench } from 'lucide-react';
+import { Wrench } from 'lucide-react';
 import { WeatherCard } from './WeatherCard';
 import type { WeatherData } from './WeatherCard';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Step, ToolContent } from '../../types/message';
+
+const remarkPlugins = [remarkGfm];
+
+const markdownComponents = {
+  p: (props: React.ComponentProps<'p'>) => <p className="mb-2 last:mb-0" {...props} />,
+  ul: (props: React.ComponentProps<'ul'>) => (
+    <ul className="list-disc ml-4 mb-2 text-text-secondary" {...props} />
+  ),
+  ol: (props: React.ComponentProps<'ol'>) => (
+    <ol className="list-decimal ml-4 mb-2 text-text-secondary" {...props} />
+  ),
+  strong: (props: React.ComponentProps<'strong'>) => (
+    <strong className="font-semibold text-text-primary" {...props} />
+  ),
+  a: (props: React.ComponentProps<'a'>) => (
+    <a className="text-amber-400 underline underline-offset-2 hover:text-amber-300" {...props} />
+  ),
+  code: (props: React.ComponentProps<'code'>) => (
+    <code
+      className="bg-white/5 px-1.5 py-0.5 rounded text-[13px] font-mono text-amber-300/80"
+      {...props}
+    />
+  ),
+  pre: (props: React.ComponentProps<'pre'>) => (
+    <pre
+      className="bg-black/40 border border-border-subtle p-3 rounded-xl overflow-x-auto my-2 font-mono text-[13px] text-text-secondary"
+      {...props}
+    />
+  ),
+};
 
 interface MessageStepProps {
   step: Pick<Step, 'id' | 'type' | 'content'>;
@@ -15,28 +45,13 @@ export const MessageStep = ({ step, role }: MessageStepProps) => {
   if (step.type === 'text') {
     return (
       <div
-        className={`px-5 py-3 rounded-2xl text-[15px] leading-relaxed shadow-sm transition-all ${role === 'user' ? 'bg-primary text-white rounded-tr-none' : 'bg-white dark:bg-zinc-900 border dark:border-zinc-800 rounded-tl-none text-slate-800 dark:text-slate-200'}`}
+        className={`px-4 py-3 rounded-2xl text-[14px] leading-relaxed ${
+          role === 'user'
+            ? 'bg-amber-500/10 text-text-primary border border-amber-500/10 rounded-tr-sm'
+            : 'bg-surface-raised text-text-primary border border-border-subtle rounded-tl-sm'
+        }`}
       >
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            p: (props) => <p className="mb-2 last:mb-0" {...props} />,
-            ul: (props) => <ul className="list-disc ml-4 mb-2" {...props} />,
-            ol: (props) => <ol className="list-decimal ml-4 mb-2" {...props} />,
-            code: (props) => (
-              <code
-                className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded text-sm font-mono"
-                {...props}
-              />
-            ),
-            pre: (props) => (
-              <pre
-                className="bg-zinc-100 dark:bg-zinc-800 p-3 rounded-xl overflow-x-auto my-2 font-mono text-sm"
-                {...props}
-              />
-            ),
-          }}
-        >
+        <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
           {step.content as string}
         </ReactMarkdown>
       </div>
@@ -45,49 +60,60 @@ export const MessageStep = ({ step, role }: MessageStepProps) => {
 
   if (step.type === 'thinking') {
     return (
-      <div className="flex flex-col gap-1 w-full max-w-2xl">
-        <div className="px-5 py-3 rounded-2xl bg-white/50 dark:bg-zinc-900/50 text-[13px] text-slate-500 italic border border-slate-200 dark:border-zinc-800 shadow-sm leading-relaxed rounded-tl-none">
-          <div className="flex items-center gap-2 mb-1.5 opacity-60 not-italic">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-2xl">
+        <div className="px-4 py-3 rounded-2xl rounded-tl-sm bg-surface/50 border border-border-subtle text-[13px] text-text-muted leading-relaxed">
+          <div className="flex items-center gap-2 mb-1.5">
             <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 4, ease: 'linear' }}
-            >
-              <Cpu size={14} className="text-primary" />
-            </motion.div>
-            <span className="text-[10px] font-black uppercase tracking-widest">
-              Internal Thought
+              className="w-1 h-1 rounded-full bg-amber-500/50"
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+            />
+            <span className="text-[10px] font-mono tracking-widest text-text-muted uppercase">
+              Thinking
             </span>
           </div>
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{step.content as string}</ReactMarkdown>
+          <div className="text-text-secondary/70 italic">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{step.content as string}</ReactMarkdown>
+          </div>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   if (step.type === 'tool') {
     const content = step.content as ToolContent;
     return (
-      <div className="flex flex-col gap-1.5 w-full max-w-2xl">
-        <div className="flex flex-col gap-2 p-1 bg-white dark:bg-zinc-900 border dark:border-zinc-800 rounded-2xl shadow-sm rounded-tl-none overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-2 border-b dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/50">
-            <Wrench size={14} className="text-green-500" />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              Tool Execution
+      <div className="w-full max-w-2xl">
+        <div className="rounded-2xl rounded-tl-sm bg-surface-raised border border-border-subtle overflow-hidden">
+          {/* Tool header */}
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border-subtle">
+            <Wrench size={12} className="text-amber-500/60" />
+            <span className="text-[10px] font-mono tracking-widest text-text-muted uppercase">
+              {content.name}
+            </span>
+            <span
+              className={`ml-auto text-[9px] font-mono tracking-wider uppercase ${
+                content.status === 'success'
+                  ? 'text-emerald-500/60'
+                  : content.status === 'error'
+                    ? 'text-red-500/60'
+                    : 'text-amber-500/60'
+              }`}
+            >
+              {content.status}
             </span>
           </div>
-          <div className="p-3 pt-1 space-y-2">
-            <div className="text-xs font-mono bg-zinc-950 text-zinc-300 p-3 rounded-xl border border-zinc-800 shadow-inner">
-              <span className="text-primary-foreground/50 mr-2">$</span>
-              <span className="text-blue-400">{content.name}</span>
-              <span className="text-zinc-500"> --args </span>
-              <span className="text-orange-300">{JSON.stringify(content.arguments)}</span>
+
+          {/* Tool body */}
+          <div className="p-3 space-y-2">
+            <div className="text-[12px] font-mono bg-black/30 text-text-secondary p-3 rounded-xl border border-border-subtle">
+              <span className="text-text-muted mr-2">$</span>
+              <span className="text-amber-400/80">{content.name}</span>
+              <span className="text-text-muted"> </span>
+              <span className="text-text-secondary/60">{JSON.stringify(content.arguments)}</span>
             </div>
             {content.result && (
-              <div className="text-[11px] font-mono bg-zinc-50 dark:bg-black/40 p-3 rounded-xl border dark:border-zinc-800 text-zinc-500 max-h-48 overflow-y-auto">
-                <div className="flex justify-between mb-1 opacity-50">
-                  <span className="font-bold uppercase text-[9px]">Output</span>
-                  <span className="text-[9px]">Success</span>
-                </div>
+              <div className="text-[11px] font-mono bg-black/20 p-3 rounded-xl border border-border-subtle text-text-muted max-h-48 overflow-y-auto scrollbar-thin">
                 {content.result}
               </div>
             )}

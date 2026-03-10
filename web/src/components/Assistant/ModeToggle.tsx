@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Volume2 } from 'lucide-react';
+import { MessageSquare, AudioLines } from 'lucide-react';
 
 interface ModeToggleProps {
   mode: 'voice' | 'chat';
@@ -9,12 +9,13 @@ interface ModeToggleProps {
 export const ModeToggle = ({ mode, onToggle }: ModeToggleProps) => {
   return (
     <motion.button
-      initial={{ scale: 0 }}
-      animate={{ scale: 1 }}
-      whileHover={{ scale: 1.1 }}
-      whileTap={{ scale: 0.9 }}
+      initial={{ scale: 0, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ delay: 0.3, type: 'spring', stiffness: 200, damping: 20 }}
+      whileHover={{ scale: 1.06 }}
+      whileTap={{ scale: 0.94 }}
       onClick={onToggle}
-      className={`fixed bottom-8 right-8 w-14 h-14 rounded-full shadow-2xl border flex items-center justify-center z-50 transition-all duration-500 ${mode === 'voice' ? 'bg-white/10 text-white border-white/20 backdrop-blur-md hover:bg-white/20' : 'bg-white dark:bg-zinc-800 text-primary border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-700'}`}
+      className="fixed bottom-8 right-8 w-12 h-12 rounded-full flex items-center justify-center z-50 bg-surface-raised border border-border-subtle text-text-secondary hover:text-amber-400 hover:border-amber-500/20 transition-all duration-300 shadow-lg shadow-black/30"
     >
       <AnimatePresence mode="wait">
         {mode === 'voice' ? (
@@ -23,8 +24,9 @@ export const ModeToggle = ({ mode, onToggle }: ModeToggleProps) => {
             initial={{ rotate: -90, opacity: 0 }}
             animate={{ rotate: 0, opacity: 1 }}
             exit={{ rotate: 90, opacity: 0 }}
+            transition={{ duration: 0.15 }}
           >
-            <MessageSquare size={24} />
+            <MessageSquare size={18} />
           </motion.div>
         ) : (
           <motion.div
@@ -32,8 +34,9 @@ export const ModeToggle = ({ mode, onToggle }: ModeToggleProps) => {
             initial={{ rotate: -90, opacity: 0 }}
             animate={{ rotate: 0, opacity: 1 }}
             exit={{ rotate: 90, opacity: 0 }}
+            transition={{ duration: 0.15 }}
           >
-            <Volume2 size={24} />
+            <AudioLines size={18} />
           </motion.div>
         )}
       </AnimatePresence>

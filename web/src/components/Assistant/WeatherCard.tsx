@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Sun, CloudRain, Wind } from 'lucide-react';
+import { Sun, Cloud, Wind } from 'lucide-react';
 
 export interface WeatherData {
   city: string;
@@ -8,31 +8,52 @@ export interface WeatherData {
   wind: string;
 }
 
+const CARD_BG_STYLE = {
+  background: 'linear-gradient(135deg, rgba(212,160,84,0.08) 0%, rgba(212,160,84,0.02) 100%)',
+};
+const ICON_BG_STYLE = { background: 'rgba(212,160,84,0.08)' };
+const CARD_INITIAL = { opacity: 0, y: 6 };
+const CARD_ANIMATE = { opacity: 1, y: 0 };
+const CARD_TRANSITION = { duration: 0.3 };
+
 interface WeatherCardProps {
   data: WeatherData;
 }
 
 export const WeatherCard = ({ data }: WeatherCardProps) => (
   <motion.div
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-5 rounded-3xl shadow-xl border border-white/20 my-3 w-full max-w-sm"
+    initial={CARD_INITIAL}
+    animate={CARD_ANIMATE}
+    transition={CARD_TRANSITION}
+    className="w-full max-w-sm my-2 rounded-2xl border border-border-subtle overflow-hidden"
+    style={CARD_BG_STYLE}
   >
-    <div className="flex justify-between items-start">
-      <div>
-        <h3 className="text-xl font-bold">{data.city}</h3>
-        <p className="text-5xl font-black mt-3">{data.temp}</p>
+    <div className="p-5">
+      <div className="flex justify-between items-start">
+        <div>
+          <p className="text-[11px] font-mono tracking-widest text-text-muted uppercase mb-1">
+            Weather
+          </p>
+          <h3 className="text-lg font-semibold text-text-primary">{data.city}</h3>
+          <p className="text-3xl font-semibold text-amber-400 mt-2">{data.temp}</p>
+        </div>
+        <div
+          className="w-12 h-12 rounded-xl flex items-center justify-center"
+          style={ICON_BG_STYLE}
+        >
+          <Sun size={24} className="text-amber-400/70" />
+        </div>
       </div>
-      <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
-        <Sun size={42} className="text-yellow-300" />
-      </div>
-    </div>
-    <div className="flex gap-5 mt-6 text-sm font-medium opacity-90">
-      <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full">
-        <CloudRain size={16} /> {data.condition}
-      </div>
-      <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full">
-        <Wind size={16} /> {data.wind}
+
+      <div className="flex gap-3 mt-5">
+        <div className="flex items-center gap-1.5 text-[12px] text-text-secondary px-2.5 py-1.5 rounded-lg bg-white/3 border border-border-subtle">
+          <Cloud size={13} className="text-text-muted" />
+          {data.condition}
+        </div>
+        <div className="flex items-center gap-1.5 text-[12px] text-text-secondary px-2.5 py-1.5 rounded-lg bg-white/3 border border-border-subtle">
+          <Wind size={13} className="text-text-muted" />
+          {data.wind}
+        </div>
       </div>
     </div>
   </motion.div>
