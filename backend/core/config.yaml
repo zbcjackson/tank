@@ -17,12 +17,12 @@ llm:
       X-Title: "Tank Voice Assistant"
     stream_options: true
 
-asr:
-  plugin: asr-sherpa
-  config:
-    model_dir: ../models/sherpa-onnx-zipformer-en-zh
-    num_threads: 4
-    sample_rate: 16000
+# asr:
+#   plugin: asr-sherpa
+#   config:
+#     model_dir: ../models/sherpa-onnx-zipformer-en-zh
+#     num_threads: 4
+#     sample_rate: 16000
 
 speaker:
   plugin: speaker-sherpa
@@ -34,8 +34,30 @@ speaker:
     threshold: 0.6
     default_user: Unknown
 
-tts:
-  plugin: tts-edge
+# tts:
+#   plugin: tts-edge
+#   config:
+#     voice_en: en-US-JennyNeural
+#     voice_zh: zh-CN-XiaoxiaoNeural
+
+# --- ElevenLabs Plugin Examples ---
+# Uncomment and configure to use ElevenLabs ASR/TTS instead of the defaults.
+# Add ELEVENLABS_API_KEY to your .env file.
+
+asr:
+  plugin: asr-elevenlabs
   config:
-    voice_en: en-US-JennyNeural
-    voice_zh: zh-CN-XiaoxiaoNeural
+    api_key: ${ELEVENLABS_API_KEY}
+    language_code: "" # Empty for auto-detect, or ISO code like "en" or "zh"
+    sample_rate: 16000
+
+tts:
+  plugin: tts-elevenlabs
+  config:
+    api_key: ${ELEVENLABS_API_KEY}
+    voice_id: "fJWwX1kFhmrWwRgnq1mu" # Replace with your voice ID
+    voice_id_zh: "fJWwX1kFhmrWwRgnq1mu" # Optional: separate voice for Chinese
+    model_id: eleven_flash_v2_5 # eleven_flash_v2_5 (fastest) or eleven_turbo_v2_5
+    sample_rate: 24000
+    stability: 0.5
+    similarity_boost: 0.75

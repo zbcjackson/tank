@@ -6,6 +6,8 @@ members = [
     "plugins/asr-sherpa",
     "plugins/speaker-sherpa",
     "plugins/tts-cosyvoice",
+    "plugins/asr-elevenlabs",
+    "plugins/tts-elevenlabs",
 ]
 
 [tool.uv.sources]
