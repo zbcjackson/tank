@@ -1,0 +1,6 @@
+asr:
+  plugin: asr-elevenlabs
+  config:
+    api_key: ${ELEVENLABS_API_KEY}
+    language_code: "" # Empty for auto-detect, or ISO code like "en" or "zh"
+    sample_rate: 16000
