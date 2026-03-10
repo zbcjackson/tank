@@ -13,6 +13,7 @@ from ..audio.output.types import AudioSinkFactory
 from ..config.settings import load_config
 from ..llm.profile import create_llm_from_profile
 from ..plugin import AppConfig
+from ..plugin.manager import PluginManager
 from ..sandbox.config import SandboxConfig
 from ..sandbox.manager import SandboxManager
 from ..tools.manager import ToolManager
@@ -46,8 +47,12 @@ class Assistant:
         # Load configuration
         self._config = load_config(config_path)
 
-        # Create LLM from config.yaml profile and ToolManager
-        self._app_config = AppConfig()
+        # 1. Load plugins and build registry
+        self._plugin_manager = PluginManager()
+        registry = self._plugin_manager.load_all()
+
+        # 2. Load and validate config against registry
+        self._app_config = AppConfig(registry=registry)
         profile = self._app_config.get_llm_profile("default")
         self._llm = create_llm_from_profile(profile)
         self._tool_manager = ToolManager(serper_api_key=self._config.serper_api_key)
@@ -74,40 +79,56 @@ class Assistant:
                 if self.audio_output is not None:
                     self.audio_output.interrupt()
 
+        # 3. Instantiate engines via registry
+        asr_engine = None
+        if asr_enabled:
+            slot = self._app_config.get_slot_config("asr")
+            asr_engine = registry.instantiate(slot.extension, slot.config)
+
+        tts_engine = None
+        if tts_enabled:
+            slot = self._app_config.get_slot_config("tts")
+            tts_engine = registry.instantiate(slot.extension, slot.config)
+
         # Create voiceprint recognizer if enabled
         self._voiceprint_streaming = None
         if self._config.enable_speaker_id and self._app_config.is_slot_enabled("speaker"):
             from ..audio.input.voiceprint_factory import create_voiceprint_recognizer
             from ..audio.input.voiceprint_streaming import StreamingVoiceprintRecognizer
 
-            recognizer = create_voiceprint_recognizer(self._app_config)
+            speaker_slot = self._app_config.get_slot_config("speaker")
+            speaker_extractor = registry.instantiate(
+                speaker_slot.extension, speaker_slot.config
+            )
+            recognizer = create_voiceprint_recognizer(
+                speaker_extractor, speaker_slot.config
+            )
             self._voiceprint_streaming = StreamingVoiceprintRecognizer(
                 recognizer,
                 sample_rate=(audio_input_config or AudioInputConfig()).audio_format.sample_rate,
             )
 
-        # Audio input subsystem (mic + segmentation + perception) — optional
+        # 4. Pass pre-built engines to subsystems
         self.audio_input: AudioInput | None = None
-        if asr_enabled:
+        if asr_engine is not None:
             self.audio_input = AudioInput(
                 shutdown_signal=self.shutdown_signal,
                 runtime=self.runtime,
                 cfg=audio_input_config or AudioInputConfig(),
-                app_config=self._app_config,
+                asr_engine=asr_engine,
                 on_speech_interrupt=_on_speech_interrupt,
                 source_factory=audio_source_factory,
                 voiceprint=self._voiceprint_streaming,
             )
 
-        # Audio output subsystem (TTS playback) — optional
         self.audio_output: AudioOutput | None = None
-        if tts_enabled:
+        if tts_engine is not None:
             self.audio_output = AudioOutput(
                 shutdown_signal=self.shutdown_signal,
                 runtime=self.runtime,
                 audio_output_queue=self.runtime.audio_output_queue,
                 config=self._config,
-                app_config=self._app_config,
+                tts_engine=tts_engine,
                 cfg=audio_output_config or AudioOutputConfig(),
                 sink_factory=audio_sink_factory,
             )

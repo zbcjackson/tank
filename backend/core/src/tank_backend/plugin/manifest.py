@@ -87,20 +87,58 @@ def _read_tool_tank(
     # Locate pyproject.toml via the distribution's origin
     files = dist.files
     if files:
-        # Find the package root from the first file in the distribution
         for f in files:
             located = dist.locate_file(f)
-            if located is not None:
-                pkg_root = Path(located).resolve().parent
-                # Walk up to find pyproject.toml
-                for parent in (pkg_root, *pkg_root.parents):
-                    candidate = parent / "pyproject.toml"
-                    if candidate.exists():
-                        with open(candidate, "rb") as fh:
-                            data = tomllib.load(fh)
-                        return data.get("tool", {}).get("tank")
-                break
+            if located is None:
+                continue
 
+            located = Path(located).resolve()
+
+            # Editable installs (uv/pip): .pth file content is the
+            # real source directory.  Read it and search from there.
+            if located.suffix == ".pth" and located.exists():
+                source_dir = _read_pth_source_dir(located)
+                if source_dir is not None:
+                    result = _find_tool_tank_in_ancestors(
+                        source_dir, tomllib,
+                    )
+                    if result is not None:
+                        return result
+
+            # Standard (non-editable) path: walk up from the file
+            result = _find_tool_tank_in_ancestors(
+                located.parent, tomllib,
+            )
+            if result is not None:
+                return result
+            break
+
+    return None
+
+
+def _read_pth_source_dir(pth_path: Path) -> Path | None:
+    """Read a ``.pth`` file and return the source directory it points to."""
+    try:
+        text = pth_path.read_text().strip()
+        # .pth files can contain import statements — skip those
+        if text.startswith("import "):
+            return None
+        candidate = Path(text)
+        if candidate.is_dir():
+            return candidate
+    except OSError:
+        pass
+    return None
+
+
+def _find_tool_tank_in_ancestors(start: Path, tomllib: object) -> dict | None:
+    """Walk up from *start* looking for ``pyproject.toml`` with ``[tool.tank]``."""
+    for parent in (start, *start.parents):
+        candidate = parent / "pyproject.toml"
+        if candidate.exists():
+            with open(candidate, "rb") as fh:
+                data = tomllib.load(fh)  # type: ignore[union-attr]
+            return data.get("tool", {}).get("tank")
     return None
 
 

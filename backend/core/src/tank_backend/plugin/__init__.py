@@ -1,19 +1,19 @@
 """Plugin system for Tank backend."""
 
 from .config import AppConfig, PluginConfig, SlotConfig, find_config_yaml
-from .loader import load_extension, load_plugin
+from .manager import ConfigError, PluginManager
 from .manifest import ExtensionManifest, PluginManifest, read_plugin_manifest
 from .registry import ExtensionRegistry
 
 __all__ = [
     "AppConfig",
+    "ConfigError",
     "ExtensionManifest",
     "ExtensionRegistry",
     "PluginConfig",
+    "PluginManager",
     "PluginManifest",
     "SlotConfig",
     "find_config_yaml",
-    "load_extension",
-    "load_plugin",
     "read_plugin_manifest",
 ]

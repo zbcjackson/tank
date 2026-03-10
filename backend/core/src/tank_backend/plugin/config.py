@@ -60,12 +60,20 @@ def find_config_yaml() -> Path:
 class AppConfig:
     """Application configuration loaded from core/config.yaml."""
 
-    def __init__(self, config_path: Path | str | None = None):
+    def __init__(
+        self,
+        config_path: Path | str | None = None,
+        registry: object | None = None,
+    ):
         if config_path is None:
             config_path = find_config_yaml()
         self._config_path = Path(config_path)
         self._config: dict[str, Any] = {}
+        self._registry = registry
         self._load()
+
+        if registry is not None:
+            self._validate_slots()
 
     def _load(self) -> None:
         """Load configuration from YAML file with ${VAR} interpolation."""
@@ -145,6 +153,37 @@ class AppConfig:
     def list_llm_profiles(self) -> list[str]:
         """Return the names of all configured LLM profiles."""
         return list(self._config.get("llm", {}).keys())
+
+    # ── Slot validation ────────────────────────────────────────────
+
+    def _validate_slots(self) -> None:
+        """Validate extension refs in config against the registry.
+
+        Raises:
+            ConfigError: If any slot references an unregistered or
+                type-mismatched extension.
+        """
+        from .manager import SLOT_TYPE_MAP, ConfigError
+
+        errors: list[str] = []
+        for slot_name, expected_type in SLOT_TYPE_MAP.items():
+            slot_cfg = self.get_slot_config(slot_name)
+            if not slot_cfg.enabled or not slot_cfg.extension:
+                continue
+            if not self._registry.has(slot_cfg.extension):  # type: ignore[union-attr]
+                errors.append(
+                    f"Slot '{slot_name}': extension '{slot_cfg.extension}' "
+                    f"is not registered (not installed or disabled)"
+                )
+                continue
+            ext_manifest = self._registry.get(slot_cfg.extension)  # type: ignore[union-attr]
+            if ext_manifest is not None and ext_manifest.type != expected_type:
+                errors.append(
+                    f"Slot '{slot_name}': extension '{slot_cfg.extension}' "
+                    f"has type '{ext_manifest.type}', expected '{expected_type}'"
+                )
+        if errors:
+            raise ConfigError(errors)
 
 
 # Backward-compatible alias

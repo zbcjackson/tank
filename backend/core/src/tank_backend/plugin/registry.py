@@ -1,36 +1,102 @@
-"""Extension registry — loaded extension instances keyed by (plugin, ext)."""
+"""Extension registry — manifest catalog keyed by 'plugin:extension'."""
 
 from __future__ import annotations
 
+import importlib
 import logging
+
+from .manifest import ExtensionManifest
 
 logger = logging.getLogger(__name__)
 
 
 class ExtensionRegistry:
-    """Loaded extension instances, keyed by ``(plugin_name, extension_name)``."""
+    """Extension manifests keyed by full name ``'plugin:extension'``.
+
+    Stores *metadata* (``ExtensionManifest``), not live instances.
+    Call :meth:`instantiate` to create an engine on demand.
+    """
 
     def __init__(self) -> None:
-        self._instances: dict[tuple[str, str], object] = {}
+        self._manifests: dict[str, ExtensionManifest] = {}
 
-    def register(
-        self, plugin_name: str, ext_name: str, instance: object
-    ) -> None:
-        key = (plugin_name, ext_name)
-        if key in self._instances:
-            logger.warning("Overwriting extension %s:%s", plugin_name, ext_name)
-        self._instances[key] = instance
+    # ── Registration ───────────────────────────────────────────
 
-    def get(self, plugin_name: str, ext_name: str) -> object | None:
-        return self._instances.get((plugin_name, ext_name))
+    def register(self, plugin_name: str, ext_manifest: ExtensionManifest) -> None:
+        """Register an extension manifest under ``'plugin:ext'``."""
+        full_name = f"{plugin_name}:{ext_manifest.name}"
+        if full_name in self._manifests:
+            logger.warning("Overwriting extension %s", full_name)
+        self._manifests[full_name] = ext_manifest
+        logger.debug("Registered extension %s (type=%s)", full_name, ext_manifest.type)
 
-    def get_all_by_type(self, ext_type: str) -> list[object]:
-        """Return all instances whose extension name matches *ext_type*."""
+    def unregister(self, full_name: str) -> bool:
+        """Remove an extension by full name. Returns True if it existed."""
+        return self._manifests.pop(full_name, None) is not None
+
+    # ── Lookup ─────────────────────────────────────────────────
+
+    def get(self, full_name: str) -> ExtensionManifest | None:
+        """Return the manifest for *full_name*, or ``None``."""
+        return self._manifests.get(full_name)
+
+    def has(self, full_name: str) -> bool:
+        """Check whether *full_name* is registered."""
+        return full_name in self._manifests
+
+    def list_by_type(self, ext_type: str) -> list[tuple[str, ExtensionManifest]]:
+        """Return all ``(full_name, manifest)`` pairs matching *ext_type*."""
         return [
-            inst
-            for (_, ename), inst in self._instances.items()
-            if ename == ext_type
+            (name, m)
+            for name, m in self._manifests.items()
+            if m.type == ext_type
         ]
 
+    def all_names(self) -> list[str]:
+        """Return all registered full names."""
+        return list(self._manifests.keys())
+
+    # ── Instantiation ──────────────────────────────────────────
+
+    def instantiate(self, full_name: str, config: dict) -> object:
+        """Create an engine instance from the stored factory.
+
+        The factory string is ``'module:callable'`` (e.g.
+        ``'tts_edge:create_engine'``).  If no colon is present the
+        callable defaults to ``create_engine``.
+
+        Args:
+            full_name: Registered extension key (e.g. ``'tts-edge:tts'``).
+            config: Runtime configuration dict passed to the factory.
+
+        Returns:
+            The engine instance.
+
+        Raises:
+            KeyError: If *full_name* is not registered.
+            ImportError: If the factory module cannot be imported.
+            AttributeError: If the callable is not found in the module.
+        """
+        manifest = self._manifests.get(full_name)
+        if manifest is None:
+            raise KeyError(
+                f"Extension '{full_name}' is not registered. "
+                f"Available: {self.all_names()}"
+            )
+
+        # Parse "module:callable"
+        if ":" in manifest.factory:
+            module_path, callable_name = manifest.factory.rsplit(":", 1)
+        else:
+            module_path = manifest.factory
+            callable_name = "create_engine"
+
+        module = importlib.import_module(module_path)
+        factory = getattr(module, callable_name)
+
+        instance = factory(config)
+        logger.info("Instantiated %s via %s", full_name, manifest.factory)
+        return instance
+
     def __len__(self) -> int:
-        return len(self._instances)
+        return len(self._manifests)

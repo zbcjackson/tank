@@ -11,6 +11,27 @@ from tank_backend.core.assistant import Assistant
 MODULE = "tank_backend.core.assistant"
 
 
+def _make_mock_app_config(asr=True, tts=True, speaker=False):
+    mock = MagicMock()
+    mock.get_llm_profile.return_value = MagicMock()
+
+    def is_slot_enabled(slot):
+        return {"asr": asr, "tts": tts, "speaker": speaker}.get(slot, False)
+
+    mock.is_slot_enabled.side_effect = is_slot_enabled
+
+    def get_slot_config(slot):
+        cfg = MagicMock()
+        cfg.enabled = is_slot_enabled(slot)
+        cfg.extension = f"mock-{slot}:{slot}" if cfg.enabled else None
+        cfg.config = {}
+        cfg.plugin = f"mock-{slot}" if cfg.enabled else ""
+        return cfg
+
+    mock.get_slot_config.side_effect = get_slot_config
+    return mock
+
+
 class TestAssistant:
     """Unit tests for Assistant."""
 
@@ -24,12 +45,19 @@ class TestAssistant:
     @pytest.fixture(autouse=True)
     def mock_subsystems(self):
         """Patch all major subsystems by default for Assistant tests."""
+        mock_registry = MagicMock()
+        mock_registry.instantiate.return_value = MagicMock()
+
+        mock_pm = MagicMock()
+        mock_pm.load_all.return_value = mock_registry
+
         with (
             patch(f"{MODULE}.AudioInput"),
             patch(f"{MODULE}.AudioOutput"),
             patch(f"{MODULE}.Brain"),
             patch(f"{MODULE}.create_llm_from_profile") as mock_create,
-            patch(f"{MODULE}.AppConfig"),
+            patch(f"{MODULE}.AppConfig", return_value=_make_mock_app_config()),
+            patch(f"{MODULE}.PluginManager", return_value=mock_pm),
             patch(f"{MODULE}.ToolManager"),
             patch(f"{MODULE}.load_config"),
         ):
@@ -52,7 +80,7 @@ class TestAssistant:
             patch(f"{MODULE}.create_llm_from_profile") as mock_create,
         ):
             mock_load_config.return_value = mock_config
-            mock_app_config = MagicMock()
+            mock_app_config = _make_mock_app_config()
             mock_profile = MagicMock()
             mock_app_config.get_llm_profile.return_value = mock_profile
             mock_app_config_cls.return_value = mock_app_config

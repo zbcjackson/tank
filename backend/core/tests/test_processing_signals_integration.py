@@ -8,7 +8,8 @@ from tank_backend.audio.input.types import AudioSource
 from tank_backend.audio.output.types import AudioSink
 from tank_backend.core.assistant import Assistant
 from tank_backend.core.events import SignalMessage, UpdateType
-from tank_backend.plugin.config import SlotConfig
+
+MODULE = "tank_backend.core.assistant"
 
 
 class MockAudioSource(AudioSource):
@@ -47,19 +48,55 @@ def mock_audio_sink_factory():
     return factory
 
 
+def _make_mock_registry(mock_asr_engine=None, mock_tts_engine=None):
+    """Build a mock registry that returns pre-built engines."""
+    registry = MagicMock()
+
+    def instantiate(full_name, config):
+        if full_name and "asr" in full_name:
+            return mock_asr_engine or MagicMock()
+        if full_name and "tts" in full_name:
+            return mock_tts_engine or MagicMock()
+        return MagicMock()
+
+    registry.instantiate.side_effect = instantiate
+    return registry
+
+
+def _make_mock_app_config(asr=True, tts=True, speaker=False):
+    """Build a mock AppConfig with slot enable/disable."""
+    mock = MagicMock()
+    mock.get_llm_profile.return_value = MagicMock()
+
+    def is_slot_enabled(slot):
+        return {"asr": asr, "tts": tts, "speaker": speaker}.get(slot, False)
+
+    mock.is_slot_enabled.side_effect = is_slot_enabled
+
+    def get_slot_config(slot):
+        cfg = MagicMock()
+        cfg.enabled = is_slot_enabled(slot)
+        cfg.extension = f"mock-{slot}:{slot}" if cfg.enabled else None
+        cfg.config = {}
+        cfg.plugin = f"mock-{slot}" if cfg.enabled else ""
+        return cfg
+
+    mock.get_slot_config.side_effect = get_slot_config
+    return mock
+
+
 @pytest.fixture
 def assistant(mock_audio_source_factory, mock_audio_sink_factory, tmp_path):
     """Create assistant with mocked audio."""
-    # Create a minimal config file
     config_file = tmp_path / ".env"
     config_file.write_text("")
 
-    # Mock plugin config for TTS
-    mock_plugin_config = MagicMock()
-    mock_plugin_config.get_slot_config.return_value = SlotConfig(
-        plugin="tts-edge",
-        config={"voice_en": "en-US-JennyNeural", "voice_zh": "zh-CN-XiaoxiaoNeural"},
-    )
+    mock_asr_engine = MagicMock()
+    mock_asr_engine.process_pcm = MagicMock(return_value=("", False))
+    mock_asr_engine.reset = MagicMock()
+
+    mock_registry = _make_mock_registry(mock_asr_engine=mock_asr_engine)
+    mock_app_config = _make_mock_app_config()
 
     # Mock LLM with streaming support
     async def mock_stream(*args, **kwargs):
@@ -68,33 +105,13 @@ def assistant(mock_audio_source_factory, mock_audio_sink_factory, tmp_path):
     mock_llm = MagicMock()
     mock_llm.chat_stream = mock_stream
 
-    # Mock ASR engine
-    mock_asr_engine = MagicMock()
-    mock_asr_engine.process_pcm = MagicMock(return_value=("", False))
-    mock_asr_engine.reset = MagicMock()
-
-    def mock_load_plugin(slot, plugin_name, config):
-        if slot == "asr":
-            return mock_asr_engine
-        return MagicMock()  # TTS or other slots
+    mock_pm = MagicMock()
+    mock_pm.load_all.return_value = mock_registry
 
     with (
-        patch(
-            "tank_backend.audio.input.audio_input.load_plugin",
-            side_effect=mock_load_plugin,
-        ),
-        patch(
-            "tank_backend.audio.output.audio_output.load_plugin",
-            side_effect=mock_load_plugin,
-        ),
-        patch(
-            "tank_backend.core.assistant.AppConfig",
-            return_value=mock_plugin_config,
-        ),
-        patch(
-            "tank_backend.core.assistant.create_llm_from_profile",
-            return_value=mock_llm,
-        ),
+        patch(f"{MODULE}.PluginManager", return_value=mock_pm),
+        patch(f"{MODULE}.AppConfig", return_value=mock_app_config),
+        patch(f"{MODULE}.create_llm_from_profile", return_value=mock_llm),
     ):
         assistant = Assistant(
             config_path=config_file,

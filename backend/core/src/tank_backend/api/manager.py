@@ -21,7 +21,7 @@ class SessionManager:
     """
     Manages active voice assistant sessions.
     Maps session_id to Assistant instance.
-    Holds a shared VoiceprintRecognizer for all sessions.
+    Holds a shared VoiceprintRecognizer for the speakers REST API.
     """
 
     def __init__(self, config_path: Path | None = None):
@@ -29,16 +29,32 @@ class SessionManager:
         self._config_path = config_path
         self._voiceprint_recognizer: VoiceprintRecognizer | None = None
 
-        # Initialize shared voiceprint recognizer
+        # Initialize shared voiceprint recognizer for REST API
         try:
             config = load_config(config_path)
             if config.enable_speaker_id:
-                from ..audio.input.voiceprint_factory import create_voiceprint_recognizer
+                from ..audio.input.voiceprint_factory import (
+                    create_disabled_recognizer,
+                    create_voiceprint_recognizer,
+                )
                 from ..plugin import AppConfig
+                from ..plugin.manager import PluginManager
 
-                app_config = AppConfig()
-                self._voiceprint_recognizer = create_voiceprint_recognizer(app_config)
-                logger.info("Shared voiceprint recognizer initialized")
+                pm = PluginManager()
+                registry = pm.load_all()
+                app_config = AppConfig(registry=registry)
+
+                speaker_slot = app_config.get_slot_config("speaker")
+                if speaker_slot.enabled and speaker_slot.extension:
+                    extractor = registry.instantiate(
+                        speaker_slot.extension, speaker_slot.config
+                    )
+                    self._voiceprint_recognizer = create_voiceprint_recognizer(
+                        extractor, speaker_slot.config
+                    )
+                    logger.info("Shared voiceprint recognizer initialized")
+                else:
+                    self._voiceprint_recognizer = create_disabled_recognizer()
         except Exception as e:
             logger.warning(f"Failed to initialize voiceprint recognizer: {e}")
 

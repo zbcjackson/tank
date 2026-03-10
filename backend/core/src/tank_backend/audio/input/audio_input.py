@@ -5,7 +5,6 @@ from typing import Any
 
 from ...core.runtime import RuntimeContext
 from ...core.shutdown import GracefulShutdown
-from ...plugin import AppConfig, load_plugin
 from .mic import Mic
 from .perception_streaming import StreamingPerception
 from .types import (
@@ -44,7 +43,7 @@ class AudioInput:
         shutdown_signal: GracefulShutdown,
         runtime: RuntimeContext,
         cfg: AudioInputConfig,
-        app_config: AppConfig,
+        asr_engine: object,
         on_speech_interrupt: Callable[[], None] | None = None,
         source_factory: AudioSourceFactory | None = None,
         voiceprint: Any = None,  # StreamingVoiceprintRecognizer | None
@@ -70,15 +69,11 @@ class AudioInput:
                 device=cfg.input_device,
             )
 
-        # Load ASR engine via plugin system
-        slot = app_config.get_slot_config("asr")
-        asr = load_plugin(slot="asr", plugin_name=slot.plugin, config=slot.config)
-
         self._perception = StreamingPerception(
             shutdown_signal=shutdown_signal,
             runtime=runtime,
             frames_queue=self._frames_queue,
-            asr=asr,
+            asr=asr_engine,
             user=cfg.perception.default_user,
             on_speech_interrupt=on_speech_interrupt,
             voiceprint=voiceprint,

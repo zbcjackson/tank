@@ -13,12 +13,13 @@ from tank_backend.audio.output.callback_sink import CallbackAudioSink
 from tank_backend.audio.output.types import AudioChunk
 from tank_backend.core.assistant import Assistant
 from tank_backend.core.events import DisplayMessage
-from tank_backend.plugin.config import SlotConfig
+
+MODULE = "tank_backend.core.assistant"
 
 
 @pytest.fixture
 def mock_config():
-    with patch("tank_backend.core.assistant.load_config") as mock_load:
+    with patch(f"{MODULE}.load_config") as mock_load:
         config = MagicMock()
         config.serper_api_key = "test_serper"
         config.speech_interrupt_enabled = True
@@ -57,50 +58,56 @@ async def test_virtual_assistant_flow(mock_config):
     async def mock_generate_stream(*args, **kwargs):
         yield AudioChunk(data=b"dummy_pcm", sample_rate=24000, channels=1)
 
-    # Mock plugin loader to return mock TTS engine
+    # Mock engines
     mock_tts_engine = MagicMock()
     mock_tts_engine.generate_stream = mock_generate_stream
 
-    # Mock plugin config
-    mock_plugin_config = MagicMock()
-    mock_plugin_config.get_slot_config.return_value = SlotConfig(
-        plugin="tts-edge",
-        config={"voice_en": "en-US-JennyNeural", "voice_zh": "zh-CN-XiaoxiaoNeural"},
-    )
+    mock_asr_engine = MagicMock()
+    mock_asr_engine.process_pcm = MagicMock(side_effect=mock_process_pcm)
+    mock_asr_engine.reset = MagicMock()
 
     # Mock LLM instance with chat_stream
     mock_llm_instance = MagicMock()
     mock_llm_instance.chat_stream = mock_chat_stream
 
-    # Mock ASR engine
-    mock_asr_engine = MagicMock()
-    mock_asr_engine.process_pcm = MagicMock(side_effect=mock_process_pcm)
-    mock_asr_engine.reset = MagicMock()
+    # Build mock registry
+    mock_registry = MagicMock()
 
-    def mock_load_plugin(slot, plugin_name, config):
-        if slot == "asr":
+    def instantiate(full_name, config):
+        if full_name and "asr" in full_name:
             return mock_asr_engine
-        if slot == "tts":
+        if full_name and "tts" in full_name:
             return mock_tts_engine
-        raise ValueError(f"Unknown slot: {slot}")
+        return MagicMock()
+
+    mock_registry.instantiate.side_effect = instantiate
+
+    # Build mock app config
+    mock_app_config = MagicMock()
+    mock_app_config.get_llm_profile.return_value = MagicMock()
+
+    def is_slot_enabled(slot):
+        return {"asr": True, "tts": True, "speaker": False}.get(slot, False)
+
+    mock_app_config.is_slot_enabled.side_effect = is_slot_enabled
+
+    def get_slot_config(slot):
+        cfg = MagicMock()
+        cfg.enabled = is_slot_enabled(slot)
+        cfg.extension = f"mock-{slot}:{slot}" if cfg.enabled else None
+        cfg.config = {"voice_en": "en-US-JennyNeural", "voice_zh": "zh-CN-XiaoxiaoNeural"}
+        cfg.plugin = f"mock-{slot}" if cfg.enabled else ""
+        return cfg
+
+    mock_app_config.get_slot_config.side_effect = get_slot_config
+
+    mock_pm = MagicMock()
+    mock_pm.load_all.return_value = mock_registry
 
     with (
-        patch(
-            "tank_backend.audio.input.audio_input.load_plugin",
-            side_effect=mock_load_plugin,
-        ),
-        patch(
-            "tank_backend.audio.output.audio_output.load_plugin",
-            side_effect=mock_load_plugin,
-        ),
-        patch(
-            "tank_backend.core.assistant.AppConfig",
-            return_value=mock_plugin_config,
-        ),
-        patch(
-            "tank_backend.core.assistant.create_llm_from_profile",
-            return_value=mock_llm_instance,
-        ),
+        patch(f"{MODULE}.PluginManager", return_value=mock_pm),
+        patch(f"{MODULE}.AppConfig", return_value=mock_app_config),
+        patch(f"{MODULE}.create_llm_from_profile", return_value=mock_llm_instance),
     ):
         # 2. Setup factories
         recorded_chunks = []
