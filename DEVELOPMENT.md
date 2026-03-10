@@ -9,23 +9,39 @@ For sub-project details, see:
 
 ## Quick Start
 
-### 1. Start the Backend
+### Prerequisites
 
 ```bash
 cd backend
 uv sync
 cp .env.example .env   # Edit with your API keys
-uv run tank-backend
+
+cd ../web
+pnpm install
 ```
 
-### 2. Start a Client
+### Start Backend + Web (recommended)
 
 ```bash
-# CLI/TUI
-cd cli && uv sync && uv run tank
+scripts/dev.sh
+```
 
-# Web
-cd web && pnpm install && pnpm dev
+This launches a tmux session named `tank` with two panes:
+- **Left pane**: backend (`uv run tank-backend --reload`)
+- **Right pane**: web frontend (`pnpm dev`)
+
+To check logs for debugging, attach to the session and switch panes:
+
+```bash
+tmux attach -t tank       # Attach to the session
+# Ctrl-b ←/→              # Switch between backend / web panes
+# Ctrl-b d                # Detach without stopping
+```
+
+### Start the CLI (optional)
+
+```bash
+cd cli && uv sync && uv run tank
 ```
 
 ## Running Tests
