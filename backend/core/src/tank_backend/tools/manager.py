@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import logging
 from typing import Any
@@ -31,6 +33,19 @@ class ToolManager:
             default_tools.append(WebSearchTool(self.serper_api_key))
 
         for tool in default_tools:
+            self.register_tool(tool)
+
+    def register_sandbox_tools(self, sandbox_manager: Any) -> None:
+        """Register sandbox tools (exec, bash, process) with a SandboxManager."""
+        from .sandbox_bash import SandboxBashTool
+        from .sandbox_exec import SandboxExecTool
+        from .sandbox_process import SandboxProcessTool
+
+        for tool in [
+            SandboxExecTool(sandbox_manager),
+            SandboxBashTool(sandbox_manager),
+            SandboxProcessTool(sandbox_manager),
+        ]:
             self.register_tool(tool)
 
     def register_tool(self, tool: BaseTool):

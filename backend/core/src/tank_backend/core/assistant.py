@@ -1,5 +1,6 @@
 """Main Assistant orchestrator."""
 
+import asyncio
 import logging
 import queue
 import uuid
@@ -12,6 +13,8 @@ from ..audio.output.types import AudioSinkFactory
 from ..config.settings import load_config
 from ..llm.profile import create_llm_from_profile
 from ..plugin import AppConfig
+from ..sandbox.config import SandboxConfig
+from ..sandbox.manager import SandboxManager
 from ..tools.manager import ToolManager
 from .brain import Brain
 from .events import BrainInputEvent, DisplayMessage, InputType
@@ -48,6 +51,15 @@ class Assistant:
         profile = app_config.get_llm_profile("default")
         self._llm = create_llm_from_profile(profile)
         self._tool_manager = ToolManager(serper_api_key=self._config.serper_api_key)
+
+        # Sandbox (lazy Docker container for runtime tools)
+        sandbox_raw = app_config._config.get("sandbox", {})
+        sandbox_config = SandboxConfig.from_dict(sandbox_raw)
+        self._sandbox: SandboxManager | None = None
+        if sandbox_config.enabled:
+            self._sandbox = SandboxManager(sandbox_config)
+            self._tool_manager.register_sandbox_tools(self._sandbox)
+            logger.info("Sandbox tools registered (container created lazily)")
 
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()
@@ -129,6 +141,15 @@ class Assistant:
 
         if self._voiceprint_streaming is not None:
             self._voiceprint_streaming.close()
+
+        # Cleanup sandbox container
+        if self._sandbox is not None and self._sandbox.is_running:
+            try:
+                asyncio.run(self._sandbox.cleanup())
+            except RuntimeError:
+                # Already inside an event loop — schedule instead
+                loop = asyncio.get_event_loop()
+                loop.create_task(self._sandbox.cleanup())
 
     def process_input(self, text: str):
         """Submit user text input for processing."""
