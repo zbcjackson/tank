@@ -12,15 +12,15 @@ from .yaml_loader import load_yaml
 
 logger = logging.getLogger(__name__)
 
-# Sentinel for "no plugin" (disabled slot)
+# Sentinel for "no plugin" (disabled feature)
 _DISABLED_PLUGIN = ""
 
 
 @dataclass(frozen=True)
-class SlotConfig:
-    """Typed configuration for a single plugin slot.
+class FeatureConfig:
+    """Typed configuration for a single feature (e.g. asr, tts, speaker).
 
-    When ``enabled`` is False the slot is inactive — callers should skip
+    When ``enabled`` is False the feature is inactive — callers should skip
     loading the plugin entirely.
 
     ``extension`` holds the ``{plugin}:{ext}`` reference when using the
@@ -33,6 +33,10 @@ class SlotConfig:
     config: dict[str, Any] = field(default_factory=dict)
     enabled: bool = True
     extension: str | None = None
+
+
+# Backward-compatible alias
+SlotConfig = FeatureConfig
 
 
 def find_config_yaml() -> Path:
@@ -73,7 +77,7 @@ class AppConfig:
         self._load()
 
         if registry is not None:
-            self._validate_slots()
+            self._validate_features()
 
     def _load(self) -> None:
         """Load configuration from YAML file with ${VAR} interpolation."""
@@ -85,53 +89,59 @@ class AppConfig:
             logger.error(f"Failed to load config: {e}")
             raise
 
-    # ── Slot helpers ─────────────────────────────────────────────
+    # ── Feature helpers ───────────────────────────────────────────
 
-    def get_slot_config(self, slot: str) -> SlotConfig:
-        """Get configuration for a plugin slot (e.g. ``"tts"``).
+    def get_feature_config(self, name: str) -> FeatureConfig:
+        """Get configuration for a feature (e.g. ``"tts"``).
 
-        Returns a *disabled* ``SlotConfig`` when the slot section is
+        Returns a *disabled* ``FeatureConfig`` when the feature section is
         absent from the YAML or has ``enabled: false``.  This lets
         callers skip plugin loading without catching exceptions.
         """
-        slot_data = self._config.get(slot, {})
-        if not slot_data:
-            return SlotConfig(enabled=False)
+        feature_data = self._config.get(name, {})
+        if not feature_data:
+            return FeatureConfig(enabled=False)
 
         # Explicit ``enabled: false`` in YAML
-        if not slot_data.get("enabled", True):
-            return SlotConfig(enabled=False)
+        if not feature_data.get("enabled", True):
+            return FeatureConfig(enabled=False)
 
         # New format: ``extension: plugin:ext``
-        extension_ref = slot_data.get("extension")
+        extension_ref = feature_data.get("extension")
 
         # Legacy format: ``plugin: plugin-name``
-        plugin_name = slot_data.get("plugin", "")
+        plugin_name = feature_data.get("plugin", "")
 
         # Derive plugin name from extension ref if present
         if extension_ref and not plugin_name:
             plugin_name = extension_ref.split(":")[0]
 
         if not plugin_name:
-            return SlotConfig(enabled=False)
+            return FeatureConfig(enabled=False)
 
-        return SlotConfig(
+        return FeatureConfig(
             plugin=plugin_name,
-            config=slot_data.get("config", {}),
+            config=feature_data.get("config", {}),
             enabled=True,
             extension=extension_ref,
         )
 
-    def is_slot_enabled(self, slot: str) -> bool:
-        """Check whether a feature slot is enabled."""
-        return self.get_slot_config(slot).enabled
+    # Backward-compatible alias
+    get_slot_config = get_feature_config
+
+    def is_feature_enabled(self, name: str) -> bool:
+        """Check whether a feature is enabled."""
+        return self.get_feature_config(name).enabled
+
+    # Backward-compatible alias
+    is_slot_enabled = is_feature_enabled
 
     def get_capabilities(self) -> dict[str, bool]:
         """Return a dict of feature capabilities for the frontend."""
         return {
-            "asr": self.is_slot_enabled("asr"),
-            "tts": self.is_slot_enabled("tts"),
-            "speaker_id": self.is_slot_enabled("speaker"),
+            "asr": self.is_feature_enabled("asr"),
+            "tts": self.is_feature_enabled("tts"),
+            "speaker_id": self.is_feature_enabled("speaker"),
         }
 
     # ── LLM profiles ──────────────────────────────────────────────
@@ -154,18 +164,18 @@ class AppConfig:
         """Return the names of all configured LLM profiles."""
         return list(self._config.get("llm", {}).keys())
 
-    # ── Slot validation ────────────────────────────────────────────
+    # ── Feature validation ──────────────────────────────────────────
 
-    def _validate_slots(self) -> None:
+    def _validate_features(self) -> None:
         """Validate extension refs in config against the registry.
 
         Raises:
-            ConfigError: If any slot references an unregistered or
+            ConfigError: If any feature references an unregistered or
                 type-mismatched extension.
         """
-        from .manager import validate_slot_refs
+        from .manager import validate_feature_refs
 
-        validate_slot_refs(self, self._registry)  # type: ignore[arg-type]
+        validate_feature_refs(self, self._registry)  # type: ignore[arg-type]
 
 
 # Backward-compatible alias

@@ -20,12 +20,15 @@ from .registry import ExtensionRegistry
 
 logger = logging.getLogger(__name__)
 
-# Maps config.yaml slot names to extension types declared in manifests.
-SLOT_TYPE_MAP: dict[str, str] = {
+# Maps config.yaml feature names to extension types declared in manifests.
+FEATURE_TYPE_MAP: dict[str, str] = {
     "asr": "asr",
     "tts": "tts",
     "speaker": "speaker_id",
 }
+
+# Backward-compatible alias
+SLOT_TYPE_MAP = FEATURE_TYPE_MAP
 
 
 class ConfigError(Exception):
@@ -55,38 +58,42 @@ class PluginEntry:
     extensions: dict[str, ExtensionEntry] = field(default_factory=dict)
 
 
-def validate_slot_refs(app_config: object, registry: ExtensionRegistry) -> None:
+def validate_feature_refs(app_config: object, registry: ExtensionRegistry) -> None:
     """Validate config.yaml extension refs against a registry.
 
     Checks:
       1. Referenced extension exists in registry.
-      2. Extension type matches the slot's expected type.
+      2. Extension type matches the feature's expected type.
 
     Raises:
         ConfigError: Listing all violations found.
     """
     errors: list[str] = []
-    for slot_name, expected_type in SLOT_TYPE_MAP.items():
-        slot_cfg = app_config.get_slot_config(slot_name)  # type: ignore[attr-defined]
-        if not slot_cfg.enabled or not slot_cfg.extension:
+    for feature_name, expected_type in FEATURE_TYPE_MAP.items():
+        feature_cfg = app_config.get_feature_config(feature_name)  # type: ignore[attr-defined]
+        if not feature_cfg.enabled or not feature_cfg.extension:
             continue
 
-        if not registry.has(slot_cfg.extension):
+        if not registry.has(feature_cfg.extension):
             errors.append(
-                f"Slot '{slot_name}': extension '{slot_cfg.extension}' "
+                f"Feature '{feature_name}': extension '{feature_cfg.extension}' "
                 f"is not registered (not installed or disabled)"
             )
             continue
 
-        ext_manifest = registry.get(slot_cfg.extension)
+        ext_manifest = registry.get(feature_cfg.extension)
         if ext_manifest is not None and ext_manifest.type != expected_type:
             errors.append(
-                f"Slot '{slot_name}': extension '{slot_cfg.extension}' "
+                f"Feature '{feature_name}': extension '{feature_cfg.extension}' "
                 f"has type '{ext_manifest.type}', expected '{expected_type}'"
             )
 
     if errors:
         raise ConfigError(errors)
+
+
+# Backward-compatible alias
+validate_slot_refs = validate_feature_refs
 
 
 class PluginManager:
@@ -247,7 +254,7 @@ class PluginManager:
         Raises:
             ConfigError: Listing all violations found.
         """
-        validate_slot_refs(app_config, self._registry)
+        validate_feature_refs(app_config, self._registry)
 
     # ── Internal ───────────────────────────────────────────────
 

@@ -6,7 +6,7 @@ import pytest
 import yaml
 
 from tank_backend.plugin.manager import (
-    SLOT_TYPE_MAP,
+    FEATURE_TYPE_MAP,
     ConfigError,
     ExtensionEntry,
     PluginEntry,
@@ -236,29 +236,29 @@ class TestConfigValidation:
             reg.register(plugin_name, manifest)
         return reg
 
-    def _make_app_config(self, slots):
-        """Build a mock AppConfig with given slot configs."""
+    def _make_app_config(self, features):
+        """Build a mock AppConfig with given feature configs."""
         mock = MagicMock()
 
-        def get_slot_config(slot):
-            if slot in slots:
-                return slots[slot]
+        def get_feature_config(name):
+            if name in features:
+                return features[name]
             cfg = MagicMock()
             cfg.enabled = False
             cfg.extension = None
             return cfg
 
-        mock.get_slot_config.side_effect = get_slot_config
+        mock.get_feature_config.side_effect = get_feature_config
         return mock
 
     def test_valid_refs_pass(self):
         reg = self._make_registry([
             ("asr-sherpa", _asr_ext()),
         ])
-        slot = MagicMock()
-        slot.enabled = True
-        slot.extension = "asr-sherpa:asr"
-        app_config = self._make_app_config({"asr": slot})
+        cfg = MagicMock()
+        cfg.enabled = True
+        cfg.extension = "asr-sherpa:asr"
+        app_config = self._make_app_config({"asr": cfg})
 
         pm = PluginManager()
         pm._registry = reg
@@ -266,10 +266,10 @@ class TestConfigValidation:
 
     def test_missing_ref_raises(self):
         reg = self._make_registry()
-        slot = MagicMock()
-        slot.enabled = True
-        slot.extension = "asr-sherpa:asr"
-        app_config = self._make_app_config({"asr": slot})
+        cfg = MagicMock()
+        cfg.enabled = True
+        cfg.extension = "asr-sherpa:asr"
+        app_config = self._make_app_config({"asr": cfg})
 
         pm = PluginManager()
         pm._registry = reg
@@ -282,22 +282,22 @@ class TestConfigValidation:
                 name="wrong", type="tts", factory="x:y",
             )),
         ])
-        slot = MagicMock()
-        slot.enabled = True
-        slot.extension = "wrong:wrong"
-        app_config = self._make_app_config({"asr": slot})
+        cfg = MagicMock()
+        cfg.enabled = True
+        cfg.extension = "wrong:wrong"
+        app_config = self._make_app_config({"asr": cfg})
 
         pm = PluginManager()
         pm._registry = reg
         with pytest.raises(ConfigError, match="expected 'asr'"):
             pm.validate_config(app_config)
 
-    def test_disabled_slot_skipped(self):
+    def test_disabled_feature_skipped(self):
         reg = self._make_registry()
-        slot = MagicMock()
-        slot.enabled = False
-        slot.extension = "nonexistent:ext"
-        app_config = self._make_app_config({"asr": slot})
+        cfg = MagicMock()
+        cfg.enabled = False
+        cfg.extension = "nonexistent:ext"
+        app_config = self._make_app_config({"asr": cfg})
 
         pm = PluginManager()
         pm._registry = reg
@@ -305,10 +305,10 @@ class TestConfigValidation:
 
     def test_no_extension_ref_skipped(self):
         reg = self._make_registry()
-        slot = MagicMock()
-        slot.enabled = True
-        slot.extension = None
-        app_config = self._make_app_config({"asr": slot})
+        cfg = MagicMock()
+        cfg.enabled = True
+        cfg.extension = None
+        app_config = self._make_app_config({"asr": cfg})
 
         pm = PluginManager()
         pm._registry = reg
@@ -371,13 +371,13 @@ class TestPluginsYaml:
         assert data["tts-edge"]["extensions"]["tts"]["enabled"] is True
 
 
-# ── SLOT_TYPE_MAP tests ──────────────────────────────────────────────
+# ── FEATURE_TYPE_MAP tests ────────────────────────────────────────────
 
 
-class TestSlotTypeMap:
-    """Verify SLOT_TYPE_MAP covers expected slots."""
+class TestFeatureTypeMap:
+    """Verify FEATURE_TYPE_MAP covers expected features."""
 
-    def test_expected_slots(self):
-        assert SLOT_TYPE_MAP["asr"] == "asr"
-        assert SLOT_TYPE_MAP["tts"] == "tts"
-        assert SLOT_TYPE_MAP["speaker"] == "speaker_id"
+    def test_expected_features(self):
+        assert FEATURE_TYPE_MAP["asr"] == "asr"
+        assert FEATURE_TYPE_MAP["tts"] == "tts"
+        assert FEATURE_TYPE_MAP["speaker"] == "speaker_id"

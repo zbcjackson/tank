@@ -64,24 +64,24 @@ def _make_mock_registry(mock_asr_engine=None, mock_tts_engine=None):
 
 
 def _make_mock_app_config(asr=True, tts=True, speaker=False):
-    """Build a mock AppConfig with slot enable/disable."""
+    """Build a mock AppConfig with feature enable/disable."""
     mock = MagicMock()
     mock.get_llm_profile.return_value = MagicMock()
 
-    def is_slot_enabled(slot):
-        return {"asr": asr, "tts": tts, "speaker": speaker}.get(slot, False)
+    def is_feature_enabled(name):
+        return {"asr": asr, "tts": tts, "speaker": speaker}.get(name, False)
 
-    mock.is_slot_enabled.side_effect = is_slot_enabled
+    mock.is_feature_enabled.side_effect = is_feature_enabled
 
-    def get_slot_config(slot):
+    def get_feature_config(name):
         cfg = MagicMock()
-        cfg.enabled = is_slot_enabled(slot)
-        cfg.extension = f"mock-{slot}:{slot}" if cfg.enabled else None
+        cfg.enabled = is_feature_enabled(name)
+        cfg.extension = f"mock-{name}:{name}" if cfg.enabled else None
         cfg.config = {}
-        cfg.plugin = f"mock-{slot}" if cfg.enabled else ""
+        cfg.plugin = f"mock-{name}" if cfg.enabled else ""
         return cfg
 
-    mock.get_slot_config.side_effect = get_slot_config
+    mock.get_feature_config.side_effect = get_feature_config
     return mock
 
 

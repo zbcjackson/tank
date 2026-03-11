@@ -19,31 +19,31 @@ tts:
 """)
 
     config = PluginConfig(config_file)
-    slot_config = config.get_slot_config("tts")
+    cfg = config.get_feature_config("tts")
 
-    assert slot_config.plugin == "tts-edge"
-    assert slot_config.config["voice_en"] == "en-US-JennyNeural"
-    assert slot_config.config["voice_zh"] == "zh-CN-XiaoxiaoNeural"
+    assert cfg.plugin == "tts-edge"
+    assert cfg.config["voice_en"] == "en-US-JennyNeural"
+    assert cfg.config["voice_zh"] == "zh-CN-XiaoxiaoNeural"
 
 
 def test_plugin_config_missing_slot_returns_disabled(tmp_path):
-    """Test PluginConfig returns disabled SlotConfig for missing slot."""
+    """Test PluginConfig returns disabled FeatureConfig for missing feature."""
     empty_yaml = tmp_path / "config.yaml"
     empty_yaml.write_text("{}")
     config = PluginConfig(empty_yaml)
 
-    slot_config = config.get_slot_config("nonexistent")
-    assert slot_config.enabled is False
+    cfg = config.get_feature_config("nonexistent")
+    assert cfg.enabled is False
 
 
 def test_plugin_config_missing_plugin_name_returns_disabled(tmp_path):
-    """Test PluginConfig returns disabled SlotConfig when plugin name not specified."""
+    """Test PluginConfig returns disabled FeatureConfig when plugin name not specified."""
     yaml_file = tmp_path / "config.yaml"
     yaml_file.write_text("tts:\n  config:\n    voice: test\n")
     config = PluginConfig(yaml_file)
 
-    slot_config = config.get_slot_config("tts")
-    assert slot_config.enabled is False
+    cfg = config.get_feature_config("tts")
+    assert cfg.enabled is False
 
 
 def test_registry_instantiate_missing_raises():

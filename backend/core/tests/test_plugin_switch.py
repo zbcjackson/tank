@@ -11,21 +11,21 @@ from tank_backend.plugin.registry import ExtensionRegistry
 MODULE = "tank_backend.core.assistant"
 
 
-# ── SlotConfig / AppConfig tests ─────────────────────────────────────
+# ── FeatureConfig / AppConfig tests ──────────────────────────────────
 
 
-class TestSlotConfigEnabled:
-    """Tests for the enabled/disabled slot behaviour."""
+class TestFeatureConfigEnabled:
+    """Tests for the enabled/disabled feature behaviour."""
 
-    def test_slot_disabled_when_absent(self, tmp_path):
+    def test_feature_disabled_when_absent(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("llm:\n  default:\n    api_key: test\n")
         config = AppConfig(yaml)
 
-        slot = config.get_slot_config("asr")
-        assert slot.enabled is False
+        cfg = config.get_feature_config("asr")
+        assert cfg.enabled is False
 
-    def test_slot_disabled_when_enabled_false(self, tmp_path):
+    def test_feature_disabled_when_enabled_false(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text(
             "asr:\n  enabled: false\n  extension: asr-sherpa:asr\n"
@@ -33,69 +33,69 @@ class TestSlotConfigEnabled:
         )
         config = AppConfig(yaml)
 
-        slot = config.get_slot_config("asr")
-        assert slot.enabled is False
+        cfg = config.get_feature_config("asr")
+        assert cfg.enabled is False
 
-    def test_slot_enabled_with_extension_syntax(self, tmp_path):
+    def test_feature_enabled_with_extension_syntax(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text(
             "tts:\n  enabled: true\n  extension: tts-edge:tts\n  config:\n    voice_en: Jenny\n"
         )
         config = AppConfig(yaml)
 
-        slot = config.get_slot_config("tts")
-        assert slot.enabled is True
-        assert slot.plugin == "tts-edge"
-        assert slot.extension == "tts-edge:tts"
-        assert slot.config["voice_en"] == "Jenny"
+        cfg = config.get_feature_config("tts")
+        assert cfg.enabled is True
+        assert cfg.plugin == "tts-edge"
+        assert cfg.extension == "tts-edge:tts"
+        assert cfg.config["voice_en"] == "Jenny"
 
-    def test_slot_enabled_with_legacy_plugin_syntax(self, tmp_path):
+    def test_feature_enabled_with_legacy_plugin_syntax(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("tts:\n  plugin: tts-edge\n  config:\n    voice: test\n")
         config = AppConfig(yaml)
 
-        slot = config.get_slot_config("tts")
-        assert slot.enabled is True
-        assert slot.plugin == "tts-edge"
-        assert slot.extension is None  # legacy format
+        cfg = config.get_feature_config("tts")
+        assert cfg.enabled is True
+        assert cfg.plugin == "tts-edge"
+        assert cfg.extension is None  # legacy format
 
-    def test_slot_enabled_defaults_to_true(self, tmp_path):
+    def test_feature_enabled_defaults_to_true(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("asr:\n  extension: asr-sherpa:asr\n  config: {}\n")
         config = AppConfig(yaml)
 
-        slot = config.get_slot_config("asr")
-        assert slot.enabled is True
+        cfg = config.get_feature_config("asr")
+        assert cfg.enabled is True
 
     def test_plugin_derived_from_extension_ref(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("tts:\n  extension: tts-edge:tts\n  config: {}\n")
         config = AppConfig(yaml)
 
-        slot = config.get_slot_config("tts")
-        assert slot.plugin == "tts-edge"
+        cfg = config.get_feature_config("tts")
+        assert cfg.plugin == "tts-edge"
 
 
-class TestIsSlotEnabled:
-    """Tests for AppConfig.is_slot_enabled()."""
+class TestIsFeatureEnabled:
+    """Tests for AppConfig.is_feature_enabled()."""
 
-    def test_returns_true_for_enabled_slot(self, tmp_path):
+    def test_returns_true_for_enabled_feature(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("asr:\n  extension: asr-sherpa:asr\n  config: {}\n")
         config = AppConfig(yaml)
-        assert config.is_slot_enabled("asr") is True
+        assert config.is_feature_enabled("asr") is True
 
-    def test_returns_false_for_absent_slot(self, tmp_path):
+    def test_returns_false_for_absent_feature(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("llm:\n  default:\n    api_key: x\n")
         config = AppConfig(yaml)
-        assert config.is_slot_enabled("asr") is False
+        assert config.is_feature_enabled("asr") is False
 
-    def test_returns_false_for_disabled_slot(self, tmp_path):
+    def test_returns_false_for_disabled_feature(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("tts:\n  enabled: false\n  extension: tts-edge:tts\n  config: {}\n")
         config = AppConfig(yaml)
-        assert config.is_slot_enabled("tts") is False
+        assert config.is_feature_enabled("tts") is False
 
 
 class TestGetCapabilities:
@@ -214,7 +214,7 @@ class TestExtensionRegistry:
 
 
 class TestAppConfigValidation:
-    """Tests for AppConfig slot validation against registry."""
+    """Tests for AppConfig feature validation against registry."""
 
     def _make_registry(self, extensions=None):
         """Build a real registry with given extensions."""
@@ -265,7 +265,7 @@ class TestAppConfigValidation:
             "asr:\n  enabled: false\n  extension: nonexistent:ext\n  config: {}\n"
         )
         reg = self._make_registry()  # empty
-        # Should not raise — slot is disabled
+        # Should not raise — feature is disabled
         AppConfig(yaml, registry=reg)
 
     def test_no_registry_skips_validation(self, tmp_path):
@@ -282,25 +282,25 @@ def _make_mock_app_config(asr=True, tts=True, speaker=False):
     mock = MagicMock()
     mock.get_llm_profile.return_value = MagicMock()
 
-    def is_slot_enabled(slot):
-        return {"asr": asr, "tts": tts, "speaker": speaker}.get(slot, False)
+    def is_feature_enabled(name):
+        return {"asr": asr, "tts": tts, "speaker": speaker}.get(name, False)
 
-    mock.is_slot_enabled.side_effect = is_slot_enabled
+    mock.is_feature_enabled.side_effect = is_feature_enabled
 
-    def get_slot_config(slot):
+    def get_feature_config(name):
         cfg = MagicMock()
-        cfg.enabled = is_slot_enabled(slot)
-        cfg.extension = f"mock-{slot}:{slot}" if cfg.enabled else None
+        cfg.enabled = is_feature_enabled(name)
+        cfg.extension = f"mock-{name}:{name}" if cfg.enabled else None
         cfg.config = {}
-        cfg.plugin = f"mock-{slot}" if cfg.enabled else ""
+        cfg.plugin = f"mock-{name}" if cfg.enabled else ""
         return cfg
 
-    mock.get_slot_config.side_effect = get_slot_config
+    mock.get_feature_config.side_effect = get_feature_config
     return mock
 
 
 class TestAssistantSubsystemOptional:
-    """Tests that Assistant skips AudioInput/AudioOutput when slots are disabled."""
+    """Tests that Assistant skips AudioInput/AudioOutput when features are disabled."""
 
     @pytest.fixture(autouse=True)
     def mock_subsystems(self):

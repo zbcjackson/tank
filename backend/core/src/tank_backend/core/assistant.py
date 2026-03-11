@@ -77,21 +77,21 @@ class Assistant:
                     self.audio_output.interrupt()
 
         # 3. Instantiate engines via registry
-        asr_engine = self._instantiate_slot(registry, "asr")
-        tts_engine = self._instantiate_slot(registry, "tts")
+        asr_engine = self._create_engine(registry, "asr")
+        tts_engine = self._create_engine(registry, "tts")
 
         # Create voiceprint recognizer if enabled
         self._voiceprint_streaming = None
-        if self._config.enable_speaker_id and self._app_config.is_slot_enabled("speaker"):
+        if self._config.enable_speaker_id and self._app_config.is_feature_enabled("speaker"):
             from ..audio.input.voiceprint_factory import create_voiceprint_recognizer
             from ..audio.input.voiceprint_streaming import StreamingVoiceprintRecognizer
 
-            speaker_slot = self._app_config.get_slot_config("speaker")
+            speaker_cfg = self._app_config.get_feature_config("speaker")
             speaker_extractor = registry.instantiate(
-                speaker_slot.extension, speaker_slot.config
+                speaker_cfg.extension, speaker_cfg.config
             )
             recognizer = create_voiceprint_recognizer(
-                speaker_extractor, speaker_slot.config
+                speaker_extractor, speaker_cfg.config
             )
             self._voiceprint_streaming = StreamingVoiceprintRecognizer(
                 recognizer,
@@ -135,12 +135,12 @@ class Assistant:
 
         self.on_exit_request = on_exit_request
 
-    def _instantiate_slot(self, registry: object, slot_name: str) -> object | None:
-        """Instantiate an engine for a slot if enabled, otherwise return None."""
-        slot = self._app_config.get_slot_config(slot_name)
-        if not slot.enabled or not slot.extension:
+    def _create_engine(self, registry: object, name: str) -> object | None:
+        """Create an engine for the given config section, or None if disabled."""
+        cfg = self._app_config.get_feature_config(name)
+        if not cfg.enabled or not cfg.extension:
             return None
-        return registry.instantiate(slot.extension, slot.config)  # type: ignore[union-attr]
+        return registry.instantiate(cfg.extension, cfg.config)  # type: ignore[union-attr]
 
     @property
     def capabilities(self) -> dict[str, bool]:
@@ -150,7 +150,7 @@ class Assistant:
             "tts": self.audio_output is not None,
             "speaker_id": (
                 self._config.enable_speaker_id
-                and self._app_config.is_slot_enabled("speaker")
+                and self._app_config.is_feature_enabled("speaker")
             ),
         }
 

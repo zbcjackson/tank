@@ -46,17 +46,17 @@ class SessionManager:
 
             registry = PluginManager().load_all()
             app_config = AppConfig(registry=registry)
-            speaker_slot = app_config.get_slot_config("speaker")
+            speaker_cfg = app_config.get_feature_config("speaker")
 
-            if not speaker_slot.enabled or not speaker_slot.extension:
+            if not speaker_cfg.enabled or not speaker_cfg.extension:
                 self._voiceprint_recognizer = create_disabled_recognizer()
                 return
 
             extractor = registry.instantiate(
-                speaker_slot.extension, speaker_slot.config
+                speaker_cfg.extension, speaker_cfg.config
             )
             self._voiceprint_recognizer = create_voiceprint_recognizer(
-                extractor, speaker_slot.config
+                extractor, speaker_cfg.config
             )
             logger.info("Shared voiceprint recognizer initialized")
         except Exception as e:
