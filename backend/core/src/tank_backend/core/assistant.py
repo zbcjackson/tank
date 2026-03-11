@@ -58,7 +58,7 @@ class Assistant:
         self._tool_manager = ToolManager(serper_api_key=self._config.serper_api_key)
 
         # Sandbox (lazy Docker container for runtime tools)
-        sandbox_raw = app_config._config.get("sandbox", {})
+        sandbox_raw = self._app_config._config.get("sandbox", {})
         sandbox_config = SandboxConfig.from_dict(sandbox_raw)
         self._sandbox: SandboxManager | None = None
         if sandbox_config.enabled:
