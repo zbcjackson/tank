@@ -136,7 +136,7 @@ class MyTTSEngine(TTSEngine):
 
 ```python
 def create_engine(config: dict) -> TTSEngine:
-    """Factory function called by plugin loader."""
+    """Factory function called by ExtensionRegistry.instantiate()."""
     return MyTTSEngine(config)
 ```
 

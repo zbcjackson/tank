@@ -24,11 +24,13 @@ core/
 │   ├── core/              # Brain, Assistant, event system
 │   ├── llm/               # LLM client with tool calling
 │   ├── tools/             # Tool implementations
-│   ├── plugin/            # Plugin loader
+│   ├── plugin/            # Plugin lifecycle (manager, registry, config)
 │   ├── config/            # Configuration management
 │   └── prompts/           # System prompts
-├── tests/                 # Test suite (107 tests)
-├── .env                   # Configuration file
+├── tests/                 # Test suite (184 tests)
+├── config.yaml            # Slot assignment + LLM profiles
+├── plugins.yaml           # Auto-generated plugin inventory
+├── .env                   # Secrets (API keys)
 └── pyproject.toml         # Dependencies
 ```
 
@@ -87,17 +89,32 @@ Plugin settings (ASR, TTS, LLM) are configured in `core/config.yaml`:
 
 ```yaml
 asr:
-  plugin: asr-sherpa
+  extension: asr-sherpa:asr
   config:
     model_dir: ../models/sherpa-onnx-zipformer-en-zh
     num_threads: 4
     sample_rate: 16000
 
 tts:
-  plugin: tts-edge
+  extension: tts-edge:tts
   config:
     voice_en: en-US-JennyNeural
     voice_zh: zh-CN-XiaoxiaoNeural
+
+speaker:
+  extension: speaker-sherpa:speaker_id
+  config:
+    db_path: ../data/speakers.db
+    threshold: 0.6
+```
+
+Slots can be disabled individually:
+
+```yaml
+tts:
+  enabled: false
+  extension: tts-edge:tts
+  config: {}
 ```
 
 ## Development

@@ -11,11 +11,25 @@ This file provides guidance to Claude Code when working with the Tank Backend AP
 ## Project Overview
 
 Tank Backend is a FastAPI-based server that provides:
-- Speech recognition (ASR) via Whisper/Sherpa-ONNX
-- Text-to-Speech (TTS) via Edge TTS
+- Speech recognition (ASR) via pluggable engines (Sherpa-ONNX, ElevenLabs)
+- Text-to-Speech (TTS) via pluggable engines (Edge TTS, ElevenLabs)
+- Speaker identification via pluggable engines (Sherpa-ONNX)
 - LLM integration for conversation and tool calling
 - WebSocket API for real-time communication
 - Tool execution framework (calculator, weather, web search, etc.)
+
+## Plugin System
+
+The plugin system uses a lifecycle-managed architecture:
+- `PluginManager` (manager.py) — discovery, loading, registration, validation
+- `ExtensionRegistry` (registry.py) — manifest catalog keyed by `"plugin:ext"`, on-demand instantiation
+- `AppConfig` (config.py) — reads config.yaml, validates slot refs against registry
+- `plugins.yaml` — auto-generated plugin inventory (per-plugin/extension enable/disable)
+- `config.yaml` — slot assignment (`extension: plugin:ext`) and runtime config
+
+Startup flow: `PluginManager.load_all()` → `AppConfig(registry=registry)` → `registry.instantiate()` → engines passed to AudioInput/AudioOutput via constructor injection.
+
+AudioInput and AudioOutput do NOT load plugins themselves — they receive pre-built engines.
 
 ## Technology Stack
 

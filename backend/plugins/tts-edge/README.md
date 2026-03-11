@@ -41,7 +41,7 @@ Configure in `backend/core/config.yaml`:
 
 ```yaml
 tts:
-  plugin: tts-edge           # Plugin folder name
+  extension: tts-edge:tts
   config:
     voice_en: en-US-JennyNeural
     voice_zh: zh-CN-XiaoxiaoNeural

@@ -143,7 +143,48 @@ class MyTool(BaseTool):
         return result
 ```
 
-### 7. Configuration (`src/tank_backend/config/`)
+### 7. Plugin System (`src/tank_backend/plugin/`)
+
+The plugin system manages the full lifecycle of pluggable engines (ASR, TTS, speaker identification).
+
+**Components**:
+- `manager.py` — `PluginManager`: discovery, loading, registration, validation
+- `registry.py` — `ExtensionRegistry`: manifest catalog keyed by `"plugin:ext"`
+- `config.py` — `AppConfig`: reads `config.yaml`, validates slot refs against registry
+- `manifest.py` — reads `[tool.tank]` from plugin `pyproject.toml`
+
+**Separation of Concerns**:
+
+| File | Responsibility |
+|------|---------------|
+| `plugins.yaml` | Plugin inventory — what's installed, per-plugin/extension enable/disable |
+| `config.yaml` | Slot assignment — which extension fills each slot, plus runtime config |
+| `PluginManager` | Lifecycle orchestrator — discovery, loading, registration, validation |
+| `ExtensionRegistry` | Extension catalog — stores manifests, instantiates on demand |
+
+**Startup Flow**:
+```
+PluginManager.load_all()
+  ├── plugins.yaml missing? → discover_plugins() → generate_plugins_yaml()
+  ├── Read plugins.yaml → PluginEntry list
+  └── For each enabled plugin/extension: registry.register(plugin, manifest)
+
+Assistant.__init__()
+  ├── registry = PluginManager().load_all()
+  ├── app_config = AppConfig(registry=registry)   ← validates extension refs
+  ├── asr_engine = registry.instantiate("asr-sherpa:asr", config)
+  ├── tts_engine = registry.instantiate("tts-edge:tts", config)
+  ├── AudioInput(asr_engine=asr_engine, ...)       ← receives pre-built engine
+  └── AudioOutput(tts_engine=tts_engine, ...)      ← receives pre-built engine
+```
+
+**Key Design Decisions**:
+- Registry stores manifests (metadata), not live instances — instantiation is on-demand
+- AudioInput/AudioOutput receive pre-built engines via constructor injection
+- `plugins.yaml` is auto-generated on first run via `importlib.metadata` discovery
+- Config validation catches missing/mismatched extensions at startup, not at runtime
+
+### 8. Configuration (`src/tank_backend/config/`)
 
 **Settings** (`settings.py`):
 - Environment-based configuration

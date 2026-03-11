@@ -101,30 +101,83 @@ Add more profiles (e.g. `fast`, `local`) under the `llm:` key for future agent/s
 
 ## Plugin System
 
-The backend uses a pluggable architecture for ASR and TTS engines. Configure plugins in `core/config.yaml`:
+The backend uses a pluggable architecture for ASR, TTS, and speaker identification engines. The plugin lifecycle is managed by `PluginManager`:
+
+1. **Discovery** — scans installed packages for `[tool.tank]` manifests in `pyproject.toml`
+2. **Inventory** — `plugins.yaml` (auto-generated on first run) controls which plugins/extensions are enabled
+3. **Registration** — enabled extensions are registered in `ExtensionRegistry`
+4. **Validation** — `config.yaml` slot refs are validated against the registry at startup
+5. **Instantiation** — engines are created on demand via `registry.instantiate()`
+
+### Slot Configuration (`core/config.yaml`)
 
 ```yaml
 asr:
-  plugin: asr-sherpa           # Plugin folder name
+  extension: asr-sherpa:asr        # "plugin:extension" reference
   config:
     model_dir: ../models/sherpa-onnx-zipformer-en-zh
     num_threads: 4
     sample_rate: 16000
 
 tts:
-  plugin: tts-edge             # Plugin folder name
+  extension: tts-edge:tts
   config:
     voice_en: en-US-JennyNeural
     voice_zh: zh-CN-XiaoxiaoNeural
+
+speaker:
+  extension: speaker-sherpa:speaker_id
+  config:
+    db_path: ../data/speakers.db
+    threshold: 0.6
+```
+
+Disable a slot by setting `enabled: false`:
+
+```yaml
+tts:
+  enabled: false
+  extension: tts-edge:tts
+  config: {}
+```
+
+### Plugin Inventory (`core/plugins.yaml`)
+
+Auto-generated on first run. Controls per-plugin and per-extension enable/disable:
+
+```yaml
+asr-sherpa:
+  enabled: true
+  extensions:
+    asr:
+      enabled: true
+tts-edge:
+  enabled: true
+  extensions:
+    tts:
+      enabled: true
 ```
 
 ### Adding a New Plugin
 
 1. Create plugin directory: `plugins/<slot>-<name>/`
 2. Implement the contract from `tank_contracts` (`StreamingASREngine` or `TTSEngine`)
-3. Export `create_engine(config: dict)` function
-4. Add to workspace in `backend/pyproject.toml`
-5. Configure in `core/config.yaml`
+3. Export `create_engine(config: dict)` factory function
+4. Declare `[tool.tank]` manifest in `pyproject.toml`:
+   ```toml
+   [tool.tank]
+   plugin_name = "tts-myplugin"
+   display_name = "My TTS"
+   description = "My custom TTS plugin"
+
+   [[tool.tank.extensions]]
+   name = "tts"
+   type = "tts"
+   factory = "tts_myplugin:create_engine"
+   ```
+5. Add to workspace in `backend/pyproject.toml`
+6. Delete `core/plugins.yaml` to trigger re-discovery, or run `PluginManager().install("tts-myplugin")`
+7. Reference in `core/config.yaml`: `extension: tts-myplugin:tts`
 
 See `plugins/asr-sherpa/` or `plugins/tts-edge/` for reference implementations.
 

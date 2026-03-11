@@ -4,7 +4,7 @@ Pluggable components for the Tank Voice Assistant backend.
 
 ## Overview
 
-The Tank backend uses a plugin architecture to support different TTS (Text-to-Speech) engines. Plugins are dynamically loaded at runtime based on configuration, allowing easy extension without modifying core code.
+The Tank backend uses a plugin architecture to support different ASR, TTS, and speaker identification engines. Plugins are discovered automatically at startup via `[tool.tank]` manifests in their `pyproject.toml`, registered in an `ExtensionRegistry`, and instantiated on demand.
 
 ## Architecture
 
@@ -12,52 +12,125 @@ The Tank backend uses a plugin architecture to support different TTS (Text-to-Sp
 backend/
 ├── core/                    # Core application
 │   └── src/tank_backend/
-│       └── plugin/         # Plugin loader
-├── contracts/              # Shared interfaces
+│       └── plugin/         # Plugin lifecycle (manager, registry, config)
+├── contracts/              # Shared interfaces (TTSEngine, StreamingASREngine ABCs)
 │   └── tank_contracts/
-│       └── tts.py         # TTSEngine ABC
 └── plugins/                # Plugin implementations
-    ├── tts-edge/          # Edge TTS plugin
-    └── tts-cosyvoice/     # CosyVoice TTS plugin
+    ├── asr-sherpa/         # Sherpa-ONNX streaming ASR
+    ├── asr-elevenlabs/     # ElevenLabs ASR
+    ├── tts-edge/           # Edge TTS
+    ├── tts-elevenlabs/     # ElevenLabs TTS
+    ├── tts-cosyvoice/      # CosyVoice TTS
+    └── speaker-sherpa/     # Sherpa-ONNX speaker identification
 ```
 
 ### How It Works
 
-1. **Configuration** - `core/config.yaml` specifies which plugin to use
-2. **Loading** - Core application loads plugin module dynamically
-3. **Instantiation** - Calls plugin's `create_engine(config)` factory function
-4. **Usage** - Core uses plugin via `TTSEngine` interface
+1. **Discovery** — `PluginManager` scans installed packages for `[tool.tank]` in `pyproject.toml`
+2. **Inventory** — `plugins.yaml` (auto-generated on first run) controls per-plugin/extension enable/disable
+3. **Registration** — enabled extensions are registered in `ExtensionRegistry` as manifests
+4. **Validation** — `config.yaml` slot refs are checked against the registry at startup
+5. **Instantiation** — `registry.instantiate("plugin:ext", config)` calls the factory on demand
 
-## Plugin Configuration
+### Startup Flow
 
-Edit `core/config.yaml` to configure active plugins:
+```
+PluginManager.load_all()
+  ├── plugins.yaml missing? → discover_plugins() → generate_plugins_yaml()
+  ├── Read plugins.yaml → PluginEntry list
+  └── For each enabled plugin/extension: registry.register(plugin, manifest)
+
+Assistant.__init__()
+  ├── registry = PluginManager().load_all()
+  ├── app_config = AppConfig(registry=registry)   ← validates extension refs
+  ├── asr_engine = registry.instantiate("asr-sherpa:asr", config)
+  ├── tts_engine = registry.instantiate("tts-edge:tts", config)
+  ├── AudioInput(asr_engine=asr_engine)            ← receives pre-built engine
+  └── AudioOutput(tts_engine=tts_engine)           ← receives pre-built engine
+```
+
+## Configuration
+
+### Slot Assignment (`core/config.yaml`)
+
+Each slot references a registered extension by `"plugin:extension"`:
 
 ```yaml
+asr:
+  extension: asr-sherpa:asr
+  config:
+    model_dir: ../models/sherpa-onnx-zipformer-en-zh
+    num_threads: 4
+    sample_rate: 16000
+
 tts:
-  plugin: tts-edge           # Plugin folder name under plugins/
+  extension: tts-edge:tts
   config:
     voice_en: en-US-JennyNeural
     voice_zh: zh-CN-XiaoxiaoNeural
+
+speaker:
+  extension: speaker-sherpa:speaker_id
+  config:
+    db_path: ../data/speakers.db
+    threshold: 0.6
 ```
 
-### Configuration Structure
+Disable a slot by setting `enabled: false`:
 
 ```yaml
-<slot>:                      # Plugin slot (tts, asr, llm, etc.)
-  plugin: <plugin-name>      # Plugin folder name
-  config:                    # Plugin-specific configuration
-    <key>: <value>
+tts:
+  enabled: false
+  extension: tts-edge:tts
+  config: {}
 ```
 
+### Plugin Inventory (`core/plugins.yaml`)
+
+Auto-generated on first run. Controls which plugins and extensions are active:
+
+```yaml
+asr-sherpa:
+  enabled: true
+  extensions:
+    asr:
+      enabled: true
+tts-edge:
+  enabled: true
+  extensions:
+    tts:
+      enabled: true
+speaker-sherpa:
+  enabled: true
+  extensions:
+    speaker_id:
+      enabled: true
+```
+
+You can disable a plugin or individual extension here without touching `config.yaml`.
+
 ## Available Plugins
+
+### ASR Plugins
+
+| Plugin | Description | Status |
+|--------|-------------|--------|
+| **asr-sherpa** | Sherpa-ONNX streaming ASR | ✅ Production |
+| **asr-elevenlabs** | ElevenLabs realtime ASR | ✅ Production |
 
 ### TTS Plugins
 
 | Plugin | Description | Status |
 |--------|-------------|--------|
 | **tts-edge** | Microsoft Edge TTS | ✅ Production |
+| **tts-elevenlabs** | ElevenLabs TTS | ✅ Production |
 | **tts-cosyvoice** | CosyVoice TTS (requires server) | ✅ Production |
-| tts-vits | VITS TTS | 🚧 Planned |
+
+### Speaker ID Plugins
+
+| Plugin | Description | Status |
+|--------|-------------|--------|
+| **speaker-sherpa** | Sherpa-ONNX speaker embeddings | ✅ Production |
 
 ## Creating a Plugin
 
@@ -77,7 +150,7 @@ plugins/
     └── README.md
 ```
 
-### 2. Implement TTSEngine
+### 2. Implement the Contract
 
 Create `tts_myplugin/engine.py`:
 
@@ -89,14 +162,7 @@ class MyTTSEngine(TTSEngine):
     """Custom TTS engine implementation."""
 
     def __init__(self, config: dict):
-        """
-        Initialize TTS engine.
-
-        Args:
-            config: Configuration from config.yaml
-        """
         self.config = config
-        # Initialize your TTS engine here
 
     async def generate_stream(
         self,
@@ -104,32 +170,13 @@ class MyTTSEngine(TTSEngine):
         language: str = "en",
         **kwargs
     ) -> AsyncIterator[AudioChunk]:
-        """
-        Generate audio stream from text.
-
-        Args:
-            text: Text to synthesize
-            language: Language code (en, zh, etc.)
-            **kwargs: Additional parameters
-
-        Yields:
-            AudioChunk: Audio data chunks
-        """
-        # Your TTS implementation
         audio_data = await self._synthesize(text, language)
-
-        # Yield audio chunks
         yield AudioChunk(
             data=audio_data,
             sample_rate=24000,
             channels=1,
             format="pcm_s16le"
         )
-
-    async def _synthesize(self, text: str, language: str) -> bytes:
-        """Synthesize text to audio."""
-        # Your synthesis logic
-        pass
 ```
 
 ### 3. Export Factory Function
@@ -140,23 +187,13 @@ Create `tts_myplugin/__init__.py`:
 from .engine import MyTTSEngine
 
 def create_engine(config: dict) -> MyTTSEngine:
-    """
-    Factory function called by plugin loader.
-
-    Args:
-        config: Configuration from plugins.yaml
-
-    Returns:
-        MyTTSEngine instance
-    """
+    """Factory function called by ExtensionRegistry.instantiate()."""
     return MyTTSEngine(config)
 
 __all__ = ["create_engine", "MyTTSEngine"]
 ```
 
-### 4. Define Dependencies
-
-Create `pyproject.toml`:
+### 4. Declare Manifest in `pyproject.toml`
 
 ```toml
 [project]
@@ -166,19 +203,33 @@ description = "My TTS plugin for Tank"
 requires-python = ">=3.10"
 dependencies = [
     "tank-contracts",
-    # Your plugin dependencies
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=8.0.0",
-    "pytest-asyncio>=0.24.0",
+    "pytest-asyncio>=0.23.0",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.tank]
+plugin_name = "tts-myplugin"
+display_name = "My TTS"
+description = "My custom TTS plugin"
+
+[[tool.tank.extensions]]
+name = "tts"
+type = "tts"
+factory = "tts_myplugin:create_engine"
+
+[tool.uv.sources]
+tank-contracts = { workspace = true }
 ```
+
+The `[tool.tank]` section is how `PluginManager` discovers your plugin. The `factory` field is `"module:callable"` — the registry calls this to create engine instances.
 
 ### 5. Add Tests
 
@@ -191,23 +242,18 @@ from tank_contracts.tts import AudioChunk
 
 @pytest.mark.asyncio
 async def test_create_engine():
-    """Test engine creation."""
-    config = {"param": "value"}
-    engine = create_engine(config)
+    engine = create_engine({"param": "value"})
     assert engine is not None
 
 @pytest.mark.asyncio
 async def test_generate_stream():
-    """Test audio generation."""
     engine = create_engine({})
     chunks = []
-
     async for chunk in engine.generate_stream("Hello", language="en"):
         assert isinstance(chunk, AudioChunk)
         assert chunk.sample_rate > 0
         assert len(chunk.data) > 0
         chunks.append(chunk)
-
     assert len(chunks) > 0
 ```
 
@@ -225,220 +271,117 @@ members = [
 ]
 ```
 
-### 7. Configure Plugin
-
-Update `core/config.yaml`:
-
-```yaml
-tts:
-  plugin: tts-myplugin
-  config:
-    param: value
-```
-
-### 8. Install and Test
+### 7. Configure and Run
 
 ```bash
-# Install plugin
+# Install
 cd backend
 uv sync
 
-# Run tests
-cd plugins/tts-myplugin
-uv run pytest
+# Delete plugins.yaml to trigger re-discovery
+rm -f core/plugins.yaml
 
-# Test with backend
-cd ../../core
+# Reference in core/config.yaml
+# tts:
+#   extension: tts-myplugin:tts
+#   config:
+#     param: value
+
+# Run
+cd core
 uv run tank-backend
 ```
 
-## Plugin Interface
-
-### TTSEngine (Required)
-
-All TTS plugins must implement `TTSEngine` from `tank_contracts.tts`:
+Or install programmatically:
 
 ```python
-class TTSEngine(ABC):
-    """Abstract base class for TTS engines."""
-
-    @abstractmethod
-    async def generate_stream(
-        self,
-        text: str,
-        language: str = "en",
-        **kwargs
-    ) -> AsyncIterator[AudioChunk]:
-        """Generate audio stream from text."""
-        pass
+from tank_backend.plugin.manager import PluginManager
+pm = PluginManager()
+pm.load_all()
+pm.install("tts-myplugin")
 ```
 
-### AudioChunk (Data Type)
+## Plugin Manifest Reference
 
-Audio data is returned as `AudioChunk`:
+The `[tool.tank]` section in `pyproject.toml`:
+
+```toml
+[tool.tank]
+plugin_name = "tts-myplugin"     # Package name (must match [project].name)
+display_name = "My TTS"          # Human-readable name
+description = "Description"      # Short description
+
+[[tool.tank.extensions]]         # One or more extensions
+name = "tts"                     # Extension name (used in "plugin:ext" ref)
+type = "tts"                     # Extension type: "asr" | "tts" | "speaker_id"
+factory = "module:callable"      # Factory: "module_name:function_name"
+```
+
+A single plugin can provide multiple extensions (e.g., both ASR and TTS).
+
+## Plugin Lifecycle API
 
 ```python
-@dataclass
-class AudioChunk:
-    """Audio data chunk."""
-    data: bytes                    # Raw audio bytes
-    sample_rate: int               # Sample rate in Hz
-    channels: int = 1              # Number of channels
-    format: str = "pcm_s16le"      # Audio format
+from tank_backend.plugin.manager import PluginManager
+
+pm = PluginManager()
+registry = pm.load_all()
+
+# Discovery
+plugins = pm.discover_plugins()          # Scan installed packages
+
+# Install / Uninstall
+pm.install("tts-myplugin")              # Add to plugins.yaml + register
+pm.uninstall("tts-myplugin")            # Remove from plugins.yaml + unregister
+
+# Enable / Disable (plugin level)
+pm.disable_plugin("tts-edge")           # Unregister all extensions
+pm.enable_plugin("tts-edge")            # Re-register extensions
+
+# Enable / Disable (extension level)
+pm.disable_extension("tts-edge", "tts") # Unregister single extension
+pm.enable_extension("tts-edge", "tts")  # Re-register single extension
+
+# Instantiation
+engine = registry.instantiate("tts-edge:tts", {"voice_en": "Jenny"})
+
+# Validation
+pm.validate_config(app_config)           # Check config.yaml refs
 ```
-
-## Plugin Loader
-
-The core application loads plugins using `PluginLoader`:
-
-```python
-from tank_backend.plugin.loader import load_plugin
-
-# Load TTS plugin
-tts_engine = load_plugin("tts")
-
-# Use plugin
-async for chunk in tts_engine.generate_stream("Hello", language="en"):
-    # Process audio chunk
-    pass
-```
-
-### Loading Process
-
-1. Read `core/config.yaml`
-2. Find plugin configuration for slot (e.g., "tts")
-3. Import plugin module: `plugins.<plugin-name>`
-4. Call `create_engine(config)` factory function
-5. Return engine instance
-
-### Error Handling
-
-- **Plugin not found** - Raises `ImportError`
-- **Missing factory function** - Raises `AttributeError`
-- **Invalid configuration** - Raises `ValueError`
 
 ## Best Practices
 
-### 1. Follow Interface Contract
-
-- Implement all abstract methods
-- Use correct type hints
-- Return expected data types
-
-### 2. Handle Errors Gracefully
-
-```python
-async def generate_stream(self, text: str, language: str = "en", **kwargs):
-    try:
-        # Your implementation
-        yield AudioChunk(...)
-    except Exception as e:
-        logger.error(f"TTS generation failed: {e}")
-        raise RuntimeError(f"Failed to generate audio: {e}") from e
-```
-
-### 3. Support Streaming
-
-- Yield audio chunks as they're generated
-- Don't buffer entire audio in memory
-- Allow interruption via cancellation
-
-### 4. Validate Configuration
-
-```python
-def __init__(self, config: dict):
-    required = ["voice_en", "voice_zh"]
-    for key in required:
-        if key not in config:
-            raise ValueError(f"Missing required config: {key}")
-    self.config = config
-```
-
-### 5. Write Tests
-
-- Test engine creation
-- Test audio generation
-- Test error handling
-- Test configuration validation
-
-### 6. Document Your Plugin
-
-- README.md with usage examples
-- Docstrings for all public methods
-- Configuration options
-- Dependencies
-
-## Testing Plugins
-
-### Unit Tests
-
-```bash
-cd backend/plugins/tts-myplugin
-uv run pytest
-```
-
-### Integration Tests
-
-```bash
-cd backend
-uv run pytest core/tests/ plugins/tts-myplugin/tests/
-```
-
-### Manual Testing
-
-```bash
-cd backend/core
-uv run tank-backend
-# Connect with CLI or web client
-```
+1. **Follow the contract** — implement all abstract methods from `tank_contracts`
+2. **Stream audio** — yield chunks as they're generated, don't buffer in memory
+3. **Handle errors** — raise `RuntimeError` with descriptive messages
+4. **Validate config** — check required keys in `__init__`
+5. **Write tests** — unit tests for engine, integration tests with core
+6. **Document** — README with config options, usage examples, dependencies
 
 ## Troubleshooting
 
-### Plugin Not Loading
+### Plugin Not Discovered
 
-1. Check `core/config.yaml` syntax
-2. Verify plugin folder name matches configuration
-3. Check `create_engine` function exists
-4. Review backend logs for errors
+1. Ensure `[tool.tank]` section exists in `pyproject.toml`
+2. Run `uv sync` to install the package
+3. Delete `core/plugins.yaml` and restart to trigger re-discovery
+4. Check logs for `"Discovered plugin: ..."` messages
 
-### Import Errors
+### Extension Not Registered
 
-1. Ensure plugin is in workspace (`backend/pyproject.toml`)
-2. Run `uv sync` to install dependencies
-3. Check Python path includes plugin directory
+1. Check `core/plugins.yaml` — is the plugin/extension `enabled: true`?
+2. Verify the package is installed: `uv run python -c "import tts_myplugin"`
 
-### Configuration Errors
+### Config Validation Error
 
-1. Validate YAML syntax in `core/config.yaml`
-2. Check required configuration keys
-3. Verify data types match expectations
-
-## Future Plugin Types
-
-Planned plugin slots:
-
-- **asr** - Automatic Speech Recognition
-- **llm** - Large Language Model
-- **embedding** - Speaker/text embeddings
-- **vad** - Voice Activity Detection
-
-## Contributing
-
-1. Fork the repository
-2. Create plugin following this guide
-3. Add tests (minimum 80% coverage)
-4. Update documentation
-5. Submit pull request
+1. Check `core/config.yaml` — does the `extension:` ref match a registered extension?
+2. Verify the extension type matches the slot (e.g., `tts` slot expects `type = "tts"`)
+3. Run: `uv run python -c "from tank_backend.plugin.manager import PluginManager; pm = PluginManager(); r = pm.load_all(); print(r.all_names())"`
 
 ## Resources
 
 - [TTSEngine Interface](../contracts/tank_contracts/tts.py)
-- [Edge TTS Plugin](tts-edge/) - Reference implementation
+- [Edge TTS Plugin](tts-edge/) — TTS reference implementation
+- [Sherpa ASR Plugin](asr-sherpa/) — ASR reference implementation
 - [Backend Architecture](../ARCHITECTURE.md)
 - [Development Guide](../DEVELOPMENT.md)
-
----
-
-**Plugin System Version**: 1.0.0
-**Status**: ✅ Production ready
-**Supported Slots**: TTS
