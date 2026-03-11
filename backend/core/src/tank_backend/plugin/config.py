@@ -163,27 +163,9 @@ class AppConfig:
             ConfigError: If any slot references an unregistered or
                 type-mismatched extension.
         """
-        from .manager import SLOT_TYPE_MAP, ConfigError
+        from .manager import validate_slot_refs
 
-        errors: list[str] = []
-        for slot_name, expected_type in SLOT_TYPE_MAP.items():
-            slot_cfg = self.get_slot_config(slot_name)
-            if not slot_cfg.enabled or not slot_cfg.extension:
-                continue
-            if not self._registry.has(slot_cfg.extension):  # type: ignore[union-attr]
-                errors.append(
-                    f"Slot '{slot_name}': extension '{slot_cfg.extension}' "
-                    f"is not registered (not installed or disabled)"
-                )
-                continue
-            ext_manifest = self._registry.get(slot_cfg.extension)  # type: ignore[union-attr]
-            if ext_manifest is not None and ext_manifest.type != expected_type:
-                errors.append(
-                    f"Slot '{slot_name}': extension '{slot_cfg.extension}' "
-                    f"has type '{ext_manifest.type}', expected '{expected_type}'"
-                )
-        if errors:
-            raise ConfigError(errors)
+        validate_slot_refs(self, self._registry)  # type: ignore[arg-type]
 
 
 # Backward-compatible alias

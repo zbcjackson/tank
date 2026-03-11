@@ -69,9 +69,6 @@ class Assistant:
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()
 
-        asr_enabled = self._app_config.is_slot_enabled("asr")
-        tts_enabled = self._app_config.is_slot_enabled("tts")
-
         # Speech interrupt callback: stop TTS and signal Brain (only when enabled)
         def _on_speech_interrupt() -> None:
             if self._config.speech_interrupt_enabled:
@@ -80,15 +77,8 @@ class Assistant:
                     self.audio_output.interrupt()
 
         # 3. Instantiate engines via registry
-        asr_engine = None
-        if asr_enabled:
-            slot = self._app_config.get_slot_config("asr")
-            asr_engine = registry.instantiate(slot.extension, slot.config)
-
-        tts_engine = None
-        if tts_enabled:
-            slot = self._app_config.get_slot_config("tts")
-            tts_engine = registry.instantiate(slot.extension, slot.config)
+        asr_engine = self._instantiate_slot(registry, "asr")
+        tts_engine = self._instantiate_slot(registry, "tts")
 
         # Create voiceprint recognizer if enabled
         self._voiceprint_streaming = None
@@ -140,10 +130,17 @@ class Assistant:
             llm=self._llm,
             tool_manager=self._tool_manager,
             config=self._config,
-            tts_enabled=tts_enabled,
+            tts_enabled=tts_engine is not None,
         )
 
         self.on_exit_request = on_exit_request
+
+    def _instantiate_slot(self, registry: object, slot_name: str) -> object | None:
+        """Instantiate an engine for a slot if enabled, otherwise return None."""
+        slot = self._app_config.get_slot_config(slot_name)
+        if not slot.enabled or not slot.extension:
+            return None
+        return registry.instantiate(slot.extension, slot.config)  # type: ignore[union-attr]
 
     @property
     def capabilities(self) -> dict[str, bool]:

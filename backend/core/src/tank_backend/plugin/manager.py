@@ -55,6 +55,40 @@ class PluginEntry:
     extensions: dict[str, ExtensionEntry] = field(default_factory=dict)
 
 
+def validate_slot_refs(app_config: object, registry: ExtensionRegistry) -> None:
+    """Validate config.yaml extension refs against a registry.
+
+    Checks:
+      1. Referenced extension exists in registry.
+      2. Extension type matches the slot's expected type.
+
+    Raises:
+        ConfigError: Listing all violations found.
+    """
+    errors: list[str] = []
+    for slot_name, expected_type in SLOT_TYPE_MAP.items():
+        slot_cfg = app_config.get_slot_config(slot_name)  # type: ignore[attr-defined]
+        if not slot_cfg.enabled or not slot_cfg.extension:
+            continue
+
+        if not registry.has(slot_cfg.extension):
+            errors.append(
+                f"Slot '{slot_name}': extension '{slot_cfg.extension}' "
+                f"is not registered (not installed or disabled)"
+            )
+            continue
+
+        ext_manifest = registry.get(slot_cfg.extension)
+        if ext_manifest is not None and ext_manifest.type != expected_type:
+            errors.append(
+                f"Slot '{slot_name}': extension '{slot_cfg.extension}' "
+                f"has type '{ext_manifest.type}', expected '{expected_type}'"
+            )
+
+    if errors:
+        raise ConfigError(errors)
+
+
 class PluginManager:
     """Lifecycle orchestrator: discovery → loading → registration → validation.
 
@@ -92,21 +126,20 @@ class PluginManager:
         Returns the path to the generated file.
         """
         plugins = self.discover_plugins()
+
+        # Build entries from discovered manifests (all enabled by default)
+        for name, manifest in plugins.items():
+            self._entries[name] = PluginEntry(
+                name=name,
+                extensions={
+                    ext.name: ExtensionEntry(name=ext.name, enabled=True)
+                    for ext in manifest.extensions
+                },
+            )
+
         path = self._resolve_plugins_yaml_path()
-
-        data: dict[str, Any] = {}
-        for name, manifest in sorted(plugins.items()):
-            ext_entries: dict[str, Any] = {}
-            for ext in manifest.extensions:
-                ext_entries[ext.name] = {"enabled": True}
-            data[name] = {
-                "enabled": True,
-                "extensions": ext_entries,
-            }
-
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(yaml.safe_dump(data, default_flow_style=False, sort_keys=True))
-        logger.info("Generated %s with %d plugin(s)", path, len(data))
+        self._write_plugins_yaml()
+        logger.info("Generated %s with %d plugin(s)", path, len(self._entries))
         return path
 
     # ── Loading ────────────────────────────────────────────────
@@ -214,28 +247,7 @@ class PluginManager:
         Raises:
             ConfigError: Listing all violations found.
         """
-        errors: list[str] = []
-        for slot_name, expected_type in SLOT_TYPE_MAP.items():
-            slot_cfg = app_config.get_slot_config(slot_name)  # type: ignore[attr-defined]
-            if not slot_cfg.enabled or not slot_cfg.extension:
-                continue
-
-            if not self._registry.has(slot_cfg.extension):
-                errors.append(
-                    f"Slot '{slot_name}': extension '{slot_cfg.extension}' "
-                    f"is not registered (not installed or disabled)"
-                )
-                continue
-
-            ext_manifest = self._registry.get(slot_cfg.extension)
-            if ext_manifest is not None and ext_manifest.type != expected_type:
-                errors.append(
-                    f"Slot '{slot_name}': extension '{slot_cfg.extension}' "
-                    f"has type '{ext_manifest.type}', expected '{expected_type}'"
-                )
-
-        if errors:
-            raise ConfigError(errors)
+        validate_slot_refs(app_config, self._registry)
 
     # ── Internal ───────────────────────────────────────────────
 
@@ -260,10 +272,11 @@ class PluginManager:
         for plugin_name, plugin_data in raw.items():
             if not isinstance(plugin_data, dict):
                 continue
+
             ext_entries: dict[str, ExtensionEntry] = {}
             for ext_name, ext_data in plugin_data.get("extensions", {}).items():
-                ext_enabled = ext_data.get("enabled", True) if isinstance(ext_data, dict) else True
-                ext_entries[ext_name] = ExtensionEntry(name=ext_name, enabled=ext_enabled)
+                enabled = ext_data.get("enabled", True) if isinstance(ext_data, dict) else True
+                ext_entries[ext_name] = ExtensionEntry(name=ext_name, enabled=enabled)
 
             entries[plugin_name] = PluginEntry(
                 name=plugin_name,

@@ -30,12 +30,12 @@ function App() {
     capabilities,
   } = useAssistant(SESSION_ID);
 
-  const calibrationStatusText =
-    calibrationState.status === 'calibrating'
-      ? '正在校准背景噪声...'
-      : calibrationState.status === 'error'
-        ? '噪声校准失败，使用默认阈值'
-        : undefined;
+  let calibrationStatusText: string | undefined;
+  if (calibrationState.status === 'calibrating') {
+    calibrationStatusText = '正在校准背景噪声...';
+  } else if (calibrationState.status === 'error') {
+    calibrationStatusText = '噪声校准失败，使用默认阈值';
+  }
   const statusText =
     calibrationStatusText ||
     (connectionState === 'connected' ? undefined : `Status: ${connectionState}`);

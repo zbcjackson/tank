@@ -120,15 +120,12 @@ def _read_pth_source_dir(pth_path: Path) -> Path | None:
     """Read a ``.pth`` file and return the source directory it points to."""
     try:
         text = pth_path.read_text().strip()
-        # .pth files can contain import statements — skip those
         if text.startswith("import "):
             return None
         candidate = Path(text)
-        if candidate.is_dir():
-            return candidate
+        return candidate if candidate.is_dir() else None
     except OSError:
-        pass
-    return None
+        return None
 
 
 def _find_tool_tank_in_ancestors(start: Path, tomllib: object) -> dict | None:
@@ -144,15 +141,14 @@ def _find_tool_tank_in_ancestors(start: Path, tomllib: object) -> dict | None:
 
 def _parse_manifest(plugin_name: str, tank_meta: dict) -> PluginManifest:
     """Parse a ``[tool.tank]`` dict into a PluginManifest."""
-    extensions = []
-    for ext_raw in tank_meta.get("extensions", []):
-        extensions.append(
-            ExtensionManifest(
-                name=ext_raw["name"],
-                type=ext_raw["type"],
-                factory=ext_raw["factory"],
-            )
+    extensions = [
+        ExtensionManifest(
+            name=ext["name"],
+            type=ext["type"],
+            factory=ext["factory"],
         )
+        for ext in tank_meta.get("extensions", [])
+    ]
 
     return PluginManifest(
         plugin_name=tank_meta.get("plugin_name", plugin_name),
@@ -169,7 +165,6 @@ def _legacy_manifest(
     """Build a synthetic manifest for plugins without ``[tool.tank]``."""
     module_name = plugin_name.replace("-", "_")
     ext_type = slot_type or _infer_type_from_name(plugin_name)
-    ext_name = ext_type  # legacy: extension name == type
 
     return PluginManifest(
         plugin_name=plugin_name,
@@ -177,7 +172,7 @@ def _legacy_manifest(
         description=f"Legacy plugin: {plugin_name}",
         extensions=[
             ExtensionManifest(
-                name=ext_name,
+                name=ext_type,
                 type=ext_type,
                 factory=f"{module_name}:create_engine",
             )

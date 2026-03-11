@@ -84,10 +84,9 @@ class ExtensionRegistry:
                 f"Available: {self.all_names()}"
             )
 
-        # Parse "module:callable"
-        if ":" in manifest.factory:
-            module_path, callable_name = manifest.factory.rsplit(":", 1)
-        else:
+        # Parse "module:callable" with default
+        module_path, _, callable_name = manifest.factory.rpartition(":")
+        if not module_path:
             module_path = manifest.factory
             callable_name = "create_engine"
 

@@ -242,7 +242,11 @@ export const useAssistant = (sessionId: string) => {
   }, []);
 
   const toggleMode = useCallback(
-    () => setMode((prev) => (prev === 'voice' ? 'chat' : capabilities.asr ? 'voice' : 'chat')),
+    () =>
+      setMode((prev) => {
+        if (prev === 'voice') return 'chat';
+        return capabilities.asr ? 'voice' : 'chat';
+      }),
     [capabilities.asr],
   );
 

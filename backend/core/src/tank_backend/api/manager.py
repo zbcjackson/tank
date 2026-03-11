@@ -28,33 +28,37 @@ class SessionManager:
         self._sessions: dict[str, Assistant] = {}
         self._config_path = config_path
         self._voiceprint_recognizer: VoiceprintRecognizer | None = None
+        self._init_voiceprint(config_path)
 
-        # Initialize shared voiceprint recognizer for REST API
+    def _init_voiceprint(self, config_path: Path | None) -> None:
+        """Initialize shared voiceprint recognizer for the speakers REST API."""
         try:
             config = load_config(config_path)
-            if config.enable_speaker_id:
-                from ..audio.input.voiceprint_factory import (
-                    create_disabled_recognizer,
-                    create_voiceprint_recognizer,
-                )
-                from ..plugin import AppConfig
-                from ..plugin.manager import PluginManager
+            if not config.enable_speaker_id:
+                return
 
-                pm = PluginManager()
-                registry = pm.load_all()
-                app_config = AppConfig(registry=registry)
+            from ..audio.input.voiceprint_factory import (
+                create_disabled_recognizer,
+                create_voiceprint_recognizer,
+            )
+            from ..plugin import AppConfig
+            from ..plugin.manager import PluginManager
 
-                speaker_slot = app_config.get_slot_config("speaker")
-                if speaker_slot.enabled and speaker_slot.extension:
-                    extractor = registry.instantiate(
-                        speaker_slot.extension, speaker_slot.config
-                    )
-                    self._voiceprint_recognizer = create_voiceprint_recognizer(
-                        extractor, speaker_slot.config
-                    )
-                    logger.info("Shared voiceprint recognizer initialized")
-                else:
-                    self._voiceprint_recognizer = create_disabled_recognizer()
+            registry = PluginManager().load_all()
+            app_config = AppConfig(registry=registry)
+            speaker_slot = app_config.get_slot_config("speaker")
+
+            if not speaker_slot.enabled or not speaker_slot.extension:
+                self._voiceprint_recognizer = create_disabled_recognizer()
+                return
+
+            extractor = registry.instantiate(
+                speaker_slot.extension, speaker_slot.config
+            )
+            self._voiceprint_recognizer = create_voiceprint_recognizer(
+                extractor, speaker_slot.config
+            )
+            logger.info("Shared voiceprint recognizer initialized")
         except Exception as e:
             logger.warning(f"Failed to initialize voiceprint recognizer: {e}")
 
