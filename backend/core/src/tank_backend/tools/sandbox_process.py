@@ -101,7 +101,7 @@ class SandboxProcessTool(BaseTool):
         }
 
     async def _handle_poll(self, session: str, _kwargs: dict) -> dict[str, Any]:
-        output = await self._sandbox.session_poll(session)
+        output = await self._sandbox.session_read(session)
         return {
             "session": session,
             "output": output,

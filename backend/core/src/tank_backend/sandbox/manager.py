@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import shlex
 import threading
 import time
 from pathlib import Path
@@ -15,6 +16,11 @@ from .config import SandboxConfig
 from .types import BashResult, ExecResult, SessionInfo, SessionStatus
 
 logger = logging.getLogger(__name__)
+
+
+def _raw_socket(sock: Any) -> Any:
+    """Unwrap the Docker socket to get the underlying raw socket."""
+    return sock._sock if hasattr(sock, "_sock") else sock
 
 
 class SandboxManager:
@@ -29,7 +35,6 @@ class SandboxManager:
         self._container: Any | None = None
         self._client: Any | None = None
         self._sessions: dict[str, SessionInfo] = {}
-        self._lock = threading.Lock()
         self._reader_threads: dict[str, threading.Thread] = {}
 
     # ── Container lifecycle ──────────────────────────────────────
@@ -89,6 +94,10 @@ class SandboxManager:
     def is_running(self) -> bool:
         return self._container is not None
 
+    def _effective_timeout(self, timeout: int | None) -> int:
+        """Clamp an optional timeout to [default, max]."""
+        return min(timeout or self._config.default_timeout, self._config.max_timeout)
+
     # ── One-shot exec ────────────────────────────────────────────
 
     async def exec_command(
@@ -99,18 +108,14 @@ class SandboxManager:
     ) -> ExecResult:
         """Run a command to completion and return its output."""
         await self.ensure_container()
-        effective_timeout = min(
-            timeout or self._config.default_timeout,
-            self._config.max_timeout,
-        )
         return await asyncio.to_thread(
-            self._exec_sync, command, effective_timeout, working_dir
+            self._exec_sync, command, self._effective_timeout(timeout), working_dir
         )
 
     def _exec_sync(
         self, command: str, timeout: int, working_dir: str
     ) -> ExecResult:
-        wrapped = f"timeout {timeout} bash -c {_shell_quote(command)}"
+        wrapped = f"timeout {timeout} bash -c {shlex.quote(command)}"
         exit_code, output = self._container.exec_run(
             ["bash", "-c", wrapped],
             workdir=working_dir,
@@ -150,12 +155,8 @@ class SandboxManager:
             await asyncio.to_thread(self._create_session, session)
             info = self._sessions[session]
 
-        effective_timeout = min(
-            timeout or self._config.default_timeout,
-            self._config.max_timeout,
-        )
         return await asyncio.to_thread(
-            self._bash_command_sync, info, command, effective_timeout
+            self._bash_command_sync, info, command, self._effective_timeout(timeout)
         )
 
     def _create_session(self, name: str) -> None:
@@ -191,7 +192,7 @@ class SandboxManager:
         if info is None or info.socket is None:
             return
 
-        sock = info.socket._sock if hasattr(info.socket, "_sock") else info.socket
+        sock = _raw_socket(info.socket)
         try:
             while True:
                 try:
@@ -211,7 +212,7 @@ class SandboxManager:
         self, info: SessionInfo, command: str, timeout: int
     ) -> BashResult:
         """Write command to PTY, wait for output, return result."""
-        sock = info.socket._sock if hasattr(info.socket, "_sock") else info.socket
+        sock = _raw_socket(info.socket)
 
         # Record buffer position before sending
         start_len = len(info.output_buffer)
@@ -233,8 +234,7 @@ class SandboxManager:
             if current_len > start_len:
                 new_items = list(info.output_buffer)[start_len:current_len]
                 start_len = current_len
-                for chunk in new_items:
-                    output_parts.append(chunk)
+                output_parts.extend(new_items)
 
                 # Check if marker appeared
                 combined = "".join(output_parts)
@@ -271,22 +271,25 @@ class SandboxManager:
 
     # ── Raw session I/O (for interactive programs) ───────────────
 
-    async def session_write(self, session: str, data: str) -> None:
-        """Write raw data to a session's stdin."""
+    def _get_session(self, session: str) -> SessionInfo:
+        """Look up a session by name or raise ValueError."""
         info = self._sessions.get(session)
         if info is None:
             raise ValueError(f"Session '{session}' not found")
+        return info
+
+    async def session_write(self, session: str, data: str) -> None:
+        """Write raw data to a session's stdin."""
+        info = self._get_session(session)
         if info.status == SessionStatus.EXITED:
             raise ValueError(f"Session '{session}' has exited")
 
-        sock = info.socket._sock if hasattr(info.socket, "_sock") else info.socket
+        sock = _raw_socket(info.socket)
         await asyncio.to_thread(sock.sendall, data.encode("utf-8"))
 
     async def session_read(self, session: str) -> str:
         """Read recent output from a session (non-blocking poll)."""
-        info = self._sessions.get(session)
-        if info is None:
-            raise ValueError(f"Session '{session}' not found")
+        info = self._get_session(session)
 
         buf = info.output_buffer
         offset = info.poll_offset
@@ -302,34 +305,24 @@ class SandboxManager:
     def list_sessions(self) -> list[dict[str, Any]]:
         return [info.to_dict() for info in self._sessions.values()]
 
-    async def session_poll(self, session: str) -> str:
-        """Alias for session_read — recent output since last poll."""
-        return await self.session_read(session)
-
     async def session_log(self, session: str) -> str:
         """Full output history for a session."""
-        info = self._sessions.get(session)
-        if info is None:
-            raise ValueError(f"Session '{session}' not found")
+        info = self._get_session(session)
         return "".join(info.output_buffer)
 
     async def session_kill(self, session: str) -> None:
         """Kill a session (SIGTERM, then SIGKILL)."""
-        info = self._sessions.get(session)
-        if info is None:
-            raise ValueError(f"Session '{session}' not found")
+        info = self._get_session(session)
 
         if info.status == SessionStatus.RUNNING:
-            sock = info.socket._sock if hasattr(info.socket, "_sock") else info.socket
+            sock = _raw_socket(info.socket)
             with contextlib.suppress(Exception):
                 sock.close()
             info.status = SessionStatus.EXITED
 
     def session_clear(self, session: str) -> None:
         """Clear a session's output buffer."""
-        info = self._sessions.get(session)
-        if info is None:
-            raise ValueError(f"Session '{session}' not found")
+        info = self._get_session(session)
         info.output_buffer.clear()
         info.poll_offset = 0
 
@@ -351,39 +344,27 @@ class SandboxManager:
             # Close socket to unblock recv
             info = self._sessions.get(session)
             if info and info.socket:
-                try:
-                    sock = info.socket._sock if hasattr(info.socket, "_sock") else info.socket
-                    sock.close()
-                except Exception:
-                    pass
+                with contextlib.suppress(Exception):
+                    _raw_socket(info.socket).close()
             thread.join(timeout=2)
-
-
-def _shell_quote(s: str) -> str:
-    """Single-quote a string for bash, escaping embedded single quotes."""
-    return "'" + s.replace("'", "'\\''") + "'"
 
 
 def _strip_command_echo(output: str, command: str) -> str:
     """Remove the PTY echo of the typed command from the output.
 
     When a PTY is in echo mode, the command we sent appears in the output.
-    Strip the first occurrence of each line of the command.
+    Strip the first occurrence of each line of the command and the marker line.
     """
     lines = output.split("\n")
     cmd_lines = command.strip().split("\n")
     result: list[str] = []
     cmd_idx = 0
     for line in lines:
+        if "__TANK_DONE_" in line:
+            continue
         stripped = line.rstrip("\r")
         if cmd_idx < len(cmd_lines) and cmd_lines[cmd_idx] in stripped:
             cmd_idx += 1
             continue
         result.append(line)
-    # Also strip the echo marker command line
-    cleaned: list[str] = []
-    for line in result:
-        if "__TANK_DONE_" in line:
-            continue
-        cleaned.append(line)
-    return "\n".join(cleaned)
+    return "\n".join(result)

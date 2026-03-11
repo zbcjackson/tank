@@ -65,15 +65,12 @@ class SandboxExecTool(BaseTool):
                 working_dir=working_dir,
             )
             data = result.to_dict()
-            # Build a human-readable message for the LLM
-            parts: list[str] = []
-            if result.stdout:
-                parts.append(result.stdout)
-            if result.stderr:
-                parts.append(f"[stderr] {result.stderr}")
-            if result.timed_out:
-                parts.append("[command timed out]")
-            data["message"] = "\n".join(parts) if parts else "(no output)"
+            parts = [
+                result.stdout if result.stdout else None,
+                f"[stderr] {result.stderr}" if result.stderr else None,
+                "[command timed out]" if result.timed_out else None,
+            ]
+            data["message"] = "\n".join(p for p in parts if p) or "(no output)"
             return data
 
         except Exception as e:

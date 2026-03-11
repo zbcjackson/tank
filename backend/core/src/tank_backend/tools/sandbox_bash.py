@@ -115,7 +115,6 @@ class SandboxBashTool(BaseTool):
     ) -> dict[str, Any]:
         if action == "create":
             await self._sandbox.ensure_container()
-            # bash_command auto-creates sessions, but we can pre-create
             await self._sandbox.bash_command(command="true", session=session, timeout=10)
             return {
                 "session": session,
@@ -123,7 +122,7 @@ class SandboxBashTool(BaseTool):
                 "message": f"Session '{session}' created.",
             }
 
-        elif action == "write":
+        if action == "write":
             data = kwargs.get("input", "")
             await self._sandbox.session_write(session, data)
             return {
@@ -132,7 +131,7 @@ class SandboxBashTool(BaseTool):
                 "message": f"Sent {len(data)} bytes to session '{session}'.",
             }
 
-        elif action == "read":
+        if action == "read":
             output = await self._sandbox.session_read(session)
             return {
                 "session": session,
@@ -140,8 +139,7 @@ class SandboxBashTool(BaseTool):
                 "message": output if output else "(no new output)",
             }
 
-        else:
-            return {
-                "error": f"Unknown action: {action}",
-                "message": f"Unknown action '{action}'. Use 'create', 'write', or 'read'.",
-            }
+        return {
+            "error": f"Unknown action: {action}",
+            "message": f"Unknown action '{action}'. Use 'create', 'write', or 'read'.",
+        }

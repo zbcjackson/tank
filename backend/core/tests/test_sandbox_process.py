@@ -11,7 +11,7 @@ from tank_backend.tools.sandbox_process import SandboxProcessTool
 def mock_sandbox():
     sandbox = MagicMock()
     sandbox.list_sessions = MagicMock(return_value=[])
-    sandbox.session_poll = AsyncMock(return_value="")
+    sandbox.session_read = AsyncMock(return_value="")
     sandbox.session_log = AsyncMock(return_value="")
     sandbox.session_write = AsyncMock()
     sandbox.session_kill = AsyncMock()
@@ -50,13 +50,13 @@ class TestSandboxProcessTool:
         assert "bg" in result["message"]
 
     async def test_poll(self, tool, mock_sandbox):
-        mock_sandbox.session_poll.return_value = "new output\n"
+        mock_sandbox.session_read.return_value = "new output\n"
         result = await tool.execute(action="poll", session="dev")
         assert result["output"] == "new output\n"
-        mock_sandbox.session_poll.assert_awaited_once_with("dev")
+        mock_sandbox.session_read.assert_awaited_once_with("dev")
 
     async def test_poll_empty(self, tool, mock_sandbox):
-        mock_sandbox.session_poll.return_value = ""
+        mock_sandbox.session_read.return_value = ""
         result = await tool.execute(action="poll", session="dev")
         assert result["message"] == "(no new output)"
 

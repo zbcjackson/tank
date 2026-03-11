@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 
 
@@ -23,13 +24,5 @@ class SandboxConfig:
         """Create config from a dict (e.g. parsed YAML section)."""
         if not data:
             return SandboxConfig(enabled=False)
-        return SandboxConfig(
-            enabled=data.get("enabled", True),
-            image=data.get("image", "tank-sandbox:latest"),
-            workspace_host_path=data.get("workspace_host_path", "./workspace"),
-            memory_limit=data.get("memory_limit", "1g"),
-            cpu_count=data.get("cpu_count", 2),
-            default_timeout=data.get("default_timeout", 120),
-            max_timeout=data.get("max_timeout", 600),
-            network_enabled=data.get("network_enabled", True),
-        )
+        known_fields = {f.name for f in dataclasses.fields(SandboxConfig)}
+        return SandboxConfig(**{k: v for k, v in data.items() if k in known_fields})

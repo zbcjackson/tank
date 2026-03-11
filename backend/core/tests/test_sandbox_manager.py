@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from tank_backend.sandbox.config import SandboxConfig
-from tank_backend.sandbox.manager import SandboxManager, _shell_quote, _strip_command_echo
+from tank_backend.sandbox.manager import SandboxManager, _strip_command_echo
 from tank_backend.sandbox.types import SessionInfo, SessionStatus
 
 MODULE = "tank_backend.sandbox.manager"
@@ -301,12 +301,6 @@ class TestSandboxManagerSessions:
 
 
 class TestHelpers:
-    def test_shell_quote_simple(self):
-        assert _shell_quote("hello") == "'hello'"
-
-    def test_shell_quote_with_single_quotes(self):
-        assert _shell_quote("it's") == "'it'\\''s'"
-
     def test_strip_command_echo_basic(self):
         output = "echo hello\nhello\n"
         result = _strip_command_echo(output, "echo hello")
