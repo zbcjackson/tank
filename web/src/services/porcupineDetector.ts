@@ -49,6 +49,7 @@ export class PorcupineDetector implements WakeWordDetector {
     const keyword = config.keyword ?? config.builtinKeyword;
     if (!keyword) throw new Error('Either keyword or builtinKeyword must be provided');
 
+    // eslint-disable-next-line prefer-const
     let detector: PorcupineDetector;
 
     const worker = await PorcupineWorker.create(
@@ -99,11 +100,6 @@ export class PorcupineDetector implements WakeWordDetector {
       this._subscribed = false;
       console.log('[Porcupine] Unsubscribed from WebVoiceProcessor');
     }
-  }
-
-  /** Not used — Porcupine manages its own audio via WebVoiceProcessor. */
-  process(_frame: Int16Array): boolean {
-    return false;
   }
 
   release(): void {
