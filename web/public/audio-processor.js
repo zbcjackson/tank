@@ -4,13 +4,13 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
 
     // VAD config — 128 samples/frame at 16kHz = 8ms/frame
     this.rmsThreshold = 0.01;
-    this.preRollSize = 25;   // 200ms ÷ 8ms — buffer before speech onset
-    this.hangoverMax = 188;  // 1500ms ÷ 8ms — send silence after speech for ASR endpoint detection
+    this.preRollSize = 25; // 200ms ÷ 8ms — buffer before speech onset
+    this.hangoverMax = 188; // 1500ms ÷ 8ms — send silence after speech for ASR endpoint detection
 
     // State
     this.isSpeech = false;
     this.hangoverCount = 0;
-    this.ringBuffer = [];    // recent silence frames for pre-roll
+    this.ringBuffer = []; // recent silence frames for pre-roll
 
     // Wake word mode: when true, emit every frame for wake word detection
     this.wakeWordMode = false;
@@ -24,6 +24,8 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
         if (cfg.hangoverMax !== undefined) this.hangoverMax = cfg.hangoverMax;
       } else if (event.data && event.data.type === 'wake-word-config') {
         this.wakeWordMode = !!event.data.enabled;
+        // Send confirmation back to main thread
+        this.port.postMessage({ type: 'wake-word-config-ack', enabled: this.wakeWordMode });
       }
     };
   }

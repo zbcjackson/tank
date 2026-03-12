@@ -87,6 +87,7 @@ export function useConversationSession({
   const startSession = useCallback(() => {
     if (stateRef.current === 'active') return;
 
+    console.log('[ConversationSession] Starting session (idle → active)');
     setConversationState('active');
     audioProcessorRef.current?.disableWakeWord();
     clientRef.current?.sendMessage('signal', 'session_start');
@@ -166,7 +167,9 @@ export function useConversationSession({
 
     if (detector) {
       // Detector loaded successfully: loading → idle
+      console.log('[ConversationSession] Detector loaded, enabling wake word (loading → idle)');
       processor.enableWakeWord(detector, () => {
+        console.log('[ConversationSession] Wake word detected!');
         startSessionRef.current();
       });
       queueMicrotask(() => setConversationState('idle'));

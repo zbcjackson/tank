@@ -71,10 +71,6 @@ export class AudioProcessor {
 
   // Wake word state
   private wakeWordDetector: WakeWordDetector | null = null;
-  private wakeWordBuffer: Int16Array[] = [];
-  private wakeWordBufferedSamples = 0;
-  private wakeWordCallback: (() => void) | null = null;
-  private readonly MAX_WAKE_WORD_BUFFER_SAMPLES = 16000 * 5; // 5 seconds max
 
   constructor(onAudio: (data: Int16Array) => void, options?: AudioProcessorOptions) {
     this.onAudio = onAudio;
@@ -126,8 +122,6 @@ export class AudioProcessor {
         }
       } else if (event.data?.type === 'rms') {
         this.handleRmsSample(event.data.value);
-      } else if (event.data?.type === 'wake-word-frame') {
-        this.handleWakeWordFrame(event.data.buffer);
       }
     };
 
@@ -140,51 +134,6 @@ export class AudioProcessor {
   private handleRmsSample(rms: number) {
     if (this.calibrationState.status === 'calibrating') {
       this.rmsSamples.push(rms);
-    }
-  }
-
-  /**
-   * Buffer wake word frames and feed to detector when we have enough samples.
-   * The worklet emits 128-sample frames; Porcupine needs 512-sample frames.
-   */
-  private handleWakeWordFrame(buffer: ArrayBuffer) {
-    if (!this.wakeWordDetector) return;
-
-    const frame = new Int16Array(buffer);
-
-    // Drop oldest frames if buffer exceeds limit
-    if (this.wakeWordBufferedSamples + frame.length > this.MAX_WAKE_WORD_BUFFER_SAMPLES) {
-      const dropped = this.wakeWordBuffer.shift();
-      if (dropped) this.wakeWordBufferedSamples -= dropped.length;
-    }
-
-    this.wakeWordBuffer.push(frame);
-    this.wakeWordBufferedSamples += frame.length;
-
-    const needed = this.wakeWordDetector.frameLength;
-    while (this.wakeWordBufferedSamples >= needed) {
-      // Combine buffered frames into one detector-sized frame
-      const combined = new Int16Array(needed);
-      let offset = 0;
-      while (offset < needed) {
-        const chunk = this.wakeWordBuffer[0];
-        const take = Math.min(chunk.length, needed - offset);
-        combined.set(chunk.subarray(0, take), offset);
-        offset += take;
-
-        if (take < chunk.length) {
-          // Partial consume — keep remainder
-          this.wakeWordBuffer[0] = chunk.subarray(take);
-        } else {
-          this.wakeWordBuffer.shift();
-        }
-      }
-      this.wakeWordBufferedSamples -= needed;
-
-      const detected = this.wakeWordDetector.process(combined);
-      if (detected) {
-        this.wakeWordCallback?.();
-      }
     }
   }
 
@@ -256,29 +205,26 @@ export class AudioProcessor {
   }
 
   /**
-   * Enable wake word detection. Gates audio (stops forwarding to backend)
-   * and routes worklet frames to the detector instead.
+   * Enable wake word detection. Gates audio (stops forwarding to backend).
+   * The detector manages its own audio pipeline via WebVoiceProcessor.
    */
-  enableWakeWord(detector: WakeWordDetector, onDetected: () => void): void {
+  async enableWakeWord(detector: WakeWordDetector, onDetected: () => void): Promise<void> {
+    console.log('[AudioProcessor] Enabling wake word detection, gating audio');
     this.wakeWordDetector = detector;
-    this.wakeWordCallback = onDetected;
-    this.wakeWordBuffer = [];
-    this.wakeWordBufferedSamples = 0;
     this.gateSpeech = true;
     this.onSpeechChange?.(false);
-    this.workletNode?.port.postMessage({ type: 'wake-word-config', enabled: true });
+    await detector.start(onDetected);
   }
 
   /**
    * Disable wake word detection. Ungates audio so it flows to the backend.
    */
-  disableWakeWord(): void {
+  async disableWakeWord(): Promise<void> {
+    if (this.wakeWordDetector) {
+      await this.wakeWordDetector.stop();
+    }
     this.wakeWordDetector = null;
-    this.wakeWordCallback = null;
-    this.wakeWordBuffer = [];
-    this.wakeWordBufferedSamples = 0;
     this.gateSpeech = false;
-    this.workletNode?.port.postMessage({ type: 'wake-word-config', enabled: false });
   }
 
   pause() {
