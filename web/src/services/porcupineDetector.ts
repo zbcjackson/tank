@@ -20,7 +20,6 @@ export interface PorcupineDetectorConfig {
   keyword?: PorcupineKeyword;
   builtinKeyword?: BuiltInKeyword;
   model: PorcupineModel;
-  sensitivity?: number;
 }
 
 /**
@@ -102,9 +101,9 @@ export class PorcupineDetector implements WakeWordDetector {
     }
   }
 
-  release(): void {
+  async release(): Promise<void> {
     if (this._subscribed) {
-      WebVoiceProcessor.unsubscribe(this.worker);
+      await WebVoiceProcessor.unsubscribe(this.worker);
       this._subscribed = false;
     }
     this.worker.terminate();

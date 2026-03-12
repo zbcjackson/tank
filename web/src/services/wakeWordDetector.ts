@@ -19,5 +19,5 @@ export interface WakeWordDetector {
   stop(): Promise<void>;
 
   /** Release all resources held by the detector. */
-  release(): void;
+  release(): void | Promise<void>;
 }

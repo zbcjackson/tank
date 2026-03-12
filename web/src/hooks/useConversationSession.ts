@@ -87,9 +87,10 @@ export function useConversationSession({
   const startSession = useCallback(() => {
     if (stateRef.current === 'active') return;
 
-    console.log('[ConversationSession] Starting session (idle → active)');
     setConversationState('active');
-    audioProcessorRef.current?.disableWakeWord();
+    audioProcessorRef.current
+      ?.disableWakeWord()
+      .catch((err) => console.error('[ConversationSession] Failed to disable wake word:', err));
     clientRef.current?.sendMessage('signal', 'session_start');
     onSessionStartRef.current?.();
   }, [clientRef, audioProcessorRef]);
@@ -107,9 +108,11 @@ export function useConversationSession({
 
     const processor = audioProcessorRef.current;
     if (processor && detector) {
-      processor.enableWakeWord(detector, () => {
-        startSessionRef.current();
-      });
+      processor
+        .enableWakeWord(detector, () => {
+          startSessionRef.current();
+        })
+        .catch((err) => console.error('[ConversationSession] Failed to re-arm wake word:', err));
     }
   }, [clientRef, audioProcessorRef, detector]);
 
@@ -158,25 +161,27 @@ export function useConversationSession({
     const processor = audioProcessorRef.current;
     if (!processor || !audioReady) return; // Wait for audio processor to be ready
 
-    const timeoutId = setTimeout(() => {
-      if (stateRef.current === 'loading') {
-        console.warn('Wake word detector timeout, falling back to always-on mode');
-        setConversationState('active');
-      }
-    }, 10000); // 10 second timeout
-
     if (detector) {
       // Detector loaded successfully: loading → idle
-      console.log('[ConversationSession] Detector loaded, enabling wake word (loading → idle)');
-      processor.enableWakeWord(detector, () => {
-        console.log('[ConversationSession] Wake word detected!');
-        startSessionRef.current();
-      });
+      processor
+        .enableWakeWord(detector, () => {
+          startSessionRef.current();
+        })
+        .catch((err) => console.error('[ConversationSession] Failed to enable wake word:', err));
       queueMicrotask(() => setConversationState('idle'));
+    } else {
+      // Detector not loaded yet — set timeout to fall back to active
+      const timeoutId = setTimeout(() => {
+        if (stateRef.current === 'loading') {
+          console.warn('Wake word detector timeout, falling back to always-on mode');
+          setConversationState('active');
+        }
+      }, 10000);
+
+      return () => clearTimeout(timeoutId);
     }
 
     return () => {
-      clearTimeout(timeoutId);
       clearSilenceTimer();
     };
   }, [detector, audioReady, audioProcessorRef, clearSilenceTimer]);

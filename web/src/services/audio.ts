@@ -207,6 +207,7 @@ export class AudioProcessor {
   /**
    * Enable wake word detection. Gates audio (stops forwarding to backend).
    * The detector manages its own audio pipeline via WebVoiceProcessor.
+   * NOTE: Two mic streams will be active simultaneously (our worklet + WebVoiceProcessor).
    */
   async enableWakeWord(detector: WakeWordDetector, onDetected: () => void): Promise<void> {
     console.log('[AudioProcessor] Enabling wake word detection, gating audio');
