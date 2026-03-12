@@ -173,13 +173,23 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     elif msg.content == "disconnect":
                         break
                     elif msg.content == "session_start":
-                        assistant.reset_session()
-                        ready_msg = WebsocketMessage(
-                            type=MessageType.SIGNAL,
-                            content="session_ready",
-                            session_id=session_id,
-                        )
-                        await websocket.send_text(ready_msg.model_dump_json())
+                        try:
+                            assistant.reset_session()
+                            ready_msg = WebsocketMessage(
+                                type=MessageType.SIGNAL,
+                                content="session_ready",
+                                session_id=session_id,
+                            )
+                            await websocket.send_text(ready_msg.model_dump_json())
+                        except Exception as e:
+                            logger.error(f"Session reset failed: {e}", exc_info=True)
+                            error_msg = WebsocketMessage(
+                                type=MessageType.SIGNAL,
+                                content="session_reset_failed",
+                                session_id=session_id,
+                                metadata={"error": str(e)},
+                            )
+                            await websocket.send_text(error_msg.model_dump_json())
                     elif msg.content == "session_end":
                         if assistant.audio_output is not None:
                             assistant.audio_output.interrupt()

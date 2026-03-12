@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAssistant } from './hooks/useAssistant';
 import { VoiceMode } from './components/Assistant/VoiceMode';
 import { ChatMode } from './components/Assistant/ChatMode';
@@ -14,8 +14,13 @@ const APP_BG_STYLE = { background: '#0a0a0a' };
 const WAKE_WORD_ENABLED = import.meta.env.VITE_WAKE_WORD_ENABLED === 'true';
 const PORCUPINE_ACCESS_KEY = import.meta.env.VITE_PORCUPINE_ACCESS_KEY || '';
 
+if (WAKE_WORD_ENABLED && !PORCUPINE_ACCESS_KEY) {
+  console.error('VITE_PORCUPINE_ACCESS_KEY is required when wake word is enabled');
+}
+
 function useWakeWordDetector(): WakeWordDetector | null {
   const [detector, setDetector] = useState<WakeWordDetector | null>(null);
+  const detectorRef = useRef<WakeWordDetector | null>(null);
 
   useEffect(() => {
     if (!WAKE_WORD_ENABLED || !PORCUPINE_ACCESS_KEY) return;
@@ -37,6 +42,7 @@ function useWakeWordDetector(): WakeWordDetector | null {
           d.release();
         } else {
           console.log('Wake word detector loaded successfully');
+          detectorRef.current = d;
           setDetector(d);
         }
       })
@@ -46,10 +52,8 @@ function useWakeWordDetector(): WakeWordDetector | null {
 
     return () => {
       cancelled = true;
-      setDetector((prev) => {
-        prev?.release();
-        return null;
-      });
+      detectorRef.current?.release();
+      detectorRef.current = null;
     };
   }, []);
 

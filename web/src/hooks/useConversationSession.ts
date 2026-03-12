@@ -157,25 +157,23 @@ export function useConversationSession({
     const processor = audioProcessorRef.current;
     if (!processor || !audioReady) return; // Wait for audio processor to be ready
 
+    const timeoutId = setTimeout(() => {
+      if (stateRef.current === 'loading') {
+        console.warn('Wake word detector timeout, falling back to always-on mode');
+        setConversationState('active');
+      }
+    }, 10000); // 10 second timeout
+
     if (detector) {
       // Detector loaded successfully: loading → idle
       processor.enableWakeWord(detector, () => {
         startSessionRef.current();
       });
       queueMicrotask(() => setConversationState('idle'));
-    } else {
-      // Detector not loaded yet — set timeout to fall back to active
-      const timeoutId = setTimeout(() => {
-        if (stateRef.current === 'loading') {
-          console.warn('Wake word detector timeout, falling back to always-on mode');
-          setConversationState('active');
-        }
-      }, 10000); // 10 second timeout
-
-      return () => clearTimeout(timeoutId);
     }
 
     return () => {
+      clearTimeout(timeoutId);
       clearSilenceTimer();
     };
   }, [detector, audioReady, audioProcessorRef, clearSilenceTimer]);

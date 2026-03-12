@@ -74,6 +74,7 @@ export class AudioProcessor {
   private wakeWordBuffer: Int16Array[] = [];
   private wakeWordBufferedSamples = 0;
   private wakeWordCallback: (() => void) | null = null;
+  private readonly MAX_WAKE_WORD_BUFFER_SAMPLES = 16000 * 5; // 5 seconds max
 
   constructor(onAudio: (data: Int16Array) => void, options?: AudioProcessorOptions) {
     this.onAudio = onAudio;
@@ -150,6 +151,13 @@ export class AudioProcessor {
     if (!this.wakeWordDetector) return;
 
     const frame = new Int16Array(buffer);
+
+    // Drop oldest frames if buffer exceeds limit
+    if (this.wakeWordBufferedSamples + frame.length > this.MAX_WAKE_WORD_BUFFER_SAMPLES) {
+      const dropped = this.wakeWordBuffer.shift();
+      if (dropped) this.wakeWordBufferedSamples -= dropped.length;
+    }
+
     this.wakeWordBuffer.push(frame);
     this.wakeWordBufferedSamples += frame.length;
 

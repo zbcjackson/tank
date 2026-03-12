@@ -5,6 +5,11 @@
  * it posts audio to the worker and fires `keywordDetectionCallback`
  * asynchronously when a keyword is detected. We bridge this to the
  * synchronous `WakeWordDetector.process()` interface via a flag.
+ *
+ * IMPORTANT: There is a 1-frame detection latency (~32ms at 16kHz).
+ * The `process()` method returns the detection result from the PREVIOUS
+ * frame because the worker callback fires asynchronously. This latency
+ * is imperceptible for wake word detection.
  */
 import {
   PorcupineWorker,
