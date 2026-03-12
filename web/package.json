@@ -13,6 +13,7 @@
     "test": "vitest --run"
   },
   "dependencies": {
+    "@picovoice/porcupine-web": "^4.0.0",
     "@tailwindcss/vite": "^4.1.18",
     "clsx": "^2.1.1",
     "framer-motion": "^12.34.0",

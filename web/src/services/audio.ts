@@ -1,3 +1,5 @@
+import type { WakeWordDetector } from './wakeWordDetector';
+
 export interface VADConfig {
   threshold: number;
   preRollSize: number; // frames (128 samples each at 16kHz)
@@ -67,6 +69,12 @@ export class AudioProcessor {
   private calibrationToken: symbol | null = null;
   private muted = false;
 
+  // Wake word state
+  private wakeWordDetector: WakeWordDetector | null = null;
+  private wakeWordBuffer: Int16Array[] = [];
+  private wakeWordBufferedSamples = 0;
+  private wakeWordCallback: (() => void) | null = null;
+
   constructor(onAudio: (data: Int16Array) => void, options?: AudioProcessorOptions) {
     this.onAudio = onAudio;
     this.onSpeechChange = options?.onSpeechChange;
@@ -117,6 +125,8 @@ export class AudioProcessor {
         }
       } else if (event.data?.type === 'rms') {
         this.handleRmsSample(event.data.value);
+      } else if (event.data?.type === 'wake-word-frame') {
+        this.handleWakeWordFrame(event.data.buffer);
       }
     };
 
@@ -129,6 +139,44 @@ export class AudioProcessor {
   private handleRmsSample(rms: number) {
     if (this.calibrationState.status === 'calibrating') {
       this.rmsSamples.push(rms);
+    }
+  }
+
+  /**
+   * Buffer wake word frames and feed to detector when we have enough samples.
+   * The worklet emits 128-sample frames; Porcupine needs 512-sample frames.
+   */
+  private handleWakeWordFrame(buffer: ArrayBuffer) {
+    if (!this.wakeWordDetector) return;
+
+    const frame = new Int16Array(buffer);
+    this.wakeWordBuffer.push(frame);
+    this.wakeWordBufferedSamples += frame.length;
+
+    const needed = this.wakeWordDetector.frameLength;
+    while (this.wakeWordBufferedSamples >= needed) {
+      // Combine buffered frames into one detector-sized frame
+      const combined = new Int16Array(needed);
+      let offset = 0;
+      while (offset < needed) {
+        const chunk = this.wakeWordBuffer[0];
+        const take = Math.min(chunk.length, needed - offset);
+        combined.set(chunk.subarray(0, take), offset);
+        offset += take;
+
+        if (take < chunk.length) {
+          // Partial consume — keep remainder
+          this.wakeWordBuffer[0] = chunk.subarray(take);
+        } else {
+          this.wakeWordBuffer.shift();
+        }
+      }
+      this.wakeWordBufferedSamples -= needed;
+
+      const detected = this.wakeWordDetector.process(combined);
+      if (detected) {
+        this.wakeWordCallback?.();
+      }
     }
   }
 
@@ -154,7 +202,10 @@ export class AudioProcessor {
       this.vadConfig.threshold,
     );
     this.setVADThreshold(threshold);
-    this.gateSpeech = false;
+    // Only ungated if wake word is not active — otherwise stay gated
+    if (!this.wakeWordDetector) {
+      this.gateSpeech = false;
+    }
     if (usedFallback) {
       this.updateCalibrationState({
         status: 'error',
@@ -196,6 +247,32 @@ export class AudioProcessor {
     return this.muted;
   }
 
+  /**
+   * Enable wake word detection. Gates audio (stops forwarding to backend)
+   * and routes worklet frames to the detector instead.
+   */
+  enableWakeWord(detector: WakeWordDetector, onDetected: () => void): void {
+    this.wakeWordDetector = detector;
+    this.wakeWordCallback = onDetected;
+    this.wakeWordBuffer = [];
+    this.wakeWordBufferedSamples = 0;
+    this.gateSpeech = true;
+    this.onSpeechChange?.(false);
+    this.workletNode?.port.postMessage({ type: 'wake-word-config', enabled: true });
+  }
+
+  /**
+   * Disable wake word detection. Ungates audio so it flows to the backend.
+   */
+  disableWakeWord(): void {
+    this.wakeWordDetector = null;
+    this.wakeWordCallback = null;
+    this.wakeWordBuffer = [];
+    this.wakeWordBufferedSamples = 0;
+    this.gateSpeech = false;
+    this.workletNode?.port.postMessage({ type: 'wake-word-config', enabled: false });
+  }
+
   pause() {
     this.gateSpeech = true;
     this.onSpeechChange?.(false);
@@ -207,6 +284,8 @@ export class AudioProcessor {
 
   stop() {
     this.calibrationToken = null;
+    this.wakeWordDetector?.release();
+    this.wakeWordDetector = null;
     this.source?.disconnect();
     this.workletNode?.disconnect();
     this.workletNode?.port.close();

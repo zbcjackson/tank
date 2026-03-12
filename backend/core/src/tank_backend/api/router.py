@@ -172,6 +172,18 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                             assistant.audio_output.interrupt()
                     elif msg.content == "disconnect":
                         break
+                    elif msg.content == "session_start":
+                        assistant.reset_session()
+                        ready_msg = WebsocketMessage(
+                            type=MessageType.SIGNAL,
+                            content="session_ready",
+                            session_id=session_id,
+                        )
+                        await websocket.send_text(ready_msg.model_dump_json())
+                    elif msg.content == "session_end":
+                        if assistant.audio_output is not None:
+                            assistant.audio_output.interrupt()
+                        logger.info(f"Session ended by client: {session_id}")
                     elif msg.content == "ping":
                         pong_msg = WebsocketMessage(
                             type=MessageType.SIGNAL,

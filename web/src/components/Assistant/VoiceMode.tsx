@@ -1,7 +1,9 @@
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, MicOff, Square } from 'lucide-react';
 import { Waveform } from './Waveform';
+import { WakeWordIndicator } from './WakeWordIndicator';
 import type { CalibrationState } from '../../services/audio';
+import type { ConversationState } from '../../hooks/useAssistant';
 
 interface VoiceModeProps {
   isAssistantTyping: boolean;
@@ -13,6 +15,7 @@ interface VoiceModeProps {
   statusText?: string;
   calibrationState: CalibrationState;
   getAnalyserNode?: () => AnalyserNode | null;
+  conversationState?: ConversationState;
 }
 
 const statusVariants = {
@@ -100,28 +103,39 @@ export const VoiceMode = ({
   statusText,
   calibrationState,
   getAnalyserNode,
+  conversationState,
 }: VoiceModeProps) => {
+  const isWakeWordIdle = conversationState === 'idle';
+  const isWakeWordLoading = conversationState === 'loading';
   const micStatus = isMuted ? 'muted' : isUserSpeaking ? 'speaking' : 'idle';
 
-  const orbState = isSpeaking
-    ? 'speaking'
-    : isAssistantTyping
-      ? 'thinking'
-      : isUserSpeaking
-        ? 'listening'
-        : isMuted
-          ? 'muted'
-          : 'idle';
+  const orbState = isWakeWordLoading
+    ? 'idle'
+    : isWakeWordIdle
+      ? 'idle'
+      : isSpeaking
+        ? 'speaking'
+        : isAssistantTyping
+          ? 'thinking'
+          : isUserSpeaking
+            ? 'listening'
+            : isMuted
+              ? 'muted'
+              : 'idle';
 
-  const statusLabel = isSpeaking
-    ? '回复中'
-    : isAssistantTyping
-      ? '思考中'
-      : isMuted
-        ? '已静音'
-        : isUserSpeaking
-          ? '聆听中'
-          : statusText || '等待语音输入';
+  const statusLabel = isWakeWordLoading
+    ? '正在加载唤醒词...'
+    : isWakeWordIdle
+      ? undefined // WakeWordIndicator handles the status text
+      : isSpeaking
+        ? '回复中'
+        : isAssistantTyping
+          ? '思考中'
+          : isMuted
+            ? '已静音'
+            : isUserSpeaking
+              ? '聆听中'
+              : statusText || '等待语音输入';
 
   const calibrationLabel =
     calibrationState.status === 'calibrating'
@@ -185,16 +199,25 @@ export const VoiceMode = ({
 
         {/* Status area */}
         <div className="flex flex-col items-center gap-3">
-          <motion.p
-            key={statusLabel}
-            variants={statusVariants}
-            initial="hidden"
-            animate="visible"
-            transition={{ duration: 0.3 }}
-            className="text-sm font-medium tracking-wide text-text-secondary"
-          >
-            {statusLabel}
-          </motion.p>
+          <AnimatePresence mode="wait">
+            {isWakeWordIdle ? (
+              <WakeWordIndicator key="wake-word" keyword="Hey Tank" />
+            ) : (
+              statusLabel && (
+                <motion.p
+                  key={statusLabel}
+                  variants={statusVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="hidden"
+                  transition={{ duration: 0.3 }}
+                  className="text-sm font-medium tracking-wide text-text-secondary"
+                >
+                  {statusLabel}
+                </motion.p>
+              )
+            )}
+          </AnimatePresence>
 
           {calibrationLabel && (
             <motion.span

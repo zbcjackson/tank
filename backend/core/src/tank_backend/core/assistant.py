@@ -227,6 +227,18 @@ class Assistant:
             )
         )
 
+    def reset_session(self) -> None:
+        """Reset Brain conversation history via queue (thread-safe)."""
+        self.runtime.brain_input_queue.put(
+            BrainInputEvent(
+                type=InputType.SYSTEM,
+                text="__reset__",
+                user="system",
+                language=None,
+                confidence=None,
+            )
+        )
+
     def get_messages(self):
         """Yields all pending messages from the display queue."""
         while not self.runtime.ui_queue.empty():

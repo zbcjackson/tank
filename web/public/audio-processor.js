@@ -12,6 +12,9 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
     this.hangoverCount = 0;
     this.ringBuffer = [];    // recent silence frames for pre-roll
 
+    // Wake word mode: when true, emit every frame for wake word detection
+    this.wakeWordMode = false;
+
     // Accept runtime config updates from main thread
     this.port.onmessage = (event) => {
       if (event.data && event.data.type === 'vad-config') {
@@ -19,6 +22,8 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
         if (cfg.threshold !== undefined) this.rmsThreshold = cfg.threshold;
         if (cfg.preRollSize !== undefined) this.preRollSize = cfg.preRollSize;
         if (cfg.hangoverMax !== undefined) this.hangoverMax = cfg.hangoverMax;
+      } else if (event.data && event.data.type === 'wake-word-config') {
+        this.wakeWordMode = !!event.data.enabled;
       }
     };
   }
@@ -47,6 +52,12 @@ class AudioCaptureProcessor extends AudioWorkletProcessor {
     // Emit RMS so the main thread can calibrate ambient noise
     this.port.postMessage({ type: 'rms', value: rms });
     const speechDetected = rms >= this.rmsThreshold;
+
+    // Wake word mode: emit every frame regardless of VAD state
+    if (this.wakeWordMode) {
+      const copy = int16.buffer.slice(0);
+      this.port.postMessage({ type: 'wake-word-frame', buffer: copy }, [copy]);
+    }
 
     if (speechDetected) {
       // Speech onset — flush pre-roll then send current frame

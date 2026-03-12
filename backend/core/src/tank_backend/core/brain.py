@@ -12,6 +12,7 @@ from .events import (
     BrainInputEvent,
     BrainInterrupted,
     DisplayMessage,
+    InputType,
     SignalMessage,
 )
 from .runtime import RuntimeContext
@@ -104,10 +105,20 @@ class Brain(QueueWorker[BrainInputEvent]):
         self._event_loop = None
         self._loop = None
 
+    def reset_conversation(self) -> None:
+        """Reset conversation history to initial state (system prompt only)."""
+        self._conversation_history = [{"role": "system", "content": self._system_prompt}]
+        logger.info("Conversation history reset")
+
     def handle(self, event: BrainInputEvent) -> None:
         """
         Handles inputs from both Keyboard and Perception.
         """
+        # Handle system reset before normal processing
+        if event.type == InputType.SYSTEM and event.text == "__reset__":
+            self.reset_conversation()
+            return
+
         if not event.text or not event.text.strip():
             logger.debug(f"Skipping blank text from {event.user}")
             return

@@ -7,13 +7,24 @@ import {
 } from '../services/websocket';
 import type { WebsocketMessage } from '../services/websocket';
 import { AudioProcessor, type CalibrationState } from '../services/audio';
+import type { WakeWordDetector } from '../services/wakeWordDetector';
+import {
+  useConversationSession,
+  type ConversationState,
+  type ConversationSessionConfig,
+} from './useConversationSession';
 import type { Step, StepType, ToolContent, Message } from '../types/message';
 
-export type { Step, StepType, ToolContent, Message };
+export type { Step, StepType, ToolContent, Message, ConversationState };
 
 const DEFAULT_CAPABILITIES: Capabilities = { asr: true, tts: true, speaker_id: false };
 
-export const useAssistant = (sessionId: string) => {
+const WAKE_WORD_ENABLED = import.meta.env.VITE_WAKE_WORD_ENABLED === 'true';
+const WAKE_WORD_SILENCE_TIMEOUT_MS = Number(
+  import.meta.env.VITE_WAKE_WORD_SILENCE_TIMEOUT_MS || '30000',
+);
+
+export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetector | null) => {
   const [steps, setSteps] = useState<Step[]>([]);
   const [mode, setMode] = useState<'voice' | 'chat'>('voice');
   const [isAssistantTyping, setIsAssistantTyping] = useState(false);
@@ -24,12 +35,28 @@ export const useAssistant = (sessionId: string) => {
   const [isMuted, setIsMuted] = useState(false);
   const [calibrationState, setCalibrationState] = useState<CalibrationState>({ status: 'idle' });
   const [capabilities, setCapabilities] = useState<Capabilities>(DEFAULT_CAPABILITIES);
+  const [latestMessage, setLatestMessage] = useState<WebsocketMessage | null>(null);
+  const [audioReady, setAudioReady] = useState(false);
 
   const clientRef = useRef<VoiceAssistantClient | null>(null);
   const audioProcessorRef = useRef<AudioProcessor | null>(null);
   const audioStartedRef = useRef(false);
 
+  const wakeWordConfig: ConversationSessionConfig = useMemo(
+    () => ({
+      intended: WAKE_WORD_ENABLED,
+      enabled: !!wakeWordDetector,
+      silenceTimeoutMs: WAKE_WORD_SILENCE_TIMEOUT_MS,
+    }),
+    [wakeWordDetector],
+  );
+
+  const clearSteps = useCallback(() => setSteps([]), []);
+
   const handleMessage = useCallback((msg: WebsocketMessage) => {
+    // Track latest message for conversation session hook
+    setLatestMessage(msg);
+
     if (msg.type === 'signal') {
       if (msg.content === 'ready') {
         // Extract capabilities from ready signal metadata
@@ -228,12 +255,42 @@ export const useAssistant = (sessionId: string) => {
     if (!capabilities.asr) return;
 
     audioStartedRef.current = true;
-    processor.start().catch((err) => {
-      console.error('Failed to start audio processor:', err);
-      setConnectionState('failed');
-      setConnectionMetadata({ error: 'Failed to start audio processor' });
-    });
+    processor
+      .start()
+      .then(() => {
+        setAudioReady(true);
+      })
+      .catch((err) => {
+        console.error('Failed to start audio processor:', err);
+        setConnectionState('failed');
+        setConnectionMetadata({ error: 'Failed to start audio processor' });
+      });
   }, [capabilities.asr]);
+
+  // Conversation session (wake word state machine)
+  const { conversationState } = useConversationSession({
+    clientRef,
+    audioProcessorRef,
+    detector: wakeWordDetector ?? null,
+    audioReady,
+    latestMessage,
+    isSpeaking,
+    config: wakeWordConfig,
+    onSessionStart: clearSteps,
+  });
+
+  // Gate audio during 'loading' state
+  useEffect(() => {
+    const processor = audioProcessorRef.current;
+    if (!processor) return;
+
+    if (conversationState === 'loading') {
+      processor.pause();
+    } else if (conversationState === 'active') {
+      processor.resume();
+    }
+    // 'idle' state is handled by enableWakeWord() in useConversationSession
+  }, [conversationState]);
 
   const sendMessage = useCallback((text: string) => {
     if (clientRef.current) {
@@ -307,6 +364,7 @@ export const useAssistant = (sessionId: string) => {
     connectionMetadata,
     calibrationState,
     capabilities,
+    conversationState,
     sendMessage,
     toggleMode,
     toggleMute,
