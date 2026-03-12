@@ -36,8 +36,8 @@ export function computeCalibrationThreshold(
 
 const DEFAULT_CALIBRATION_CONFIG: CalibrationConfig = {
   durationMs: 1000,
-  multiplier: 3,
-  minThreshold: 0.004,
+  multiplier: 5,
+  minThreshold: 0.008,
 };
 
 export const DEFAULT_VAD_CONFIG: VADConfig = {
