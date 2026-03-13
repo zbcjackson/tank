@@ -24,6 +24,8 @@ def mock_config():
         config.serper_api_key = "test_serper"
         config.speech_interrupt_enabled = True
         config.max_conversation_history = 5
+        config.max_history_tokens = 8000
+        config.summarize_at_tokens = 6000
         config.enable_speaker_id = False
         mock_load.return_value = config
         yield config

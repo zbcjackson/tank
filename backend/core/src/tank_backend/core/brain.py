@@ -5,6 +5,8 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import tiktoken
+
 from ..audio.output import AudioOutput
 from ..config.settings import VoiceAssistantConfig
 from .events import (
@@ -231,6 +233,9 @@ class Brain(QueueWorker[BrainInputEvent]):
                 if full_response_text:
                     self._add_to_conversation_history("assistant", full_response_text)
 
+                    # 2b. Summarize old history if over threshold
+                    await self._maybe_summarize()
+
                     # 3. Trigger TTS only when enabled and response is non-empty
                     if self._tts_enabled:
                         self._runtime.audio_output_queue.put(
@@ -247,18 +252,120 @@ class Brain(QueueWorker[BrainInputEvent]):
 
         self._run_async(stream_task())
 
+    # Shared tiktoken encoder — cl100k_base works for GPT-4/3.5 and is a
+    # reasonable approximation for other OpenAI-compatible models.
+    _encoder = tiktoken.get_encoding("cl100k_base")
+
+    def _count_tokens(self, messages: list["ChatCompletionMessageParam"]) -> int:
+        """Estimate token count for a list of chat messages."""
+        total = 0
+        for msg in messages:
+            # ~4 tokens overhead per message (role, delimiters)
+            total += 4
+            content = msg.get("content") or ""
+            if isinstance(content, str):
+                total += len(self._encoder.encode(content))
+        return total
+
+    async def _maybe_summarize(self) -> None:
+        """Summarize old conversation history if token count exceeds threshold."""
+        total_tokens = self._count_tokens(self._conversation_history)
+        threshold = self._config.summarize_at_tokens
+
+        if total_tokens <= threshold:
+            return
+
+        # Keep system prompt (index 0) + last 5 messages
+        system_msg = self._conversation_history[0]
+        rest = self._conversation_history[1:]
+
+        if len(rest) <= 5:
+            # Not enough messages to summarize
+            return
+
+        # Summarize everything except system + last 5
+        to_summarize = rest[:-5]
+        to_keep = rest[-5:]
+
+        # Build summarization prompt
+        summary_prompt = (
+            "Summarize the following conversation history concisely. "
+            "Preserve key facts, decisions, and context. "
+            "Keep it under 500 tokens.\n\n"
+        )
+        for msg in to_summarize:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+            summary_prompt += f"{role}: {content}\n\n"
+
+        try:
+            # Call LLM with low temperature for factual summary
+            summary_messages = [
+                {"role": "system", "content": "You are a helpful assistant that summarizes."},
+                {"role": "user", "content": summary_prompt},
+            ]
+            response = await self._llm.chat_completion_async(
+                messages=summary_messages,
+                temperature=0.3,
+                max_tokens=500,
+            )
+
+            summary_text = response["choices"][0]["message"]["content"]
+
+            # Replace old messages with summary
+            summary_msg = {
+                "role": "system",
+                "content": f"Previous conversation summary: {summary_text}",
+            }
+            self._conversation_history = [system_msg, summary_msg] + to_keep
+
+            new_tokens = self._count_tokens(self._conversation_history)
+            logger.info(
+                "History summarized: %d → %d tokens (%d messages → %d)",
+                total_tokens,
+                new_tokens,
+                len(to_summarize) + len(to_keep) + 1,
+                len(self._conversation_history),
+            )
+        except Exception as e:
+            logger.error(f"Summarization failed: {e}", exc_info=True)
+            # Fall back to truncation if summarization fails
+            pass
+
     def _add_to_conversation_history(self, role: str, content: str) -> None:
-        """Add message to conversation history and enforce limit."""
+        """Add message to conversation history and enforce token budget."""
         self._conversation_history.append({"role": role, "content": content})
 
-        # Limit: keep system (index 0) + last max_conversation_history * 2 messages
-        # (each conversation turn = 1 user + 1 assistant = 2 messages)
-        max_messages = self._config.max_conversation_history * 2 + 1
-        if len(self._conversation_history) > max_messages:
-            self._conversation_history = (
-                [self._conversation_history[0]]  # Keep system prompt
-                + self._conversation_history[-(max_messages - 1) :]  # Keep last N messages
-            )
+        token_budget = self._config.max_history_tokens
+        total_tokens = self._count_tokens(self._conversation_history)
+
+        if total_tokens <= token_budget:
+            return
+
+        # Always keep system prompt (index 0); drop oldest non-system messages first
+        system_msg = self._conversation_history[0]
+        rest = self._conversation_history[1:]
+
+        # Walk backwards from most recent, accumulating tokens until budget is hit
+        system_tokens = self._count_tokens([system_msg])
+        remaining_budget = token_budget - system_tokens
+        keep_from = len(rest)
+        running = 0
+        for i in range(len(rest) - 1, -1, -1):
+            msg_tokens = self._count_tokens([rest[i]])
+            if running + msg_tokens > remaining_budget:
+                break
+            running += msg_tokens
+            keep_from = i
+
+        self._conversation_history = [system_msg] + rest[keep_from:]
+        new_tokens = self._count_tokens(self._conversation_history)
+        logger.info(
+            "History truncated: %d → %d tokens (%d messages kept)",
+            total_tokens,
+            new_tokens,
+            len(self._conversation_history),
+        )
 
     def _get_error_message(self, language: str | None) -> str:
         """Get error message in user's language."""

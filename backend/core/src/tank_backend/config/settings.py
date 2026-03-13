@@ -16,6 +16,8 @@ _ENV_FIELD_MAP: dict[str, tuple[str, type]] = {
     "AUDIO_DURATION": ("audio_duration", float),
     "LOG_LEVEL": ("log_level", str),
     "MAX_CONVERSATION_HISTORY": ("max_conversation_history", int),
+    "MAX_HISTORY_TOKENS": ("max_history_tokens", int),
+    "SUMMARIZE_AT_TOKENS": ("summarize_at_tokens", int),
     "SPEECH_INTERRUPT_ENABLED": ("speech_interrupt_enabled", str),
     "ENABLE_SPEAKER_ID": ("enable_speaker_id", str),
 }
@@ -40,6 +42,13 @@ class VoiceAssistantConfig(BaseModel):
     log_level: str = Field(default="INFO", description="Logging level")
     max_conversation_history: int = Field(
         default=10, description="Maximum number of conversation turns to keep"
+    )
+    max_history_tokens: int = Field(
+        default=8000, description="Maximum token budget for conversation history"
+    )
+    summarize_at_tokens: int = Field(
+        default=6000,
+        description="Trigger summarization when history exceeds this token count",
     )
     speech_interrupt_enabled: bool = Field(
         default=True,

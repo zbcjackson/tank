@@ -9,6 +9,8 @@ from ..core.events import UpdateType
 
 logger = logging.getLogger("LLM")
 
+MAX_TOOL_ITERATIONS = 10
+
 
 class LLM:
     def __init__(
@@ -50,7 +52,7 @@ class LLM:
         working_messages = messages.copy()
         turn = 0
 
-        while True:
+        for _iteration in range(MAX_TOOL_ITERATIONS):
             turn += 1
             logger.debug(f"LLM Stream iteration {turn} with {len(working_messages)} messages")
 
@@ -217,6 +219,11 @@ class LLM:
             else:
                 # No tool calls, we are done
                 break
+        else:
+            logger.warning(
+                "chat_stream hit MAX_TOOL_ITERATIONS (%d) — stopping tool loop",
+                MAX_TOOL_ITERATIONS,
+            )
 
     async def chat_completion_async(
         self,
@@ -243,10 +250,8 @@ class LLM:
             # Create a working copy of messages to avoid modifying the original
             working_messages: list[ChatCompletionMessageParam] = messages.copy()
             total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-            iterations = 0
 
-            while True:
-                iterations += 1
+            for iterations in range(1, MAX_TOOL_ITERATIONS + 1):
                 logger.debug(f"LLM iteration {iterations} with {len(working_messages)} messages")
 
                 # Prepare kwargs for the API call
@@ -361,6 +366,27 @@ class LLM:
                         result["choices"][0]["message"]["tool_calls"] = assistant_message.tool_calls
 
                     return result
+            else:
+                logger.warning(
+                    "chat_completion_async hit MAX_TOOL_ITERATIONS (%d) — stopping tool loop",
+                    MAX_TOOL_ITERATIONS,
+                )
+                # Return last assistant message as final response
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": assistant_message.content,
+                            },
+                            "finish_reason": "max_tool_iterations",
+                        }
+                    ],
+                    "usage": total_usage,
+                    "model": response.model,
+                    "id": response.id,
+                    "tool_iterations": iterations,
+                }
 
         except Exception as e:
             logger.error(f"Chat completion error: {e}")

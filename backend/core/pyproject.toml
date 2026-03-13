@@ -25,6 +25,7 @@ dependencies = [
     "sherpa-onnx-core>=1.12.25",
     "tank-contracts",
     "docker>=7.0.0",
+    "tiktoken>=0.7.0",
 ]
 
 [project.scripts]
