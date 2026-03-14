@@ -1,8 +1,16 @@
+from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from tank_backend.tools.weather import WeatherTool
+
+# Use relative dates so tests don't break when "today" matches a fixture date.
+_TODAY = date.today()
+_YESTERDAY = (_TODAY - timedelta(days=1)).isoformat()
+_TOMORROW = (_TODAY + timedelta(days=1)).isoformat()
+_DAY_AFTER = (_TODAY + timedelta(days=2)).isoformat()
+_TODAY_ISO = _TODAY.isoformat()
 
 
 @pytest.fixture
@@ -49,7 +57,7 @@ def mock_current_weather_response():
 def mock_forecast_weather_response():
     return {
         "daily": {
-            "time": ["2026-03-12", "2026-03-13", "2026-03-14"],
+            "time": [_TODAY_ISO, _TOMORROW, _DAY_AFTER],
             "temperature_2m_max": [25.0, 23.0, 21.0],
             "temperature_2m_min": [18.0, 17.0, 16.0],
             "weathercode": [0, 2, 61],
@@ -126,16 +134,16 @@ class TestWeatherTool:
 
             mock_get.side_effect = [mock_geocode, mock_weather]
 
-            result = await weather_tool.execute(location="New York", date="2026-03-14")
+            result = await weather_tool.execute(location="New York", date=_DAY_AFTER)
 
             assert "error" not in result
             assert result["location"] == "New York"
-            assert result["date"] == "2026-03-14"
+            assert result["date"] == _DAY_AFTER
             assert result["temperature_max"] == "21.0°C"
             assert result["temperature_min"] == "16.0°C"
             assert result["condition"] == "Slight rain"
             assert result["precipitation"] == "5.2 mm"
-            assert "2026-03-14" in result["message"]
+            assert _DAY_AFTER in result["message"]
 
     @pytest.mark.asyncio
     async def test_location_not_found(self, weather_tool):
