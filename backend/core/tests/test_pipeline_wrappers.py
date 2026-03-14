@@ -202,9 +202,21 @@ class TestBrainProcessor:
 
         brain = MagicMock()
         brain.handle = MagicMock()
-        brain._runtime = MagicMock()
-        brain._runtime.interrupt_event = MagicMock()
-        proc = BrainProcessor(brain=brain, bus=bus)
+
+        # Create a real RuntimeContext so queue draining doesn't infinite-loop on MagicMock
+        import queue
+        import threading
+
+        from tank_backend.core.runtime import RuntimeContext
+
+        runtime = RuntimeContext(
+            brain_input_queue=queue.Queue(),
+            audio_output_queue=queue.Queue(),
+            ui_queue=queue.Queue(),
+            interrupt_event=threading.Event(),
+        )
+        brain._runtime = runtime
+        proc = BrainProcessor(brain=brain, bus=bus, runtime=runtime)
         return proc, brain
 
     async def test_delegates_to_brain_handle(self):
@@ -247,7 +259,7 @@ class TestBrainProcessor:
         event = PipelineEvent(type="interrupt", direction=EventDirection.UPSTREAM)
         consumed = proc.handle_event(event)
         assert consumed is False
-        brain._runtime.interrupt_event.set.assert_called_once()
+        assert brain._runtime.interrupt_event.is_set()
 
 
 # ── TTSProcessor ─────────────────────────────────────────────────────────────

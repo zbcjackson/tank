@@ -65,12 +65,31 @@ class Pipeline:
             return FlowReturn.ERROR
         return self._queues[0].push(item)
 
+    def get_processor(self, name: str) -> Processor | None:
+        """Look up a processor by name."""
+        for proc in self._processors:
+            if proc.name == name:
+                return proc
+        return None
+
     def send_event(self, event: PipelineEvent) -> None:
-        """Propagate an event through all processors."""
+        """Propagate an event through all processors (downstream order)."""
         for proc in self._processors:
             consumed = proc.handle_event(event)
             if consumed:
                 break
+
+    def send_event_reverse(self, event: PipelineEvent) -> None:
+        """Propagate an event in reverse processor order (upstream)."""
+        for proc in reversed(self._processors):
+            consumed = proc.handle_event(event)
+            if consumed:
+                break
+
+    def flush_all(self) -> None:
+        """Flush all ThreadedQueues (drain without processing)."""
+        for q in self._queues:
+            q.flush()
 
 
 class PipelineBuilder:

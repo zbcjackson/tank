@@ -30,6 +30,7 @@ class Bus:
 
     def __init__(self) -> None:
         self._subscribers: dict[str, list[Callable[[BusMessage], None]]] = defaultdict(list)
+        self._all_handlers: list[Callable[[BusMessage], None]] = []
         self._pending: list[BusMessage] = []
         self._lock = threading.Lock()
 
@@ -41,6 +42,10 @@ class Bus:
     def subscribe(self, msg_type: str, handler: Callable[[BusMessage], None]) -> None:
         """Subscribe to messages of a given type."""
         self._subscribers[msg_type].append(handler)
+
+    def subscribe_all(self, handler: Callable[[BusMessage], None]) -> None:
+        """Subscribe to all messages regardless of type."""
+        self._all_handlers.append(handler)
 
     def poll(self) -> int:
         """Dispatch all pending messages to subscribers. Returns count dispatched."""
@@ -57,6 +62,17 @@ class Bus:
                 except Exception:
                     logger.error(
                         "Bus handler error for %s from %s",
+                        message.type,
+                        message.source,
+                        exc_info=True,
+                    )
+            for handler in self._all_handlers:
+                try:
+                    handler(message)
+                    dispatched += 1
+                except Exception:
+                    logger.error(
+                        "Bus catch-all handler error for %s from %s",
                         message.type,
                         message.source,
                         exc_info=True,
