@@ -219,7 +219,7 @@ class TestBrainProcessor:
         proc = BrainProcessor(brain=brain, bus=bus, runtime=runtime)
         return proc, brain
 
-    async def test_delegates_to_brain_handle(self):
+    async def test_pushes_event_to_brain_input_queue(self):
         from tank_backend.core.events import BrainInputEvent, InputType
 
         proc, brain = self._make_processor()
@@ -231,7 +231,9 @@ class TestBrainProcessor:
             confidence=None,
         )
         await _collect(proc, event)
-        brain.handle.assert_called_once_with(event)
+        # Event should be in brain_input_queue, not passed to handle() directly
+        queued = brain._runtime.brain_input_queue.get_nowait()
+        assert queued is event
 
     async def test_posts_llm_latency_to_bus(self):
         from tank_backend.core.events import BrainInputEvent, InputType

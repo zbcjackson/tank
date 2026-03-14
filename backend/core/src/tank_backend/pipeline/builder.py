@@ -117,6 +117,14 @@ class PipelineBuilder:
             q.link(proc)
             queues.append(q)
 
+        # Chain queues so each processor's output flows to the next queue
+        for i in range(len(queues) - 1):
+            queues[i].chain(queues[i + 1])
+            # Also set _next_queue on processors that need direct access
+            proc = self._processors[i]
+            if hasattr(proc, '_next_queue'):
+                proc._next_queue = queues[i + 1]
+
         return Pipeline(
             processors=list(self._processors),
             queues=queues,

@@ -1,9 +1,15 @@
-"""Tests for BrainProcessor queue draining (Phase 2 upgrade)."""
+"""Tests for BrainProcessor queue draining (Phase 2 upgrade).
+
+BrainProcessor now pushes events to Brain's input queue (Brain runs in its own
+QueueWorker thread). Audio outputs are drained by a background thread and pushed
+to the next pipeline queue. UI messages are also drained by the background thread.
+"""
 
 from __future__ import annotations
 
 import queue
 import threading
+import time
 from unittest.mock import MagicMock
 
 from tank_backend.core.events import (
@@ -46,7 +52,7 @@ def _make_runtime():
 
 
 class TestBrainProcessorDrain:
-    """Tests for BrainProcessor draining runtime queues after brain.handle()."""
+    """Tests for BrainProcessor draining runtime queues via background thread."""
 
     def _make_processor(self, runtime=None, bus=None):
         from tank_backend.pipeline.wrappers.brain_processor import BrainProcessor
@@ -57,97 +63,79 @@ class TestBrainProcessorDrain:
         proc = BrainProcessor(brain=brain, bus=bus, runtime=rt)
         return proc, brain, rt
 
-    async def test_drains_audio_output_queue(self):
-        """After brain.handle(), audio_output_queue items should be yielded downstream."""
+    async def test_pushes_event_to_brain_input_queue(self):
+        """process() should push the event to brain_input_queue."""
         rt = _make_runtime()
         proc, brain, _ = self._make_processor(runtime=rt)
 
-        req1 = AudioOutputRequest(content="hello", language="en")
-        req2 = AudioOutputRequest(content="world", language="zh")
+        event = _make_brain_event()
+        await _collect(proc, event)
 
-        def fake_handle(event):
-            rt.audio_output_queue.put(req1)
-            rt.audio_output_queue.put(req2)
+        # Event should be in brain_input_queue
+        assert not rt.brain_input_queue.empty()
+        queued_event = rt.brain_input_queue.get_nowait()
+        assert queued_event is event
 
-        brain.handle = fake_handle
+    async def test_process_yields_ok_none(self):
+        """process() should yield (OK, None) — outputs come from background thread."""
+        rt = _make_runtime()
+        proc, _, _ = self._make_processor(runtime=rt)
 
         outputs = await _collect(proc, _make_brain_event())
 
-        assert len(outputs) == 2
-        assert outputs[0] == (FlowReturn.OK, req1)
-        assert outputs[1] == (FlowReturn.OK, req2)
+        assert len(outputs) == 1
+        assert outputs[0] == (FlowReturn.OK, None)
 
-    async def test_drains_ui_queue_to_bus(self):
-        """After brain.handle(), ui_queue items should be posted to Bus as ui_message."""
+    async def test_drain_thread_forwards_audio_to_next_queue(self):
+        """Background drain thread should push audio outputs to _next_queue."""
+        rt = _make_runtime()
+        proc, _, _ = self._make_processor(runtime=rt)
+
+        # Simulate next pipeline queue
+        next_q = MagicMock()
+        proc._next_queue = next_q
+
+        await proc.start()
+        try:
+            req1 = AudioOutputRequest(content="hello", language="en")
+            req2 = AudioOutputRequest(content="world", language="zh")
+            rt.audio_output_queue.put(req1)
+            rt.audio_output_queue.put(req2)
+
+            # Give drain thread time to process
+            time.sleep(0.3)
+
+            assert next_q.push.call_count == 2
+            next_q.push.assert_any_call(req1)
+            next_q.push.assert_any_call(req2)
+        finally:
+            await proc.stop()
+
+    async def test_drain_thread_posts_ui_messages_to_bus(self):
+        """Background drain thread should post UI messages to bus."""
         bus = Bus()
         rt = _make_runtime()
-        proc, brain, _ = self._make_processor(runtime=rt, bus=bus)
+        proc, _, _ = self._make_processor(runtime=rt, bus=bus)
 
         received = []
         bus.subscribe("ui_message", lambda m: received.append(m))
 
-        signal = SignalMessage(signal_type="processing_started", msg_id="test_1")
-        display = DisplayMessage(
-            speaker="Brain", text="hello", is_user=False, msg_id="test_1"
-        )
-
-        def fake_handle(event):
-            rt.ui_queue.put(signal)
-            rt.ui_queue.put(display)
-
-        brain.handle = fake_handle
-
-        await _collect(proc, _make_brain_event())
-        bus.poll()
-
-        assert len(received) == 2
-        assert received[0].payload is signal
-        assert received[1].payload is display
-
-    async def test_drains_both_queues(self):
-        """Both audio_output_queue and ui_queue should be drained."""
-        bus = Bus()
-        rt = _make_runtime()
-        proc, brain, _ = self._make_processor(runtime=rt, bus=bus)
-
-        ui_received = []
-        bus.subscribe("ui_message", lambda m: ui_received.append(m))
-
-        req = AudioOutputRequest(content="test", language="en")
-        signal = SignalMessage(signal_type="processing_started")
-
-        def fake_handle(event):
+        await proc.start()
+        try:
+            # Put an audio output first (drain thread triggers on audio_output_queue)
+            req = AudioOutputRequest(content="test", language="en")
             rt.audio_output_queue.put(req)
+
+            signal = SignalMessage(signal_type="processing_started", msg_id="test_1")
             rt.ui_queue.put(signal)
 
-        brain.handle = fake_handle
+            time.sleep(0.3)
+            bus.poll()
 
-        outputs = await _collect(proc, _make_brain_event())
-        bus.poll()
-
-        # Audio output yielded downstream
-        assert len(outputs) == 1
-        assert outputs[0][1] is req
-
-        # UI message posted to bus
-        assert len(ui_received) == 1
-        assert ui_received[0].payload is signal
-
-    async def test_empty_queues_yield_nothing(self):
-        """If brain.handle() doesn't populate queues, no items should be yielded."""
-        bus = Bus()
-        rt = _make_runtime()
-        proc, brain, _ = self._make_processor(runtime=rt, bus=bus)
-
-        ui_received = []
-        bus.subscribe("ui_message", lambda m: ui_received.append(m))
-
-        # brain.handle() does nothing (queues stay empty)
-        outputs = await _collect(proc, _make_brain_event())
-        bus.poll()
-
-        assert len(outputs) == 0
-        assert len(ui_received) == 0
+            assert len(received) >= 1
+            assert received[0].payload is signal
+        finally:
+            await proc.stop()
 
     async def test_still_posts_llm_latency(self):
         """LLM latency metric should still be posted to bus."""
@@ -177,22 +165,14 @@ class TestBrainProcessorDrain:
         assert consumed is False
         assert rt.interrupt_event.is_set()
 
-    async def test_no_bus_skips_ui_drain(self):
-        """Without a bus, ui_queue items should not cause errors."""
+    async def test_stop_terminates_drain_thread(self):
+        """stop() should terminate the background drain thread."""
         rt = _make_runtime()
-        proc, brain, _ = self._make_processor(runtime=rt, bus=None)
+        proc, _, _ = self._make_processor(runtime=rt)
 
-        def fake_handle(event):
-            rt.ui_queue.put(SignalMessage(signal_type="test"))
-            rt.audio_output_queue.put(AudioOutputRequest(content="hi"))
+        await proc.start()
+        assert proc._output_thread is not None
+        assert proc._output_thread.is_alive()
 
-        brain.handle = fake_handle
-
-        outputs = await _collect(proc, _make_brain_event())
-
-        # Audio output still yielded
-        assert len(outputs) == 1
-        assert outputs[0][1].content == "hi"
-
-        # UI message stays in queue (no bus to drain to)
-        assert not rt.ui_queue.empty()
+        await proc.stop()
+        assert proc._output_thread is None

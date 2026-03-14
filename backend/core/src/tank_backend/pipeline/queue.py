@@ -1,5 +1,7 @@
 """Bounded queue that creates a thread boundary between pipeline stages."""
 
+from __future__ import annotations
+
 import logging
 import queue
 import threading
@@ -22,6 +24,7 @@ class ThreadedQueue:
         self.name = name
         self._queue: queue.Queue[Any] = queue.Queue(maxsize=maxsize)
         self._downstream: Processor | None = None
+        self._next_queue: ThreadedQueue | None = None
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._loop: Any = None  # asyncio event loop for the consumer thread
@@ -29,6 +32,10 @@ class ThreadedQueue:
     def link(self, downstream: Processor) -> None:
         """Set the downstream processor that consumes from this queue."""
         self._downstream = downstream
+
+    def chain(self, next_queue: ThreadedQueue) -> None:
+        """Set the next queue to forward processor outputs to."""
+        self._next_queue = next_queue
 
     def push(self, item: Any) -> FlowReturn:
         """Push an item into the queue. Blocks if full (backpressure)."""
@@ -99,10 +106,12 @@ class ThreadedQueue:
                 continue
 
             try:
-                async for status, _output in self._downstream.process(item):
+                async for status, output in self._downstream.process(item):
                     if status == FlowReturn.EOS:
                         self._stop_event.set()
                         return
+                    if output is not None and self._next_queue is not None:
+                        self._next_queue.push(output)
             except Exception:
                 logger.error(
                     "Queue %s: downstream processor error", self.name, exc_info=True
