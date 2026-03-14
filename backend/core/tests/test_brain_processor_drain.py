@@ -15,7 +15,6 @@ from unittest.mock import MagicMock
 from tank_backend.core.events import (
     AudioOutputRequest,
     BrainInputEvent,
-    DisplayMessage,
     InputType,
     SignalMessage,
 )

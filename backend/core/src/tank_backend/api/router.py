@@ -140,13 +140,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 if msg.type == MessageType.SIGNAL:
                     if msg.content == "disconnect":
                         break
-                    elif msg.content == "session_start":
+                    elif msg.content == "wake":
                         try:
                             assistant.reset_session()
                             await websocket.send_text(
                                 WebsocketMessage(
                                     type=MessageType.SIGNAL,
-                                    content="session_ready",
+                                    content="conversation_ready",
                                     session_id=session_id,
                                 ).model_dump_json()
                             )
@@ -160,8 +160,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                                     metadata={"error": str(e)},
                                 ).model_dump_json()
                             )
-                    elif msg.content == "session_end":
-                        logger.info(f"Session ended by client: {session_id}")
+                    elif msg.content == "idle":
+                        logger.info(f"Client idle: {session_id}")
                     elif msg.content == "ping":
                         await websocket.send_text(
                             WebsocketMessage(

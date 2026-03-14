@@ -107,7 +107,8 @@ export const VoiceMode = ({
 }: VoiceModeProps) => {
   const isWakeWordIdle = conversationState === 'idle';
   const isWakeWordLoading = conversationState === 'loading';
-  const micStatus = isMuted ? 'muted' : isUserSpeaking ? 'speaking' : 'idle';
+  const isGateOpen = conversationState === 'active';
+  const micStatus = isMuted ? 'muted' : isGateOpen ? 'active' : 'idle';
 
   const orbState = isWakeWordLoading
     ? 'idle'
@@ -241,16 +242,14 @@ export const VoiceMode = ({
           <motion.button
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.94 }}
-            animate={micStatus === 'speaking' ? MIC_SPEAKING_ANIMATE : MIC_IDLE_ANIMATE}
+            animate={isUserSpeaking ? MIC_SPEAKING_ANIMATE : MIC_IDLE_ANIMATE}
             onClick={onMicClick}
             className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ${
               micStatus === 'muted'
                 ? 'bg-zinc-800/80 text-zinc-500 border border-zinc-700/50'
-                : micStatus === 'speaking'
+                : micStatus === 'active'
                   ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.1)]'
-                  : isAssistantTyping
-                    ? 'bg-zinc-800/40 text-zinc-600 border border-zinc-800/50'
-                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20 shadow-[0_0_30px_rgba(212,160,84,0.08)]'
+                  : 'bg-zinc-800/40 text-zinc-600 border border-zinc-800/50'
             }`}
           >
             {micStatus === 'muted' ? <MicOff size={24} /> : <Mic size={24} />}

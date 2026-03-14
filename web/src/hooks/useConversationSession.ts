@@ -9,8 +9,16 @@
  * Transitions:
  *   loading → idle:   detector loads successfully
  *   loading → active: detector fails to load (fallback to always-on)
- *   idle → active:    wake word detected
- *   active → idle:    silence timeout expires (deferred while Tank is speaking)
+ *   idle → active:    wake word detected (sends "wake", resets context)
+ *   idle → active:    TTS starts playing (silent reopen, no "wake" sent)
+ *   active → idle:    silence timeout fires
+ *
+ * Audio gate flow:
+ *   1. Wake word detected → send "wake", open gate, start silence timer
+ *   2. User speaks (transcript) → reset silence timer
+ *   3. TTS starts playing → clear silence timer; if idle, reopen gate silently
+ *   4. TTS finishes playing → start silence timer
+ *   5. Silence timer fires → send "idle", close gate, re-arm wake word
  *
  * If wake word is not enabled, starts directly in 'active' state.
  */
@@ -57,17 +65,13 @@ export function useConversationSession({
   );
 
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isSpeakingRef = useRef(isSpeaking);
   const stateRef = useRef(conversationState);
   const onSessionStartRef = useRef(onSessionStart);
   const startSessionRef = useRef<() => void>(() => {});
+  const resetSilenceTimerRef = useRef<() => void>(() => {});
   const initialConfigRef = useRef(config.intended);
 
   // Keep refs in sync via effects (React 19 strict mode disallows ref writes during render)
-  useEffect(() => {
-    isSpeakingRef.current = isSpeaking;
-  }, [isSpeaking]);
-
   useEffect(() => {
     stateRef.current = conversationState;
   }, [conversationState]);
@@ -83,7 +87,7 @@ export function useConversationSession({
     }
   }, []);
 
-  // Transition: idle → active
+  // Transition: idle → active (wake word detected — sends "wake", resets context)
   const startSession = useCallback(() => {
     if (stateRef.current === 'active') return;
 
@@ -91,8 +95,10 @@ export function useConversationSession({
     audioProcessorRef.current
       ?.disableWakeWord()
       .catch((err) => console.error('[ConversationSession] Failed to disable wake word:', err));
-    clientRef.current?.sendMessage('signal', 'session_start');
+    clientRef.current?.sendMessage('signal', 'wake');
     onSessionStartRef.current?.();
+    // Start silence timer — will be cleared if TTS starts playing
+    resetSilenceTimerRef.current();
   }, [clientRef, audioProcessorRef]);
 
   useEffect(() => {
@@ -103,7 +109,7 @@ export function useConversationSession({
   const endSession = useCallback(() => {
     if (stateRef.current !== 'active') return;
 
-    clientRef.current?.sendMessage('signal', 'session_end');
+    clientRef.current?.sendMessage('signal', 'idle');
     setConversationState('idle');
 
     const processor = audioProcessorRef.current;
@@ -122,33 +128,38 @@ export function useConversationSession({
     if (stateRef.current !== 'active') return;
 
     silenceTimerRef.current = setTimeout(() => {
-      // Don't end while Tank is still speaking — defer
-      if (isSpeakingRef.current) {
-        return; // Will be re-checked when isSpeaking changes
-      }
       endSession();
     }, config.silenceTimeoutMs);
   }, [config.silenceTimeoutMs, clearSilenceTimer, endSession]);
 
-  // When isSpeaking transitions false while in active state, ensure timer is running
   useEffect(() => {
-    if (!isSpeaking && stateRef.current === 'active') {
-      if (!silenceTimerRef.current) {
-        resetSilenceTimer();
-      }
-    }
-  }, [isSpeaking, resetSilenceTimer]);
+    resetSilenceTimerRef.current = resetSilenceTimer;
+  }, [resetSilenceTimer]);
 
-  // Track signals to reset silence timer
+  // isSpeaking transitions drive the silence timer and silent gate reopen
+  useEffect(() => {
+    if (isSpeaking) {
+      // TTS started playing — clear silence timer
+      clearSilenceTimer();
+
+      // Silent gate reopen: if idle, transition back to active without sending "wake"
+      if (stateRef.current === 'idle') {
+        queueMicrotask(() => setConversationState('active'));
+        audioProcessorRef.current
+          ?.disableWakeWord()
+          .catch((err) => console.error('[ConversationSession] Failed to disable wake word:', err));
+      }
+    } else if (stateRef.current === 'active') {
+      // TTS finished playing — start silence timer
+      resetSilenceTimer();
+    }
+  }, [isSpeaking, clearSilenceTimer, resetSilenceTimer, audioProcessorRef]);
+
+  // User speech (transcript) resets silence timer
   useEffect(() => {
     if (!latestMessage || stateRef.current !== 'active') return;
 
-    if (latestMessage.type === 'signal') {
-      const content = latestMessage.content;
-      if (content === 'processing_ended' || content === 'processing_started') {
-        resetSilenceTimer();
-      }
-    } else if (latestMessage.type === 'transcript') {
+    if (latestMessage.type === 'transcript') {
       resetSilenceTimer();
     }
   }, [latestMessage, resetSilenceTimer]);
