@@ -78,14 +78,17 @@ class BrainProcessor(Processor):
 
         while not self._stop_event.is_set():
             try:
-                # Drain audio_output_queue with timeout
-                audio_req = rt.audio_output_queue.get(timeout=0.1)
+                # Drain audio_output_queue (non-blocking)
+                try:
+                    audio_req = rt.audio_output_queue.get(timeout=0.1)
 
-                # Push to next queue in pipeline (TTS)
-                if self._next_queue is not None:
-                    self._next_queue.push(audio_req)
+                    # Push to next queue in pipeline (TTS)
+                    if self._next_queue is not None:
+                        result = self._next_queue.push(audio_req)
+                except queue.Empty:
+                    pass
 
-                # Drain ui_queue and post to bus
+                # Always drain ui_queue — regardless of whether audio_output had items
                 if self._bus:
                     while True:
                         try:
@@ -97,8 +100,6 @@ class BrainProcessor(Processor):
                             ))
                         except queue.Empty:
                             break
-            except queue.Empty:
-                continue
             except Exception:
                 logger.error("BrainProcessor: error draining outputs", exc_info=True)
 

@@ -354,12 +354,16 @@ class TestPlaybackProcessor:
         assert consumed is True
         assert proc._flushed is True
 
-    async def test_flushed_returns_flushing(self):
+    async def test_flushed_clears_on_new_chunk(self):
+        """After flush, the first new chunk clears the flushed flag and processes normally."""
         proc, callback = self._make_processor()
         proc._flushed = True
-        outputs = await _collect(proc, MagicMock())
-        assert outputs[0][0] == FlowReturn.FLUSHING
-        callback.assert_not_called()
+        chunk = MagicMock()
+        outputs = await _collect(proc, chunk)
+        # First chunk after flush clears the flag and processes normally
+        assert outputs[0][0] == FlowReturn.OK
+        assert proc._flushed is False
+        callback.assert_called_once_with(chunk)
 
     async def test_start_resets_state(self):
         proc, _ = self._make_processor()

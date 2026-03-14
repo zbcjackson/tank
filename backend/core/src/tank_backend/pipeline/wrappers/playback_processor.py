@@ -41,15 +41,23 @@ class PlaybackProcessor(Processor):
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         chunk: AudioChunk = item
 
+        # New chunk arriving means upstream TTS started a new request —
+        # clear the flushed flag so we don't drop the entire new response.
         if self._flushed:
-            yield FlowReturn.FLUSHING, None
-            return
+            logger.info("PlaybackProcessor: clearing flushed flag for new TTS request")
+            self._flushed = False
+            self._chunk_count = 0
 
         self._chunk_count += 1
+
+        if self._chunk_count == 1:
+            logger.info(f"PlaybackProcessor: received first chunk, callback={self._playback_callback is not None}")
 
         # Delegate to playback callback if provided
         if self._playback_callback is not None:
             self._playback_callback(chunk)
+        else:
+            logger.warning(f"PlaybackProcessor: no callback set, dropping chunk {self._chunk_count}")
 
         if self._bus and self._chunk_count % 50 == 0:
             self._bus.post(BusMessage(

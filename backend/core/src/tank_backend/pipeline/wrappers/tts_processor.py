@@ -39,6 +39,8 @@ class TTSProcessor(Processor):
         request: AudioOutputRequest = item
         self._interrupted = False
 
+        logger.info(f"TTSProcessor: received AudioOutputRequest (text_len={len(request.content)}, lang={request.language})")
+
         started_at = time.time()
         chunk_count = 0
 
@@ -58,6 +60,7 @@ class TTSProcessor(Processor):
                 yield FlowReturn.OK, chunk
         finally:
             await chunk_stream.aclose()
+            logger.info(f"TTSProcessor: finished, yielded {chunk_count} chunks")
 
         elapsed = time.time() - started_at
 
