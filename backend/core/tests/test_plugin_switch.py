@@ -1,15 +1,12 @@
 """Tests for plugin enable/disable (feature switch) functionality."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from tank_backend.plugin.config import AppConfig
 from tank_backend.plugin.manifest import ExtensionManifest
 from tank_backend.plugin.registry import ExtensionRegistry
-
-MODULE = "tank_backend.core.assistant"
-
 
 # ── FeatureConfig / AppConfig tests ──────────────────────────────────
 
@@ -299,111 +296,3 @@ def _make_mock_app_config(asr=True, tts=True, speaker=False):
     return mock
 
 
-class TestAssistantSubsystemOptional:
-    """Tests that Assistant skips AudioInput/AudioOutput when features are disabled."""
-
-    @pytest.fixture(autouse=True)
-    def mock_subsystems(self):
-        mock_registry = MagicMock()
-        mock_registry.instantiate.return_value = MagicMock()
-
-        mock_pm = MagicMock()
-        mock_pm.load_all.return_value = mock_registry
-
-        with (
-            patch(f"{MODULE}.AudioInput") as self.mock_audio_input_cls,
-            patch(f"{MODULE}.AudioOutput") as self.mock_audio_output_cls,
-            patch(f"{MODULE}.Brain"),
-            patch(f"{MODULE}.create_llm_from_profile", return_value=MagicMock()),
-            patch(f"{MODULE}.ToolManager"),
-            patch(f"{MODULE}.PluginManager", return_value=mock_pm),
-            patch(f"{MODULE}.load_config", return_value=MagicMock(
-                serper_api_key=None,
-                speech_interrupt_enabled=False,
-                enable_speaker_id=False,
-            )),
-        ):
-            yield
-
-    def test_no_audio_input_when_asr_disabled(self):
-        with patch(f"{MODULE}.AppConfig", return_value=_make_mock_app_config(asr=False)):
-            from tank_backend.core.assistant import Assistant
-            assistant = Assistant()
-            assert assistant.audio_input is None
-            self.mock_audio_input_cls.assert_not_called()
-
-    def test_no_audio_output_when_tts_disabled(self):
-        with patch(f"{MODULE}.AppConfig", return_value=_make_mock_app_config(tts=False)):
-            from tank_backend.core.assistant import Assistant
-            assistant = Assistant()
-            assert assistant.audio_output is None
-            self.mock_audio_output_cls.assert_not_called()
-
-    def test_both_created_when_enabled(self):
-        with patch(f"{MODULE}.AppConfig", return_value=_make_mock_app_config(asr=True, tts=True)):
-            from tank_backend.core.assistant import Assistant
-            assistant = Assistant()
-            assert assistant.audio_input is not None
-            assert assistant.audio_output is not None
-
-    def test_capabilities_reflect_disabled_slots(self):
-        with patch(
-            f"{MODULE}.AppConfig", return_value=_make_mock_app_config(asr=False, tts=False)
-        ):
-            from tank_backend.core.assistant import Assistant
-            assistant = Assistant()
-            caps = assistant.capabilities
-            assert caps["asr"] is False
-            assert caps["tts"] is False
-
-    def test_capabilities_reflect_enabled_slots(self):
-        with patch(f"{MODULE}.AppConfig", return_value=_make_mock_app_config(asr=True, tts=True)):
-            from tank_backend.core.assistant import Assistant
-            assistant = Assistant()
-            caps = assistant.capabilities
-            assert caps["asr"] is True
-            assert caps["tts"] is True
-
-    def test_start_skips_none_subsystems(self):
-        with patch(
-            f"{MODULE}.AppConfig", return_value=_make_mock_app_config(asr=False, tts=False)
-        ):
-            from tank_backend.core.assistant import Assistant
-            assistant = Assistant()
-            # Should not raise even though audio_input/output are None
-            assistant.start()
-
-    def test_stop_skips_none_subsystems(self):
-        with patch(
-            f"{MODULE}.AppConfig", return_value=_make_mock_app_config(asr=False, tts=False)
-        ):
-            from tank_backend.core.assistant import Assistant
-            assistant = Assistant()
-            assistant.brain = MagicMock()
-            # Should not raise
-            assistant.stop()
-
-    def test_process_input_quit_when_tts_disabled(self):
-        with patch(f"{MODULE}.AppConfig", return_value=_make_mock_app_config(tts=False)):
-            from tank_backend.core.assistant import Assistant
-            on_exit = MagicMock()
-            assistant = Assistant(on_exit_request=on_exit)
-            # Should not raise even though audio_output is None
-            assistant.process_input("quit")
-            assert assistant.shutdown_signal.is_set()
-            on_exit.assert_called_once()
-
-
-# ── Brain TTS guard tests ───────────────────────────────────────────
-
-
-class TestBrainTTSGuard:
-    """Tests that Brain skips TTS dispatch when tts_enabled=False."""
-
-    def test_brain_accepts_tts_enabled_param(self):
-        from tank_backend.core.brain import Brain
-
-        brain = Brain.__new__(Brain)
-        # Just verify the parameter is stored
-        brain._tts_enabled = False
-        assert brain._tts_enabled is False

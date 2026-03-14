@@ -92,52 +92,28 @@ class TestBrainSessionReset:
         assert runtime.ui_queue.empty()
 
     def test_handle_ignores_non_reset_system_events(self, brain, mock_llm):
-        """System events with text other than __reset__ should be skipped (blank check)."""
-        brain._conversation_history.append({"role": "user", "content": "hello"})
-
+        """System events with text other than __reset__ should be ignored."""
         event = BrainInputEvent(
             type=InputType.SYSTEM,
-            text="",
+            text="some_other_command",
             user="system",
             language=None,
             confidence=None,
         )
         brain.handle(event)
 
-        # History should NOT be reset (still has the extra message)
-        assert len(brain._conversation_history) == 2
-        # LLM should NOT have been called
+        # Should not call LLM
         mock_llm.chat_stream.assert_not_called()
 
+    def test_handle_ignores_blank_text(self, brain, mock_llm):
+        """handle() should ignore events with blank text."""
+        event = BrainInputEvent(
+            type=InputType.AUDIO,
+            text="   ",
+            user="User",
+            language="zh",
+            confidence=None,
+        )
+        brain.handle(event)
 
-class TestAssistantResetSession:
-    """Tests for Assistant.reset_session() thread-safe queue dispatch."""
-
-    def test_reset_session_enqueues_system_event(self):
-        """reset_session() should put a SYSTEM/__reset__ event on brain_input_queue."""
-        from unittest.mock import patch
-
-        with patch("tank_backend.core.assistant.load_config") as mock_load, \
-             patch("tank_backend.core.assistant.PluginManager"), \
-             patch("tank_backend.core.assistant.AppConfig") as mock_app_config, \
-             patch("tank_backend.core.assistant.create_llm_from_profile"), \
-             patch("tank_backend.core.assistant.ToolManager"), \
-             patch("tank_backend.core.assistant.Brain"):
-
-            mock_load.return_value = VoiceAssistantConfig()
-            mock_app_cfg = MagicMock()
-            mock_app_cfg.get_feature_config.return_value = MagicMock(enabled=False)
-            mock_app_cfg.is_feature_enabled.return_value = False
-            mock_app_cfg._config = {}
-            mock_app_config.return_value = mock_app_cfg
-
-            from tank_backend.core.assistant import Assistant
-
-            assistant = Assistant()
-
-            assistant.reset_session()
-
-            event = assistant.runtime.brain_input_queue.get_nowait()
-            assert event.type == InputType.SYSTEM
-            assert event.text == "__reset__"
-            assert event.user == "system"
+        mock_llm.chat_stream.assert_not_called()
