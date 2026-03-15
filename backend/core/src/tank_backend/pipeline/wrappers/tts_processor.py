@@ -66,7 +66,7 @@ class TTSProcessor(Processor):
 
         if self._bus:
             self._bus.post(BusMessage(
-                type="tts_latency",
+                type="tts_finished",
                 source=self.name,
                 payload={
                     "latency_s": elapsed,

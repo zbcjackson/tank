@@ -327,6 +327,20 @@ class Brain(QueueWorker[BrainInputEvent]):
                 len(to_summarize) + len(to_keep) + 1,
                 len(self._conversation_history),
             )
+
+            # Post summarization metric to UI queue (forwarded to bus by BrainProcessor)
+            self._runtime.ui_queue.put(
+                SignalMessage(
+                    signal_type="context_summarized",
+                    msg_id="",
+                    metadata={
+                        "old_tokens": total_tokens,
+                        "new_tokens": new_tokens,
+                        "messages_summarized": len(to_summarize),
+                        "messages_kept": len(to_keep),
+                    },
+                )
+            )
         except Exception as e:
             logger.error(f"Summarization failed: {e}", exc_info=True)
             # Fall back to truncation if summarization fails

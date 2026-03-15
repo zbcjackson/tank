@@ -301,7 +301,7 @@ class TestTTSProcessor:
 
         bus = Bus()
         received = []
-        bus.subscribe("tts_latency", lambda m: received.append(m))
+        bus.subscribe("tts_finished", lambda m: received.append(m))
 
         proc, _ = self._make_processor(chunks=[MagicMock()], bus=bus)
         await _collect(proc, AudioOutputRequest(content="hi"))

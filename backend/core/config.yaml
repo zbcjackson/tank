@@ -19,6 +19,16 @@ llm:
       X-Title: "Tank Voice Assistant"
     stream_options: true
 
+# Echo guard — backend-side defense against self-echo (assistant hearing itself).
+# Layer 1: VAD threshold — during playback, raise VAD sensitivity threshold to filter echo.
+# Layer 2: Self-echo text detection — safety net comparing ASR output against recent TTS text.
+echo_guard:
+  enabled: true
+  vad_threshold_during_playback: 0.85    # higher = less sensitive during playback
+  self_echo_detection:
+    similarity_threshold: 0.6           # discard if >60% token overlap with recent TTS
+    window_seconds: 10.0                # compare against last 10s of TTS text
+
 asr:
   enabled: true
   extension: asr-sherpa:asr

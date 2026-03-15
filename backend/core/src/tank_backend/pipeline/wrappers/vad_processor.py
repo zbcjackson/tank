@@ -27,14 +27,35 @@ class VADProcessor(Processor):
 
     Emits interrupt event upstream on first speech detection.
     Posts speech timing metrics to Bus.
+
+    During TTS playback, raises the VAD threshold to filter out echo
+    from speakers (Layer 1 of echo guard).
     """
 
-    def __init__(self, vad: SileroVAD, bus: Bus | None = None) -> None:
+    def __init__(
+        self,
+        vad: SileroVAD,
+        bus: Bus | None = None,
+        playback_threshold: float | None = None,
+    ) -> None:
         super().__init__(name="vad")
         self.input_caps = AudioCaps(sample_rate=16000)
         self._vad = vad
         self._bus = bus
         self._speech_active = False
+        self._playback_threshold = playback_threshold
+
+        # Subscribe to playback state for dynamic threshold adjustment
+        if self._bus and self._playback_threshold is not None:
+            self._bus.subscribe("playback_started", self._on_playback_started)
+            self._bus.subscribe("playback_ended", self._on_playback_ended)
+
+    def _on_playback_started(self, _message: BusMessage) -> None:
+        if self._playback_threshold is not None:
+            self._vad.set_threshold(self._playback_threshold)
+
+    def _on_playback_ended(self, _message: BusMessage) -> None:
+        self._vad.reset_threshold()
 
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         from ...audio.input.vad import VADStatus

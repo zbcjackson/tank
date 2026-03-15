@@ -80,9 +80,19 @@ class SileroVAD:
         # Model initialization - load immediately, fail fast if not available
         model = load_silero_vad(onnx=True, opset_version=16)
         # Pass speech_threshold to VADIterator, which will handle threshold comparison internally
+        self._default_threshold = cfg.speech_threshold
         self._vad_iterator = VADIterator(
             model, threshold=cfg.speech_threshold, sampling_rate=self._sample_rate
         )
+
+    def set_threshold(self, value: float) -> None:
+        """Dynamically adjust the VAD speech threshold."""
+        self._vad_iterator.threshold = value
+        logger.info("VAD threshold changed to %.2f", value)
+
+    def reset_threshold(self) -> None:
+        """Restore the VAD speech threshold to its configured default."""
+        self.set_threshold(self._default_threshold)
 
     def _process_chunk(self, chunk: np.ndarray) -> bool:
         """

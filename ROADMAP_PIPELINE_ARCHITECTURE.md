@@ -20,13 +20,13 @@ Phase 2  │ ⚠️  RISK WINDOW during 2.1-2.2   │ ❌ Not implemented
          │    Better: ordered propagation,  │
          │    graceful fade-out, partial    │
          │    response saved, <20ms latency │
-Phase 3  │ ✅ Working                        │ ✅ NEW: Noise filter (3.2)
-         │                                  │ ✅ NEW: AEC echo cancel (3.3)
-         │                                  │    AEC prevents false interrupts
-         │                                  │    from assistant's own voice
+Phase 3  │ ✅ Working                        │ ✅ NEW: Defense-in-depth echo guard
+         │                                  │    Layer 1: VAD threshold (backend)
+         │                                  │    Layer 2: Self-echo text detection
+         │                                  │    No backend signal-level AEC/ANC
 Phase 4  │ ✅ Working                        │ ✅ Working
 Phase 5  │ ✅ Working + observable           │ ✅ Working + observable
-         │    (InterruptLatencyObserver)     │    (AEC quality metrics on Bus)
+         │    (InterruptLatencyObserver)     │    (echo discard metrics on Bus)
 Phase 6  │ ✅ Working — cancel token         │ ✅ Working (Layer 1 independent)
          │    propagates to AgentGraph      │
 Phase 7  │ ✅ Working — interrupt cancels    │ ✅ Working
@@ -36,7 +36,7 @@ Phase 8  │ ✅ Production-grade              │ ✅ Production-grade
 
 **Interruption downtime: 0 seconds** — achieved by implementing Phase 2.1, 2.2, 2.3 behind a version flag and activating all three atomically. See "Minimizing Downtime" in Part 5.
 
-**ANC has no downtime risk** — new processors inserted at pipeline front; if they fail, audio passes through unfiltered (same as current). Disabled via config comment.
+**Echo guard has no downtime risk** — VAD threshold switching and self-echo text detection are backend-only, platform-independent, and fail-open (if detection fails, audio passes through as before). Disabled via config.
 
 ---
 
@@ -989,78 +989,68 @@ This replaces the single `threading.Event` with targeted, per-processor interrup
 - Implement `_maybe_summarize()` using LLM
 - Track token usage via Bus metrics
 
-**3.2 — Noise filter processor (ANC Stage 1)**
-- Implement `NoiseFilterProcessor` using `noisereduce` (Python, easy) or RNNoise (C, better quality)
-- Processes audio frames in-place: removes background noise before VAD/ASR
-- Insert before VAD in pipeline config — zero code changes to existing processors:
-  ```yaml
-  stages:
-    - name: noise_filter
-      processor: audio-filters:noisereduce
-      config:
-        stationary: true          # stationary noise reduction (fan, AC)
-        prop_decrease: 0.8        # how aggressively to reduce noise
-    - name: vad
-      processor: vad:silero
-    - name: asr
-      processor: asr-sherpa:asr
-      thread_boundary: true
-  ```
-- Declares `input_caps = AudioCaps(sample_rate=16000)`, `output_caps = AudioCaps(sample_rate=16000)`
-- Handles `flush` event: resets internal noise profile
+**3.2 — VAD Threshold Switching During Playback (Echo Guard Layer 1)**
 
-**3.3 — Acoustic Echo Cancellation (ANC Stage 2 — the hard one)**
+When TTS is playing through the speaker, the microphone picks up the assistant's own voice.
+Echo from speakers is typically quieter at the mic than direct user speech. By raising the
+VAD `speech_threshold` during playback, most echo is filtered at the signal level before it
+triggers any interrupt or ASR transcription.
 
-This is the critical feature for speaker-mode (non-headphone) usage. Without AEC, the assistant's own TTS output feeds back into the microphone, causing:
-- VAD false triggers (assistant's voice detected as user speech → interrupts itself)
-- ASR garbage (assistant's voice mixed into user's speech → wrong transcription)
-
-**Architecture for AEC:**
+**Architecture — defense in depth:**
 
 ```
-                    ┌──────────────────────────────────┐
-                    │         AEC Processor             │
-                    │                                    │
-  Mic audio ──────→ │  near_end (mic) ──→ AEC ──→ clean │ ──→ VAD → ASR
-                    │                      ↑             │
-                    │  far_end (ref) ──────┘             │
-                    └──────────────────────────────────┘
-                              ↑
-                              │
-  Playback audio ─────────────┘ (reference signal via Bus)
+Layer 1: VAD threshold during playback     — raises VAD sensitivity, filters echo at signal level
+Layer 2: Self-echo text detection          — catches what slips through layer 1 (semantic safety net)
 ```
 
-**Implementation:**
-- `AECProcessor` sits at the very front of the input pipeline (before noise filter, before VAD)
-- Receives mic audio as normal pipeline data flow (downstream)
-- Receives playback audio as **reference signal** via Bus subscription:
-  - `PlaybackProcessor` posts every audio chunk to Bus as `Message(type="aec_reference", payload=chunk)`
-  - `AECProcessor` subscribes to `"aec_reference"` messages
-  - Maintains a ring buffer of recent playback audio for correlation
-- AEC algorithm options (in order of recommendation):
-  1. **speexdsp** (`speexdsp-ns` Python bindings) — battle-tested, low CPU, real-time capable
-  2. **WebRTC AEC** (`py-webrtcvad` + WebRTC audio processing) — Google's AEC3, excellent quality
-  3. **Adaptive filter** (custom NLMS/RLS) — educational but inferior to above
+**Why NOT backend signal-level AEC/ANC:**
+- By the time audio reaches the backend, the echo is already mixed with user voice and degraded by network transit
+- The reference signal arrives via bus with variable network jitter — misalignment degrades AEC quality
+- The backend can't model the acoustic path (speaker → room → mic) — it never heard the room
+- Frontend platforms already have hardware-optimized AEC that outperforms any software solution
+- Backend's unique advantage is **semantic context** (knows what TTS just said), not signal processing
+
+**VAD threshold switching implementation:**
+- `SileroVAD` exposes `set_threshold(value)` and `reset_threshold()` methods
+- `VADProcessor` subscribes to `playback_started` / `playback_ended` bus messages
+- During playback: raises threshold (default 0.85) so only loud/close speech triggers detection
+- On playback end: restores default threshold immediately
+- Keeps immediate interrupt behavior — no deferred interrupt complexity
+- Preserves barge-in for loud/close user speech
 - Config:
   ```yaml
-  stages:
-    - name: aec
-      processor: audio-filters:aec
-      config:
-        algorithm: speexdsp       # or webrtc
-        tail_length_ms: 200       # echo tail length
-        filter_length: 1024       # adaptive filter taps
-    - name: noise_filter
-      processor: audio-filters:noisereduce
-    - name: vad
-      processor: vad:silero
+  echo_guard:
+    enabled: true
+    vad_threshold_during_playback: 0.85  # higher = less sensitive during playback
   ```
 
-**Why this is only possible with the new architecture:**
-- The Bus enables cross-pipeline communication (playback → AEC reference) without coupling
-- The Processor interface means AEC is just another processor — insert via config
-- Bidirectional events mean AEC can flush its state on interrupt (reset adaptive filter)
-- In the old architecture, there's no clean way to feed playback audio back to the input pipeline — the queues are one-directional and the workers don't share a communication bus
+**3.3 — Self-echo text detection (Echo Guard Layer 2)**
+
+After ASR produces a transcript, compare it against recent TTS output using token overlap.
+If the transcript is too similar to what the assistant just said, discard it.
+
+**Implementation:**
+- `SelfEchoDetector` class maintains a sliding window of recent TTS text (last 10 seconds)
+- On each ASR transcript: compute token overlap ratio against recent TTS text
+- If overlap > threshold (default 0.6) → discard transcript, log as echo
+- Uses simple word-level tokenization (split + lowercase + strip punctuation)
+- Posts `echo_discarded` metric to Bus for observability
+- Config:
+  ```yaml
+  echo_guard:
+    self_echo_detection:
+      enabled: true
+      similarity_threshold: 0.6    # discard if >60% token overlap
+      window_seconds: 10           # compare against last 10s of TTS text
+  ```
+
+**Why this approach is superior to backend signal-level AEC:**
+- Platform-independent — protects all clients (web, CLI, Tauri, mobile) equally
+- Zero additional latency — runs after ASR, not in the audio hot path
+- No signal processing dependencies (no speexdsp, no noisereduce)
+- Leverages the backend's unique advantage: knowing what was just spoken
+- Fail-open — if detection fails, audio passes through (same as current behavior)
+- Observable — `echo_discarded` metrics show how often echo leaks through platform AEC
 
 **3.4 — Smart turn detection**
 - Implement `SmartTurnProcessor` that uses ML model for end-of-turn detection
@@ -1082,13 +1072,12 @@ This is the critical feature for speaker-mode (non-headphone) usage. Without AEC
   ```
 - ASR and speaker ID run in parallel on the same audio
 
-**Deliverable**: Noise cancellation, acoustic echo cancellation, smart turn detection, parallel processing.
+**Deliverable**: Self-echo detection, VAD threshold switching, smart turn detection, parallel processing.
 
 **Functionality status:**
-- ✅ Speech interruption: Working (event-based from Phase 2)
-- ✅ ANC (noise reduction): **NEW** — background noise removed before VAD/ASR
-- ✅ AEC (echo cancellation): **NEW** — assistant's own voice suppressed from mic input
-- ✅ Interruption + AEC interaction: AEC prevents false interrupts from assistant's own speech
+- ✅ Speech interruption: Working (immediate interrupt, no deferred logic)
+- ✅ Echo guard Layer 1: **NEW** — VAD threshold raised during playback filters echo at signal level
+- ✅ Echo guard Layer 2: **NEW** — self-echo text detection catches leaked echo semantically
 
 ### Phase 4: LLM Layer Hardening (Week 6)
 > Goal: Make the LLM layer production-robust without adding frameworks
@@ -1346,8 +1335,8 @@ Phase 6 (Agent Orchestration) doesn't require rewriting the Brain. The `ChatAgen
 | Approval UX friction | Voice-based approval for common cases; UI fallback for complex ones; configurable policies per tool |
 | Checkpoint storage growth | TTL on checkpoints (7 days default); periodic cleanup job |
 | **Speech interruption breakage (Phase 2)** | **Implement 2.3 (event-based interruption) BEFORE 2.4 (delete old code); integration tests with interruption scenarios; keep version flag for instant rollback** |
-| **AEC false negatives (Phase 3)** | **Tune AEC parameters per deployment (tail length, filter taps); provide config presets for common scenarios (headphones, speakers, speakerphone); add AEC quality metrics to Bus (echo return loss, residual echo)** |
-| **AEC reference signal delay** | **Playback posts to Bus immediately (before sounddevice callback); AEC maintains 500ms ring buffer to handle jitter; if delay exceeds buffer, log warning and skip that frame** |
+| **AEC false negatives (Phase 3)** | **Defense in depth: Layer 1 (VAD threshold during playback) + Layer 2 (self-echo text detection). If any layer fails, the next catches it. Config-tunable thresholds per deployment.** |
+| **Echo detection false positives** | **Conservative default threshold (0.6 token overlap). User speech that happens to repeat assistant words is rare and short. Minimum word count (3) during playback prevents single-word false discards.** |
 
 ### Minimizing Downtime: Critical Path Analysis
 
@@ -1385,18 +1374,13 @@ Day 1 (Evening):
 Downtime: 0 seconds (version flag flip is instant)
 ```
 
-**ANC/AEC has no downtime risk:**
-- Phase 3.2 (noise filter) and 3.3 (AEC) are new processors inserted at the front of the pipeline
-- If they fail, audio passes through unfiltered — same as current behavior
+**Echo guard has no downtime risk:**
+- Phase 3.2 (VAD threshold switching) and 3.3 (self-echo text detection) are backend-only layers
+- If they fail, audio passes through unprocessed — same as current behavior (fail-open)
 - Can be disabled via config without code changes:
   ```yaml
-  stages:
-    # - name: aec              # commented out = disabled
-    #   processor: audio-filters:aec
-    # - name: noise_filter     # commented out = disabled
-    #   processor: audio-filters:noisereduce
-    - name: vad
-      processor: vad:silero
+  echo_guard:
+    enabled: false    # disable all echo guard layers
   ```
 
 ---
@@ -1411,7 +1395,7 @@ Downtime: 0 seconds (version flag flip is instant)
 | Backpressure handling | None (unbounded queues) | Bounded queues with FlowReturn |
 | Interruption latency | ~50ms (polling interval) | <10ms (event propagation) |
 | Context overflow handling | None (grows forever) | Auto-summarization at token threshold |
-| Audio pre-processing | None | Noise cancellation via config |
+| Audio pre-processing | None | Platform AEC (frontend) + semantic echo guard (backend) |
 | LLM call visibility | None (logging only) | Every call traced in Langfuse (prompt, tokens, cost, latency) |
 | Token usage tracking | None | Per-call, per-session, per-day breakdown in Langfuse dashboard |
 | Cost tracking | None | Real-time cost per conversation, daily/monthly aggregates |

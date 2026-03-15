@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 from ..bus import Bus, BusMessage
 from ..event import PipelineEvent
 from ..processor import FlowReturn, Processor
+from .echo_guard import EchoGuardConfig, SelfEchoDetector
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -29,10 +30,11 @@ class BrainProcessor(Processor):
     Output: AudioOutputRequest (for TTS downstream)
 
     Brain runs in its own QueueWorker thread. This processor:
-    1. Pushes BrainInputEvent to Brain's input queue
-    2. Runs a background thread that drains runtime.audio_output_queue
+    1. Applies self-echo text detection (safety net for echo that leaks past VAD)
+    2. Pushes BrainInputEvent to Brain's input queue
+    3. Runs a background thread that drains runtime.audio_output_queue
        and pushes AudioOutputRequest to the next pipeline queue
-    3. UI messages are posted to Bus by Brain directly
+    4. UI messages are posted to Bus by Brain directly
 
     Posts LLM latency metrics to Bus.
     Handles interrupt events by setting the runtime interrupt_event.
@@ -43,6 +45,7 @@ class BrainProcessor(Processor):
         brain: Brain,
         bus: Bus | None = None,
         runtime: RuntimeContext | None = None,
+        echo_guard_config: EchoGuardConfig | None = None,
     ) -> None:
         super().__init__(name="brain")
         self._brain = brain
@@ -51,6 +54,10 @@ class BrainProcessor(Processor):
         self._output_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._next_queue: Any = None  # Set by queue.chain()
+
+        # Echo guard — self-echo text detection only (Layer 2)
+        self._echo_config = echo_guard_config or EchoGuardConfig()
+        self._echo_detector = SelfEchoDetector(self._echo_config)
 
     async def start(self) -> None:
         """Start the output draining thread."""
@@ -82,9 +89,13 @@ class BrainProcessor(Processor):
                 try:
                     audio_req = rt.audio_output_queue.get(timeout=0.1)
 
+                    # Record TTS text for self-echo detection
+                    if hasattr(audio_req, "content") and audio_req.content:
+                        self._echo_detector.record_tts(audio_req.content)
+
                     # Push to next queue in pipeline (TTS)
                     if self._next_queue is not None:
-                        result = self._next_queue.push(audio_req)
+                        self._next_queue.push(audio_req)
                 except queue.Empty:
                     pass
 
@@ -105,6 +116,20 @@ class BrainProcessor(Processor):
 
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         event: BrainInputEvent = item
+
+        # --- Self-echo text detection (safety net) ---
+        if self._echo_config.enabled and self._echo_detector.is_echo(event.text):
+            if self._bus:
+                self._bus.post(BusMessage(
+                    type="echo_discarded",
+                    source=self.name,
+                    payload={
+                        "reason": "self_echo",
+                        "text": event.text,
+                    },
+                ))
+            yield FlowReturn.OK, None
+            return
 
         started_at = time.time()
 

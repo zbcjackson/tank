@@ -19,6 +19,7 @@ from ..pipeline.observers import InterruptLatencyObserver, LatencyObserver, Turn
 from ..pipeline.wrappers import (
     ASRProcessor,
     BrainProcessor,
+    EchoGuardConfig,
     PlaybackProcessor,
     TTSProcessor,
     VADProcessor,
@@ -98,6 +99,10 @@ class AssistantV2:
         # Build processors
         builder = PipelineBuilder(self._bus)
 
+        # Echo guard config (from config.yaml)
+        echo_guard_raw = self._app_config._config.get("echo_guard", {})
+        echo_guard_cfg = self._build_echo_guard_config(echo_guard_raw)
+
         # VAD processor (needs SileroVAD instance)
         self._vad_processor: VADProcessor | None = None
         if asr_engine is not None:
@@ -105,7 +110,15 @@ class AssistantV2:
             from ..audio.input.vad import SileroVAD
 
             vad = SileroVAD(cfg=SegmenterConfig(), sample_rate=16000)
-            self._vad_processor = VADProcessor(vad=vad, bus=self._bus)
+            self._vad_processor = VADProcessor(
+                vad=vad,
+                bus=self._bus,
+                playback_threshold=(
+                    echo_guard_cfg.vad_threshold_during_playback
+                    if echo_guard_cfg.enabled
+                    else None
+                ),
+            )
             asr_proc = ASRProcessor(asr=asr_engine, bus=self._bus)
             builder.add(self._vad_processor)
             builder.add(asr_proc)
@@ -121,7 +134,8 @@ class AssistantV2:
             tts_enabled=tts_engine is not None,
         )
         brain_proc = BrainProcessor(
-            brain=self.brain, bus=self._bus, runtime=self.runtime
+            brain=self.brain, bus=self._bus, runtime=self.runtime,
+            echo_guard_config=echo_guard_cfg,
         )
         builder.add(brain_proc)
 
@@ -136,7 +150,7 @@ class AssistantV2:
 
         self._pipeline = builder.build()
 
-        # Speech interrupt: speech_start → send interrupt event upstream
+        # Speech interrupt: speech_start → send interrupt event immediately
         self._bus.subscribe("speech_start", self._on_speech_start)
 
         self.on_exit_request = on_exit_request
@@ -151,6 +165,20 @@ class AssistantV2:
         if not cfg.enabled or not cfg.extension:
             return None
         return registry.instantiate(cfg.extension, cfg.config)  # type: ignore[union-attr]
+
+    def _build_echo_guard_config(self, raw: dict) -> EchoGuardConfig:
+        """Build EchoGuardConfig from config.yaml echo_guard section."""
+        if not raw:
+            return EchoGuardConfig()
+
+        echo_cfg = raw.get("self_echo_detection", {})
+
+        return EchoGuardConfig(
+            enabled=raw.get("enabled", True),
+            vad_threshold_during_playback=raw.get("vad_threshold_during_playback", 0.85),
+            similarity_threshold=echo_cfg.get("similarity_threshold", 0.6),
+            window_seconds=echo_cfg.get("window_seconds", 10.0),
+        )
 
     @property
     def capabilities(self) -> dict[str, bool]:
@@ -178,7 +206,7 @@ class AssistantV2:
                 logger.error("UI callback error", exc_info=True)
 
     def _on_speech_start(self, _message: BusMessage) -> None:
-        """Handle speech_start: send interrupt event through pipeline."""
+        """Handle speech_start: send interrupt event through pipeline immediately."""
         if not self._config.speech_interrupt_enabled:
             return
         if self._pipeline is not None:

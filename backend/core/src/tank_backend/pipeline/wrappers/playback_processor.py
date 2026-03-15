@@ -37,6 +37,15 @@ class PlaybackProcessor(Processor):
         self._bus = bus
         self._chunk_count = 0
         self._flushed = False
+        self._playing = False
+
+        # Subscribe to tts_finished to know when all chunks have been sent
+        if self._bus:
+            self._bus.subscribe("tts_finished", self._on_tts_finished)
+
+    def _on_tts_finished(self, _message: BusMessage) -> None:
+        """TTS has finished generating — signal playback ended."""
+        self._signal_playback_ended()
 
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         chunk: AudioChunk = item
@@ -50,14 +59,23 @@ class PlaybackProcessor(Processor):
 
         self._chunk_count += 1
 
+        # Signal playback started on first chunk
         if self._chunk_count == 1:
-            logger.info(f"PlaybackProcessor: received first chunk, callback={self._playback_callback is not None}")
+            self._playing = True
+            has_cb = self._playback_callback is not None
+            logger.info("PlaybackProcessor: received first chunk, callback=%s", has_cb)
+            if self._bus:
+                self._bus.post(BusMessage(
+                    type="playback_started",
+                    source=self.name,
+                    payload=None,
+                ))
 
         # Delegate to playback callback if provided
         if self._playback_callback is not None:
             self._playback_callback(chunk)
         else:
-            logger.warning(f"PlaybackProcessor: no callback set, dropping chunk {self._chunk_count}")
+            logger.warning("PlaybackProcessor: no callback, dropping chunk %d", self._chunk_count)
 
         if self._bus and self._chunk_count % 50 == 0:
             self._bus.post(BusMessage(
@@ -68,13 +86,26 @@ class PlaybackProcessor(Processor):
 
         yield FlowReturn.OK, None
 
+    def _signal_playback_ended(self) -> None:
+        """Post playback_ended to bus if currently playing."""
+        if self._playing:
+            self._playing = False
+            if self._bus:
+                self._bus.post(BusMessage(
+                    type="playback_ended",
+                    source=self.name,
+                    payload=None,
+                ))
+
     def handle_event(self, event: PipelineEvent) -> bool:
         if event.type == "flush":
+            self._signal_playback_ended()
             self._flushed = True
             self._chunk_count = 0
             logger.info("PlaybackProcessor: flushed")
             return True  # terminal — consume flush
         if event.type == "interrupt":
+            self._signal_playback_ended()
             self._flushed = True
             self._chunk_count = 0
             logger.info("PlaybackProcessor: interrupted")
