@@ -49,11 +49,17 @@ if [[ -f "$ROOT/backend/core/.env" ]]; then
   echo "Copied backend/core/.env"
 fi
 
-# --- .claude/ → symlink (shared settings, rules, project config) ---
+# --- .claude/ → copy (settings may diverge per worktree) ---
 if [[ -d "$ROOT/.claude" ]]; then
   rm -rf "$DEST/.claude"
-  ln -s "$ROOT/.claude" "$DEST/.claude"
-  echo "Linked .claude/"
+  cp -r "$ROOT/.claude" "$DEST/.claude"
+  echo "Copied .claude/"
+fi
+
+# --- web/.env → copy (may diverge per worktree) ---
+if [[ -f "$ROOT/web/.env" ]]; then
+  cp "$ROOT/web/.env" "$DEST/web/.env"
+  echo "Copied web/.env"
 fi
 
 echo ""
