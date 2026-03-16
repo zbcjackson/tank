@@ -123,7 +123,10 @@ export const ChatMode = ({
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 pb-4 scrollbar-thin">
         {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center gap-4">
+          <div
+            data-testid="empty-state"
+            className="h-full flex flex-col items-center justify-center gap-4"
+          >
             <div
               className="w-12 h-12 rounded-full flex items-center justify-center"
               style={EMPTY_STATE_STYLE}
@@ -140,7 +143,10 @@ export const ChatMode = ({
             const isFirstInRoleGroup = !prevMsg || prevMsg.role !== msg.role;
 
             return (
-              <div key={msg.id}>
+              <div
+                key={msg.id}
+                data-testid={msg.role === 'user' ? 'user-message' : 'assistant-message'}
+              >
                 {isFirstInRoleGroup && (
                   <div
                     className={`flex items-center gap-2 mt-6 mb-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -171,7 +177,7 @@ export const ChatMode = ({
           {isAssistantTyping &&
             messages.length > 0 &&
             !messages.some((m) => m.role === 'assistant' && m.type === 'thinking') && (
-              <div className="flex justify-start mt-4">
+              <div data-testid="typing-indicator" className="flex justify-start mt-4">
                 <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-surface-raised">
                   <motion.span
                     animate={DOT_ANIMATE}
@@ -202,6 +208,7 @@ export const ChatMode = ({
               ref={inputRef}
               rows={1}
               placeholder="输入消息..."
+              data-testid="chat-input"
               onKeyDown={handleKeyDown}
               onInput={handleInput}
               className="w-full bg-transparent px-5 py-3.5 pr-24 text-[14px] text-text-primary placeholder:text-text-muted resize-none focus:outline-none leading-relaxed"
@@ -211,6 +218,7 @@ export const ChatMode = ({
               {isAssistantTyping || isSpeaking ? (
                 <button
                   type="button"
+                  data-testid="stop-button"
                   onClick={onStopSpeaking}
                   className="w-9 h-9 rounded-xl flex items-center justify-center bg-red-500/15 text-red-400 border border-red-500/20 hover:bg-red-500/25 transition-colors"
                 >
@@ -219,6 +227,7 @@ export const ChatMode = ({
               ) : (
                 <button
                   type="submit"
+                  data-testid="send-button"
                   className="w-9 h-9 rounded-xl flex items-center justify-center bg-amber-500/15 text-amber-400 border border-amber-500/20 hover:bg-amber-500/25 transition-colors"
                 >
                   <ArrowUp size={16} strokeWidth={2.5} />

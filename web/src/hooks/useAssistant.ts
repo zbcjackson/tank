@@ -93,6 +93,22 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
       const updated = [...prev];
       const existingIdx = updated.findIndex((m) => m.id === stepId);
 
+      // --- Reconcile backend echo with optimistic local user step ---
+      if (msg.type === 'transcript' && msg.is_user) {
+        const localIdx = updated.findLastIndex(
+          (s) => s.role === 'user' && s.id.startsWith('local_') && s.content === msg.content,
+        );
+        if (localIdx > -1) {
+          updated[localIdx] = {
+            ...updated[localIdx],
+            id: stepId,
+            msgId,
+            speaker: msg.speaker || updated[localIdx].speaker,
+          };
+          return updated;
+        }
+      }
+
       // --- TEXT & THINKING (Streaming) ---
       if (activityType === 'text' || activityType === 'thinking') {
         if (existingIdx > -1) {
@@ -293,9 +309,24 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
   }, [conversationState]);
 
   const sendMessage = useCallback((text: string) => {
-    if (clientRef.current) {
-      clientRef.current.sendMessage('input', text);
-    }
+    if (!clientRef.current) return;
+
+    // Optimistic local user step — visible immediately without waiting for backend echo
+    const localMsgId = `local_${Date.now()}`;
+    const localStepId = `${localMsgId}_text_0`;
+    setSteps((prev) => [
+      ...prev,
+      {
+        id: localStepId,
+        role: 'user' as const,
+        type: 'text' as const,
+        content: text,
+        msgId: localMsgId,
+        isFinal: true,
+      },
+    ]);
+
+    clientRef.current.sendMessage('input', text);
   }, []);
 
   const toggleMode = useCallback(

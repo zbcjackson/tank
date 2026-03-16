@@ -4,25 +4,27 @@ export class ChatModePage {
   constructor(private page: Page) {}
 
   input(): Locator {
-    return this.page.locator('input[placeholder="发送消息..."]');
+    return this.page.locator('[data-testid="chat-input"]');
   }
 
   sendButton(): Locator {
-    return this.page.locator('button[type="submit"]', { hasText: '发送' });
+    return this.page.locator('[data-testid="send-button"]');
   }
 
   emptyState(): Locator {
-    return this.page.locator('text=开始对话吧');
+    return this.page.locator('[data-testid="empty-state"]');
   }
 
   typingIndicator(): Locator {
-    // The three animated dots shown when isAssistantTyping is true
-    return this.page.locator('.animate-pulse').first();
+    return this.page.locator('[data-testid="typing-indicator"]');
   }
 
   assistantMessage(): Locator {
-    // Assistant message content divs have animate-in class
-    return this.page.locator('.animate-in').first();
+    return this.page.locator('[data-testid="assistant-message"]').first();
+  }
+
+  userMessage(text: string): Locator {
+    return this.page.locator(`[data-testid="user-message"]:has-text("${text}")`);
   }
 
   messageByContent(text: string): Locator {
@@ -42,6 +44,6 @@ export class ChatModePage {
   }
 
   stopButton(): Locator {
-    return this.page.locator('button', { hasText: '停止' });
+    return this.page.locator('[data-testid="stop-button"]');
   }
 }

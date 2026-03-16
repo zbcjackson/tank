@@ -42,7 +42,7 @@ class ASRProcessor(Processor):
 
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         from ...audio.input.vad import VADResult
-        from ...core.events import BrainInputEvent, InputType
+        from ...core.events import BrainInputEvent, DisplayMessage, InputType
 
         if isinstance(item, VADResult):
             if item.utterance_pcm is None or len(item.utterance_pcm) == 0:
@@ -71,6 +71,21 @@ class ASRProcessor(Processor):
 
             if text:
                 msg_id = f"user_{uuid.uuid4().hex[:8]}"
+
+                # Post user transcript to UI so it appears in the frontend
+                if self._bus:
+                    self._bus.post(BusMessage(
+                        type="ui_message",
+                        source=self.name,
+                        payload=DisplayMessage(
+                            speaker=self._user,
+                            text=text,
+                            is_user=True,
+                            is_final=True,
+                            msg_id=msg_id,
+                        ),
+                    ))
+
                 event = BrainInputEvent(
                     type=InputType.AUDIO,
                     text=text,

@@ -185,6 +185,35 @@ class TestASRProcessor:
         assert received[0].payload["text"] == "hi"
         assert "latency_s" in received[0].payload
 
+    async def test_posts_user_transcript_to_bus(self):
+        bus = Bus()
+        received = []
+        bus.subscribe("ui_message", lambda m: received.append(m))
+
+        proc, _ = self._make_processor(text="你好世界", bus=bus)
+        await _collect(proc, _make_vad_result_end_speech())
+        bus.poll()
+
+        assert len(received) == 1
+        display_msg = received[0].payload
+        assert display_msg.is_user is True
+        assert display_msg.text == "你好世界"
+        assert display_msg.speaker == "TestUser"
+        assert display_msg.is_final is True
+        assert display_msg.msg_id is not None
+        assert display_msg.msg_id.startswith("user_")
+
+    async def test_no_user_transcript_for_empty_text(self):
+        bus = Bus()
+        received = []
+        bus.subscribe("ui_message", lambda m: received.append(m))
+
+        proc, _ = self._make_processor(text="", bus=bus)
+        await _collect(proc, _make_vad_result_end_speech())
+        bus.poll()
+
+        assert len(received) == 0
+
     async def test_flush_event_resets_asr(self):
         proc, asr = self._make_processor()
         asr.reset = MagicMock()
