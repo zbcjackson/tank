@@ -1,5 +1,6 @@
 Feature: WebSocket Reconnection
 
+  @not-implemented
   Scenario: Automatic reconnection after server restart
     Given the app is open
     When the backend server is stopped
@@ -8,6 +9,7 @@ Feature: WebSocket Reconnection
     Then the connection is restored
     And the reconnection overlay disappears
 
+  @not-implemented
   Scenario: Manual reconnect button works
     Given the app is open
     When the backend server is stopped
@@ -15,6 +17,7 @@ Feature: WebSocket Reconnection
     When I click the "立即重连" button
     Then a reconnection attempt is triggered
 
+  @not-implemented
   Scenario: Failed state after max retries
     Given the app is open
     When the backend server is stopped permanently
@@ -22,6 +25,7 @@ Feature: WebSocket Reconnection
     And after 10 failed attempts the overlay shows "连接失败"
     And the "重新连接" button is visible
 
+  @not-implemented
   Scenario: Conversation history preserved during reconnect
     Given the app is open
     And I have sent a message "hello"

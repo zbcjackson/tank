@@ -8,7 +8,7 @@ export class AppPage {
   }
 
   clickModeToggle(): Promise<void> {
-    return this.page.locator('button[class*="fixed bottom"]').click();
+    return this.page.locator('[data-testid="mode-toggle"]').click();
   }
 
   errorOverlay(): Locator {

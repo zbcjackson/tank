@@ -9,7 +9,7 @@ Given('the app is open', async function (this: TankWorld) {
   const appPage = new AppPage(this.page);
   await appPage.open(APP_URL);
   const voicePage = new VoiceModePage(this.page);
-  await voicePage.statusText().filter({ hasText: '我在听，请说...' }).waitFor({ state: 'visible', timeout: 30000 });
+  await voicePage.container().waitFor({ state: 'visible', timeout: 30000 });
 });
 
 Then('the status text shows {string}', async function (this: TankWorld, text: string) {

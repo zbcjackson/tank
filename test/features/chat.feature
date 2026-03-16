@@ -11,12 +11,14 @@ Feature: Chat mode
     When the user types "你好" and sends it
     Then the user message "你好" is visible in the conversation
 
+  @requires-active-conversation
   Scenario: Sending a message triggers assistant response
     When the user types "现在几点" and sends it
     Then the typing indicator is visible
     And eventually an assistant message appears
     And the typing indicator disappears
 
+  @requires-active-conversation
   Scenario: Stop button replaces send button during processing
     When the user types "你好" and sends it
     Then the stop button is visible

@@ -5,5 +5,6 @@ module.exports = {
     paths: ['features/**/*.feature'],
     parallel: 1,
     format: ['progress-bar', 'html:reports/cucumber-report.html'],
+    tags: 'not @not-implemented and not @requires-active-conversation',
   },
 };

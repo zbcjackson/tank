@@ -150,6 +150,7 @@ export const VoiceMode = ({
   return (
     <motion.div
       key="voice"
+      data-testid="voice-mode"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -207,6 +208,7 @@ export const VoiceMode = ({
               statusLabel && (
                 <motion.p
                   key={statusLabel}
+                  data-testid="voice-status"
                   variants={statusVariants}
                   initial="hidden"
                   animate="visible"
@@ -244,6 +246,8 @@ export const VoiceMode = ({
             whileTap={{ scale: 0.94 }}
             animate={isUserSpeaking ? MIC_SPEAKING_ANIMATE : MIC_IDLE_ANIMATE}
             onClick={onMicClick}
+            data-testid="mic-button"
+            data-muted={isMuted ? 'true' : 'false'}
             className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ${
               micStatus === 'muted'
                 ? 'bg-zinc-800/80 text-zinc-500 border border-zinc-700/50'
@@ -263,6 +267,7 @@ export const VoiceMode = ({
               whileHover={{ scale: 1.06 }}
               whileTap={{ scale: 0.94 }}
               onClick={onStopSpeaking}
+              data-testid="voice-stop-button"
               className="w-12 h-12 rounded-full flex items-center justify-center bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
             >
               <Square size={18} fill="currentColor" />

@@ -15,6 +15,7 @@ export const ModeToggle = ({ mode, onToggle }: ModeToggleProps) => {
       whileHover={{ scale: 1.06 }}
       whileTap={{ scale: 0.94 }}
       onClick={onToggle}
+      data-testid="mode-toggle"
       className="fixed bottom-8 right-8 w-12 h-12 rounded-full flex items-center justify-center z-50 bg-surface-raised border border-border-subtle text-text-secondary hover:text-amber-400 hover:border-amber-500/20 transition-all duration-300 shadow-lg shadow-black/30"
     >
       <AnimatePresence mode="wait">

@@ -3,23 +3,23 @@ import type { Page, Locator } from 'playwright';
 export class VoiceModePage {
   constructor(private page: Page) {}
 
-  statusText(): Locator {
-    return this.page.locator('p.text-2xl');
+  container(): Locator {
+    return this.page.locator('[data-testid="voice-mode"]');
   }
 
-  waveform(): Locator {
-    // Waveform component renders SVG or canvas inside the voice mode container
-    return this.page.locator('[class*="voice"], [class*="waveform"]').first();
+  statusText(): Locator {
+    return this.page.locator('[data-testid="voice-status"]');
+  }
+
+  wakeWordIndicator(): Locator {
+    return this.page.locator('[data-testid="wake-word-indicator"]');
   }
 
   micButton(): Locator {
-    return this.page.locator('button', { has: this.page.locator('svg') }).filter({
-      hasText: '',
-    }).first();
+    return this.page.locator('[data-testid="mic-button"]');
   }
 
   stopButton(): Locator {
-    // The stop button appears next to the mic button with red styling and a Square icon
-    return this.page.locator('button.text-red-400');
+    return this.page.locator('[data-testid="voice-stop-button"]');
   }
 }
