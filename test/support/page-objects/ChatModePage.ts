@@ -46,4 +46,8 @@ export class ChatModePage {
   stopButton(): Locator {
     return this.page.locator('[data-testid="stop-button"]');
   }
+
+  userTranscript(): Locator {
+    return this.page.locator('[data-testid="user-message"]').first();
+  }
 }

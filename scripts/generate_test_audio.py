@@ -87,9 +87,11 @@ async def generate_one(text: str, lang: str, output_dir: Path) -> Path:
     segment = await synthesize(text, voice)
     segment = convert_to_test_format(segment)
 
-    # Add 500ms silence padding at start and end so VAD has clean edges
-    silence = AudioSegment.silent(duration=500, frame_rate=TARGET_SAMPLE_RATE)
-    segment = silence + segment + silence
+    # Silence padding: 1.5s at start (so browser calibration only sees silence),
+    # 2s at end (so backend ASR detects endpoint before Chrome loops back to speech).
+    pre_silence = AudioSegment.silent(duration=1500, frame_rate=TARGET_SAMPLE_RATE)
+    post_silence = AudioSegment.silent(duration=2000, frame_rate=TARGET_SAMPLE_RATE)
+    segment = pre_silence + segment + post_silence
 
     segment.export(str(out_path), format="wav")
     duration_s = len(segment) / 1000
