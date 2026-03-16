@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Tank",
+  "version": "0.1.0",
+  "identifier": "com.tank.voiceassistant",
+  "build": {
+    "beforeDevCommand": "curl -s http://localhost:5173 > /dev/null 2>&1 || pnpm --dir ../web dev",
+    "beforeBuildCommand": "pnpm --dir ../web build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Tank",
+        "width": 400,
+        "height": 700,
+        "resizable": true,
+        "center": true,
+        "decorations": true,
+        "titleBarStyle": "Overlay"
+      }
+    ],
+    "security": {}
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.icns"
+    ],
+    "targets": "all",
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    }
+  }
+}
