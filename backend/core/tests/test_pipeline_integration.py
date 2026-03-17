@@ -335,13 +335,13 @@ class TestFullPipelineEndToEnd:
             events_received[event_type] = []
             bus.subscribe(event_type, lambda m, t=event_type: events_received[t].append(m))
 
-        # VAD: first IN_SPEECH then END_SPEECH
+        # VAD: first 3 calls IN_SPEECH (sustained gate), then END_SPEECH
         call_count = 0
 
         def vad_process_frame(pcm, timestamp_s):
             nonlocal call_count
             call_count += 1
-            if call_count == 1:
+            if call_count <= 3:
                 return VADResult(status=VADStatus.IN_SPEECH)
             return _make_vad_end_speech()
 
@@ -363,14 +363,15 @@ class TestFullPipelineEndToEnd:
 
         await pipeline.start()
         try:
-            # First frame: IN_SPEECH → speech_start event
-            pipeline.push(_make_audio_frame())
+            # First 3 frames: IN_SPEECH (sustained gate needs 3 to post speech_start)
+            for _ in range(3):
+                pipeline.push(_make_audio_frame())
             await asyncio.sleep(0.3)
             bus.poll()
 
             assert len(events_received["speech_start"]) == 1
 
-            # Second frame: END_SPEECH → speech_end + asr_result + llm_latency
+            # Fourth frame: END_SPEECH → speech_end + asr_result + llm_latency
             pipeline.push(_make_audio_frame())
             await asyncio.sleep(0.5)
             bus.poll()

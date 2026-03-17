@@ -96,7 +96,10 @@ class TestVADProcessor:
 
         result = VADResult(status=VADStatus.IN_SPEECH)
         proc, _ = self._make_processor(result, bus=bus)
-        await _collect(proc, _make_audio_frame())
+
+        # Sustained-speech gate requires min_interrupt_frames (default 3)
+        for _ in range(3):
+            await _collect(proc, _make_audio_frame())
         bus.poll()
 
         assert len(received) == 1

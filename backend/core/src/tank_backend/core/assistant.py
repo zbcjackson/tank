@@ -29,7 +29,7 @@ from ..plugin.manager import PluginManager
 from ..sandbox.config import SandboxConfig
 from ..sandbox.manager import SandboxManager
 from ..tools.manager import ToolManager
-from .events import BrainInputEvent, DisplayMessage, InputType, UIMessage
+from .events import BrainInputEvent, DisplayMessage, InputType, SignalMessage, UIMessage
 from .runtime import RuntimeContext
 from .shutdown import GracefulShutdown
 
@@ -89,6 +89,12 @@ class Assistant:
 
         # Subscribe to ui_message on bus → forward to registered callbacks
         self._bus.subscribe("ui_message", self._on_ui_bus_message)
+
+        # Pipeline-busy tracking for speech interrupt guard
+        self._brain_active = False
+        self._playback_active = False
+        self._bus.subscribe("playback_started", self._on_playback_started)
+        self._bus.subscribe("playback_ended", self._on_playback_ended)
 
         # Observers
         self._latency_observer = LatencyObserver(self._bus)
@@ -206,17 +212,37 @@ class Assistant:
     def _on_ui_bus_message(self, message: BusMessage) -> None:
         """Forward ui_message bus events to registered callbacks."""
         ui_msg: UIMessage = message.payload
+        # Track brain activity via processing signals
+        if isinstance(ui_msg, SignalMessage):
+            if ui_msg.signal_type == "processing_started":
+                self._brain_active = True
+            elif ui_msg.signal_type == "processing_ended":
+                self._brain_active = False
         for cb in self._ui_callbacks:
             try:
                 cb(ui_msg)
             except Exception:
                 logger.error("UI callback error", exc_info=True)
 
+    def _on_playback_started(self, _message: BusMessage) -> None:
+        self._playback_active = True
+
+    def _on_playback_ended(self, _message: BusMessage) -> None:
+        self._playback_active = False
+
+    @property
+    def _pipeline_busy(self) -> bool:
+        """True when any downstream processor is actively working."""
+        return self._brain_active or self._playback_active
+
     def _on_speech_start(self, _message: BusMessage) -> None:
-        """Handle speech_start: send interrupt event through pipeline immediately."""
+        """Handle speech_start: send interrupt event through pipeline if busy."""
         if not self._config.speech_interrupt_enabled:
             return
+        if not self._pipeline_busy:
+            return
         if self._pipeline is not None:
+            logger.info("Speech interrupt: cancelling active processing")
             self._pipeline.send_event(
                 PipelineEvent(
                     type="interrupt",

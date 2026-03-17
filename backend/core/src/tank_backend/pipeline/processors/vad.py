@@ -37,6 +37,7 @@ class VADProcessor(Processor):
         vad: SileroVAD,
         bus: Bus | None = None,
         playback_threshold: float | None = None,
+        min_interrupt_frames: int = 3,
     ) -> None:
         super().__init__(name="vad")
         self.input_caps = AudioCaps(sample_rate=16000)
@@ -44,6 +45,8 @@ class VADProcessor(Processor):
         self._bus = bus
         self._speech_active = False
         self._playback_threshold = playback_threshold
+        self._min_interrupt_frames = min_interrupt_frames
+        self._consecutive_speech_frames = 0
 
         # Subscribe to playback state for dynamic threshold adjustment
         if self._bus and self._playback_threshold is not None:
@@ -63,14 +66,21 @@ class VADProcessor(Processor):
         frame: AudioFrame = item
         result = self._vad.process_frame(frame.pcm, frame.timestamp_s)
 
-        if result.status == VADStatus.IN_SPEECH and not self._speech_active:
-            self._speech_active = True
-            if self._bus:
-                self._bus.post(BusMessage(
-                    type="speech_start",
-                    source=self.name,
-                    payload={"timestamp_s": frame.timestamp_s},
-                ))
+        if result.status == VADStatus.IN_SPEECH:
+            self._consecutive_speech_frames += 1
+            if (
+                not self._speech_active
+                and self._consecutive_speech_frames >= self._min_interrupt_frames
+            ):
+                self._speech_active = True
+                if self._bus:
+                    self._bus.post(BusMessage(
+                        type="speech_start",
+                        source=self.name,
+                        payload={"timestamp_s": frame.timestamp_s},
+                    ))
+        else:
+            self._consecutive_speech_frames = 0
 
         if result.status == VADStatus.END_SPEECH:
             self._speech_active = False
@@ -98,5 +108,6 @@ class VADProcessor(Processor):
             now_s = time.time()
             self._vad.flush(now_s)
             self._speech_active = False
+            self._consecutive_speech_frames = 0
             return False  # propagate
         return False

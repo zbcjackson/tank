@@ -173,6 +173,131 @@ class TestAssistantSpeechInterrupt:
         assert interrupt_event.is_set()
 
 
+class TestAssistantPipelineBusyGuard:
+    """Tests for pipeline-busy guard on speech interrupt."""
+
+    def test_brain_active_tracked_via_processing_signals(self):
+        """processing_started/ended signals should toggle _brain_active."""
+        bus = Bus()
+        brain_active_states = []
+
+        # Simulate what Assistant._on_ui_bus_message does
+        brain_active = False
+
+        def on_ui_message(msg: BusMessage) -> None:
+            nonlocal brain_active
+            payload = msg.payload
+            if isinstance(payload, SignalMessage):
+                if payload.signal_type == "processing_started":
+                    brain_active = True
+                elif payload.signal_type == "processing_ended":
+                    brain_active = False
+            brain_active_states.append(brain_active)
+
+        bus.subscribe("ui_message", on_ui_message)
+
+        # Post processing_started
+        bus.post(BusMessage(
+            type="ui_message", source="brain",
+            payload=SignalMessage(signal_type="processing_started", msg_id="test_1"),
+        ))
+        bus.poll()
+        assert brain_active_states[-1] is True
+
+        # Post processing_ended
+        bus.post(BusMessage(
+            type="ui_message", source="brain",
+            payload=SignalMessage(signal_type="processing_ended", msg_id="test_1"),
+        ))
+        bus.poll()
+        assert brain_active_states[-1] is False
+
+    def test_playback_active_tracked_via_bus(self):
+        """playback_started/ended should toggle playback active state."""
+        bus = Bus()
+        playback_active = False
+
+        def on_started(_msg: BusMessage) -> None:
+            nonlocal playback_active
+            playback_active = True
+
+        def on_ended(_msg: BusMessage) -> None:
+            nonlocal playback_active
+            playback_active = False
+
+        bus.subscribe("playback_started", on_started)
+        bus.subscribe("playback_ended", on_ended)
+
+        bus.post(BusMessage(type="playback_started", source="playback", payload=None))
+        bus.poll()
+        assert playback_active is True
+
+        bus.post(BusMessage(type="playback_ended", source="playback", payload=None))
+        bus.poll()
+        assert playback_active is False
+
+    def test_interrupt_skipped_when_pipeline_idle(self):
+        """speech_start should NOT fire interrupt when pipeline is idle."""
+        bus = Bus()
+        interrupt_fired = []
+
+        # Simulate Assistant._on_speech_start with busy guard
+        brain_active = False
+        playback_active = False
+
+        def on_speech_start(_msg: BusMessage) -> None:
+            if not brain_active and not playback_active:
+                return  # skip — nothing to interrupt
+            interrupt_fired.append(True)
+
+        bus.subscribe("speech_start", on_speech_start)
+
+        bus.post(BusMessage(type="speech_start", source="vad"))
+        bus.poll()
+
+        assert len(interrupt_fired) == 0
+
+    def test_interrupt_fires_when_brain_active(self):
+        """speech_start should fire interrupt when brain is processing."""
+        bus = Bus()
+        interrupt_fired = []
+
+        brain_active = True
+        playback_active = False
+
+        def on_speech_start(_msg: BusMessage) -> None:
+            if not brain_active and not playback_active:
+                return
+            interrupt_fired.append(True)
+
+        bus.subscribe("speech_start", on_speech_start)
+
+        bus.post(BusMessage(type="speech_start", source="vad"))
+        bus.poll()
+
+        assert len(interrupt_fired) == 1
+
+    def test_interrupt_fires_when_playback_active(self):
+        """speech_start should fire interrupt when playback is active."""
+        bus = Bus()
+        interrupt_fired = []
+
+        brain_active = False
+        playback_active = True
+
+        def on_speech_start(_msg: BusMessage) -> None:
+            if not brain_active and not playback_active:
+                return
+            interrupt_fired.append(True)
+
+        bus.subscribe("speech_start", on_speech_start)
+
+        bus.post(BusMessage(type="speech_start", source="vad"))
+        bus.poll()
+
+        assert len(interrupt_fired) == 1
+
+
 class TestAssistantPlaybackCallback:
     """Tests for playback callback wiring."""
 
