@@ -110,28 +110,28 @@ export const VoiceMode = ({
   const isGateOpen = conversationState === 'active';
   const micStatus = isMuted ? 'muted' : isGateOpen ? 'active' : 'idle';
 
-  const orbState = isWakeWordLoading
-    ? 'idle'
-    : isWakeWordIdle
-      ? 'idle'
-      : isSpeaking
-        ? 'speaking'
-        : isAssistantTyping
-          ? 'thinking'
+  const orbState = isSpeaking
+    ? 'speaking'
+    : isAssistantTyping
+      ? 'thinking'
+      : isWakeWordLoading
+        ? 'idle'
+        : isWakeWordIdle
+          ? 'idle'
           : isUserSpeaking
             ? 'listening'
             : isMuted
               ? 'muted'
               : 'idle';
 
-  const statusLabel = isWakeWordLoading
-    ? '正在加载唤醒词...'
-    : isWakeWordIdle
-      ? undefined // WakeWordIndicator handles the status text
-      : isSpeaking
-        ? '回复中'
-        : isAssistantTyping
-          ? '思考中'
+  const statusLabel = isSpeaking
+    ? '回复中'
+    : isAssistantTyping
+      ? '思考中'
+      : isWakeWordLoading
+        ? '正在加载唤醒词...'
+        : isWakeWordIdle
+          ? undefined // WakeWordIndicator handles the status text
           : isMuted
             ? '已静音'
             : isUserSpeaking
@@ -202,7 +202,7 @@ export const VoiceMode = ({
         {/* Status area */}
         <div className="flex flex-col items-center gap-3">
           <AnimatePresence mode="wait">
-            {isWakeWordIdle ? (
+            {isWakeWordIdle && !isSpeaking && !isAssistantTyping ? (
               <WakeWordIndicator key="wake-word" keyword="Hey Tank" />
             ) : (
               statusLabel && (
