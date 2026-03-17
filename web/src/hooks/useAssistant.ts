@@ -243,6 +243,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
 
     const handleBeforeUnload = () => {
       clientRef.current?.disconnect();
+      audioProcessorRef.current?.stop();
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
 
@@ -259,8 +260,13 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
       window.removeEventListener('beforeunload', handleBeforeUnload);
       navigator.mediaDevices?.removeEventListener('devicechange', handleDeviceChange);
       document.removeEventListener('visibilitychange', handleVisibility);
+      // Disconnect immediately — the backend keeps the session alive via
+      // an idle timer, so a strict-mode remount with the same session ID
+      // will reattach to the existing pipeline.
       client.disconnect();
       audioProcessor.stop();
+      clientRef.current = null;
+      audioProcessorRef.current = null;
     };
   }, [sessionId, handleMessage]);
 

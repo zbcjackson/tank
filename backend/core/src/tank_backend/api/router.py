@@ -12,7 +12,6 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from ..audio.input.types import AudioFrame
 from ..audio.output.types import AudioChunk
-from ..core.assistant_v2 import AssistantV2
 from ..core.events import DisplayMessage, SignalMessage, UIMessage, UpdateType
 from .manager import SessionManager
 from .schemas import MessageType, WebsocketMessage
@@ -70,7 +69,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     ws_connected = True
     loop = asyncio.get_event_loop()
 
-    assistant: AssistantV2 = await session_manager.create_assistant(session_id)
+    assistant, is_new = await session_manager.get_or_create_assistant(session_id)
+
+    if not is_new:
+        # Rebind callbacks to this new WebSocket
+        assistant.clear_ui_callbacks()
+        logger.info(f"WebSocket reattached to existing session: {session_id}")
 
     # Bus-based UI push: forward UI messages to WebSocket
     def on_ui_message(msg: UIMessage) -> None:
@@ -185,4 +189,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         logger.error(f"WebSocket error in {session_id}: {e}", exc_info=True)
     finally:
         ws_connected = False
-        await session_manager.close_session(session_id)
+        # Don't destroy session — start idle timer instead.
+        # If the client reconnects with the same session_id, the timer
+        # is cancelled and the existing pipeline is reused.
+        session_manager.start_idle_timer(session_id)
+        logger.info(f"WebSocket disconnected: {session_id} (session kept alive)")

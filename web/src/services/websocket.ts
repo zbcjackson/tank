@@ -60,7 +60,10 @@ export class VoiceAssistantClient {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
+  private sessionId: string;
+
   constructor(sessionId: string, baseUrl: string = 'localhost:8000') {
+    this.sessionId = sessionId;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     this.url = `${protocol}//${baseUrl}/ws/${sessionId}`;
   }

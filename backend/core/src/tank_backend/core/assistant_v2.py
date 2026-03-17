@@ -196,6 +196,10 @@ class AssistantV2:
         """Register a callback for UI messages (replaces polling get_messages)."""
         self._ui_callbacks.append(callback)
 
+    def clear_ui_callbacks(self) -> None:
+        """Remove all UI callbacks (called before rebinding to new WebSocket)."""
+        self._ui_callbacks.clear()
+
     def _on_ui_bus_message(self, message: BusMessage) -> None:
         """Forward ui_message bus events to registered callbacks."""
         ui_msg: UIMessage = message.payload
