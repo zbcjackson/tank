@@ -62,7 +62,7 @@ def _ui_msg_to_ws_msg(msg: UIMessage, session_id: str) -> WebsocketMessage | Non
 
 @router.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    """Pipeline-based WebSocket endpoint using AssistantV2."""
+    """Pipeline-based WebSocket endpoint using Assistant."""
     await websocket.accept()
     logger.info(f"WebSocket connected: {session_id}")
 

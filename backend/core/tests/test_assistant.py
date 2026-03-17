@@ -1,4 +1,4 @@
-"""Tests for AssistantV2 (pipeline-based orchestrator, Brain as native Processor)."""
+"""Tests for Assistant (pipeline-based orchestrator, Brain as native Processor)."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ from tank_backend.pipeline.event import PipelineEvent
 from tank_backend.pipeline.processor import FlowReturn
 
 
-class TestAssistantV2ProcessInput:
-    """Tests for AssistantV2.process_input (text input path)."""
+class TestAssistantProcessInput:
+    """Tests for Assistant.process_input (text input path)."""
 
     def test_process_input_posts_ui_message_to_bus(self):
         """process_input should post a DisplayMessage to bus as ui_message."""
@@ -65,8 +65,8 @@ class TestAssistantV2ProcessInput:
         assert not should_process
 
 
-class TestAssistantV2ResetSession:
-    """Tests for AssistantV2.reset_session."""
+class TestAssistantResetSession:
+    """Tests for Assistant.reset_session."""
 
     def test_reset_session_creates_system_event(self):
         """reset_session should create a __reset__ BrainInputEvent."""
@@ -82,8 +82,8 @@ class TestAssistantV2ResetSession:
         assert event.text == "__reset__"
 
 
-class TestAssistantV2UICallbacks:
-    """Tests for AssistantV2 UI callback mechanism."""
+class TestAssistantUICallbacks:
+    """Tests for Assistant UI callback mechanism."""
 
     def test_ui_callback_receives_messages(self):
         """subscribe_ui callbacks should receive ui_message bus events."""
@@ -143,8 +143,8 @@ class TestAssistantV2UICallbacks:
         assert len(received) == 1
 
 
-class TestAssistantV2SpeechInterrupt:
-    """Tests for speech interrupt flow in AssistantV2."""
+class TestAssistantSpeechInterrupt:
+    """Tests for speech interrupt flow in Assistant."""
 
     def test_speech_start_triggers_interrupt_event(self):
         """speech_start on bus should trigger interrupt event through pipeline."""
@@ -173,7 +173,7 @@ class TestAssistantV2SpeechInterrupt:
         assert interrupt_event.is_set()
 
 
-class TestAssistantV2PlaybackCallback:
+class TestAssistantPlaybackCallback:
     """Tests for playback callback wiring."""
 
     def test_set_playback_callback(self):

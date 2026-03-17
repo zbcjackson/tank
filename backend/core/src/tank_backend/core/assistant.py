@@ -1,4 +1,4 @@
-"""AssistantV2 — pipeline-based orchestrator replacing queue-based Assistant."""
+"""Assistant — pipeline-based orchestrator replacing queue-based Assistant."""
 
 from __future__ import annotations
 
@@ -33,10 +33,10 @@ from .events import BrainInputEvent, DisplayMessage, InputType, UIMessage
 from .runtime import RuntimeContext
 from .shutdown import GracefulShutdown
 
-logger = logging.getLogger("AssistantV2")
+logger = logging.getLogger("Assistant")
 
 
-class AssistantV2:
+class Assistant:
     """Pipeline-based voice assistant orchestrator.
 
     Brain runs as a native Processor inside the pipeline.
@@ -238,7 +238,7 @@ class AssistantV2:
         )
         self._bus_poll_thread.start()
 
-        logger.info("AssistantV2 started")
+        logger.info("Assistant started")
 
     def _poll_bus_loop(self) -> None:
         """Background thread that polls the bus for pending messages."""
@@ -265,7 +265,7 @@ class AssistantV2:
         if self._sandbox is not None and self._sandbox.is_running:
             await self._sandbox.cleanup()
 
-        logger.info("AssistantV2 stopped")
+        logger.info("Assistant stopped")
 
     def push_audio(self, frame: AudioFrame) -> None:
         """Push an audio frame into the pipeline (entry point for mic data)."""

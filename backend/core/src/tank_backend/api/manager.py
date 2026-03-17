@@ -1,4 +1,4 @@
-"""Session management for multiple AssistantV2 instances."""
+"""Session management for multiple Assistant instances."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ..config.settings import load_config
-from ..core.assistant import AssistantV2
+from ..core.assistant import Assistant
 
 if TYPE_CHECKING:
     from ..audio.input.voiceprint import VoiceprintRecognizer
@@ -19,7 +19,7 @@ logger = logging.getLogger("SessionManager")
 class SessionManager:
     """
     Manages active voice assistant sessions.
-    Maps session_id to AssistantV2 instance.
+    Maps session_id to Assistant instance.
     Holds a shared VoiceprintRecognizer for the speakers REST API.
 
     Sessions survive brief WebSocket disconnects via an idle timeout.
@@ -30,7 +30,7 @@ class SessionManager:
     SESSION_IDLE_TIMEOUT = 30  # seconds
 
     def __init__(self, config_path: Path | None = None):
-        self._sessions: dict[str, AssistantV2] = {}
+        self._sessions: dict[str, Assistant] = {}
         self._idle_timers: dict[str, asyncio.TimerHandle] = {}
         self._ws_refcount: dict[str, int] = {}
         self._session_lock = asyncio.Lock()
@@ -74,13 +74,13 @@ class SessionManager:
         """Get the shared voiceprint recognizer."""
         return self._voiceprint_recognizer
 
-    def get_assistant(self, session_id: str) -> AssistantV2 | None:
+    def get_assistant(self, session_id: str) -> Assistant | None:
         """Retrieve assistant instance for a session."""
         return self._sessions.get(session_id)
 
     async def get_or_create_assistant(
         self, session_id: str,
-    ) -> tuple[AssistantV2, bool]:
+    ) -> tuple[Assistant, bool]:
         """Get existing session or create new one. Returns (assistant, is_new).
 
         If an existing session is still alive, cancels its idle timer and
@@ -107,12 +107,12 @@ class SessionManager:
             if existing:
                 await self._cleanup_assistant(session_id, existing)
 
-            assistant = AssistantV2(config_path=self._config_path)
+            assistant = Assistant(config_path=self._config_path)
             self._sessions[session_id] = assistant
             self._ws_refcount[session_id] = 1
             await assistant.start()
             logger.info(
-                f"Created and started AssistantV2 for session: {session_id}"
+                f"Created and started Assistant for session: {session_id}"
             )
             return assistant, True
 
@@ -150,7 +150,7 @@ class SessionManager:
             logger.debug(f"Idle timer cancelled for {session_id}")
 
     async def _cleanup_assistant(
-        self, session_id: str, assistant: AssistantV2,
+        self, session_id: str, assistant: Assistant,
     ) -> None:
         """Stop an assistant and remove it from the session map."""
         self._sessions.pop(session_id, None)
