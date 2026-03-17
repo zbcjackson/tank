@@ -21,7 +21,7 @@ const DEFAULT_CAPABILITIES: Capabilities = { asr: true, tts: true, speaker_id: f
 
 const WAKE_WORD_ENABLED = import.meta.env.VITE_WAKE_WORD_ENABLED === 'true';
 const WAKE_WORD_SILENCE_TIMEOUT_MS = Number(
-  import.meta.env.VITE_WAKE_WORD_SILENCE_TIMEOUT_MS || '30000',
+  import.meta.env.VITE_WAKE_WORD_SILENCE_TIMEOUT_MS || '5000',
 );
 
 export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetector | null) => {
