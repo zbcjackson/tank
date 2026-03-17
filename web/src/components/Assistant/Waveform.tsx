@@ -23,9 +23,10 @@ for (let i = 0; i < BAR_COUNT; i++) {
 interface WaveformProps {
   active: boolean;
   getAnalyserNode?: () => AnalyserNode | null;
+  rmsAmplitude?: number; // For Tauri mode: 0-1 amplitude from TTS chunks
 }
 
-export const Waveform = ({ active, getAnalyserNode }: WaveformProps) => {
+export const Waveform = ({ active, getAnalyserNode, rmsAmplitude }: WaveformProps) => {
   const [liveHeights, setLiveHeights] = useState<number[]>(IDLE_HEIGHTS);
   const rafRef = useRef<number>(0);
   const dataArrayRef = useRef<Uint8Array | null>(null);
@@ -33,6 +34,38 @@ export const Waveform = ({ active, getAnalyserNode }: WaveformProps) => {
   useEffect(() => {
     getAnalyserRef.current = getAnalyserNode;
   }, [getAnalyserNode]);
+
+  // RMS-based waveform for Tauri mode (no AnalyserNode available)
+  const rmsAmplitudeRef = useRef(rmsAmplitude);
+  useEffect(() => {
+    rmsAmplitudeRef.current = rmsAmplitude;
+  }, [rmsAmplitude]);
+
+  useEffect(() => {
+    if (!active || getAnalyserNode || rmsAmplitude === undefined) return;
+
+    let cancelled = false;
+
+    const tick = () => {
+      if (cancelled) return;
+
+      const amp = Math.min(rmsAmplitudeRef.current ?? 0, 1);
+      const heights = new Array(BAR_COUNT);
+      for (let i = 0; i < BAR_COUNT; i++) {
+        // Vary height per bar using envelope + slight pseudo-random jitter from position
+        const jitter = 0.7 + 0.3 * Math.sin(i * 1.7 + amp * 20);
+        heights[i] = 1 + amp * 60 * BAR_ENVELOPES[i] * jitter;
+      }
+      setLiveHeights(heights);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [active, getAnalyserNode, rmsAmplitude]);
 
   useEffect(() => {
     if (!active || !getAnalyserNode) return;

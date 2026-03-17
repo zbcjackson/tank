@@ -7,6 +7,7 @@ import {
 } from '../services/websocket';
 import type { WebsocketMessage } from '../services/websocket';
 import { AudioProcessor, type CalibrationState } from '../services/audio';
+import type { TauriAudioBridge } from '../services/tauriAudio';
 import type { WakeWordDetector } from '../services/wakeWordDetector';
 import {
   useConversationSession,
@@ -37,6 +38,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
   const [capabilities, setCapabilities] = useState<Capabilities>(DEFAULT_CAPABILITIES);
   const [latestMessage, setLatestMessage] = useState<WebsocketMessage | null>(null);
   const [audioReady, setAudioReady] = useState(false);
+  const [ttsRms, setTtsRms] = useState(0);
 
   const clientRef = useRef<VoiceAssistantClient | null>(null);
   const audioProcessorRef = useRef<AudioProcessor | null>(null);
@@ -238,6 +240,24 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
         if (state.status !== 'ready') setIsUserSpeaking(false);
       },
     });
+
+    // In Tauri mode, create the native audio bridge and wire it to both services
+    const isTauriEnv = '__TAURI__' in window;
+    let tauriBridgeInstance: TauriAudioBridge | null = null;
+    if (isTauriEnv) {
+      import('../services/tauriAudio').then(({ TauriAudioBridge }) => {
+        tauriBridgeInstance = new TauriAudioBridge((error) => {
+          console.error('[useAssistant] Native audio error, falling back to browser:', error);
+          // Clear the bridge so AudioProcessor falls back to getUserMedia on next start
+          audioProcessor.setTauriBridge(null as unknown as TauriAudioBridge);
+          client.setTauriBridge(null as unknown as TauriAudioBridge);
+        });
+        audioProcessor.setTauriBridge(tauriBridgeInstance);
+        client.setTauriBridge(tauriBridgeInstance);
+        client.setOnRmsChange((rms) => setTtsRms(rms));
+      });
+    }
+
     audioProcessorRef.current = audioProcessor;
     audioStartedRef.current = false;
 
@@ -410,5 +430,6 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     manualReconnect,
     pauseAudioCapture,
     resumeAudioCapture,
+    ttsRms,
   };
 };

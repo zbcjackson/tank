@@ -1,4 +1,7 @@
+import type { TauriAudioBridge } from './tauriAudio';
 import type { WakeWordDetector } from './wakeWordDetector';
+
+const isTauri = '__TAURI__' in window;
 
 export interface VADConfig {
   threshold: number;
@@ -72,6 +75,10 @@ export class AudioProcessor {
   // Wake word state
   private wakeWordDetector: WakeWordDetector | null = null;
 
+  // Tauri native audio bridge (set externally when in Tauri mode)
+  private tauriBridge: TauriAudioBridge | null = null;
+  private tauriMode = false;
+
   constructor(onAudio: (data: Int16Array) => void, options?: AudioProcessorOptions) {
     this.onAudio = onAudio;
     this.onSpeechChange = options?.onSpeechChange;
@@ -80,7 +87,26 @@ export class AudioProcessor {
     this.calibrationConfig = { ...DEFAULT_CALIBRATION_CONFIG, ...options?.calibrationConfig };
   }
 
+  setTauriBridge(bridge: TauriAudioBridge) {
+    this.tauriBridge = bridge;
+  }
+
   async start() {
+    // In Tauri mode, use native audio capture (AEC + ANC handled in Rust)
+    if (isTauri && this.tauriBridge) {
+      this.tauriMode = true;
+      await this.tauriBridge.startCapture((samples: Int16Array) => {
+        if (!this.gateSpeech) {
+          this.onAudio(samples);
+        }
+      });
+      // No calibration needed — Rust handles ANC, backend handles VAD
+      this.gateSpeech = false;
+      this.updateCalibrationState({ status: 'ready' });
+      return;
+    }
+
+    // Browser mode — getUserMedia + AudioWorklet
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         sampleRate: 16000,
@@ -180,6 +206,7 @@ export class AudioProcessor {
   }
 
   recalibrate() {
+    if (this.tauriMode) return; // No calibration in Tauri mode
     if (!this.workletNode) return;
     this.startCalibration();
   }
@@ -241,6 +268,14 @@ export class AudioProcessor {
     this.calibrationToken = null;
     this.wakeWordDetector?.release();
     this.wakeWordDetector = null;
+
+    if (this.tauriMode && this.tauriBridge) {
+      this.tauriBridge.stopCapture();
+      this.tauriBridge = null;
+      this.tauriMode = false;
+      return;
+    }
+
     this.source?.disconnect();
     this.workletNode?.disconnect();
     this.workletNode?.port.close();

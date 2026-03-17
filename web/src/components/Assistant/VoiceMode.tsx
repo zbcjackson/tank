@@ -16,6 +16,7 @@ interface VoiceModeProps {
   calibrationState: CalibrationState;
   getAnalyserNode?: () => AnalyserNode | null;
   conversationState?: ConversationState;
+  ttsRms?: number;
 }
 
 const statusVariants = {
@@ -104,6 +105,7 @@ export const VoiceMode = ({
   calibrationState,
   getAnalyserNode,
   conversationState,
+  ttsRms,
 }: VoiceModeProps) => {
   const isWakeWordIdle = conversationState === 'idle';
   const isWakeWordLoading = conversationState === 'loading';
@@ -194,7 +196,11 @@ export const VoiceMode = ({
           {/* Waveform overlay (speaking) */}
           {isSpeaking && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <Waveform active={isSpeaking} getAnalyserNode={getAnalyserNode} />
+              <Waveform
+                active={isSpeaking}
+                getAnalyserNode={getAnalyserNode}
+                rmsAmplitude={ttsRms}
+              />
             </div>
           )}
         </div>

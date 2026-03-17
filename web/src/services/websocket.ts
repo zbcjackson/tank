@@ -1,3 +1,5 @@
+import type { TauriAudioBridge } from './tauriAudio';
+
 export type MessageType = 'signal' | 'transcript' | 'text' | 'update' | 'input';
 
 export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
@@ -60,9 +62,21 @@ export class VoiceAssistantClient {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Tauri native audio bridge
+  private tauriBridge: TauriAudioBridge | null = null;
+  private onRmsChange?: (rms: number) => void;
+
   constructor(sessionId: string, baseUrl: string = 'localhost:8000') {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     this.url = `${protocol}//${baseUrl}/ws/${sessionId}`;
+  }
+
+  setTauriBridge(bridge: TauriAudioBridge) {
+    this.tauriBridge = bridge;
+  }
+
+  setOnRmsChange(callback: (rms: number) => void) {
+    this.onRmsChange = callback;
   }
 
   connect(
@@ -170,6 +184,42 @@ export class VoiceAssistantClient {
   }
 
   private async playAudioChunk(data: ArrayBuffer) {
+    // Tauri mode: route audio to Rust for playback through VoiceProcessingIO
+    if (this.tauriBridge) {
+      try {
+        await this.tauriBridge.playAudio(data);
+
+        // Compute RMS for waveform visualization
+        if (this.onRmsChange) {
+          const int16 = new Int16Array(data);
+          let sumSq = 0;
+          for (let i = 0; i < int16.length; i++) {
+            const s = int16[i] / 32768;
+            sumSq += s * s;
+          }
+          this.onRmsChange(Math.sqrt(sumSq / int16.length));
+        }
+
+        // Estimate speaking duration from chunk size (Int16 at 24kHz)
+        const durationMs = (data.byteLength / 2 / 24000) * 1000;
+
+        if (this.onSpeakingChange) {
+          this.onSpeakingChange(true);
+          if (this.speakingTimer) clearTimeout(this.speakingTimer);
+
+          this.speakingTimer = setTimeout(() => {
+            this.onSpeakingChange?.(false);
+            this.onRmsChange?.(0);
+            this.speakingTimer = null;
+          }, durationMs);
+        }
+      } catch (e) {
+        console.error('Error playing audio via Tauri:', e);
+      }
+      return;
+    }
+
+    // Browser mode: Web Audio API playback
     this.ensureAudioContext();
 
     try {
@@ -231,10 +281,13 @@ export class VoiceAssistantClient {
       this.socket.send(JSON.stringify({ type: 'signal', content: 'interrupt', metadata: {} }));
     }
 
-    // Clear local audio playback by closing and nulling the AudioContext
-    // Scheduled BufferSource nodes can't be cancelled individually,
-    // so closing the context is the cleanest way to silence everything.
-    if (this.audioContext) {
+    // Tauri mode: stop native playback
+    if (this.tauriBridge) {
+      this.tauriBridge.stopPlayback().catch((e) => {
+        console.error('Error stopping Tauri playback:', e);
+      });
+    } else if (this.audioContext) {
+      // Browser mode: close AudioContext to silence all scheduled nodes
       this.audioContext.close();
       this.audioContext = null;
       this.analyserNode = null;

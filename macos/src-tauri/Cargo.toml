@@ -12,3 +12,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sys-voice = "0.2"
+nnnoiseless = "0.5"
+tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
+rubato = { version = "0.16", features = ["fft_resampler"] }
+log = "0.4"

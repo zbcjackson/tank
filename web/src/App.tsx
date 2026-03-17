@@ -83,6 +83,7 @@ function App() {
     resumeAudioCapture,
     capabilities,
     conversationState,
+    ttsRms,
   } = useAssistant(SESSION_ID, wakeWordDetector);
 
   let calibrationStatusText: string | undefined;
@@ -134,6 +135,7 @@ function App() {
               calibrationState={calibrationState}
               getAnalyserNode={getAnalyserNode}
               conversationState={conversationState}
+              ttsRms={ttsRms}
             />
           ) : (
             <ChatMode
