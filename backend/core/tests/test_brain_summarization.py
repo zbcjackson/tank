@@ -3,10 +3,10 @@
 import threading
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from tank_backend.core.brain import Brain
 from tank_backend.pipeline.bus import Bus
+from tank_backend.pipeline.processors.brain import Brain
 
-MODULE = "tank_backend.core.brain"
+MODULE = "tank_backend.pipeline.processors.brain"
 
 
 def _make_brain(

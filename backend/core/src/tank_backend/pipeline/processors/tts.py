@@ -39,7 +39,10 @@ class TTSProcessor(Processor):
         request: AudioOutputRequest = item
         self._interrupted = False
 
-        logger.info(f"TTSProcessor: received AudioOutputRequest (text_len={len(request.content)}, lang={request.language})")
+        logger.info(
+            "TTSProcessor: received AudioOutputRequest"
+            f" (text_len={len(request.content)}, lang={request.language})"
+        )
 
         started_at = time.time()
         chunk_count = 0

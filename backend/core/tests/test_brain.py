@@ -6,10 +6,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from tank_backend.config.settings import VoiceAssistantConfig
-from tank_backend.core.brain import Brain
 from tank_backend.core.events import BrainInputEvent, InputType
 from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.processor import FlowReturn, Processor
+from tank_backend.pipeline.processors.brain import Brain
 
 
 async def _collect(processor, item):

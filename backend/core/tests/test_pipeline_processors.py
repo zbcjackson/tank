@@ -59,7 +59,7 @@ async def _collect(processor, item):
 
 class TestVADProcessor:
     def _make_processor(self, vad_result, bus=None):
-        from tank_backend.pipeline.wrappers.vad_processor import VADProcessor
+        from tank_backend.pipeline.processors.vad import VADProcessor
 
         vad = MagicMock()
         vad.process_frame = MagicMock(return_value=vad_result)
@@ -123,7 +123,7 @@ class TestVADProcessor:
         vad.flush.assert_called_once()
 
     async def test_input_caps(self):
-        from tank_backend.pipeline.wrappers.vad_processor import VADProcessor
+        from tank_backend.pipeline.processors.vad import VADProcessor
 
         vad = MagicMock()
         proc = VADProcessor(vad=vad)
@@ -135,7 +135,7 @@ class TestVADProcessor:
 
 class TestASRProcessor:
     def _make_processor(self, text="hello", is_final=True, bus=None):
-        from tank_backend.pipeline.wrappers.asr_processor import ASRProcessor
+        from tank_backend.pipeline.processors.asr import ASRProcessor
 
         asr = MagicMock()
         asr.process_pcm = MagicMock(return_value=(text, is_final))
@@ -227,7 +227,7 @@ class TestASRProcessor:
 
 class TestTTSProcessor:
     def _make_processor(self, chunks=None, bus=None):
-        from tank_backend.pipeline.wrappers.tts_processor import TTSProcessor
+        from tank_backend.pipeline.processors.tts import TTSProcessor
 
         if chunks is None:
             chunks = []
@@ -287,7 +287,7 @@ class TestTTSProcessor:
 
 class TestPlaybackProcessor:
     def _make_processor(self, bus=None):
-        from tank_backend.pipeline.wrappers.playback_processor import PlaybackProcessor
+        from tank_backend.pipeline.processors.playback import PlaybackProcessor
 
         callback = MagicMock()
         proc = PlaybackProcessor(playback_callback=callback, bus=bus)

@@ -11,7 +11,7 @@ import numpy as np
 from tank_backend.pipeline.bus import Bus, BusMessage
 from tank_backend.pipeline.event import EventDirection, PipelineEvent
 from tank_backend.pipeline.processor import FlowReturn
-from tank_backend.pipeline.wrappers.echo_guard import (
+from tank_backend.pipeline.processors.echo_guard import (
     EchoGuardConfig,
     SelfEchoDetector,
     _tokenize,
@@ -139,7 +139,7 @@ class TestEchoGuardConfig:
 
 class TestVADProcessorThresholdSwitching:
     def _make_vad_processor(self, bus=None, playback_threshold=0.85):
-        from tank_backend.pipeline.wrappers.vad_processor import VADProcessor
+        from tank_backend.pipeline.processors.vad import VADProcessor
 
         vad = MagicMock()
         vad.process_frame = MagicMock()
@@ -170,7 +170,7 @@ class TestVADProcessorThresholdSwitching:
 
     def test_no_subscription_when_threshold_is_none(self):
         """When playback_threshold is None, no bus subscriptions are made."""
-        from tank_backend.pipeline.wrappers.vad_processor import VADProcessor
+        from tank_backend.pipeline.processors.vad import VADProcessor
 
         bus = Bus()
         vad = MagicMock()
@@ -202,7 +202,7 @@ class TestPlaybackProcessorSignals:
         messages = []
         bus.subscribe("playback_started", lambda m: messages.append(m))
 
-        from tank_backend.pipeline.wrappers.playback_processor import PlaybackProcessor
+        from tank_backend.pipeline.processors.playback import PlaybackProcessor
 
         callback = MagicMock()
         proc = PlaybackProcessor(playback_callback=callback, bus=bus)
@@ -223,7 +223,7 @@ class TestPlaybackProcessorSignals:
         messages = []
         bus.subscribe("playback_started", lambda m: messages.append(m))
 
-        from tank_backend.pipeline.wrappers.playback_processor import PlaybackProcessor
+        from tank_backend.pipeline.processors.playback import PlaybackProcessor
 
         callback = MagicMock()
         proc = PlaybackProcessor(playback_callback=callback, bus=bus)
@@ -243,7 +243,7 @@ class TestPlaybackProcessorSignals:
         messages = []
         bus.subscribe("playback_ended", lambda m: messages.append(m))
 
-        from tank_backend.pipeline.wrappers.playback_processor import PlaybackProcessor
+        from tank_backend.pipeline.processors.playback import PlaybackProcessor
 
         callback = MagicMock()
         proc = PlaybackProcessor(playback_callback=callback, bus=bus)
@@ -269,7 +269,7 @@ class TestPlaybackProcessorSignals:
         messages = []
         bus.subscribe("playback_ended", lambda m: messages.append(m))
 
-        from tank_backend.pipeline.wrappers.playback_processor import PlaybackProcessor
+        from tank_backend.pipeline.processors.playback import PlaybackProcessor
 
         callback = MagicMock()
         proc = PlaybackProcessor(playback_callback=callback, bus=bus)
@@ -296,7 +296,7 @@ class TestPlaybackProcessorSignals:
         messages = []
         bus.subscribe("playback_ended", lambda m: messages.append(m))
 
-        from tank_backend.pipeline.wrappers.playback_processor import PlaybackProcessor
+        from tank_backend.pipeline.processors.playback import PlaybackProcessor
 
         proc = PlaybackProcessor(bus=bus)
 
@@ -318,7 +318,7 @@ class TestBrainEchoGuard:
         from unittest.mock import MagicMock
 
         from tank_backend.config.settings import VoiceAssistantConfig
-        from tank_backend.core.brain import Brain
+        from tank_backend.pipeline.processors.brain import Brain
 
         if bus is None:
             bus = Bus()

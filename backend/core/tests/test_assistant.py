@@ -178,7 +178,7 @@ class TestAssistantV2PlaybackCallback:
 
     def test_set_playback_callback(self):
         """set_playback_callback should update PlaybackProcessor's callback."""
-        from tank_backend.pipeline.wrappers.playback_processor import PlaybackProcessor
+        from tank_backend.pipeline.processors.playback import PlaybackProcessor
 
         proc = PlaybackProcessor(bus=None)
         assert proc._playback_callback is None

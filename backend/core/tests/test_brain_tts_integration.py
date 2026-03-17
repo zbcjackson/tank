@@ -14,7 +14,6 @@ from unittest.mock import MagicMock
 import numpy as np
 
 from tank_backend.config.settings import VoiceAssistantConfig
-from tank_backend.core.brain import Brain
 from tank_backend.core.events import (
     BrainInputEvent,
     DisplayMessage,
@@ -24,8 +23,9 @@ from tank_backend.core.events import (
 )
 from tank_backend.pipeline.builder import PipelineBuilder
 from tank_backend.pipeline.bus import Bus
-from tank_backend.pipeline.wrappers.playback_processor import PlaybackProcessor
-from tank_backend.pipeline.wrappers.tts_processor import TTSProcessor
+from tank_backend.pipeline.processors.brain import Brain
+from tank_backend.pipeline.processors.playback import PlaybackProcessor
+from tank_backend.pipeline.processors.tts import TTSProcessor
 
 
 def _fake_tts_stream(text, language=None, voice=None, is_interrupted=None):

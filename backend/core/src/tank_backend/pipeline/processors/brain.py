@@ -9,12 +9,8 @@ from typing import TYPE_CHECKING, Any
 
 import tiktoken
 
-from ..config.settings import VoiceAssistantConfig
-from ..pipeline.bus import Bus, BusMessage
-from ..pipeline.event import PipelineEvent
-from ..pipeline.processor import FlowReturn, Processor
-from ..pipeline.wrappers.echo_guard import EchoGuardConfig, SelfEchoDetector
-from .events import (
+from ...config.settings import VoiceAssistantConfig
+from ...core.events import (
     AudioOutputRequest,
     BrainInputEvent,
     BrainInterrupted,
@@ -22,14 +18,18 @@ from .events import (
     InputType,
     SignalMessage,
 )
+from ..bus import Bus, BusMessage
+from ..event import PipelineEvent
+from ..processor import FlowReturn, Processor
+from .echo_guard import EchoGuardConfig, SelfEchoDetector
 
 if TYPE_CHECKING:
     import threading
 
     from openai.types.chat import ChatCompletionMessageParam
 
-    from ..llm.llm import LLM
-    from ..tools.manager import ToolManager
+    from ...llm.llm import LLM
+    from ...tools.manager import ToolManager
 
 logger = logging.getLogger("Brain")
 
@@ -74,7 +74,7 @@ class Brain(Processor):
 
     def _load_system_prompt(self) -> str:
         """Load system prompt from file."""
-        prompt_path = Path(__file__).parent.parent / "prompts" / "system_prompt.txt"
+        prompt_path = Path(__file__).parent.parent.parent / "prompts" / "system_prompt.txt"
         try:
             with open(prompt_path, encoding="utf-8") as f:
                 return f.read().strip()
@@ -205,7 +205,7 @@ class Brain(Processor):
     ) -> AudioOutputRequest | None:
         """Run the streaming LLM process. Returns AudioOutputRequest or None."""
         full_response_text = ""
-        from ..core.events import UpdateType
+        from ...core.events import UpdateType
 
         gen = self._llm.chat_stream(
             messages=self._conversation_history,

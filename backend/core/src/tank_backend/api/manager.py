@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ..config.settings import load_config
-from ..core.assistant_v2 import AssistantV2
+from ..core.assistant import AssistantV2
 
 if TYPE_CHECKING:
     from ..audio.input.voiceprint import VoiceprintRecognizer

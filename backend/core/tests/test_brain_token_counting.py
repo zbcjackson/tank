@@ -5,10 +5,10 @@ from unittest.mock import MagicMock, patch
 
 import tiktoken
 
-from tank_backend.core.brain import Brain
 from tank_backend.pipeline.bus import Bus
+from tank_backend.pipeline.processors.brain import Brain
 
-MODULE = "tank_backend.core.brain"
+MODULE = "tank_backend.pipeline.processors.brain"
 
 # Use the same encoder Brain uses internally
 _encoder = tiktoken.get_encoding("cl100k_base")

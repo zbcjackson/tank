@@ -16,8 +16,9 @@ from ..llm.profile import create_llm_from_profile
 from ..pipeline import Bus, BusMessage, Pipeline, PipelineBuilder
 from ..pipeline.event import EventDirection, PipelineEvent
 from ..pipeline.observers import InterruptLatencyObserver, LatencyObserver, TurnTrackingObserver
-from ..pipeline.wrappers import (
+from ..pipeline.processors import (
     ASRProcessor,
+    Brain,
     EchoGuardConfig,
     PlaybackProcessor,
     TTSProcessor,
@@ -28,7 +29,6 @@ from ..plugin.manager import PluginManager
 from ..sandbox.config import SandboxConfig
 from ..sandbox.manager import SandboxManager
 from ..tools.manager import ToolManager
-from .brain import Brain
 from .events import BrainInputEvent, DisplayMessage, InputType, UIMessage
 from .runtime import RuntimeContext
 from .shutdown import GracefulShutdown

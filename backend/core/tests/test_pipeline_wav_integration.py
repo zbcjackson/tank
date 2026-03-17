@@ -23,14 +23,14 @@ import pytest
 from tank_backend.audio.input.types import AudioFrame, SegmenterConfig
 from tank_backend.audio.input.vad import SileroVAD
 from tank_backend.config.settings import VoiceAssistantConfig
-from tank_backend.core.brain import Brain
 from tank_backend.core.events import UpdateType
 from tank_backend.pipeline.builder import PipelineBuilder
 from tank_backend.pipeline.bus import Bus
-from tank_backend.pipeline.wrappers.asr_processor import ASRProcessor
-from tank_backend.pipeline.wrappers.playback_processor import PlaybackProcessor
-from tank_backend.pipeline.wrappers.tts_processor import TTSProcessor
-from tank_backend.pipeline.wrappers.vad_processor import VADProcessor
+from tank_backend.pipeline.processors.asr import ASRProcessor
+from tank_backend.pipeline.processors.brain import Brain
+from tank_backend.pipeline.processors.playback import PlaybackProcessor
+from tank_backend.pipeline.processors.tts import TTSProcessor
+from tank_backend.pipeline.processors.vad import VADProcessor
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MODEL_DIR = REPO_ROOT / "backend" / "models" / "sherpa-onnx-zipformer-en-zh"
