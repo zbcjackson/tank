@@ -1,4 +1,4 @@
-import type { TauriAudioBridge } from './tauriAudio';
+import type { PlatformAudioAdapter } from './platformAudio';
 
 export type MessageType = 'signal' | 'transcript' | 'text' | 'update' | 'input';
 
@@ -34,11 +34,11 @@ export interface WebsocketMessage {
 export class VoiceAssistantClient {
   private socket: WebSocket | null = null;
   private url: string;
-  private audioContext: AudioContext | null = null;
-  private analyserNode: AnalyserNode | null = null;
-  private nextStartTime: number = 0;
   private onSpeakingChange?: (isSpeaking: boolean) => void;
   private speakingTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Platform audio adapter (set externally via setPlatformAdapter)
+  private platformAdapter: PlatformAudioAdapter | null = null;
 
   // Reconnection state
   private connectionState: ConnectionState = 'idle';
@@ -62,21 +62,13 @@ export class VoiceAssistantClient {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Tauri native audio bridge
-  private tauriBridge: TauriAudioBridge | null = null;
-  private onRmsChange?: (rms: number) => void;
-
   constructor(sessionId: string, baseUrl: string = 'localhost:8000') {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     this.url = `${protocol}//${baseUrl}/ws/${sessionId}`;
   }
 
-  setTauriBridge(bridge: TauriAudioBridge) {
-    this.tauriBridge = bridge;
-  }
-
-  setOnRmsChange(callback: (rms: number) => void) {
-    this.onRmsChange = callback;
+  setPlatformAdapter(adapter: PlatformAudioAdapter) {
+    this.platformAdapter = adapter;
   }
 
   connect(
@@ -163,95 +155,23 @@ export class VoiceAssistantClient {
   }
 
   getAnalyserNode(): AnalyserNode | null {
-    return this.analyserNode;
-  }
-
-  private ensureAudioContext() {
-    if (!this.audioContext) {
-      const AudioCtx =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.audioContext = new AudioCtx({ sampleRate: 24000 });
-      this.nextStartTime = this.audioContext.currentTime;
-
-      this.analyserNode = this.audioContext.createAnalyser();
-      this.analyserNode.fftSize = 1024;
-      this.analyserNode.smoothingTimeConstant = 0.7;
-      this.analyserNode.minDecibels = -70;
-      this.analyserNode.maxDecibels = -20;
-      this.analyserNode.connect(this.audioContext.destination);
-    }
+    return this.platformAdapter?.getAnalyserNode() ?? null;
   }
 
   private async playAudioChunk(data: ArrayBuffer) {
-    // Tauri mode: route audio to Rust for playback through VoiceProcessingIO
-    if (this.tauriBridge) {
-      try {
-        await this.tauriBridge.playAudio(data);
-
-        // Compute RMS for waveform visualization
-        if (this.onRmsChange) {
-          const int16 = new Int16Array(data);
-          let sumSq = 0;
-          for (let i = 0; i < int16.length; i++) {
-            const s = int16[i] / 32768;
-            sumSq += s * s;
-          }
-          this.onRmsChange(Math.sqrt(sumSq / int16.length));
-        }
-
-        // Estimate speaking duration from chunk size (Int16 at 24kHz)
-        const durationMs = (data.byteLength / 2 / 24000) * 1000;
-
-        if (this.onSpeakingChange) {
-          this.onSpeakingChange(true);
-          if (this.speakingTimer) clearTimeout(this.speakingTimer);
-
-          this.speakingTimer = setTimeout(() => {
-            this.onSpeakingChange?.(false);
-            this.onRmsChange?.(0);
-            this.speakingTimer = null;
-          }, durationMs);
-        }
-      } catch (e) {
-        console.error('Error playing audio via Tauri:', e);
-      }
-      return;
-    }
-
-    // Browser mode: Web Audio API playback
-    this.ensureAudioContext();
+    if (!this.platformAdapter) return;
 
     try {
-      // Data is Int16 PCM, need to convert to Float32 for Web Audio
-      const int16Array = new Int16Array(data);
-      const float32Array = new Float32Array(int16Array.length);
-      for (let i = 0; i < int16Array.length; i++) {
-        float32Array[i] = int16Array[i] / 32768.0;
-      }
+      const { durationMs } = await this.platformAdapter.playChunk(data);
 
-      const buffer = this.audioContext!.createBuffer(1, float32Array.length, 24000);
-      buffer.getChannelData(0).set(float32Array);
-
-      const source = this.audioContext!.createBufferSource();
-      source.buffer = buffer;
-      source.connect(this.analyserNode!);
-
-      const startTime = Math.max(this.nextStartTime, this.audioContext!.currentTime);
-      source.start(startTime);
-      this.nextStartTime = startTime + buffer.duration;
-
-      // Update speaking state
       if (this.onSpeakingChange) {
         this.onSpeakingChange(true);
         if (this.speakingTimer) clearTimeout(this.speakingTimer);
 
-        // Set a timer to set speaking to false after the scheduled audio ends
-        const delayMs = (this.nextStartTime - this.audioContext!.currentTime) * 1000;
         this.speakingTimer = setTimeout(() => {
           this.onSpeakingChange?.(false);
           this.speakingTimer = null;
-        }, delayMs);
+        }, durationMs);
       }
     } catch (e) {
       console.error('Error playing audio chunk:', e);
@@ -281,18 +201,10 @@ export class VoiceAssistantClient {
       this.socket.send(JSON.stringify({ type: 'signal', content: 'interrupt', metadata: {} }));
     }
 
-    // Tauri mode: stop native playback
-    if (this.tauriBridge) {
-      this.tauriBridge.stopPlayback().catch((e) => {
-        console.error('Error stopping Tauri playback:', e);
-      });
-    } else if (this.audioContext) {
-      // Browser mode: close AudioContext to silence all scheduled nodes
-      this.audioContext.close();
-      this.audioContext = null;
-      this.analyserNode = null;
-      this.nextStartTime = 0;
-    }
+    // Stop playback via platform adapter
+    this.platformAdapter?.stopPlayback().catch((e) => {
+      console.error('Error stopping playback:', e);
+    });
 
     // Reset speaking state
     if (this.speakingTimer) {
@@ -526,6 +438,6 @@ export class VoiceAssistantClient {
         socket.onopen = () => socket.close();
       }
     }
-    this.audioContext?.close();
+    this.platformAdapter?.dispose();
   }
 }

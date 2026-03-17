@@ -1,25 +1,29 @@
 /**
- * Bridge between the web frontend and Rust native audio (AEC + ANC).
- * Only used when running inside Tauri — feature-detected via `__TAURI__`.
+ * Tauri implementation of PlatformAudioAdapter.
+ *
+ * Routes audio capture and playback through Rust native code (AEC + ANC
+ * via CoreAudio VoiceProcessingIO). Only loaded when `__TAURI__` is detected
+ * by the factory in platformAudio.ts.
  */
+
+import type { PlatformAudioAdapter, CaptureHandle, PlayChunkResult } from './platformAudio';
 
 type UnlistenFn = () => void;
 
-export class TauriAudioBridge {
+export class TauriAudioAdapter implements PlatformAudioAdapter {
+  readonly needsCalibration = false;
+
   private unlisten: UnlistenFn | null = null;
   private started = false;
   private onError?: (error: string) => void;
+  private onRmsChange: ((rms: number) => void) | null = null;
 
   constructor(onError?: (error: string) => void) {
     this.onError = onError;
   }
 
-  /**
-   * Start native audio capture. Invokes the Rust `start_audio_capture` command
-   * and listens for `audio-capture` events containing Int16 PCM at 16kHz.
-   */
-  async startCapture(onAudioChunk: (samples: Int16Array) => void): Promise<void> {
-    if (this.started) return;
+  async startCapture(onAudio: (samples: Int16Array) => void): Promise<CaptureHandle> {
+    if (this.started) return { stop: () => {} };
 
     const { invoke } = await import('@tauri-apps/api/core');
     const { listen } = await import('@tauri-apps/api/event');
@@ -28,12 +32,12 @@ export class TauriAudioBridge {
     this.unlisten = await listen<number[]>('audio-capture', (event) => {
       const bytes = new Uint8Array(event.payload);
       const samples = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 2);
-      onAudioChunk(samples);
+      onAudio(samples);
     });
 
     // Listen for audio errors from Rust
     const unlistenError = await listen<string>('audio-error', (event) => {
-      console.error('[TauriAudioBridge] Audio error from native:', event.payload);
+      console.error('[TauriAudioAdapter] Audio error from native:', event.payload);
       this.onError?.(event.payload);
     });
 
@@ -46,31 +50,50 @@ export class TauriAudioBridge {
 
     await invoke('start_audio_capture');
     this.started = true;
+
+    return { stop: () => this.stopCapture() };
   }
 
-  /**
-   * Send TTS audio to Rust for playback through VoiceProcessingIO (AEC reference).
-   * Expects raw Int16 PCM ArrayBuffer at 24kHz.
-   */
-  async playAudio(data: ArrayBuffer): Promise<void> {
+  async playChunk(data: ArrayBuffer): Promise<PlayChunkResult> {
     const { invoke } = await import('@tauri-apps/api/core');
     const bytes = Array.from(new Uint8Array(data));
     await invoke('play_audio', { samples: bytes });
+
+    // Compute RMS for waveform visualization
+    if (this.onRmsChange) {
+      const int16 = new Int16Array(data);
+      let sumSq = 0;
+      for (let i = 0; i < int16.length; i++) {
+        const s = int16[i] / 32768;
+        sumSq += s * s;
+      }
+      this.onRmsChange(Math.sqrt(sumSq / int16.length));
+    }
+
+    // Estimate duration from chunk size (Int16 at 24 kHz)
+    const durationMs = (data.byteLength / 2 / 24000) * 1000;
+    return { durationMs };
   }
 
-  /**
-   * Stop current playback (for interruption). Drops and recreates the
-   * PlaybackStreamHandle on the Rust side.
-   */
   async stopPlayback(): Promise<void> {
     const { invoke } = await import('@tauri-apps/api/core');
     await invoke('stop_playback');
+    this.onRmsChange?.(0);
   }
 
-  /**
-   * Stop all native audio capture and playback.
-   */
-  async stopCapture(): Promise<void> {
+  getAnalyserNode(): AnalyserNode | null {
+    return null;
+  }
+
+  setOnRmsChange(cb: ((rms: number) => void) | null): void {
+    this.onRmsChange = cb;
+  }
+
+  async dispose(): Promise<void> {
+    await this.stopCapture();
+  }
+
+  private async stopCapture(): Promise<void> {
     if (!this.started) return;
 
     this.unlisten?.();

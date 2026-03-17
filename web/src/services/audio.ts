@@ -1,7 +1,5 @@
-import type { TauriAudioBridge } from './tauriAudio';
+import type { PlatformAudioAdapter, CaptureHandle } from './platformAudio';
 import type { WakeWordDetector } from './wakeWordDetector';
-
-const isTauri = '__TAURI__' in window;
 
 export interface VADConfig {
   threshold: number;
@@ -75,9 +73,9 @@ export class AudioProcessor {
   // Wake word state
   private wakeWordDetector: WakeWordDetector | null = null;
 
-  // Tauri native audio bridge (set externally when in Tauri mode)
-  private tauriBridge: TauriAudioBridge | null = null;
-  private tauriMode = false;
+  // Platform audio adapter (set externally via setPlatformAdapter)
+  private platformAdapter: PlatformAudioAdapter | null = null;
+  private captureHandle: CaptureHandle | null = null;
 
   constructor(onAudio: (data: Int16Array) => void, options?: AudioProcessorOptions) {
     this.onAudio = onAudio;
@@ -87,20 +85,19 @@ export class AudioProcessor {
     this.calibrationConfig = { ...DEFAULT_CALIBRATION_CONFIG, ...options?.calibrationConfig };
   }
 
-  setTauriBridge(bridge: TauriAudioBridge) {
-    this.tauriBridge = bridge;
+  setPlatformAdapter(adapter: PlatformAudioAdapter) {
+    this.platformAdapter = adapter;
   }
 
   async start() {
-    // In Tauri mode, use native audio capture (AEC + ANC handled in Rust)
-    if (isTauri && this.tauriBridge) {
-      this.tauriMode = true;
-      await this.tauriBridge.startCapture((samples: Int16Array) => {
+    // If the platform adapter doesn't need calibration (e.g. Tauri), use its capture
+    if (this.platformAdapter && !this.platformAdapter.needsCalibration) {
+      this.captureHandle = await this.platformAdapter.startCapture((samples: Int16Array) => {
         if (!this.gateSpeech) {
           this.onAudio(samples);
         }
       });
-      // No calibration needed — Rust handles ANC, backend handles VAD
+      // No calibration needed — native side handles ANC, backend handles VAD
       this.gateSpeech = false;
       this.updateCalibrationState({ status: 'ready' });
       return;
@@ -206,7 +203,7 @@ export class AudioProcessor {
   }
 
   recalibrate() {
-    if (this.tauriMode) return; // No calibration in Tauri mode
+    if (this.platformAdapter && !this.platformAdapter.needsCalibration) return;
     if (!this.workletNode) return;
     this.startCalibration();
   }
@@ -269,10 +266,9 @@ export class AudioProcessor {
     this.wakeWordDetector?.release();
     this.wakeWordDetector = null;
 
-    if (this.tauriMode && this.tauriBridge) {
-      this.tauriBridge.stopCapture();
-      this.tauriBridge = null;
-      this.tauriMode = false;
+    if (this.captureHandle) {
+      this.captureHandle.stop();
+      this.captureHandle = null;
       return;
     }
 

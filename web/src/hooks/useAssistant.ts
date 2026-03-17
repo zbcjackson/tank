@@ -7,7 +7,7 @@ import {
 } from '../services/websocket';
 import type { WebsocketMessage } from '../services/websocket';
 import { AudioProcessor, type CalibrationState } from '../services/audio';
-import type { TauriAudioBridge } from '../services/tauriAudio';
+import { createPlatformAudio } from '../services/platformAudio';
 import type { WakeWordDetector } from '../services/wakeWordDetector';
 import {
   useConversationSession,
@@ -241,22 +241,19 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
       },
     });
 
-    // In Tauri mode, create the native audio bridge and wire it to both services
-    const isTauriEnv = '__TAURI__' in window;
-    let tauriBridgeInstance: TauriAudioBridge | null = null;
-    if (isTauriEnv) {
-      import('../services/tauriAudio').then(({ TauriAudioBridge }) => {
-        tauriBridgeInstance = new TauriAudioBridge((error) => {
-          console.error('[useAssistant] Native audio error, falling back to browser:', error);
-          // Clear the bridge so AudioProcessor falls back to getUserMedia on next start
-          audioProcessor.setTauriBridge(null as unknown as TauriAudioBridge);
-          client.setTauriBridge(null as unknown as TauriAudioBridge);
-        });
-        audioProcessor.setTauriBridge(tauriBridgeInstance);
-        client.setTauriBridge(tauriBridgeInstance);
-        client.setOnRmsChange((rms) => setTtsRms(rms));
-      });
-    }
+    // Create platform audio adapter and wire it to both services
+    let disposed = false;
+    createPlatformAudio((error) => {
+      console.error('[useAssistant] Platform audio error:', error);
+    }).then((adapter) => {
+      if (disposed) {
+        adapter.dispose();
+        return;
+      }
+      adapter.setOnRmsChange((rms) => setTtsRms(rms));
+      audioProcessor.setPlatformAdapter(adapter);
+      client.setPlatformAdapter(adapter);
+    });
 
     audioProcessorRef.current = audioProcessor;
     audioStartedRef.current = false;
@@ -277,6 +274,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
+      disposed = true;
       window.removeEventListener('beforeunload', handleBeforeUnload);
       navigator.mediaDevices?.removeEventListener('devicechange', handleDeviceChange);
       document.removeEventListener('visibilitychange', handleVisibility);
