@@ -196,6 +196,14 @@ class AssistantV2:
         """Register a callback for UI messages (replaces polling get_messages)."""
         self._ui_callbacks.append(callback)
 
+    def set_ui_callback(self, callback: Callable[[UIMessage], None]) -> None:
+        """Atomically replace all UI callbacks with a single new one.
+
+        Used during WebSocket reattachment to avoid a window where the
+        callback list is empty (which would silently drop messages).
+        """
+        self._ui_callbacks = [callback]
+
     def clear_ui_callbacks(self) -> None:
         """Remove all UI callbacks (called before rebinding to new WebSocket)."""
         self._ui_callbacks.clear()

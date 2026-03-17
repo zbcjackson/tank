@@ -32,6 +32,8 @@ class SessionManager:
     def __init__(self, config_path: Path | None = None):
         self._sessions: dict[str, AssistantV2] = {}
         self._idle_timers: dict[str, asyncio.TimerHandle] = {}
+        self._ws_refcount: dict[str, int] = {}
+        self._session_lock = asyncio.Lock()
         self._config_path = config_path
         self._voiceprint_recognizer: VoiceprintRecognizer | None = None
         self._init_voiceprint(config_path)
@@ -83,39 +85,55 @@ class SessionManager:
 
         If an existing session is still alive, cancels its idle timer and
         returns it for reattachment. Otherwise creates a fresh session.
+        Uses a lock to prevent concurrent reconnects from creating duplicates.
+        Increments the WebSocket refcount so we know when all connections
+        have detached.
         """
-        self._cancel_idle_timer(session_id)
+        async with self._session_lock:
+            self._cancel_idle_timer(session_id)
 
-        existing = self._sessions.get(session_id)
-        if existing and not existing.shutdown_signal.is_set():
-            return existing, False
+            existing = self._sessions.get(session_id)
+            if existing and not existing.shutdown_signal.is_set():
+                self._ws_refcount[session_id] = (
+                    self._ws_refcount.get(session_id, 0) + 1
+                )
+                logger.debug(
+                    f"Session {session_id} refcount: "
+                    f"{self._ws_refcount[session_id]}"
+                )
+                return existing, False
 
-        # Old session is dead or doesn't exist — create fresh
-        if existing:
-            await self._cleanup_assistant(session_id, existing)
+            # Old session is dead or doesn't exist — create fresh
+            if existing:
+                await self._cleanup_assistant(session_id, existing)
 
-        assistant = AssistantV2(config_path=self._config_path)
-        self._sessions[session_id] = assistant
-        await assistant.start()
-        logger.info(f"Created and started AssistantV2 for session: {session_id}")
-        return assistant, True
+            assistant = AssistantV2(config_path=self._config_path)
+            self._sessions[session_id] = assistant
+            self._ws_refcount[session_id] = 1
+            await assistant.start()
+            logger.info(
+                f"Created and started AssistantV2 for session: {session_id}"
+            )
+            return assistant, True
 
-    async def create_assistant(self, session_id: str) -> AssistantV2:
-        """Create and start a pipeline-based AssistantV2 for a session."""
-        if session_id in self._sessions:
-            logger.warning(f"Session {session_id} already exists. Stopping old instance.")
-            await self.close_session(session_id)
+    def detach_websocket(self, session_id: str) -> None:
+        """Decrement WS refcount. Start idle timer only when no WS remains."""
+        count = self._ws_refcount.get(session_id, 0) - 1
+        if count > 0:
+            self._ws_refcount[session_id] = count
+            logger.debug(
+                f"Session {session_id} refcount: {count} "
+                f"(idle timer skipped)"
+            )
+            return
 
-        assistant = AssistantV2(config_path=self._config_path)
-        self._sessions[session_id] = assistant
-        await assistant.start()
-        logger.info(f"Created and started AssistantV2 for session: {session_id}")
-        return assistant
+        self._ws_refcount.pop(session_id, None)
+        self._start_idle_timer(session_id)
 
-    def start_idle_timer(self, session_id: str) -> None:
+    def _start_idle_timer(self, session_id: str) -> None:
         """Start countdown to destroy session. Cancelled if client reconnects."""
         self._cancel_idle_timer(session_id)
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         self._idle_timers[session_id] = loop.call_later(
             self.SESSION_IDLE_TIMEOUT,
             lambda: asyncio.ensure_future(self.close_session(session_id)),
@@ -141,6 +159,7 @@ class SessionManager:
     async def close_session(self, session_id: str) -> None:
         """Stop and remove assistant instance, cancel any idle timer."""
         self._cancel_idle_timer(session_id)
+        self._ws_refcount.pop(session_id, None)
         assistant = self._sessions.pop(session_id, None)
         if assistant is None:
             return
@@ -153,6 +172,7 @@ class SessionManager:
         for timer in self._idle_timers.values():
             timer.cancel()
         self._idle_timers.clear()
+        self._ws_refcount.clear()
 
         ids = list(self._sessions.keys())
         for sid in ids:

@@ -67,13 +67,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     logger.info(f"WebSocket connected: {session_id}")
 
     ws_connected = True
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     assistant, is_new = await session_manager.get_or_create_assistant(session_id)
 
     if not is_new:
-        # Rebind callbacks to this new WebSocket
-        assistant.clear_ui_callbacks()
         logger.info(f"WebSocket reattached to existing session: {session_id}")
 
     # Bus-based UI push: forward UI messages to WebSocket
@@ -94,7 +92,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
         asyncio.run_coroutine_threadsafe(_send(), loop)
 
-    assistant.subscribe_ui(on_ui_message)
+    # Atomic swap on reattach to avoid a window with no callbacks;
+    # append on new session.
+    if is_new:
+        assistant.subscribe_ui(on_ui_message)
+    else:
+        assistant.set_ui_callback(on_ui_message)
 
     # Playback callback: send audio chunks over WebSocket
     def on_playback_chunk(chunk: AudioChunk) -> None:
@@ -128,13 +131,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             if "bytes" in data:
                 # Binary: push audio into pipeline
-                pcm_data = (
-                    np.frombuffer(data["bytes"], dtype=np.int16).astype(np.float32)
-                    / 32768.0
-                )
-                frame = AudioFrame(
-                    pcm=pcm_data, sample_rate=16000, timestamp_s=time.time()
-                )
+                pcm_data = np.frombuffer(data["bytes"], dtype=np.int16).astype(np.float32) / 32768.0
+                frame = AudioFrame(pcm=pcm_data, sample_rate=16000, timestamp_s=time.time())
                 assistant.push_audio(frame)
 
             elif "text" in data:
@@ -189,8 +187,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         logger.error(f"WebSocket error in {session_id}: {e}", exc_info=True)
     finally:
         ws_connected = False
-        # Don't destroy session — start idle timer instead.
-        # If the client reconnects with the same session_id, the timer
-        # is cancelled and the existing pipeline is reused.
-        session_manager.start_idle_timer(session_id)
-        logger.info(f"WebSocket disconnected: {session_id} (session kept alive)")
+        # Decrement refcount. Idle timer only starts when no WS remains.
+        session_manager.detach_websocket(session_id)
+        logger.info(f"WebSocket disconnected: {session_id}")

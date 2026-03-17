@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown
     logger.info("API Server shutting down")
-    session_manager.close_all()
+    await session_manager.close_all()
 
 
 app = FastAPI(title="Tank Voice Assistant API", version="0.1.0", lifespan=lifespan)
