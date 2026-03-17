@@ -60,9 +60,11 @@ class WeatherTool(BaseTool):
                     name="location",
                     type="string",
                     description=(
-                        "The location to get weather for "
+                        "The location to get weather for. "
+                        "MUST use English name "
                         "(e.g., 'New York', 'Beijing', 'Tokyo', 'London'). "
-                        "Can be a city name, address, or landmark."
+                        "Always convert non-English location names to English "
+                        "before calling this tool."
                     ),
                     required=True,
                 ),
