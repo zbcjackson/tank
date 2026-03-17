@@ -4,11 +4,12 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Project Overview
 
-Tank is a bilingual (Chinese/English) voice assistant monorepo with three sub-projects:
+Tank is a bilingual (Chinese/English) voice assistant monorepo with four sub-projects:
 
 - **`backend/`** — FastAPI server (Python): ASR, TTS, LLM, tools
 - **`cli/`** — Terminal UI client (Python/Textual): audio capture, WebSocket client
 - **`web/`** — Web frontend (TypeScript/React): browser audio, WebSocket client
+- **`macos/`** — Native macOS app (Tauri 2/Rust): wraps web/ as a native .app
 
 ## Required Reading
 
@@ -35,6 +36,12 @@ Then read the docs for the sub-project(s) you are working on:
 - @web/DEVELOPMENT.md [web/DEVELOPMENT.md](web/DEVELOPMENT.md)
 - @web/TESTING.md [web/TESTING.md](web/TESTING.md)
 
+**macOS** (`macos/`):
+- @macos/ARCHITECTURE.md [macos/ARCHITECTURE.md](macos/ARCHITECTURE.md)
+- @macos/CODING_STANDARDS.md [macos/CODING_STANDARDS.md](macos/CODING_STANDARDS.md)
+- @macos/DEVELOPMENT.md [macos/DEVELOPMENT.md](macos/DEVELOPMENT.md)
+- @macos/TESTING.md [macos/TESTING.md](macos/TESTING.md)
+
 > Tip: If you start a session from inside a sub-project directory (e.g. `cd backend && claude`), that directory's CLAUDE.md will be loaded automatically with its own `@` imports — no need to read the others.
 
 ## Quick Reference
@@ -44,6 +51,7 @@ Then read the docs for the sub-project(s) you are working on:
 | `backend/`  | Python     | uv              | `uv run pytest`   |
 | `cli/`      | Python     | uv              | `uv run pytest`   |
 | `web/`      | TypeScript | pnpm            | `pnpm test`        |
+| `macos/`    | Rust       | pnpm + Cargo    | `cargo test`       |
 
 ## Cross-cutting Principles
 

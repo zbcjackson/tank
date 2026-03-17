@@ -9,6 +9,7 @@ tank/
 ├── backend/          # FastAPI server — ASR, TTS, LLM, tools
 ├── cli/              # Terminal UI client — Textual TUI, WebSocket
 ├── web/              # Web frontend — React/TypeScript, browser audio
+├── macos/            # Native macOS app — Tauri 2/Rust, wraps web/
 ├── ARCHITECTURE.md   # This file
 ├── CLAUDE.md         # AI assistant guidance (entry point)
 └── README.md         # User-facing overview
@@ -31,6 +32,12 @@ Each sub-project is independently deployable with its own dependencies and tests
 │  │ • Speaker output │      │ • Voice + Chat modes  │    │
 │  └────────┬─────────┘      └──────────┬────────────┘    │
 │           │  WebSocket (binary+JSON)  │                  │
+│           │                           │                  │
+│           │  ┌──────────────────────┐ │                  │
+│           │  │   macOS App (Tauri)  │ │                  │
+│           │  │  Wraps Web Frontend  │ │                  │
+│           │  │  as native .app      │─┘                  │
+│           │  └──────────────────────┘                    │
 └───────────┼───────────────────────────┼──────────────────┘
             │                           │
             ▼                           ▼
@@ -93,6 +100,13 @@ Each sub-project is independently deployable with its own dependencies and tests
 - **Transport**: Browser WebSocket
 - **Docs**: [web/ARCHITECTURE.md](web/ARCHITECTURE.md)
 
+### macOS (`macos/`)
+
+- **Framework**: Tauri 2 (Rust)
+- **Frontend**: Reuses `web/` (no own UI code)
+- **Native**: macOS .app bundle with overlay title bar
+- **Docs**: [macos/ARCHITECTURE.md](macos/ARCHITECTURE.md)
+
 ## Data Flow (Voice Conversation)
 
 ```
@@ -120,3 +134,4 @@ See [README.md](README.md) for quick start. Each sub-project has its own `DEVELO
 - [backend/DEVELOPMENT.md](backend/DEVELOPMENT.md)
 - [cli/DEVELOPMENT.md](cli/DEVELOPMENT.md)
 - [web/DEVELOPMENT.md](web/DEVELOPMENT.md)
+- [macos/DEVELOPMENT.md](macos/DEVELOPMENT.md)
