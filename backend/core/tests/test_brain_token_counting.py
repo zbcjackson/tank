@@ -1,10 +1,12 @@
 """Tests for token-based conversation history truncation in Brain."""
 
+import threading
 from unittest.mock import MagicMock, patch
 
 import tiktoken
 
 from tank_backend.core.brain import Brain
+from tank_backend.pipeline.bus import Bus
 
 MODULE = "tank_backend.core.brain"
 
@@ -23,20 +25,17 @@ def _make_brain(max_history_tokens: int = 8000) -> Brain:
     config.max_history_tokens = max_history_tokens
     config.speech_interrupt_enabled = False
 
-    shutdown = MagicMock()
-    runtime = MagicMock()
-    speaker = None
     llm = MagicMock()
     tool_manager = MagicMock()
+    bus = Bus()
 
     with patch(f"{MODULE}.Brain._load_system_prompt", return_value="You are a helpful assistant."):
         brain = Brain(
-            shutdown_signal=shutdown,
-            runtime=runtime,
-            speaker_ref=speaker,
             llm=llm,
             tool_manager=tool_manager,
             config=config,
+            bus=bus,
+            interrupt_event=threading.Event(),
         )
     return brain
 

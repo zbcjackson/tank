@@ -18,7 +18,6 @@ from ..pipeline.event import EventDirection, PipelineEvent
 from ..pipeline.observers import InterruptLatencyObserver, LatencyObserver, TurnTrackingObserver
 from ..pipeline.wrappers import (
     ASRProcessor,
-    BrainProcessor,
     EchoGuardConfig,
     PlaybackProcessor,
     TTSProcessor,
@@ -40,11 +39,11 @@ logger = logging.getLogger("AssistantV2")
 class AssistantV2:
     """Pipeline-based voice assistant orchestrator.
 
-    Replaces the old Assistant's hardcoded queue orchestration with
-    PipelineBuilder. Brain still runs as a QueueWorker thread; the
-    pipeline handles VAD → ASR → Brain → TTS → Playback flow.
+    Brain runs as a native Processor inside the pipeline.
+    No more QueueWorker threads or RuntimeContext queues —
+    the pipeline handles VAD → ASR → Brain → TTS → Playback flow.
 
-    UI messages are pushed via Bus instead of polled from ui_queue.
+    UI messages are pushed via Bus.
     """
 
     def __init__(
@@ -123,21 +122,17 @@ class AssistantV2:
             builder.add(self._vad_processor)
             builder.add(asr_proc)
 
-        # Brain (still a QueueWorker thread for async LLM)
+        # Brain — native Processor (no more QueueWorker wrapper)
         self.brain = Brain(
-            shutdown_signal=self.shutdown_signal,
-            runtime=self.runtime,
-            speaker_ref=None,  # No direct AudioOutput ref in V2
             llm=self._llm,
             tool_manager=self._tool_manager,
             config=self._config,
+            bus=self._bus,
+            interrupt_event=self.runtime.interrupt_event,
             tts_enabled=tts_engine is not None,
-        )
-        brain_proc = BrainProcessor(
-            brain=self.brain, bus=self._bus, runtime=self.runtime,
             echo_guard_config=echo_guard_cfg,
         )
-        builder.add(brain_proc)
+        builder.add(self.brain)
 
         # TTS + Playback
         self._tts_processor: TTSProcessor | None = None
@@ -233,12 +228,9 @@ class AssistantV2:
             self.runtime.interrupt_event.set()
 
     async def start(self) -> None:
-        """Start pipeline and Brain thread."""
+        """Start pipeline."""
         if self._pipeline is not None:
             await self._pipeline.start()
-
-        # Brain still runs as its own QueueWorker thread
-        self.brain.start()
 
         # Start bus polling thread
         self._bus_poll_thread = threading.Thread(
@@ -259,16 +251,11 @@ class AssistantV2:
         self._bus.poll()
 
     async def stop(self) -> None:
-        """Stop pipeline, Brain, and cleanup."""
+        """Stop pipeline and cleanup."""
         self.shutdown_signal.stop()
-        self.brain.cancel()
 
         if self._pipeline is not None:
             await self._pipeline.stop()
-
-        self.brain.join(timeout=5.0)
-        if self.brain.is_alive():
-            logger.warning("Brain did not stop within 5s")
 
         # Wait for bus poll thread
         if self._bus_poll_thread is not None:
@@ -311,29 +298,33 @@ class AssistantV2:
             ),
         ))
 
-        # Feed to Brain via its input queue
-        self.runtime.brain_input_queue.put(
-            BrainInputEvent(
-                type=InputType.TEXT,
-                text=text,
-                user="Keyboard",
-                language=None,
-                confidence=None,
-                metadata={"msg_id": msg_id},
+        # Feed to Brain via pipeline's push_at
+        if self._pipeline is not None:
+            self._pipeline.push_at(
+                "brain",
+                BrainInputEvent(
+                    type=InputType.TEXT,
+                    text=text,
+                    user="Keyboard",
+                    language=None,
+                    confidence=None,
+                    metadata={"msg_id": msg_id},
+                ),
             )
-        )
 
     def reset_session(self) -> None:
-        """Reset Brain conversation history."""
-        self.runtime.brain_input_queue.put(
-            BrainInputEvent(
-                type=InputType.SYSTEM,
-                text="__reset__",
-                user="system",
-                language=None,
-                confidence=None,
+        """Reset Brain conversation history via pipeline."""
+        if self._pipeline is not None:
+            self._pipeline.push_at(
+                "brain",
+                BrainInputEvent(
+                    type=InputType.SYSTEM,
+                    text="__reset__",
+                    user="system",
+                    language=None,
+                    confidence=None,
+                ),
             )
-        )
 
     def set_playback_callback(self, callback: Any) -> None:
         """Set the playback callback on the PlaybackProcessor."""

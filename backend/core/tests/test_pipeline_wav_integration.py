@@ -1,7 +1,7 @@
 """Pipeline integration test with real WAV audio fixture.
 
 Uses real Silero VAD + real Sherpa ASR with the 你好.wav fixture,
-while mocking Brain and TTS. Tests the full pipeline from audio
+while mocking Brain's LLM and TTS. Tests the full pipeline from audio
 frames through VAD → ASR → Brain → TTS → Playback.
 
 Requires:
@@ -12,7 +12,6 @@ Requires:
 from __future__ import annotations
 
 import asyncio
-import queue
 import threading
 import wave
 from pathlib import Path
@@ -23,12 +22,12 @@ import pytest
 
 from tank_backend.audio.input.types import AudioFrame, SegmenterConfig
 from tank_backend.audio.input.vad import SileroVAD
-from tank_backend.core.events import AudioOutputRequest, BrainInputEvent
-from tank_backend.core.runtime import RuntimeContext
+from tank_backend.config.settings import VoiceAssistantConfig
+from tank_backend.core.brain import Brain
+from tank_backend.core.events import UpdateType
 from tank_backend.pipeline.builder import PipelineBuilder
 from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.wrappers.asr_processor import ASRProcessor
-from tank_backend.pipeline.wrappers.brain_processor import BrainProcessor
 from tank_backend.pipeline.wrappers.playback_processor import PlaybackProcessor
 from tank_backend.pipeline.wrappers.tts_processor import TTSProcessor
 from tank_backend.pipeline.wrappers.vad_processor import VADProcessor
@@ -70,12 +69,25 @@ def _load_wav_frames(
     return frames
 
 
-def _make_runtime() -> RuntimeContext:
-    return RuntimeContext(
-        brain_input_queue=queue.Queue(),
-        audio_output_queue=queue.Queue(),
-        ui_queue=queue.Queue(),
-        interrupt_event=threading.Event(),
+def _make_brain(bus, interrupt_event, tts_enabled=True):
+    """Create a Brain processor with a mock LLM."""
+    mock_llm = MagicMock()
+
+    async def async_gen(*args, **kwargs):
+        yield UpdateType.TEXT, "你好！", {}
+
+    mock_llm.chat_stream.return_value = async_gen()
+
+    mock_tool_manager = MagicMock()
+    mock_tool_manager.get_openai_tools.return_value = []
+
+    return Brain(
+        llm=mock_llm,
+        tool_manager=mock_tool_manager,
+        config=VoiceAssistantConfig(),
+        bus=bus,
+        interrupt_event=interrupt_event,
+        tts_enabled=tts_enabled,
     )
 
 
@@ -113,11 +125,10 @@ class TestPipelineWithRealAudio:
     ):
         """Real audio → VAD → ASR → Brain → TTS → Playback."""
         bus = Bus()
-        runtime = _make_runtime()
+        interrupt_event = threading.Event()
         playback_received = []
 
-        brain_mock = MagicMock()
-        brain_mock._runtime = runtime
+        brain = _make_brain(bus, interrupt_event)
 
         async def fake_tts_stream(
             text, language=None, voice=None, is_interrupted=None,
@@ -132,7 +143,7 @@ class TestPipelineWithRealAudio:
             PipelineBuilder(bus)
             .add(VADProcessor(vad=vad, bus=bus))
             .add(ASRProcessor(asr=asr_engine, bus=bus))
-            .add(BrainProcessor(brain=brain_mock, bus=bus, runtime=runtime))
+            .add(brain)
             .add(TTSProcessor(tts_engine=tts_mock, bus=bus))
             .add(PlaybackProcessor(
                 playback_callback=lambda c: playback_received.append(c),
@@ -148,26 +159,19 @@ class TestPipelineWithRealAudio:
                 pipeline.push(frame)
                 await asyncio.sleep(0.005)
 
-            # Wait for VAD silence timeout + ASR processing
-            await asyncio.sleep(3.0)
+            # Wait for VAD silence timeout + ASR + Brain processing
+            await asyncio.sleep(4.0)
 
-            # ── Verify speech-to-text path ──
-            assert not runtime.brain_input_queue.empty(), (
-                "Brain should have received a BrainInputEvent"
+            # ── Verify Brain processed the event ──
+            assert len(brain._conversation_history) >= 2, (
+                "Brain should have received and processed a BrainInputEvent"
             )
-            event = runtime.brain_input_queue.get_nowait()
-            assert isinstance(event, BrainInputEvent)
-            assert "你好" in event.text, (
-                f"Expected '你好' in transcription, got: '{event.text}'"
+            user_msg = brain._conversation_history[1]["content"]
+            assert "你好" in user_msg, (
+                f"Expected '你好' in transcription, got: '{user_msg}'"
             )
 
             # ── Verify text-to-speech path ──
-            # Simulate Brain producing a response
-            runtime.audio_output_queue.put(
-                AudioOutputRequest(content="你好！", language="zh")
-            )
-            await asyncio.sleep(1.0)
-
             assert len(playback_received) == 3, (
                 f"Expected 3 TTS chunks, got {len(playback_received)}"
             )
@@ -180,7 +184,7 @@ class TestPipelineWithRealAudio:
         """Real audio should trigger speech_start, speech_end, asr_result
         bus events."""
         bus = Bus()
-        runtime = _make_runtime()
+        interrupt_event = threading.Event()
         events: dict[str, list] = {
             "speech_start": [],
             "speech_end": [],
@@ -192,14 +196,13 @@ class TestPipelineWithRealAudio:
                 lambda m, t=evt_type: events[t].append(m),
             )
 
-        brain_mock = MagicMock()
-        brain_mock._runtime = runtime
+        brain = _make_brain(bus, interrupt_event, tts_enabled=False)
 
         pipeline = (
             PipelineBuilder(bus)
             .add(VADProcessor(vad=vad, bus=bus))
             .add(ASRProcessor(asr=asr_engine, bus=bus))
-            .add(BrainProcessor(brain=brain_mock, bus=bus, runtime=runtime))
+            .add(brain)
             .build()
         )
 

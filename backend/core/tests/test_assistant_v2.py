@@ -1,8 +1,7 @@
-"""Tests for AssistantV2 (Phase 2 pipeline-based orchestrator)."""
+"""Tests for AssistantV2 (pipeline-based orchestrator, Brain as native Processor)."""
 
 from __future__ import annotations
 
-import queue
 import threading
 from unittest.mock import MagicMock
 
@@ -14,6 +13,7 @@ from tank_backend.core.events import (
 )
 from tank_backend.pipeline.bus import Bus, BusMessage
 from tank_backend.pipeline.event import PipelineEvent
+from tank_backend.pipeline.processor import FlowReturn
 
 
 class TestAssistantV2ProcessInput:
@@ -24,9 +24,6 @@ class TestAssistantV2ProcessInput:
         bus = Bus()
         received = []
         bus.subscribe("ui_message", lambda m: received.append(m))
-
-        # Simulate what process_input does (without full Assistant construction)
-        from tank_backend.core.events import DisplayMessage
 
         msg = BusMessage(
             type="ui_message",
@@ -46,10 +43,8 @@ class TestAssistantV2ProcessInput:
         assert received[0].payload.text == "hello"
         assert received[0].payload.is_user is True
 
-    def test_process_input_puts_brain_event(self):
-        """process_input should put a BrainInputEvent on the brain_input_queue."""
-        q: queue.Queue[BrainInputEvent] = queue.Queue()
-
+    def test_process_input_creates_brain_event(self):
+        """process_input should create a BrainInputEvent for the pipeline."""
         event = BrainInputEvent(
             type=InputType.TEXT,
             text="hello",
@@ -58,35 +53,23 @@ class TestAssistantV2ProcessInput:
             confidence=None,
             metadata={"msg_id": "kbd_test123"},
         )
-        q.put(event)
 
-        result = q.get_nowait()
-        assert result.text == "hello"
-        assert result.type == InputType.TEXT
-        assert result.metadata["msg_id"] == "kbd_test123"
+        assert event.text == "hello"
+        assert event.type == InputType.TEXT
+        assert event.metadata["msg_id"] == "kbd_test123"
 
     def test_process_input_ignores_blank(self):
         """process_input should ignore blank text."""
-        q: queue.Queue[BrainInputEvent] = queue.Queue()
-
-        # Simulate blank check
         text = "   "
-        if text and text.strip():
-            q.put(BrainInputEvent(
-                type=InputType.TEXT, text=text, user="Keyboard",
-                language=None, confidence=None,
-            ))
-
-        assert q.empty()
+        should_process = bool(text and text.strip())
+        assert not should_process
 
 
 class TestAssistantV2ResetSession:
     """Tests for AssistantV2.reset_session."""
 
-    def test_reset_session_puts_system_event(self):
-        """reset_session should put a __reset__ BrainInputEvent."""
-        q: queue.Queue[BrainInputEvent] = queue.Queue()
-
+    def test_reset_session_creates_system_event(self):
+        """reset_session should create a __reset__ BrainInputEvent."""
         event = BrainInputEvent(
             type=InputType.SYSTEM,
             text="__reset__",
@@ -94,11 +77,9 @@ class TestAssistantV2ResetSession:
             language=None,
             confidence=None,
         )
-        q.put(event)
 
-        result = q.get_nowait()
-        assert result.type == InputType.SYSTEM
-        assert result.text == "__reset__"
+        assert event.type == InputType.SYSTEM
+        assert event.text == "__reset__"
 
 
 class TestAssistantV2UICallbacks:
@@ -109,7 +90,6 @@ class TestAssistantV2UICallbacks:
         bus = Bus()
         received = []
 
-        # Simulate the callback wiring
         def on_ui_bus_message(message: BusMessage) -> None:
             received.append(message.payload)
 
@@ -171,7 +151,6 @@ class TestAssistantV2SpeechInterrupt:
         bus = Bus()
         interrupt_events = []
 
-        # Simulate pipeline.send_event_reverse
         def on_speech_start(_msg: BusMessage) -> None:
             interrupt_events.append(
                 PipelineEvent(type="interrupt", source="speech_interrupt")
@@ -186,11 +165,10 @@ class TestAssistantV2SpeechInterrupt:
         assert interrupt_events[0].type == "interrupt"
 
     def test_interrupt_sets_runtime_event(self):
-        """Interrupt should set the runtime interrupt_event."""
+        """Interrupt should set the interrupt_event."""
         interrupt_event = threading.Event()
         assert not interrupt_event.is_set()
 
-        # Simulate what AssistantV2._on_speech_start does
         interrupt_event.set()
         assert interrupt_event.is_set()
 
@@ -209,3 +187,39 @@ class TestAssistantV2PlaybackCallback:
         proc._playback_callback = callback
 
         assert proc._playback_callback is callback
+
+
+class TestPipelinePushAt:
+    """Tests for Pipeline.push_at() used by process_input/reset_session."""
+
+    def test_push_at_finds_processor_by_name(self):
+        """push_at should push to the queue feeding the named processor."""
+        from tank_backend.pipeline.builder import PipelineBuilder
+        from tank_backend.pipeline.processor import Processor
+
+        class DummyProcessor(Processor):
+            def __init__(self, name):
+                super().__init__(name=name)
+                self.received = []
+
+            async def process(self, item):
+                self.received.append(item)
+                yield FlowReturn.OK, None
+
+        bus = Bus()
+        proc = DummyProcessor("brain")
+        pipeline = PipelineBuilder(bus).add(proc).build()
+
+        result = pipeline.push_at("brain", "test_item")
+        assert result == FlowReturn.OK
+
+    def test_push_at_raises_for_unknown_processor(self):
+        """push_at should raise ValueError for unknown processor name."""
+        from tank_backend.pipeline.builder import PipelineBuilder
+
+        bus = Bus()
+        pipeline = PipelineBuilder(bus).build()
+
+        import pytest
+        with pytest.raises(ValueError, match="not found"):
+            pipeline.push_at("nonexistent", "item")

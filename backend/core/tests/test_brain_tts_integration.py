@@ -1,47 +1,31 @@
-"""Integration test: Brain thread → drain loop → TTS → Playback.
+"""Integration test: Brain Processor → TTS → Playback.
 
-Reproduces the real runtime flow where Brain runs as a QueueWorker thread,
-produces AudioOutputRequest via runtime.audio_output_queue, and the
-BrainProcessor drain loop forwards it to TTS → Playback.
-
-This test catches the bug where TTS/Playback never receive data even though
-Brain finishes successfully.
+Reproduces the real runtime flow where Brain runs as a native Processor,
+yields AudioOutputRequest directly, and the pipeline forwards it to TTS → Playback.
 """
 
 from __future__ import annotations
 
 import asyncio
-import queue
 import threading
 import time
 from unittest.mock import MagicMock
 
 import numpy as np
-import pytest
 
+from tank_backend.config.settings import VoiceAssistantConfig
+from tank_backend.core.brain import Brain
 from tank_backend.core.events import (
-    AudioOutputRequest,
     BrainInputEvent,
     DisplayMessage,
     InputType,
     SignalMessage,
+    UpdateType,
 )
-from tank_backend.core.runtime import RuntimeContext
-from tank_backend.core.shutdown import GracefulShutdown
 from tank_backend.pipeline.builder import PipelineBuilder
-from tank_backend.pipeline.bus import Bus, BusMessage
-from tank_backend.pipeline.wrappers.brain_processor import BrainProcessor
+from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.wrappers.playback_processor import PlaybackProcessor
 from tank_backend.pipeline.wrappers.tts_processor import TTSProcessor
-
-
-def _make_runtime():
-    return RuntimeContext(
-        brain_input_queue=queue.Queue(),
-        audio_output_queue=queue.Queue(),
-        ui_queue=queue.Queue(),
-        interrupt_event=threading.Event(),
-    )
 
 
 def _fake_tts_stream(text, language=None, voice=None, is_interrupted=None):
@@ -54,93 +38,45 @@ def _fake_tts_stream(text, language=None, voice=None, is_interrupted=None):
     return _gen()
 
 
-class FakeBrain:
-    """Simulates Brain behavior: reads from brain_input_queue, streams LLM
-    response via ui_queue, then puts AudioOutputRequest to audio_output_queue."""
+def _make_brain(bus, interrupt_event, llm_response="Response to input", tts_enabled=True):
+    """Create a Brain processor with a mock LLM that returns the given response."""
+    mock_llm = MagicMock()
 
-    def __init__(self, runtime: RuntimeContext, shutdown: GracefulShutdown):
-        self._runtime = runtime
-        self._shutdown = shutdown
-        self._thread: threading.Thread | None = None
-        self._tts_enabled = True
+    async def async_gen(*args, **kwargs):
+        yield UpdateType.TEXT, llm_response, {}
 
-    def start(self):
-        self._thread = threading.Thread(target=self._run, daemon=True, name="FakeBrain")
-        self._thread.start()
+    mock_llm.chat_stream.return_value = async_gen()
 
-    def _run(self):
-        while not self._shutdown.is_set():
-            try:
-                event: BrainInputEvent = self._runtime.brain_input_queue.get(timeout=0.1)
-            except queue.Empty:
-                continue
+    mock_tool_manager = MagicMock()
+    mock_tool_manager.get_openai_tools.return_value = []
 
-            if event.type == InputType.SYSTEM and event.text == "__reset__":
-                continue
-
-            msg_id = "assistant_test"
-
-            # 1. Signal: processing_started
-            self._runtime.ui_queue.put(
-                SignalMessage(signal_type="processing_started", msg_id=msg_id)
-            )
-
-            # 2. Stream text chunks
-            response = f"Response to: {event.text}"
-            for i in range(0, len(response), 10):
-                chunk = response[i : i + 10]
-                self._runtime.ui_queue.put(
-                    DisplayMessage(
-                        speaker="Brain",
-                        text=chunk,
-                        is_user=False,
-                        msg_id=msg_id,
-                        is_final=False,
-                    )
-                )
-
-            # 3. Final empty message
-            self._runtime.ui_queue.put(
-                DisplayMessage(
-                    speaker="Brain", text="", is_user=False, msg_id=msg_id, is_final=True
-                )
-            )
-
-            # 4. TTS request
-            if self._tts_enabled:
-                self._runtime.audio_output_queue.put(
-                    AudioOutputRequest(content=response, language="en")
-                )
-
-            # 5. Signal: processing_ended
-            self._runtime.ui_queue.put(
-                SignalMessage(signal_type="processing_ended", msg_id=msg_id)
-            )
-
-    def join(self, timeout=2.0):
-        if self._thread:
-            self._thread.join(timeout=timeout)
+    return Brain(
+        llm=mock_llm,
+        tool_manager=mock_tool_manager,
+        config=VoiceAssistantConfig(),
+        bus=bus,
+        interrupt_event=interrupt_event,
+        tts_enabled=tts_enabled,
+    )
 
 
 class TestBrainTTSPlaybackIntegration:
-    """End-to-end: FakeBrain thread → BrainProcessor drain → TTS → Playback."""
+    """End-to-end: Brain Processor → TTS → Playback."""
 
     async def test_brain_output_reaches_playback(self):
-        """AudioOutputRequest from Brain thread must flow through TTS to Playback."""
+        """AudioOutputRequest from Brain must flow through TTS to Playback."""
         bus = Bus()
-        runtime = _make_runtime()
-        shutdown = GracefulShutdown()
+        interrupt_event = threading.Event()
         playback_received: list = []
 
-        brain = FakeBrain(runtime, shutdown)
-        brain_proc = BrainProcessor(brain=MagicMock(_runtime=runtime), bus=bus, runtime=runtime)
+        brain = _make_brain(bus, interrupt_event)
 
         tts_mock = MagicMock()
         tts_mock.generate_stream = _fake_tts_stream
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(brain_proc)
+            .add(brain)
             .add(TTSProcessor(tts_engine=tts_mock, bus=bus))
             .add(PlaybackProcessor(
                 playback_callback=lambda chunk: playback_received.append(chunk),
@@ -150,10 +86,9 @@ class TestBrainTTSPlaybackIntegration:
         )
 
         await pipeline.start()
-        brain.start()
         try:
-            # Simulate user input arriving at Brain
-            runtime.brain_input_queue.put(
+            # Push input directly to brain's queue
+            pipeline.push(
                 BrainInputEvent(
                     type=InputType.TEXT,
                     text="hello",
@@ -163,40 +98,33 @@ class TestBrainTTSPlaybackIntegration:
                 )
             )
 
-            # Wait for the full chain: Brain → drain → TTS → Playback
+            # Wait for the full chain: Brain → TTS → Playback
             deadline = time.monotonic() + 5.0
             while len(playback_received) < 3 and time.monotonic() < deadline:
                 await asyncio.sleep(0.1)
 
             assert len(playback_received) == 3, (
-                f"Expected 3 playback chunks, got {len(playback_received)}. "
-                f"audio_output_queue empty={runtime.audio_output_queue.empty()}, "
-                f"brain_proc._next_queue={brain_proc._next_queue}"
+                f"Expected 3 playback chunks, got {len(playback_received)}"
             )
         finally:
-            shutdown.stop()
-            brain.join()
             await pipeline.stop()
 
-    async def test_ui_messages_reach_bus_before_audio(self):
-        """UI messages (processing_started, text chunks) must reach the bus
-        even before AudioOutputRequest is produced."""
+    async def test_ui_messages_reach_bus(self):
+        """UI messages (processing_started, text chunks) must reach the bus."""
         bus = Bus()
-        runtime = _make_runtime()
-        shutdown = GracefulShutdown()
+        interrupt_event = threading.Event()
         ui_messages: list = []
 
         bus.subscribe("ui_message", lambda m: ui_messages.append(m))
 
-        brain = FakeBrain(runtime, shutdown)
-        brain_proc = BrainProcessor(brain=MagicMock(_runtime=runtime), bus=bus, runtime=runtime)
+        brain = _make_brain(bus, interrupt_event, llm_response="Hi there")
 
         tts_mock = MagicMock()
         tts_mock.generate_stream = _fake_tts_stream
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(brain_proc)
+            .add(brain)
             .add(TTSProcessor(tts_engine=tts_mock, bus=bus))
             .add(PlaybackProcessor(
                 playback_callback=lambda _: None,
@@ -206,9 +134,8 @@ class TestBrainTTSPlaybackIntegration:
         )
 
         await pipeline.start()
-        brain.start()
         try:
-            runtime.brain_input_queue.put(
+            pipeline.push(
                 BrainInputEvent(
                     type=InputType.TEXT,
                     text="hi",
@@ -222,7 +149,6 @@ class TestBrainTTSPlaybackIntegration:
             deadline = time.monotonic() + 5.0
             while time.monotonic() < deadline:
                 bus.poll()
-                # Check if we got processing_ended (last signal)
                 signals = [
                     m for m in ui_messages
                     if isinstance(m.payload, SignalMessage)
@@ -252,20 +178,14 @@ class TestBrainTTSPlaybackIntegration:
             ]
             assert len(text_msgs) >= 1, "Expected at least one text chunk from Brain"
         finally:
-            shutdown.stop()
-            brain.join()
             await pipeline.stop()
 
     async def test_playback_works_after_interrupt(self):
         """After a speech interrupt, the next Brain response must still
         reach Playback (flushed flag must be cleared)."""
         bus = Bus()
-        runtime = _make_runtime()
-        shutdown = GracefulShutdown()
+        interrupt_event = threading.Event()
         playback_received: list = []
-
-        brain = FakeBrain(runtime, shutdown)
-        brain_proc = BrainProcessor(brain=MagicMock(_runtime=runtime), bus=bus, runtime=runtime)
 
         tts_mock = MagicMock()
         tts_mock.generate_stream = _fake_tts_stream
@@ -275,19 +195,21 @@ class TestBrainTTSPlaybackIntegration:
             bus=bus,
         )
 
+        # First brain for first request
+        brain1 = _make_brain(bus, interrupt_event, llm_response="First response")
+
         pipeline = (
             PipelineBuilder(bus)
-            .add(brain_proc)
+            .add(brain1)
             .add(TTSProcessor(tts_engine=tts_mock, bus=bus))
             .add(playback_proc)
             .build()
         )
 
         await pipeline.start()
-        brain.start()
         try:
             # First request
-            runtime.brain_input_queue.put(
+            pipeline.push(
                 BrainInputEvent(
                     type=InputType.TEXT, text="first", user="test",
                     language="en", confidence=None,
@@ -296,20 +218,26 @@ class TestBrainTTSPlaybackIntegration:
             deadline = time.monotonic() + 5.0
             while len(playback_received) < 3 and time.monotonic() < deadline:
                 await asyncio.sleep(0.1)
-            assert len(playback_received) == 3, f"First request: got {len(playback_received)} chunks"
+            assert len(playback_received) == 3, (
+                f"First request: got {len(playback_received)} chunks"
+            )
 
             # Simulate speech interrupt
             from tank_backend.pipeline.event import PipelineEvent
 
             pipeline.send_event(PipelineEvent(type="interrupt", source="test"))
             pipeline.flush_all()
-            runtime.interrupt_event.set()
+            interrupt_event.set()
             await asyncio.sleep(0.2)
-            runtime.interrupt_event.clear()
+            interrupt_event.clear()
 
-            # Second request — must still reach playback
+            # Second request — need fresh LLM mock since async gen is consumed
+            brain1._llm.chat_stream.return_value = (
+                _async_text_gen("Second response")
+            )
+
             playback_received.clear()
-            runtime.brain_input_queue.put(
+            pipeline.push(
                 BrainInputEvent(
                     type=InputType.TEXT, text="second", user="test",
                     language="en", confidence=None,
@@ -323,6 +251,8 @@ class TestBrainTTSPlaybackIntegration:
                 f"playback._flushed={playback_proc._flushed}"
             )
         finally:
-            shutdown.stop()
-            brain.join()
             await pipeline.stop()
+
+
+async def _async_text_gen(text):
+    yield UpdateType.TEXT, text, {}

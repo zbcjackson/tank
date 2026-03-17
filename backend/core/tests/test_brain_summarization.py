@@ -1,8 +1,10 @@
 """Tests for context summarization in Brain."""
 
+import threading
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from tank_backend.core.brain import Brain
+from tank_backend.pipeline.bus import Bus
 
 MODULE = "tank_backend.core.brain"
 
@@ -17,19 +19,17 @@ def _make_brain(
     config.summarize_at_tokens = summarize_at_tokens
     config.speech_interrupt_enabled = False
 
-    shutdown = MagicMock()
-    runtime = MagicMock()
     llm = MagicMock()
     tool_manager = MagicMock()
+    bus = Bus()
 
     with patch(f"{MODULE}.Brain._load_system_prompt", return_value="You are a helpful assistant."):
         brain = Brain(
-            shutdown_signal=shutdown,
-            runtime=runtime,
-            speaker_ref=None,
             llm=llm,
             tool_manager=tool_manager,
             config=config,
+            bus=bus,
+            interrupt_event=threading.Event(),
         )
     return brain
 

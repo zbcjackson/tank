@@ -1,31 +1,35 @@
-"""Tests for Brain thread."""
+"""Tests for Brain as a native pipeline Processor."""
 
+import threading
 from unittest.mock import MagicMock
 
 import pytest
 
-from tank_backend.audio.output import AudioOutput
 from tank_backend.config.settings import VoiceAssistantConfig
 from tank_backend.core.brain import Brain
 from tank_backend.core.events import BrainInputEvent, InputType
-from tank_backend.core.runtime import RuntimeContext
-from tank_backend.core.shutdown import GracefulShutdown
+from tank_backend.pipeline.bus import Bus
+from tank_backend.pipeline.processor import FlowReturn, Processor
+
+
+async def _collect(processor, item):
+    """Collect all (status, output) pairs from processor.process(item)."""
+    results = []
+    async for status, output in processor.process(item):
+        results.append((status, output))
+    return results
 
 
 class TestBrain:
     """Unit tests for Brain."""
 
     @pytest.fixture
-    def runtime(self):
-        return RuntimeContext.create()
+    def bus(self):
+        return Bus()
 
     @pytest.fixture
-    def shutdown_signal(self):
-        return GracefulShutdown()
-
-    @pytest.fixture
-    def mock_speaker(self):
-        return MagicMock(spec=AudioOutput)
+    def interrupt_event(self):
+        return threading.Event()
 
     @pytest.fixture
     def mock_llm(self):
@@ -42,56 +46,27 @@ class TestBrain:
         )
 
     @pytest.fixture
-    def brain(
-        self, shutdown_signal, runtime, mock_speaker, mock_llm, mock_tool_manager, mock_config
-    ):
+    def brain(self, mock_llm, mock_tool_manager, mock_config, bus, interrupt_event):
         return Brain(
-            shutdown_signal=shutdown_signal,
-            runtime=runtime,
-            speaker_ref=mock_speaker,
             llm=mock_llm,
             tool_manager=mock_tool_manager,
             config=mock_config,
+            bus=bus,
+            interrupt_event=interrupt_event,
         )
 
-    def test_brain_inherits_from_queue_worker(self, brain):
-        """Brain should inherit from QueueWorker."""
-        from tank_backend.core.worker import QueueWorker
+    def test_brain_inherits_from_processor(self, brain):
+        """Brain should inherit from Processor."""
+        assert isinstance(brain, Processor)
 
-        assert isinstance(brain, QueueWorker)
+    def test_brain_has_name_brain(self, brain):
+        """Brain processor should be named 'brain'."""
+        assert brain.name == "brain"
 
-    def test_brain_consumes_from_brain_input_queue(self, brain, runtime, shutdown_signal):
-        """Brain should consume BrainInputEvent from brain_input_queue."""
-        event = BrainInputEvent(
-            type=InputType.TEXT,
-            text="hello",
-            user="TestUser",
-            language=None,
-            confidence=None,
-        )
-        runtime.brain_input_queue.put(event)
-
-        # Start brain in a thread and let it process
-        brain.start()
-
-        # Wait a bit for processing
-        import time
-
-        time.sleep(0.2)
-
-        # Stop brain
-        shutdown_signal.stop()
-        brain.join(timeout=1.0)
-
-        # Verify handle was called (indirectly by checking queues)
-        # The exact behavior depends on implementation, but we can check
-        # that the queue was consumed
-        assert runtime.brain_input_queue.empty()
-
-    def test_brain_handle_method_exists(self, brain):
-        """Brain should have handle method."""
-        assert hasattr(brain, "handle")
-        assert callable(brain.handle)
+    def test_brain_has_process_method(self, brain):
+        """Brain should have async process method."""
+        assert hasattr(brain, "process")
+        assert callable(brain.process)
 
     def test_brain_loads_system_prompt(self, brain):
         """Brain should load system prompt from file."""
@@ -107,15 +82,17 @@ class TestBrain:
         assert brain._conversation_history[0]["role"] == "system"
         assert brain._conversation_history[0]["content"] == brain._system_prompt
 
-    def test_brain_includes_speaker_name_in_conversation_history(
-        self, brain, runtime, shutdown_signal, mock_llm
+    async def test_brain_includes_speaker_name_in_conversation_history(
+        self, brain, mock_llm
     ):
         """Brain should include speaker name in conversation history."""
-        # Mock LLM to return immediately
+
         async def mock_chat_stream(*args, **kwargs):
             yield ("text", "Hello!", {})
 
         mock_llm.chat_stream = mock_chat_stream
+        mock_llm.get_openai_tools = MagicMock(return_value=[])
+        brain._tool_manager.get_openai_tools.return_value = []
 
         event = BrainInputEvent(
             type=InputType.TEXT,
@@ -125,23 +102,22 @@ class TestBrain:
             confidence=None,
         )
 
-        # Process the event
-        brain.handle(event)
+        await _collect(brain, event)
 
-        # Check conversation history includes speaker name
-        assert len(brain._conversation_history) >= 2  # system + user message
+        assert len(brain._conversation_history) >= 2
         user_message = brain._conversation_history[1]
         assert user_message["role"] == "user"
         assert "Jackson:" in user_message["content"]
         assert "What's the weather?" in user_message["content"]
 
-    def test_brain_handles_unknown_speaker(self, brain, runtime, shutdown_signal, mock_llm):
+    async def test_brain_handles_unknown_speaker(self, brain, mock_llm):
         """Brain should handle Unknown speaker gracefully."""
-        # Mock LLM to return immediately
+
         async def mock_chat_stream(*args, **kwargs):
             yield ("text", "Hello!", {})
 
         mock_llm.chat_stream = mock_chat_stream
+        brain._tool_manager.get_openai_tools.return_value = []
 
         event = BrainInputEvent(
             type=InputType.TEXT,
@@ -151,10 +127,8 @@ class TestBrain:
             confidence=None,
         )
 
-        # Process the event
-        brain.handle(event)
+        await _collect(brain, event)
 
-        # Check conversation history includes Unknown speaker
         assert len(brain._conversation_history) >= 2
         user_message = brain._conversation_history[1]
         assert user_message["role"] == "user"
@@ -164,3 +138,19 @@ class TestBrain:
         """System prompt should mention speaker awareness."""
         assert "SPEAKER AWARENESS" in brain._system_prompt
         assert "speaker" in brain._system_prompt.lower()
+
+    async def test_brain_skips_blank_text(self, brain, mock_llm):
+        """Brain should skip events with blank text."""
+        event = BrainInputEvent(
+            type=InputType.TEXT,
+            text="   ",
+            user="User",
+            language="en",
+            confidence=None,
+        )
+
+        results = await _collect(brain, event)
+
+        assert len(results) == 1
+        assert results[0] == (FlowReturn.OK, None)
+        mock_llm.chat_stream.assert_not_called()

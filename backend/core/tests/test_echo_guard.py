@@ -309,28 +309,33 @@ class TestPlaybackProcessorSignals:
         assert len(messages) == 0
 
 
-# ── BrainProcessor echo guard integration ────────────────────────────────────
+# ── Brain echo guard integration (Brain is now a native Processor) ───────────
 
 
-class TestBrainProcessorEchoGuard:
-    def _make_brain_processor(self, bus=None, echo_config=None):
-        from tank_backend.pipeline.wrappers.brain_processor import BrainProcessor
+class TestBrainEchoGuard:
+    def _make_brain(self, bus=None, echo_config=None):
+        import threading
+        from unittest.mock import MagicMock
 
-        brain = MagicMock()
-        runtime = MagicMock()
-        runtime.brain_input_queue = MagicMock()
-        runtime.interrupt_event = MagicMock()
+        from tank_backend.config.settings import VoiceAssistantConfig
+        from tank_backend.core.brain import Brain
 
         if bus is None:
             bus = Bus()
 
-        proc = BrainProcessor(
-            brain=brain,
+        mock_llm = MagicMock()
+        mock_tool_manager = MagicMock()
+        mock_tool_manager.get_openai_tools.return_value = []
+
+        brain = Brain(
+            llm=mock_llm,
+            tool_manager=mock_tool_manager,
+            config=VoiceAssistantConfig(),
             bus=bus,
-            runtime=runtime,
+            interrupt_event=threading.Event(),
             echo_guard_config=echo_config,
         )
-        return proc, runtime
+        return brain
 
     def _make_event(self, text="hello world", confidence=None):
         from tank_backend.core.events import BrainInputEvent, InputType
@@ -345,37 +350,45 @@ class TestBrainProcessorEchoGuard:
 
     async def test_echo_guard_discards_self_echo(self):
         config = EchoGuardConfig(similarity_threshold=0.5)
-        proc, runtime = self._make_brain_processor(echo_config=config)
+        brain = self._make_brain(echo_config=config)
 
         # Record TTS text
-        proc._echo_detector.record_tts("the weather is sunny and warm today")
+        brain._echo_detector.record_tts("the weather is sunny and warm today")
 
         # ASR produces similar text
         event = self._make_event("the weather is sunny and warm")
 
         results = []
-        async for status, output in proc.process(event):
+        async for status, output in brain.process(event):
             results.append((status, output))
 
-        # Should be discarded — not forwarded to brain
+        # Should be discarded — not forwarded to LLM
         assert len(results) == 1
         assert results[0] == (FlowReturn.OK, None)
-        runtime.brain_input_queue.put.assert_not_called()
+        brain._llm.chat_stream.assert_not_called()
 
     async def test_echo_guard_passes_different_text(self):
-        config = EchoGuardConfig(similarity_threshold=0.5)
-        proc, runtime = self._make_brain_processor(echo_config=config)
+        from tank_backend.core.events import UpdateType
 
-        proc._echo_detector.record_tts("the weather is sunny and warm today")
+        config = EchoGuardConfig(similarity_threshold=0.5)
+        brain = self._make_brain(echo_config=config)
+
+        brain._echo_detector.record_tts("the weather is sunny and warm today")
+
+        # Mock LLM to return a response
+        async def async_gen(*args, **kwargs):
+            yield UpdateType.TEXT, "Sure!", {}
+
+        brain._llm.chat_stream.return_value = async_gen()
 
         event = self._make_event("can you play some music for me please")
 
         results = []
-        async for status, output in proc.process(event):
+        async for status, output in brain.process(event):
             results.append((status, output))
 
-        # Should pass through to brain
-        runtime.brain_input_queue.put.assert_called_once_with(event)
+        # Should pass through to LLM
+        brain._llm.chat_stream.assert_called_once()
 
     async def test_echo_discarded_metric_posted(self):
         bus = Bus()
@@ -383,12 +396,12 @@ class TestBrainProcessorEchoGuard:
         bus.subscribe("echo_discarded", lambda m: messages.append(m))
 
         config = EchoGuardConfig(similarity_threshold=0.5)
-        proc, _ = self._make_brain_processor(bus=bus, echo_config=config)
+        brain = self._make_brain(bus=bus, echo_config=config)
 
-        proc._echo_detector.record_tts("the weather is sunny and warm today")
+        brain._echo_detector.record_tts("the weather is sunny and warm today")
         event = self._make_event("the weather is sunny and warm")
 
-        async for _ in proc.process(event):
+        async for _ in brain.process(event):
             pass
 
         bus.poll()

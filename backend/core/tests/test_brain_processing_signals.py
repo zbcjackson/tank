@@ -1,6 +1,6 @@
-"""Tests for Brain processing_started/ended signals."""
+"""Tests for Brain processing_started/ended signals via Bus."""
 
-import asyncio
+import threading
 from unittest.mock import MagicMock
 
 import pytest
@@ -8,13 +8,19 @@ import pytest
 from tank_backend.config.settings import VoiceAssistantConfig
 from tank_backend.core.brain import Brain
 from tank_backend.core.events import BrainInputEvent, InputType, SignalMessage, UpdateType
-from tank_backend.core.runtime import RuntimeContext
-from tank_backend.core.shutdown import GracefulShutdown
+from tank_backend.pipeline.bus import Bus
+
+
+async def _collect(processor, item):
+    results = []
+    async for status, output in processor.process(item):
+        results.append((status, output))
+    return results
 
 
 @pytest.fixture
-def runtime():
-    return RuntimeContext.create()
+def bus():
+    return Bus()
 
 
 @pytest.fixture
@@ -29,81 +35,82 @@ def mock_llm():
 
 
 @pytest.fixture
-def brain(runtime, mock_llm):
-    shutdown_signal = GracefulShutdown()
-    mock_speaker = MagicMock()
+def brain(bus, mock_llm):
     mock_tool_manager = MagicMock()
     mock_tool_manager.get_openai_tools.return_value = []
     config = VoiceAssistantConfig()
 
-    b = Brain(shutdown_signal, runtime, mock_speaker, mock_llm, mock_tool_manager, config)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    b._event_loop = loop
-    yield b
-    loop.close()
+    return Brain(
+        llm=mock_llm,
+        tool_manager=mock_tool_manager,
+        config=config,
+        bus=bus,
+        interrupt_event=threading.Event(),
+    )
 
 
-def test_brain_sends_processing_started_signal(brain, runtime):
+def _collect_ui_messages(bus):
+    """Poll bus and return all ui_message payloads."""
+    messages = []
+    bus.subscribe("ui_message", lambda m: messages.append(m.payload))
+    bus.poll()
+    return messages
+
+
+async def test_brain_sends_processing_started_signal(brain, bus):
     """Test that Brain sends processing_started signal when starting to process input."""
+    received = []
+    bus.subscribe("ui_message", lambda m: received.append(m.payload))
+
     event = BrainInputEvent(
         type=InputType.TEXT, text="Hello", user="User", language="en", confidence=None
     )
 
-    brain.handle(event)
+    await _collect(brain, event)
+    bus.poll()
 
-    # Collect all messages
-    messages = []
-    while not runtime.ui_queue.empty():
-        messages.append(runtime.ui_queue.get_nowait())
-
-    # Find processing_started signal
-    signal_msgs = [m for m in messages if isinstance(m, SignalMessage)]
+    signal_msgs = [m for m in received if isinstance(m, SignalMessage)]
     started_signals = [m for m in signal_msgs if m.signal_type == "processing_started"]
 
     assert len(started_signals) == 1, "Should send exactly one processing_started signal"
     assert started_signals[0].msg_id is not None
 
 
-def test_brain_sends_processing_ended_signal(brain, runtime):
+async def test_brain_sends_processing_ended_signal(brain, bus):
     """Test that Brain sends processing_ended signal when processing completes."""
+    received = []
+    bus.subscribe("ui_message", lambda m: received.append(m.payload))
+
     event = BrainInputEvent(
         type=InputType.TEXT, text="Hello", user="User", language="en", confidence=None
     )
 
-    brain.handle(event)
+    await _collect(brain, event)
+    bus.poll()
 
-    # Collect all messages
-    messages = []
-    while not runtime.ui_queue.empty():
-        messages.append(runtime.ui_queue.get_nowait())
-
-    # Find processing_ended signal
-    signal_msgs = [m for m in messages if isinstance(m, SignalMessage)]
+    signal_msgs = [m for m in received if isinstance(m, SignalMessage)]
     ended_signals = [m for m in signal_msgs if m.signal_type == "processing_ended"]
 
     assert len(ended_signals) == 1, "Should send exactly one processing_ended signal"
     assert ended_signals[0].msg_id is not None
 
 
-def test_brain_signals_order(brain, runtime):
+async def test_brain_signals_order(brain, bus):
     """Test that processing_started comes before processing_ended."""
+    received = []
+    bus.subscribe("ui_message", lambda m: received.append(m.payload))
+
     event = BrainInputEvent(
         type=InputType.TEXT, text="Hello", user="User", language="en", confidence=None
     )
 
-    brain.handle(event)
+    await _collect(brain, event)
+    bus.poll()
 
-    # Collect all messages
-    messages = []
-    while not runtime.ui_queue.empty():
-        messages.append(runtime.ui_queue.get_nowait())
-
-    # Find signal positions
     started_idx = next(
         (
             i
-            for i, m in enumerate(messages)
+            for i, m in enumerate(received)
             if isinstance(m, SignalMessage) and m.signal_type == "processing_started"
         ),
         None,
@@ -111,7 +118,7 @@ def test_brain_signals_order(brain, runtime):
     ended_idx = next(
         (
             i
-            for i, m in enumerate(messages)
+            for i, m in enumerate(received)
             if isinstance(m, SignalMessage) and m.signal_type == "processing_ended"
         ),
         None,
@@ -122,10 +129,11 @@ def test_brain_signals_order(brain, runtime):
     assert started_idx < ended_idx, "processing_started should come before processing_ended"
 
 
-def test_brain_sends_processing_ended_on_error(brain, runtime, mock_llm):
+async def test_brain_sends_processing_ended_on_error(brain, bus, mock_llm):
     """Test that Brain sends processing_ended signal even when an error occurs."""
+    received = []
+    bus.subscribe("ui_message", lambda m: received.append(m.payload))
 
-    # Make LLM raise an error
     async def error_gen(*args, **kwargs):
         raise RuntimeError("LLM error")
         yield  # unreachable
@@ -136,35 +144,28 @@ def test_brain_sends_processing_ended_on_error(brain, runtime, mock_llm):
         type=InputType.TEXT, text="Hello", user="User", language="en", confidence=None
     )
 
-    brain.handle(event)
+    await _collect(brain, event)
+    bus.poll()
 
-    # Collect all messages
-    messages = []
-    while not runtime.ui_queue.empty():
-        messages.append(runtime.ui_queue.get_nowait())
-
-    # Should still have processing_ended signal
-    signal_msgs = [m for m in messages if isinstance(m, SignalMessage)]
+    signal_msgs = [m for m in received if isinstance(m, SignalMessage)]
     ended_signals = [m for m in signal_msgs if m.signal_type == "processing_ended"]
 
     assert len(ended_signals) == 1, "Should send processing_ended even on error"
 
 
-def test_brain_signals_have_same_msg_id(brain, runtime):
+async def test_brain_signals_have_same_msg_id(brain, bus):
     """Test that processing_started and processing_ended share the same msg_id."""
+    received = []
+    bus.subscribe("ui_message", lambda m: received.append(m.payload))
+
     event = BrainInputEvent(
         type=InputType.TEXT, text="Hello", user="User", language="en", confidence=None
     )
 
-    brain.handle(event)
+    await _collect(brain, event)
+    bus.poll()
 
-    # Collect all messages
-    messages = []
-    while not runtime.ui_queue.empty():
-        messages.append(runtime.ui_queue.get_nowait())
-
-    # Find signals
-    signal_msgs = [m for m in messages if isinstance(m, SignalMessage)]
+    signal_msgs = [m for m in received if isinstance(m, SignalMessage)]
     started = next((m for m in signal_msgs if m.signal_type == "processing_started"), None)
     ended = next((m for m in signal_msgs if m.signal_type == "processing_ended"), None)
 

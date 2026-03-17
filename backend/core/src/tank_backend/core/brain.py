@@ -1,14 +1,19 @@
-import asyncio
+"""Brain — native pipeline Processor for LLM conversation orchestration."""
+
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import tiktoken
 
-from ..audio.output import AudioOutput
 from ..config.settings import VoiceAssistantConfig
+from ..pipeline.bus import Bus, BusMessage
+from ..pipeline.event import PipelineEvent
+from ..pipeline.processor import FlowReturn, Processor
+from ..pipeline.wrappers.echo_guard import EchoGuardConfig, SelfEchoDetector
 from .events import (
     AudioOutputRequest,
     BrainInputEvent,
@@ -17,11 +22,10 @@ from .events import (
     InputType,
     SignalMessage,
 )
-from .runtime import RuntimeContext
-from .shutdown import StopSignal
-from .worker import QueueWorker
 
 if TYPE_CHECKING:
+    import threading
+
     from openai.types.chat import ChatCompletionMessageParam
 
     from ..llm.llm import LLM
@@ -30,35 +34,35 @@ if TYPE_CHECKING:
 logger = logging.getLogger("Brain")
 
 
-class Brain(QueueWorker[BrainInputEvent]):
-    """
-    The Orchestrator: Process inputs and decide actions.
+class Brain(Processor):
+    """The Orchestrator: Process inputs and decide actions.
 
-    Consumes BrainInputEvent from brain_input_queue and processes them using LLM.
+    Native pipeline Processor that receives BrainInputEvent from the ASR stage
+    and yields AudioOutputRequest for the TTS stage downstream.
+    UI messages are posted directly to the Bus.
     """
 
     def __init__(
         self,
-        shutdown_signal: StopSignal,
-        runtime: RuntimeContext,
-        speaker_ref: "AudioOutput | None",
         llm: "LLM",
         tool_manager: "ToolManager",
         config: VoiceAssistantConfig,
+        bus: Bus,
+        interrupt_event: "threading.Event",
         tts_enabled: bool = True,
+        echo_guard_config: EchoGuardConfig | None = None,
     ):
-        super().__init__(
-            name="BrainThread",
-            stop_signal=shutdown_signal,
-            input_queue=runtime.brain_input_queue,
-            poll_interval_s=0.1,
-        )
-        self._runtime = runtime
-        self.speaker = speaker_ref
+        super().__init__(name="brain")
         self._llm = llm
         self._tool_manager = tool_manager
         self._config = config
+        self._bus = bus
+        self._interrupt_event = interrupt_event
         self._tts_enabled = tts_enabled
+
+        # Echo guard — self-echo text detection (Layer 2)
+        self._echo_config = echo_guard_config or EchoGuardConfig()
+        self._echo_detector = SelfEchoDetector(self._echo_config)
 
         # Load system prompt from file
         self._system_prompt = self._load_system_prompt()
@@ -67,10 +71,6 @@ class Brain(QueueWorker[BrainInputEvent]):
         self._conversation_history: list[ChatCompletionMessageParam] = [
             {"role": "system", "content": self._system_prompt}
         ]
-
-        # Event loop for async operations (created by base class)
-        # Alias to base class _loop for backward compatibility
-        self._event_loop: asyncio.AbstractEventLoop | None = None
 
     def _load_system_prompt(self) -> str:
         """Load system prompt from file."""
@@ -85,48 +85,40 @@ class Brain(QueueWorker[BrainInputEvent]):
             logger.error(f"Error loading system prompt: {e}")
             raise
 
-    def _setup_event_loop(self) -> asyncio.AbstractEventLoop:
-        """Create event loop for async LLM operations."""
-        loop = asyncio.new_event_loop()
-        # Set alias for backward compatibility with existing code that uses self._event_loop
-        self._event_loop = loop
-        return loop
-
-    def _teardown_event_loop(self) -> None:
-        """Close all async generators and pending tasks before closing the loop."""
-        if self._loop is not None:
-            try:
-                self._loop.run_until_complete(self._loop.shutdown_asyncgens())
-                pending = asyncio.all_tasks(self._loop)
-                if pending:
-                    for task in pending:
-                        task.cancel()
-                    self._loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-            finally:
-                self._loop.close()
-        self._event_loop = None
-        self._loop = None
-
     def reset_conversation(self) -> None:
         """Reset conversation history to initial state (system prompt only)."""
         self._conversation_history = [{"role": "system", "content": self._system_prompt}]
         logger.info("Conversation history reset")
 
-    def handle(self, event: BrainInputEvent) -> None:
-        """
-        Handles inputs from both Keyboard and Perception.
-        """
+    async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
+        """Process a BrainInputEvent and yield AudioOutputRequest for TTS."""
+        event: BrainInputEvent = item
+
         # Handle system reset before normal processing
         if event.type == InputType.SYSTEM and event.text == "__reset__":
             self.reset_conversation()
+            yield FlowReturn.OK, None
             return
 
         if not event.text or not event.text.strip():
             logger.debug(f"Skipping blank text from {event.user}")
+            yield FlowReturn.OK, None
             return
 
-        if self._runtime.interrupt_event is not None:
-            self._runtime.interrupt_event.clear()
+        # --- Self-echo text detection (safety net) ---
+        if self._echo_config.enabled and self._echo_detector.is_echo(event.text):
+            self._bus.post(BusMessage(
+                type="echo_discarded",
+                source=self.name,
+                payload={
+                    "reason": "self_echo",
+                    "text": event.text,
+                },
+            ))
+            yield FlowReturn.OK, None
+            return
+
+        self._interrupt_event.clear()
 
         started_at = time.time()
         logger.info("Brain processing started for input at %.3f", started_at)
@@ -135,122 +127,158 @@ class Brain(QueueWorker[BrainInputEvent]):
         user_message = f"{event.user}: {event.text}"
         self._add_to_conversation_history("user", user_message)
 
-        # 3. Generate Assistant Message ID
+        # Generate Assistant Message ID
         assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
         language = "zh"
 
         # Send processing_started signal
-        self._runtime.ui_queue.put(
-            SignalMessage(signal_type="processing_started", msg_id=assistant_msg_id)
-        )
+        self._bus.post(BusMessage(
+            type="ui_message",
+            source=self.name,
+            payload=SignalMessage(signal_type="processing_started", msg_id=assistant_msg_id),
+        ))
 
         try:
             tools = self._tool_manager.get_openai_tools()
-            self._process_stream(assistant_msg_id, language, tools)
+            audio_request = await self._process_stream(assistant_msg_id, language, tools)
 
-            ended_at = time.time()
-            logger.info(
-                "Brain response finished at %.3f, duration_s=%.3f", ended_at, ended_at - started_at
-            )
+            elapsed = time.time() - started_at
+            logger.info("Brain response finished at %.3f, duration_s=%.3f", time.time(), elapsed)
+
+            # Post LLM latency metric
+            self._bus.post(BusMessage(
+                type="llm_latency",
+                source=self.name,
+                payload={
+                    "latency_s": elapsed,
+                    "user": event.user,
+                    "text_length": len(event.text),
+                },
+            ))
+
+            # Yield AudioOutputRequest for TTS downstream
+            if audio_request is not None:
+                # Record TTS text for self-echo detection
+                self._echo_detector.record_tts(audio_request.content)
+                yield FlowReturn.OK, audio_request
+            else:
+                yield FlowReturn.OK, None
 
         except BrainInterrupted:
             logger.info("Brain: processing interrupted by user speech")
-            # Mark the current assistant block as final/stopped
-            self._runtime.ui_queue.put(
-                DisplayMessage(
-                    speaker="Brain", text="", is_user=False, msg_id=assistant_msg_id, is_final=True
-                )
-            )
+            self._bus.post(BusMessage(
+                type="ui_message",
+                source=self.name,
+                payload=DisplayMessage(
+                    speaker="Brain", text="", is_user=False,
+                    msg_id=assistant_msg_id, is_final=True,
+                ),
+            ))
+            yield FlowReturn.OK, None
         except Exception as e:
             logger.error(f"Error processing input: {e}", exc_info=True)
             error_msg = self._get_error_message(event.language)
-            self._runtime.ui_queue.put(
-                DisplayMessage(
+            self._bus.post(BusMessage(
+                type="ui_message",
+                source=self.name,
+                payload=DisplayMessage(
                     speaker="Brain",
                     text=error_msg,
                     is_user=False,
                     msg_id=f"brain_err_{uuid.uuid4().hex[:8]}",
                     is_final=True,
-                )
-            )
+                ),
+            ))
+            yield FlowReturn.OK, None
         finally:
             # Always send processing_ended signal
-            self._runtime.ui_queue.put(
-                SignalMessage(signal_type="processing_ended", msg_id=assistant_msg_id)
-            )
+            self._bus.post(BusMessage(
+                type="ui_message",
+                source=self.name,
+                payload=SignalMessage(
+                    signal_type="processing_ended", msg_id=assistant_msg_id,
+                ),
+            ))
 
-    def _process_stream(self, msg_id: str, language: str, tools: list[dict[str, Any]]) -> None:
-        """Run the streaming LLM process in the event loop."""
-        if self._event_loop is None:
-            raise RuntimeError("Event loop not initialized")
+    async def _process_stream(
+        self, msg_id: str, language: str, tools: list[dict[str, Any]]
+    ) -> AudioOutputRequest | None:
+        """Run the streaming LLM process. Returns AudioOutputRequest or None."""
+        full_response_text = ""
+        from ..core.events import UpdateType
 
-        async def stream_task():
-            full_response_text = ""
-            from ..core.events import UpdateType
+        gen = self._llm.chat_stream(
+            messages=self._conversation_history,
+            tools=tools,
+            tool_executor=self._tool_manager,
+        )
+        try:
+            async for update_type, content, metadata in gen:
+                # Check for interruption
+                if (
+                    self._config.speech_interrupt_enabled
+                    and self._interrupt_event.is_set()
+                ):
+                    raise BrainInterrupted()
 
-            gen = self._llm.chat_stream(
-                messages=self._conversation_history,
-                tools=tools,
-                tool_executor=self._tool_manager,
-            )
-            try:
-                async for update_type, content, metadata in gen:
-                    # Exit cleanly on shutdown
-                    if self._stop_signal.is_set():
-                        return
-                    # Check for interruption
-                    if (
-                        self._config.speech_interrupt_enabled
-                        and self._runtime.interrupt_event.is_set()
-                    ):
-                        raise BrainInterrupted()
+                # Push update to UI via bus
+                self._bus.post(BusMessage(
+                    type="ui_message",
+                    source=self.name,
+                    payload=DisplayMessage(
+                        speaker="Brain",
+                        text=content,
+                        is_user=False,
+                        msg_id=msg_id,
+                        is_final=False,
+                        update_type=update_type,
+                        metadata=metadata,
+                    ),
+                ))
 
-                    # Push update to UI
-                    self._runtime.ui_queue.put(
-                        DisplayMessage(
-                            speaker="Brain",
-                            text=content,
-                            is_user=False,
-                            msg_id=msg_id,
-                            is_final=False,
-                            update_type=update_type,
-                            metadata=metadata,
-                        )
-                    )
+                if update_type == UpdateType.TEXT:
+                    full_response_text += content
 
-                    if update_type == UpdateType.TEXT:
-                        full_response_text += content
+            # Stream ended successfully
+            # 1. Finalize UI block
+            self._bus.post(BusMessage(
+                type="ui_message",
+                source=self.name,
+                payload=DisplayMessage(
+                    speaker="Brain", text="", is_user=False,
+                    msg_id=msg_id, is_final=True,
+                ),
+            ))
 
-                # Stream ended successfully
-                # 1. Finalize UI block
-                self._runtime.ui_queue.put(
-                    DisplayMessage(
-                        speaker="Brain", text="", is_user=False, msg_id=msg_id, is_final=True
-                    )
-                )
+            # 2. Add to history
+            if full_response_text:
+                self._add_to_conversation_history("assistant", full_response_text)
 
-                # 2. Add to history
-                if full_response_text:
-                    self._add_to_conversation_history("assistant", full_response_text)
+                # 2b. Summarize old history if over threshold
+                await self._maybe_summarize()
 
-                    # 2b. Summarize old history if over threshold
-                    await self._maybe_summarize()
+                # 3. Trigger TTS only when enabled and response is non-empty
+                if self._tts_enabled:
+                    return AudioOutputRequest(content=full_response_text, language=language)
 
-                    # 3. Trigger TTS only when enabled and response is non-empty
-                    if self._tts_enabled:
-                        self._runtime.audio_output_queue.put(
-                            AudioOutputRequest(content=full_response_text, language=language)
-                        )
+            return None
 
-            except BrainInterrupted:
-                raise
-            except Exception as e:
-                logger.error(f"Stream processing error: {e}")
-                raise
-            finally:
-                await gen.aclose()
+        except BrainInterrupted:
+            raise
+        except Exception as e:
+            logger.error(f"Stream processing error: {e}")
+            raise
+        finally:
+            await gen.aclose()
 
-        self._run_async(stream_task())
+    def handle_event(self, event: PipelineEvent) -> bool:
+        """Handle pipeline events (interrupt, flush)."""
+        if event.type == "interrupt":
+            self._interrupt_event.set()
+            return False  # propagate to other processors
+        if event.type == "flush":
+            return False  # propagate
+        return False
 
     # Shared tiktoken encoder — cl100k_base works for GPT-4/3.5 and is a
     # reasonable approximation for other OpenAI-compatible models.
@@ -328,9 +356,11 @@ class Brain(QueueWorker[BrainInputEvent]):
                 len(self._conversation_history),
             )
 
-            # Post summarization metric to UI queue (forwarded to bus by BrainProcessor)
-            self._runtime.ui_queue.put(
-                SignalMessage(
+            # Post summarization metric to bus
+            self._bus.post(BusMessage(
+                type="ui_message",
+                source=self.name,
+                payload=SignalMessage(
                     signal_type="context_summarized",
                     msg_id="",
                     metadata={
@@ -339,8 +369,8 @@ class Brain(QueueWorker[BrainInputEvent]):
                         "messages_summarized": len(to_summarize),
                         "messages_kept": len(to_keep),
                     },
-                )
-            )
+                ),
+            ))
         except Exception as e:
             logger.error(f"Summarization failed: {e}", exc_info=True)
             # Fall back to truncation if summarization fails

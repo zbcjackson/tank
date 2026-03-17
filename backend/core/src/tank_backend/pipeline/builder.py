@@ -86,6 +86,13 @@ class Pipeline:
             if consumed:
                 break
 
+    def push_at(self, processor_name: str, item: Any) -> FlowReturn:
+        """Push an item into the queue feeding the named processor."""
+        for i, proc in enumerate(self._processors):
+            if proc.name == processor_name:
+                return self._queues[i].push(item)
+        raise ValueError(f"Processor {processor_name!r} not found")
+
     def flush_all(self) -> None:
         """Flush all ThreadedQueues (drain without processing)."""
         for q in self._queues:

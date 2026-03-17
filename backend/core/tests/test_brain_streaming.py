@@ -1,4 +1,6 @@
-import asyncio
+"""Tests for Brain streaming LLM responses as a Processor."""
+
+import threading
 from unittest.mock import MagicMock
 
 import pytest
@@ -11,20 +13,26 @@ from tank_backend.core.events import (
     InputType,
     UpdateType,
 )
-from tank_backend.core.runtime import RuntimeContext
-from tank_backend.core.shutdown import GracefulShutdown
+from tank_backend.pipeline.bus import Bus
+from tank_backend.pipeline.processor import FlowReturn
+
+
+async def _collect(processor, item):
+    results = []
+    async for status, output in processor.process(item):
+        results.append((status, output))
+    return results
 
 
 @pytest.fixture
-def runtime():
-    return RuntimeContext.create()
+def bus():
+    return Bus()
 
 
 @pytest.fixture
 def mock_llm():
     llm = MagicMock()
 
-    # chat_stream needs to return an async generator
     async def async_gen(*args, **kwargs):
         yield UpdateType.THOUGHT, "Thinking...", {}
         yield UpdateType.TOOL, "", {"index": 0, "name": "get_weather", "status": "calling"}
@@ -36,24 +44,21 @@ def mock_llm():
 
 
 @pytest.fixture
-def brain(runtime, mock_llm):
-    shutdown_signal = GracefulShutdown()
-    mock_speaker = MagicMock()
+def brain(bus, mock_llm):
     mock_tool_manager = MagicMock()
     mock_tool_manager.get_openai_tools.return_value = []
     config = VoiceAssistantConfig()
 
-    b = Brain(shutdown_signal, runtime, mock_speaker, mock_llm, mock_tool_manager, config)
-    # Create a new event loop for testing (both aliases needed)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    b._event_loop = loop
-    b._loop = loop
-    yield b
-    loop.close()
+    return Brain(
+        llm=mock_llm,
+        tool_manager=mock_tool_manager,
+        config=config,
+        bus=bus,
+        interrupt_event=threading.Event(),
+    )
 
 
-def test_brain_streaming_full_flow(brain, runtime, mock_llm):
+async def test_brain_streaming_full_flow(brain, bus, mock_llm):
     event = BrainInputEvent(
         type=InputType.TEXT,
         text="What is the weather?",
@@ -63,16 +68,23 @@ def test_brain_streaming_full_flow(brain, runtime, mock_llm):
         metadata={"msg_id": "test_msg_id"},
     )
 
-    # Run handle
-    brain.handle(event)
+    # Collect yielded outputs (AudioOutputRequest for TTS)
+    results = await _collect(brain, event)
 
-    # Check display queue for messages
-    messages = []
-    while not runtime.ui_queue.empty():
-        messages.append(runtime.ui_queue.get_nowait())
+    # Collect UI messages from bus
+    ui_messages = []
+    bus.subscribe("ui_message", lambda m: ui_messages.append(m.payload))
+    bus.poll()
+
+    # 1. Should yield exactly one AudioOutputRequest
+    assert len(results) == 1
+    assert results[0][0] == FlowReturn.OK
+    audio_req = results[0][1]
+    assert audio_req is not None
+    assert audio_req.content == "The weather is sunny."
 
     # 2. Assistant messages (filter out SignalMessage)
-    assistant_msgs = [m for m in messages if isinstance(m, DisplayMessage) and not m.is_user]
+    assistant_msgs = [m for m in ui_messages if isinstance(m, DisplayMessage) and not m.is_user]
     assert any(m.update_type == UpdateType.THOUGHT for m in assistant_msgs)
     assert any(m.update_type == UpdateType.TOOL for m in assistant_msgs)
     assert any(
@@ -82,8 +94,3 @@ def test_brain_streaming_full_flow(brain, runtime, mock_llm):
 
     # 3. Final message
     assert assistant_msgs[-1].is_final is True
-
-    # 4. Audio output (TTS)
-    assert not runtime.audio_output_queue.empty()
-    audio_req = runtime.audio_output_queue.get_nowait()
-    assert audio_req.content == "The weather is sunny."
