@@ -239,8 +239,8 @@ export const VoiceMode = ({
           )}
         </div>
 
-        {/* Controls */}
-        <div className="flex items-center gap-5">
+        {/* Controls — mic always centered, stop button to the right */}
+        <div className="relative flex items-center justify-center h-16 w-48">
           <motion.button
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.94 }}
@@ -248,7 +248,7 @@ export const VoiceMode = ({
             onClick={onMicClick}
             data-testid="mic-button"
             data-muted={isMuted ? 'true' : 'false'}
-            className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ${
+            className={`absolute left-1/2 -translate-x-1/2 w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ${
               micStatus === 'muted'
                 ? 'bg-zinc-800/80 text-zinc-500 border border-zinc-700/50'
                 : micStatus === 'active'
@@ -259,20 +259,22 @@ export const VoiceMode = ({
             {micStatus === 'muted' ? <MicOff size={24} /> : <Mic size={24} />}
           </motion.button>
 
-          {isSpeaking && (
-            <motion.button
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
-              whileHover={{ scale: 1.06 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={onStopSpeaking}
-              data-testid="voice-stop-button"
-              className="w-12 h-12 rounded-full flex items-center justify-center bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
-            >
-              <Square size={18} fill="currentColor" />
-            </motion.button>
-          )}
+          <AnimatePresence>
+            {isSpeaking && (
+              <motion.button
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                whileHover={{ scale: 1.06 }}
+                whileTap={{ scale: 0.94 }}
+                onClick={onStopSpeaking}
+                data-testid="voice-stop-button"
+                className="absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full flex items-center justify-center bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+              >
+                <Square size={18} fill="currentColor" />
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 

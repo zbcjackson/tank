@@ -7,6 +7,12 @@ interface ModeToggleProps {
 }
 
 export const ModeToggle = ({ mode, onToggle }: ModeToggleProps) => {
+  // In chat mode, position above the input area to avoid overlapping the send/stop button
+  const positionClass =
+    mode === 'chat'
+      ? 'fixed bottom-[5.5rem] right-4 sm:bottom-[5.5rem] sm:right-6 md:bottom-8 md:right-8'
+      : 'fixed bottom-8 right-4 sm:right-8';
+
   return (
     <motion.button
       initial={{ scale: 0, opacity: 0 }}
@@ -16,7 +22,7 @@ export const ModeToggle = ({ mode, onToggle }: ModeToggleProps) => {
       whileTap={{ scale: 0.94 }}
       onClick={onToggle}
       data-testid="mode-toggle"
-      className="fixed bottom-8 right-8 w-12 h-12 rounded-full flex items-center justify-center z-50 bg-surface-raised border border-border-subtle text-text-secondary hover:text-amber-400 hover:border-amber-500/20 transition-all duration-300 shadow-lg shadow-black/30"
+      className={`${positionClass} w-12 h-12 rounded-full flex items-center justify-center z-50 bg-surface-raised border border-border-subtle text-text-secondary hover:text-amber-400 hover:border-amber-500/20 transition-all duration-300 shadow-lg shadow-black/30`}
     >
       <AnimatePresence mode="wait">
         {mode === 'voice' ? (
