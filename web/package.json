@@ -10,11 +10,13 @@
     "format": "prettier --write 'src/**/*.{ts,tsx,css}'",
     "format:check": "prettier --check 'src/**/*.{ts,tsx,css}'",
     "preview": "vite preview",
-    "test": "vitest --run"
+    "test": "vitest --run",
+    "postinstall": "mkdir -p public/vad && cp node_modules/@ricky0123/vad-web/dist/silero_vad_v5.onnx node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js public/vad/"
   },
   "dependencies": {
     "@picovoice/porcupine-web": "^4.0.0",
     "@picovoice/web-voice-processor": "^4.0.9",
+    "@ricky0123/vad-web": "^0.0.30",
     "@tailwindcss/vite": "^4.1.18",
     "clsx": "^2.1.1",
     "framer-motion": "^12.34.0",

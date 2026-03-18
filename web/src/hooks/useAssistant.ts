@@ -108,6 +108,11 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     // 'idle' state is handled by enableWakeWord() in useConversationSession
   }, [conversationState, audioProcessorRef]);
 
+  // Pause/resume MicVAD during TTS playback to suppress echo
+  useEffect(() => {
+    audioProcessorRef.current?.setSpeaking(isSpeaking);
+  }, [isSpeaking, audioProcessorRef]);
+
   // --- Actions ---
   const sendMessage = useCallback(
     (text: string) => {
