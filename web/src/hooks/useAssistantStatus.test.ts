@@ -8,17 +8,12 @@ function applyEvents(initial: AssistantStatus, events: StatusEvent[]): Assistant
 
 describe('statusReducer', () => {
   describe('idle state', () => {
-    it('transitions to listening on USER_SPEECH_START', () => {
-      expect(statusReducer('idle', { type: 'USER_SPEECH_START' })).toBe('listening');
-    });
-
     it('transitions to thinking on PROCESSING_STARTED', () => {
       expect(statusReducer('idle', { type: 'PROCESSING_STARTED' })).toBe('thinking');
     });
 
     it('ignores irrelevant events', () => {
       const noOps: StatusEvent['type'][] = [
-        'USER_SPEECH_END',
         'TEXT_DELTA',
         'TOOL_UPDATE',
         'TOOL_DONE',
@@ -32,20 +27,6 @@ describe('statusReducer', () => {
 
     it('transitions to speaking on AUDIO_CHUNK (late audio after processing_ended)', () => {
       expect(statusReducer('idle', { type: 'AUDIO_CHUNK' })).toBe('speaking');
-    });
-  });
-
-  describe('listening state', () => {
-    it('transitions to thinking on PROCESSING_STARTED', () => {
-      expect(statusReducer('listening', { type: 'PROCESSING_STARTED' })).toBe('thinking');
-    });
-
-    it('transitions back to idle on USER_SPEECH_END', () => {
-      expect(statusReducer('listening', { type: 'USER_SPEECH_END' })).toBe('idle');
-    });
-
-    it('can be interrupted', () => {
-      expect(statusReducer('listening', { type: 'INTERRUPT' })).toBe('interrupted');
     });
   });
 
@@ -146,9 +127,8 @@ describe('statusReducer', () => {
   });
 
   describe('full conversation flows', () => {
-    it('voice: idle → listening → thinking → speaking → idle', () => {
+    it('voice: idle → thinking → speaking → idle', () => {
       const result = applyEvents('idle', [
-        { type: 'USER_SPEECH_START' },
         { type: 'PROCESSING_STARTED' },
         { type: 'AUDIO_CHUNK' },
         { type: 'PROCESSING_ENDED' }, // stays speaking

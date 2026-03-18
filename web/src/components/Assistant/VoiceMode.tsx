@@ -2,17 +2,14 @@ import { motion, AnimatePresence, type TargetAndTransition } from 'framer-motion
 import { Mic, MicOff, Square } from 'lucide-react';
 import { Waveform } from './Waveform';
 import { WakeWordIndicator } from './WakeWordIndicator';
-import type { CalibrationState } from '../../services/audio';
 import type { AssistantStatus, ConversationState } from '../../hooks/useAssistant';
 
 interface VoiceModeProps {
   assistantStatus: AssistantStatus;
-  isUserSpeaking: boolean;
   isMuted: boolean;
   onMicClick: () => void;
   onStopSpeaking: () => void;
   statusText?: string;
-  calibrationState: CalibrationState;
   getAnalyserNode?: () => AnalyserNode | null;
   conversationState?: ConversationState;
   ttsRms?: number;
@@ -27,7 +24,6 @@ const ORB_COLORS: Record<string, string> = {
   speaking: 'from-amber-500/40 via-orange-400/20 to-transparent',
   thinking: 'from-amber-600/25 via-amber-500/10 to-transparent',
   tool_calling: 'from-blue-500/25 via-blue-400/10 to-transparent',
-  listening: 'from-emerald-500/30 via-emerald-400/10 to-transparent',
   interrupted: 'from-rose-500/20 via-rose-400/8 to-transparent',
   error: 'from-rose-600/25 via-rose-500/10 to-transparent',
   muted: 'from-zinc-600/20 via-zinc-500/5 to-transparent',
@@ -49,10 +45,6 @@ const ORB_ANIMATIONS: Record<string, TargetAndTransition> = {
     opacity: [0.5, 0.85, 0.5],
     transition: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' },
   },
-  listening: {
-    scale: [1, 1.06, 1],
-    transition: { duration: 1, repeat: Infinity, ease: 'easeInOut' },
-  },
   interrupted: {
     scale: [1, 0.96, 1],
     opacity: [0.7, 0.4, 0.7],
@@ -73,10 +65,6 @@ const CORE_SPEAKING_ANIMATE = {
 };
 const CORE_IDLE_ANIMATE = {};
 
-const MIC_SPEAKING_ANIMATE = {
-  scale: [1, 1.05, 1],
-  transition: { repeat: Infinity, duration: 1.2 },
-};
 const MIC_IDLE_ANIMATE = {};
 
 const RING_PULSE_ANIMATE = { scale: [1, 1.8], opacity: [0.4, 0] };
@@ -149,8 +137,6 @@ function deriveStatusLabel(
       return '思考中';
     case 'tool_calling':
       return '工作中';
-    case 'listening':
-      return '聆听中';
     case 'interrupted':
       return '已中断';
     case 'error':
@@ -168,12 +154,10 @@ function deriveStatusLabel(
 
 export const VoiceMode = ({
   assistantStatus,
-  isUserSpeaking,
   isMuted,
   onMicClick,
   onStopSpeaking,
   statusText,
-  calibrationState,
   getAnalyserNode,
   conversationState,
   ttsRms,
@@ -188,15 +172,6 @@ export const VoiceMode = ({
 
   const orbState = deriveOrbState(assistantStatus, conversationState, isMuted);
   const statusLabel = deriveStatusLabel(assistantStatus, conversationState, isMuted, statusText);
-
-  const calibrationLabel =
-    calibrationState.status === 'calibrating'
-      ? '噪声校准中'
-      : calibrationState.status === 'ready'
-        ? '校准完成'
-        : calibrationState.status === 'error'
-          ? '使用默认阈值'
-          : undefined;
 
   return (
     <motion.div
@@ -276,22 +251,6 @@ export const VoiceMode = ({
               )
             )}
           </AnimatePresence>
-
-          {calibrationLabel && (
-            <motion.span
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className={`text-xs px-3 py-1 rounded-full border ${
-                calibrationState.status === 'calibrating'
-                  ? 'border-amber-800/50 text-amber-500/70 bg-amber-500/5'
-                  : calibrationState.status === 'ready'
-                    ? 'border-emerald-800/50 text-emerald-500/70 bg-emerald-500/5'
-                    : 'border-rose-800/50 text-rose-500/70 bg-rose-500/5'
-              }`}
-            >
-              {calibrationLabel}
-            </motion.span>
-          )}
         </div>
 
         {/* Controls — mic always centered, stop button to the right */}
@@ -299,7 +258,7 @@ export const VoiceMode = ({
           <motion.button
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.94 }}
-            animate={isUserSpeaking ? MIC_SPEAKING_ANIMATE : MIC_IDLE_ANIMATE}
+            animate={MIC_IDLE_ANIMATE}
             onClick={onMicClick}
             aria-label={isMuted ? '取消静音' : '静音麦克风'}
             aria-pressed={isMuted}

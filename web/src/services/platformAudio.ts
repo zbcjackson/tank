@@ -17,9 +17,6 @@ export interface PlayChunkResult {
 }
 
 export interface PlatformAudioAdapter {
-  /** Whether browser-side VAD calibration is needed. Browser: true, Tauri: false. */
-  readonly needsCalibration: boolean;
-
   /** Start capture. Returns a handle whose stop() ends capture. */
   startCapture(onAudio: (samples: Int16Array) => void): Promise<CaptureHandle>;
 

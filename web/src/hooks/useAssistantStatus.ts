@@ -6,7 +6,6 @@ import { useReducer, useCallback, useEffect, useRef } from 'react';
  */
 export type AssistantStatus =
   | 'idle'
-  | 'listening'
   | 'thinking'
   | 'tool_calling'
   | 'speaking'
@@ -18,8 +17,6 @@ export type AssistantStatus =
  * Events that drive state transitions.
  */
 export type StatusEvent =
-  | { type: 'USER_SPEECH_START' }
-  | { type: 'USER_SPEECH_END' }
   | { type: 'PROCESSING_STARTED' }
   | { type: 'PROCESSING_ENDED' }
   | { type: 'TEXT_DELTA' }
@@ -33,7 +30,6 @@ export type StatusEvent =
 
 /** States that count as "active processing" — can be interrupted or error'd */
 const ACTIVE_STATES: ReadonlySet<AssistantStatus> = new Set([
-  'listening',
   'thinking',
   'tool_calling',
   'speaking',
@@ -46,19 +42,9 @@ const ACTIVE_STATES: ReadonlySet<AssistantStatus> = new Set([
  */
 export function statusReducer(state: AssistantStatus, event: StatusEvent): AssistantStatus {
   switch (event.type) {
-    case 'USER_SPEECH_START':
-      // Only transition to listening from idle
-      if (state === 'idle') return 'listening';
-      return state;
-
-    case 'USER_SPEECH_END':
-      // If we were listening but no processing started, go back to idle
-      if (state === 'listening') return 'idle';
-      return state;
-
     case 'PROCESSING_STARTED':
-      // Backend started processing — enter thinking from idle or listening
-      if (state === 'idle' || state === 'listening') return 'thinking';
+      // Backend started processing — enter thinking from idle
+      if (state === 'idle') return 'thinking';
       return state;
 
     case 'TOOL_UPDATE':

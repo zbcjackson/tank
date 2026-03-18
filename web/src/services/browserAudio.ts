@@ -9,8 +9,6 @@
 import type { PlatformAudioAdapter, CaptureHandle, PlayChunkResult } from './platformAudio';
 
 export class BrowserAudioAdapter implements PlatformAudioAdapter {
-  readonly needsCalibration = true;
-
   private audioContext: AudioContext | null = null;
   private analyserNode: AnalyserNode | null = null;
   private nextStartTime: number = 0;

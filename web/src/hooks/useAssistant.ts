@@ -59,9 +59,6 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     playbackRef,
     connectionState,
     connectionMetadata,
-    isUserSpeaking,
-    setIsUserSpeaking,
-    calibrationState,
     audioReady,
     ttsRms,
   } = useAudioPipeline({
@@ -136,9 +133,8 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
       const newMuted = !processor.isMuted();
       processor.setMuted(newMuted);
       setIsMuted(newMuted);
-      if (newMuted) setIsUserSpeaking(false);
     }
-  }, [audioProcessorRef, setIsUserSpeaking]);
+  }, [audioProcessorRef]);
 
   const getAnalyserNode = useCallback(
     () => playbackRef.current?.getAnalyserNode() ?? null,
@@ -170,11 +166,9 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     assistantStatus,
     isAssistantTyping,
     isSpeaking,
-    isUserSpeaking,
     isMuted,
     connectionState,
     connectionMetadata,
-    calibrationState,
     capabilities,
     conversationState,
     sendMessage,

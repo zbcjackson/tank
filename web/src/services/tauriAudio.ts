@@ -11,8 +11,6 @@ import type { PlatformAudioAdapter, CaptureHandle, PlayChunkResult } from './pla
 type UnlistenFn = () => void;
 
 export class TauriAudioAdapter implements PlatformAudioAdapter {
-  readonly needsCalibration = false;
-
   private unlisten: UnlistenFn | null = null;
   private started = false;
   private onError?: (error: string) => void;
