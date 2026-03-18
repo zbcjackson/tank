@@ -66,8 +66,7 @@ function App() {
   const {
     steps,
     mode,
-    isAssistantTyping,
-    isSpeaking,
+    assistantStatus,
     isUserSpeaking,
     connectionState,
     connectionMetadata,
@@ -125,12 +124,11 @@ function App() {
         <AnimatePresence mode="wait">
           {mode === 'voice' ? (
             <VoiceMode
-              isAssistantTyping={isAssistantTyping}
+              assistantStatus={assistantStatus}
               isUserSpeaking={isUserSpeaking}
               isMuted={isMuted}
               onMicClick={toggleMute}
               onStopSpeaking={stopSpeaking}
-              isSpeaking={isSpeaking}
               statusText={statusText}
               calibrationState={calibrationState}
               getAnalyserNode={getAnalyserNode}
@@ -140,8 +138,7 @@ function App() {
           ) : (
             <ChatMode
               messages={steps}
-              isAssistantTyping={isAssistantTyping}
-              isSpeaking={isSpeaking}
+              assistantStatus={assistantStatus}
               onSendMessage={sendMessage}
               onStopSpeaking={stopSpeaking}
               pauseAudioCapture={pauseAudioCapture}

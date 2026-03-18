@@ -4,6 +4,7 @@ import { ArrowUp, Square } from 'lucide-react';
 import { MessageStep } from './MessageStep';
 import { EnrollmentBanner } from './EnrollmentBanner';
 import type { Step } from '../../types/message';
+import type { AssistantStatus } from '../../hooks/useAssistant';
 
 const DOT_ANIMATE = { opacity: [0.2, 0.8, 0.2] };
 const DOT_TRANSITION_0 = { repeat: Infinity, duration: 1.2 };
@@ -16,10 +17,19 @@ const EMPTY_STATE_STYLE = {
 };
 const TEXTAREA_MAX_HEIGHT = { maxHeight: 120 };
 
+/** Map assistantStatus → header badge label */
+const STATUS_BADGE: Partial<Record<AssistantStatus, string>> = {
+  speaking: 'SPEAKING',
+  thinking: 'THINKING',
+  responding: 'TYPING',
+  tool_calling: 'WORKING',
+  interrupted: 'INTERRUPTED',
+  error: 'ERROR',
+};
+
 interface ChatModeProps {
   messages: Step[];
-  isAssistantTyping: boolean;
-  isSpeaking: boolean;
+  assistantStatus: AssistantStatus;
   onSendMessage: (text: string) => void;
   onStopSpeaking: () => void;
   pauseAudioCapture: () => void;
@@ -28,8 +38,7 @@ interface ChatModeProps {
 
 export const ChatMode = ({
   messages,
-  isAssistantTyping,
-  isSpeaking,
+  assistantStatus,
   onSendMessage,
   onStopSpeaking,
   pauseAudioCapture,
@@ -53,7 +62,7 @@ export const ChatMode = ({
         behavior: 'smooth',
       });
     }
-  }, [messages, isAssistantTyping]);
+  }, [messages, assistantStatus]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,7 +106,7 @@ export const ChatMode = ({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {(isAssistantTyping || isSpeaking) && (
+          {STATUS_BADGE[assistantStatus] && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -105,7 +114,7 @@ export const ChatMode = ({
             >
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
               <span className="text-[10px] font-mono text-amber-500/80">
-                {isSpeaking ? 'SPEAKING' : 'THINKING'}
+                {STATUS_BADGE[assistantStatus]}
               </span>
             </motion.div>
           )}
@@ -174,7 +183,7 @@ export const ChatMode = ({
           })}
 
           {/* Typing indicator */}
-          {isAssistantTyping &&
+          {assistantStatus === 'thinking' &&
             messages.length > 0 &&
             !messages.some((m) => m.role === 'assistant' && m.type === 'thinking') && (
               <div data-testid="typing-indicator" className="flex justify-start mt-4">
@@ -215,7 +224,7 @@ export const ChatMode = ({
               style={TEXTAREA_MAX_HEIGHT}
             />
             <div className="absolute right-2 bottom-2 flex items-center gap-1.5">
-              {isAssistantTyping || isSpeaking ? (
+              {assistantStatus !== 'idle' && assistantStatus !== 'listening' ? (
                 <button
                   type="button"
                   data-testid="stop-button"

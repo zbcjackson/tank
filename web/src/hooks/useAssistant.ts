@@ -15,9 +15,10 @@ import {
   type ConversationState,
   type ConversationSessionConfig,
 } from './useConversationSession';
+import { useAssistantStatus, type AssistantStatus } from './useAssistantStatus';
 import type { Step, StepType, ToolContent, Message } from '../types/message';
 
-export type { Step, StepType, ToolContent, Message, ConversationState };
+export type { Step, StepType, ToolContent, Message, ConversationState, AssistantStatus };
 
 const DEFAULT_CAPABILITIES: Capabilities = { asr: true, tts: true, speaker_id: false };
 
@@ -29,8 +30,7 @@ const WAKE_WORD_SILENCE_TIMEOUT_MS = Number(
 export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetector | null) => {
   const [steps, setSteps] = useState<Step[]>([]);
   const [mode, setMode] = useState<'voice' | 'chat'>('voice');
-  const [isAssistantTyping, setIsAssistantTyping] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const { assistantStatus, dispatchStatus } = useAssistantStatus();
   const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
   const [connectionMetadata, setConnectionMetadata] = useState<ConnectionMetadata>({});
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
@@ -45,6 +45,15 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
   const audioProcessorRef = useRef<AudioProcessor | null>(null);
   const playbackRef = useRef<AudioPlayback | null>(null);
   const audioStartedRef = useRef(false);
+  const conversationStateRef = useRef<ConversationState>('active');
+
+  // Derived booleans for backward compatibility
+  const isAssistantTyping =
+    assistantStatus === 'thinking' ||
+    assistantStatus === 'tool_calling' ||
+    assistantStatus === 'responding' ||
+    assistantStatus === 'speaking';
+  const isSpeaking = assistantStatus === 'speaking';
 
   const wakeWordConfig: ConversationSessionConfig = useMemo(
     () => ({
@@ -57,168 +66,194 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
 
   const clearSteps = useCallback(() => setSteps([]), []);
 
-  const handleMessage = useCallback((msg: WebsocketMessage) => {
-    // Track latest message for conversation session hook
-    setLatestMessage(msg);
+  const handleMessage = useCallback(
+    (msg: WebsocketMessage) => {
+      // Track latest message for conversation session hook
+      setLatestMessage(msg);
 
-    if (msg.type === 'signal') {
-      if (msg.content === 'ready') {
-        // Extract capabilities from ready signal metadata
-        const caps = msg.metadata?.capabilities as Capabilities | undefined;
-        if (caps) {
-          setCapabilities(caps);
-          // Force chat mode when ASR is disabled
-          if (!caps.asr) {
-            setMode('chat');
-          }
-        }
-      } else if (msg.content === 'processing_started') setIsAssistantTyping(true);
-      else if (msg.content === 'processing_ended') setIsAssistantTyping(false);
-      return;
-    }
-
-    const role = msg.is_user ? 'user' : 'assistant';
-    const msgId = msg.msg_id || (msg.is_user ? 'user_default' : 'assistant_default');
-
-    // Parse activity type and turn
-    const updateType = msg.metadata?.update_type;
-    const metadataType = typeof updateType === 'string' ? updateType.split('.').pop() : null;
-    const turn = msg.metadata?.turn || 0;
-
-    let activityType: StepType = 'text';
-    if (metadataType === 'THOUGHT') activityType = 'thinking';
-    else if (metadataType === 'TOOL') activityType = 'tool';
-
-    if (msg.type === 'transcript') activityType = 'text';
-
-    const stepId = msg.metadata?.step_id as string;
-
-    setSteps((prev) => {
-      const updated = [...prev];
-      const existingIdx = updated.findIndex((m) => m.id === stepId);
-
-      // --- Reconcile backend echo with optimistic local user step ---
-      if (msg.type === 'transcript' && msg.is_user) {
-        const localIdx = updated.findLastIndex(
-          (s) => s.role === 'user' && s.id.startsWith('local_') && s.content === msg.content,
-        );
-        if (localIdx > -1) {
-          updated[localIdx] = {
-            ...updated[localIdx],
-            id: stepId,
-            msgId,
-            speaker: msg.speaker || updated[localIdx].speaker,
-          };
-          return updated;
-        }
-      }
-
-      // --- TEXT & THINKING (Streaming) ---
-      if (activityType === 'text' || activityType === 'thinking') {
-        if (existingIdx > -1) {
-          updated[existingIdx] = {
-            ...updated[existingIdx],
-            content:
-              msg.type === 'transcript'
-                ? msg.content
-                : updated[existingIdx].content + (msg.content || ''),
-            isFinal: msg.is_final,
-            speaker: msg.speaker || updated[existingIdx].speaker,
-          };
-          return updated;
-        } else {
-          // If we see a FINAL empty message for an ID that doesn't exist, ignore it.
-          // But if it has content or is a start of a stream, create it.
-          if (!msg.content && msg.is_final) return prev;
-
-          return [
-            ...prev,
-            {
-              id: stepId,
-              role,
-              type: activityType,
-              content: msg.content || '',
-              msgId,
-              isFinal: msg.is_final,
-              speaker: msg.speaker || undefined,
-            },
-          ];
-        }
-      }
-
-      // --- TOOL ACTIVITIES ---
-      if (activityType === 'tool') {
-        const status = (msg.metadata?.status as string) || 'calling';
-        const hasResult = status === 'success' || status === 'error';
-        const toolData: ToolContent = {
-          name: (msg.metadata?.name as string) || '',
-          arguments: (msg.metadata?.arguments as string) || '',
-          status,
-          result: hasResult ? msg.content : undefined,
-        };
-
-        if (existingIdx > -1) {
-          const existing = updated[existingIdx].content as ToolContent;
-          updated[existingIdx] = {
-            ...updated[existingIdx],
-            content: {
-              ...existing,
-              ...toolData,
-              result: toolData.result || existing.result,
-              status: toolData.status || existing.status,
-            },
-            isFinal: msg.is_final,
-          };
-
-          // Weather Card
-          if (hasResult && (toolData.name === 'get_weather' || toolData.name === 'weather')) {
-            const weatherId = `${msgId}_weather_${turn}_${msg.metadata?.index || 0}`;
-            if (!updated.some((m) => m.id === weatherId)) {
-              try {
-                const res = msg.content;
-                const t = res.match(/'temperature':\s*'([^']+)'/);
-                const c = res.match(/'condition':\s*'([^']+)'/);
-                const l = res.match(/'location':\s*'([^']+)'/);
-                if (t && c && l) {
-                  updated.push({
-                    id: weatherId,
-                    role: 'assistant',
-                    type: 'weather',
-                    content: { city: l[1], temp: t[1], condition: c[1], wind: '4km/h' },
-                    msgId,
-                  });
-                }
-              } catch (e) {
-                console.error(e);
-              }
+      if (msg.type === 'signal') {
+        if (msg.content === 'ready') {
+          // Extract capabilities from ready signal metadata
+          const caps = msg.metadata?.capabilities as Capabilities | undefined;
+          if (caps) {
+            setCapabilities(caps);
+            // Force chat mode when ASR is disabled
+            if (!caps.asr) {
+              setMode('chat');
             }
           }
-          return updated;
-        } else {
-          return [
-            ...prev,
-            {
-              id: stepId,
-              role,
-              type: 'tool',
-              content: toolData,
-              msgId,
-              isFinal: msg.is_final,
-              speaker: msg.speaker || undefined,
-            },
-          ];
+        } else if (msg.content === 'processing_started') {
+          dispatchStatus({ type: 'PROCESSING_STARTED' });
+        } else if (msg.content === 'processing_ended') {
+          dispatchStatus({ type: 'PROCESSING_ENDED' });
         }
+        return;
       }
 
-      return prev;
-    });
-  }, []);
+      const role = msg.is_user ? 'user' : 'assistant';
+      const msgId = msg.msg_id || (msg.is_user ? 'user_default' : 'assistant_default');
+
+      // Parse activity type and turn
+      const updateType = msg.metadata?.update_type;
+      const metadataType = typeof updateType === 'string' ? updateType.split('.').pop() : null;
+      const turn = msg.metadata?.turn || 0;
+
+      let activityType: StepType = 'text';
+      if (metadataType === 'THOUGHT') activityType = 'thinking';
+      else if (metadataType === 'TOOL') activityType = 'tool';
+
+      if (msg.type === 'transcript') activityType = 'text';
+
+      const stepId = msg.metadata?.step_id as string;
+
+      setSteps((prev) => {
+        const updated = [...prev];
+        const existingIdx = updated.findIndex((m) => m.id === stepId);
+
+        // --- Reconcile backend echo with optimistic local user step ---
+        if (msg.type === 'transcript' && msg.is_user) {
+          const localIdx = updated.findLastIndex(
+            (s) => s.role === 'user' && s.id.startsWith('local_') && s.content === msg.content,
+          );
+          if (localIdx > -1) {
+            updated[localIdx] = {
+              ...updated[localIdx],
+              id: stepId,
+              msgId,
+              speaker: msg.speaker || updated[localIdx].speaker,
+            };
+            return updated;
+          }
+        }
+
+        // --- TEXT & THINKING (Streaming) ---
+        if (activityType === 'text' || activityType === 'thinking') {
+          if (existingIdx > -1) {
+            updated[existingIdx] = {
+              ...updated[existingIdx],
+              content:
+                msg.type === 'transcript'
+                  ? msg.content
+                  : updated[existingIdx].content + (msg.content || ''),
+              isFinal: msg.is_final,
+              speaker: msg.speaker || updated[existingIdx].speaker,
+            };
+            return updated;
+          } else {
+            // If we see a FINAL empty message for an ID that doesn't exist, ignore it.
+            // But if it has content or is a start of a stream, create it.
+            if (!msg.content && msg.is_final) return prev;
+
+            return [
+              ...prev,
+              {
+                id: stepId,
+                role,
+                type: activityType,
+                content: msg.content || '',
+                msgId,
+                isFinal: msg.is_final,
+                speaker: msg.speaker || undefined,
+              },
+            ];
+          }
+        }
+
+        // --- TOOL ACTIVITIES ---
+        if (activityType === 'tool') {
+          const status = (msg.metadata?.status as string) || 'calling';
+          const hasResult = status === 'success' || status === 'error';
+          const toolData: ToolContent = {
+            name: (msg.metadata?.name as string) || '',
+            arguments: (msg.metadata?.arguments as string) || '',
+            status,
+            result: hasResult ? msg.content : undefined,
+          };
+
+          if (existingIdx > -1) {
+            const existing = updated[existingIdx].content as ToolContent;
+            updated[existingIdx] = {
+              ...updated[existingIdx],
+              content: {
+                ...existing,
+                ...toolData,
+                result: toolData.result || existing.result,
+                status: toolData.status || existing.status,
+              },
+              isFinal: msg.is_final,
+            };
+
+            // Weather Card
+            if (hasResult && (toolData.name === 'get_weather' || toolData.name === 'weather')) {
+              const weatherId = `${msgId}_weather_${turn}_${msg.metadata?.index || 0}`;
+              if (!updated.some((m) => m.id === weatherId)) {
+                try {
+                  const res = msg.content;
+                  const t = res.match(/'temperature':\s*'([^']+)'/);
+                  const c = res.match(/'condition':\s*'([^']+)'/);
+                  const l = res.match(/'location':\s*'([^']+)'/);
+                  if (t && c && l) {
+                    updated.push({
+                      id: weatherId,
+                      role: 'assistant',
+                      type: 'weather',
+                      content: { city: l[1], temp: t[1], condition: c[1], wind: '4km/h' },
+                      msgId,
+                    });
+                  }
+                } catch (e) {
+                  console.error(e);
+                }
+              }
+            }
+            return updated;
+          } else {
+            return [
+              ...prev,
+              {
+                id: stepId,
+                role,
+                type: 'tool',
+                content: toolData,
+                msgId,
+                isFinal: msg.is_final,
+                speaker: msg.speaker || undefined,
+              },
+            ];
+          }
+        }
+
+        return prev;
+      });
+
+      // Dispatch status events for assistant messages (outside setSteps to avoid nesting)
+      if (!msg.is_user && role === 'assistant') {
+        if (activityType === 'text' && msg.type === 'text') {
+          dispatchStatus({ type: 'TEXT_DELTA' });
+        } else if (activityType === 'tool') {
+          const status = (msg.metadata?.status as string) || 'calling';
+          if (status === 'calling' || status === 'executing') {
+            dispatchStatus({ type: 'TOOL_UPDATE' });
+          } else if (status === 'success' || status === 'error') {
+            dispatchStatus({ type: 'TOOL_DONE' });
+          }
+        }
+      }
+    },
+    [dispatchStatus],
+  );
 
   useEffect(() => {
     // Create AudioPlayback coordinator
     const playback = new AudioPlayback();
     playbackRef.current = playback;
-    playback.setOnSpeakingChange((speaking) => setIsSpeaking(speaking));
+    playback.setOnSpeakingChange((speaking) => {
+      if (speaking) {
+        dispatchStatus({ type: 'AUDIO_CHUNK' });
+      } else {
+        dispatchStatus({ type: 'SPEAKING_ENDED' });
+      }
+    });
 
     // Create WebSocket client (pure transport)
     const client = new VoiceAssistantClient(sessionId);
@@ -233,8 +268,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
 
         // Reset UI state on reconnecting
         if (state === 'reconnecting') {
-          setIsAssistantTyping(false);
-          setIsSpeaking(false);
+          dispatchStatus({ type: 'RESET' });
           setIsUserSpeaking(false);
         }
       },
@@ -242,7 +276,13 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
 
     // AudioProcessor is created eagerly but started lazily (after capabilities arrive)
     const audioProcessor = new AudioProcessor((data) => client.sendAudio(data), {
-      onSpeechChange: (isSpeech) => setIsUserSpeaking(isSpeech),
+      onSpeechChange: (isSpeech) => {
+        setIsUserSpeaking(isSpeech);
+        // Only dispatch listening status when conversation gate is open
+        if (conversationStateRef.current === 'active') {
+          dispatchStatus({ type: isSpeech ? 'USER_SPEECH_START' : 'USER_SPEECH_END' });
+        }
+      },
       onCalibrationChange: (state) => {
         setCalibrationState(state);
         if (state.status !== 'ready') setIsUserSpeaking(false);
@@ -297,7 +337,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
       audioProcessorRef.current = null;
       playbackRef.current = null;
     };
-  }, [sessionId, handleMessage]);
+  }, [sessionId, handleMessage, dispatchStatus]);
 
   // Start AudioProcessor only after capabilities confirm ASR is enabled
   useEffect(() => {
@@ -329,6 +369,11 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     config: wakeWordConfig,
     onSessionStart: clearSteps,
   });
+
+  // Keep ref in sync so the AudioProcessor callback can read it
+  useEffect(() => {
+    conversationStateRef.current = conversationState;
+  }, [conversationState]);
 
   // Gate audio during 'loading' state
   useEffect(() => {
@@ -388,9 +433,8 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
   const stopSpeaking = useCallback(() => {
     clientRef.current?.sendInterrupt();
     playbackRef.current?.stop();
-    setIsSpeaking(false);
-    setIsAssistantTyping(false);
-  }, []);
+    dispatchStatus({ type: 'INTERRUPT' });
+  }, [dispatchStatus]);
 
   const manualReconnect = useCallback(() => {
     clientRef.current?.reconnect();
@@ -423,6 +467,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     steps,
     messages,
     mode,
+    assistantStatus,
     isAssistantTyping,
     isSpeaking,
     isUserSpeaking,

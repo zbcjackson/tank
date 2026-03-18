@@ -3,13 +3,12 @@ import { Mic, MicOff, Square } from 'lucide-react';
 import { Waveform } from './Waveform';
 import { WakeWordIndicator } from './WakeWordIndicator';
 import type { CalibrationState } from '../../services/audio';
-import type { ConversationState } from '../../hooks/useAssistant';
+import type { AssistantStatus, ConversationState } from '../../hooks/useAssistant';
 
 interface VoiceModeProps {
-  isAssistantTyping: boolean;
+  assistantStatus: AssistantStatus;
   isUserSpeaking: boolean;
   isMuted: boolean;
-  isSpeaking: boolean;
   onMicClick: () => void;
   onStopSpeaking: () => void;
   statusText?: string;
@@ -27,7 +26,10 @@ const statusVariants = {
 const ORB_COLORS: Record<string, string> = {
   speaking: 'from-amber-500/40 via-orange-400/20 to-transparent',
   thinking: 'from-amber-600/25 via-amber-500/10 to-transparent',
+  tool_calling: 'from-blue-500/25 via-blue-400/10 to-transparent',
   listening: 'from-emerald-500/30 via-emerald-400/10 to-transparent',
+  interrupted: 'from-rose-500/20 via-rose-400/8 to-transparent',
+  error: 'from-rose-600/25 via-rose-500/10 to-transparent',
   muted: 'from-zinc-600/20 via-zinc-500/5 to-transparent',
   idle: 'from-amber-500/15 via-amber-400/5 to-transparent',
 };
@@ -42,9 +44,24 @@ const ORB_ANIMATIONS: Record<string, object> = {
     opacity: [0.6, 0.9, 0.6],
     transition: { duration: 2.5, repeat: Infinity, ease: 'easeInOut' },
   },
+  tool_calling: {
+    scale: [1, 1.06, 1],
+    opacity: [0.5, 0.85, 0.5],
+    transition: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' },
+  },
   listening: {
     scale: [1, 1.06, 1],
     transition: { duration: 1, repeat: Infinity, ease: 'easeInOut' },
+  },
+  interrupted: {
+    scale: [1, 0.96, 1],
+    opacity: [0.7, 0.4, 0.7],
+    transition: { duration: 0.8, repeat: Infinity, ease: 'easeInOut' },
+  },
+  error: {
+    scale: [1, 0.98, 1],
+    opacity: [0.6, 0.3, 0.6],
+    transition: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
   },
   idle: { scale: 1, opacity: 0.6 },
   muted: { scale: 1, opacity: 0.6 },
@@ -78,6 +95,9 @@ const AMBIENT_STYLES: Record<string, React.CSSProperties> = {
   thinking: {
     background: 'radial-gradient(circle at 50% 45%, rgba(212, 160, 84, 0.03) 0%, transparent 60%)',
   },
+  tool_calling: {
+    background: 'radial-gradient(circle at 50% 45%, rgba(96, 165, 250, 0.04) 0%, transparent 60%)',
+  },
   none: { background: 'none' },
 };
 
@@ -94,11 +114,69 @@ const coreStyle = (orbState: string): React.CSSProperties => ({
       : 'inset 0 0 30px rgba(212,160,84,0.03)',
 });
 
+/** Map assistantStatus + context flags → visual orb state key */
+function deriveOrbState(
+  assistantStatus: AssistantStatus,
+  conversationState: ConversationState | undefined,
+  isMuted: boolean,
+): string {
+  // Assistant activity states take priority
+  if (
+    assistantStatus === 'speaking' ||
+    assistantStatus === 'thinking' ||
+    assistantStatus === 'tool_calling' ||
+    assistantStatus === 'listening' ||
+    assistantStatus === 'responding' ||
+    assistantStatus === 'interrupted' ||
+    assistantStatus === 'error'
+  ) {
+    // 'responding' uses same visual as 'thinking' (text streaming in voice mode)
+    if (assistantStatus === 'responding') return 'thinking';
+    return assistantStatus;
+  }
+
+  // Idle — check wake word / mute state
+  if (conversationState === 'loading' || conversationState === 'idle') return 'idle';
+  if (isMuted) return 'muted';
+  return 'idle';
+}
+
+/** Map assistantStatus + context → Chinese status label */
+function deriveStatusLabel(
+  assistantStatus: AssistantStatus,
+  conversationState: ConversationState | undefined,
+  isMuted: boolean,
+  statusText?: string,
+): string | undefined {
+  switch (assistantStatus) {
+    case 'speaking':
+      return '回复中';
+    case 'thinking':
+    case 'responding':
+      return '思考中';
+    case 'tool_calling':
+      return '工作中';
+    case 'listening':
+      return '聆听中';
+    case 'interrupted':
+      return '已中断';
+    case 'error':
+      return '出错了';
+    case 'idle':
+      break;
+  }
+
+  // Idle sub-states
+  if (conversationState === 'loading') return '正在加载唤醒词...';
+  if (conversationState === 'idle') return undefined; // WakeWordIndicator handles it
+  if (isMuted) return '已静音';
+  return statusText || '等待语音输入';
+}
+
 export const VoiceMode = ({
-  isAssistantTyping,
+  assistantStatus,
   isUserSpeaking,
   isMuted,
-  isSpeaking,
   onMicClick,
   onStopSpeaking,
   statusText,
@@ -108,37 +186,15 @@ export const VoiceMode = ({
   ttsRms,
 }: VoiceModeProps) => {
   const isWakeWordIdle = conversationState === 'idle';
-  const isWakeWordLoading = conversationState === 'loading';
   const isGateOpen = conversationState === 'active';
   const micStatus = isMuted ? 'muted' : isGateOpen ? 'active' : 'idle';
 
-  const orbState = isSpeaking
-    ? 'speaking'
-    : isAssistantTyping
-      ? 'thinking'
-      : isWakeWordLoading
-        ? 'idle'
-        : isWakeWordIdle
-          ? 'idle'
-          : isUserSpeaking
-            ? 'listening'
-            : isMuted
-              ? 'muted'
-              : 'idle';
+  const isSpeaking = assistantStatus === 'speaking';
+  const isActive =
+    assistantStatus !== 'idle' && assistantStatus !== 'interrupted' && assistantStatus !== 'error';
 
-  const statusLabel = isSpeaking
-    ? '回复中'
-    : isAssistantTyping
-      ? '思考中'
-      : isWakeWordLoading
-        ? '正在加载唤醒词...'
-        : isWakeWordIdle
-          ? undefined // WakeWordIndicator handles the status text
-          : isMuted
-            ? '已静音'
-            : isUserSpeaking
-              ? '聆听中'
-              : statusText || '等待语音输入';
+  const orbState = deriveOrbState(assistantStatus, conversationState, isMuted);
+  const statusLabel = deriveStatusLabel(assistantStatus, conversationState, isMuted, statusText);
 
   const calibrationLabel =
     calibrationState.status === 'calibrating'
@@ -181,9 +237,9 @@ export const VoiceMode = ({
 
           {/* Orb gradient */}
           <motion.div
-            className={`absolute rounded-full bg-gradient-radial ${ORB_COLORS[orbState]}`}
+            className={`absolute rounded-full bg-gradient-radial ${ORB_COLORS[orbState] || ORB_COLORS.idle}`}
             style={ORB_GRADIENT_STYLE}
-            animate={ORB_ANIMATIONS[orbState]}
+            animate={ORB_ANIMATIONS[orbState] || ORB_ANIMATIONS.idle}
           />
 
           {/* Inner core */}
@@ -208,7 +264,7 @@ export const VoiceMode = ({
         {/* Status area */}
         <div className="flex flex-col items-center gap-3">
           <AnimatePresence mode="wait">
-            {isWakeWordIdle && !isSpeaking && !isAssistantTyping ? (
+            {isWakeWordIdle && !isActive ? (
               <WakeWordIndicator key="wake-word" keyword="Hey Tank" />
             ) : (
               statusLabel && (
