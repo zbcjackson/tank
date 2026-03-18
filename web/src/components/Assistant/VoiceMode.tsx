@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type TargetAndTransition } from 'framer-motion';
 import { Mic, MicOff, Square } from 'lucide-react';
 import { Waveform } from './Waveform';
 import { WakeWordIndicator } from './WakeWordIndicator';
@@ -34,7 +34,7 @@ const ORB_COLORS: Record<string, string> = {
   idle: 'from-amber-500/15 via-amber-400/5 to-transparent',
 };
 
-const ORB_ANIMATIONS: Record<string, object> = {
+const ORB_ANIMATIONS: Record<string, TargetAndTransition> = {
   speaking: {
     scale: [1, 1.1, 1],
     transition: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
@@ -101,18 +101,23 @@ const AMBIENT_STYLES: Record<string, React.CSSProperties> = {
   none: { background: 'none' },
 };
 
-const coreStyle = (orbState: string): React.CSSProperties => ({
+const CORE_BASE: React.CSSProperties = {
   width: 120,
   height: 120,
-  background:
-    orbState === 'muted'
-      ? 'radial-gradient(circle, rgba(80,75,70,0.3) 0%, rgba(40,38,35,0.1) 70%)'
-      : 'radial-gradient(circle, rgba(212,160,84,0.15) 0%, rgba(212,160,84,0.02) 70%)',
-  boxShadow:
-    orbState === 'speaking'
-      ? '0 0 60px rgba(212,160,84,0.15), inset 0 0 30px rgba(212,160,84,0.05)'
-      : 'inset 0 0 30px rgba(212,160,84,0.03)',
-});
+  background: 'radial-gradient(circle, rgba(212,160,84,0.15) 0%, rgba(212,160,84,0.02) 70%)',
+  boxShadow: 'inset 0 0 30px rgba(212,160,84,0.03)',
+};
+
+const CORE_STYLES: Record<string, React.CSSProperties> = {
+  muted: {
+    ...CORE_BASE,
+    background: 'radial-gradient(circle, rgba(80,75,70,0.3) 0%, rgba(40,38,35,0.1) 70%)',
+  },
+  speaking: {
+    ...CORE_BASE,
+    boxShadow: '0 0 60px rgba(212,160,84,0.15), inset 0 0 30px rgba(212,160,84,0.05)',
+  },
+};
 
 /** Map assistantStatus + context flags → visual orb state key */
 function deriveOrbState(
@@ -120,22 +125,10 @@ function deriveOrbState(
   conversationState: ConversationState | undefined,
   isMuted: boolean,
 ): string {
-  // Assistant activity states take priority
-  if (
-    assistantStatus === 'speaking' ||
-    assistantStatus === 'thinking' ||
-    assistantStatus === 'tool_calling' ||
-    assistantStatus === 'listening' ||
-    assistantStatus === 'responding' ||
-    assistantStatus === 'interrupted' ||
-    assistantStatus === 'error'
-  ) {
-    // 'responding' uses same visual as 'thinking' (text streaming in voice mode)
-    if (assistantStatus === 'responding') return 'thinking';
-    return assistantStatus;
+  if (assistantStatus !== 'idle') {
+    return assistantStatus === 'responding' ? 'thinking' : assistantStatus;
   }
-
-  // Idle — check wake word / mute state
+  // idle sub-states
   if (conversationState === 'loading' || conversationState === 'idle') return 'idle';
   if (isMuted) return 'muted';
   return 'idle';
@@ -245,7 +238,7 @@ export const VoiceMode = ({
           {/* Inner core */}
           <motion.div
             className="absolute rounded-full"
-            style={coreStyle(orbState)}
+            style={CORE_STYLES[orbState] ?? CORE_BASE}
             animate={orbState === 'speaking' ? CORE_SPEAKING_ANIMATE : CORE_IDLE_ANIMATE}
           />
 
@@ -308,6 +301,8 @@ export const VoiceMode = ({
             whileTap={{ scale: 0.94 }}
             animate={isUserSpeaking ? MIC_SPEAKING_ANIMATE : MIC_IDLE_ANIMATE}
             onClick={onMicClick}
+            aria-label={isMuted ? '取消静音' : '静音麦克风'}
+            aria-pressed={isMuted}
             data-testid="mic-button"
             data-muted={isMuted ? 'true' : 'false'}
             className={`absolute left-1/2 -translate-x-1/2 w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ${
@@ -330,6 +325,7 @@ export const VoiceMode = ({
                 whileHover={{ scale: 1.06 }}
                 whileTap={{ scale: 0.94 }}
                 onClick={onStopSpeaking}
+                aria-label="停止播放"
                 data-testid="voice-stop-button"
                 className="absolute right-0 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full flex items-center justify-center bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
               >
