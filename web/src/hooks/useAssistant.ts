@@ -7,6 +7,7 @@ import {
 } from '../services/websocket';
 import type { WebsocketMessage } from '../services/websocket';
 import { AudioProcessor, type CalibrationState } from '../services/audio';
+import { AudioPlayback } from '../services/audioPlayback';
 import { createPlatformAudio } from '../services/platformAudio';
 import type { WakeWordDetector } from '../services/wakeWordDetector';
 import {
@@ -42,6 +43,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
 
   const clientRef = useRef<VoiceAssistantClient | null>(null);
   const audioProcessorRef = useRef<AudioProcessor | null>(null);
+  const playbackRef = useRef<AudioPlayback | null>(null);
   const audioStartedRef = useRef(false);
 
   const wakeWordConfig: ConversationSessionConfig = useMemo(
@@ -213,11 +215,17 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
   }, []);
 
   useEffect(() => {
+    // Create AudioPlayback coordinator
+    const playback = new AudioPlayback();
+    playbackRef.current = playback;
+    playback.setOnSpeakingChange((speaking) => setIsSpeaking(speaking));
+
+    // Create WebSocket client (pure transport)
     const client = new VoiceAssistantClient(sessionId);
     clientRef.current = client;
     client.connect(
       handleMessage,
-      (speaking) => setIsSpeaking(speaking),
+      (data) => playback.play(data), // Binary frames → playback
       () => {}, // onOpen - handled by onConnectionStateChange
       (state, metadata) => {
         setConnectionState(state);
@@ -252,7 +260,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
       }
       adapter.setOnRmsChange((rms) => setTtsRms(rms));
       audioProcessor.setPlatformAdapter(adapter);
-      client.setPlatformAdapter(adapter);
+      playback.setPlatformAdapter(adapter);
     });
 
     audioProcessorRef.current = audioProcessor;
@@ -261,6 +269,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     const handleBeforeUnload = () => {
       clientRef.current?.disconnect();
       audioProcessorRef.current?.stop();
+      playbackRef.current?.dispose();
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
 
@@ -283,8 +292,10 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
       // will reattach to the existing pipeline.
       client.disconnect();
       audioProcessor.stop();
+      playback.dispose();
       clientRef.current = null;
       audioProcessorRef.current = null;
+      playbackRef.current = null;
     };
   }, [sessionId, handleMessage]);
 
@@ -372,10 +383,11 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     }
   }, []);
 
-  const getAnalyserNode = useCallback(() => clientRef.current?.getAnalyserNode() ?? null, []);
+  const getAnalyserNode = useCallback(() => playbackRef.current?.getAnalyserNode() ?? null, []);
 
   const stopSpeaking = useCallback(() => {
-    clientRef.current?.stopSpeaking();
+    clientRef.current?.sendInterrupt();
+    playbackRef.current?.stop();
     setIsSpeaking(false);
     setIsAssistantTyping(false);
   }, []);

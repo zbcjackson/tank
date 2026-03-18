@@ -78,7 +78,7 @@ describe('VoiceAssistantClient', () => {
     client = new VoiceAssistantClient('test-session', 'localhost:8000');
     client.connect(
       (msg) => messages.push(msg),
-      undefined,
+      () => {}, // onBinaryMessage — not tested here
       undefined,
       (state, metadata) => stateChanges.push({ state, metadata }),
     );

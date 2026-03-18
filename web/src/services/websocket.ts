@@ -1,5 +1,3 @@
-import type { PlatformAudioAdapter } from './platformAudio';
-
 export type MessageType = 'signal' | 'transcript' | 'text' | 'update' | 'input';
 
 export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
@@ -34,11 +32,6 @@ export interface WebsocketMessage {
 export class VoiceAssistantClient {
   private socket: WebSocket | null = null;
   private url: string;
-  private onSpeakingChange?: (isSpeaking: boolean) => void;
-  private speakingTimer: ReturnType<typeof setTimeout> | null = null;
-
-  // Platform audio adapter (set externally via setPlatformAdapter)
-  private platformAdapter: PlatformAudioAdapter | null = null;
 
   // Reconnection state
   private connectionState: ConnectionState = 'idle';
@@ -52,6 +45,7 @@ export class VoiceAssistantClient {
   private shouldReconnect: boolean = true;
   private onConnectionStateChange?: (state: ConnectionState, metadata?: ConnectionMetadata) => void;
   private onMessageCallback?: (msg: WebsocketMessage) => void;
+  private onBinaryMessageCallback?: (data: ArrayBuffer) => void;
   private onOpenCallback?: () => void;
   private connectionTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
   private lastError: { type: ErrorType; message: string } | null = null;
@@ -67,18 +61,14 @@ export class VoiceAssistantClient {
     this.url = `${protocol}//${baseUrl}/ws/${sessionId}`;
   }
 
-  setPlatformAdapter(adapter: PlatformAudioAdapter) {
-    this.platformAdapter = adapter;
-  }
-
   connect(
     onMessage: (msg: WebsocketMessage) => void,
-    onSpeakingChange?: (isSpeaking: boolean) => void,
+    onBinaryMessage: (data: ArrayBuffer) => void,
     onOpen?: () => void,
     onConnectionStateChange?: (state: ConnectionState, metadata?: ConnectionMetadata) => void,
   ) {
     this.onMessageCallback = onMessage;
-    this.onSpeakingChange = onSpeakingChange;
+    this.onBinaryMessageCallback = onBinaryMessage;
     this.onOpenCallback = onOpen;
     this.onConnectionStateChange = onConnectionStateChange;
     this.shouldReconnect = true;
@@ -126,7 +116,7 @@ export class VoiceAssistantClient {
 
         this.onMessageCallback?.(msg);
       } else {
-        this.playAudioChunk(event.data);
+        this.onBinaryMessageCallback?.(event.data);
       }
     };
 
@@ -154,30 +144,6 @@ export class VoiceAssistantClient {
     };
   }
 
-  getAnalyserNode(): AnalyserNode | null {
-    return this.platformAdapter?.getAnalyserNode() ?? null;
-  }
-
-  private async playAudioChunk(data: ArrayBuffer) {
-    if (!this.platformAdapter) return;
-
-    try {
-      const { durationMs } = await this.platformAdapter.playChunk(data);
-
-      if (this.onSpeakingChange) {
-        this.onSpeakingChange(true);
-        if (this.speakingTimer) clearTimeout(this.speakingTimer);
-
-        this.speakingTimer = setTimeout(() => {
-          this.onSpeakingChange?.(false);
-          this.speakingTimer = null;
-        }, durationMs);
-      }
-    } catch (e) {
-      console.error('Error playing audio chunk:', e);
-    }
-  }
-
   sendAudio(data: Int16Array) {
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(data.buffer);
@@ -195,23 +161,10 @@ export class VoiceAssistantClient {
     }
   }
 
-  stopSpeaking() {
-    // Send interrupt signal to backend to stop TTS/LLM
+  sendInterrupt() {
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ type: 'signal', content: 'interrupt', metadata: {} }));
     }
-
-    // Stop playback via platform adapter
-    this.platformAdapter?.stopPlayback().catch((e) => {
-      console.error('Error stopping playback:', e);
-    });
-
-    // Reset speaking state
-    if (this.speakingTimer) {
-      clearTimeout(this.speakingTimer);
-      this.speakingTimer = null;
-    }
-    this.onSpeakingChange?.(false);
   }
 
   private startConnectionTimeout() {
@@ -438,6 +391,5 @@ export class VoiceAssistantClient {
         socket.onopen = () => socket.close();
       }
     }
-    this.platformAdapter?.dispose();
   }
 }
