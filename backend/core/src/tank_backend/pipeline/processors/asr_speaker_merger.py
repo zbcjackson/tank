@@ -1,4 +1,4 @@
-"""FanInMerger — collects results from N branches, correlates, and emits merged output."""
+"""ASR + Speaker ID merger — correlates transcription and speaker identification results."""
 
 from __future__ import annotations
 
@@ -22,16 +22,12 @@ class SpeakerIDResult:
     user_id: str
 
 
-class FanInMerger(Processor):
-    """Collects results from N branches, correlates by utterance_id, emits merged output.
+class ASRSpeakerMerger(Processor):
+    """Merges ASR transcription with speaker identification results.
 
-    Receives items from a single queue (all branches push into it).
-    Inspects type:
-      - ``BrainInputEvent`` → ASR branch result
-      - ``SpeakerIDResult`` → speaker identification branch result
-
-    When all branches have reported for a given utterance_id, merges them
-    (sets ``BrainInputEvent.user`` from ``SpeakerIDResult.user_id``) and emits.
+    Receives items from a single queue (both ASR and SpeakerID branches push into it).
+    Correlates by ``utterance_id``, merges ``BrainInputEvent.user`` from
+    ``SpeakerIDResult.user_id``, and emits the combined result.
 
     On timeout: emits with whatever is available (default user if speaker ID missing).
     """
@@ -43,7 +39,7 @@ class FanInMerger(Processor):
         default_user: str = "User",
         bus: Bus | None = None,
     ) -> None:
-        super().__init__(name="fan_in_merger")
+        super().__init__(name="asr_speaker_merger")
         self._branch_count = branch_count
         self._timeout_s = timeout_s
         self._default_user = default_user
@@ -178,7 +174,7 @@ class FanInMerger(Processor):
         for uid in expired_ids:
             pending = self._pending[uid]
             logger.warning(
-                "FanInMerger: utterance %s timed out after %.1fs (asr=%s, speaker=%s)",
+                "ASRSpeakerMerger: utterance %s timed out after %.1fs (asr=%s, speaker=%s)",
                 uid,
                 now - pending.created_at,
                 pending.brain_event is not None,
@@ -193,7 +189,7 @@ class FanInMerger(Processor):
         count = len(self._pending)
         self._pending.clear()
         if count:
-            logger.debug("FanInMerger flushed %d pending entries", count)
+            logger.debug("ASRSpeakerMerger flushed %d pending entries", count)
 
     def handle_event(self, event: Any) -> bool:
         if hasattr(event, "type") and event.type == "flush":

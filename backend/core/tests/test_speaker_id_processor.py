@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import numpy as np
 
 from tank_backend.pipeline.bus import Bus
-from tank_backend.pipeline.processors.fan_in_merger import SpeakerIDResult
+from tank_backend.pipeline.processors.asr_speaker_merger import SpeakerIDResult
 from tank_backend.pipeline.processors.speaker_id import SpeakerIDProcessor
 
 

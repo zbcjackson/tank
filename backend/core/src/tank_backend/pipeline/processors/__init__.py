@@ -1,9 +1,9 @@
 """Pipeline processors — native Processor subclasses for the audio pipeline."""
 
 from .asr import ASRProcessor
+from .asr_speaker_merger import ASRSpeakerMerger, SpeakerIDResult
 from .brain import Brain
 from .echo_guard import EchoGuardConfig, SelfEchoDetector
-from .fan_in_merger import FanInMerger, SpeakerIDResult
 from .playback import PlaybackProcessor
 from .speaker_id import SpeakerIDProcessor
 from .tts import TTSProcessor
@@ -13,7 +13,7 @@ __all__ = [
     "ASRProcessor",
     "Brain",
     "EchoGuardConfig",
-    "FanInMerger",
+    "ASRSpeakerMerger",
     "PlaybackProcessor",
     "SelfEchoDetector",
     "SpeakerIDProcessor",

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..bus import Bus, BusMessage
 from ..processor import FlowReturn, Processor
-from .fan_in_merger import SpeakerIDResult
+from .asr_speaker_merger import SpeakerIDResult
 
 if TYPE_CHECKING:
     from ...audio.input.voiceprint import VoiceprintRecognizer

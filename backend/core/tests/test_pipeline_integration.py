@@ -28,8 +28,8 @@ from tank_backend.core.events import (
 from tank_backend.pipeline.builder import PipelineBuilder
 from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.processors.asr import ASRProcessor
+from tank_backend.pipeline.processors.asr_speaker_merger import ASRSpeakerMerger
 from tank_backend.pipeline.processors.brain import Brain
-from tank_backend.pipeline.processors.fan_in_merger import FanInMerger
 from tank_backend.pipeline.processors.playback import PlaybackProcessor
 from tank_backend.pipeline.processors.speaker_id import SpeakerIDProcessor
 from tank_backend.pipeline.processors.tts import TTSProcessor
@@ -499,7 +499,7 @@ class TestFanOutFanInIntegration:
 
     async def test_vad_fans_out_to_asr_and_speaker_id(self):
         """VAD END_SPEECH should reach both ASR and SpeakerID in parallel,
-        merge at FanInMerger, and arrive at Brain with the identified user."""
+        merge at ASRSpeakerMerger, and arrive at Brain with the identified user."""
         bus = Bus()
         interrupt_event = threading.Event()
 
@@ -520,7 +520,7 @@ class TestFanOutFanInIntegration:
 
         asr_proc = ASRProcessor(asr=asr_mock, bus=bus)
         speaker_id_proc = SpeakerIDProcessor(recognizer=recognizer_mock, bus=bus)
-        fan_in_merger = FanInMerger(branch_count=2, timeout_s=2.0, bus=bus)
+        fan_in_merger = ASRSpeakerMerger(branch_count=2, timeout_s=2.0, bus=bus)
 
         pipeline = (
             PipelineBuilder(bus)
@@ -548,7 +548,7 @@ class TestFanOutFanInIntegration:
             await pipeline.stop()
 
     async def test_fan_in_timeout_uses_default_user(self):
-        """When SpeakerID is slow, FanInMerger should timeout and use default user."""
+        """When SpeakerID is slow, ASRSpeakerMerger should timeout and use default user."""
         bus = Bus()
         interrupt_event = threading.Event()
 
@@ -573,7 +573,7 @@ class TestFanOutFanInIntegration:
         asr_proc = ASRProcessor(asr=asr_mock, bus=bus)
         speaker_id_proc = SpeakerIDProcessor(recognizer=recognizer_mock, bus=bus)
         # Very short timeout so the test doesn't wait long
-        fan_in_merger = FanInMerger(
+        fan_in_merger = ASRSpeakerMerger(
             branch_count=2, timeout_s=0.3, default_user="DefaultUser", bus=bus,
         )
 
@@ -622,7 +622,7 @@ class TestFanOutFanInIntegration:
 
         asr_proc = ASRProcessor(asr=asr_mock, bus=bus)
         speaker_id_proc = SpeakerIDProcessor(recognizer=recognizer_mock, bus=bus)
-        fan_in_merger = FanInMerger(branch_count=2, timeout_s=2.0, bus=bus)
+        fan_in_merger = ASRSpeakerMerger(branch_count=2, timeout_s=2.0, bus=bus)
 
         pipeline = (
             PipelineBuilder(bus)
@@ -660,7 +660,7 @@ class TestFanOutFanInIntegration:
 
         asr_proc = ASRProcessor(asr=asr_mock, bus=bus)
         speaker_id_proc = SpeakerIDProcessor(recognizer=recognizer_mock, bus=bus)
-        fan_in_merger = FanInMerger(branch_count=2, timeout_s=2.0, bus=bus)
+        fan_in_merger = ASRSpeakerMerger(branch_count=2, timeout_s=2.0, bus=bus)
 
         pipeline = (
             PipelineBuilder(bus)

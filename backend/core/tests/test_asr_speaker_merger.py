@@ -1,10 +1,10 @@
-"""Tests for FanInMerger."""
+"""Tests for ASRSpeakerMerger."""
 
 import asyncio
 
 from tank_backend.core.events import BrainInputEvent, InputType
 from tank_backend.pipeline.bus import Bus
-from tank_backend.pipeline.processors.fan_in_merger import FanInMerger, SpeakerIDResult
+from tank_backend.pipeline.processors.asr_speaker_merger import ASRSpeakerMerger, SpeakerIDResult
 
 
 async def _collect(merger, item):
@@ -16,10 +16,10 @@ async def _collect(merger, item):
     return results
 
 
-class TestFanInMerger:
+class TestASRSpeakerMerger:
     async def test_merge_asr_and_speaker_id(self):
         """When both branches report, merger emits BrainInputEvent with merged user."""
-        merger = FanInMerger(branch_count=2, timeout_s=5.0)
+        merger = ASRSpeakerMerger(branch_count=2, timeout_s=5.0)
 
         asr_event = BrainInputEvent(
             type=InputType.AUDIO,
@@ -45,7 +45,7 @@ class TestFanInMerger:
 
     async def test_merge_speaker_id_first(self):
         """Order shouldn't matter — speaker ID arriving first should also work."""
-        merger = FanInMerger(branch_count=2, timeout_s=5.0)
+        merger = ASRSpeakerMerger(branch_count=2, timeout_s=5.0)
 
         speaker_result = SpeakerIDResult(utterance_id="1.000_2.000", user_id="alice")
         asr_event = BrainInputEvent(
@@ -69,7 +69,7 @@ class TestFanInMerger:
 
     async def test_passthrough_without_utterance_id(self):
         """BrainInputEvent without utterance_id should pass through unmodified."""
-        merger = FanInMerger(branch_count=2, timeout_s=5.0)
+        merger = ASRSpeakerMerger(branch_count=2, timeout_s=5.0)
 
         event = BrainInputEvent(
             type=InputType.TEXT,
@@ -86,14 +86,14 @@ class TestFanInMerger:
 
     async def test_passthrough_unknown_type(self):
         """Unknown item types should pass through."""
-        merger = FanInMerger(branch_count=2, timeout_s=5.0)
+        merger = ASRSpeakerMerger(branch_count=2, timeout_s=5.0)
 
         results = await _collect(merger, "some_string")
         assert results == ["some_string"]
 
     async def test_timeout_emits_partial_asr_only(self):
         """When speaker ID times out, merger should emit with default user."""
-        merger = FanInMerger(branch_count=2, timeout_s=0.05, default_user="DefaultUser")
+        merger = ASRSpeakerMerger(branch_count=2, timeout_s=0.05, default_user="DefaultUser")
 
         asr_event = BrainInputEvent(
             type=InputType.AUDIO,
@@ -127,7 +127,7 @@ class TestFanInMerger:
 
     async def test_speaker_id_only_discarded(self):
         """SpeakerIDResult without matching ASR should be discarded on timeout."""
-        merger = FanInMerger(branch_count=2, timeout_s=0.05)
+        merger = ASRSpeakerMerger(branch_count=2, timeout_s=0.05)
 
         speaker_result = SpeakerIDResult(utterance_id="orphan_id", user_id="bob")
         await _collect(merger, speaker_result)
@@ -144,7 +144,7 @@ class TestFanInMerger:
 
     async def test_flush_clears_pending(self):
         """flush() should clear all pending state."""
-        merger = FanInMerger(branch_count=2, timeout_s=5.0)
+        merger = ASRSpeakerMerger(branch_count=2, timeout_s=5.0)
 
         asr_event = BrainInputEvent(
             type=InputType.AUDIO,
@@ -162,7 +162,7 @@ class TestFanInMerger:
 
     async def test_multiple_utterances_independent(self):
         """Multiple utterances should be tracked independently."""
-        merger = FanInMerger(branch_count=2, timeout_s=5.0)
+        merger = ASRSpeakerMerger(branch_count=2, timeout_s=5.0)
 
         asr1 = BrainInputEvent(
             type=InputType.AUDIO, text="first", user="User",
@@ -199,7 +199,7 @@ class TestFanInMerger:
         messages = []
         bus.subscribe("fan_in_merged", lambda m: messages.append(m))
 
-        merger = FanInMerger(branch_count=2, timeout_s=5.0, bus=bus)
+        merger = ASRSpeakerMerger(branch_count=2, timeout_s=5.0, bus=bus)
 
         asr_event = BrainInputEvent(
             type=InputType.AUDIO, text="hello", user="User",

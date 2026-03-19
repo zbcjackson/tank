@@ -18,9 +18,9 @@ from ..pipeline.event import EventDirection, PipelineEvent
 from ..pipeline.observers import InterruptLatencyObserver, LatencyObserver, TurnTrackingObserver
 from ..pipeline.processors import (
     ASRProcessor,
+    ASRSpeakerMerger,
     Brain,
     EchoGuardConfig,
-    FanInMerger,
     PlaybackProcessor,
     SpeakerIDProcessor,
     TTSProcessor,
@@ -134,7 +134,7 @@ class Assistant:
                 speaker_id_proc = SpeakerIDProcessor(
                     recognizer=voiceprint_recognizer, bus=self._bus
                 )
-                fan_in_merger = FanInMerger(
+                fan_in_merger = ASRSpeakerMerger(
                     branch_count=2, timeout_s=2.0, bus=self._bus
                 )
                 builder.add(self._vad_processor)
@@ -186,10 +186,6 @@ class Assistant:
 
     def _create_voiceprint_recognizer(self, registry: object) -> object | None:
         """Create VoiceprintRecognizer if speaker ID is enabled, else None."""
-        if not self._config.enable_speaker_id:
-            return None
-        if not self._app_config.is_feature_enabled("speaker"):
-            return None
         try:
             speaker_cfg = self._app_config.get_feature_config("speaker")
             if not speaker_cfg.enabled or not speaker_cfg.extension:
@@ -225,10 +221,7 @@ class Assistant:
         return {
             "asr": self._has_asr,
             "tts": self._has_tts,
-            "speaker_id": (
-                self._config.enable_speaker_id
-                and self._app_config.is_feature_enabled("speaker")
-            ),
+            "speaker_id": self._app_config.is_feature_enabled("speaker"),
         }
 
     def subscribe_ui(self, callback: Callable[[UIMessage], None]) -> None:

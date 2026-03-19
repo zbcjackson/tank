@@ -7,7 +7,6 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ..config.settings import load_config
 from ..core.assistant import Assistant
 
 if TYPE_CHECKING:
@@ -41,10 +40,6 @@ class SessionManager:
     def _init_voiceprint(self, config_path: Path | None) -> None:
         """Initialize shared voiceprint recognizer for the speakers REST API."""
         try:
-            config = load_config(config_path)
-            if not config.enable_speaker_id:
-                return
-
             from ..audio.input.voiceprint_factory import (
                 create_disabled_recognizer,
                 create_voiceprint_recognizer,
