@@ -71,6 +71,11 @@ class ASRProcessor(Processor):
 
             if text:
                 msg_id = f"user_{uuid.uuid4().hex[:8]}"
+                utterance_id = (
+                    f"{item.started_at_s:.3f}_{item.ended_at_s:.3f}"
+                    if item.started_at_s is not None and item.ended_at_s is not None
+                    else msg_id
+                )
 
                 # Post user transcript to UI so it appears in the frontend
                 if self._bus:
@@ -92,7 +97,7 @@ class ASRProcessor(Processor):
                     user=self._user,
                     language="zh",
                     confidence=None,
-                    metadata={"msg_id": msg_id},
+                    metadata={"msg_id": msg_id, "utterance_id": utterance_id},
                 )
                 yield FlowReturn.OK, event
             else:

@@ -121,7 +121,7 @@ class Brain(Processor):
         self._interrupt_event.clear()
 
         started_at = time.time()
-        logger.info("Brain start processing %s at %.3f", event.text, started_at)
+        logger.info("Brain start processing %s (%s) at %.3f", event.text, event.user, started_at)
 
         # Add to history with speaker context
         user_message = f"{event.user}: {event.text}"

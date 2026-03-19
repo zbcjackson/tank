@@ -1,10 +1,14 @@
 """Pipeline builder and runtime container."""
 
+from __future__ import annotations
+
 import logging
+from dataclasses import dataclass, field
 from typing import Any
 
 from .bus import Bus
 from .event import PipelineEvent
+from .fan_out_queue import FanOutQueue
 from .processor import FlowReturn, Processor
 from .queue import ThreadedQueue
 
@@ -100,40 +104,140 @@ class Pipeline:
 
 
 class PipelineBuilder:
-    """Builds a pipeline from a list of processors, inserting ThreadedQueues at boundaries."""
+    """Builds a pipeline from a list of processors, inserting ThreadedQueues at boundaries.
+
+    Supports fan-out/fan-in regions for parallel processing branches.
+    """
 
     def __init__(self, bus: Bus) -> None:
         self._bus = bus
-        self._processors: list[Processor] = []
+        self._steps: list[_BuildStep] = []
 
-    def add(self, processor: Processor) -> "PipelineBuilder":
+    def add(self, processor: Processor) -> PipelineBuilder:
         """Add a processor to the pipeline."""
-        self._processors.append(processor)
+        self._steps.append(_BuildStep(kind="linear", processors=[processor]))
+        return self
+
+    def fan_out(self, *branches: list[Processor]) -> PipelineBuilder:
+        """Fan out: previous processor's output goes to all branches in parallel.
+
+        Each argument is a list of processors forming one branch.
+        """
+        if not branches or len(branches) < 2:
+            raise ValueError("fan_out requires at least 2 branches")
+        self._steps.append(_BuildStep(kind="fan_out", branches=list(branches)))
+        return self
+
+    def fan_in(self, merger: Processor) -> PipelineBuilder:
+        """Fan in: collect results from all active branches into merger processor."""
+        self._steps.append(_BuildStep(kind="fan_in", processors=[merger]))
         return self
 
     def build(self) -> Pipeline:
         """Build the pipeline, inserting ThreadedQueues between processors."""
-        if not self._processors:
+        if not self._steps:
             return Pipeline(processors=[], queues=[], bus=self._bus)
 
-        queues: list[ThreadedQueue] = []
+        all_processors: list[Processor] = []
+        all_queues: list[ThreadedQueue] = []
+        # The queue whose output should chain to the next stage
+        tail_queue: ThreadedQueue | None = None
+        queue_counter = 0
 
-        # Create a ThreadedQueue before each processor
-        for i, proc in enumerate(self._processors):
-            q = ThreadedQueue(name=f"q_{i}_{proc.name}", maxsize=10)
-            q.link(proc)
-            queues.append(q)
+        for step in self._steps:
+            if step.kind == "linear":
+                proc = step.processors[0]
+                q = ThreadedQueue(name=f"q_{queue_counter}_{proc.name}", maxsize=10)
+                q.link(proc)
+                queue_counter += 1
 
-        # Chain queues so each processor's output flows to the next queue
-        for i in range(len(queues) - 1):
-            queues[i].chain(queues[i + 1])
-            # Also set _next_queue on processors that need direct access
-            proc = self._processors[i]
-            if hasattr(proc, '_next_queue'):
-                proc._next_queue = queues[i + 1]
+                # Chain from previous tail
+                if tail_queue is not None:
+                    tail_queue.chain(q)
+                    # Also set _next_queue on processors that need direct access
+                    prev_proc = all_processors[-1] if all_processors else None
+                    if prev_proc is not None and hasattr(prev_proc, "_next_queue"):
+                        prev_proc._next_queue = q
+
+                all_processors.append(proc)
+                all_queues.append(q)
+                tail_queue = q
+
+            elif step.kind == "fan_out":
+                # Replace the current tail queue with a FanOutQueue
+                # The previous processor's output fans out to all branches
+                if tail_queue is None:
+                    raise ValueError("fan_out must follow at least one add()")
+
+                # Convert the tail queue to a FanOutQueue
+                prev_proc = all_processors[-1]
+                prev_idx = all_queues.index(tail_queue)
+                fan_q = FanOutQueue(name=tail_queue.name + "_fanout", maxsize=10)
+                fan_q.link(tail_queue._downstream)  # same downstream processor
+                # Rechain: if there was a queue before tail, point it to fan_q
+                for q in all_queues:
+                    if q._next_queue is tail_queue:
+                        q.chain(fan_q)
+                all_queues[prev_idx] = fan_q
+                tail_queue = fan_q
+
+                # Build each branch as a sub-chain
+                branch_tail_queues: list[ThreadedQueue] = []
+                for branch_procs in step.branches:
+                    branch_prev_q: ThreadedQueue | None = None
+                    for bp in branch_procs:
+                        bq = ThreadedQueue(
+                            name=f"q_{queue_counter}_{bp.name}", maxsize=10
+                        )
+                        bq.link(bp)
+                        queue_counter += 1
+
+                        if branch_prev_q is not None:
+                            branch_prev_q.chain(bq)
+                        else:
+                            # First processor in branch — fan_q pushes to it
+                            fan_q.add_branch(bq)
+
+                        all_processors.append(bp)
+                        all_queues.append(bq)
+                        branch_prev_q = bq
+
+                    if branch_prev_q is not None:
+                        branch_tail_queues.append(branch_prev_q)
+
+                # Store branch tails for fan_in to wire up
+                self._branch_tail_queues = branch_tail_queues
+                tail_queue = None  # No single tail until fan_in
+
+            elif step.kind == "fan_in":
+                merger = step.processors[0]
+                merger_q = ThreadedQueue(
+                    name=f"q_{queue_counter}_{merger.name}", maxsize=10
+                )
+                merger_q.link(merger)
+                queue_counter += 1
+
+                # All branch tails chain into the merger queue
+                if hasattr(self, "_branch_tail_queues"):
+                    for btq in self._branch_tail_queues:
+                        btq.chain(merger_q)
+                    del self._branch_tail_queues
+
+                all_processors.append(merger)
+                all_queues.append(merger_q)
+                tail_queue = merger_q
 
         return Pipeline(
-            processors=list(self._processors),
-            queues=queues,
+            processors=all_processors,
+            queues=all_queues,
             bus=self._bus,
         )
+
+
+@dataclass
+class _BuildStep:
+    """Internal representation of a builder step."""
+
+    kind: str  # "linear", "fan_out", "fan_in"
+    processors: list[Processor] = field(default_factory=list)
+    branches: list[list[Processor]] = field(default_factory=list)

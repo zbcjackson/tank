@@ -20,7 +20,9 @@ from ..pipeline.processors import (
     ASRProcessor,
     Brain,
     EchoGuardConfig,
+    FanInMerger,
     PlaybackProcessor,
+    SpeakerIDProcessor,
     TTSProcessor,
     VADProcessor,
 )
@@ -125,8 +127,23 @@ class Assistant:
                 ),
             )
             asr_proc = ASRProcessor(asr=asr_engine, bus=self._bus)
-            builder.add(self._vad_processor)
-            builder.add(asr_proc)
+
+            # Check if speaker ID should be enabled
+            voiceprint_recognizer = self._create_voiceprint_recognizer(registry)
+            if voiceprint_recognizer is not None:
+                speaker_id_proc = SpeakerIDProcessor(
+                    recognizer=voiceprint_recognizer, bus=self._bus
+                )
+                fan_in_merger = FanInMerger(
+                    branch_count=2, timeout_s=2.0, bus=self._bus
+                )
+                builder.add(self._vad_processor)
+                builder.fan_out([asr_proc], [speaker_id_proc])
+                builder.fan_in(fan_in_merger)
+            else:
+                # Linear pipeline (backward compatible)
+                builder.add(self._vad_processor)
+                builder.add(asr_proc)
 
         # Brain — native Processor (no more QueueWorker wrapper)
         self.brain = Brain(
@@ -166,6 +183,27 @@ class Assistant:
         if not cfg.enabled or not cfg.extension:
             return None
         return registry.instantiate(cfg.extension, cfg.config)  # type: ignore[union-attr]
+
+    def _create_voiceprint_recognizer(self, registry: object) -> object | None:
+        """Create VoiceprintRecognizer if speaker ID is enabled, else None."""
+        if not self._config.enable_speaker_id:
+            return None
+        if not self._app_config.is_feature_enabled("speaker"):
+            return None
+        try:
+            speaker_cfg = self._app_config.get_feature_config("speaker")
+            if not speaker_cfg.enabled or not speaker_cfg.extension:
+                return None
+
+            extractor = registry.instantiate(  # type: ignore[union-attr]
+                speaker_cfg.extension, speaker_cfg.config
+            )
+            from ..audio.input.voiceprint_factory import create_voiceprint_recognizer
+
+            return create_voiceprint_recognizer(extractor, speaker_cfg.config)
+        except Exception:
+            logger.warning("Failed to create voiceprint recognizer", exc_info=True)
+            return None
 
     def _build_echo_guard_config(self, raw: dict) -> EchoGuardConfig:
         """Build EchoGuardConfig from config.yaml echo_guard section."""
