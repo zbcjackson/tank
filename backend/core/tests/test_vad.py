@@ -242,8 +242,8 @@ class TestVADPreRoll:
             assert utterance_samples >= expected_pre_roll_samples
 
 
-class TestVADSustainedSpeechGate:
-    """Test sustained-speech gate for interrupt filtering."""
+class TestVADForwardsAudioFrame:
+    """Test that VADProcessor forwards AudioFrame during speech for streaming ASR."""
 
     @pytest.fixture
     def mock_vad_processor(self):
@@ -255,7 +255,7 @@ class TestVADSustainedSpeechGate:
 
         mock_vad = MagicMock()
         bus = Bus()
-        proc = VADProcessor(vad=mock_vad, bus=bus, min_interrupt_frames=3)
+        proc = VADProcessor(vad=mock_vad, bus=bus)
         return proc, bus, mock_vad
 
     @staticmethod
@@ -270,10 +270,12 @@ class TestVADSustainedSpeechGate:
         return result
 
     @staticmethod
-    async def _drain(proc, frame):
-        """Consume all items from the async generator."""
-        async for _ in proc.process(frame):
-            pass
+    async def _collect(proc, frame):
+        """Collect all (status, output) pairs from processor.process(frame)."""
+        results = []
+        async for status, output in proc.process(frame):
+            results.append((status, output))
+        return results
 
     @staticmethod
     def _frame(timestamp_s):
@@ -281,90 +283,30 @@ class TestVADSustainedSpeechGate:
         pcm = np.zeros(320, dtype=np.float32)
         return AudioFrame(pcm=pcm, sample_rate=16000, timestamp_s=timestamp_s)
 
-    async def test_speech_start_only_after_min_frames(self, mock_vad_processor):
-        """speech_start should only fire after min_interrupt_frames consecutive IN_SPEECH."""
+    async def test_in_speech_yields_audio_frame(self, mock_vad_processor):
+        """IN_SPEECH should forward the original AudioFrame downstream."""
         proc, bus, mock_vad = mock_vad_processor
-        speech_start_messages = []
-        bus.subscribe("speech_start", lambda m: speech_start_messages.append(m))
+        mock_vad.process_frame.return_value = self._make_vad_result(VADStatus.IN_SPEECH)
+
+        frame = self._frame(1000.0)
+        outputs = await self._collect(proc, frame)
+
+        assert len(outputs) == 1
+        assert outputs[0][1] is frame
+
+    async def test_no_speech_start_from_vad(self, mock_vad_processor):
+        """VAD no longer posts speech_start — ASR owns that responsibility."""
+        proc, bus, mock_vad = mock_vad_processor
+        speech_starts = []
+        bus.subscribe("speech_start", lambda m: speech_starts.append(m))
 
         mock_vad.process_frame.return_value = self._make_vad_result(VADStatus.IN_SPEECH)
 
-        # Send 2 frames (< min_interrupt_frames=3)
-        for i in range(2):
-            await self._drain(proc, self._frame(1000.0 + i * 0.02))
+        for i in range(10):
+            await self._collect(proc, self._frame(1000.0 + i * 0.02))
             bus.poll()
 
-        assert len(speech_start_messages) == 0
-
-        # Send 3rd frame (>= min_interrupt_frames)
-        await self._drain(proc, self._frame(1000.04))
-        bus.poll()
-
-        assert len(speech_start_messages) == 1
-
-    async def test_no_duplicate_speech_start(self, mock_vad_processor):
-        """speech_start should fire only once per speech segment."""
-        proc, bus, mock_vad = mock_vad_processor
-        speech_start_messages = []
-        bus.subscribe("speech_start", lambda m: speech_start_messages.append(m))
-
-        mock_vad.process_frame.return_value = self._make_vad_result(VADStatus.IN_SPEECH)
-
-        # Send 6 consecutive speech frames (well past threshold of 3)
-        for i in range(6):
-            await self._drain(proc, self._frame(1000.0 + i * 0.02))
-            bus.poll()
-
-        assert len(speech_start_messages) == 1
-
-    async def test_counter_resets_on_no_speech(self, mock_vad_processor):
-        """Consecutive speech counter should reset on NO_SPEECH frame."""
-        proc, bus, mock_vad = mock_vad_processor
-        speech_start_messages = []
-        bus.subscribe("speech_start", lambda m: speech_start_messages.append(m))
-
-        # Send 2 IN_SPEECH frames
-        mock_vad.process_frame.return_value = self._make_vad_result(
-            VADStatus.IN_SPEECH,
-        )
-        for i in range(2):
-            await self._drain(proc, self._frame(1000.0 + i * 0.02))
-            bus.poll()
-
-        # Send 1 NO_SPEECH frame (resets counter)
-        mock_vad.process_frame.return_value = self._make_vad_result(
-            VADStatus.NO_SPEECH,
-        )
-        await self._drain(proc, self._frame(1000.04))
-        bus.poll()
-
-        assert proc._consecutive_speech_frames == 0
-
-        # Send 2 more IN_SPEECH frames (counter restarted from 0)
-        mock_vad.process_frame.return_value = self._make_vad_result(
-            VADStatus.IN_SPEECH,
-        )
-        for i in range(2):
-            await self._drain(proc, self._frame(1000.06 + i * 0.02))
-            bus.poll()
-
-        # Only 2 consecutive — should NOT have posted speech_start
-        assert len(speech_start_messages) == 0
-
-    def test_flush_resets_counter(self, mock_vad_processor):
-        """Flush event should reset consecutive speech counter."""
-        proc, bus, mock_vad = mock_vad_processor
-
-        from tank_backend.pipeline.event import PipelineEvent
-
-        # Manually set counter as if speech was in progress
-        proc._consecutive_speech_frames = 2
-
-        mock_vad.flush.return_value = self._make_vad_result(VADStatus.NO_SPEECH)
-        proc.handle_event(PipelineEvent(type="flush", source="test"))
-
-        assert proc._consecutive_speech_frames == 0
-        assert proc._speech_active is False
+        assert len(speech_starts) == 0
 
 
 class TestVADEndpointDetection:

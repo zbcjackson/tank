@@ -25,6 +25,17 @@ class StreamingASREngine(ABC):
         """
         ...
 
+    @property
+    def supports_streaming(self) -> bool:
+        """Whether this engine supports streaming frame-by-frame recognition.
+
+        Engines that return True can receive small PCM chunks via process_pcm
+        during speech and produce meaningful partial transcripts.
+        Engines that return False (e.g. batch-only Whisper) should only be
+        called with a complete utterance after VAD END_SPEECH.
+        """
+        return True
+
     @abstractmethod
     def reset(self) -> None:
         """Reset internal state for a new utterance."""

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -13,13 +12,16 @@ from tank_backend.pipeline.processor import FlowReturn
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
-def _make_audio_frame(n_samples: int = 320, sr: int = 16000):
+BASE_TIME = 1000.0
+
+
+def _make_audio_frame(n_samples: int = 320, sr: int = 16000, timestamp_s: float | None = None):
     from tank_backend.audio.input.types import AudioFrame
 
     return AudioFrame(
         pcm=np.zeros(n_samples, dtype=np.float32),
         sample_rate=sr,
-        timestamp_s=time.time(),
+        timestamp_s=timestamp_s if timestamp_s is not None else BASE_TIME,
     )
 
 
@@ -81,13 +83,17 @@ class TestVADProcessor:
         outputs = await _collect(proc, _make_audio_frame())
         assert outputs[0][1] is None
 
-    async def test_in_speech_yields_none(self):
+    async def test_in_speech_yields_audio_frame(self):
+        """IN_SPEECH now forwards the AudioFrame for streaming ASR."""
         result = _make_vad_result_in_speech()
         proc, _ = self._make_processor(result)
-        outputs = await _collect(proc, _make_audio_frame())
-        assert outputs[0][1] is None
+        frame = _make_audio_frame()
+        outputs = await _collect(proc, frame)
+        assert outputs[0][0] == FlowReturn.OK
+        assert outputs[0][1] is frame
 
-    async def test_posts_speech_start_to_bus(self):
+    async def test_vad_does_not_post_speech_start(self):
+        """VAD no longer posts speech_start — ASR owns that now."""
         from tank_backend.audio.input.vad import VADResult, VADStatus
 
         bus = Bus()
@@ -97,13 +103,11 @@ class TestVADProcessor:
         result = VADResult(status=VADStatus.IN_SPEECH)
         proc, _ = self._make_processor(result, bus=bus)
 
-        # Sustained-speech gate requires min_interrupt_frames (default 3)
-        for _ in range(3):
+        for _ in range(10):
             await _collect(proc, _make_audio_frame())
         bus.poll()
 
-        assert len(received) == 1
-        assert received[0].source == "vad"
+        assert len(received) == 0
 
     async def test_posts_speech_end_to_bus(self):
         bus = Bus()
@@ -136,14 +140,24 @@ class TestVADProcessor:
 
 # ── ASRProcessor ─────────────────────────────────────────────────────────────
 
+def _make_streaming_asr(text="hello", is_final=True, supports_streaming=True):
+    """Create a mock ASR engine with streaming support."""
+    asr = MagicMock()
+    asr.process_pcm = MagicMock(return_value=(text, is_final))
+    asr.supports_streaming = supports_streaming
+    asr.reset = MagicMock()
+    return asr
+
+
 class TestASRProcessor:
-    def _make_processor(self, text="hello", is_final=True, bus=None):
+    def _make_processor(self, text="hello", is_final=True, bus=None, supports_streaming=True):
         from tank_backend.pipeline.processors.asr import ASRProcessor
 
-        asr = MagicMock()
-        asr.process_pcm = MagicMock(return_value=(text, is_final))
+        asr = _make_streaming_asr(text, is_final, supports_streaming)
         proc = ASRProcessor(asr=asr, bus=bus, user="TestUser")
         return proc, asr
+
+    # ── Batch mode (VADResult only) ──────────────────────────────────────
 
     async def test_transcribes_vad_result(self):
         proc, _ = self._make_processor(text="hello world")
@@ -224,6 +238,163 @@ class TestASRProcessor:
         consumed = proc.handle_event(event)
         assert consumed is False
         asr.reset.assert_called_once()
+
+    # ── Streaming mode (AudioFrame → partial → END_SPEECH → final) ───────
+
+    async def test_streaming_audio_frame_partial_transcript(self):
+        """AudioFrame with non-empty partial text → ui_message with is_final=False."""
+        bus = Bus()
+        received = []
+        bus.subscribe("ui_message", lambda m: received.append(m))
+
+        proc, _ = self._make_processor(text="你好", bus=bus)
+        frame = _make_audio_frame(timestamp_s=BASE_TIME)
+        outputs = await _collect(proc, frame)
+        bus.poll()
+
+        # AudioFrame yields None (brain waits for final)
+        assert outputs[0][1] is None
+
+        # Partial transcript posted to UI
+        assert len(received) == 1
+        display_msg = received[0].payload
+        assert display_msg.is_user is True
+        assert display_msg.text == "你好"
+        assert display_msg.is_final is False
+
+    async def test_streaming_first_partial_posts_speech_start(self):
+        """First non-empty partial transcript triggers speech_start on bus."""
+        bus = Bus()
+        speech_starts = []
+        bus.subscribe("speech_start", lambda m: speech_starts.append(m))
+
+        proc, _ = self._make_processor(text="hello", bus=bus)
+        await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME))
+        bus.poll()
+
+        assert len(speech_starts) == 1
+        assert speech_starts[0].source == "asr"
+
+    async def test_streaming_speech_start_posted_only_once(self):
+        """speech_start is posted only on the first non-empty partial, not repeated."""
+        bus = Bus()
+        speech_starts = []
+        bus.subscribe("speech_start", lambda m: speech_starts.append(m))
+
+        proc, _ = self._make_processor(text="hello", bus=bus)
+
+        # Send multiple frames
+        for i in range(5):
+            await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME + i * 0.02))
+        bus.poll()
+
+        assert len(speech_starts) == 1
+
+    async def test_streaming_no_speech_start_on_empty_text(self):
+        """Empty partial text → no speech_start posted."""
+        bus = Bus()
+        speech_starts = []
+        bus.subscribe("speech_start", lambda m: speech_starts.append(m))
+
+        proc, _ = self._make_processor(text="", bus=bus)
+        await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME))
+        bus.poll()
+
+        assert len(speech_starts) == 0
+
+    async def test_streaming_end_speech_finalizes(self):
+        """AudioFrames then VADResult END_SPEECH → BrainInputEvent with final text."""
+        from tank_backend.pipeline.processors.asr import ASRProcessor
+
+        # ASR returns partial "你好" on frames, then we finalize on END_SPEECH
+        asr = MagicMock()
+        asr.supports_streaming = True
+        asr.reset = MagicMock()
+        # First call (AudioFrame) returns partial
+        # Second call would be on END_SPEECH but streaming mode uses accumulated text
+        asr.process_pcm = MagicMock(return_value=("你好世界", False))
+
+        proc = ASRProcessor(asr=asr, user="TestUser")
+
+        # Send a few AudioFrames to build up partial text
+        for i in range(3):
+            await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME + i * 0.02))
+
+        # Now send END_SPEECH
+        vad_result = _make_vad_result_end_speech()
+        outputs = await _collect(proc, vad_result)
+
+        assert len(outputs) == 1
+        brain_event = outputs[0][1]
+        assert brain_event is not None
+        assert brain_event.text == "你好世界"
+        assert brain_event.user == "TestUser"
+
+    async def test_non_streaming_engine_ignores_frames(self):
+        """supports_streaming=False → AudioFrame yields None, no bus messages."""
+        bus = Bus()
+        received = []
+        bus.subscribe("ui_message", lambda m: received.append(m))
+        bus.subscribe("speech_start", lambda m: received.append(m))
+
+        proc, _ = self._make_processor(text="hello", bus=bus, supports_streaming=False)
+        outputs = await _collect(proc, _make_audio_frame())
+        bus.poll()
+
+        assert outputs[0][1] is None
+        assert len(received) == 0
+
+    async def test_non_streaming_engine_batch_on_end_speech(self):
+        """Non-streaming engine transcribes full utterance on END_SPEECH and posts speech_start."""
+        bus = Bus()
+        speech_starts = []
+        bus.subscribe("speech_start", lambda m: speech_starts.append(m))
+
+        proc, _ = self._make_processor(text="batch result", bus=bus, supports_streaming=False)
+        vad_result = _make_vad_result_end_speech()
+        outputs = await _collect(proc, vad_result)
+        bus.poll()
+
+        brain_event = outputs[0][1]
+        assert brain_event is not None
+        assert brain_event.text == "batch result"
+        # speech_start posted for non-streaming engines on finalize
+        assert len(speech_starts) == 1
+
+    async def test_flush_resets_streaming_state(self):
+        """Flush event resets streaming state so next utterance starts clean."""
+        bus = Bus()
+        proc, asr = self._make_processor(text="partial", bus=bus)
+
+        # Build up some streaming state
+        await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME))
+        assert proc._partial_text == "partial"
+        assert proc._speech_start_posted is True
+
+        # Flush
+        event = PipelineEvent(type="flush")
+        proc.handle_event(event)
+
+        assert proc._partial_text == ""
+        assert proc._speech_start_posted is False
+        assert proc._streaming_msg_id is None
+        asr.reset.assert_called_once()
+
+    async def test_streaming_same_text_no_duplicate_ui_message(self):
+        """If ASR returns the same text on consecutive frames, no duplicate ui_message."""
+        bus = Bus()
+        received = []
+        bus.subscribe("ui_message", lambda m: received.append(m))
+
+        proc, _ = self._make_processor(text="hello", bus=bus)
+
+        # Two frames, same text
+        await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME))
+        await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME + 0.02))
+        bus.poll()
+
+        # Only one ui_message (text didn't change on second frame)
+        assert len(received) == 1
 
 
 # ── TTSProcessor ─────────────────────────────────────────────────────────────

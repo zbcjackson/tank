@@ -94,3 +94,52 @@ async def test_brain_streaming_full_flow(brain, bus, mock_llm):
 
     # 3. Final message
     assert assistant_msgs[-1].is_final is True
+
+
+async def test_interrupted_response_saved_to_history(bus):
+    """When Brain is interrupted mid-stream, partial text is saved to conversation history."""
+    interrupt_event = threading.Event()
+
+    # LLM streams two TEXT chunks then the interrupt fires
+    async def interrupted_gen(*args, **kwargs):
+        yield UpdateType.TEXT, "The weather ", {}
+        yield UpdateType.TEXT, "is sunny", {}
+        # Simulate interrupt being set between chunks
+        interrupt_event.set()
+        yield UpdateType.TEXT, " today.", {}
+
+    mock_llm = MagicMock()
+    mock_llm.chat_stream.return_value = interrupted_gen()
+
+    mock_tool_manager = MagicMock()
+    mock_tool_manager.get_openai_tools.return_value = []
+    config = VoiceAssistantConfig()
+
+    brain = Brain(
+        llm=mock_llm,
+        tool_manager=mock_tool_manager,
+        config=config,
+        bus=bus,
+        interrupt_event=interrupt_event,
+    )
+
+    event = BrainInputEvent(
+        type=InputType.TEXT,
+        text="What is the weather?",
+        user="User",
+        language="en",
+        confidence=None,
+    )
+
+    results = await _collect(brain, event)
+
+    # Should yield None (interrupted, no TTS)
+    assert results[0][1] is None
+
+    # Partial response should be saved in conversation history
+    # History: [system, user_msg, assistant_partial]
+    history = brain._conversation_history
+    assistant_msgs = [m for m in history if m.get("role") == "assistant"]
+    assert len(assistant_msgs) == 1
+    # At least the first two chunks were accumulated before interrupt
+    assert "The weather " in assistant_msgs[0]["content"]

@@ -23,9 +23,12 @@ class VADProcessor(Processor):
     """Wraps SileroVAD as a pipeline Processor.
 
     Input: AudioFrame (float32, 16 kHz)
-    Output: VADResult (only END_SPEECH results with utterance PCM)
+    Output: AudioFrame (during speech) or VADResult (END_SPEECH with utterance PCM)
 
-    Emits interrupt event upstream on first speech detection.
+    Forwards AudioFrame downstream during speech so ASR can do streaming
+    recognition.  The ASR processor is responsible for posting speech_start
+    to the bus once it produces a non-empty partial transcript.
+
     Posts speech timing metrics to Bus.
 
     During TTS playback, raises the VAD threshold to filter out echo
@@ -37,7 +40,6 @@ class VADProcessor(Processor):
         vad: SileroVAD,
         bus: Bus | None = None,
         playback_threshold: float | None = None,
-        min_interrupt_frames: int = 3,
     ) -> None:
         super().__init__(name="vad")
         self.input_caps = AudioCaps(sample_rate=16000)
@@ -45,8 +47,6 @@ class VADProcessor(Processor):
         self._bus = bus
         self._speech_active = False
         self._playback_threshold = playback_threshold
-        self._min_interrupt_frames = min_interrupt_frames
-        self._consecutive_speech_frames = 0
 
         # Subscribe to playback state for dynamic threshold adjustment
         if self._bus and self._playback_threshold is not None:
@@ -66,22 +66,6 @@ class VADProcessor(Processor):
         frame: AudioFrame = item
         result = self._vad.process_frame(frame.pcm, frame.timestamp_s)
 
-        if result.status == VADStatus.IN_SPEECH:
-            self._consecutive_speech_frames += 1
-            if (
-                not self._speech_active
-                and self._consecutive_speech_frames >= self._min_interrupt_frames
-            ):
-                self._speech_active = True
-                if self._bus:
-                    self._bus.post(BusMessage(
-                        type="speech_start",
-                        source=self.name,
-                        payload={"timestamp_s": frame.timestamp_s},
-                    ))
-        else:
-            self._consecutive_speech_frames = 0
-
         if result.status == VADStatus.END_SPEECH:
             self._speech_active = False
             if self._bus:
@@ -96,8 +80,9 @@ class VADProcessor(Processor):
             yield FlowReturn.OK, result
 
         elif result.status == VADStatus.IN_SPEECH:
-            # Accumulating — no output yet
-            yield FlowReturn.OK, None
+            self._speech_active = True
+            # Forward the AudioFrame so downstream ASR can do streaming recognition
+            yield FlowReturn.OK, frame
 
         else:
             # NO_SPEECH — pass through silently
@@ -108,6 +93,5 @@ class VADProcessor(Processor):
             now_s = time.time()
             self._vad.flush(now_s)
             self._speech_active = False
-            self._consecutive_speech_frames = 0
             return False  # propagate
         return False

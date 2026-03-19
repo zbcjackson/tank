@@ -305,6 +305,10 @@ class Brain(Processor):
             return None
 
         except BrainInterrupted:
+            # Save what the assistant already said so the LLM has context
+            if full_response_text.strip():
+                self._add_to_conversation_history("assistant", full_response_text)
+                self._checkpoint()
             raise
         except Exception as e:
             logger.error(f"Stream processing error: {e}")
