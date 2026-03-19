@@ -138,7 +138,7 @@ class Assistant:
                     recognizer=voiceprint_recognizer, bus=self._bus
                 )
                 fan_in_merger = ASRSpeakerMerger(
-                    branch_count=2, timeout_s=2.0, bus=self._bus
+                    branch_count=2, bus=self._bus
                 )
                 builder.add(self._vad_processor)
                 builder.fan_out([asr_proc], [speaker_id_proc])

@@ -93,7 +93,10 @@ class TestASRSpeakerMerger:
 
     async def test_timeout_emits_partial_asr_only(self):
         """When speaker ID times out, merger should emit with default user."""
-        merger = ASRSpeakerMerger(branch_count=2, timeout_s=0.05, default_user="DefaultUser")
+        merger = ASRSpeakerMerger(
+            branch_count=2, timeout_s=0.05, timeout_multiplier=0,
+            default_user="DefaultUser",
+        )
 
         asr_event = BrainInputEvent(
             type=InputType.AUDIO,
@@ -127,7 +130,7 @@ class TestASRSpeakerMerger:
 
     async def test_speaker_id_only_discarded(self):
         """SpeakerIDResult without matching ASR should be discarded on timeout."""
-        merger = ASRSpeakerMerger(branch_count=2, timeout_s=0.05)
+        merger = ASRSpeakerMerger(branch_count=2, timeout_s=0.05, timeout_multiplier=0)
 
         speaker_result = SpeakerIDResult(utterance_id="orphan_id", user_id="bob")
         await _collect(merger, speaker_result)
@@ -215,3 +218,47 @@ class TestASRSpeakerMerger:
         assert len(messages) == 1
         assert messages[0].payload["user"] == "jackson"
         assert messages[0].payload["had_speaker_id"] is True
+
+    async def test_dynamic_timeout_scales_with_audio_duration(self):
+        """Timeout should scale with audio duration: max(base, multiplier * duration)."""
+        merger = ASRSpeakerMerger(
+            branch_count=2, timeout_s=5.0, timeout_multiplier=3.0,
+        )
+
+        # Short utterance (1s audio) → timeout = max(5, 3*1) = 5s
+        short_event = BrainInputEvent(
+            type=InputType.AUDIO, text="hi", user="User",
+            language="en", confidence=0.9,
+            metadata={"msg_id": "m1", "utterance_id": "0.000_1.000"},
+        )
+        await _collect(merger, short_event)
+        pending_short = merger._pending["0.000_1.000"]
+        assert pending_short.audio_duration_s == 1.0
+        assert merger._timeout_for(pending_short) == 5.0  # base wins
+
+        # Long utterance (10s audio) → timeout = max(5, 3*10) = 30s
+        long_event = BrainInputEvent(
+            type=InputType.AUDIO, text="long speech", user="User",
+            language="en", confidence=0.9,
+            metadata={"msg_id": "m2", "utterance_id": "10.000_20.000"},
+        )
+        await _collect(merger, long_event)
+        pending_long = merger._pending["10.000_20.000"]
+        assert pending_long.audio_duration_s == 10.0
+        assert merger._timeout_for(pending_long) == 30.0  # multiplier wins
+
+    async def test_dynamic_timeout_fallback_for_unparseable_id(self):
+        """Non-timestamp utterance_id should fall back to base timeout."""
+        merger = ASRSpeakerMerger(
+            branch_count=2, timeout_s=5.0, timeout_multiplier=3.0,
+        )
+
+        event = BrainInputEvent(
+            type=InputType.AUDIO, text="hi", user="User",
+            language="en", confidence=0.9,
+            metadata={"msg_id": "m1", "utterance_id": "some_opaque_id"},
+        )
+        await _collect(merger, event)
+        pending = merger._pending["some_opaque_id"]
+        assert pending.audio_duration_s is None
+        assert merger._timeout_for(pending) == 5.0  # base fallback

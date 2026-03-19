@@ -35,13 +35,15 @@ class ASRSpeakerMerger(Processor):
     def __init__(
         self,
         branch_count: int = 2,
-        timeout_s: float = 2.0,
+        timeout_s: float = 10.0,
+        timeout_multiplier: float = 3.0,
         default_user: str = "User",
         bus: Bus | None = None,
     ) -> None:
         super().__init__(name="asr_speaker_merger")
         self._branch_count = branch_count
         self._timeout_s = timeout_s
+        self._timeout_multiplier = timeout_multiplier
         self._default_user = default_user
         self._bus = bus
 
@@ -87,8 +89,26 @@ class ASRSpeakerMerger(Processor):
 
     def _get_or_create(self, utterance_id: str) -> _PendingMerge:
         if utterance_id not in self._pending:
-            self._pending[utterance_id] = _PendingMerge(created_at=time.monotonic())
+            self._pending[utterance_id] = _PendingMerge(
+                created_at=time.monotonic(),
+                audio_duration_s=self._parse_audio_duration(utterance_id),
+            )
         return self._pending[utterance_id]
+
+    @staticmethod
+    def _parse_audio_duration(utterance_id: str) -> float | None:
+        """Extract audio duration from utterance_id format '{start:.3f}_{end:.3f}'."""
+        try:
+            start_s, end_s = utterance_id.split("_", 1)
+            return float(end_s) - float(start_s)
+        except (ValueError, IndexError):
+            return None
+
+    def _timeout_for(self, pending: _PendingMerge) -> float:
+        """Compute dynamic timeout: max(base, multiplier * audio_duration)."""
+        if pending.audio_duration_s is not None:
+            return max(self._timeout_s, self._timeout_multiplier * pending.audio_duration_s)
+        return self._timeout_s
 
     def _try_merge(self, utterance_id: str) -> Any | None:
         """Try to merge if all branches have reported. Returns merged event or None."""
@@ -169,7 +189,7 @@ class ASRSpeakerMerger(Processor):
         expired_ids = [
             uid
             for uid, p in self._pending.items()
-            if (now - p.created_at) >= self._timeout_s
+            if (now - p.created_at) >= self._timeout_for(p)
         ]
         for uid in expired_ids:
             pending = self._pending[uid]
@@ -202,5 +222,6 @@ class _PendingMerge:
     """Internal state for a pending merge operation."""
 
     created_at: float
+    audio_duration_s: float | None = None
     brain_event: Any = None
     speaker_result: SpeakerIDResult | None = None
