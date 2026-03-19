@@ -19,6 +19,18 @@ llm:
       X-Title: "Tank Voice Assistant"
     stream_options: true
 
+  # Optional: Use a cheaper/faster model for context summarization
+  # summarization:
+  #   api_key: ${LLM_API_KEY}
+  #   model: openai/gpt-4o-mini
+  #   base_url: https://openrouter.ai/api/v1
+  #   temperature: 0.3
+  #   max_tokens: 500
+  #   extra_headers:
+  #     HTTP-Referer: "http://localhost:3000"
+  #     X-Title: "Tank Voice Assistant"
+  #   stream_options: false
+
 # Echo guard — backend-side defense against self-echo (assistant hearing itself).
 # Layer 1: VAD threshold — during playback, raise VAD sensitivity threshold to filter echo.
 # Layer 2: Self-echo text detection — safety net comparing ASR output against recent TTS text.
@@ -65,3 +77,9 @@ sandbox:
   default_timeout: 120
   max_timeout: 600
   network_enabled: true
+
+# Conversation persistence — save/restore conversation history across restarts.
+# Disabled by default. Enable and set db_path to activate.
+persistence:
+  enabled: false
+  db_path: ../data/sessions.db

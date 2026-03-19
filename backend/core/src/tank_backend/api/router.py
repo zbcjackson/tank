@@ -71,6 +71,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
     assistant, is_new = await session_manager.get_or_create_assistant(session_id)
 
+    # Load persisted conversation history for this session
+    assistant.set_session_id(session_id)
+
     if not is_new:
         logger.info(f"WebSocket reattached to existing session: {session_id}")
 

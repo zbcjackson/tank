@@ -12,6 +12,7 @@ MODULE = "tank_backend.pipeline.processors.brain"
 def _make_brain(
     summarize_at_tokens: int = 6000,
     max_history_tokens: int = 8000,
+    llm_summarization: object | None = None,
 ) -> Brain:
     """Create a Brain with mocked dependencies for testing summarization."""
     config = MagicMock()
@@ -30,6 +31,7 @@ def _make_brain(
             config=config,
             bus=bus,
             interrupt_event=threading.Event(),
+            llm_summarization=llm_summarization,
         )
     return brain
 
@@ -149,3 +151,54 @@ class TestMaybeSummarize:
 
         # Should not have called LLM — not enough messages to split
         brain._llm.chat_completion_async.assert_not_called()
+
+
+class TestSummarizationLLMProfile:
+    async def test_summarization_uses_dedicated_llm_when_provided(self):
+        """When a dedicated summarization LLM is provided, it should be used."""
+        dedicated_llm = MagicMock()
+        dedicated_llm.chat_completion_async = AsyncMock(
+            return_value={
+                "choices": [{"message": {"content": "Dedicated summary."}}],
+            }
+        )
+
+        brain = _make_brain(
+            summarize_at_tokens=200,
+            max_history_tokens=10000,
+            llm_summarization=dedicated_llm,
+        )
+
+        for i in range(15):
+            brain._add_to_conversation_history("user", f"Message {i}: " + "word " * 10)
+            brain._add_to_conversation_history("assistant", f"Reply {i}: " + "response " * 10)
+
+        await brain._maybe_summarize()
+
+        # Dedicated LLM should have been called
+        dedicated_llm.chat_completion_async.assert_called_once()
+        # Conversation LLM should NOT have been called
+        brain._llm.chat_completion_async.assert_not_called()
+
+    async def test_summarization_falls_back_to_conversation_llm(self):
+        """When no dedicated summarization LLM is provided, conversation LLM is used."""
+        brain = _make_brain(
+            summarize_at_tokens=200,
+            max_history_tokens=10000,
+            llm_summarization=None,
+        )
+
+        for i in range(15):
+            brain._add_to_conversation_history("user", f"Message {i}: " + "word " * 10)
+            brain._add_to_conversation_history("assistant", f"Reply {i}: " + "response " * 10)
+
+        brain._llm.chat_completion_async = AsyncMock(
+            return_value={
+                "choices": [{"message": {"content": "Fallback summary."}}],
+            }
+        )
+
+        await brain._maybe_summarize()
+
+        # Conversation LLM should have been called as fallback
+        brain._llm.chat_completion_async.assert_called_once()

@@ -67,6 +67,9 @@ class Assistant:
         self._llm = create_llm_from_profile(profile)
         self._tool_manager = ToolManager(serper_api_key=self._config.serper_api_key)
 
+        # Persistence (optional)
+        self._checkpointer = self._create_checkpointer()
+
         # Sandbox (lazy Docker container for runtime tools)
         sandbox_raw = self._app_config._config.get("sandbox", {})
         sandbox_config = SandboxConfig.from_dict(sandbox_raw)
@@ -145,6 +148,9 @@ class Assistant:
                 builder.add(self._vad_processor)
                 builder.add(asr_proc)
 
+        # Optional summarization LLM (cheaper/faster model for context summarization)
+        self._llm_summarization = self._create_summarization_llm()
+
         # Brain — native Processor (no more QueueWorker wrapper)
         self.brain = Brain(
             llm=self._llm,
@@ -154,6 +160,8 @@ class Assistant:
             interrupt_event=self.runtime.interrupt_event,
             tts_enabled=tts_engine is not None,
             echo_guard_config=echo_guard_cfg,
+            llm_summarization=self._llm_summarization,
+            checkpointer=self._checkpointer,
         )
         builder.add(self.brain)
 
@@ -200,6 +208,31 @@ class Assistant:
         except Exception:
             logger.warning("Failed to create voiceprint recognizer", exc_info=True)
             return None
+
+    def _create_summarization_llm(self) -> object | None:
+        """Create optional summarization LLM from 'summarization' profile, or None."""
+        try:
+            profile = self._app_config.get_llm_profile("summarization")
+            return create_llm_from_profile(profile)
+        except (KeyError, ValueError):
+            # No summarization profile configured — Brain will fall back to conversation LLM
+            return None
+
+    def _create_checkpointer(self) -> object | None:
+        """Create Checkpointer if persistence is enabled in config, or None."""
+        persistence_cfg = self._app_config._config.get("persistence", {})
+        if not persistence_cfg.get("enabled", False):
+            return None
+
+        from ..persistence.checkpointer import Checkpointer
+
+        db_path = persistence_cfg.get("db_path", "../data/sessions.db")
+        logger.info("Persistence enabled: %s", db_path)
+        return Checkpointer(db_path)
+
+    def set_session_id(self, session_id: str) -> None:
+        """Forward session ID to Brain for checkpoint loading."""
+        self.brain.set_session_id(session_id)
 
     def _build_echo_guard_config(self, raw: dict) -> EchoGuardConfig:
         """Build EchoGuardConfig from config.yaml echo_guard section."""
@@ -321,6 +354,10 @@ class Assistant:
         # Cleanup sandbox
         if self._sandbox is not None and self._sandbox.is_running:
             await self._sandbox.cleanup()
+
+        # Close checkpointer
+        if self._checkpointer is not None:
+            self._checkpointer.close()
 
         logger.info("Assistant stopped")
 

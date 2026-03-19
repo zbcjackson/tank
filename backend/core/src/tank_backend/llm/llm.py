@@ -1,8 +1,15 @@
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from openai import AsyncOpenAI
+from openai import (
+    APIConnectionError,
+    APITimeoutError,
+    AsyncOpenAI,
+    InternalServerError,
+    RateLimitError,
+)
 from openai.types.chat import ChatCompletionAssistantMessageParam, ChatCompletionMessageParam
 
 from ..core.events import UpdateType
@@ -10,6 +17,9 @@ from ..core.events import UpdateType
 logger = logging.getLogger("LLM")
 
 MAX_TOOL_ITERATIONS = 10
+MAX_RETRY_ATTEMPTS = 3
+RETRY_BASE_DELAY = 1.0
+RETRY_MAX_DELAY = 10.0
 
 
 class LLM:
@@ -36,6 +46,29 @@ class LLM:
             base_url=base_url,
             default_headers=extra_headers or {},
         )
+
+    _RETRYABLE_ERRORS = (RateLimitError, APITimeoutError, APIConnectionError, InternalServerError)
+
+    async def _create_with_retry(self, **api_kwargs: Any) -> Any:
+        """Call chat.completions.create with exponential backoff on transient errors."""
+        last_exc: Exception | None = None
+        for attempt in range(1, MAX_RETRY_ATTEMPTS + 1):
+            try:
+                return await self.client.chat.completions.create(**api_kwargs)
+            except self._RETRYABLE_ERRORS as exc:
+                last_exc = exc
+                if attempt == MAX_RETRY_ATTEMPTS:
+                    break
+                delay = min(RETRY_BASE_DELAY * (2 ** (attempt - 1)), RETRY_MAX_DELAY)
+                logger.warning(
+                    "LLM request failed (attempt %d/%d): %s — retrying in %.1fs",
+                    attempt,
+                    MAX_RETRY_ATTEMPTS,
+                    exc,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+        raise last_exc  # type: ignore[misc]
 
     async def chat_stream(
         self,
@@ -72,7 +105,7 @@ class LLM:
             full_reasoning = ""
             tool_calls_data = {}  # index -> {id, name, arguments}
 
-            stream = await self.client.chat.completions.create(**api_kwargs)
+            stream = await self._create_with_retry(**api_kwargs)
 
             try:
                 async for chunk in stream:
@@ -268,7 +301,7 @@ class LLM:
                     api_kwargs["tools"] = tools
 
                 # Make the API call
-                response = await self.client.chat.completions.create(**api_kwargs)
+                response = await self._create_with_retry(**api_kwargs)
 
                 # Accumulate usage statistics
                 if response.usage:

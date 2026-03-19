@@ -51,14 +51,20 @@ class Brain(Processor):
         interrupt_event: "threading.Event",
         tts_enabled: bool = True,
         echo_guard_config: EchoGuardConfig | None = None,
+        llm_summarization: "LLM | None" = None,
+        checkpointer: Any = None,
+        session_id: str | None = None,
     ):
         super().__init__(name="brain")
         self._llm = llm
+        self._llm_summarization = llm_summarization
         self._tool_manager = tool_manager
         self._config = config
         self._bus = bus
         self._interrupt_event = interrupt_event
         self._tts_enabled = tts_enabled
+        self._checkpointer = checkpointer
+        self._session_id = session_id
 
         # Echo guard — self-echo text detection (Layer 2)
         self._echo_config = echo_guard_config or EchoGuardConfig()
@@ -85,10 +91,42 @@ class Brain(Processor):
             logger.error(f"Error loading system prompt: {e}")
             raise
 
+    @property
+    def _summarization_llm(self) -> "LLM":
+        """LLM used for summarization — dedicated instance or fallback to conversation LLM."""
+        return self._llm_summarization or self._llm
+
     def reset_conversation(self) -> None:
         """Reset conversation history to initial state (system prompt only)."""
         self._conversation_history = [{"role": "system", "content": self._system_prompt}]
+        self._checkpoint()
         logger.info("Conversation history reset")
+
+    def set_session_id(self, session_id: str) -> None:
+        """Set session ID and load checkpoint if available."""
+        self._session_id = session_id
+        if self._checkpointer is None:
+            return
+        try:
+            history = self._checkpointer.load(session_id)
+            if history:
+                self._conversation_history = history
+                logger.info(
+                    "Loaded checkpoint for session %s (%d messages)",
+                    session_id,
+                    len(history),
+                )
+        except Exception:
+            logger.error("Failed to load checkpoint for session %s", session_id, exc_info=True)
+
+    def _checkpoint(self) -> None:
+        """Persist current conversation history if checkpointer is available."""
+        if self._checkpointer is None or self._session_id is None:
+            return
+        try:
+            self._checkpointer.save(self._session_id, self._conversation_history)
+        except Exception:
+            logger.error("Failed to checkpoint session %s", self._session_id, exc_info=True)
 
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         """Process a BrainInputEvent and yield AudioOutputRequest for TTS."""
@@ -257,6 +295,9 @@ class Brain(Processor):
                 # 2b. Summarize old history if over threshold
                 await self._maybe_summarize()
 
+                # 2c. Persist conversation state
+                self._checkpoint()
+
                 # 3. Trigger TTS only when enabled and response is non-empty
                 if self._tts_enabled:
                     return AudioOutputRequest(content=full_response_text, language=language)
@@ -332,7 +373,7 @@ class Brain(Processor):
                 {"role": "system", "content": "You are a helpful assistant that summarizes."},
                 {"role": "user", "content": summary_prompt},
             ]
-            response = await self._llm.chat_completion_async(
+            response = await self._summarization_llm.chat_completion_async(
                 messages=summary_messages,
                 temperature=0.3,
                 max_tokens=500,
