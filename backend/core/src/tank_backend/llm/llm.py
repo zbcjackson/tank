@@ -32,6 +32,7 @@ class LLM:
         max_tokens: int = 10000,
         extra_headers: dict[str, str] | None = None,
         stream_options: bool = True,
+        extra_body: dict[str, Any] | None = None,
     ):
         self.api_key = api_key
         self.base_url = base_url
@@ -39,6 +40,7 @@ class LLM:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.stream_options = stream_options
+        self.extra_body = extra_body or {}
 
         # Initialize OpenAI client with custom base URL and headers
         self.client = AsyncOpenAI(
@@ -98,6 +100,8 @@ class LLM:
             }
             if self.stream_options:
                 api_kwargs["stream_options"] = {"include_usage": True}
+            if self.extra_body:
+                api_kwargs["extra_body"] = self.extra_body
             if tools:
                 api_kwargs["tools"] = tools
 
@@ -296,9 +300,10 @@ class LLM:
                     "stream": stream,
                 }
 
-                # Add tools if provided
                 if tools:
                     api_kwargs["tools"] = tools
+                if self.extra_body:
+                    api_kwargs["extra_body"] = self.extra_body
 
                 # Make the API call
                 response = await self._create_with_retry(**api_kwargs)

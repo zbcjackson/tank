@@ -20,6 +20,7 @@ class LLMProfile:
     max_tokens: int = 10000
     extra_headers: dict[str, str] = field(default_factory=dict)
     stream_options: bool = True
+    extra_body: dict[str, Any] = field(default_factory=dict)
 
 
 def resolve_profile(name: str, raw: dict[str, Any]) -> LLMProfile:
@@ -56,6 +57,8 @@ def resolve_profile(name: str, raw: dict[str, Any]) -> LLMProfile:
         optional["extra_headers"] = dict(raw["extra_headers"])
     if "stream_options" in raw:
         optional["stream_options"] = bool(raw["stream_options"])
+    if "extra_body" in raw and raw["extra_body"]:
+        optional["extra_body"] = dict(raw["extra_body"])
 
     return LLMProfile(
         name=name,
@@ -76,4 +79,5 @@ def create_llm_from_profile(profile: LLMProfile) -> LLM:
         max_tokens=profile.max_tokens,
         extra_headers=profile.extra_headers,
         stream_options=profile.stream_options,
+        extra_body=profile.extra_body,
     )
