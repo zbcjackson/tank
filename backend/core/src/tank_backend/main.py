@@ -29,6 +29,8 @@ def main():
             host=args.host,
             port=args.port,
             reload=True,
+            reload_dirs=["."],
+            reload_includes=["*.py", "config.yaml", ".env"],
         )
     else:
         from tank_backend.api.server import app
