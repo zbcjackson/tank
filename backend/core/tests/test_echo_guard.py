@@ -317,8 +317,7 @@ class TestBrainEchoGuard:
         import threading
         from unittest.mock import MagicMock
 
-        from tank_backend.config.settings import VoiceAssistantConfig
-        from tank_backend.pipeline.processors.brain import Brain
+        from tank_backend.pipeline.processors.brain import Brain, BrainConfig
 
         if bus is None:
             bus = Bus()
@@ -330,7 +329,7 @@ class TestBrainEchoGuard:
         brain = Brain(
             llm=mock_llm,
             tool_manager=mock_tool_manager,
-            config=VoiceAssistantConfig(),
+            config=BrainConfig(),
             bus=bus,
             interrupt_event=threading.Event(),
             echo_guard_config=echo_config,

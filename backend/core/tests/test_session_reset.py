@@ -5,11 +5,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tank_backend.config.settings import VoiceAssistantConfig
 from tank_backend.core.events import BrainInputEvent, InputType
 from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.processor import FlowReturn
-from tank_backend.pipeline.processors.brain import Brain
+from tank_backend.pipeline.processors.brain import Brain, BrainConfig
 
 
 async def _collect(processor, item):
@@ -32,7 +31,7 @@ class TestBrainSessionReset:
 
     @pytest.fixture
     def mock_config(self):
-        return VoiceAssistantConfig(max_conversation_history=10)
+        return BrainConfig()
 
     @pytest.fixture
     def brain(self, mock_llm, mock_config, bus):

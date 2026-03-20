@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tank_backend.config.settings import VoiceAssistantConfig
 from tank_backend.core.events import (
     BrainInputEvent,
     DisplayMessage,
@@ -14,7 +13,7 @@ from tank_backend.core.events import (
 )
 from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.processor import FlowReturn
-from tank_backend.pipeline.processors.brain import Brain
+from tank_backend.pipeline.processors.brain import Brain, BrainConfig
 
 
 async def _collect(processor, item):
@@ -47,7 +46,7 @@ def mock_llm():
 def brain(bus, mock_llm):
     mock_tool_manager = MagicMock()
     mock_tool_manager.get_openai_tools.return_value = []
-    config = VoiceAssistantConfig()
+    config = BrainConfig()
 
     return Brain(
         llm=mock_llm,
@@ -113,7 +112,7 @@ async def test_interrupted_response_saved_to_history(bus):
 
     mock_tool_manager = MagicMock()
     mock_tool_manager.get_openai_tools.return_value = []
-    config = VoiceAssistantConfig()
+    config = BrainConfig()
 
     brain = Brain(
         llm=mock_llm,

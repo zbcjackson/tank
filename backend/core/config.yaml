@@ -80,6 +80,18 @@ sandbox:
   max_timeout: 600
   network_enabled: true
 
+# Assistant — pipeline-level settings
+assistant:
+  speech_interrupt_enabled: true
+
+# Brain — conversation processing settings
+brain:
+  max_history_tokens: 8000
+
+# Tools — optional API keys for tool plugins
+tools:
+  serper_api_key: ${SERPER_API_KEY:-}
+
 # Conversation persistence — save/restore conversation history across restarts.
 # Disabled by default. Enable and set db_path to activate.
 persistence:

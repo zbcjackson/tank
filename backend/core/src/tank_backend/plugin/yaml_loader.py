@@ -36,21 +36,28 @@ def load_yaml(path: Path | str) -> dict[str, Any]:
     return yaml.safe_load(interpolated) or {}
 
 
-_ENV_VAR_PATTERN = re.compile(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}')
+_ENV_VAR_PATTERN = re.compile(r'\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}')
 
 
 def _interpolate_env_vars(text: str, source_path: Path) -> str:
-    """Replace ``${VAR}`` patterns with environment variable values.
+    """Replace ``${VAR}`` and ``${VAR:-default}`` patterns with values.
+
+    ``${VAR}`` — required; raises if unset.
+    ``${VAR:-default}`` — optional; uses *default* if unset.
+    ``${VAR:-}`` — optional; uses empty string if unset.
 
     Skips YAML comment lines (starting with ``#``) to avoid false matches.
 
     Raises:
-        ValueError: If a referenced env var is not set.
+        ValueError: If a required env var (no ``:-``) is not set.
     """
     def replacer(match: re.Match) -> str:
         var_name = match.group(1)
+        default = match.group(2)  # None when no :- syntax
         value = os.environ.get(var_name)
         if value is None:
+            if default is not None:
+                return default
             raise ValueError(
                 f"Environment variable '{var_name}' referenced in "
                 f"{source_path} is not set"

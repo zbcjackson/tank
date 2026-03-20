@@ -4,8 +4,6 @@ import argparse
 
 import uvicorn
 
-from tank_backend.config.settings import create_example_env_file
-
 
 def main():
     parser = argparse.ArgumentParser(description="Tank Backend API Server")
@@ -13,15 +11,8 @@ def main():
     parser.add_argument("--port", type=int, default=8000, help="Port to bind")
     parser.add_argument("--config", type=str, default=".env", help="Config file path")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload on file changes")
-    parser.add_argument("--create-config", action="store_true", help="Create example config file")
 
     args = parser.parse_args()
-
-    if args.create_config:
-        create_example_env_file()
-        print("Example configuration file created at .env.example")
-        print("Please copy it to .env and fill in your API keys.")
-        return
 
     if args.reload:
         uvicorn.run(

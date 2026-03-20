@@ -89,6 +89,15 @@ class AppConfig:
             logger.error(f"Failed to load config: {e}")
             raise
 
+    # ── Generic section access ─────────────────────────────────────
+
+    def get_section(self, name: str, defaults: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Get a raw config section by name, merged with optional defaults."""
+        section = self._config.get(name, {})
+        if defaults:
+            return {**defaults, **section}
+        return dict(section) if section else {}
+
     # ── Feature helpers ───────────────────────────────────────────
 
     def get_feature_config(self, name: str) -> FeatureConfig:

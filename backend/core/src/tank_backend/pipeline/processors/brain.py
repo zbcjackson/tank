@@ -4,12 +4,12 @@ import logging
 import time
 import uuid
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import tiktoken
 
-from ...config.settings import VoiceAssistantConfig
 from ...core.events import (
     AudioOutputRequest,
     BrainInputEvent,
@@ -34,6 +34,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger("Brain")
 
 
+@dataclass(frozen=True)
+class BrainConfig:
+    """Configuration for the Brain processor (sourced from config.yaml ``brain:`` section)."""
+
+    max_history_tokens: int = 8000
+
+
 class Brain(Processor):
     """The Orchestrator: Process inputs and decide actions.
 
@@ -46,7 +53,7 @@ class Brain(Processor):
         self,
         llm: "LLM",
         tool_manager: "ToolManager",
-        config: VoiceAssistantConfig,
+        config: BrainConfig,
         bus: Bus,
         interrupt_event: "threading.Event",
         tts_enabled: bool = True,
@@ -253,10 +260,7 @@ class Brain(Processor):
         try:
             async for update_type, content, metadata in gen:
                 # Check for interruption
-                if (
-                    self._config.speech_interrupt_enabled
-                    and self._interrupt_event.is_set()
-                ):
+                if self._interrupt_event.is_set():
                     raise BrainInterrupted()
 
                 # Push update to UI via bus
@@ -292,8 +296,8 @@ class Brain(Processor):
             if full_response_text:
                 self._add_to_conversation_history("assistant", full_response_text)
 
-                # 2b. Summarize old history if over threshold
-                await self._maybe_summarize()
+                # 2b. Compact history if over token budget
+                await self._maybe_compact()
 
                 # 2c. Persist conversation state
                 self._checkpoint()
@@ -340,12 +344,17 @@ class Brain(Processor):
                 total += len(self._encoder.encode(content))
         return total
 
-    async def _maybe_summarize(self) -> None:
-        """Summarize old conversation history if token count exceeds threshold."""
-        total_tokens = self._count_tokens(self._conversation_history)
-        threshold = self._config.summarize_at_tokens
+    async def _maybe_compact(self) -> None:
+        """Compact conversation history if token count exceeds budget.
 
-        if total_tokens <= threshold:
+        Strategy: try summarization first (preserves context), fall back to
+        truncation (drops oldest messages) if summarization fails or there
+        aren't enough messages to summarize.
+        """
+        total_tokens = self._count_tokens(self._conversation_history)
+        budget = self._config.max_history_tokens
+
+        if total_tokens <= budget:
             return
 
         # Keep system prompt (index 0) + last 5 messages
@@ -353,14 +362,14 @@ class Brain(Processor):
         rest = self._conversation_history[1:]
 
         if len(rest) <= 5:
-            # Not enough messages to summarize
+            # Not enough messages to summarize — go straight to truncation
+            self._truncate_history(budget)
             return
 
-        # Summarize everything except system + last 5
+        # Try summarization first
         to_summarize = rest[:-5]
         to_keep = rest[-5:]
 
-        # Build summarization prompt
         summary_prompt = (
             "Summarize the following conversation history concisely. "
             "Preserve key facts, decisions, and context. "
@@ -372,7 +381,6 @@ class Brain(Processor):
             summary_prompt += f"{role}: {content}\n\n"
 
         try:
-            # Call LLM with low temperature for factual summary
             summary_messages = [
                 {"role": "system", "content": "You are a helpful assistant that summarizes."},
                 {"role": "user", "content": summary_prompt},
@@ -385,7 +393,6 @@ class Brain(Processor):
 
             summary_text = response["choices"][0]["message"]["content"]
 
-            # Replace old messages with summary
             summary_msg = {
                 "role": "system",
                 "content": f"Previous conversation summary: {summary_text}",
@@ -401,7 +408,6 @@ class Brain(Processor):
                 len(self._conversation_history),
             )
 
-            # Post summarization metric to bus
             self._bus.post(BusMessage(
                 type="ui_message",
                 source=self.name,
@@ -417,25 +423,18 @@ class Brain(Processor):
                 ),
             ))
         except Exception as e:
-            logger.error(f"Summarization failed: {e}", exc_info=True)
-            # Fall back to truncation if summarization fails
-            pass
+            logger.error(f"Summarization failed, falling back to truncation: {e}", exc_info=True)
+            self._truncate_history(budget)
 
-    def _add_to_conversation_history(self, role: str, content: str) -> None:
-        """Add message to conversation history and enforce token budget."""
-        self._conversation_history.append({"role": role, "content": content})
-
-        token_budget = self._config.max_history_tokens
+    def _truncate_history(self, token_budget: int) -> None:
+        """Drop oldest non-system messages to fit within token budget."""
         total_tokens = self._count_tokens(self._conversation_history)
-
         if total_tokens <= token_budget:
             return
 
-        # Always keep system prompt (index 0); drop oldest non-system messages first
         system_msg = self._conversation_history[0]
         rest = self._conversation_history[1:]
 
-        # Walk backwards from most recent, accumulating tokens until budget is hit
         system_tokens = self._count_tokens([system_msg])
         remaining_budget = token_budget - system_tokens
         keep_from = len(rest)
@@ -455,6 +454,10 @@ class Brain(Processor):
             new_tokens,
             len(self._conversation_history),
         )
+
+    def _add_to_conversation_history(self, role: str, content: str) -> None:
+        """Append a message to conversation history."""
+        self._conversation_history.append({"role": role, "content": content})
 
     def _get_error_message(self, language: str | None) -> str:
         """Get error message in user's language."""

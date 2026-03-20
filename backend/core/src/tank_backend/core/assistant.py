@@ -11,7 +11,6 @@ from typing import Any
 
 from ..audio.input.types import AudioFrame, AudioSourceFactory
 from ..audio.output.types import AudioSinkFactory
-from ..config.settings import load_config
 from ..llm.profile import create_llm_from_profile
 from ..pipeline import Bus, BusMessage, Pipeline, PipelineBuilder
 from ..pipeline.event import EventDirection, PipelineEvent
@@ -20,6 +19,7 @@ from ..pipeline.processors import (
     ASRProcessor,
     ASRSpeakerMerger,
     Brain,
+    BrainConfig,
     EchoGuardConfig,
     PlaybackProcessor,
     SpeakerIDProcessor,
@@ -55,8 +55,6 @@ class Assistant:
         audio_source_factory: AudioSourceFactory | None = None,
         audio_sink_factory: AudioSinkFactory | None = None,
     ) -> None:
-        self._config = load_config(config_path)
-
         # 1. Load plugins and build registry
         self._plugin_manager = PluginManager()
         registry = self._plugin_manager.load_all()
@@ -65,13 +63,33 @@ class Assistant:
         self._app_config = AppConfig(registry=registry)
         profile = self._app_config.get_llm_profile("default")
         self._llm = create_llm_from_profile(profile)
-        self._tool_manager = ToolManager(serper_api_key=self._config.serper_api_key)
+
+        # 3. Build BrainConfig from config.yaml brain: section
+        brain_raw = self._app_config.get_section("brain", {
+            "max_history_tokens": 8000,
+        })
+        self._brain_config = BrainConfig(
+            max_history_tokens=brain_raw.get("max_history_tokens", 8000),
+        )
+
+        # Assistant-level config (speech interrupt gating)
+        assistant_raw = self._app_config.get_section("assistant", {
+            "speech_interrupt_enabled": True,
+        })
+        self._speech_interrupt_enabled = assistant_raw.get(
+            "speech_interrupt_enabled", True
+        )
+
+        # 4. Tools — serper_api_key from config.yaml tools: section
+        tools_raw = self._app_config.get_section("tools")
+        serper_key = tools_raw.get("serper_api_key") or None
+        self._tool_manager = ToolManager(serper_api_key=serper_key)
 
         # Persistence (optional)
         self._checkpointer = self._create_checkpointer()
 
         # Sandbox (lazy Docker container for runtime tools)
-        sandbox_raw = self._app_config._config.get("sandbox", {})
+        sandbox_raw = self._app_config.get_section("sandbox")
         sandbox_config = SandboxConfig.from_dict(sandbox_raw)
         self._sandbox: SandboxManager | None = None
         if sandbox_config.enabled:
@@ -110,7 +128,7 @@ class Assistant:
         builder = PipelineBuilder(self._bus)
 
         # Echo guard config (from config.yaml)
-        echo_guard_raw = self._app_config._config.get("echo_guard", {})
+        echo_guard_raw = self._app_config.get_section("echo_guard")
         echo_guard_cfg = self._build_echo_guard_config(echo_guard_raw)
 
         # VAD processor (needs SileroVAD instance)
@@ -155,7 +173,7 @@ class Assistant:
         self.brain = Brain(
             llm=self._llm,
             tool_manager=self._tool_manager,
-            config=self._config,
+            config=self._brain_config,
             bus=self._bus,
             interrupt_event=self.runtime.interrupt_event,
             tts_enabled=tts_engine is not None,
@@ -220,7 +238,7 @@ class Assistant:
 
     def _create_checkpointer(self) -> object | None:
         """Create Checkpointer if persistence is enabled in config, or None."""
-        persistence_cfg = self._app_config._config.get("persistence", {})
+        persistence_cfg = self._app_config.get_section("persistence")
         if not persistence_cfg.get("enabled", False):
             return None
 
@@ -301,7 +319,7 @@ class Assistant:
 
     def _on_speech_start(self, _message: BusMessage) -> None:
         """Handle speech_start: send interrupt event through pipeline if busy."""
-        if not self._config.speech_interrupt_enabled:
+        if not self._speech_interrupt_enabled:
             return
         if not self._pipeline_busy:
             return

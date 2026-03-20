@@ -5,10 +5,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tank_backend.config.settings import VoiceAssistantConfig
 from tank_backend.core.events import BrainInputEvent, InputType, SignalMessage, UpdateType
 from tank_backend.pipeline.bus import Bus
-from tank_backend.pipeline.processors.brain import Brain
+from tank_backend.pipeline.processors.brain import Brain, BrainConfig
 
 
 async def _collect(processor, item):
@@ -38,7 +37,7 @@ def mock_llm():
 def brain(bus, mock_llm):
     mock_tool_manager = MagicMock()
     mock_tool_manager.get_openai_tools.return_value = []
-    config = VoiceAssistantConfig()
+    config = BrainConfig()
 
     return Brain(
         llm=mock_llm,

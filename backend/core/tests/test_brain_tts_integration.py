@@ -13,7 +13,6 @@ from unittest.mock import MagicMock
 
 import numpy as np
 
-from tank_backend.config.settings import VoiceAssistantConfig
 from tank_backend.core.events import (
     BrainInputEvent,
     DisplayMessage,
@@ -23,7 +22,7 @@ from tank_backend.core.events import (
 )
 from tank_backend.pipeline.builder import PipelineBuilder
 from tank_backend.pipeline.bus import Bus
-from tank_backend.pipeline.processors.brain import Brain
+from tank_backend.pipeline.processors.brain import Brain, BrainConfig
 from tank_backend.pipeline.processors.playback import PlaybackProcessor
 from tank_backend.pipeline.processors.tts import TTSProcessor
 
@@ -53,7 +52,7 @@ def _make_brain(bus, interrupt_event, llm_response="Response to input", tts_enab
     return Brain(
         llm=mock_llm,
         tool_manager=mock_tool_manager,
-        config=VoiceAssistantConfig(),
+        config=BrainConfig(),
         bus=bus,
         interrupt_event=interrupt_event,
         tts_enabled=tts_enabled,

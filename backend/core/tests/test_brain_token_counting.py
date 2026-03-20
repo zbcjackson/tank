@@ -1,4 +1,4 @@
-"""Tests for token-based conversation history truncation in Brain."""
+"""Tests for token counting and history truncation in Brain."""
 
 import threading
 from unittest.mock import MagicMock, patch
@@ -23,7 +23,6 @@ def _make_brain(max_history_tokens: int = 8000) -> Brain:
     """Create a Brain with mocked dependencies for testing history management."""
     config = MagicMock()
     config.max_history_tokens = max_history_tokens
-    config.speech_interrupt_enabled = False
 
     llm = MagicMock()
     tool_manager = MagicMock()
@@ -77,37 +76,40 @@ class TestCountTokens:
         assert count > 4  # Chinese chars use more tokens than ASCII
 
 
-class TestTokenBasedTruncation:
+class TestTruncateHistory:
+    """Tests for _truncate_history (the fallback compaction strategy)."""
+
     def test_no_truncation_within_budget(self):
         brain = _make_brain(max_history_tokens=8000)
         brain._add_to_conversation_history("user", "hello")
         brain._add_to_conversation_history("assistant", "hi there")
+        brain._truncate_history(8000)
         # System prompt + 2 messages should be well within 8000 tokens
         assert len(brain._conversation_history) == 3
 
     def test_system_prompt_always_kept(self):
         brain = _make_brain(max_history_tokens=100)
-        # Add enough messages to exceed budget
         for i in range(50):
             brain._add_to_conversation_history("user", f"Message number {i} " * 10)
+        brain._truncate_history(100)
         # System prompt should always be first
         assert brain._conversation_history[0]["role"] == "system"
         assert brain._conversation_history[0]["content"] == "You are a helpful assistant."
 
     def test_recent_messages_preserved(self):
         brain = _make_brain(max_history_tokens=200)
-        # Add many messages — only recent ones should survive
         for i in range(20):
             brain._add_to_conversation_history("user", f"Message {i} with some padding text")
+        brain._truncate_history(200)
         # The most recent message should always be present
         assert any("Message 19" in str(m.get("content", "")) for m in brain._conversation_history)
 
     def test_old_messages_dropped(self):
         brain = _make_brain(max_history_tokens=200)
         brain._add_to_conversation_history("user", "very old message")
-        # Add enough to push the old one out
         for i in range(20):
             brain._add_to_conversation_history("user", f"Newer message {i} with padding text")
+        brain._truncate_history(200)
         contents = [str(m.get("content", "")) for m in brain._conversation_history]
         assert not any("very old message" in c for c in contents)
 
@@ -116,6 +118,7 @@ class TestTokenBasedTruncation:
         brain = _make_brain(max_history_tokens=budget)
         for i in range(30):
             brain._add_to_conversation_history("user", f"Turn {i}: " + "word " * 20)
+        brain._truncate_history(budget)
         total = brain._count_tokens(brain._conversation_history)
         assert total <= budget
 
@@ -123,6 +126,25 @@ class TestTokenBasedTruncation:
         """Even with a very tight budget, system prompt + last message should be kept."""
         brain = _make_brain(max_history_tokens=50)
         brain._add_to_conversation_history("user", "hi")
+        brain._truncate_history(50)
         # Should have at least system + the last message
         assert len(brain._conversation_history) >= 2
         assert brain._conversation_history[0]["role"] == "system"
+
+
+class TestAddToConversationHistory:
+    """_add_to_conversation_history is now a simple append."""
+
+    def test_appends_message(self):
+        brain = _make_brain()
+        brain._add_to_conversation_history("user", "hello")
+        assert len(brain._conversation_history) == 2  # system + user
+        assert brain._conversation_history[1] == {"role": "user", "content": "hello"}
+
+    def test_does_not_truncate(self):
+        """Append should never truncate — compaction is a separate step."""
+        brain = _make_brain(max_history_tokens=50)
+        for i in range(50):
+            brain._add_to_conversation_history("user", f"Message {i} " * 10)
+        # All 51 messages should be present (system + 50 user)
+        assert len(brain._conversation_history) == 51

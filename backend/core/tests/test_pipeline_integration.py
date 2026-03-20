@@ -18,7 +18,6 @@ import numpy as np
 
 from tank_backend.audio.input.types import AudioFrame
 from tank_backend.audio.input.vad import VADResult, VADStatus
-from tank_backend.config.settings import VoiceAssistantConfig
 from tank_backend.core.events import (
     AudioOutputRequest,
     BrainInputEvent,
@@ -29,7 +28,7 @@ from tank_backend.pipeline.builder import PipelineBuilder
 from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.processors.asr import ASRProcessor
 from tank_backend.pipeline.processors.asr_speaker_merger import ASRSpeakerMerger
-from tank_backend.pipeline.processors.brain import Brain
+from tank_backend.pipeline.processors.brain import Brain, BrainConfig
 from tank_backend.pipeline.processors.playback import PlaybackProcessor
 from tank_backend.pipeline.processors.speaker_id import SpeakerIDProcessor
 from tank_backend.pipeline.processors.tts import TTSProcessor
@@ -71,7 +70,7 @@ def _make_brain(bus, interrupt_event, llm_response="hello response", tts_enabled
     return Brain(
         llm=mock_llm,
         tool_manager=mock_tool_manager,
-        config=VoiceAssistantConfig(),
+        config=BrainConfig(),
         bus=bus,
         interrupt_event=interrupt_event,
         tts_enabled=tts_enabled,

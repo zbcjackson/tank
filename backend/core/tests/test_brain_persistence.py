@@ -22,8 +22,6 @@ def checkpointer(tmp_path):
 def _make_brain(checkpointer=None, session_id=None):
     config = MagicMock()
     config.max_history_tokens = 8000
-    config.summarize_at_tokens = 6000
-    config.speech_interrupt_enabled = False
 
     llm = MagicMock()
     tool_manager = MagicMock()

@@ -5,11 +5,15 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from dotenv import load_dotenv
 
-from .router import router, session_manager
-from .speakers import router as speakers_router
-from .speakers import set_session_manager
+load_dotenv()  # .env → os.environ before any config loading (covers uvicorn reload path)
+
+from fastapi import FastAPI  # noqa: E402
+
+from .router import router, session_manager  # noqa: E402
+from .speakers import router as speakers_router  # noqa: E402
+from .speakers import set_session_manager  # noqa: E402
 
 # Configure logging to output to console
 logging.basicConfig(
