@@ -7,6 +7,13 @@ import { RingBuffer } from './ringBuffer';
 /** Number of pre-roll frames to buffer (~40ms at 20ms/frame). */
 const PRE_ROLL_FRAMES = 5;
 
+/**
+ * After MicVAD fires onSpeechEnd, keep the audio gate open for this many ms
+ * so the backend receives enough trailing silence to trigger its own endpoint
+ * detection (backend min_silence_ms = 1000ms).
+ */
+const TRAILING_SILENCE_MS = 1200;
+
 export class AudioProcessor {
   private audioContext: AudioContext | null = null;
   private stream: MediaStream | null = null;
@@ -20,6 +27,7 @@ export class AudioProcessor {
   private vadOpen = false;
   private micVad: MicVAD | null = null;
   private preRollBuffer = new RingBuffer<Int16Array>(PRE_ROLL_FRAMES);
+  private trailingSilenceTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Wake word state
   private wakeWordDetector: WakeWordDetector | null = null;
@@ -129,6 +137,11 @@ export class AudioProcessor {
 
         onSpeechStart: () => {
           console.log('[AudioProcessor] VAD: speech start');
+          // Cancel any pending trailing-silence close — user is speaking again
+          if (this.trailingSilenceTimer) {
+            clearTimeout(this.trailingSilenceTimer);
+            this.trailingSilenceTimer = null;
+          }
           this.vadOpen = true;
           // Flush pre-roll buffer so backend gets the beginning of the utterance
           if (!this.gateSpeech) {
@@ -141,9 +154,16 @@ export class AudioProcessor {
         },
 
         onSpeechEnd: () => {
-          console.log('[AudioProcessor] VAD: speech end');
-          this.vadOpen = false;
-          this.preRollBuffer.clear();
+          console.log('[AudioProcessor] VAD: speech end, sending trailing silence');
+          // Keep gate open so the AudioWorklet continues forwarding silence
+          // frames to the backend. The backend needs ~1s of silence to trigger
+          // its own END_SPEECH endpoint detection.
+          this.trailingSilenceTimer = setTimeout(() => {
+            this.trailingSilenceTimer = null;
+            this.vadOpen = false;
+            this.preRollBuffer.clear();
+            console.log('[AudioProcessor] VAD: trailing silence done, gate closed');
+          }, TRAILING_SILENCE_MS);
         },
 
         onVADMisfire: () => {
@@ -166,6 +186,7 @@ export class AudioProcessor {
     if (!this.micVad) return;
 
     if (speaking) {
+      this.clearTrailingSilenceTimer();
       this.micVad.pause();
       this.vadOpen = false;
       this.preRollBuffer.clear();
@@ -210,7 +231,15 @@ export class AudioProcessor {
     this.micVad?.start();
   }
 
+  private clearTrailingSilenceTimer(): void {
+    if (this.trailingSilenceTimer) {
+      clearTimeout(this.trailingSilenceTimer);
+      this.trailingSilenceTimer = null;
+    }
+  }
+
   pause() {
+    this.clearTrailingSilenceTimer();
     this.gateSpeech = true;
     this.micVad?.pause();
   }
@@ -221,6 +250,7 @@ export class AudioProcessor {
   }
 
   stop() {
+    this.clearTrailingSilenceTimer();
     this.wakeWordDetector?.release();
     this.wakeWordDetector = null;
 
