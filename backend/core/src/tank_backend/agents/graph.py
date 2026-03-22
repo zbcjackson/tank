@@ -89,7 +89,7 @@ class AgentGraph:
                 ):
                     tool_calls += 1
 
-                # Stream everything else through
+                # Stream everything else through (TOKEN, THOUGHT, TOOL_*, APPROVAL_NEEDED)
                 yield output
             else:
                 # Agent completed without HANDOFF or DONE

@@ -49,7 +49,7 @@ class TestAgentOutputType:
     def test_all_types_exist(self):
         expected = {
             "TOKEN", "THOUGHT", "TOOL_CALLING", "TOOL_EXECUTING",
-            "TOOL_RESULT", "HANDOFF", "DONE",
+            "TOOL_RESULT", "APPROVAL_NEEDED", "HANDOFF", "DONE",
         }
         actual = {t.name for t in AgentOutputType}
         assert actual == expected

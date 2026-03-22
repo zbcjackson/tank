@@ -73,6 +73,10 @@ class SessionManager:
         """Retrieve assistant instance for a session."""
         return self._sessions.get(session_id)
 
+    def iter_sessions(self):
+        """Iterate over all active (session_id, assistant) pairs."""
+        yield from self._sessions.items()
+
     async def get_or_create_assistant(
         self, session_id: str,
     ) -> tuple[Assistant, bool]:

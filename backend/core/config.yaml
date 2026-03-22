@@ -128,6 +128,21 @@ router:
       keywords: [calculate, compute, what time, 计算, 几点, 天气]
       description: Calculations, time queries, and weather
 
+# Approval policies — control which tools require user confirmation before executing.
+# Tools not listed in any category default to always_approve (backward compatible).
+approval_policies:
+  always_approve:
+    - get_weather
+    - get_time
+    - calculate
+  require_approval:
+    - sandbox_exec
+    - sandbox_bash
+    - sandbox_process
+  require_approval_first_time:
+    - web_search
+    - web_scraper
+
 # Tools — optional API keys for tool plugins
 tools:
   serper_api_key: ${SERPER_API_KEY:-}

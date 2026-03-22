@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .chat_agent import ChatAgent
 
@@ -30,6 +30,7 @@ class TaskAgent(ChatAgent):
         tool_manager: ToolManager | None = None,
         tool_filter: list[str] | None = None,
         system_prompt: str | None = None,
+        **kwargs: Any,
     ) -> None:
         prompt = system_prompt or _load_prompt("task_prompt.txt") or (
             "You are a task-oriented assistant. Use the available tools to perform "
@@ -42,4 +43,5 @@ class TaskAgent(ChatAgent):
             tool_manager=tool_manager,
             system_prompt=prompt,
             tool_filter=tool_filter or _DEFAULT_TOOLS,
+            **kwargs,
         )

@@ -178,6 +178,18 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         )
                 elif msg.type == MessageType.INPUT:
                     assistant.process_input(msg.content)
+                elif msg.type == MessageType.APPROVAL_RESPONSE:
+                    approval_id = msg.metadata.get("approval_id", "")
+                    approved = msg.metadata.get("approved", False)
+                    reason = msg.metadata.get("reason", "")
+                    approval_mgr = assistant.approval_manager
+                    if approval_mgr and approval_id:
+                        approval_mgr.resolve(approval_id, approved=approved, reason=reason)
+                    else:
+                        logger.warning(
+                            "Approval response ignored: mgr=%s id=%s",
+                            approval_mgr is not None, approval_id,
+                        )
 
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: {session_id}")

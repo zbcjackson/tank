@@ -11,6 +11,8 @@ load_dotenv()  # .env → os.environ before any config loading (covers uvicorn r
 
 from fastapi import FastAPI  # noqa: E402
 
+from .approvals import router as approvals_router  # noqa: E402
+from .approvals import set_session_manager as set_approvals_session_manager  # noqa: E402
 from .metrics import router as metrics_router  # noqa: E402
 from .metrics import set_session_manager as set_metrics_session_manager  # noqa: E402
 from .router import router, session_manager  # noqa: E402
@@ -39,8 +41,10 @@ app = FastAPI(title="Tank Voice Assistant API", version="0.1.0", lifespan=lifesp
 app.include_router(router)
 app.include_router(speakers_router)
 app.include_router(metrics_router)
+app.include_router(approvals_router)
 set_session_manager(session_manager)
 set_metrics_session_manager(session_manager)
+set_approvals_session_manager(session_manager)
 
 
 @app.get("/health")

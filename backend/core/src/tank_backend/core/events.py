@@ -26,6 +26,7 @@ class UpdateType(Enum):
     THOUGHT = auto()  # Thinking process
     TEXT = auto()  # Final response text
     TOOL = auto()  # Unified tool step: calling → executing → success/error
+    APPROVAL = auto()  # Tool approval request pending user response
 
 
 @dataclass(frozen=True)

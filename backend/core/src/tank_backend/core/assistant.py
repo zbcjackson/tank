@@ -176,7 +176,7 @@ class Assistant:
         self._llm_summarization = self._create_summarization_llm()
 
         # Optional agent graph (from config.yaml agents: + router: sections)
-        agent_graph = self._build_agent_graph()
+        agent_graph, self._approval_manager = self._build_agent_graph()
 
         # Brain — native Processor (no more QueueWorker wrapper)
         self.brain = Brain(
@@ -190,6 +190,7 @@ class Assistant:
             llm_summarization=self._llm_summarization,
             checkpointer=self._checkpointer,
             agent_graph=agent_graph,
+            approval_manager=self._approval_manager,
         )
         builder.add(self.brain)
 
@@ -246,19 +247,44 @@ class Assistant:
             # No summarization profile configured — Brain will fall back to conversation LLM
             return None
 
-    def _build_agent_graph(self) -> object | None:
-        """Build AgentGraph from config.yaml agents: + router: sections, or None.
+    def _build_agent_graph(self) -> tuple[object | None, object | None]:
+        """Build AgentGraph from config.yaml agents: + router: sections, or (None, None).
 
-        If no ``agents:`` section is present in config, returns None and the
+        If no ``agents:`` section is present in config, returns (None, None) and the
         Brain uses its direct LLM path (backward compatible).
+
+        Returns:
+            Tuple of (AgentGraph or None, ApprovalManager or None).
         """
         agents_raw = self._app_config.get_section("agents")
         if not agents_raw:
-            return None
+            return None, None
 
+        from ..agents.approval import ApprovalManager, ApprovalPolicy
         from ..agents.factory import create_agent
         from ..agents.graph import AgentGraph
         from ..agents.router import Route, Router
+
+        # Build approval policy from config
+        approval_raw = self._app_config.get_section("approval_policies")
+        if approval_raw:
+            approval_policy = ApprovalPolicy(
+                always_approve=set(approval_raw.get("always_approve", [])),
+                require_approval=set(approval_raw.get("require_approval", [])),
+                require_approval_first_time=set(
+                    approval_raw.get("require_approval_first_time", [])
+                ),
+            )
+            approval_manager = ApprovalManager()
+            logger.info(
+                "Approval policies loaded: always=%s, require=%s, first_time=%s",
+                approval_raw.get("always_approve", []),
+                approval_raw.get("require_approval", []),
+                approval_raw.get("require_approval_first_time", []),
+            )
+        else:
+            approval_policy = None
+            approval_manager = None
 
         # Build agents from config
         agents: dict[str, object] = {}
@@ -281,6 +307,8 @@ class Assistant:
                 llm=agent_llm,
                 tool_manager=self._tool_manager,
                 config=agent_cfg,
+                approval_manager=approval_manager,
+                approval_policy=approval_policy,
             )
 
         # Build router
@@ -312,7 +340,7 @@ class Assistant:
             "AgentGraph built: %d agents (%s), %d routes, default=%s",
             len(agents), list(agents.keys()), len(routes), default_agent,
         )
-        return AgentGraph(agents=agents, router=router)
+        return AgentGraph(agents=agents, router=router), approval_manager
 
     def _create_checkpointer(self) -> object | None:
         """Create Checkpointer if persistence is enabled in config, or None."""
@@ -352,6 +380,11 @@ class Assistant:
             "tts": self._has_tts,
             "speaker_id": self._app_config.is_feature_enabled("speaker"),
         }
+
+    @property
+    def approval_manager(self):
+        """Return the ApprovalManager instance, or None if not configured."""
+        return self._approval_manager
 
     @property
     def metrics(self) -> dict:

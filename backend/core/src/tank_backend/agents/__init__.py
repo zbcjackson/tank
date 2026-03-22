@@ -1,5 +1,6 @@
 """Agent orchestration layer for the Tank backend."""
 
+from .approval import ApprovalManager, ApprovalPolicy, ApprovalRequest, ApprovalResult
 from .base import Agent, AgentOutput, AgentOutputType, AgentState
 from .chat_agent import ChatAgent
 from .code_agent import CodeAgent
@@ -15,6 +16,10 @@ __all__ = [
     "AgentOutput",
     "AgentOutputType",
     "AgentState",
+    "ApprovalManager",
+    "ApprovalPolicy",
+    "ApprovalRequest",
+    "ApprovalResult",
     "ChatAgent",
     "CodeAgent",
     "Route",

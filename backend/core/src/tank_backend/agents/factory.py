@@ -14,6 +14,7 @@ from .task_agent import TaskAgent
 if TYPE_CHECKING:
     from ..llm.llm import LLM
     from ..tools.manager import ToolManager
+    from .approval import ApprovalManager, ApprovalPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,9 @@ def create_agent(
     llm: LLM,
     tool_manager: ToolManager | None = None,
     config: dict[str, Any] | None = None,
+    approval_manager: ApprovalManager | None = None,
+    approval_policy: ApprovalPolicy | None = None,
+    session_id: str = "",
 ) -> Agent:
     """Create an agent instance from a type string and config.
 
@@ -41,6 +45,9 @@ def create_agent(
         llm: LLM instance for this agent.
         tool_manager: Shared ToolManager (agents filter tools internally).
         config: Optional dict with keys: ``tools`` (list[str]), ``system_prompt`` (str).
+        approval_manager: Optional ApprovalManager for tool approval gates.
+        approval_policy: Optional ApprovalPolicy for determining which tools need approval.
+        session_id: Session ID for approval tracking.
 
     Returns:
         Agent instance.
@@ -65,6 +72,14 @@ def create_agent(
         kwargs["tool_filter"] = cfg["tools"]
     if "system_prompt" in cfg:
         kwargs["system_prompt"] = cfg["system_prompt"]
+
+    # Pass approval params through to all ChatAgent subclasses
+    if approval_manager is not None:
+        kwargs["approval_manager"] = approval_manager
+    if approval_policy is not None:
+        kwargs["approval_policy"] = approval_policy
+    if session_id:
+        kwargs["session_id"] = session_id
 
     # For the base ChatAgent, we need to pass the name explicitly
     if cls is ChatAgent:

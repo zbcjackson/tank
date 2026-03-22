@@ -64,6 +64,7 @@ class Brain(Processor):
         checkpointer: Any = None,
         session_id: str | None = None,
         agent_graph: "AgentGraph | None" = None,
+        approval_manager: Any = None,
     ):
         super().__init__(name="brain")
         self._llm = llm
@@ -76,6 +77,7 @@ class Brain(Processor):
         self._checkpointer = checkpointer
         self._session_id = session_id
         self._agent_graph = agent_graph
+        self._approval_manager = approval_manager
 
         # Echo guard — self-echo text detection (Layer 2)
         self._echo_config = echo_guard_config or EchoGuardConfig()
@@ -166,6 +168,28 @@ class Brain(Processor):
             ))
             yield FlowReturn.OK, None
             return
+
+        # --- Voice approval intercept ---
+        # When there's a pending approval and user says yes/no, resolve it
+        # directly instead of sending to LLM.
+        if self._approval_manager is not None:
+            intent = _classify_approval_intent(event.text)
+            if intent is not None:
+                pending = self._approval_manager.get_pending(
+                    session_id=self._session_id,
+                )
+                if pending:
+                    req = pending[0]  # Resolve the oldest pending
+                    self._approval_manager.resolve(
+                        req.approval_id, approved=intent, reason="voice",
+                    )
+                    logger.info(
+                        "Voice approval: %s → %s for %s",
+                        event.text, "approved" if intent else "rejected",
+                        req.tool_name,
+                    )
+                    yield FlowReturn.OK, None
+                    return
 
         self._interrupt_event.clear()
 
@@ -551,5 +575,61 @@ def _agent_to_update_type(agent_output_type: Any) -> Any:
         AgentOutputType.TOOL_CALLING: UpdateType.TOOL,
         AgentOutputType.TOOL_EXECUTING: UpdateType.TOOL,
         AgentOutputType.TOOL_RESULT: UpdateType.TOOL,
+        AgentOutputType.APPROVAL_NEEDED: UpdateType.APPROVAL,
     }
     return _MAP.get(agent_output_type)
+
+
+# --- Voice approval intent classification ---
+
+# Keywords that indicate approval (case-insensitive)
+_POSITIVE_KEYWORDS = frozenset({
+    "yes", "yeah", "yep", "sure", "ok", "okay", "go ahead", "proceed",
+    "continue", "approve", "do it", "go for it", "confirmed",
+    "是", "是的", "好", "好的", "行", "可以", "继续", "执行", "没问题", "确认",
+})
+
+# Keywords that indicate rejection
+_NEGATIVE_KEYWORDS = frozenset({
+    "no", "nope", "cancel", "stop", "don't", "deny", "reject",
+    "abort", "never", "negative",
+    "不", "不要", "不行", "取消", "停止", "拒绝", "算了", "别",
+})
+
+
+def _classify_approval_intent(text: str) -> bool | None:
+    """Classify user text as approval (True), rejection (False), or ambiguous (None).
+
+    Uses simple keyword matching. Returns None for ambiguous text,
+    which falls through to normal LLM processing.
+    """
+    normalized = text.strip().lower()
+    if not normalized:
+        return None
+
+    # Check exact matches and substring matches
+    if normalized in _POSITIVE_KEYWORDS:
+        return True
+    if normalized in _NEGATIVE_KEYWORDS:
+        return False
+
+    # Check if the text starts with a keyword (handles "yes, please" etc.)
+    for kw in _POSITIVE_KEYWORDS:
+        if normalized.startswith(kw) and (
+            len(normalized) == len(kw) or not normalized[len(kw)].isalpha()
+        ):
+            return True
+    for kw in _NEGATIVE_KEYWORDS:
+        if normalized.startswith(kw) and (
+            len(normalized) == len(kw) or not normalized[len(kw)].isalpha()
+        ):
+            return False
+
+    return None
+
+
+def _build_approval_prompt(description: str, language: str) -> str:
+    """Build a TTS prompt for approval confirmation."""
+    if language and language.startswith("zh"):
+        return f"我想要{description}。可以继续吗？"
+    return f"I'd like to {description}. Should I proceed?"
