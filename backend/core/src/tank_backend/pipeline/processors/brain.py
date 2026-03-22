@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
     from openai.types.chat import ChatCompletionMessageParam
 
+    from ...agents.graph import AgentGraph
     from ...llm.llm import LLM
     from ...tools.manager import ToolManager
 
@@ -62,6 +63,7 @@ class Brain(Processor):
         llm_summarization: "LLM | None" = None,
         checkpointer: Any = None,
         session_id: str | None = None,
+        agent_graph: "AgentGraph | None" = None,
     ):
         super().__init__(name="brain")
         self._llm = llm
@@ -73,6 +75,7 @@ class Brain(Processor):
         self._tts_enabled = tts_enabled
         self._checkpointer = checkpointer
         self._session_id = session_id
+        self._agent_graph = agent_graph
 
         # Echo guard — self-echo text detection (Layer 2)
         self._echo_config = echo_guard_config or EchoGuardConfig()
@@ -258,6 +261,68 @@ class Brain(Processor):
         self, msg_id: str, language: str, tools: list[dict[str, Any]]
     ) -> AudioOutputRequest | None:
         """Run the streaming LLM process. Returns AudioOutputRequest or None."""
+        if self._agent_graph is not None:
+            return await self._process_via_agents(msg_id, language)
+        return await self._process_via_llm(msg_id, language, tools)
+
+    async def _process_via_agents(
+        self, msg_id: str, language: str
+    ) -> AudioOutputRequest | None:
+        """Process via AgentGraph — route to specialized agents."""
+        from ...agents.base import AgentOutputType, AgentState
+
+        state = AgentState(messages=list(self._conversation_history))
+        full_response_text = ""
+
+        async for output in self._agent_graph.run(state):  # type: ignore[union-attr]
+            # Check for interruption
+            if self._interrupt_event.is_set():
+                raise BrainInterrupted()
+
+            update_type = _agent_to_update_type(output.type)
+            if update_type is None:
+                continue
+
+            self._bus.post(BusMessage(
+                type="ui_message",
+                source=self.name,
+                payload=DisplayMessage(
+                    speaker="Brain",
+                    text=output.content,
+                    is_user=False,
+                    msg_id=msg_id,
+                    is_final=False,
+                    update_type=update_type,
+                    metadata=output.metadata,
+                ),
+            ))
+
+            if output.type == AgentOutputType.TOKEN:
+                full_response_text += output.content
+
+        # Finalize UI block
+        self._bus.post(BusMessage(
+            type="ui_message",
+            source=self.name,
+            payload=DisplayMessage(
+                speaker="Brain", text="", is_user=False,
+                msg_id=msg_id, is_final=True,
+            ),
+        ))
+
+        if full_response_text:
+            self._add_to_conversation_history("assistant", full_response_text)
+            await self._maybe_compact()
+            self._checkpoint()
+            if self._tts_enabled:
+                return AudioOutputRequest(content=full_response_text, language=language)
+
+        return None
+
+    async def _process_via_llm(
+        self, msg_id: str, language: str, tools: list[dict[str, Any]]
+    ) -> AudioOutputRequest | None:
+        """Run the streaming LLM process directly. Returns AudioOutputRequest or None."""
         full_response_text = ""
         from ...core.events import UpdateType
 
@@ -473,3 +538,18 @@ class Brain(Processor):
         if language and language.startswith("zh"):
             return "对不起，出现错误，请重试。"
         return "Sorry, an error occurred. Please try again."
+
+
+def _agent_to_update_type(agent_output_type: Any) -> Any:
+    """Map AgentOutputType → UpdateType for bus messages. Returns None for unmapped types."""
+    from ...agents.base import AgentOutputType
+    from ...core.events import UpdateType
+
+    _MAP = {
+        AgentOutputType.TOKEN: UpdateType.TEXT,
+        AgentOutputType.THOUGHT: UpdateType.THOUGHT,
+        AgentOutputType.TOOL_CALLING: UpdateType.TOOL,
+        AgentOutputType.TOOL_EXECUTING: UpdateType.TOOL,
+        AgentOutputType.TOOL_RESULT: UpdateType.TOOL,
+    }
+    return _MAP.get(agent_output_type)

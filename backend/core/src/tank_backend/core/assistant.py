@@ -175,6 +175,9 @@ class Assistant:
         # Optional summarization LLM (cheaper/faster model for context summarization)
         self._llm_summarization = self._create_summarization_llm()
 
+        # Optional agent graph (from config.yaml agents: + router: sections)
+        agent_graph = self._build_agent_graph()
+
         # Brain — native Processor (no more QueueWorker wrapper)
         self.brain = Brain(
             llm=self._llm,
@@ -186,6 +189,7 @@ class Assistant:
             echo_guard_config=echo_guard_cfg,
             llm_summarization=self._llm_summarization,
             checkpointer=self._checkpointer,
+            agent_graph=agent_graph,
         )
         builder.add(self.brain)
 
@@ -241,6 +245,74 @@ class Assistant:
         except (KeyError, ValueError):
             # No summarization profile configured — Brain will fall back to conversation LLM
             return None
+
+    def _build_agent_graph(self) -> object | None:
+        """Build AgentGraph from config.yaml agents: + router: sections, or None.
+
+        If no ``agents:`` section is present in config, returns None and the
+        Brain uses its direct LLM path (backward compatible).
+        """
+        agents_raw = self._app_config.get_section("agents")
+        if not agents_raw:
+            return None
+
+        from ..agents.factory import create_agent
+        from ..agents.graph import AgentGraph
+        from ..agents.router import Route, Router
+
+        # Build agents from config
+        agents: dict[str, object] = {}
+        for name, agent_cfg in agents_raw.items():
+            agent_type = agent_cfg.get("type", "chat")
+            llm_profile_name = agent_cfg.get("llm_profile", "default")
+            try:
+                llm_profile = self._app_config.get_llm_profile(llm_profile_name)
+                agent_llm = create_llm_from_profile(llm_profile)
+            except (KeyError, ValueError):
+                logger.warning(
+                    "Agent %r references unknown LLM profile %r — using default",
+                    name, llm_profile_name,
+                )
+                agent_llm = self._llm
+
+            agents[name] = create_agent(
+                name=name,
+                agent_type=agent_type,
+                llm=agent_llm,
+                tool_manager=self._tool_manager,
+                config=agent_cfg,
+            )
+
+        # Build router
+        router_raw = self._app_config.get_section("router")
+        default_agent = router_raw.get("default", "chat") if router_raw else "chat"
+        routes: list[Route] = []
+
+        if router_raw and "routes" in router_raw:
+            for route_name, route_cfg in router_raw["routes"].items():
+                routes.append(Route(
+                    name=route_name,
+                    agent_name=route_cfg.get("agent", route_name),
+                    keywords=route_cfg.get("keywords", []),
+                    description=route_cfg.get("description", ""),
+                ))
+
+        # Router LLM (optional — enables slow-path classification)
+        router_llm = None
+        if router_raw and router_raw.get("llm_profile"):
+            try:
+                rp = self._app_config.get_llm_profile(router_raw["llm_profile"])
+                router_llm = create_llm_from_profile(rp)
+            except (KeyError, ValueError):
+                logger.warning("Router LLM profile %r not found", router_raw["llm_profile"])
+
+        router = Router(routes=routes, default_agent=default_agent, llm=router_llm)
+
+        logger.info(
+            "AgentGraph built: %d agents (%s), %d routes, default=%s",
+            len(agents), list(agents.keys()), len(routes), default_agent,
+        )
+        return AgentGraph(agents=agents, router=router)
 
     def _create_checkpointer(self) -> object | None:
         """Create Checkpointer if persistence is enabled in config, or None."""
