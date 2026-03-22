@@ -14,7 +14,12 @@ from ..audio.output.types import AudioSinkFactory
 from ..llm.profile import create_llm_from_profile
 from ..pipeline import Bus, BusMessage, Pipeline, PipelineBuilder
 from ..pipeline.event import EventDirection, PipelineEvent
-from ..pipeline.observers import InterruptLatencyObserver, LatencyObserver, TurnTrackingObserver
+from ..pipeline.observers import (
+    InterruptLatencyObserver,
+    LatencyObserver,
+    MetricsCollector,
+    TurnTrackingObserver,
+)
 from ..pipeline.processors import (
     ASRProcessor,
     ASRSpeakerMerger,
@@ -123,6 +128,7 @@ class Assistant:
         self._latency_observer = LatencyObserver(self._bus)
         self._turn_observer = TurnTrackingObserver(self._bus)
         self._interrupt_observer = InterruptLatencyObserver(self._bus)
+        self._metrics_collector = MetricsCollector(self._bus)
 
         # Build processors
         builder = PipelineBuilder(self._bus)
@@ -274,6 +280,11 @@ class Assistant:
             "tts": self._has_tts,
             "speaker_id": self._app_config.is_feature_enabled("speaker"),
         }
+
+    @property
+    def metrics(self) -> dict:
+        """Return current pipeline metrics snapshot."""
+        return self._metrics_collector.snapshot()
 
     def subscribe_ui(self, callback: Callable[[UIMessage], None]) -> None:
         """Register a callback for UI messages (replaces polling get_messages)."""

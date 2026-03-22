@@ -97,3 +97,10 @@ tools:
 persistence:
   enabled: false
   db_path: ../data/sessions.db
+
+# Observability — Langfuse LLM tracing (optional).
+# Set LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST in .env to enable.
+# Run `docker compose up -d` from project root to start self-hosted Langfuse.
+# observability:
+#   langfuse:
+#     host: http://localhost:3001

@@ -13,6 +13,7 @@ from openai import (
 from openai.types.chat import ChatCompletionAssistantMessageParam, ChatCompletionMessageParam
 
 from ..core.events import UpdateType
+from ..observability.langfuse_client import initialize_langfuse
 
 logger = logging.getLogger("LLM")
 
@@ -41,6 +42,9 @@ class LLM:
         self.max_tokens = max_tokens
         self.stream_options = stream_options
         self.extra_body = extra_body or {}
+
+        # Initialize Langfuse tracing if configured (patches AsyncOpenAI in-place)
+        initialize_langfuse()
 
         # Initialize OpenAI client with custom base URL and headers
         self.client = AsyncOpenAI(
@@ -159,11 +163,13 @@ class LLM:
                                 },
                             )
             finally:
-                # Explicitly close the internal async generator chain.
-                # AsyncStream.close() only closes the HTTP response, not _iterator.
-                # shutdown_asyncgens() in _teardown_event_loop handles remaining finalizers.
-                await stream._iterator.aclose()
-                await stream.response.aclose()
+                # Explicitly close the stream's internal resources.
+                # Use .close() which works on both native AsyncStream and
+                # Langfuse's LangfuseResponseGeneratorAsync wrapper.
+                if hasattr(stream, "close"):
+                    await stream.close()
+                elif hasattr(stream, "response"):
+                    await stream.response.aclose()
 
             # ... (Prepare assistant message)
             assistant_msg: dict[str, Any] = {"role": "assistant", "content": full_content}

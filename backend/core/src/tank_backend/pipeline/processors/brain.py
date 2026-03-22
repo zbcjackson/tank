@@ -18,6 +18,7 @@ from ...core.events import (
     InputType,
     SignalMessage,
 )
+from ...observability.trace import generate_trace_id
 from ..bus import Bus, BusMessage
 from ..event import PipelineEvent
 from ..processor import FlowReturn, Processor
@@ -175,6 +176,14 @@ class Brain(Processor):
         # Generate Assistant Message ID
         assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
         language = "zh"
+
+        # Generate trace ID for observability linking
+        trace_id = generate_trace_id(self._session_id or "unknown")
+        self._bus.post(BusMessage(
+            type="trace_id",
+            source=self.name,
+            payload={"trace_id": trace_id, "session_id": self._session_id},
+        ))
 
         # Send processing_started signal
         self._bus.post(BusMessage(
