@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()  # .env → os.environ before any config loading (covers uvicorn reload path)
 
 from fastapi import FastAPI  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
 
 from .approvals import router as approvals_router  # noqa: E402
 from .approvals import set_session_manager as set_approvals_session_manager  # noqa: E402
@@ -48,5 +49,23 @@ set_approvals_session_manager(session_manager)
 
 
 @app.get("/health")
-async def health_check():
-    return {"status": "ok"}
+async def health_check(detail: bool = False):
+    if not detail:
+        return {"status": "ok"}
+
+    # Deep health check: aggregate across all active sessions
+    components: dict = {}
+    overall = "healthy"
+
+    for session_id, assistant in session_manager.iter_sessions():
+        session_health = assistant.health_snapshot()
+        pipeline_info = session_health.get("pipeline")
+        if pipeline_info and not pipeline_info.get("is_healthy", True):
+            overall = "degraded"
+        components[session_id] = session_health
+
+    status_code = 200 if overall == "healthy" else 503
+    return JSONResponse(
+        content={"status": overall, "sessions": components},
+        status_code=status_code,
+    )

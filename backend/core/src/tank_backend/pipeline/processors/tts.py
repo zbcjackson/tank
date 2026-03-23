@@ -27,17 +27,26 @@ class TTSProcessor(Processor):
 
     Handles interrupt and flush events.
     Posts TTS latency metrics to Bus.
+    Posts QoS feedback when overloaded.
     """
+
+    QOS_QUEUE_FILL_THRESHOLD = 0.80  # 80% full
+    QOS_CONSECUTIVE_THRESHOLD = 3  # need N consecutive overloaded items
 
     def __init__(self, tts_engine: TTSEngine, bus: Bus | None = None) -> None:
         super().__init__(name="tts")
         self._tts_engine = tts_engine
         self._bus = bus
         self._interrupted = False
+        self._qos_overload_count = 0
+        self._feeding_queue: Any = None  # set by assistant after pipeline build
 
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         request: AudioOutputRequest = item
         self._interrupted = False
+
+        # QoS: check if feeding queue is overloaded
+        self._check_qos()
 
         logger.info(
             "TTSProcessor: received AudioOutputRequest"
@@ -87,3 +96,26 @@ class TTSProcessor(Processor):
             self._interrupted = True
             return False  # propagate
         return False
+
+    def _check_qos(self) -> None:
+        """Post QoS feedback to bus when feeding queue is overloaded."""
+        if self._feeding_queue is None or self._bus is None:
+            return
+
+        fill_pct = self._feeding_queue.qsize / max(self._feeding_queue._queue.maxsize, 1)
+        if fill_pct >= self.QOS_QUEUE_FILL_THRESHOLD:
+            self._qos_overload_count += 1
+        else:
+            self._qos_overload_count = 0
+
+        if self._qos_overload_count >= self.QOS_CONSECUTIVE_THRESHOLD:
+            severity = min(fill_pct, 1.0)
+            self._bus.post(BusMessage(
+                type="qos",
+                source=self.name,
+                payload={"severity": severity, "fill_pct": fill_pct},
+            ))
+            logger.warning(
+                "TTS QoS: queue %.0f%% full (severity=%.2f)", fill_pct * 100, severity
+            )
+            self._qos_overload_count = 0  # Reset after posting

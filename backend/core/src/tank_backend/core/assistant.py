@@ -15,6 +15,11 @@ from ..llm.profile import create_llm_from_profile
 from ..pipeline import Bus, BusMessage, Pipeline, PipelineBuilder
 from ..pipeline.event import EventDirection, PipelineEvent
 from ..pipeline.observers import (
+    AlertDispatcher,
+    AlertingObserver,
+    AlertThresholds,
+    HealthMonitor,
+    HealthMonitorConfig,
     InterruptLatencyObserver,
     LatencyObserver,
     MetricsCollector,
@@ -205,6 +210,42 @@ class Assistant:
 
         self._pipeline = builder.build()
 
+        # Health monitor (auto-restart on processor failure)
+        hm_raw = self._app_config.get_section("health_monitor", {})
+        hm_config = HealthMonitorConfig(
+            poll_interval_s=hm_raw.get("poll_interval_s", 5.0),
+            stuck_threshold_s=hm_raw.get("stuck_threshold_s", 10.0),
+            max_consecutive_failures=hm_raw.get("max_consecutive_failures", 3),
+            auto_restart_enabled=hm_raw.get("auto_restart_enabled", True),
+            restart_backoff_base_s=hm_raw.get("restart_backoff_base_s", 1.0),
+            restart_backoff_max_s=hm_raw.get("restart_backoff_max_s", 30.0),
+        )
+        self._health_monitor = HealthMonitor(
+            pipeline=self._pipeline, bus=self._bus, config=hm_config
+        )
+
+        # Alerting observer
+        alerting_raw = self._app_config.get_section("alerting", {})
+        self._alerting_observer = AlertingObserver(
+            bus=self._bus,
+            thresholds=AlertThresholds(
+                latency_spike_multiplier=alerting_raw.get("latency_spike_multiplier", 2.0),
+                latency_spike_consecutive=alerting_raw.get("latency_spike_consecutive", 5),
+                error_rate_threshold=alerting_raw.get("error_rate_threshold", 0.10),
+                error_rate_window_s=alerting_raw.get("error_rate_window_s", 300.0),
+                queue_saturation_pct=alerting_raw.get("queue_saturation_pct", 0.80),
+                queue_saturation_duration_s=alerting_raw.get("queue_saturation_duration_s", 30.0),
+                stuck_approval_timeout_s=alerting_raw.get("stuck_approval_timeout_s", 300.0),
+                alert_cooldown_s=alerting_raw.get("alert_cooldown_s", 60.0),
+            ) if alerting_raw else None,
+        )
+
+        # Alert dispatcher
+        webhook_url = alerting_raw.get("webhook_url") if alerting_raw else None
+        self._alert_dispatcher = AlertDispatcher(
+            bus=self._bus, webhook_url=webhook_url
+        )
+
         # Speech interrupt: speech_start → send interrupt event immediately
         self._bus.subscribe("speech_start", self._on_speech_start)
 
@@ -391,6 +432,23 @@ class Assistant:
         """Return current pipeline metrics snapshot."""
         return self._metrics_collector.snapshot()
 
+    def health_snapshot(self) -> dict:
+        """Return health status for this assistant's pipeline."""
+        import dataclasses
+
+        result: dict = {"pipeline": None, "alerts": []}
+        if self._pipeline is not None:
+            ph = self._pipeline.health_snapshot()
+            result["pipeline"] = {
+                "running": ph.running,
+                "is_healthy": ph.is_healthy,
+                "processors": [dataclasses.asdict(p) for p in ph.processors],
+                "queues": [dataclasses.asdict(q) for q in ph.queues],
+            }
+        if self._alerting_observer is not None:
+            result["alerts"] = self._alerting_observer.snapshot()
+        return result
+
     def subscribe_ui(self, callback: Callable[[UIMessage], None]) -> None:
         """Register a callback for UI messages (replaces polling get_messages)."""
         self._ui_callbacks.append(callback)
@@ -462,6 +520,9 @@ class Assistant:
         )
         self._bus_poll_thread.start()
 
+        # Start health monitor
+        self._health_monitor.start()
+
         logger.info("Assistant started")
 
     def _poll_bus_loop(self) -> None:
@@ -477,6 +538,9 @@ class Assistant:
     async def stop(self) -> None:
         """Stop pipeline and cleanup."""
         self.shutdown_signal.stop()
+
+        # Stop health monitor before pipeline
+        self._health_monitor.stop()
 
         if self._pipeline is not None:
             await self._pipeline.stop()

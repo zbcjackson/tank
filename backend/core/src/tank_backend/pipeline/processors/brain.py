@@ -91,6 +91,10 @@ class Brain(Processor):
             {"role": "system", "content": self._system_prompt}
         ]
 
+        # QoS state: when TTS is overloaded, reduce response aggressiveness
+        self._qos_skip_tools = False
+        self._bus.subscribe("qos", self._on_qos)
+
     def _load_system_prompt(self) -> str:
         """Load system prompt from file."""
         prompt_path = Path(__file__).parent.parent.parent / "prompts" / "system_prompt.txt"
@@ -220,11 +224,16 @@ class Brain(Processor):
         ))
 
         try:
-            tools = self._tool_manager.get_openai_tools()
+            tools = [] if self._qos_skip_tools else self._tool_manager.get_openai_tools()
+            if self._qos_skip_tools:
+                logger.info("Brain: skipping tools due to QoS feedback")
             audio_request = await self._process_stream(assistant_msg_id, language, tools)
 
             elapsed = time.time() - started_at
             logger.info("Brain response finished at %.3f, duration_s=%.3f", time.time(), elapsed)
+
+            # Reset QoS state after turn completes
+            self._qos_skip_tools = False
 
             # Post LLM latency metric
             self._bus.post(BusMessage(
@@ -426,6 +435,14 @@ class Brain(Processor):
         if event.type == "flush":
             return False  # propagate
         return False
+
+    def _on_qos(self, message: "BusMessage") -> None:
+        """Handle QoS feedback from TTS: skip tools when severely overloaded."""
+        payload = message.payload or {}
+        severity = payload.get("severity", 0.5)
+        self._qos_skip_tools = severity > 0.7
+        if self._qos_skip_tools:
+            logger.info("Brain QoS: skipping tool calls (severity=%.2f)", severity)
 
     # Shared tiktoken encoder — cl100k_base works for GPT-4/3.5 and is a
     # reasonable approximation for other OpenAI-compatible models.

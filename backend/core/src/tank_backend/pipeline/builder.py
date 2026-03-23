@@ -9,6 +9,7 @@ from typing import Any
 from .bus import Bus
 from .event import PipelineEvent
 from .fan_out_queue import FanOutQueue
+from .health import PipelineHealth, ProcessorHealth
 from .processor import FlowReturn, Processor
 from .queue import ThreadedQueue
 
@@ -101,6 +102,97 @@ class Pipeline:
         """Flush all ThreadedQueues (drain without processing)."""
         for q in self._queues:
             q.flush()
+
+    def health_snapshot(self, stuck_threshold_s: float = 10.0) -> PipelineHealth:
+        """Collect health from all processors and queues."""
+        queue_health = [q.health(stuck_threshold_s) for q in self._queues]
+        processor_health = []
+        for i, proc in enumerate(self._processors):
+            q = self._queues[i] if i < len(self._queues) else None
+            processor_health.append(
+                ProcessorHealth(
+                    name=proc.name,
+                    is_running=q.health().consumer_alive if q else True,
+                    consecutive_failures=q._consecutive_failures if q else 0,
+                    last_error=None,
+                )
+            )
+        is_healthy = (
+            self._running
+            and all(qh.consumer_alive for qh in queue_health)
+            and not any(qh.is_stuck for qh in queue_health)
+        )
+        return PipelineHealth(
+            running=self._running,
+            processors=processor_health,
+            queues=queue_health,
+            is_healthy=is_healthy,
+        )
+
+    async def swap_processor(self, name: str, new_processor: Processor) -> None:
+        """Hot-swap a processor without restarting the pipeline.
+
+        Sequence: block upstream → flush target queue → stop old processor →
+        replace → start new → unblock upstream.
+        """
+        idx = next(
+            (i for i, p in enumerate(self._processors) if p.name == name), None
+        )
+        if idx is None:
+            raise ValueError(f"Processor {name!r} not found")
+
+        old_proc = self._processors[idx]
+        feeding_queue = self._queues[idx]
+
+        # 1. Block the queue that feeds into the target queue
+        upstream_queue: ThreadedQueue | None = None
+        for q in self._queues:
+            if q._next_queue is feeding_queue:
+                upstream_queue = q
+                break
+        if upstream_queue is not None:
+            upstream_queue.block()
+
+        # 2. Drain the feeding queue
+        feeding_queue.flush()
+
+        # 3. Stop old processor
+        feeding_queue.stop()
+        await old_proc.stop()
+
+        # 4. Replace
+        feeding_queue.link(new_processor)
+        self._processors[idx] = new_processor
+
+        # 5. Start new
+        await new_processor.start()
+        feeding_queue.start()
+
+        # 6. Unblock upstream
+        if upstream_queue is not None:
+            upstream_queue.unblock()
+
+        logger.info(
+            "Swapped processor %r → %r",
+            old_proc.name,
+            new_processor.name,
+        )
+
+    async def restart_processor(self, name: str) -> None:
+        """Restart a processor's queue consumer thread (for auto-recovery)."""
+        idx = next(
+            (i for i, p in enumerate(self._processors) if p.name == name), None
+        )
+        if idx is None:
+            logger.warning("Cannot restart unknown processor %r", name)
+            return
+        q = self._queues[idx]
+        proc = self._processors[idx]
+        q.stop()
+        await proc.stop()
+        await proc.start()
+        q.start()
+        logger.info("Restarted processor %r", name)
 
 
 class PipelineBuilder:

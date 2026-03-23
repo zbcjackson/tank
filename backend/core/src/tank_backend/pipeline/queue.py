@@ -5,8 +5,10 @@ from __future__ import annotations
 import logging
 import queue
 import threading
+import time
 from typing import Any
 
+from .health import QueueHealth
 from .processor import FlowReturn, Processor
 
 logger = logging.getLogger(__name__)
@@ -27,7 +29,10 @@ class ThreadedQueue:
         self._next_queue: ThreadedQueue | None = None
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+        self._blocked = threading.Event()  # set = blocked (for dynamic swap)
         self._loop: Any = None  # asyncio event loop for the consumer thread
+        self._last_consumed_at: float | None = None  # monotonic timestamp
+        self._consecutive_failures: int = 0
 
     def link(self, downstream: Processor) -> None:
         """Set the downstream processor that consumes from this queue."""
@@ -41,6 +46,8 @@ class ThreadedQueue:
         """Push an item into the queue. Blocks if full (backpressure)."""
         if self._stop_event.is_set():
             return FlowReturn.EOS
+        if self._blocked.is_set():
+            return FlowReturn.FLUSHING
         try:
             self._queue.put(item, timeout=1.0)
             return FlowReturn.OK
@@ -79,6 +86,37 @@ class ThreadedQueue:
         if drained:
             logger.debug("Queue %s flushed %d items", self.name, drained)
 
+    @property
+    def qsize(self) -> int:
+        """Current number of items in the queue."""
+        return self._queue.qsize()
+
+    def health(self, stuck_threshold_s: float = 10.0) -> QueueHealth:
+        """Return a snapshot of this queue's health state."""
+        now = time.monotonic()
+        size = self._queue.qsize()
+        is_stuck = (
+            size > 0
+            and self._last_consumed_at is not None
+            and (now - self._last_consumed_at) > stuck_threshold_s
+        )
+        return QueueHealth(
+            name=self.name,
+            size=size,
+            maxsize=self._queue.maxsize,
+            last_consumed_at=self._last_consumed_at,
+            is_stuck=is_stuck,
+            consumer_alive=self._thread is not None and self._thread.is_alive(),
+        )
+
+    def block(self) -> None:
+        """Block upstream pushes (for dynamic processor swap)."""
+        self._blocked.set()
+
+    def unblock(self) -> None:
+        """Unblock upstream pushes."""
+        self._blocked.clear()
+
     def _consumer_loop(self) -> None:
         """Consumer thread: drain queue into downstream processor."""
         import asyncio
@@ -102,6 +140,8 @@ class ThreadedQueue:
                 await asyncio.sleep(0)
                 continue
 
+            self._last_consumed_at = time.monotonic()
+
             if self._downstream is None:
                 continue
 
@@ -112,7 +152,12 @@ class ThreadedQueue:
                         return
                     if output is not None and self._next_queue is not None:
                         self._next_queue.push(output)
+                self._consecutive_failures = 0
             except Exception:
+                self._consecutive_failures += 1
                 logger.error(
-                    "Queue %s: downstream processor error", self.name, exc_info=True
+                    "Queue %s: downstream processor error (consecutive=%d)",
+                    self.name,
+                    self._consecutive_failures,
+                    exc_info=True,
                 )
