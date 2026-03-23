@@ -46,13 +46,15 @@ SERPER_API_KEY=your_serper_key
 LOG_LEVEL=INFO
 ```
 
-Edit `backend/core/config.yaml` for LLM profiles and plugin settings:
+Edit `backend/core/config.yaml` for LLM profiles, agents, and pipeline settings:
 
 ```yaml
+# LLM profiles — named configurations for different providers/models.
+# Use ${VAR} syntax to reference environment variables.
 llm:
   default:
     api_key: ${LLM_API_KEY}
-    model: anthropic/claude-3-5-nano
+    model: openai/gpt-oss-120b
     base_url: https://openrouter.ai/api/v1
     temperature: 0.7
     max_tokens: 10000
@@ -60,24 +62,120 @@ llm:
       HTTP-Referer: "http://localhost:3000"
       X-Title: "Tank Voice Assistant"
     stream_options: true
+  # Optional: cheaper model for context summarization
+  # summarization:
+  #   api_key: ${LLM_API_KEY}
+  #   model: openai/gpt-4o-mini
+  #   base_url: https://openrouter.ai/api/v1
+  #   temperature: 0.3
+  #   stream_options: false
+
+# Echo guard — defense against assistant hearing itself through speakers.
+echo_guard:
+  enabled: true
+  vad_threshold_during_playback: 0.85  # higher = less sensitive during playback
+  self_echo_detection:
+    similarity_threshold: 0.6          # discard if >60% token overlap
+    window_seconds: 10.0               # compare against last 10s of TTS text
+
+# Plugin slot assignments
+asr:
+  enabled: true
+  extension: asr-sherpa:asr
+  config:
+    model_dir: ../models/sherpa-onnx-zipformer-en-zh
+    num_threads: 4
+    sample_rate: 16000
 
 tts:
-  plugin: tts-edge
+  enabled: true
+  extension: tts-edge:tts
   config:
     voice_en: en-US-JennyNeural
     voice_zh: zh-CN-XiaoxiaoNeural
+
+# Brain — conversation processing
+brain:
+  max_history_tokens: 8000             # auto-summarize when exceeded
+
+# Agent orchestration — route user messages to specialized agents.
+# Remove this section entirely to use the default direct-LLM path.
+agents:
+  chat:
+    type: chat
+    llm_profile: default
+  search:
+    type: search
+    llm_profile: default
+    tools: [web_search, web_scraper]
+  task:
+    type: task
+    llm_profile: default
+    tools: [calculate, get_time, get_weather]
+  code:
+    type: code
+    llm_profile: default
+    tools: [sandbox_exec, sandbox_bash, sandbox_process]
+
+# Router — intent classification for agent dispatch.
+router:
+  llm_profile: default                 # enables LLM-based slow-path classification
+  default: chat
+  routes:
+    search:
+      agent: search
+      keywords: [search, look up, find, google, 搜索, 查找, 查一下]
+      description: Web search and information retrieval
+    code:
+      agent: code
+      keywords: [run code, execute, python, script, 运行代码, 执行]
+      description: Code execution in sandbox
+    task:
+      agent: task
+      keywords: [calculate, compute, what time, 计算, 几点, 天气]
+      description: Calculations, time queries, and weather
+
+# Approval policies — control which tools require user confirmation.
+approval_policies:
+  always_approve:
+    - get_weather
+    - get_time
+    - calculate
+  require_approval:
+    - sandbox_exec
+    - sandbox_bash
+    - sandbox_process
+  require_approval_first_time:
+    - web_search
+    - web_scraper
+
+# Conversation persistence — save/restore history across restarts.
+persistence:
+  enabled: false
+  db_path: ../data/sessions.db
+
+# Sandbox — Docker container for code execution tools
+sandbox:
+  enabled: true
+  image: tank-sandbox:latest
+  workspace_host_path: ./workspace
+  memory_limit: 1g
+  cpu_count: 2
+  default_timeout: 120
+  max_timeout: 600
+  network_enabled: true
 ```
 
-Other settings in `.env`:
+Optional observability settings in `.env`:
 
 ```env
-# ASR Configuration
-WHISPER_MODEL_SIZE=base
-ASR_ENGINE=whisper  # or sherpa
+# Langfuse LLM tracing (optional — set all three to enable)
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_HOST=http://localhost:3001
 
-# Audio Configuration
-SAMPLE_RATE=16000
-CHUNK_SIZE=1600
+# Logging
+LOG_LEVEL=INFO
 ```
 
 ## Running the Server
@@ -220,6 +318,69 @@ open htmlcov/index.html
    touch tests/test_my_tool.py
    uv run pytest tests/test_my_tool.py
    ```
+
+### Adding a New Agent
+
+1. **Create agent file** in `src/tank_backend/agents/`
+   ```python
+   from .chat_agent import ChatAgent
+
+   class MyAgent(ChatAgent):
+       """Specialized agent for my domain."""
+
+       def __init__(self, llm, tool_manager, approval_manager=None):
+           super().__init__(llm, tool_manager, approval_manager)
+           self.name = "my_agent"
+           self.system_prompt = "You are a specialized assistant for..."
+   ```
+
+2. **Register in factory** (`agents/factory.py`)
+   ```python
+   def create_agent(agent_type: str, ...) -> Agent:
+       if agent_type == "my_domain":
+           return MyAgent(llm, tool_manager, approval_manager)
+   ```
+
+3. **Add to config.yaml**
+   ```yaml
+   agents:
+     my_domain:
+       type: my_domain
+       llm_profile: default
+       tools: [tool_a, tool_b]
+
+   router:
+     routes:
+       my_domain:
+         agent: my_domain
+         keywords: [keyword1, keyword2, 关键词]
+         description: What this agent handles
+   ```
+
+4. **Set approval policy** (optional)
+   ```yaml
+   approval_policies:
+     require_approval:
+       - tool_a
+   ```
+
+### Adding a New Pipeline Processor
+
+1. **Create processor file** in `src/tank_backend/pipeline/processors/`
+   ```python
+   from ..processor import Processor, FlowReturn
+
+   class MyProcessor(Processor):
+       name = "my_processor"
+
+       async def process(self, item):
+           result = transform(item)
+           yield FlowReturn.OK, result
+   ```
+
+2. **Wire into pipeline** via `PipelineBuilder` in the Assistant initialization
+
+3. **Write tests** — test `process()` in isolation with mock inputs
 
 ### Debugging
 
@@ -400,8 +561,25 @@ wscat -c ws://localhost:8000/ws
 ### Test HTTP Endpoints
 
 ```bash
-# Health check
+# Health check (simple)
 curl http://localhost:8000/health
+
+# Health check (detailed — shows pipeline, queue, processor status)
+curl http://localhost:8000/health?detail=true
+
+# Pipeline metrics
+curl http://localhost:8000/api/metrics
+
+# Per-session metrics
+curl http://localhost:8000/api/metrics/{session_id}
+
+# List pending tool approvals
+curl http://localhost:8000/api/approvals
+
+# Approve a tool execution
+curl -X POST http://localhost:8000/api/approvals/{id}/respond \
+    -H "Content-Type: application/json" \
+    -d '{"approved": true}'
 
 # API docs
 open http://localhost:8000/docs

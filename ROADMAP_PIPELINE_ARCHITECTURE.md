@@ -1,5 +1,7 @@
 # Pipeline Architecture Roadmap
 
+> **Status: ✅ ALL PHASES COMPLETED** — All 9 phases (0–8) have been implemented. The three-layer architecture (audio pipeline, agent orchestration, LLM transport) is fully operational with health monitoring, alerting, approval gates, echo guard, conversation persistence, and Langfuse observability. See [backend/ARCHITECTURE.md](backend/ARCHITECTURE.md) for the current architecture documentation.
+
 ## Executive Summary
 
 After researching Pipecat (frame-based async pipeline framework), GStreamer (the gold standard for media pipelines), LangGraph (stateful agent orchestration), LLM observability platforms, and LLM framework alternatives (LangChain, LlamaIndex, etc.), the conclusion is: **evolve Tank into a three-layer architecture — audio pipeline (GStreamer-inspired), agent orchestration (LangGraph-inspired but custom-built), and observability (Langfuse) — keeping the direct OpenAI SDK as the LLM transport layer.**
@@ -877,7 +879,7 @@ This replaces the single `threading.Event` with targeted, per-processor interrup
 
 ## Part 4: Implementation Roadmap
 
-### Phase 0: Foundation (Week 1)
+### Phase 0: Foundation (Week 1) ✅ COMPLETED
 > Goal: Core abstractions without breaking existing functionality
 
 **Functionality status: ✅ No breakage — new code only, old pipeline untouched**
@@ -903,7 +905,7 @@ This replaces the single `threading.Event` with targeted, per-processor interrup
 
 **Deliverable**: New `pipeline/` package with core abstractions, fully tested, not yet integrated.
 
-### Phase 1: Wrap Existing Components (Week 2)
+### Phase 1: Wrap Existing Components (Week 2) ✅ COMPLETED
 > Goal: Wrap current workers as Processors — bridge old and new
 
 **Functionality status: ✅ No breakage — wrappers delegate to existing workers, old Assistant still orchestrates**
@@ -934,7 +936,7 @@ This replaces the single `threading.Event` with targeted, per-processor interrup
 
 **Deliverable**: All existing components wrapped as Processors. Old `Assistant` still orchestrates, but components are now swappable.
 
-### Phase 2: Pipeline Integration (Week 3)
+### Phase 2: Pipeline Integration (Week 3) ✅ COMPLETED
 > Goal: Replace Assistant's hardcoded orchestration with PipelineBuilder
 
 **⚠️ BREAKING CHANGE: Speech interruption will be temporarily degraded during this phase**
@@ -979,7 +981,7 @@ This replaces the single `threading.Event` with targeted, per-processor interrup
 - ✅ Speech interruption: **RESTORED** (better than before — ordered propagation, graceful fade-out, partial response saved)
 - ❌ ANC: Still not implemented (no change from current)
 
-### Phase 3: Advanced Features — ANC & Audio Filters (Week 4-5)
+### Phase 3: Advanced Features — ANC & Audio Filters (Week 4-5) ✅ COMPLETED
 > Goal: Leverage the new architecture for features that were impossible before
 
 **Functionality status: ✅ All existing features working. NEW: Noise cancellation and AEC added.**
@@ -1079,7 +1081,7 @@ If the transcript is too similar to what the assistant just said, discard it.
 - ✅ Echo guard Layer 1: **NEW** — VAD threshold raised during playback filters echo at signal level
 - ✅ Echo guard Layer 2: **NEW** — self-echo text detection catches leaked echo semantically
 
-### Phase 4: LLM Layer Hardening (Week 6)
+### Phase 4: LLM Layer Hardening (Week 6) ✅ COMPLETED
 > Goal: Make the LLM layer production-robust without adding frameworks
 
 **4.1 — Token counting with tiktoken**
@@ -1129,12 +1131,12 @@ If the transcript is too similar to what the assistant just said, discard it.
 
 **Deliverable**: Token-aware history management, auto-summarization, robust error handling, task-specific model routing, conversation persistence.
 
-### Phase 5: Observability & Dashboard (Week 7-8)
+### Phase 5: Observability & Dashboard (Week 7-8) ✅ COMPLETED
 > Goal: Full-stack observability across pipeline and LLM layers
 
 (unchanged — see existing Phase 5 content)
 
-### Phase 6: Agent Orchestration Layer (Week 9-11)
+### Phase 6: Agent Orchestration Layer (Week 9-11) ✅ COMPLETED
 > Goal: Evolve Brain from single-LLM to multi-agent state graph
 
 **Functionality status: ✅ No breakage — ChatAgent wraps existing Brain, new agents added alongside**
@@ -1202,7 +1204,7 @@ If the transcript is too similar to what the assistant just said, discard it.
 
 **Deliverable**: Multi-agent system with routing, handoff, specialized agents, all streaming through the audio pipeline.
 
-### Phase 7: Human-in-the-Loop (Week 12-13)
+### Phase 7: Human-in-the-Loop (Week 12-13) ✅ COMPLETED
 > Goal: Approval gates for sensitive actions, with voice + UI interaction
 
 **7.1 — ApprovalRequest and approval gate**
@@ -1245,7 +1247,7 @@ If the transcript is too similar to what the assistant just said, discard it.
 
 **Deliverable**: Human-in-the-loop approval for sensitive tools, voice + UI approval, configurable policies, checkpoint-based resume.
 
-### Phase 8: Production Readiness (Week 14-15)
+### Phase 8: Production Readiness (Week 14-15) ✅ COMPLETED
 > Goal: Health monitoring, alerting, graceful degradation
 
 **8.1 — Health monitoring**

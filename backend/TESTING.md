@@ -36,10 +36,14 @@ Always mock:
 - **ML model loading** (Whisper, Silero VAD)
 - **External APIs** (web search, weather)
 - **System time** — use fixed timestamps
+- **Langfuse** — mock or disable via env vars
+- **Docker sandbox** — mock subprocess calls for code execution tools
 
 Use real implementations for:
-- Pure logic (tool calculations, text processing)
-- Data structures and event types
+- Pure logic (tool calculations, text processing, echo detection)
+- Data structures and event types (Bus, BusMessage, AgentState)
+- Pipeline primitives (ThreadedQueue, FlowReturn)
+- Approval policy logic (no I/O)
 - Fast, deterministic components (< 100ms)
 
 ## Key Patterns
@@ -169,7 +173,174 @@ tests/
 ├── test_asr.py                    # ASR components
 ├── test_tts_engine_edge.py        # TTS engine
 ├── test_segmenter.py              # VAD + segmenter
-└── test_api.py                    # FastAPI routes / WebSocket
+├── test_api.py                    # FastAPI routes / WebSocket
+├── test_pipeline.py               # Pipeline primitives (Bus, Queue, FlowReturn)
+├── test_processors.py             # Individual processor tests
+├── test_agents.py                 # Agent orchestration (Router, AgentGraph)
+├── test_approval.py               # Approval system (policy, manager, API)
+├── test_echo_guard.py             # Echo guard (Layer 2 text detection)
+├── test_checkpointer.py           # Conversation persistence
+└── test_observers.py              # Observer tests (latency, health, alerting)
+```
+
+## Testing Pipeline Components
+
+### Testing Processors
+
+Test `process()` in isolation with mock inputs — no real audio or LLM:
+
+```python
+from tank_backend.pipeline.processor import FlowReturn
+
+async def test_echo_guard_detects_self_echo():
+    guard = EchoGuard(config={"similarity_threshold": 0.6, "window_seconds": 10.0})
+    guard.record_tts("The weather today is sunny and warm")
+
+    # Simulate ASR transcript that echoes TTS
+    result = guard.is_echo("the weather today is sunny and warm")
+    assert result is True
+
+async def test_echo_guard_passes_new_speech():
+    guard = EchoGuard(config={"similarity_threshold": 0.6, "window_seconds": 10.0})
+    guard.record_tts("The weather today is sunny and warm")
+
+    result = guard.is_echo("what time is it")
+    assert result is False
+```
+
+### Testing the Bus
+
+```python
+from tank_backend.pipeline.bus import Bus, BusMessage
+
+def test_bus_delivers_to_subscribers():
+    bus = Bus()
+    received = []
+    bus.subscribe("metric", lambda msg: received.append(msg))
+
+    bus.post(BusMessage(type="metric", source="test", payload={"value": 42}, timestamp=1000.0))
+    bus.poll()
+
+    assert len(received) == 1
+    assert received[0].payload["value"] == 42
+```
+
+### Testing ThreadedQueue
+
+```python
+from tank_backend.pipeline.queue import ThreadedQueue
+
+def test_queue_backpressure():
+    q = ThreadedQueue(name="test", maxsize=2)
+    assert q.push("a") == FlowReturn.OK
+    assert q.push("b") == FlowReturn.OK
+    # Queue is full — next push should indicate backpressure
+```
+
+## Testing Agents
+
+### Testing the Router
+
+```python
+from tank_backend.agents.router import Router, Route
+
+async def test_router_keyword_match():
+    routes = [Route(name="search", agent="search", keywords=["search", "find", "搜索"])]
+    router = Router(routes=routes, default="chat")
+
+    result = await router.route("please search for Python tutorials")
+    assert result == "search"
+
+async def test_router_falls_back_to_default():
+    routes = [Route(name="search", agent="search", keywords=["search"])]
+    router = Router(routes=routes, default="chat")
+
+    result = await router.route("hello, how are you?")
+    assert result == "chat"
+```
+
+### Testing Agents
+
+Mock the LLM and tool manager — test the agent's streaming output:
+
+```python
+from unittest.mock import AsyncMock, MagicMock
+from tank_backend.agents.base import AgentState, AgentOutputType
+
+async def test_chat_agent_streams_tokens():
+    mock_llm = AsyncMock()
+    mock_tool_manager = MagicMock()
+    agent = ChatAgent(llm=mock_llm, tool_manager=mock_tool_manager)
+
+    state = AgentState(messages=[{"role": "user", "content": "hi"}])
+    outputs = [o async for o in agent.run(state, mock_llm)]
+
+    assert any(o.type == AgentOutputType.TOKEN for o in outputs)
+```
+
+### Testing Approval System
+
+```python
+from tank_backend.agents.approval import ApprovalPolicy, ApprovalManager
+
+def test_approval_policy():
+    policy = ApprovalPolicy(
+        always_approve={"weather", "time"},
+        require_approval={"sandbox_exec"},
+        require_approval_first_time={"web_search"},
+    )
+    assert not policy.needs_approval("weather")
+    assert policy.needs_approval("sandbox_exec")
+    assert policy.needs_approval("web_search")
+
+async def test_approval_manager_resolves():
+    manager = ApprovalManager()
+    request = ApprovalRequest(tool_name="sandbox_exec", tool_args={}, description="Run code")
+
+    # Simulate approval in background
+    import asyncio
+    async def approve_later():
+        await asyncio.sleep(0.01)
+        pending = manager.get_pending()
+        manager.resolve(pending[0].id, approved=True)
+
+    asyncio.create_task(approve_later())
+    result = await manager.request_approval(request)
+    assert result.approved is True
+```
+
+## Testing Observability
+
+### Testing Observers
+
+```python
+from tank_backend.pipeline.bus import Bus, BusMessage
+from tank_backend.pipeline.observers.latency import LatencyObserver
+
+def test_latency_observer_tracks_metrics():
+    bus = Bus()
+    observer = LatencyObserver(bus)
+
+    # Simulate processor start/end
+    observer.on_processor_start("asr", 1000.0)
+    observer.on_processor_end("asr", 1000.050, 50.0)
+
+    bus.poll()
+    # Verify metric was posted to bus
+```
+
+### Testing Health Monitoring
+
+```python
+from tank_backend.pipeline.health import HealthAggregator
+
+async def test_health_aggregator():
+    aggregator = HealthAggregator()
+    aggregator.register("llm", lambda: {"status": "healthy"})
+    aggregator.register("asr", lambda: {"status": "degraded", "detail": "high latency"})
+
+    result = await aggregator.check_all()
+    assert result["status"] == "degraded"  # worst of all components
 ```
 
 ## Testing FastAPI Routes
@@ -207,3 +378,7 @@ async def test_websocket():
 - [ ] Async tests run without real I/O
 - [ ] Each test completes in < 2 seconds
 - [ ] Shared helpers used to avoid duplication (MODULE constant, `make_*`, `collect_*`)
+- [ ] Pipeline processors tested in isolation (mock upstream/downstream)
+- [ ] Agent tests mock LLM and verify streaming output types
+- [ ] Approval tests verify policy logic and async resolve flow
+- [ ] Observer tests verify Bus message delivery

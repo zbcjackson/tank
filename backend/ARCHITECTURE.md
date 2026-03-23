@@ -4,115 +4,242 @@ This document describes the architecture of the Tank Backend API Server.
 
 ## Overview
 
-The backend is a FastAPI-based server that handles:
-- Real-time audio processing (ASR + TTS)
-- LLM conversation with tool calling
-- WebSocket communication with clients
-- Audio streaming and playback
+The backend is a FastAPI-based server organized into three layers:
+
+1. **Audio Pipeline** (real-time, latency-critical) — processors chained via bounded queues with backpressure, event-driven interruption, and fan-out support
+2. **Agent Orchestration** (stateful, multi-agent) — intent routing, specialized agents, human-in-the-loop approval, conversation persistence
+3. **LLM Transport** (thin wrapper) — raw `AsyncOpenAI` with retry, token counting, Langfuse tracing
+
+Cross-cutting: Message Bus for decoupled observability, health monitoring, and alerting.
+
+## Three-Layer Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Layer 1: Audio Pipeline (GStreamer-inspired)                       │
+│  ┌────────────────────────────────────────────────────────────────┐ │
+│  │ Audio In → [VAD] → [Q] → [ASR] ──┬──→ [ASR+Speaker Merger]   │ │
+│  │                                    │                           │ │
+│  │                          [Speaker ID]──┘                       │ │
+│  │                                                                │ │
+│  │ Audio Out ← [Playback] ← [Q] ← [TTS] ← [Echo Guard] ← Brain │ │
+│  └────────────────────────────────────────────────────────────────┘ │
+│                                                                     │
+│  Layer 2: Agent Orchestration (LangGraph-inspired)                  │
+│  ┌────────────────────────────────────────────────────────────────┐ │
+│  │ Router → AgentGraph → [Chat|Search|Task|Code] Agent           │ │
+│  │ Approval gates · Checkpointing · Streaming tokens to TTS      │ │
+│  └────────────────────────────────────────────────────────────────┘ │
+│                                                                     │
+│  Layer 3: LLM Transport (Raw SDK)                                   │
+│  ┌────────────────────────────────────────────────────────────────┐ │
+│  │ AsyncOpenAI (Langfuse-wrapped) · Retry · Token counting       │ │
+│  └────────────────────────────────────────────────────────────────┘ │
+│                                                                     │
+│  Cross-cutting: Message Bus + Observers + Langfuse Observability    │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
 ## Core Components
 
 ### 1. API Layer (`src/tank_backend/api/`)
 
 **FastAPI Routes**:
-- `/ws` - WebSocket endpoint for real-time communication
-- `/health` - Health check endpoint
-- `/api/chat` - HTTP chat endpoint (optional)
+- `/ws/{session_id}` — WebSocket endpoint for real-time communication
+- `/health` — Health check (simple or `?detail=true` for deep check)
+- `/api/chat` — HTTP chat endpoint (optional)
+- `/api/metrics` — Aggregated pipeline metrics
+- `/api/metrics/{session_id}` — Per-session metrics
+- `/api/approvals` — List pending tool approval requests
+- `/api/approvals/{id}/respond` — Approve or reject a pending action
+- `/api/speakers` — Speaker management (list, enroll, delete)
 
-**WebSocket Protocol**:
-- Client → Server: Audio frames, text messages, control signals
-- Server → Client: Audio chunks, text responses, status updates
+### 2. Pipeline Architecture (`src/tank_backend/pipeline/`)
 
-### 2. Brain (`src/tank_backend/core/brain.py`)
+The pipeline is a GStreamer-inspired processor chain with bounded queues, backpressure, and bidirectional events.
 
-**Role**: Central orchestrator for conversation logic
+**Core Abstractions**:
 
-**Responsibilities**:
-- Manages conversation history
-- Coordinates LLM calls with tool execution
-- Handles language detection and switching
-- Processes user input and generates responses
+| Component | File | Purpose |
+|-----------|------|---------|
+| `Processor` | `processor.py` | ABC for all pipeline stages — `async process(item) → AsyncIterator[tuple[FlowReturn, Any]]` |
+| `AudioCaps` | `processor.py` | Format declaration (sample_rate, channels, dtype) for audio processors |
+| `FlowReturn` | `processor.py` | Enum: `OK`, `EOS`, `FLUSHING`, `ERROR` — backpressure signals |
+| `PipelineEvent` | `event.py` | Bidirectional control event (interrupt, flush, eos, qos) |
+| `ThreadedQueue` | `queue.py` | Bounded queue with consumer thread — creates thread boundaries |
+| `FanOutQueue` | `fan_out_queue.py` | Routes items to parallel branches (e.g., ASR + speaker ID) |
+| `Bus` / `BusMessage` | `bus.py` | Thread-safe publish/subscribe message bus |
+| `Pipeline` | `builder.py` | Assembled pipeline instance with lifecycle management |
+| `PipelineBuilder` | `builder.py` | Fluent builder: `add()`, `fan_out()`, `build()` |
 
-**Key Methods**:
-- `process_input(text, language)` - Process user text input
-- `_call_llm_with_tools()` - LLM call with iterative tool execution
-- `_execute_tools()` - Execute tool calls from LLM
+**Key Design Decisions**:
+- **Queue = Thread Boundary**: Inserting a `ThreadedQueue` between two processors creates a new thread. Pipeline topology determines threading, not hardcoding.
+- **Backpressure**: Bounded queues with `FlowReturn` propagation. When a queue is full, the upstream processor blocks.
+- **Bidirectional Events**: Data flows downstream; control events (interrupt, flush) flow upstream from VAD to Playback.
+- **Bus for Observability**: Decoupled from pipeline data flow. Any processor can post metrics/state changes; any observer can subscribe.
 
-### 3. Assistant (`src/tank_backend/core/assistant.py`)
+**Pipeline Data Flow**:
+```
+Audio frames
+  → VADProcessor (voice activity detection, echo guard threshold switching)
+  → ThreadedQueue
+  → ASRProcessor (speech-to-text)
+  → FanOutQueue ──┬── SpeakerIDProcessor (who is speaking)
+                   └── ASRSpeakerMerger (combine transcript + speaker)
+  → ThreadedQueue
+  → BrainProcessor (LLM conversation via AgentGraph)
+  → EchoGuard (filter self-echo from TTS output)
+  → ThreadedQueue
+  → TTSProcessor (text-to-speech + QoS feedback)
+  → PlaybackProcessor (speaker output with fade-in/fade-out)
+```
 
-**Role**: High-level coordinator for audio + brain
+#### Processors (`pipeline/processors/`)
 
-**Responsibilities**:
-- Manages audio input/output pipelines
-- Coordinates ASR → Brain → TTS flow
-- Handles interruption and cancellation
-- Maintains session state
+| Processor | File | Input | Output |
+|-----------|------|-------|--------|
+| `VADProcessor` | `vad.py` | Audio frames | Speech segments. Emits `interrupt` events upstream on speech detection. Switches VAD threshold during playback (echo guard layer 1). |
+| `ASRProcessor` | `asr.py` | Speech segments | Transcripts. Posts ASR latency metrics to Bus. |
+| `SpeakerIDProcessor` | `speaker_id.py` | Audio segments | Speaker identity. |
+| `ASRSpeakerMerger` | `asr_speaker_merger.py` | ASR + Speaker ID | Combined transcript with speaker name. |
+| `BrainProcessor` | `brain.py` | Transcripts | LLM responses. Delegates to AgentGraph. Token counting, context summarization, QoS feedback, checkpointing. |
+| `EchoGuard` | `echo_guard.py` | Transcripts | Filtered transcripts. Layer 2: compares ASR text against recent TTS output using token overlap. |
+| `TTSProcessor` | `tts.py` | Text | Audio chunks. Posts QoS messages when queue fill exceeds threshold. |
+| `PlaybackProcessor` | `playback.py` | Audio chunks | Speaker output. Handles interrupt with graceful fade-out. |
 
-**Key Features**:
-- Async event-driven architecture
-- Cancellable tasks for responsiveness
-- Queue-based communication between components
+#### Echo Guard (Defense in Depth)
 
-### 4. Audio Processing
+Prevents the assistant from hearing its own voice through the speakers:
 
-#### ASR (Automatic Speech Recognition)
+- **Layer 1** (VAD threshold switching): During TTS playback, `VADProcessor` raises the VAD `speech_threshold` (default 0.85) so only loud/close speech triggers detection. Restores default on playback end.
+- **Layer 2** (Self-echo text detection): `EchoGuard` maintains a sliding window of recent TTS text. Compares ASR transcripts against it using token overlap ratio. Discards if overlap > threshold (default 0.6).
 
-**Location**: `src/tank_backend/audio/input/`
+Both layers are backend-only, platform-independent, and fail-open.
+
+### 3. Agent Orchestration (`src/tank_backend/agents/`)
+
+The Brain delegates to an agent graph that routes user intent to specialized agents.
 
 **Components**:
-- `asr.py` - ASR engine abstraction
-- `asr_whisper.py` - Faster-whisper backend
-- `asr_sherpa.py` - Sherpa-ONNX backend
-- `segmenter.py` - Voice Activity Detection + utterance segmentation
-- `perception.py` - Audio perception thread (ASR + future voiceprint)
 
-**Data Flow**:
+| Component | File | Purpose |
+|-----------|------|---------|
+| `Agent` | `base.py` | ABC: `async run(state, llm) → AsyncIterator[AgentOutput]` |
+| `AgentState` | `base.py` | Shared state: messages, metadata, agent_history, turn counter |
+| `AgentOutput` | `base.py` | Streaming output: TOKEN, THOUGHT, TOOL_CALLING, TOOL_EXECUTING, TOOL_RESULT, APPROVAL_NEEDED, HANDOFF, DONE |
+| `Router` | `router.py` | Intent classifier: fast-path keyword matching + optional slow-path LLM classification |
+| `AgentGraph` | `graph.py` | Orchestrator: Router → Agent → Handoff → Agent → Done. Max 5 iterations. |
+| `ApprovalManager` | `approval.py` | Async approval gate for sensitive tool calls |
+| `ApprovalPolicy` | `approval.py` | Config-driven: `always_approve`, `require_approval`, `require_approval_first_time` |
+| `create_agent` | `factory.py` | Factory function: agent type string → Agent instance |
+
+**Specialized Agents**:
+
+| Agent | File | Tools | Purpose |
+|-------|------|-------|---------|
+| `ChatAgent` | `chat_agent.py` | All registered | General conversation with tool calling. Default agent. |
+| `SearchAgent` | `search_agent.py` | web_search, web_scraper | Web search + summarization |
+| `TaskAgent` | `task_agent.py` | calculate, get_time, get_weather | Calculations, time, weather |
+| `CodeAgent` | `code_agent.py` | sandbox_exec, sandbox_bash, sandbox_process | Code execution in Docker sandbox |
+
+**Agent Graph Flow**:
 ```
-Audio frames → Segmenter (VAD) → Utterance → Perception (ASR) → Brain
+User message → Router (keyword/LLM classification)
+  → Resolve agent (chat/search/task/code)
+  → Agent.run(state) streams:
+      TOKEN → TTS immediately (no batching)
+      TOOL_CALLING → check ApprovalPolicy
+        → APPROVAL_NEEDED → pause, await user response
+        → or auto-approve → TOOL_EXECUTING → TOOL_RESULT
+      HANDOFF → switch to another agent
+      DONE → end turn
 ```
 
-**Features**:
-- Multi-language support (auto-detect)
-- Streaming recognition
-- Energy-based VAD with configurable thresholds
+**Key Difference from LangGraph**: Tokens stream immediately via async generators. No batching, no superstep synchronization. Every token flows to TTS the moment it's produced.
 
-#### TTS (Text-to-Speech)
+#### Approval System
 
-**Location**: `src/tank_backend/audio/output/`
+Tools can require human approval before execution. The approval flow:
 
-**Components**:
-- `tts.py` - TTS engine abstraction
-- `tts_engine_edge.py` - Edge TTS backend
-- `speaker.py` - Audio playback handler
-- `playback.py` - PCM streaming playback
+1. Agent yields `AgentOutput(type=APPROVAL_NEEDED)` with tool name and args
+2. `ApprovalManager` creates a pending request with timeout (120s default)
+3. Client is notified via WebSocket
+4. User approves/rejects via `POST /api/approvals/{id}/respond` or voice ("yes"/"no")
+5. Agent resumes with the tool result or rejection notice
 
-**Data Flow**:
-```
-Text → TTS Engine → MP3 chunks → Decoder → PCM chunks → Playback
-```
+**Approval Policies** (configured in `config.yaml`):
+- `always_approve` — no approval needed (weather, time, calculator)
+- `require_approval` — always ask (sandbox_exec, sandbox_bash)
+- `require_approval_first_time` — ask once per session, then auto-approve (web_search)
 
-**Features**:
-- Streaming generation for low latency
-- Interruptible playback
-- MP3 → PCM decoding (ffmpeg or pydub)
-- Fade-in/fade-out to avoid audio pops
-
-### 5. LLM Integration (`src/tank_backend/llm/`)
+### 4. LLM Integration (`src/tank_backend/llm/`)
 
 **LLM Client** (`llm.py`):
-- OpenAI-compatible API integration
-- Supports any provider (OpenAI, OpenRouter, Gemini, etc.)
-- Handles streaming responses
-- Manages conversation history
-- Implements iterative tool calling loop
+- OpenAI-compatible API via `AsyncOpenAI`
+- Multiple named profiles (default, summarization) in `config.yaml`
+- Streaming responses with real-time token delivery
+- Bounded tool iterations (`MAX_TOOL_ITERATIONS = 10`)
+- Retry with exponential backoff (`MAX_RETRY_ATTEMPTS = 3`) on transient errors
+- Optional Langfuse auto-tracing via monkey-patched `AsyncOpenAI`
 
-**Features**:
-- Automatic tool call detection and execution
-- Multi-turn tool calling support
-- Usage statistics tracking
-- Error handling and retries
+**Token Management**:
+- `tiktoken`-based token counting
+- `max_history_tokens` config (default 8000)
+- Automatic context summarization when history exceeds threshold
+- Fallback to message-count truncation if summarization fails
 
-### 6. Tool System (`src/tank_backend/tools/`)
+### 5. Observability (`src/tank_backend/observability/` + `pipeline/observers/`)
+
+**Two-layer observability strategy**:
+
+1. **Pipeline layer** — Bus + observers for real-time pipeline health
+2. **LLM layer** — Langfuse for deep LLM tracing (token usage, cost, prompts, tool calls)
+
+**Observers** (`pipeline/observers/`):
+
+| Observer | File | Purpose |
+|----------|------|---------|
+| `LatencyObserver` | `latency.py` | Per-stage timing metrics |
+| `InterruptLatencyObserver` | `interrupt_latency.py` | VAD trigger → full silence latency |
+| `TurnTracker` | `turn_tracking.py` | Conversation turn metrics |
+| `MetricsCollector` | `metrics_collector.py` | Aggregated performance metrics + Langfuse trace IDs |
+| `HealthMonitor` | `health_monitor.py` | Pipeline health checks from Bus messages |
+| `AlertingObserver` | `alerting.py` | Anomaly detection: latency spikes, error rates, queue saturation |
+
+**Langfuse Integration** (`observability/langfuse_client.py`):
+- Conditional initialization from env vars (`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`)
+- Auto-patches `AsyncOpenAI` for zero-code tracing
+- Async/non-blocking — no impact on voice latency
+- Self-hostable via Docker
+
+**Health Monitoring** (`pipeline/health.py`):
+
+- `HealthAggregator` — registers named health checks, runs all, returns unified status
+- Per-component health: `healthy | degraded | unhealthy`
+- Queue health: size, stuck detection, consumer alive status
+- Processor health: running status, consecutive failures, last error
+- Exposed via `GET /health?detail=true` (returns HTTP 503 if unhealthy)
+
+**QoS Feedback**:
+- TTSProcessor posts `"qos"` bus messages when queue fill exceeds threshold
+- BrainProcessor subscribes: skips tool calls when TTS is overloaded
+- Graceful degradation under load
+
+### 6. Persistence (`src/tank_backend/persistence/`)
+
+**Checkpointer** (`checkpointer.py`):
+- SQLite with WAL mode for concurrent reads
+- `save(session_id, history)` — upserts conversation state
+- `load(session_id)` — restores conversation on reconnect
+- `list_sessions()` — all saved sessions with timestamps
+- `delete(session_id)` — cleanup
+
+**Brain Integration**:
+- On WebSocket connect: loads checkpoint for `session_id` if persistence is enabled
+- After each turn: auto-checkpoints conversation history
+- Configurable via `config.yaml` (`persistence.enabled`, `persistence.db_path`)
+
+### 7. Tool System (`src/tank_backend/tools/`)
 
 **ToolManager** (`manager.py`):
 - Auto-registers tools on initialization
@@ -121,29 +248,16 @@ Text → TTS Engine → MP3 chunks → Decoder → PCM chunks → Playback
 - Handles conditional tool registration (e.g., web search requires API key)
 
 **Available Tools**:
-- `calculator.py` - Mathematical calculations
-- `weather.py` - Weather information
-- `time.py` - Current date/time
-- `web_search.py` - Real-time web search (requires SERPER_API_KEY)
-- `web_scraper.py` - Web content extraction
+- `calculator.py` — Mathematical calculations
+- `weather.py` — Weather information
+- `time.py` — Current date/time
+- `web_search.py` — Real-time web search (requires SERPER_API_KEY)
+- `web_scraper.py` — Web content extraction
+- `sandbox_exec.py` — Execute code in Docker sandbox
+- `sandbox_bash.py` — Run shell commands in Docker sandbox
+- `sandbox_process.py` — Long-running process management in sandbox
 
-**Tool Pattern**:
-```python
-class MyTool(BaseTool):
-    name = "my_tool"
-    description = "Tool description"
-
-    def get_parameters(self) -> dict:
-        return {
-            "param1": {"type": "string", "description": "..."}
-        }
-
-    def execute(self, param1: str) -> str:
-        # Implementation
-        return result
-```
-
-### 7. Plugin System (`src/tank_backend/plugin/`)
+### 8. Plugin System (`src/tank_backend/plugin/`)
 
 The plugin system manages the full lifecycle of pluggable engines (ASR, TTS, speaker identification).
 
@@ -152,15 +266,6 @@ The plugin system manages the full lifecycle of pluggable engines (ASR, TTS, spe
 - `registry.py` — `ExtensionRegistry`: manifest catalog keyed by `"plugin:ext"`
 - `config.py` — `AppConfig`: reads `config.yaml`, validates slot refs against registry
 - `manifest.py` — reads `[tool.tank]` from plugin `pyproject.toml`
-
-**Separation of Concerns**:
-
-| File | Responsibility |
-|------|---------------|
-| `plugins.yaml` | Plugin inventory — what's installed, per-plugin/extension enable/disable |
-| `config.yaml` | Slot assignment — which extension fills each slot, plus runtime config |
-| `PluginManager` | Lifecycle orchestrator — discovery, loading, registration, validation |
-| `ExtensionRegistry` | Extension catalog — stores manifests, instantiates on demand |
 
 **Startup Flow**:
 ```
@@ -172,49 +277,47 @@ PluginManager.load_all()
 Assistant.__init__()
   ├── registry = PluginManager().load_all()
   ├── app_config = AppConfig(registry=registry)   ← validates extension refs
-  ├── asr_engine = registry.instantiate("asr-sherpa:asr", config)
-  ├── tts_engine = registry.instantiate("tts-edge:tts", config)
-  ├── AudioInput(asr_engine=asr_engine, ...)       ← receives pre-built engine
-  └── AudioOutput(tts_engine=tts_engine, ...)      ← receives pre-built engine
+  ├── Build Pipeline via PipelineBuilder
+  ├── Create AgentGraph with configured agents + router
+  └── Wire processors, bus, observers
 ```
 
-**Key Design Decisions**:
-- Registry stores manifests (metadata), not live instances — instantiation is on-demand
-- AudioInput/AudioOutput receive pre-built engines via constructor injection
-- `plugins.yaml` is auto-generated on first run via `importlib.metadata` discovery
-- Config validation catches missing/mismatched extensions at startup, not at runtime
+### 9. Configuration (`src/tank_backend/config/`)
 
-### 8. Configuration (`src/tank_backend/config/`)
+All runtime configuration lives in `backend/core/config.yaml`. Secrets stay in `.env`.
 
-**Settings** (`settings.py`):
-- Environment-based configuration
-- Pydantic validation
-- Default values for all settings
-- Support for custom config file paths
-
-**Key Settings**:
-- `LLM_API_KEY` - Required for LLM provider
-- `LLM_MODEL` - Model identifier
-- `LLM_BASE_URL` - API endpoint
-- `WHISPER_MODEL_SIZE` - ASR model size
-- `TTS_VOICE_EN/ZH` - Voice selection
-- `SERPER_API_KEY` - Optional, for web search
+**Config Sections**:
+- `llm` — Named LLM profiles (default, summarization)
+- `echo_guard` — VAD threshold switching + self-echo text detection
+- `asr` / `tts` / `speaker` — Plugin slot assignments
+- `sandbox` — Docker sandbox settings for code execution tools
+- `agents` — Specialized agent definitions (type, llm_profile, tools)
+- `router` — Intent classification routes with keywords
+- `approval_policies` — Tool approval tiers
+- `brain` — Conversation processing (max_history_tokens)
+- `persistence` — Session checkpointing (enabled, db_path)
+- `observability` — Langfuse host configuration
 
 ## System Characteristics
 
 ### Async Architecture
 
 - All I/O operations are async
-- Event-driven communication via queues
+- Pipeline uses `ThreadedQueue` for true CPU parallelism
+- Event-driven communication via Bus
 - Cancellable tasks for interruption support
-- Thread pools for CPU-intensive operations (ASR)
 
 ### Interruption Handling
 
-- Speech detection cancels pending LLM/TTS tasks
-- Graceful task cleanup
-- Conversation state preservation
-- Real-time responsiveness
+Bidirectional event-based interruption replaces the old single `threading.Event`:
+
+1. VAD detects speech → emits `PipelineEvent(type="interrupt", direction=UPSTREAM)`
+2. Each processor handles independently:
+   - Playback: graceful fade-out (no audio pop)
+   - TTS: cancel generation, flush queue
+   - Brain: cancel LLM task, save partial response
+3. VAD emits `PipelineEvent(type="flush", direction=DOWNSTREAM)` to drain all queues
+4. `InterruptLatencyObserver` tracks time from VAD trigger to full silence
 
 ### Language Support
 
@@ -223,6 +326,65 @@ Assistant.__init__()
 - Bilingual system prompts
 - Seamless Chinese/English switching
 
+## Directory Structure
+
+```
+src/tank_backend/
+├── api/                          # FastAPI routes
+│   ├── server.py                 # Health, metrics endpoints
+│   ├── router.py                 # WebSocket handler
+│   ├── approvals.py              # Approval REST API
+│   └── metrics.py                # Metrics endpoint
+├── agents/                       # Agent orchestration (Layer 2)
+│   ├── base.py                   # Agent ABC, AgentState, AgentOutput
+│   ├── graph.py                  # AgentGraph orchestrator
+│   ├── router.py                 # Intent classifier
+│   ├── approval.py               # ApprovalManager + ApprovalPolicy
+│   ├── factory.py                # Agent factory
+│   ├── chat_agent.py             # General conversation agent
+│   ├── search_agent.py           # Web search agent
+│   ├── task_agent.py             # Calculator/time/weather agent
+│   └── code_agent.py             # Sandbox code execution agent
+├── pipeline/                     # Pipeline architecture (Layer 1)
+│   ├── processor.py              # Processor ABC, AudioCaps, FlowReturn
+│   ├── event.py                  # PipelineEvent, EventDirection
+│   ├── queue.py                  # ThreadedQueue (bounded, backpressure)
+│   ├── fan_out_queue.py          # FanOutQueue (parallel branches)
+│   ├── bus.py                    # Bus, BusMessage (pub/sub)
+│   ├── builder.py                # PipelineBuilder, Pipeline
+│   ├── health.py                 # HealthAggregator, component health types
+│   ├── processors/               # Concrete processors
+│   │   ├── vad.py                # Voice Activity Detection
+│   │   ├── asr.py                # Speech-to-text
+│   │   ├── speaker_id.py         # Speaker identification
+│   │   ├── asr_speaker_merger.py # Combine ASR + speaker
+│   │   ├── brain.py              # LLM conversation (bridges to Layer 2)
+│   │   ├── echo_guard.py         # Self-echo detection (Layer 2)
+│   │   ├── tts.py                # Text-to-speech + QoS
+│   │   └── playback.py           # Audio output
+│   └── observers/                # Bus subscribers
+│       ├── latency.py            # Per-stage timing
+│       ├── interrupt_latency.py  # Interrupt responsiveness
+│       ├── turn_tracking.py      # Conversation turn metrics
+│       ├── metrics_collector.py  # Aggregated metrics
+│       ├── health_monitor.py     # Health checks
+│       └── alerting.py           # Anomaly detection + alerts
+├── llm/                          # LLM transport (Layer 3)
+│   └── llm.py                    # AsyncOpenAI wrapper, retry, token counting
+├── observability/                # LLM tracing
+│   ├── langfuse_client.py        # Langfuse initialization
+│   └── trace.py                  # Trace ID generation
+├── persistence/                  # Conversation persistence
+│   └── checkpointer.py           # SQLite checkpointer
+├── tools/                        # Tool system
+├── plugin/                       # Plugin system
+├── config/                       # Settings
+├── audio/                        # Legacy audio components
+│   ├── input/                    # ASR engines, segmenter
+│   └── output/                   # TTS engines, playback
+└── core/                         # Core types and events
+```
+
 ## API Protocol
 
 ### WebSocket Message Types
@@ -230,23 +392,38 @@ Assistant.__init__()
 **Client → Server**:
 ```json
 {"type": "audio", "data": "<base64>", "sample_rate": 16000}
-{"type": "text", "content": "user message"}
+{"type": "input", "content": "user message"}
 {"type": "interrupt"}
 ```
 
 **Server → Client**:
 ```json
 {"type": "audio", "data": "<base64>"}
-{"type": "text", "content": "assistant response"}
-{"type": "status", "status": "listening|processing|speaking"}
+{"type": "text", "content": "...", "msg_id": "...", "metadata": {...}}
+{"type": "signal", "content": "ready|processing_started|processing_ended"}
+{"type": "transcript", "content": "...", "is_user": true}
+{"type": "update", "metadata": {"update_type": "THOUGHT|TOOL_CALL|TOOL_RESULT|APPROVAL_NEEDED"}}
 {"type": "error", "message": "error description"}
+```
+
+### REST API
+
+```
+GET  /health                           # Simple or detailed health check
+GET  /api/metrics                      # Aggregated metrics
+GET  /api/metrics/{session_id}         # Per-session metrics
+GET  /api/approvals?session_id=...     # List pending approvals
+POST /api/approvals/{id}/respond       # Approve/reject tool execution
+GET  /api/speakers                     # List enrolled speakers
+POST /api/speakers/enroll              # Enroll new speaker
+DELETE /api/speakers/{id}              # Delete speaker
 ```
 
 ## Deployment
 
 ### Development
 ```bash
-uv run tank-backend
+uv run tank-backend --reload
 ```
 
 ### Production
@@ -254,24 +431,21 @@ uv run tank-backend
 uv run uvicorn tank_backend.main:app --host 0.0.0.0 --port 8000
 ```
 
-### Docker (Future)
-```bash
-docker build -t tank-backend .
-docker run -p 8000:8000 tank-backend
-```
-
 ## Performance Considerations
 
-- ASR runs in thread pool to avoid blocking event loop
-- TTS streaming reduces first-byte latency
-- Audio chunking (100ms) for real-time processing
-- Model caching (Whisper, VAD) for fast startup
-- WebSocket for low-latency communication
+- Pipeline uses real threads (via `ThreadedQueue`) for CPU-bound work — no hidden `asyncio.to_thread()`
+- Bounded queues provide backpressure — prevents unbounded memory growth
+- TTS streaming with QoS feedback — graceful degradation under load
+- Token counting via `tiktoken` — prevents context window overflow
+- Auto-summarization — keeps conversation history within token budget
+- Langfuse tracing is async/non-blocking — no voice latency impact
+- Echo guard is platform-independent — protects all clients equally
 
 ## Security Considerations
 
 - API key validation
+- Tool approval gates for sensitive operations (code execution, web scraping)
 - Input sanitization for tool execution
-- Rate limiting (future)
+- Docker sandbox isolation for code execution
 - CORS configuration for web clients
-- WebSocket authentication (future)
+- Approval timeout (120s) prevents stuck requests

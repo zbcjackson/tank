@@ -128,11 +128,40 @@ from tank_backend.core.events import BrainInputEvent
 src/tank_backend/
 ├── api/
 │   ├── __init__.py          # Exports only
-│   ├── websocket.py         # WebSocketHandler class
-│   └── routes.py            # FastAPI routes
+│   ├── server.py            # Health, metrics endpoints
+│   ├── router.py            # WebSocket handler
+│   ├── approvals.py         # Approval REST API
+│   └── metrics.py           # Metrics endpoint
+├── agents/
+│   ├── base.py              # Agent ABC, AgentState, AgentOutput
+│   ├── graph.py             # AgentGraph orchestrator
+│   ├── router.py            # Intent classifier
+│   ├── approval.py          # ApprovalManager + policy
+│   ├── factory.py           # Agent factory
+│   ├── chat_agent.py        # General conversation
+│   ├── search_agent.py      # Web search
+│   ├── task_agent.py        # Calculator/time/weather
+│   └── code_agent.py        # Sandbox code execution
+├── pipeline/
+│   ├── processor.py         # Processor ABC, AudioCaps, FlowReturn
+│   ├── event.py             # PipelineEvent
+│   ├── queue.py             # ThreadedQueue
+│   ├── fan_out_queue.py     # FanOutQueue
+│   ├── bus.py               # Bus, BusMessage
+│   ├── builder.py           # PipelineBuilder, Pipeline
+│   ├── health.py            # HealthAggregator
+│   ├── processors/          # Concrete processors
+│   └── observers/           # Bus subscribers
+├── llm/
+│   └── llm.py               # LLM client
+├── observability/
+│   ├── langfuse_client.py   # Langfuse init
+│   └── trace.py             # Trace ID generation
+├── persistence/
+│   └── checkpointer.py      # SQLite checkpointer
 ├── core/
 │   ├── __init__.py
-│   ├── brain.py             # Brain class
+│   ├── brain.py             # Brain class (legacy)
 │   ├── assistant.py         # Assistant class
 │   └── events.py            # Event dataclasses
 ```
@@ -236,6 +265,124 @@ async def generate_audio_stream(
         yield chunk
 ```
 
+## Pipeline Processor Development
+
+### Processor Pattern
+
+- **Inherit from `Processor`** (or extend an existing processor like `ChatAgent`)
+- Implement `async process()` as an async generator
+- Use `FlowReturn` for backpressure signaling
+- Declare `input_caps` / `output_caps` for audio processors
+- Handle `PipelineEvent` for interrupt/flush support
+
+```python
+from ..pipeline.processor import Processor, FlowReturn, AudioCaps
+from ..pipeline.event import PipelineEvent
+
+class MyProcessor(Processor):
+    """Processor description."""
+
+    name = "my_processor"
+    input_caps = AudioCaps(sample_rate=16000)   # None for non-audio input
+    output_caps = None                           # None for non-audio output
+
+    def __init__(self, bus, config=None):
+        self.bus = bus
+        self.config = config
+
+    async def process(self, item):
+        """Process input, yield (flow_return, output) pairs."""
+        result = await self._transform(item)
+        yield FlowReturn.OK, result
+
+    def handle_event(self, event: PipelineEvent) -> bool:
+        """Handle control event. Return True if consumed."""
+        if event.type == "interrupt":
+            self._cancel_current_work()
+            return False  # propagate to next processor
+        return False  # default: propagate
+
+    async def start(self):
+        """Called when pipeline starts."""
+        pass
+
+    async def stop(self):
+        """Called when pipeline stops."""
+        pass
+```
+
+### Bus Messaging
+
+- **Post metrics and state changes to Bus** — never couple processors directly
+- Use descriptive message types: `"metric"`, `"ui_update"`, `"qos"`, `"error"`
+- Include `source` (processor name) and `timestamp` in every message
+
+```python
+from ..pipeline.bus import Bus, BusMessage
+import time
+
+# Posting a metric
+self.bus.post(BusMessage(
+    type="metric",
+    source=self.name,
+    payload={"stage": self.name, "duration_ms": elapsed_ms},
+    timestamp=time.time(),
+))
+```
+
+### Observer Pattern
+
+- **Implement the observer protocol** — subscribe to Bus message types
+- Keep observers lightweight — no blocking I/O in handlers
+
+```python
+class MyObserver:
+    """Custom observer for pipeline metrics."""
+
+    def __init__(self, bus: Bus):
+        bus.subscribe("metric", self.on_message)
+
+    def on_message(self, message: BusMessage):
+        # Process metric — aggregate, log, alert, etc.
+        pass
+```
+
+## Agent Development
+
+### Agent Pattern
+
+- **Extend `ChatAgent`** for most use cases — it handles LLM calling, tool execution, and streaming
+- Override `system_prompt` and tool set for specialization
+- Yield `AgentOutput` for each piece of streaming output
+- Use `AgentOutputType` enum for structured output types
+
+```python
+from .chat_agent import ChatAgent
+
+class MyAgent(ChatAgent):
+    """Specialized agent for a specific domain."""
+
+    def __init__(self, llm, tool_manager, approval_manager=None):
+        super().__init__(llm, tool_manager, approval_manager)
+        self.name = "my_agent"
+        self.system_prompt = "You are a specialized assistant for..."
+
+    # ChatAgent handles run(), tool calling, approval gates automatically.
+    # Override only if you need custom behavior.
+```
+
+### Agent State
+
+- **AgentState is shared** — agents read/write to a common state object
+- Include `messages`, `metadata`, `agent_history`, and `turn` counter
+- Do not store large data in state — use references (file paths, IDs)
+
+### Approval Integration
+
+- **Check approval policy before tool execution** — ChatAgent does this automatically
+- Tools in `require_approval` list trigger `APPROVAL_NEEDED` output
+- Tools in `require_approval_first_time` ask once per session, then auto-approve
+
 ## Tool Development
 
 ### Tool Pattern
@@ -329,3 +476,6 @@ Before committing code:
 - [ ] Tests are written and passing
 - [ ] Code follows PEP 8 style
 - [ ] Documentation is updated
+- [ ] Processors use `FlowReturn` for backpressure
+- [ ] Bus messages posted for observable events
+- [ ] Approval policies checked for new tools
