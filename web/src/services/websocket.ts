@@ -40,7 +40,7 @@ export class VoiceAssistantClient {
   private readonly maxReconnectAttempts: number = 10;
   private readonly baseReconnectDelay: number = 1000; // 1s
   private readonly maxReconnectDelay: number = 30000; // 30s
-  private readonly reconnectMultiplier: number = 1.5;
+  private readonly reconnectMultiplier: number = 2;
   private readonly connectionTimeout: number = 10000; // 10s
   private shouldReconnect: boolean = true;
   private onConnectionStateChange?: (state: ConnectionState, metadata?: ConnectionMetadata) => void;
@@ -84,7 +84,11 @@ export class VoiceAssistantClient {
       return; // Already connected or connecting
     }
 
-    this.updateConnectionState('connecting');
+    // During reconnection cycle, stay in 'reconnecting' state to keep the UI stable
+    // (prevents overlay from flickering on each retry attempt)
+    if (this.reconnectAttempts === 0) {
+      this.updateConnectionState('connecting');
+    }
     const socket = new WebSocket(this.url);
     socket.binaryType = 'arraybuffer';
     this.socket = socket;
