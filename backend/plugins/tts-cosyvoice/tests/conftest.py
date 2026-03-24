@@ -29,3 +29,17 @@ def zero_shot_config(tmp_path):
         "sample_rate": 22050,
         "timeout_s": 30,
     }
+
+
+@pytest.fixture
+def dashscope_config():
+    """CosyVoice plugin config for DashScope provider."""
+    return {
+        "provider": "dashscope",
+        "dashscope_api_key": "sk-test-key",
+        "dashscope_model": "cosyvoice-v3-flash",
+        "dashscope_voice_en": "longanyang",
+        "dashscope_voice_zh": "longxiaochun_v2",
+        "dashscope_region": "intl",
+        "sample_rate": 22050,
+    }

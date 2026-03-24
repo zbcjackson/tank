@@ -27,20 +27,33 @@ _MODE_ENDPOINTS = {
 
 
 class CosyVoiceTTSEngine(TTSEngine):
-    """TTS engine that delegates to a remote CosyVoice FastAPI server.
+    """TTS engine that delegates to a CosyVoice server or DashScope cloud API.
 
-    Supports three modes:
-      - **sft** (default): uses a pre-trained speaker ID (CosyVoice-300M-SFT).
-      - **zero_shot**: clones a voice from a prompt WAV + transcript.
-      - **instruct2**: voice cloning + style instruction (CosyVoice2-0.5B).
+    **Providers** (set via ``provider`` config key):
+
+      - **local** (default): connects to a self-hosted CosyVoice FastAPI server
+        via HTTP POST. Supports ``sft``, ``zero_shot``, and ``instruct2`` modes.
+      - **dashscope**: connects to Alibaba DashScope CosyVoice API via WebSocket.
+        Requires ``dashscope_api_key`` and optionally ``dashscope_model``,
+        ``dashscope_voice_en``, ``dashscope_voice_zh``, ``dashscope_region``.
     """
 
     def __init__(self, config: dict) -> None:
+        self._provider = config.get("provider", "local")
+        self._sample_rate = int(config.get("sample_rate", COSYVOICE_SAMPLE_RATE))
+
+        if self._provider == "dashscope":
+            from .dashscope_client import DashScopeClient
+
+            self._dashscope = DashScopeClient(config)
+        else:
+            self._dashscope = None
+
+        # Local-server settings (only used when provider == "local")
         self._base_url = config.get("base_url", "http://localhost:50000").rstrip("/")
         self._mode = config.get("mode", "sft")
         self._spk_id_en = config.get("spk_id_en", "英文女")
         self._spk_id_zh = config.get("spk_id_zh", "中文女")
-        self._sample_rate = int(config.get("sample_rate", COSYVOICE_SAMPLE_RATE))
         self._timeout_s = float(config.get("timeout_s", DEFAULT_TIMEOUT_S))
 
         # zero_shot / instruct2 mode settings
@@ -81,7 +94,14 @@ class CosyVoiceTTSEngine(TTSEngine):
         voice: str | None = None,
         is_interrupted: Callable[[], bool] | None = None,
     ) -> AsyncIterator[AudioChunk]:
-        """Stream PCM audio from the CosyVoice server."""
+        """Stream PCM audio from a local server or DashScope cloud API."""
+        if self._dashscope is not None:
+            async for chunk in self._dashscope.stream(
+                text, language=language, voice=voice, is_interrupted=is_interrupted
+            ):
+                yield chunk
+            return
+
         endpoint = _MODE_ENDPOINTS.get(self._mode, _MODE_ENDPOINTS["sft"])
         url = f"{self._base_url}{endpoint}"
 
