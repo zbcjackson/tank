@@ -33,11 +33,11 @@ export async function createWakeWordDetector(
       return PorcupineDetector.create({
         accessKey,
         keyword: {
-          publicPath: '/models/tank_wake_word.ppn',
+          publicPath: '/models/porcupine/tank_wake_word.ppn',
           label: 'Hey Tank',
         },
         model: {
-          publicPath: '/models/porcupine_params.pv',
+          publicPath: '/models/porcupine/porcupine_params.pv',
         },
       });
     }
