@@ -48,7 +48,7 @@ asr:
   enabled: true
   extension: asr-funasr:asr
   config:
-    api_key: ${ALIYUN_API_KEY}
+    api_key: ${DASHSCOPE_API_KEY}
     model: paraformer-realtime-v2
     sample_rate: 16000
 
