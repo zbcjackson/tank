@@ -176,6 +176,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     connectionMetadata,
     capabilities,
     conversationState,
+    wakeWordKeyword: wakeWordDetector?.keyword ?? null,
     sendMessage,
     toggleMode,
     toggleMute,

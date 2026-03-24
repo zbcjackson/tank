@@ -12,6 +12,7 @@ interface VoiceModeProps {
   statusText?: string;
   getAnalyserNode?: () => AnalyserNode | null;
   conversationState?: ConversationState;
+  wakeWordKeyword?: string | null;
   ttsRms?: number;
 }
 
@@ -160,6 +161,7 @@ export const VoiceMode = ({
   statusText,
   getAnalyserNode,
   conversationState,
+  wakeWordKeyword,
   ttsRms,
 }: VoiceModeProps) => {
   const isWakeWordIdle = conversationState === 'idle';
@@ -233,7 +235,7 @@ export const VoiceMode = ({
         <div className="flex flex-col items-center gap-3">
           <AnimatePresence mode="wait">
             {isWakeWordIdle && !isActive ? (
-              <WakeWordIndicator key="wake-word" keyword="Hey Tank" />
+              <WakeWordIndicator key="wake-word" keyword={wakeWordKeyword || 'Hey Tank'} />
             ) : (
               statusLabel && (
                 <motion.p

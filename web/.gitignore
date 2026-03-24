@@ -26,3 +26,7 @@ dist-ssr
 
 # VAD WASM assets (copied from node_modules by postinstall)
 public/vad/
+
+# Wake word model files (downloaded via scripts/download-wake-word-models.sh)
+public/models/sherpa-onnx-kws/
+public/models/openwakeword/

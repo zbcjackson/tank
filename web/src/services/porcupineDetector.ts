@@ -31,6 +31,7 @@ export interface PorcupineDetectorConfig {
  * `start()` and cleared via `stop()`.
  */
 export class PorcupineDetector implements WakeWordDetector {
+  readonly keyword: string;
   readonly frameLength: number;
   readonly sampleRate: number;
 
@@ -38,8 +39,9 @@ export class PorcupineDetector implements WakeWordDetector {
   private _onDetected: (() => void) | null = null;
   private _subscribed = false;
 
-  private constructor(worker: PorcupineWorker) {
+  private constructor(worker: PorcupineWorker, keyword: string) {
     this.worker = worker;
+    this.keyword = keyword;
     this.frameLength = worker.frameLength;
     this.sampleRate = worker.sampleRate;
   }
@@ -47,6 +49,9 @@ export class PorcupineDetector implements WakeWordDetector {
   static async create(config: PorcupineDetectorConfig): Promise<PorcupineDetector> {
     const keyword = config.keyword ?? config.builtinKeyword;
     if (!keyword) throw new Error('Either keyword or builtinKeyword must be provided');
+
+    const keywordLabel =
+      config.keyword && 'label' in config.keyword ? config.keyword.label : 'Wake Word';
 
     // eslint-disable-next-line prefer-const
     let detector: PorcupineDetector;
@@ -72,7 +77,7 @@ export class PorcupineDetector implements WakeWordDetector {
       `[Porcupine] Worker created: frameLength=${worker.frameLength}, sampleRate=${worker.sampleRate}`,
     );
 
-    detector = new PorcupineDetector(worker);
+    detector = new PorcupineDetector(worker, keywordLabel);
     return detector;
   }
 

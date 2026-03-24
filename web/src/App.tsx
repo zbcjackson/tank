@@ -6,42 +6,29 @@ import { ModeToggle } from './components/Assistant/ModeToggle';
 import { ConnectionStatusOverlay } from './components/Assistant/ConnectionStatusOverlay';
 import { AnimatePresence } from 'framer-motion';
 import type { WakeWordDetector } from './services/wakeWordDetector';
-import { PorcupineDetector } from './services/porcupineDetector';
+import { createWakeWordDetector, type WakeWordEngine } from './services/wakeWordFactory';
 
 const SESSION_ID = Math.random().toString(36).substring(7);
 const APP_BG_STYLE = { background: '#0a0a0a' };
 
 const WAKE_WORD_ENABLED = import.meta.env.VITE_WAKE_WORD_ENABLED === 'true';
-const PORCUPINE_ACCESS_KEY = import.meta.env.VITE_PORCUPINE_ACCESS_KEY || '';
-
-if (WAKE_WORD_ENABLED && !PORCUPINE_ACCESS_KEY) {
-  console.error('VITE_PORCUPINE_ACCESS_KEY is required when wake word is enabled');
-}
+const WAKE_WORD_ENGINE = (import.meta.env.VITE_WAKE_WORD_ENGINE || 'sherpa-onnx') as WakeWordEngine;
 
 function useWakeWordDetector(): WakeWordDetector | null {
   const [detector, setDetector] = useState<WakeWordDetector | null>(null);
   const detectorRef = useRef<WakeWordDetector | null>(null);
 
   useEffect(() => {
-    if (!WAKE_WORD_ENABLED || !PORCUPINE_ACCESS_KEY) return;
+    if (!WAKE_WORD_ENABLED) return;
 
     let cancelled = false;
 
-    PorcupineDetector.create({
-      accessKey: PORCUPINE_ACCESS_KEY,
-      keyword: {
-        publicPath: '/models/tank_wake_word.ppn',
-        label: 'Hey Tank',
-      },
-      model: {
-        publicPath: '/models/porcupine_params.pv',
-      },
-    })
+    createWakeWordDetector({ engine: WAKE_WORD_ENGINE })
       .then((d) => {
         if (cancelled) {
           d.release();
         } else {
-          console.log('Wake word detector loaded successfully');
+          console.log(`Wake word detector loaded successfully (engine=${WAKE_WORD_ENGINE})`);
           detectorRef.current = d;
           setDetector(d);
         }
@@ -80,6 +67,7 @@ function App() {
     resumeAudioCapture,
     capabilities,
     conversationState,
+    wakeWordKeyword,
     ttsRms,
   } = useAssistant(SESSION_ID, wakeWordDetector);
 
@@ -104,6 +92,7 @@ function App() {
               statusText={statusText}
               getAnalyserNode={getAnalyserNode}
               conversationState={conversationState}
+              wakeWordKeyword={wakeWordKeyword}
               ttsRms={ttsRms}
             />
           ) : (

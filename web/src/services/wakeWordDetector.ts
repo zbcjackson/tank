@@ -6,6 +6,9 @@
  * pipeline internally (e.g. via WebVoiceProcessor for Porcupine).
  */
 export interface WakeWordDetector {
+  /** Human-readable keyword label (e.g. "Hey Tank") for UI display. */
+  readonly keyword: string;
+
   /** Number of Int16 samples the engine expects per frame. */
   readonly frameLength: number;
 
