@@ -46,6 +46,10 @@ class Router(Agent):
         self._default_agent = default_agent
         self._llm = llm
 
+        # Public read-only accessors for logging / introspection
+        self.routes = routes
+        self.default_agent = default_agent
+
         # Pre-compile keyword patterns for fast-path
         # CJK keywords use plain substring match (no word boundaries in Chinese).
         # Latin keywords use \b word boundaries to avoid partial matches.

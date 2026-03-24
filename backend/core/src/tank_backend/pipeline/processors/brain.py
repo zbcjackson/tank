@@ -65,6 +65,7 @@ class Brain(Processor):
         session_id: str | None = None,
         agent_graph: "AgentGraph | None" = None,
         approval_manager: Any = None,
+        memory_service: Any = None,
     ):
         super().__init__(name="brain")
         self._llm = llm
@@ -78,6 +79,7 @@ class Brain(Processor):
         self._session_id = session_id
         self._agent_graph = agent_graph
         self._approval_manager = approval_manager
+        self._memory_service = memory_service
 
         # Echo guard — self-echo text detection (Layer 2)
         self._echo_config = echo_guard_config or EchoGuardConfig()
@@ -145,6 +147,41 @@ class Brain(Processor):
         except Exception:
             logger.error("Failed to checkpoint session %s", self._session_id, exc_info=True)
 
+    # ------------------------------------------------------------------
+    # Memory helpers
+    # ------------------------------------------------------------------
+
+    async def _recall_memory(self, user: str, text: str) -> str:
+        """Retrieve relevant memories for a user. Returns formatted string or empty."""
+        if self._memory_service is None or not user or user == "Unknown":
+            return ""
+        try:
+            memories = await self._memory_service.recall(user, text)
+            if memories:
+                return "\n".join(f"- {m}" for m in memories)
+        except Exception:
+            logger.warning("Memory recall failed for user %s", user, exc_info=True)
+        return ""
+
+    def _schedule_memory_store(self, assistant_response: str) -> None:
+        """Fire-and-forget: extract and store facts from the turn."""
+        import asyncio
+
+        user = getattr(self, "_last_user", None)
+        user_text = getattr(self, "_last_user_text", None)
+        if self._memory_service is None or not user or user == "Unknown" or not user_text:
+            return
+        asyncio.create_task(self._store_memory_safe(user, user_text, assistant_response))
+
+    async def _store_memory_safe(
+        self, user_id: str, user_msg: str, assistant_msg: str
+    ) -> None:
+        """Store memory with error isolation — never crashes the pipeline."""
+        try:
+            await self._memory_service.store_turn(user_id, user_msg, assistant_msg)
+        except Exception:
+            logger.warning("Memory storage failed for user %s", user_id, exc_info=True)
+
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         """Process a BrainInputEvent and yield AudioOutputRequest for TTS."""
         event: BrainInputEvent = item
@@ -200,9 +237,16 @@ class Brain(Processor):
         started_at = time.time()
         logger.info("Brain start processing %s (%s) at %.3f", event.text, event.user, started_at)
 
+        # --- Memory recall (pre-turn) ---
+        memory_context = await self._recall_memory(event.user, event.text)
+
         # Add to history with speaker context
         user_message = f"{event.user}: {event.text}"
         self._add_to_conversation_history("user", user_message)
+
+        # Capture for post-turn memory storage
+        self._last_user = event.user
+        self._last_user_text = event.text
 
         # Generate Assistant Message ID
         assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
@@ -222,6 +266,17 @@ class Brain(Processor):
             source=self.name,
             payload=SignalMessage(signal_type="processing_started", msg_id=assistant_msg_id),
         ))
+
+        # Temporarily augment system prompt with memory context
+        original_system = self._conversation_history[0]["content"]
+        if memory_context:
+            self._conversation_history[0] = {
+                "role": "system",
+                "content": (
+                    f"{original_system}\n\n"
+                    f"KNOWN FACTS ABOUT {event.user}:\n{memory_context}"
+                ),
+            }
 
         try:
             tools = [] if self._qos_skip_tools else self._tool_manager.get_openai_tools()
@@ -281,6 +336,9 @@ class Brain(Processor):
             ))
             yield FlowReturn.OK, None
         finally:
+            # Restore original system prompt (remove memory augmentation)
+            self._conversation_history[0] = {"role": "system", "content": original_system}
+
             # Always send processing_ended signal
             self._bus.post(BusMessage(
                 type="ui_message",
@@ -347,6 +405,7 @@ class Brain(Processor):
             self._add_to_conversation_history("assistant", full_response_text)
             await self._maybe_compact()
             self._checkpoint()
+            self._schedule_memory_store(full_response_text)
             if self._tts_enabled:
                 return AudioOutputRequest(content=full_response_text, language=language)
 
@@ -408,6 +467,9 @@ class Brain(Processor):
 
                 # 2c. Persist conversation state
                 self._checkpoint()
+
+                # 2d. Store memory (fire-and-forget)
+                self._schedule_memory_store(full_response_text)
 
                 # 3. Trigger TTS only when enabled and response is non-empty
                 if self._tts_enabled:

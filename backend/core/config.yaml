@@ -153,6 +153,16 @@ persistence:
   enabled: false
   db_path: ../data/sessions.db
 
+# Memory — persistent cross-session memory using mem0.
+# Extracts facts from conversations and recalls them for personalization.
+# LLM credentials default to the "default" LLM profile when not set.
+memory:
+  enabled: true
+  db_path: ../data/memory
+  search_limit: 5
+  # Optional: override LLM model for fact extraction (cheaper is fine)
+  # llm_model: openai/gpt-4.1-nano
+
 # Observability — Langfuse LLM tracing (optional).
 # Set LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST in .env to enable.
 # Run `docker compose up -d` from project root to start self-hosted Langfuse.

@@ -12,6 +12,7 @@ from typing import Any
 from ..audio.input.types import AudioFrame, AudioSourceFactory
 from ..audio.output.types import AudioSinkFactory
 from ..llm.profile import create_llm_from_profile
+from ..memory import MemoryConfig, MemoryService
 from ..pipeline import Bus, BusMessage, Pipeline, PipelineBuilder
 from ..pipeline.event import EventDirection, PipelineEvent
 from ..pipeline.observers import (
@@ -67,6 +68,7 @@ class Assistant:
     ) -> None:
         registry = self._init_config_and_llm()
         self._init_tools_and_sandbox()
+        self._init_memory()
 
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()
@@ -131,6 +133,34 @@ class Assistant:
             self._tool_manager.register_sandbox_tools(self._sandbox)
             logger.info("Sandbox tools registered (container created lazily)")
 
+    def _init_memory(self) -> None:
+        """Create optional MemoryService from config.yaml ``memory:`` section."""
+        memory_raw = self._app_config.get_section("memory", {"enabled": False})
+        memory_config = MemoryConfig.from_dict(memory_raw)
+
+        self._memory_service: MemoryService | None = None
+        if not memory_config.enabled:
+            return
+
+        # Inherit LLM credentials from the default profile when not explicitly set
+        profile = self._app_config.get_llm_profile("default")
+        resolved_config = MemoryConfig(
+            enabled=True,
+            db_path=memory_config.db_path,
+            llm_api_key=memory_config.llm_api_key or profile.api_key,
+            llm_base_url=memory_config.llm_base_url or profile.base_url,
+            llm_model=memory_config.llm_model or "",
+            search_limit=memory_config.search_limit,
+        )
+
+        try:
+            self._memory_service = MemoryService(resolved_config)
+            logger.info("Memory service initialised (db_path=%s)", resolved_config.db_path)
+        except Exception:
+            logger.warning("Failed to initialise memory service — continuing without it",
+                           exc_info=True)
+            self._memory_service = None
+
     def _init_bus(self) -> None:
         """Create bus, subscribe UI and playback tracking events."""
         self._bus = Bus()
@@ -182,6 +212,7 @@ class Assistant:
             checkpointer=self._checkpointer,
             agent_graph=agent_graph,
             approval_manager=self._approval_manager,
+            memory_service=self._memory_service,
         )
         builder.add(self.brain)
 
