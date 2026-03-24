@@ -7,6 +7,7 @@ members = [
     "plugins/speaker-sherpa",
     "plugins/tts-cosyvoice",
     "plugins/asr-elevenlabs",
+    "plugins/asr-funasr",
     "plugins/tts-elevenlabs",
 ]
 

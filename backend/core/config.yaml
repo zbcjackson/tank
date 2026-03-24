@@ -46,11 +46,19 @@ echo_guard:
 
 asr:
   enabled: true
-  extension: asr-sherpa:asr
+  extension: asr-funasr:asr
   config:
-    model_dir: ../models/sherpa-onnx-zipformer-en-zh
-    num_threads: 4
+    api_key: ${ALIYUN_API_KEY}
+    model: paraformer-realtime-v2
     sample_rate: 16000
+
+# asr:
+#   enabled: true
+#   extension: asr-sherpa:asr
+#   config:
+#     model_dir: ../models/sherpa-onnx-zipformer-en-zh
+#     num_threads: 4
+#     sample_rate: 16000
 
 tts:
   enabled: true
