@@ -141,6 +141,16 @@ class TestAddToConversationHistory:
         assert len(brain._conversation_history) == 2  # system + user
         assert brain._conversation_history[1] == {"role": "user", "content": "hello"}
 
+    def test_appends_message_with_name(self):
+        brain = _make_brain()
+        brain._add_to_conversation_history("user", "hello", name="Jackson")
+        assert len(brain._conversation_history) == 2
+        assert brain._conversation_history[1] == {
+            "role": "user",
+            "content": "hello",
+            "name": "Jackson",
+        }
+
     def test_does_not_truncate(self):
         """Append should never truncate — compaction is a separate step."""
         brain = _make_brain(max_history_tokens=50)

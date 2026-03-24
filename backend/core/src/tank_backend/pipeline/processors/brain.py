@@ -240,9 +240,8 @@ class Brain(Processor):
         # --- Memory recall (pre-turn) ---
         memory_context = await self._recall_memory(event.user, event.text)
 
-        # Add to history with speaker context
-        user_message = f"{event.user}: {event.text}"
-        self._add_to_conversation_history("user", user_message)
+        # Add to history with speaker identity via `name` field
+        self._add_to_conversation_history("user", event.text, name=event.user)
 
         # Capture for post-turn memory storage
         self._last_user = event.user
@@ -632,9 +631,14 @@ class Brain(Processor):
             len(self._conversation_history),
         )
 
-    def _add_to_conversation_history(self, role: str, content: str) -> None:
+    def _add_to_conversation_history(
+        self, role: str, content: str, *, name: str | None = None
+    ) -> None:
         """Append a message to conversation history."""
-        self._conversation_history.append({"role": role, "content": content})
+        msg: dict[str, str] = {"role": role, "content": content}
+        if name:
+            msg["name"] = name
+        self._conversation_history.append(msg)
 
     def _get_error_message(self, language: str | None) -> str:
         """Get error message in user's language."""

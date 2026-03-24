@@ -104,8 +104,8 @@ class TestBrain:
         assert len(brain._conversation_history) >= 2
         user_message = brain._conversation_history[1]
         assert user_message["role"] == "user"
-        assert "Jackson:" in user_message["content"]
-        assert "What's the weather?" in user_message["content"]
+        assert user_message["name"] == "Jackson"
+        assert user_message["content"] == "What's the weather?"
 
     async def test_brain_handles_unknown_speaker(self, brain, mock_llm):
         """Brain should handle Unknown speaker gracefully."""
@@ -129,7 +129,7 @@ class TestBrain:
         assert len(brain._conversation_history) >= 2
         user_message = brain._conversation_history[1]
         assert user_message["role"] == "user"
-        assert "Unknown:" in user_message["content"]
+        assert user_message["name"] == "Unknown"
 
     def test_system_prompt_includes_speaker_awareness(self, brain):
         """System prompt should mention speaker awareness."""
