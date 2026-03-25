@@ -18,6 +18,11 @@ export default defineConfig({
       },
     },
   },
+  optimizeDeps: {
+    // onnxruntime-web uses WASM + worker files that break under Vite's dep optimizer.
+    // Excluding it lets the browser resolve the .wasm/.mjs files directly.
+    exclude: ['onnxruntime-web'],
+  },
   build: {
     // WKWebView (Tauri) uses Safari's engine — target safari13 for compatibility
     target: process.env.TAURI_ENV_PLATFORM ? 'safari13' : undefined,

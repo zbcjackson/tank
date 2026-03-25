@@ -52,7 +52,9 @@ export async function createWakeWordDetector(
       const { OpenWakeWordDetector } = await import('./openWakeWordDetector');
       const modelDir = import.meta.env.VITE_OPENWAKEWORD_MODEL_DIR || '/models/openwakeword';
       const keyword = import.meta.env.VITE_OPENWAKEWORD_KEYWORD || 'hey_jarvis';
-      return OpenWakeWordDetector.create({ modelDir, keyword });
+      const modelFile = import.meta.env.VITE_OPENWAKEWORD_MODEL_FILE || undefined;
+      const threshold = Number(import.meta.env.VITE_OPENWAKEWORD_THRESHOLD) || undefined;
+      return OpenWakeWordDetector.create({ modelDir, keyword, modelFile, threshold });
     }
 
     default:

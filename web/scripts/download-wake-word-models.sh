@@ -103,25 +103,49 @@ download_sherpa_onnx() {
 # ---- openWakeWord ----
 download_openwakeword() {
   local MODEL_DIR="$PUBLIC_DIR/models/openwakeword"
-  local BASE_URL="https://raw.githubusercontent.com/dscripka/openWakeWord/main/openwakeword/resources/models"
+  # Models are bundled in the npm package
+  local PKG_MODELS
+  PKG_MODELS="$(find "$WEB_DIR/node_modules" -path "*/openwakeword-wasm-browser/models" -type d 2>/dev/null | head -1)"
+
+  if [ -z "$PKG_MODELS" ]; then
+    echo "ERROR: openwakeword-wasm-browser not found in node_modules."
+    echo "Run 'pnpm install' first."
+    exit 1
+  fi
 
   mkdir -p "$MODEL_DIR"
 
-  echo "==> Downloading openWakeWord shared models..."
+  echo "==> Copying openWakeWord models from npm package..."
 
   # Shared models
-  curl -L -o "$MODEL_DIR/melspectrogram.onnx" \
-    "$BASE_URL/melspectrogram.onnx"
-  curl -L -o "$MODEL_DIR/embedding_model.onnx" \
-    "$BASE_URL/embedding_model.onnx"
+  cp "$PKG_MODELS/melspectrogram.onnx"   "$MODEL_DIR/"
+  cp "$PKG_MODELS/embedding_model.onnx"  "$MODEL_DIR/"
+  cp "$PKG_MODELS/silero_vad.onnx"       "$MODEL_DIR/"
 
-  # Silero VAD
-  curl -L -o "$MODEL_DIR/silero_vad.onnx" \
-    "https://raw.githubusercontent.com/snakers4/silero-vad/master/src/silero_vad/data/silero_vad.onnx"
+  # Pre-trained keyword models
+  cp "$PKG_MODELS/hey_jarvis_v0.1.onnx"  "$MODEL_DIR/"
 
-  echo "==> Downloading pre-trained keyword model: hey_jarvis..."
-  curl -L -o "$MODEL_DIR/hey_jarvis_v0.1.onnx" \
-    "$BASE_URL/hey_jarvis_v0.1.onnx"
+  echo "    Copied shared models + hey_jarvis keyword"
+
+  # ONNX Runtime WASM files — needed for browser execution.
+  # Copy from node_modules (installed via openwakeword-wasm-browser → onnxruntime-web).
+  echo "==> Copying ONNX Runtime WASM files..."
+  local ORT_DIR="$MODEL_DIR/ort"
+  mkdir -p "$ORT_DIR"
+
+  local ORT_SRC
+  ORT_SRC="$(find "$WEB_DIR/node_modules" -path "*/onnxruntime-web/dist" -type d 2>/dev/null | head -1)"
+  if [ -n "$ORT_SRC" ]; then
+    cp "$ORT_SRC/ort-wasm-simd-threaded.wasm" "$ORT_DIR/"
+    cp "$ORT_SRC/ort-wasm-simd-threaded.mjs" "$ORT_DIR/"
+    # Also copy the jsep variant (WebGPU/WebGL backend)
+    cp "$ORT_SRC/ort-wasm-simd-threaded.jsep.wasm" "$ORT_DIR/" 2>/dev/null || true
+    cp "$ORT_SRC/ort-wasm-simd-threaded.jsep.mjs" "$ORT_DIR/" 2>/dev/null || true
+    echo "    Copied from $ORT_SRC"
+  else
+    echo "    WARNING: onnxruntime-web not found in node_modules."
+    echo "    Run 'pnpm install' first, then re-run this script."
+  fi
 
   echo ""
   echo "==> Model files downloaded to: $MODEL_DIR"
