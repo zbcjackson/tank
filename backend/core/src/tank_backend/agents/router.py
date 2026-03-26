@@ -146,7 +146,10 @@ class Router(Agent):
                 temperature=0.0,
                 max_tokens=20,
             )
-            agent_name = response["choices"][0]["message"]["content"].strip().lower()
+            agent_name = self._default_agent
+            content = response["choices"][0]["message"]["content"]
+            if content is not None:
+                agent_name = content.strip().lower()
 
             # Validate against known agents
             valid_agents = {r.agent_name for r in self._routes}
