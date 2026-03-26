@@ -87,15 +87,14 @@ def _read_tool_tank(
     # Locate pyproject.toml via the distribution's origin
     files = dist.files
     if files:
+        # Pass 1: check .pth files first (editable installs via uv/pip).
+        # The .pth file may not be the first entry in RECORD — e.g. when
+        # the package declares console scripts, the bin/ entry comes first.
         for f in files:
             located = dist.locate_file(f)
             if located is None:
                 continue
-
             located = Path(located).resolve()
-
-            # Editable installs (uv/pip): .pth file content is the
-            # real source directory.  Read it and search from there.
             if located.suffix == ".pth" and located.exists():
                 source_dir = _read_pth_source_dir(located)
                 if source_dir is not None:
@@ -105,7 +104,13 @@ def _read_tool_tank(
                     if result is not None:
                         return result
 
-            # Standard (non-editable) path: walk up from the file
+        # Pass 2: standard (non-editable) path — walk up from the first
+        # locatable file in the distribution.
+        for f in files:
+            located = dist.locate_file(f)
+            if located is None:
+                continue
+            located = Path(located).resolve()
             result = _find_tool_tank_in_ancestors(
                 located.parent, tomllib,
             )
