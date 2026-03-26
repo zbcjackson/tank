@@ -7,6 +7,7 @@ dependencies = [
     "websockets>=13.0",
     "numpy>=1.24.0",
     "tank-contracts",
+    "dashscope>=1.25.15",
 ]
 
 [dependency-groups]

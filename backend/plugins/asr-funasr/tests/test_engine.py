@@ -9,8 +9,8 @@ from asr_funasr import create_engine
 from asr_funasr.engine import FunASREngine
 
 
-def _make_engine(**overrides) -> FunASREngine:
-    """Create an engine with the background loop mocked out."""
+def _make_self_hosted_engine(**overrides) -> FunASREngine:
+    """Create a self-hosted engine with the background loop mocked out."""
     config = {
         "host": "127.0.0.1",
         "port": "10095",
@@ -18,8 +18,38 @@ def _make_engine(**overrides) -> FunASREngine:
         "sample_rate": 16000,
     }
     config.update(overrides)
-    with patch("asr_funasr.engine.FunASREngine._start_background_loop"):
-        return create_engine(config)
+    with patch("asr_funasr.engine.FunASREngine._init_funasr_websocket"):
+        engine = create_engine(config)
+        # Set up attributes that _init_funasr_websocket would create
+        engine._send_stride = int(
+            60 * engine._chunk_size[1] / 10 / 1000
+            * engine._sample_rate * 2
+        )
+        engine._loop = None
+        engine._thread = None
+        engine._ws = None
+        engine._connected = MagicMock()
+        engine._running = False
+        engine._config_sent = False
+        return engine
+
+
+def _make_dashscope_engine(**overrides) -> FunASREngine:
+    """Create a DashScope engine with the SDK mocked out."""
+    config = {
+        "api_key": "sk-test-key",
+        "sample_rate": 16000,
+    }
+    config.update(overrides)
+    with patch("asr_funasr.engine.FunASREngine._init_dashscope"):
+        engine = create_engine(config)
+        # Set up expected attributes that _init_dashscope would create
+        engine._recognition = None
+        engine._recognition_started = False
+        engine._recognition_closed = True
+        engine._restart_lock = MagicMock()
+        engine._callback = MagicMock()
+        return engine
 
 
 # ── Factory / Config ──────────────────────────────────────────────────
@@ -27,7 +57,7 @@ def _make_engine(**overrides) -> FunASREngine:
 
 class TestCreateEngine:
     def test_default_config(self):
-        engine = _make_engine()
+        engine = _make_self_hosted_engine()
         assert engine._mode == "2pass"
         assert engine._sample_rate == 16000
         assert engine._chunk_size == [5, 10, 5]
@@ -35,7 +65,7 @@ class TestCreateEngine:
         assert engine._is_dashscope is False
 
     def test_custom_self_hosted_config(self):
-        engine = _make_engine(
+        engine = _make_self_hosted_engine(
             host="10.0.0.1",
             port="8095",
             mode="online",
@@ -54,15 +84,17 @@ class TestCreateEngine:
         assert engine._is_dashscope is False
 
     def test_dashscope_config(self):
-        engine = _make_engine(
+        engine = _make_dashscope_engine(
             api_key="sk-test-key",
             model="fun-asr-realtime",
         )
         assert engine._is_dashscope is True
         assert engine._api_key == "sk-test-key"
         assert engine._model == "fun-asr-realtime"
-        # DashScope uses 100ms stride: 16000 * 0.1 * 2 = 3200
-        assert engine._send_stride == 3200
+
+    def test_dashscope_default_model(self):
+        engine = _make_dashscope_engine()
+        assert engine._model == "paraformer-realtime-v2"
 
 
 # ── process_pcm ───────────────────────────────────────────────────────
@@ -70,7 +102,7 @@ class TestCreateEngine:
 
 class TestProcessPcm:
     def test_returns_partial_text(self):
-        engine = _make_engine()
+        engine = _make_self_hosted_engine()
         engine._partial_text = "你好世界"
         engine._has_endpoint = False
 
@@ -81,7 +113,7 @@ class TestProcessPcm:
         assert is_endpoint is False
 
     def test_returns_committed_text_with_endpoint(self):
-        engine = _make_engine()
+        engine = _make_self_hosted_engine()
         engine._committed_text = "今天天气很好"
         engine._has_endpoint = True
 
@@ -94,8 +126,9 @@ class TestProcessPcm:
         assert engine._has_endpoint is False
 
     def test_sends_audio_when_connected(self):
-        engine = _make_engine()
+        engine = _make_self_hosted_engine()
         engine._config_sent = True
+        engine._send_stride = 1920
 
         mock_ws = MagicMock()
         mock_loop = MagicMock()
@@ -110,8 +143,9 @@ class TestProcessPcm:
             assert mock_run.called
 
     def test_buffers_small_chunks(self):
-        engine = _make_engine()
+        engine = _make_self_hosted_engine()
         engine._config_sent = True
+        engine._send_stride = 1920
         engine._ws = MagicMock()
         engine._loop = MagicMock()
 
@@ -123,8 +157,9 @@ class TestProcessPcm:
             assert len(engine._audio_buffer) == 640
 
     def test_no_send_when_disconnected(self):
-        engine = _make_engine()
+        engine = _make_self_hosted_engine()
         engine._ws = None
+        engine._send_stride = 1920
 
         audio = np.zeros(1600, dtype=np.float32)
 
@@ -132,20 +167,21 @@ class TestProcessPcm:
             engine.process_pcm(audio)
             mock_run.assert_not_called()
 
-    def test_dashscope_waits_for_task_started(self):
-        """DashScope: audio not sent until task-started sets _config_sent."""
-        engine = _make_engine(api_key="sk-test")
-        # _config_sent is False by default (set by task-started event)
-        assert engine._config_sent is False
+    def test_dashscope_sends_to_sdk(self):
+        """DashScope sends audio through SDK's send_audio_frame."""
+        engine = _make_dashscope_engine()
+        engine._recognition_started = True
+        engine._recognition_closed = False
+        engine._recognition = MagicMock()
 
-        engine._ws = MagicMock()
-        engine._loop = MagicMock()
-
+        # 100ms of audio at 16kHz = 1600 samples
         audio = np.zeros(1600, dtype=np.float32)
+        engine.process_pcm(audio)
 
-        with patch("asyncio.run_coroutine_threadsafe") as mock_run:
-            engine.process_pcm(audio)
-            mock_run.assert_not_called()
+        # 3200 bytes = 100ms at 16kHz 16-bit
+        engine._recognition.send_audio_frame.assert_called_once()
+        call_args = engine._recognition.send_audio_frame.call_args[0][0]
+        assert len(call_args) == 3200
 
 
 # ── Self-hosted FunASR message handling ───────────────────────────────
@@ -153,8 +189,8 @@ class TestProcessPcm:
 
 class TestHandleFunASRMessage:
     def test_2pass_online_partial(self):
-        engine = _make_engine()
-        engine._handle_server_message(json.dumps({
+        engine = _make_self_hosted_engine()
+        engine._handle_funasr_message(json.dumps({
             "mode": "2pass-online",
             "text": "你好",
             "is_final": False,
@@ -163,8 +199,8 @@ class TestHandleFunASRMessage:
         assert engine._has_endpoint is False
 
     def test_2pass_offline_final(self):
-        engine = _make_engine()
-        engine._handle_server_message(json.dumps({
+        engine = _make_self_hosted_engine()
+        engine._handle_funasr_message(json.dumps({
             "mode": "2pass-offline",
             "text": "你好世界",
             "is_final": True,
@@ -174,8 +210,8 @@ class TestHandleFunASRMessage:
         assert engine._partial_text == ""
 
     def test_online_mode_partial(self):
-        engine = _make_engine(mode="online")
-        engine._handle_server_message(json.dumps({
+        engine = _make_self_hosted_engine(mode="online")
+        engine._handle_funasr_message(json.dumps({
             "mode": "online",
             "text": "hello",
             "is_final": False,
@@ -184,8 +220,8 @@ class TestHandleFunASRMessage:
         assert engine._has_endpoint is False
 
     def test_online_mode_final(self):
-        engine = _make_engine(mode="online")
-        engine._handle_server_message(json.dumps({
+        engine = _make_self_hosted_engine(mode="online")
+        engine._handle_funasr_message(json.dumps({
             "mode": "online",
             "text": "hello world",
             "is_final": True,
@@ -194,8 +230,8 @@ class TestHandleFunASRMessage:
         assert engine._has_endpoint is True
 
     def test_offline_mode(self):
-        engine = _make_engine(mode="offline")
-        engine._handle_server_message(json.dumps({
+        engine = _make_self_hosted_engine(mode="offline")
+        engine._handle_funasr_message(json.dumps({
             "mode": "offline",
             "text": "batch result",
         }))
@@ -203,141 +239,79 @@ class TestHandleFunASRMessage:
         assert engine._has_endpoint is True
 
     def test_empty_text_ignored(self):
-        engine = _make_engine()
-        engine._handle_server_message(json.dumps({
+        engine = _make_self_hosted_engine()
+        engine._handle_funasr_message(json.dumps({
             "mode": "2pass-offline",
             "text": "",
         }))
         assert engine._has_endpoint is False
 
     def test_unparseable_message(self):
-        engine = _make_engine()
-        engine._handle_server_message(b"not json")
+        engine = _make_self_hosted_engine()
+        engine._handle_funasr_message(b"not json")
         assert engine._partial_text == ""
 
 
-# ── DashScope message handling ────────────────────────────────────────
+# ── DashScope SDK result handling ─────────────────────────────────────
 
 
-class TestHandleDashScopeMessage:
-    def test_task_started(self):
-        engine = _make_engine(api_key="sk-test")
-        engine._handle_server_message(json.dumps({
-            "header": {
-                "task_id": "abc123",
-                "event": "task-started",
-                "attributes": {},
-            },
-            "payload": {},
-        }))
-        assert engine._config_sent is True
-        assert engine._task_started.is_set()
-
+class TestHandleDashScopeResult:
     def test_partial_result(self):
-        engine = _make_engine(api_key="sk-test")
-        engine._handle_server_message(json.dumps({
-            "header": {
-                "task_id": "abc123",
-                "event": "result-generated",
-                "attributes": {},
-            },
-            "payload": {
-                "output": {
-                    "sentence": {
-                        "begin_time": 170,
-                        "end_time": None,
-                        "text": "你好",
-                        "sentence_end": False,
-                    },
-                },
-            },
-        }))
+        engine = _make_dashscope_engine()
+
+        mock_result = MagicMock()
+        mock_result.get_sentence.return_value = {
+            "text": "你好",
+            "end_time": None,  # partial
+        }
+
+        with patch("dashscope.audio.asr.RecognitionResult") as MockResult:
+            MockResult.is_sentence_end.return_value = False
+            engine._handle_dashscope_result(mock_result)
+
         assert engine._partial_text == "你好"
         assert engine._has_endpoint is False
 
     def test_final_result(self):
-        engine = _make_engine(api_key="sk-test")
-        engine._handle_server_message(json.dumps({
-            "header": {
-                "task_id": "abc123",
-                "event": "result-generated",
-                "attributes": {},
-            },
-            "payload": {
-                "output": {
-                    "sentence": {
-                        "begin_time": 170,
-                        "end_time": 2050,
-                        "text": "你好世界",
-                        "sentence_end": True,
-                    },
-                },
-                "usage": {"duration": 2},
-            },
-        }))
+        engine = _make_dashscope_engine()
+
+        mock_result = MagicMock()
+        mock_result.get_sentence.return_value = {
+            "text": "你好世界",
+            "end_time": 2050,  # final
+        }
+
+        with patch("dashscope.audio.asr.RecognitionResult") as MockResult:
+            MockResult.is_sentence_end.return_value = True
+            engine._handle_dashscope_result(mock_result)
+
         assert engine._committed_text == "你好世界"
         assert engine._has_endpoint is True
         assert engine._partial_text == ""
 
-    def test_task_failed(self):
-        engine = _make_engine(api_key="sk-test")
-        # Should not raise, just log
-        engine._handle_server_message(json.dumps({
-            "header": {
-                "task_id": "abc123",
-                "event": "task-failed",
-                "error_code": "CLIENT_ERROR",
-                "error_message": "request timeout",
-            },
-            "payload": {},
-        }))
-        assert engine._has_endpoint is False
+    def test_empty_sentence_ignored(self):
+        engine = _make_dashscope_engine()
 
-    def test_task_finished(self):
-        engine = _make_engine(api_key="sk-test")
-        engine._handle_server_message(json.dumps({
-            "header": {
-                "task_id": "abc123",
-                "event": "task-finished",
-                "attributes": {},
-            },
-            "payload": {"output": {}, "usage": None},
-        }))
-        # No state change
+        mock_result = MagicMock()
+        mock_result.get_sentence.return_value = None
+
+        engine._handle_dashscope_result(mock_result)
+
+        assert engine._partial_text == ""
         assert engine._has_endpoint is False
 
 
-# ── URL / header building ─────────────────────────────────────────────
+# ── URL building (self-hosted only) ───────────────────────────────────
 
 
 class TestConnectionSetup:
     def test_self_hosted_url(self):
-        engine = _make_engine(host="10.0.0.1", port="8095")
+        engine = _make_self_hosted_engine(host="10.0.0.1", port="8095")
         assert engine._build_url() == "ws://10.0.0.1:8095"
 
     def test_self_hosted_ssl_url(self):
-        engine = _make_engine(host="asr.example.com", port="443", is_ssl=True)
+        engine = _make_self_hosted_engine(host="asr.example.com", port="443", is_ssl=True)
         assert engine._build_url() == "wss://asr.example.com:443"
-
-    def test_dashscope_default_url(self):
-        engine = _make_engine(api_key="sk-test")
-        assert engine._build_url() == "wss://dashscope.aliyuncs.com/api-ws/v1/inference"
-
-    def test_dashscope_custom_url(self):
-        engine = _make_engine(
-            api_key="sk-test",
-            dashscope_url="wss://dashscope-intl.aliyuncs.com/api-ws/v1/inference",
-        )
-        assert engine._build_url() == "wss://dashscope-intl.aliyuncs.com/api-ws/v1/inference"
-
-    def test_self_hosted_no_headers(self):
-        engine = _make_engine()
-        assert engine._build_headers() == {}
-
-    def test_dashscope_auth_header(self):
-        engine = _make_engine(api_key="sk-my-key")
-        headers = engine._build_headers()
-        assert headers["Authorization"] == "Bearer sk-my-key"
 
 
 # ── Reset ─────────────────────────────────────────────────────────────
@@ -345,10 +319,11 @@ class TestConnectionSetup:
 
 class TestReset:
     def test_clears_transcript_state(self):
-        engine = _make_engine()
+        engine = _make_self_hosted_engine()
         engine._partial_text = "partial"
         engine._committed_text = "committed"
         engine._has_endpoint = True
+        engine._ws = None  # avoid sending
 
         engine.reset()
 
@@ -357,7 +332,8 @@ class TestReset:
         assert engine._has_endpoint is False
 
     def test_self_hosted_sends_is_speaking_false(self):
-        engine = _make_engine()
+        engine = _make_self_hosted_engine()
+        engine._send_stride = 1920
         engine._audio_buffer = bytearray(b"\x00" * 100)
         engine._ws = MagicMock()
         engine._loop = MagicMock()
@@ -367,45 +343,46 @@ class TestReset:
             # remaining audio + EOS
             assert mock_run.call_count == 2
 
-    def test_dashscope_sends_finish_task(self):
-        engine = _make_engine(api_key="sk-test")
-        engine._task_id = "test-task-123"
+    def test_dashscope_stops_recognition_on_reset(self):
+        """DashScope reset stops current recognition (lazy restart on next audio)."""
+        engine = _make_dashscope_engine()
+        mock_recognition = MagicMock()
+        engine._recognition = mock_recognition
+        engine._recognition_started = True
+        engine._recognition_closed = False
         engine._audio_buffer = bytearray()
-        engine._ws = MagicMock()
-        engine._loop = MagicMock()
 
-        with patch("asyncio.run_coroutine_threadsafe") as mock_run:
-            engine.reset()
-            # Only finish-task (no remaining audio)
-            assert mock_run.call_count == 1
+        engine.reset()
+
+        # stop() called on old recognition
+        mock_recognition.stop.assert_called_once()
+        # recognition is cleared (lazy restart on next audio)
+        assert engine._recognition is None
+        assert engine._recognition_started is False
+        assert engine._recognition_closed is True
 
 
-# ── Stride calculation ────────────────────────────────────────────────
+# ── Stride calculation (self-hosted only) ─────────────────────────────
 
 
 class TestSendStride:
     def test_self_hosted_default(self):
         """Default chunk_size [5, 10, 5] → stride = 1920 bytes."""
-        engine = _make_engine()
+        engine = _make_self_hosted_engine()
         assert engine._send_stride == 1920
 
     def test_self_hosted_custom(self):
         """Custom chunk_size [8, 8, 4] → stride = 1536 bytes."""
-        engine = _make_engine(chunk_size=[8, 8, 4])
+        engine = _make_self_hosted_engine(chunk_size=[8, 8, 4])
         assert engine._send_stride == 1536
-
-    def test_dashscope_100ms_stride(self):
-        """DashScope uses 100ms chunks: 16000 * 0.1 * 2 = 3200."""
-        engine = _make_engine(api_key="sk-test")
-        assert engine._send_stride == 3200
 
 
 # ── Close ─────────────────────────────────────────────────────────────
 
 
 class TestClose:
-    def test_close_stops_background_loop(self):
-        engine = _make_engine()
+    def test_close_self_hosted_stops_background_loop(self):
+        engine = _make_self_hosted_engine()
         engine._running = True
         engine._ws = MagicMock()
         engine._loop = MagicMock()
@@ -419,7 +396,51 @@ class TestClose:
         mock_thread.join.assert_called_once_with(timeout=5)
         assert engine._ws is None
 
-    def test_close_is_idempotent(self):
-        engine = _make_engine()
+    def test_close_self_hosted_is_idempotent(self):
+        engine = _make_self_hosted_engine()
         engine._running = False
         engine.close()
+
+    def test_close_dashscope_stops_recognition(self):
+        engine = _make_dashscope_engine()
+        mock_recognition = MagicMock()
+        engine._recognition = mock_recognition
+        engine._recognition_started = True
+        engine._recognition_closed = False
+
+        engine.close()
+
+        mock_recognition.stop.assert_called_once()
+        assert engine._recognition is None
+
+
+# ── Ensure recognition running ────────────────────────────────────────
+
+
+class TestEnsureRecognitionRunning:
+    def test_returns_true_when_already_running(self):
+        engine = _make_dashscope_engine()
+        engine._recognition_started = True
+        engine._recognition_closed = False
+
+        result = engine._ensure_recognition_running()
+
+        assert result is True
+
+    def test_starts_recognition_when_not_running(self):
+        engine = _make_dashscope_engine()
+        engine._recognition_started = False
+        engine._recognition_closed = True
+
+        with patch.object(engine, "_start_recognition") as mock_start:
+            # Simulate successful start
+            def start_recognition():
+                engine._recognition_started = True
+                engine._recognition_closed = False
+            mock_start.side_effect = start_recognition
+
+            result = engine._ensure_recognition_running()
+
+            mock_start.assert_called_once()
+            assert result is True
+
