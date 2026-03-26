@@ -62,5 +62,45 @@ if [[ -f "$ROOT/web/.env" ]]; then
   echo "Copied web/.env"
 fi
 
+# --- Install dependencies for all projects ---
+echo ""
+echo "Installing dependencies..."
+
+# backend/core (Python/uv)
+if [[ -f "$DEST/backend/core/pyproject.toml" ]]; then
+  echo "Installing backend/core dependencies..."
+  (cd "$DEST/backend/core" && uv sync)
+fi
+
+# backend/contracts (Python/uv)
+if [[ -f "$DEST/backend/contracts/pyproject.toml" ]]; then
+  echo "Installing backend/contracts dependencies..."
+  (cd "$DEST/backend/contracts" && uv sync)
+fi
+
+# cli (Python/uv)
+if [[ -f "$DEST/cli/pyproject.toml" ]]; then
+  echo "Installing cli dependencies..."
+  (cd "$DEST/cli" && uv sync)
+fi
+
+# web (TypeScript/pnpm)
+if [[ -f "$DEST/web/package.json" ]]; then
+  echo "Installing web dependencies..."
+  (cd "$DEST/web" && pnpm install)
+fi
+
+# macos (pnpm + Cargo)
+if [[ -f "$DEST/macos/package.json" ]]; then
+  echo "Installing macos dependencies..."
+  (cd "$DEST/macos" && pnpm install)
+fi
+
+# test (pnpm)
+if [[ -f "$DEST/test/package.json" ]]; then
+  echo "Installing test dependencies..."
+  (cd "$DEST/test" && pnpm install)
+fi
+
 echo ""
 echo "Done! cd .worktrees/$NAME to start working."
