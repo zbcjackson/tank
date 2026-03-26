@@ -45,6 +45,14 @@ def _make_audio_frame(n_samples=320, sr=16000):
     )
 
 
+def _make_vad_start_speech():
+    """Create a VADResult for START_SPEECH."""
+    return VADResult(
+        status=VADStatus.START_SPEECH,
+        started_at_s=1.0,
+    )
+
+
 def _make_vad_end_speech():
     return VADResult(
         status=VADStatus.END_SPEECH,
@@ -53,6 +61,40 @@ def _make_vad_end_speech():
         started_at_s=1.0,
         ended_at_s=2.0,
     )
+
+
+def _make_asr_mock(text="hello", supports_streaming=True):
+    """Create a properly configured ASR mock.
+
+    For streaming mode:
+      - process_pcm returns partial text
+      - stop returns final text
+    """
+    asr_mock = MagicMock()
+    asr_mock.supports_streaming = supports_streaming
+    asr_mock.start = MagicMock()
+    asr_mock.process_pcm = MagicMock(return_value=text)
+    asr_mock.stop = MagicMock(return_value=text)
+    asr_mock.close = MagicMock()
+    return asr_mock
+
+
+def _make_vad_mock_sequence(*results):
+    """Create a VAD mock that returns a sequence of results.
+
+    Args:
+        *results: VADResult objects to return in sequence. Last result is repeated.
+    """
+    vad_mock = MagicMock()
+    call_count = [0]
+
+    def process_frame(pcm, timestamp_s):
+        result = results[min(call_count[0], len(results) - 1)]
+        call_count[0] += 1
+        return result
+
+    vad_mock.process_frame = MagicMock(side_effect=process_frame)
+    return vad_mock
 
 
 def _make_brain(bus, interrupt_event, llm_response="hello response", tts_enabled=True):
@@ -84,14 +126,16 @@ class TestTwoProcessorChaining:
     """Verify data flows between adjacent processors via queue chaining."""
 
     async def test_vad_output_reaches_asr(self):
-        """VAD END_SPEECH result should flow to ASR processor."""
+        """VAD START_SPEECH + END_SPEECH results should flow to ASR processor."""
         bus = Bus()
 
-        vad_mock = MagicMock()
-        vad_mock.process_frame.return_value = _make_vad_end_speech()
+        # VAD returns START_SPEECH on first frame, END_SPEECH on second
+        vad_mock = _make_vad_mock_sequence(
+            _make_vad_start_speech(),
+            _make_vad_end_speech(),
+        )
 
-        asr_mock = MagicMock()
-        asr_mock.process_pcm.return_value = ("hello", True)
+        asr_mock = _make_asr_mock(text="hello")
 
         pipeline = (
             PipelineBuilder(bus)
@@ -102,12 +146,14 @@ class TestTwoProcessorChaining:
 
         await pipeline.start()
         try:
+            # Push two frames: one for START_SPEECH, one for END_SPEECH
+            pipeline.push(_make_audio_frame())
             pipeline.push(_make_audio_frame())
             await asyncio.sleep(0.5)
 
-            asr_mock.process_pcm.assert_called_once()
-            pcm_arg = asr_mock.process_pcm.call_args[0][0]
-            assert len(pcm_arg) == 16000
+            # ASR should have started and stopped
+            asr_mock.start.assert_called_once()
+            asr_mock.stop.assert_called_once()
         finally:
             await pipeline.stop()
 
@@ -116,11 +162,13 @@ class TestTwoProcessorChaining:
         bus = Bus()
         interrupt_event = threading.Event()
 
-        vad_mock = MagicMock()
-        vad_mock.process_frame.return_value = _make_vad_end_speech()
+        # VAD returns START_SPEECH on first frame, END_SPEECH on second
+        vad_mock = _make_vad_mock_sequence(
+            _make_vad_start_speech(),
+            _make_vad_end_speech(),
+        )
 
-        asr_mock = MagicMock()
-        asr_mock.process_pcm.return_value = ("hello world", True)
+        asr_mock = _make_asr_mock(text="hello world")
 
         brain = _make_brain(bus, interrupt_event)
 
@@ -134,6 +182,8 @@ class TestTwoProcessorChaining:
 
         await pipeline.start()
         try:
+            # Push two frames: one for START_SPEECH, one for END_SPEECH
+            pipeline.push(_make_audio_frame())
             pipeline.push(_make_audio_frame())
             await asyncio.sleep(0.5)
 
@@ -188,11 +238,12 @@ class TestMultiProcessorFlow:
         bus = Bus()
         interrupt_event = threading.Event()
 
-        vad_mock = MagicMock()
-        vad_mock.process_frame.return_value = _make_vad_end_speech()
+        vad_mock = _make_vad_mock_sequence(
+            _make_vad_start_speech(),
+            _make_vad_end_speech(),
+        )
 
-        asr_mock = MagicMock()
-        asr_mock.process_pcm.return_value = ("what is the weather", True)
+        asr_mock = _make_asr_mock(text="what is the weather")
 
         brain = _make_brain(bus, interrupt_event)
 
@@ -206,13 +257,16 @@ class TestMultiProcessorFlow:
 
         await pipeline.start()
         try:
+            # Push two frames: one for START_SPEECH, one for END_SPEECH
+            pipeline.push(_make_audio_frame())
             pipeline.push(_make_audio_frame())
             await asyncio.sleep(0.5)
 
-            # VAD was called
-            vad_mock.process_frame.assert_called_once()
-            # ASR was called with VAD output
-            asr_mock.process_pcm.assert_called_once()
+            # VAD was called twice
+            assert vad_mock.process_frame.call_count == 2
+            # ASR start and stop were called
+            asr_mock.start.assert_called_once()
+            asr_mock.stop.assert_called_once()
             # Brain processed the event
             assert len(brain._conversation_history) >= 2
             assert "what is the weather" in brain._conversation_history[1]["content"]
@@ -276,13 +330,14 @@ class TestFullPipelineEndToEnd:
         interrupt_event = threading.Event()
         playback_received = []
 
-        # VAD: detect speech end
-        vad_mock = MagicMock()
-        vad_mock.process_frame.return_value = _make_vad_end_speech()
+        # VAD: START_SPEECH then END_SPEECH
+        vad_mock = _make_vad_mock_sequence(
+            _make_vad_start_speech(),
+            _make_vad_end_speech(),
+        )
 
         # ASR: transcribe
-        asr_mock = MagicMock()
-        asr_mock.process_pcm.return_value = ("hello tank", True)
+        asr_mock = _make_asr_mock(text="hello tank")
 
         # Brain: native processor with mock LLM
         brain = _make_brain(bus, interrupt_event, llm_response="Hi there!")
@@ -310,13 +365,15 @@ class TestFullPipelineEndToEnd:
 
         await pipeline.start()
         try:
-            # Push audio → triggers VAD → ASR → Brain → TTS → Playback
+            # Push audio frames → triggers VAD → ASR → Brain → TTS → Playback
+            pipeline.push(_make_audio_frame())
             pipeline.push(_make_audio_frame())
             await asyncio.sleep(2.0)
 
             # Verify speech-to-text path
-            vad_mock.process_frame.assert_called_once()
-            asr_mock.process_pcm.assert_called_once()
+            assert vad_mock.process_frame.call_count == 2
+            asr_mock.start.assert_called_once()
+            asr_mock.stop.assert_called_once()
 
             # Brain processed the event
             assert len(brain._conversation_history) >= 2
@@ -336,21 +393,22 @@ class TestFullPipelineEndToEnd:
             events_received[event_type] = []
             bus.subscribe(event_type, lambda m, t=event_type: events_received[t].append(m))
 
-        # VAD: first 3 calls IN_SPEECH (sustained gate), then END_SPEECH
+        # VAD: first call START_SPEECH, next 3 calls IN_SPEECH, then END_SPEECH
         call_count = 0
 
         def vad_process_frame(pcm, timestamp_s):
             nonlocal call_count
             call_count += 1
-            if call_count <= 3:
+            if call_count == 1:
+                return _make_vad_start_speech()
+            if call_count <= 4:
                 return VADResult(status=VADStatus.IN_SPEECH)
             return _make_vad_end_speech()
 
         vad_mock = MagicMock()
         vad_mock.process_frame.side_effect = vad_process_frame
 
-        asr_mock = MagicMock()
-        asr_mock.process_pcm.return_value = ("test", True)
+        asr_mock = _make_asr_mock(text="test")
 
         brain = _make_brain(bus, interrupt_event, tts_enabled=False)
 
@@ -364,15 +422,20 @@ class TestFullPipelineEndToEnd:
 
         await pipeline.start()
         try:
-            # First 3 frames: IN_SPEECH (sustained gate needs 3 to post speech_start)
-            for _ in range(3):
-                pipeline.push(_make_audio_frame())
+            # First frame: START_SPEECH → speech_start posted
+            pipeline.push(_make_audio_frame())
             await asyncio.sleep(0.3)
             bus.poll()
 
             assert len(events_received["speech_start"]) == 1
 
-            # Fourth frame: END_SPEECH → speech_end + asr_result + llm_latency
+            # Next 3 frames: IN_SPEECH
+            for _ in range(3):
+                pipeline.push(_make_audio_frame())
+            await asyncio.sleep(0.3)
+            bus.poll()
+
+            # Fifth frame: END_SPEECH → speech_end + asr_result + llm_latency
             pipeline.push(_make_audio_frame())
             await asyncio.sleep(0.5)
             bus.poll()
@@ -388,12 +451,27 @@ class TestFullPipelineEndToEnd:
         bus = Bus()
         interrupt_event = threading.Event()
 
+        # VAD: alternates between START_SPEECH and END_SPEECH for each turn
+        turn_count = 0
+
+        def vad_process_frame(pcm, timestamp_s):
+            nonlocal turn_count
+            turn_count += 1
+            # Odd calls: START_SPEECH, Even calls: END_SPEECH
+            if turn_count % 2 == 1:
+                return _make_vad_start_speech()
+            return _make_vad_end_speech()
+
         vad_mock = MagicMock()
-        vad_mock.process_frame.return_value = _make_vad_end_speech()
+        vad_mock.process_frame.side_effect = vad_process_frame
 
         transcriptions = iter(["first message", "second message", "third message"])
+
         asr_mock = MagicMock()
-        asr_mock.process_pcm.side_effect = lambda pcm: (next(transcriptions), True)
+        asr_mock.supports_streaming = True
+        asr_mock.start = MagicMock()
+        asr_mock.process_pcm = MagicMock(return_value="")
+        asr_mock.stop = MagicMock(side_effect=lambda: next(transcriptions))
 
         brain = _make_brain(bus, interrupt_event, tts_enabled=False)
 
@@ -414,6 +492,8 @@ class TestFullPipelineEndToEnd:
 
                 brain._llm.chat_stream.return_value = fresh_gen()
 
+                # Two frames per turn: START_SPEECH + END_SPEECH
+                pipeline.push(_make_audio_frame())
                 pipeline.push(_make_audio_frame())
                 await asyncio.sleep(0.5)
 
@@ -429,12 +509,13 @@ class TestFullPipelineEndToEnd:
         interrupt_event = threading.Event()
         playback_received = []
 
-        vad_mock = MagicMock()
-        vad_mock.process_frame.return_value = _make_vad_end_speech()
+        vad_mock = _make_vad_mock_sequence(
+            _make_vad_start_speech(),
+            _make_vad_end_speech(),
+        )
         vad_mock.flush = MagicMock()
 
-        asr_mock = MagicMock()
-        asr_mock.process_pcm.return_value = ("hello", True)
+        asr_mock = _make_asr_mock(text="hello")
 
         brain = _make_brain(bus, interrupt_event, tts_enabled=False)
 
@@ -497,18 +578,19 @@ class TestFanOutFanInIntegration:
     """Verify parallel ASR + SpeakerID branches merge correctly with real threading."""
 
     async def test_vad_fans_out_to_asr_and_speaker_id(self):
-        """VAD END_SPEECH should reach both ASR and SpeakerID in parallel,
+        """VAD START_SPEECH+END_SPEECH should reach both ASR and SpeakerID in parallel,
         merge at ASRSpeakerMerger, and arrive at Brain with the identified user."""
         bus = Bus()
         interrupt_event = threading.Event()
 
-        # VAD: detect speech end
-        vad_mock = MagicMock()
-        vad_mock.process_frame.return_value = _make_vad_end_speech()
+        # VAD: START_SPEECH then END_SPEECH
+        vad_mock = _make_vad_mock_sequence(
+            _make_vad_start_speech(),
+            _make_vad_end_speech(),
+        )
 
         # ASR: transcribe
-        asr_mock = MagicMock()
-        asr_mock.process_pcm.return_value = ("hello from jackson", True)
+        asr_mock = _make_asr_mock(text="hello from jackson")
 
         # Speaker ID: identify speaker
         recognizer_mock = MagicMock()
@@ -532,11 +614,14 @@ class TestFanOutFanInIntegration:
 
         await pipeline.start()
         try:
+            # Push two frames: START_SPEECH + END_SPEECH
+            pipeline.push(_make_audio_frame())
             pipeline.push(_make_audio_frame())
             await asyncio.sleep(1.0)
 
             # Both branches should have been called
-            asr_mock.process_pcm.assert_called_once()
+            asr_mock.start.assert_called_once()
+            asr_mock.stop.assert_called_once()
             recognizer_mock.identify.assert_called_once()
 
             # Brain should have received a BrainInputEvent with user="jackson"
@@ -551,11 +636,12 @@ class TestFanOutFanInIntegration:
         bus = Bus()
         interrupt_event = threading.Event()
 
-        vad_mock = MagicMock()
-        vad_mock.process_frame.return_value = _make_vad_end_speech()
+        vad_mock = _make_vad_mock_sequence(
+            _make_vad_start_speech(),
+            _make_vad_end_speech(),
+        )
 
-        asr_mock = MagicMock()
-        asr_mock.process_pcm.return_value = ("hello", True)
+        asr_mock = _make_asr_mock(text="hello")
 
         # Speaker ID: simulate slow identification (blocks longer than timeout)
         import time as _time
@@ -587,6 +673,8 @@ class TestFanOutFanInIntegration:
 
         await pipeline.start()
         try:
+            # Push two frames: START_SPEECH + END_SPEECH
+            pipeline.push(_make_audio_frame())
             pipeline.push(_make_audio_frame())
             # Wait long enough for ASR to complete + merger timeout to expire
             # but not long enough for the slow speaker ID
@@ -598,7 +686,7 @@ class TestFanOutFanInIntegration:
             # In practice the ASR result arrives, waits for speaker ID,
             # and the next process() call expires it.
             # For this test, verify ASR was called and merger has no stuck entries
-            asr_mock.process_pcm.assert_called_once()
+            asr_mock.stop.assert_called_once()
         finally:
             await pipeline.stop()
 
@@ -610,11 +698,12 @@ class TestFanOutFanInIntegration:
         bus.subscribe("asr_result", lambda m: asr_events.append(m))
         bus.subscribe("speaker_id_result", lambda m: speaker_events.append(m))
 
-        vad_mock = MagicMock()
-        vad_mock.process_frame.return_value = _make_vad_end_speech()
+        vad_mock = _make_vad_mock_sequence(
+            _make_vad_start_speech(),
+            _make_vad_end_speech(),
+        )
 
-        asr_mock = MagicMock()
-        asr_mock.process_pcm.return_value = ("test", True)
+        asr_mock = _make_asr_mock(text="test")
 
         recognizer_mock = MagicMock()
         recognizer_mock.identify.return_value = "alice"
@@ -633,6 +722,8 @@ class TestFanOutFanInIntegration:
 
         await pipeline.start()
         try:
+            # Push two frames: START_SPEECH + END_SPEECH
+            pipeline.push(_make_audio_frame())
             pipeline.push(_make_audio_frame())
             await asyncio.sleep(0.5)
             bus.poll()
@@ -651,8 +742,7 @@ class TestFanOutFanInIntegration:
         vad_mock = MagicMock()
         vad_mock.process_frame.return_value = VADResult(status=VADStatus.NO_SPEECH)
 
-        asr_mock = MagicMock()
-        asr_mock.process_pcm.return_value = ("", True)
+        asr_mock = _make_asr_mock(text="")
 
         recognizer_mock = MagicMock()
         recognizer_mock.identify.return_value = "user1"

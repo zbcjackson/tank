@@ -1,6 +1,7 @@
 """Tests for FunASR ASR plugin."""
 
 import json
+import threading
 
 import numpy as np
 from unittest.mock import patch, MagicMock
@@ -47,7 +48,7 @@ def _make_dashscope_engine(**overrides) -> FunASREngine:
         engine._recognition = None
         engine._recognition_started = False
         engine._recognition_closed = True
-        engine._restart_lock = MagicMock()
+        engine._restart_lock = threading.Lock()
         engine._callback = MagicMock()
         return engine
 
@@ -97,91 +98,74 @@ class TestCreateEngine:
         assert engine._model == "paraformer-realtime-v2"
 
 
-# ── process_pcm ───────────────────────────────────────────────────────
+# ── Lifecycle: start / process_pcm / stop ─────────────────────────────
 
 
-class TestProcessPcm:
-    def test_returns_partial_text(self):
+class TestLifecycle:
+    def test_start_sets_session_active(self):
         engine = _make_self_hosted_engine()
-        engine._partial_text = "你好世界"
-        engine._has_endpoint = False
-
-        audio = np.zeros(1600, dtype=np.float32)
-        text, is_endpoint = engine.process_pcm(audio)
-
-        assert text == "你好世界"
-        assert is_endpoint is False
-
-    def test_returns_committed_text_with_endpoint(self):
-        engine = _make_self_hosted_engine()
-        engine._committed_text = "今天天气很好"
-        engine._has_endpoint = True
-
-        audio = np.zeros(1600, dtype=np.float32)
-        text, is_endpoint = engine.process_pcm(audio)
-
-        assert text == "今天天气很好"
-        assert is_endpoint is True
-        assert engine._committed_text == ""
-        assert engine._has_endpoint is False
-
-    def test_sends_audio_when_connected(self):
-        engine = _make_self_hosted_engine()
-        engine._config_sent = True
-        engine._send_stride = 1920
-
-        mock_ws = MagicMock()
-        mock_loop = MagicMock()
-        engine._ws = mock_ws
-        engine._loop = mock_loop
-
-        # stride = 1920 bytes = 960 int16 samples
-        audio = np.zeros(960, dtype=np.float32)
-
-        with patch("asyncio.run_coroutine_threadsafe") as mock_run:
-            engine.process_pcm(audio)
-            assert mock_run.called
-
-    def test_buffers_small_chunks(self):
-        engine = _make_self_hosted_engine()
-        engine._config_sent = True
-        engine._send_stride = 1920
         engine._ws = MagicMock()
         engine._loop = MagicMock()
 
-        audio = np.zeros(320, dtype=np.float32)
+        with patch("asyncio.run_coroutine_threadsafe"):
+            engine.start()
 
-        with patch("asyncio.run_coroutine_threadsafe") as mock_run:
-            engine.process_pcm(audio)
-            mock_run.assert_not_called()
-            assert len(engine._audio_buffer) == 640
+        assert engine._session_active is True
 
-    def test_no_send_when_disconnected(self):
+    def test_process_pcm_without_session_returns_empty(self):
         engine = _make_self_hosted_engine()
-        engine._ws = None
-        engine._send_stride = 1920
-
         audio = np.zeros(1600, dtype=np.float32)
 
-        with patch("asyncio.run_coroutine_threadsafe") as mock_run:
-            engine.process_pcm(audio)
-            mock_run.assert_not_called()
+        text = engine.process_pcm(audio)
 
-    def test_dashscope_sends_to_sdk(self):
-        """DashScope sends audio through SDK's send_audio_frame."""
+        assert text == ""
+
+    def test_stop_returns_final_text(self):
+        engine = _make_self_hosted_engine()
+        engine._session_active = True
+        engine._config_sent = True
+        engine._partial_text = "你好"
+        engine._committed_text = "你好世界"
+        engine._ws = MagicMock()
+        engine._loop = MagicMock()
+
+        with patch("asyncio.run_coroutine_threadsafe"):
+            with patch("time.sleep"):
+                final_text = engine.stop()
+
+        assert final_text == "你好世界"
+        assert engine._session_active is False
+
+    def test_stop_without_session_returns_empty(self):
+        engine = _make_self_hosted_engine()
+        engine._session_active = False
+
+        final_text = engine.stop()
+
+        assert final_text == ""
+
+    def test_dashscope_start_creates_recognition(self):
         engine = _make_dashscope_engine()
+
+        with patch("asr_funasr.engine.FunASREngine._start_dashscope_recognition") as mock:
+            engine.start()
+            mock.assert_called_once()
+
+        assert engine._session_active is True
+
+    def test_dashscope_stop_stops_recognition(self):
+        engine = _make_dashscope_engine()
+        engine._session_active = True
+        mock_recognition = MagicMock()
+        engine._recognition = mock_recognition
         engine._recognition_started = True
-        engine._recognition_closed = False
-        engine._recognition = MagicMock()
+        engine._committed_text = "测试"
 
-        # 100ms of audio at 16kHz = 1600 samples
-        audio = np.zeros(1600, dtype=np.float32)
-        engine.process_pcm(audio)
+        with patch("time.sleep"):
+            final_text = engine.stop()
 
-        # 3200 bytes = 100ms at 16kHz 16-bit
-        engine._recognition.send_audio_frame.assert_called_once()
-        call_args = engine._recognition.send_audio_frame.call_args[0][0]
-        assert len(call_args) == 3200
+        assert final_text == "测试"
+        mock_recognition.stop.assert_called_once()
 
 
 # ── Self-hosted FunASR message handling ───────────────────────────────
@@ -196,7 +180,6 @@ class TestHandleFunASRMessage:
             "is_final": False,
         }))
         assert engine._partial_text == "你好"
-        assert engine._has_endpoint is False
 
     def test_2pass_offline_final(self):
         engine = _make_self_hosted_engine()
@@ -206,7 +189,6 @@ class TestHandleFunASRMessage:
             "is_final": True,
         }))
         assert engine._committed_text == "你好世界"
-        assert engine._has_endpoint is True
         assert engine._partial_text == ""
 
     def test_online_mode_partial(self):
@@ -217,7 +199,6 @@ class TestHandleFunASRMessage:
             "is_final": False,
         }))
         assert engine._partial_text == "hello"
-        assert engine._has_endpoint is False
 
     def test_online_mode_final(self):
         engine = _make_self_hosted_engine(mode="online")
@@ -227,7 +208,6 @@ class TestHandleFunASRMessage:
             "is_final": True,
         }))
         assert engine._committed_text == "hello world"
-        assert engine._has_endpoint is True
 
     def test_offline_mode(self):
         engine = _make_self_hosted_engine(mode="offline")
@@ -236,7 +216,6 @@ class TestHandleFunASRMessage:
             "text": "batch result",
         }))
         assert engine._committed_text == "batch result"
-        assert engine._has_endpoint is True
 
     def test_empty_text_ignored(self):
         engine = _make_self_hosted_engine()
@@ -244,7 +223,7 @@ class TestHandleFunASRMessage:
             "mode": "2pass-offline",
             "text": "",
         }))
-        assert engine._has_endpoint is False
+        assert engine._committed_text == ""
 
     def test_unparseable_message(self):
         engine = _make_self_hosted_engine()
@@ -262,7 +241,7 @@ class TestHandleDashScopeResult:
         mock_result = MagicMock()
         mock_result.get_sentence.return_value = {
             "text": "你好",
-            "end_time": None,  # partial
+            "end_time": None,
         }
 
         with patch("dashscope.audio.asr.RecognitionResult") as MockResult:
@@ -270,7 +249,6 @@ class TestHandleDashScopeResult:
             engine._handle_dashscope_result(mock_result)
 
         assert engine._partial_text == "你好"
-        assert engine._has_endpoint is False
 
     def test_final_result(self):
         engine = _make_dashscope_engine()
@@ -278,7 +256,7 @@ class TestHandleDashScopeResult:
         mock_result = MagicMock()
         mock_result.get_sentence.return_value = {
             "text": "你好世界",
-            "end_time": 2050,  # final
+            "end_time": 2050,
         }
 
         with patch("dashscope.audio.asr.RecognitionResult") as MockResult:
@@ -286,7 +264,6 @@ class TestHandleDashScopeResult:
             engine._handle_dashscope_result(mock_result)
 
         assert engine._committed_text == "你好世界"
-        assert engine._has_endpoint is True
         assert engine._partial_text == ""
 
     def test_empty_sentence_ignored(self):
@@ -298,7 +275,6 @@ class TestHandleDashScopeResult:
         engine._handle_dashscope_result(mock_result)
 
         assert engine._partial_text == ""
-        assert engine._has_endpoint is False
 
 
 # ── URL building (self-hosted only) ───────────────────────────────────
@@ -310,56 +286,10 @@ class TestConnectionSetup:
         assert engine._build_url() == "ws://10.0.0.1:8095"
 
     def test_self_hosted_ssl_url(self):
-        engine = _make_self_hosted_engine(host="asr.example.com", port="443", is_ssl=True)
+        engine = _make_self_hosted_engine(
+            host="asr.example.com", port="443", is_ssl=True
+        )
         assert engine._build_url() == "wss://asr.example.com:443"
-
-
-# ── Reset ─────────────────────────────────────────────────────────────
-
-
-class TestReset:
-    def test_clears_transcript_state(self):
-        engine = _make_self_hosted_engine()
-        engine._partial_text = "partial"
-        engine._committed_text = "committed"
-        engine._has_endpoint = True
-        engine._ws = None  # avoid sending
-
-        engine.reset()
-
-        assert engine._partial_text == ""
-        assert engine._committed_text == ""
-        assert engine._has_endpoint is False
-
-    def test_self_hosted_sends_is_speaking_false(self):
-        engine = _make_self_hosted_engine()
-        engine._send_stride = 1920
-        engine._audio_buffer = bytearray(b"\x00" * 100)
-        engine._ws = MagicMock()
-        engine._loop = MagicMock()
-
-        with patch("asyncio.run_coroutine_threadsafe") as mock_run:
-            engine.reset()
-            # remaining audio + EOS
-            assert mock_run.call_count == 2
-
-    def test_dashscope_stops_recognition_on_reset(self):
-        """DashScope reset stops current recognition (lazy restart on next audio)."""
-        engine = _make_dashscope_engine()
-        mock_recognition = MagicMock()
-        engine._recognition = mock_recognition
-        engine._recognition_started = True
-        engine._recognition_closed = False
-        engine._audio_buffer = bytearray()
-
-        engine.reset()
-
-        # stop() called on old recognition
-        mock_recognition.stop.assert_called_once()
-        # recognition is cleared (lazy restart on next audio)
-        assert engine._recognition is None
-        assert engine._recognition_started is False
-        assert engine._recognition_closed is True
 
 
 # ── Stride calculation (self-hosted only) ─────────────────────────────
@@ -414,33 +344,4 @@ class TestClose:
         assert engine._recognition is None
 
 
-# ── Ensure recognition running ────────────────────────────────────────
-
-
-class TestEnsureRecognitionRunning:
-    def test_returns_true_when_already_running(self):
-        engine = _make_dashscope_engine()
-        engine._recognition_started = True
-        engine._recognition_closed = False
-
-        result = engine._ensure_recognition_running()
-
-        assert result is True
-
-    def test_starts_recognition_when_not_running(self):
-        engine = _make_dashscope_engine()
-        engine._recognition_started = False
-        engine._recognition_closed = True
-
-        with patch.object(engine, "_start_recognition") as mock_start:
-            # Simulate successful start
-            def start_recognition():
-                engine._recognition_started = True
-                engine._recognition_closed = False
-            mock_start.side_effect = start_recognition
-
-            result = engine._ensure_recognition_running()
-
-            mock_start.assert_called_once()
-            assert result is True
 

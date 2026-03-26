@@ -47,7 +47,11 @@ from sherpa_onnx.lib._sherpa_onnx import (  # noqa: E402
 class SherpaASREngine(StreamingASREngine):
     """Streaming ASR using sherpa-onnx.
 
-    Manages the sherpa-onnx OnlineRecognizer and its stream.
+    Lifecycle:
+        start()      - Reset stream for new utterance
+        process_pcm() - Process audio chunks
+        stop()       - Get final transcript and reset
+        close()      - Release resources (no-op for local model)
     """
 
     def __init__(
@@ -97,27 +101,60 @@ class SherpaASREngine(StreamingASREngine):
         self._recognizer = OnlineRecognizer(recognizer_config)
         self._stream = self._recognizer.create_stream()
         self._sample_rate = sample_rate
+        self._session_active = False
+        self._last_text = ""
         logger.info("SherpaASREngine initialized with model from %s", model_dir)
 
-    def process_pcm(self, pcm: np.ndarray) -> tuple[str, bool]:
+    def start(self) -> None:
+        """Start a new recognition session."""
+        self._recognizer.reset(self._stream)
+        self._session_active = True
+        self._last_text = ""
+        logger.debug("Sherpa: Session started")
+
+    def process_pcm(self, pcm: np.ndarray) -> str:
         """Process a chunk of PCM audio.
 
         Returns:
-            (text, is_endpoint)
+            Current partial transcript text.
         """
+        if not self._session_active:
+            logger.warning("Sherpa: process_pcm called without active session")
+            return ""
+
         self._stream.accept_waveform(self._sample_rate, pcm)
 
         while self._recognizer.is_ready(self._stream):
             self._recognizer.decode_stream(self._stream)
 
-        is_endpoint = self._recognizer.is_endpoint(self._stream)
         text = self._recognizer.get_result(self._stream).text.strip()
 
-        if is_endpoint:
-            self._recognizer.reset(self._stream)
+        # Capture text for stop() in case endpoint is detected internally
+        if text:
+            self._last_text = text
 
-        return text, is_endpoint
+        return text
 
-    def reset(self) -> None:
-        """Reset the internal stream."""
+    def stop(self) -> str:
+        """Stop the session and return final transcript."""
+        if not self._session_active:
+            logger.warning("Sherpa: stop called without active session")
+            return ""
+
+        self._session_active = False
+
+        # Get final text
+        text = self._recognizer.get_result(self._stream).text.strip()
+        final_text = text or self._last_text
+
+        # Reset for next session
         self._recognizer.reset(self._stream)
+        self._last_text = ""
+
+        logger.debug("Sherpa: Session stopped, final text: %s", final_text[:50] if final_text else "(empty)")
+        return final_text
+
+    def close(self) -> None:
+        """Release resources (no-op for local model)."""
+        self._session_active = False
+        logger.info("Sherpa: Engine closed")

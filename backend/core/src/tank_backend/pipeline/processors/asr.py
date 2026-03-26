@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 import uuid
@@ -23,21 +24,22 @@ logger = logging.getLogger(__name__)
 class ASRProcessor(Processor):
     """Wraps a StreamingASREngine as a pipeline Processor.
 
-    Input: VADResult (END_SPEECH with utterance PCM) or AudioFrame (streaming)
-    Output: BrainInputEvent (final transcription)
+    Input:
+      - VADResult(START_SPEECH) — start ASR session
+      - AudioFrame — process audio, get partial transcripts
+      - VADResult(END_SPEECH) — stop ASR session, get final transcript
 
-    For streaming engines (supports_streaming=True):
-      - AudioFrame → feed to ASR, post partial transcripts, post speech_start
-        on first non-empty partial.  Yield None (brain waits for final).
-      - VADResult END_SPEECH → finalize with accumulated partial text, yield
-        BrainInputEvent.
+    Output:
+      - BrainInputEvent (on END_SPEECH with non-empty text)
+
+    Bus messages posted:
+      - speech_start — when speech starts (triggers assistant interrupt)
+      - ui_message — partial and final transcripts for UI
+      - asr_result — transcription metrics
 
     For non-streaming engines (supports_streaming=False):
-      - AudioFrame → ignored (yield None)
-      - VADResult END_SPEECH → batch transcribe full utterance PCM, post
-        speech_start + final transcript, yield BrainInputEvent.
-
-    Posts transcription metrics to Bus.
+      - AudioFrame → ignored
+      - VADResult END_SPEECH → batch transcribe full utterance PCM
     """
 
     def __init__(
@@ -53,31 +55,91 @@ class ASRProcessor(Processor):
 
         # Streaming state
         self._partial_text: str = ""
-        self._speech_start_posted: bool = False
         self._streaming_msg_id: str | None = None
         self._streaming_started_at: float | None = None
 
-    def _reset_streaming_state(self) -> None:
-        """Reset streaming state for a new utterance."""
+    def _reset_state(self) -> None:
+        """Reset state for a new utterance."""
         self._partial_text = ""
-        self._speech_start_posted = False
         self._streaming_msg_id = None
         self._streaming_started_at = None
 
     def _post_speech_start(self, timestamp_s: float | None = None) -> None:
         """Post speech_start to bus (triggers interrupt in assistant)."""
-        if self._bus and not self._speech_start_posted:
-            self._speech_start_posted = True
+        if self._bus:
             self._bus.post(BusMessage(
                 type="speech_start",
                 source=self.name,
                 payload={"timestamp_s": timestamp_s},
             ))
 
+    def _post_partial(self, text: str) -> None:
+        """Post partial transcript to UI."""
+        if self._bus and self._streaming_msg_id:
+            self._bus.post(BusMessage(
+                type="ui_message",
+                source=self.name,
+                payload=self._make_display_message(text, is_final=False),
+            ))
+
+    def _post_final(self, text: str) -> None:
+        """Post final transcript to UI."""
+        if self._bus and self._streaming_msg_id:
+            self._bus.post(BusMessage(
+                type="ui_message",
+                source=self.name,
+                payload=self._make_display_message(text, is_final=True),
+            ))
+
+    def _make_display_message(self, text: str, is_final: bool) -> Any:
+        """Create a DisplayMessage for UI."""
+        from ...core.events import DisplayMessage
+        return DisplayMessage(
+            speaker=self._user,
+            text=text,
+            is_user=True,
+            is_final=is_final,
+            msg_id=self._streaming_msg_id,
+        )
+
+    def _post_metrics(
+        self,
+        text: str,
+        elapsed: float,
+        started_at_s: float | None,
+        ended_at_s: float | None,
+    ) -> None:
+        """Post ASR metrics to bus."""
+        if self._bus:
+            self._bus.post(BusMessage(
+                type="asr_result",
+                source=self.name,
+                payload={
+                    "text": text,
+                    "is_final": True,
+                    "latency_s": elapsed,
+                    "audio_duration_s": (
+                        (ended_at_s - started_at_s)
+                        if started_at_s and ended_at_s
+                        else None
+                    ),
+                },
+            ))
+
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         from ...audio.input.types import AudioFrame
         from ...audio.input.vad import VADResult, VADStatus
-        from ...core.events import BrainInputEvent, DisplayMessage, InputType
+        from ...core.events import BrainInputEvent, InputType
+
+        # ── START_SPEECH: begin ASR session ──────────────────────────────
+        if isinstance(item, VADResult) and item.status == VADStatus.START_SPEECH:
+            self._asr.start()
+            self._streaming_msg_id = f"user_{uuid.uuid4().hex[:8]}"
+            self._streaming_started_at = time.time()
+            self._post_speech_start(item.started_at_s)
+            logger.debug("ASR session started")
+            yield FlowReturn.OK, None
+            return
 
         # ── AudioFrame: streaming recognition ────────────────────────────
         if isinstance(item, AudioFrame):
@@ -85,113 +147,56 @@ class ASRProcessor(Processor):
                 yield FlowReturn.OK, None
                 return
 
-            if self._streaming_started_at is None:
-                self._streaming_started_at = time.time()
-
-            if self._streaming_msg_id is None:
-                self._streaming_msg_id = f"user_{uuid.uuid4().hex[:8]}"
-
-            text, is_endpoint = self._asr.process_pcm(item.pcm)
+            text = self._asr.process_pcm(item.pcm)
 
             if text and text != self._partial_text:
                 self._partial_text = text
-
-                # First non-empty partial → trigger interrupt
-                self._post_speech_start(item.timestamp_s)
-
-                # Post partial transcript to UI
-                if self._bus:
-                    self._bus.post(BusMessage(
-                        type="ui_message",
-                        source=self.name,
-                        payload=DisplayMessage(
-                            speaker=self._user,
-                            text=text,
-                            is_user=True,
-                            is_final=False,
-                            msg_id=self._streaming_msg_id,
-                        ),
-                    ))
-
-            # If Sherpa detected an endpoint mid-stream, capture the text
-            # before it auto-resets.  We don't finalize yet — wait for
-            # VAD END_SPEECH to produce the BrainInputEvent.
-            if is_endpoint and text:
-                self._partial_text = text
+                self._post_partial(text)
 
             yield FlowReturn.OK, None
             return
 
-        # ── VADResult END_SPEECH: finalize utterance ─────────────────────
-        if isinstance(item, VADResult):
-            if item.status != VADStatus.END_SPEECH:
-                yield FlowReturn.OK, None
-                return
-
+        # ── END_SPEECH: finalize utterance ───────────────────────────────
+        if isinstance(item, VADResult) and item.status == VADStatus.END_SPEECH:
             if item.utterance_pcm is None or len(item.utterance_pcm) == 0:
-                self._reset_streaming_state()
+                self._reset_state()
                 yield FlowReturn.OK, None
                 return
 
-            # Determine final text
-            if self._asr.supports_streaming and self._partial_text:
-                # Use accumulated streaming text
-                final_text = self._partial_text
+            # Get final transcript
+            if self._asr.supports_streaming:
+                final_text = self._asr.stop()
+                if not final_text:
+                    final_text = self._partial_text
                 elapsed = (
                     time.time() - self._streaming_started_at
                     if self._streaming_started_at
                     else 0.0
                 )
             else:
-                # Batch mode: transcribe the full utterance now
+                # Batch mode: transcribe full utterance
                 started_at = time.time()
-                final_text, _ = self._asr.process_pcm(item.utterance_pcm)
+                self._asr.start()
+                self._asr.process_pcm(item.utterance_pcm)
+                final_text = self._asr.stop()
                 elapsed = time.time() - started_at
-
-                # For non-streaming engines, post speech_start now
-                # so the assistant can interrupt if needed
-                if final_text and not self._asr.supports_streaming:
+                # For batch mode, create msg_id and post speech_start now
+                self._streaming_msg_id = f"user_{uuid.uuid4().hex[:8]}"
+                if final_text:
                     self._post_speech_start()
 
-            msg_id = self._streaming_msg_id or f"user_{uuid.uuid4().hex[:8]}"
-
-            # Post ASR metrics
-            if self._bus:
-                self._bus.post(BusMessage(
-                    type="asr_result",
-                    source=self.name,
-                    payload={
-                        "text": final_text,
-                        "is_final": True,
-                        "latency_s": elapsed,
-                        "audio_duration_s": (
-                            (item.ended_at_s - item.started_at_s)
-                            if item.started_at_s and item.ended_at_s
-                            else None
-                        ),
-                    },
-                ))
+            # Post metrics
+            self._post_metrics(final_text, elapsed, item.started_at_s, item.ended_at_s)
 
             if final_text:
+                self._post_final(final_text)
+
+                msg_id = self._streaming_msg_id or f"user_{uuid.uuid4().hex[:8]}"
                 utterance_id = (
                     f"{item.started_at_s:.3f}_{item.ended_at_s:.3f}"
                     if item.started_at_s is not None and item.ended_at_s is not None
                     else msg_id
                 )
-
-                # Post final user transcript to UI
-                if self._bus:
-                    self._bus.post(BusMessage(
-                        type="ui_message",
-                        source=self.name,
-                        payload=DisplayMessage(
-                            speaker=self._user,
-                            text=final_text,
-                            is_user=True,
-                            is_final=True,
-                            msg_id=msg_id,
-                        ),
-                    ))
 
                 event = BrainInputEvent(
                     type=InputType.AUDIO,
@@ -201,12 +206,10 @@ class ASRProcessor(Processor):
                     confidence=None,
                     metadata={"msg_id": msg_id, "utterance_id": utterance_id},
                 )
-                self._reset_streaming_state()
-                self._asr.reset()
+                self._reset_state()
                 yield FlowReturn.OK, event
             else:
-                self._reset_streaming_state()
-                self._asr.reset()
+                self._reset_state()
                 yield FlowReturn.OK, None
             return
 
@@ -215,8 +218,8 @@ class ASRProcessor(Processor):
 
     def handle_event(self, event: PipelineEvent) -> bool:
         if event.type == "flush":
-            self._reset_streaming_state()
-            if hasattr(self._asr, "reset"):
-                self._asr.reset()
+            with contextlib.suppress(Exception):
+                self._asr.stop()  # Discard any partial results
+            self._reset_state()
             return False  # propagate
         return False

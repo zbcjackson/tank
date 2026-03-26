@@ -21,6 +21,7 @@ import asyncio
 import json
 import logging
 import threading
+import time
 from typing import Any
 
 import numpy as np
@@ -42,6 +43,12 @@ class FunASREngine(StreamingASREngine):
 
     When ``api_key`` is provided, uses DashScope SDK (recommended).
     Otherwise, connects to a self-hosted FunASR server via WebSocket.
+
+    Lifecycle:
+        start()      - Start recognition session
+        process_pcm() - Stream audio chunks
+        stop()       - Stop session and get final transcript
+        close()      - Release all resources
     """
 
     def __init__(
@@ -76,11 +83,13 @@ class FunASREngine(StreamingASREngine):
         # Latest transcript state
         self._partial_text = ""
         self._committed_text = ""
-        self._has_endpoint = False
         self._lock = threading.Lock()
 
         # Audio accumulator
         self._audio_buffer = bytearray()
+
+        # Session state
+        self._session_active = False
 
         if self._is_dashscope:
             self._init_dashscope()
@@ -92,7 +101,7 @@ class FunASREngine(StreamingASREngine):
     # ------------------------------------------------------------------
 
     def _init_dashscope(self) -> None:
-        """Initialize DashScope SDK state (lazy - Recognition starts on first audio)."""
+        """Initialize DashScope SDK state."""
         import dashscope
         from dashscope.audio.asr import RecognitionCallback
 
@@ -103,7 +112,7 @@ class FunASREngine(StreamingASREngine):
 
         self._recognition: Any = None
         self._recognition_started = False
-        self._recognition_closed = True  # Start as "closed" to trigger lazy start
+        self._recognition_closed = True
         self._restart_lock = threading.Lock()
 
         # Create callback handler
@@ -141,19 +150,16 @@ class FunASREngine(StreamingASREngine):
                 engine._handle_dashscope_result(result)
 
         self._callback = _Callback()
-        # NOTE: Don't start recognition here - lazy start on first audio frame
-        logger.info("DashScope: Initialized (recognition will start on first audio)")
+        logger.info("DashScope: Initialized")
 
-    def _start_recognition(self) -> None:
+    def _start_dashscope_recognition(self) -> None:
         """Start a new DashScope recognition session."""
         from dashscope.audio.asr import Recognition
 
         with self._restart_lock:
-            # Don't start if already running
             if self._recognition_started and not self._recognition_closed:
                 return
 
-            # Create Recognition instance
             self._recognition = Recognition(
                 model=self._model,
                 callback=self._callback,
@@ -164,7 +170,6 @@ class FunASREngine(StreamingASREngine):
                 inverse_text_normalization_enabled=self._itn,
             )
 
-            # Start recognition
             try:
                 self._recognition.start()
                 with self._lock:
@@ -175,6 +180,38 @@ class FunASREngine(StreamingASREngine):
                 logger.exception("DashScope: Failed to start recognition")
                 with self._lock:
                     self._recognition_started = False
+
+    def _stop_dashscope_recognition(self) -> str:
+        """Stop DashScope recognition and return final transcript."""
+        # Flush remaining audio
+        if self._recognition is not None and self._recognition_started:
+            remaining = bytes(self._audio_buffer)
+            self._audio_buffer = bytearray()
+            if remaining:
+                try:
+                    self._recognition.send_audio_frame(remaining)
+                except Exception:
+                    pass
+
+            # Stop recognition
+            try:
+                self._recognition.stop()
+                logger.debug("DashScope: Recognition stopped")
+            except Exception:
+                pass
+
+        # Wait briefly for final results
+        time.sleep(0.1)
+
+        with self._lock:
+            self._recognition_started = False
+            self._recognition_closed = True
+            self._recognition = None
+            # Return best available text
+            final_text = self._committed_text or self._partial_text
+            self._committed_text = ""
+            self._partial_text = ""
+            return final_text
 
     def _handle_dashscope_result(self, result: Any) -> None:
         """Handle DashScope recognition result."""
@@ -191,23 +228,51 @@ class FunASREngine(StreamingASREngine):
             if is_end:
                 if text:
                     self._committed_text = text
-                    self._has_endpoint = True
                     self._partial_text = ""
             else:
                 self._partial_text = text
 
-    def _ensure_recognition_running(self) -> bool:
-        """Ensure recognition is running, restart if needed. Returns True if ready."""
-        with self._lock:
-            if self._recognition_started and not self._recognition_closed:
-                return True
+    def _process_dashscope(self, int16_data: bytes) -> None:
+        """Send audio data to DashScope SDK."""
+        if self._recognition is None or not self._recognition_started:
+            logger.warning("DashScope: Recognition not started, dropping audio")
+            return
 
-        # Need to restart
-        logger.debug("DashScope: Recognition not running, restarting...")
-        self._start_recognition()
+        # Accumulate and send in ~100ms chunks (3200 bytes at 16kHz/16bit)
+        send_stride = int(self._sample_rate * 0.1) * 2
+        self._audio_buffer.extend(int16_data)
 
-        with self._lock:
-            return self._recognition_started and not self._recognition_closed
+        while len(self._audio_buffer) >= send_stride:
+            chunk = bytes(self._audio_buffer[:send_stride])
+            self._audio_buffer = self._audio_buffer[send_stride:]
+            try:
+                self._recognition.send_audio_frame(chunk)
+            except Exception as e:
+                if "stopped" in str(e).lower():
+                    logger.debug("DashScope: Recognition stopped unexpectedly")
+                    with self._lock:
+                        self._recognition_closed = True
+                        self._recognition_started = False
+                    self._audio_buffer = bytearray(chunk) + self._audio_buffer
+                    break
+                else:
+                    logger.exception("DashScope: Failed to send audio frame")
+                    break
+
+    def _close_dashscope(self) -> None:
+        """Close DashScope recognition."""
+        if self._recognition is not None:
+            with self._lock:
+                was_running = self._recognition_started and not self._recognition_closed
+            if was_running:
+                try:
+                    self._recognition.stop()
+                except Exception:
+                    pass
+            with self._lock:
+                self._recognition_started = False
+                self._recognition_closed = True
+        self._recognition = None
 
     # ------------------------------------------------------------------
     # Self-hosted FunASR WebSocket implementation
@@ -215,13 +280,11 @@ class FunASREngine(StreamingASREngine):
 
     def _init_funasr_websocket(self) -> None:
         """Initialize self-hosted FunASR WebSocket connection."""
-        # Compute bytes-per-send stride from chunk_size
         self._send_stride = int(
             60 * self._chunk_size[1] / _CHUNK_INTERVAL / 1000
             * self._sample_rate * 2
         )
 
-        # Background event loop for the WebSocket
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._ws: websockets.WebSocketClientProtocol | None = None
@@ -251,7 +314,6 @@ class FunASREngine(StreamingASREngine):
             self._loop.close()
 
     async def _ws_lifecycle(self) -> None:
-        """Connect, receive messages, reconnect on failure."""
         while self._running:
             try:
                 await self._connect_and_receive()
@@ -274,19 +336,14 @@ class FunASREngine(StreamingASREngine):
             self._config_sent = False
             logger.info("FunASR: WebSocket connected to %s", url)
 
-            # Send initial configuration
-            await self._send_funasr_config(ws)
-
             async for raw in ws:
                 self._handle_funasr_message(raw)
 
-        # Connection closed
         self._ws = None
         self._connected.clear()
         self._config_sent = False
 
     async def _send_funasr_config(self, ws: websockets.WebSocketClientProtocol) -> None:
-        """Self-hosted FunASR: flat JSON config."""
         config: dict = {
             "mode": self._mode,
             "wav_name": "tank-stream",
@@ -301,10 +358,9 @@ class FunASREngine(StreamingASREngine):
 
         await ws.send(json.dumps(config))
         self._config_sent = True
-        logger.debug("FunASR: config sent (self-hosted): mode=%s", self._mode)
+        logger.debug("FunASR: config sent: mode=%s", self._mode)
 
     def _handle_funasr_message(self, raw: str | bytes) -> None:
-        """Handle self-hosted FunASR response."""
         try:
             msg = json.loads(raw)
         except (json.JSONDecodeError, TypeError):
@@ -321,13 +377,11 @@ class FunASREngine(StreamingASREngine):
             elif mode.endswith("-offline") or mode == "offline":
                 if text:
                     self._committed_text = text
-                    self._has_endpoint = True
                     self._partial_text = ""
             elif mode == "online":
                 if is_final:
                     if text:
                         self._committed_text = text
-                        self._has_endpoint = True
                         self._partial_text = ""
                 else:
                     self._partial_text = text
@@ -335,164 +389,52 @@ class FunASREngine(StreamingASREngine):
                 if text:
                     self._partial_text = text
 
-    # ------------------------------------------------------------------
-    # StreamingASREngine contract
-    # ------------------------------------------------------------------
+    def _start_funasr_session(self) -> None:
+        """Start a FunASR session by sending config."""
+        ws = self._ws
+        loop = self._loop
+        if ws is not None and loop is not None and not self._config_sent:
+            asyncio.run_coroutine_threadsafe(self._send_funasr_config(ws), loop)
 
-    def process_pcm(self, pcm: np.ndarray) -> tuple[str, bool]:
-        """Send a PCM chunk to ASR and return current transcript state.
+    def _stop_funasr_session(self) -> str:
+        """Stop FunASR session and return final transcript."""
+        ws = self._ws
+        loop = self._loop
 
-        Args:
-            pcm: Float32 mono audio samples.
+        if ws is not None and loop is not None:
+            # Flush remaining audio
+            remaining = bytes(self._audio_buffer)
+            self._audio_buffer = bytearray()
+            if remaining:
+                asyncio.run_coroutine_threadsafe(ws.send(remaining), loop)
 
-        Returns:
-            (text, is_endpoint)
-        """
-        # Convert float32 → int16 bytes
-        int16_data = (pcm * 32767).astype(np.int16).tobytes()
+            # Signal end-of-utterance
+            finish_msg = json.dumps({"is_speaking": False})
+            asyncio.run_coroutine_threadsafe(ws.send(finish_msg), loop)
 
-        if self._is_dashscope:
-            self._process_dashscope(int16_data)
-        else:
-            self._process_funasr_ws(int16_data)
+        # Wait briefly for final results
+        time.sleep(0.1)
 
-        # Read current state
         with self._lock:
-            if self._has_endpoint:
-                text = self._committed_text
-                self._has_endpoint = False
-                self._committed_text = ""
-                return text, True
-            return self._partial_text, False
-
-    def _process_dashscope(self, int16_data: bytes) -> None:
-        """Send audio data to DashScope SDK."""
-        # Ensure recognition is running, restart if needed
-        if not self._ensure_recognition_running():
-            logger.warning("DashScope: Recognition not available, buffering audio")
-            # Still buffer the audio for when recognition restarts
-            self._audio_buffer.extend(int16_data)
-            return
-
-        # Accumulate and send in ~100ms chunks (3200 bytes at 16kHz/16bit)
-        send_stride = int(self._sample_rate * 0.1) * 2
-        self._audio_buffer.extend(int16_data)
-
-        while len(self._audio_buffer) >= send_stride:
-            chunk = bytes(self._audio_buffer[:send_stride])
-            self._audio_buffer = self._audio_buffer[send_stride:]
-            try:
-                if self._recognition is not None:
-                    self._recognition.send_audio_frame(chunk)
-            except Exception as e:
-                # Check if recognition has stopped
-                if "stopped" in str(e).lower():
-                    logger.debug("DashScope: Recognition stopped, will restart on next audio")
-                    with self._lock:
-                        self._recognition_closed = True
-                        self._recognition_started = False
-                    # Put the chunk back for retry after restart
-                    self._audio_buffer = bytearray(chunk) + self._audio_buffer
-                    break
-                else:
-                    logger.exception("DashScope: Failed to send audio frame")
-                    break
+            self._config_sent = False
+            final_text = self._committed_text or self._partial_text
+            self._committed_text = ""
+            self._partial_text = ""
+            return final_text
 
     def _process_funasr_ws(self, int16_data: bytes) -> None:
-        """Send audio data to self-hosted FunASR via WebSocket."""
         ws = self._ws
         loop = self._loop
         if ws is None or loop is None or not self._config_sent:
             return
 
-        # Accumulate into buffer and send stride-sized chunks
         self._audio_buffer.extend(int16_data)
         while len(self._audio_buffer) >= self._send_stride:
             chunk = bytes(self._audio_buffer[:self._send_stride])
             self._audio_buffer = self._audio_buffer[self._send_stride:]
             asyncio.run_coroutine_threadsafe(ws.send(chunk), loop)
 
-    def reset(self) -> None:
-        """Reset internal transcript state and signal end-of-utterance."""
-        with self._lock:
-            self._partial_text = ""
-            self._committed_text = ""
-            self._has_endpoint = False
-
-        if self._is_dashscope:
-            self._reset_dashscope()
-        else:
-            self._reset_funasr_ws()
-
-    def _reset_dashscope(self) -> None:
-        """Reset DashScope recognition for a new utterance.
-
-        Stops the current session but does NOT start a new one.
-        The next audio frame will trigger lazy initialization via
-        _ensure_recognition_running().
-        """
-        # Clear the audio buffer - don't carry over audio between utterances
-        self._audio_buffer = bytearray()
-
-        # Stop current recognition if running
-        if self._recognition is not None:
-            with self._lock:
-                was_running = self._recognition_started and not self._recognition_closed
-            if was_running:
-                try:
-                    self._recognition.stop()
-                    logger.debug("DashScope: Recognition stopped for reset")
-                except Exception:
-                    pass  # Ignore errors, it might already be stopped
-
-        with self._lock:
-            self._recognition_started = False
-            self._recognition_closed = True
-            self._recognition = None
-
-        # NOTE: Don't start a new session here - lazy start on next audio frame
-
-    def _reset_funasr_ws(self) -> None:
-        """Reset self-hosted FunASR WebSocket."""
-        ws = self._ws
-        loop = self._loop
-        if ws is None or loop is None:
-            return
-
-        # Flush remaining audio
-        remaining = bytes(self._audio_buffer)
-        self._audio_buffer = bytearray()
-        if remaining:
-            asyncio.run_coroutine_threadsafe(ws.send(remaining), loop)
-
-        # Signal end-of-utterance
-        finish_msg = json.dumps({"is_speaking": False})
-        asyncio.run_coroutine_threadsafe(ws.send(finish_msg), loop)
-
-    def close(self) -> None:
-        """Shut down the ASR engine."""
-        if self._is_dashscope:
-            self._close_dashscope()
-        else:
-            self._close_funasr_ws()
-
-    def _close_dashscope(self) -> None:
-        """Close DashScope recognition."""
-        if self._recognition is not None:
-            with self._lock:
-                was_running = self._recognition_started and not self._recognition_closed
-            if was_running:
-                try:
-                    self._recognition.stop()
-                except Exception:
-                    pass
-            with self._lock:
-                self._recognition_started = False
-                self._recognition_closed = True
-        self._recognition = None
-
     def _close_funasr_ws(self) -> None:
-        """Close self-hosted FunASR WebSocket."""
         if not self._running:
             return
         self._running = False
@@ -505,3 +447,71 @@ class FunASREngine(StreamingASREngine):
             self._thread = None
         self._ws = None
         self._loop = None
+
+    # ------------------------------------------------------------------
+    # StreamingASREngine contract
+    # ------------------------------------------------------------------
+
+    def start(self) -> None:
+        """Start a new recognition session."""
+        with self._lock:
+            self._partial_text = ""
+            self._committed_text = ""
+            self._audio_buffer = bytearray()
+
+        self._session_active = True
+
+        if self._is_dashscope:
+            self._start_dashscope_recognition()
+        else:
+            self._start_funasr_session()
+
+        logger.debug("FunASR: Session started")
+
+    def process_pcm(self, pcm: np.ndarray) -> str:
+        """Process a chunk of PCM audio.
+
+        Returns:
+            Current partial transcript text.
+        """
+        if not self._session_active:
+            logger.warning("FunASR: process_pcm called without active session")
+            return ""
+
+        int16_data = (pcm * 32767).astype(np.int16).tobytes()
+
+        if self._is_dashscope:
+            self._process_dashscope(int16_data)
+        else:
+            self._process_funasr_ws(int16_data)
+
+        with self._lock:
+            return self._partial_text or self._committed_text
+
+    def stop(self) -> str:
+        """Stop the session and return final transcript."""
+        if not self._session_active:
+            logger.warning("FunASR: stop called without active session")
+            return ""
+
+        self._session_active = False
+
+        if self._is_dashscope:
+            final_text = self._stop_dashscope_recognition()
+        else:
+            final_text = self._stop_funasr_session()
+
+        logger.debug("FunASR: Session stopped, final text: %s", final_text[:50] if final_text else "(empty)")
+        return final_text
+
+    def close(self) -> None:
+        """Release all resources."""
+        self._session_active = False
+
+        if self._is_dashscope:
+            self._close_dashscope()
+        else:
+            self._close_funasr_ws()
+
+        logger.info("FunASR: Engine closed")
+

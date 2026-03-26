@@ -19,9 +19,10 @@ logger = logging.getLogger("VAD")
 class VADStatus(Enum):
     """Voice activity detection status."""
 
-    NO_SPEECH = auto()  # No speech detected, no utterance
-    IN_SPEECH = auto()  # Speech detected, accumulating frames
-    END_SPEECH = auto()  # Speech ended, utterance finalized
+    NO_SPEECH = auto()     # No speech detected, no utterance
+    START_SPEECH = auto()  # Speech just started (first frame of utterance)
+    IN_SPEECH = auto()     # Speech continuing, accumulating frames
+    END_SPEECH = auto()    # Speech ended, utterance finalized
 
 
 @dataclass(frozen=True)
@@ -254,7 +255,10 @@ class SileroVAD:
             # Include pre-roll frames + current frame
             pre_roll_parts = list(self._pre_roll_buffer)
             self._speech_pcm_parts = pre_roll_parts + [pcm]
-            return VADResult(status=VADStatus.IN_SPEECH)
+            return VADResult(
+                status=VADStatus.START_SPEECH,
+                started_at_s=timestamp_s,
+            )
 
         # In speech state
         self._speech_pcm_parts.append(pcm)

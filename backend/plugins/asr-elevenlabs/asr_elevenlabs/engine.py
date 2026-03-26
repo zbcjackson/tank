@@ -12,6 +12,7 @@ import base64
 import json
 import logging
 import threading
+import time
 
 import numpy as np
 import websockets
@@ -30,6 +31,12 @@ class ElevenLabsASREngine(StreamingASREngine):
     Maintains a background event loop with a persistent WebSocket connection.
     Audio chunks are sent via ``process_pcm``; transcripts arrive asynchronously
     and are buffered for the caller to consume.
+
+    Lifecycle:
+        start()      - Clear state, ready to receive audio
+        process_pcm() - Send audio chunks to ElevenLabs
+        stop()       - Return final transcript
+        close()      - Shut down WebSocket connection
     """
 
     def __init__(
@@ -45,7 +52,6 @@ class ElevenLabsASREngine(StreamingASREngine):
         # Latest transcript state (updated from WS receive loop)
         self._partial_text = ""
         self._committed_text = ""
-        self._has_endpoint = False
         self._lock = threading.Lock()
 
         # Background event loop for the WebSocket
@@ -54,6 +60,9 @@ class ElevenLabsASREngine(StreamingASREngine):
         self._ws: websockets.WebSocketClientProtocol | None = None
         self._connected = threading.Event()
         self._running = False
+
+        # Session state
+        self._session_active = False
 
         self._start_background_loop()
 
@@ -126,7 +135,6 @@ class ElevenLabsASREngine(StreamingASREngine):
                     if text:
                         with self._lock:
                             self._committed_text = text
-                            self._has_endpoint = True
                             self._partial_text = ""
 
                 elif msg_type == "input_error":
@@ -140,15 +148,27 @@ class ElevenLabsASREngine(StreamingASREngine):
     # StreamingASREngine contract
     # ------------------------------------------------------------------
 
-    def process_pcm(self, pcm: np.ndarray) -> tuple[str, bool]:
-        """Send a PCM chunk to ElevenLabs and return current transcript state.
+    def start(self) -> None:
+        """Start a new recognition session."""
+        with self._lock:
+            self._partial_text = ""
+            self._committed_text = ""
+        self._session_active = True
+        logger.debug("ElevenLabs: Session started")
+
+    def process_pcm(self, pcm: np.ndarray) -> str:
+        """Send a PCM chunk to ElevenLabs and return current transcript.
 
         Args:
             pcm: Float32 mono audio samples.
 
         Returns:
-            (text, is_endpoint)
+            Current partial transcript text.
         """
+        if not self._session_active:
+            logger.warning("ElevenLabs: process_pcm called without active session")
+            return ""
+
         # Capture references to avoid TOCTOU race with the background thread
         ws = self._ws
         loop = self._loop
@@ -169,22 +189,31 @@ class ElevenLabsASREngine(StreamingASREngine):
 
         # Read current state
         with self._lock:
-            if self._has_endpoint:
-                text = self._committed_text
-                self._has_endpoint = False
-                self._committed_text = ""
-                return text, True
-            return self._partial_text, False
+            return self._partial_text or self._committed_text
 
-    def reset(self) -> None:
-        """Reset internal transcript state."""
+    def stop(self) -> str:
+        """Stop the session and return final transcript."""
+        if not self._session_active:
+            logger.warning("ElevenLabs: stop called without active session")
+            return ""
+
+        self._session_active = False
+
+        # Wait briefly for any pending transcripts
+        time.sleep(0.1)
+
         with self._lock:
-            self._partial_text = ""
+            final_text = self._committed_text or self._partial_text
             self._committed_text = ""
-            self._has_endpoint = False
+            self._partial_text = ""
+
+        logger.debug("ElevenLabs: Session stopped, final text: %s", final_text[:50] if final_text else "(empty)")
+        return final_text
 
     def close(self) -> None:
         """Shut down the background loop and WebSocket."""
+        self._session_active = False
+
         if not self._running:
             return
         self._running = False
@@ -197,3 +226,4 @@ class ElevenLabsASREngine(StreamingASREngine):
             self._thread = None
         self._ws = None
         self._loop = None
+        logger.info("ElevenLabs: Engine closed")

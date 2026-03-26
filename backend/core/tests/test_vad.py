@@ -39,22 +39,24 @@ class TestVADStateMachine:
         assert result.utterance_pcm is None
 
     def test_transition_to_in_speech_on_speech_detection(self, vad):
-        """Test that speech detection transitions to IN_SPEECH."""
+        """Test that speech detection transitions to START_SPEECH then IN_SPEECH."""
         speech_pcm = generate_speech_frame()
         result = vad.process_frame(pcm=speech_pcm, timestamp_s=1000.0)
 
-        assert result.status == VADStatus.IN_SPEECH
+        # First speech frame returns START_SPEECH
+        assert result.status == VADStatus.START_SPEECH
+        assert result.started_at_s == 1000.0
         assert result.utterance_pcm is None
 
     def test_in_speech_continues_accumulating_frames(self, vad):
         """Test that IN_SPEECH status continues accumulating frames."""
         speech_pcm = generate_speech_frame()
 
-        # First frame: should transition to IN_SPEECH
+        # First frame: should transition to START_SPEECH
         result1 = vad.process_frame(pcm=speech_pcm, timestamp_s=1000.0)
-        assert result1.status == VADStatus.IN_SPEECH
+        assert result1.status == VADStatus.START_SPEECH
 
-        # Second frame: should still be IN_SPEECH
+        # Second frame: should be IN_SPEECH
         result2 = vad.process_frame(pcm=speech_pcm, timestamp_s=1000.02)
         assert result2.status == VADStatus.IN_SPEECH
         assert result2.utterance_pcm is None
@@ -85,17 +87,16 @@ class TestVADStateMachine:
         # Should start with NO_SPEECH
         assert statuses[0] == VADStatus.NO_SPEECH
 
-        # Should transition to IN_SPEECH when speech detected
-        first_in_speech_idx = next(
-            (i for i, s in enumerate(statuses) if s == VADStatus.IN_SPEECH), None
+        # Should have START_SPEECH followed by IN_SPEECH when speech detected
+        first_start_speech_idx = next(
+            (i for i, s in enumerate(statuses) if s == VADStatus.START_SPEECH), None
         )
-        assert first_in_speech_idx is not None
-        assert first_in_speech_idx < 10  # Should happen during speech frames
+        assert first_start_speech_idx is not None
+        assert first_start_speech_idx >= 5  # Should happen during speech frames
 
-        # Should remain IN_SPEECH for subsequent speech frames
-        assert all(
-            statuses[i] == VADStatus.IN_SPEECH for i in range(first_in_speech_idx, len(statuses))
-        )
+        # After START_SPEECH, should be IN_SPEECH for subsequent frames
+        speech_statuses = statuses[first_start_speech_idx + 1:]
+        assert all(s == VADStatus.IN_SPEECH for s in speech_statuses)
 
 
 class TestVADChunkBuffering:
@@ -164,8 +165,9 @@ class TestVADChunkBuffering:
             results.append(result)
 
         # Should handle partial chunks gracefully
-        # Verify no errors occurred
-        assert all(r.status in [VADStatus.IN_SPEECH, VADStatus.END_SPEECH] for r in results)
+        # First frame should be START_SPEECH, rest IN_SPEECH or END_SPEECH
+        valid_statuses = [VADStatus.START_SPEECH, VADStatus.IN_SPEECH, VADStatus.END_SPEECH]
+        assert all(r.status in valid_statuses for r in results)
 
 
 class TestVADPreRoll:

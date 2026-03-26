@@ -79,8 +79,12 @@ class VADProcessor(Processor):
                 ))
             yield FlowReturn.OK, result
 
-        elif result.status == VADStatus.IN_SPEECH:
+        elif result.status == VADStatus.START_SPEECH:
             self._speech_active = True
+            # Forward START_SPEECH result so ASR can start session
+            yield FlowReturn.OK, result
+
+        elif result.status == VADStatus.IN_SPEECH:
             # Forward the AudioFrame so downstream ASR can do streaming recognition
             yield FlowReturn.OK, frame
 

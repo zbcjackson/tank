@@ -140,20 +140,22 @@ class TestVADProcessor:
 
 # ── ASRProcessor ─────────────────────────────────────────────────────────────
 
-def _make_streaming_asr(text="hello", is_final=True, supports_streaming=True):
+def _make_streaming_asr(text="hello", supports_streaming=True):
     """Create a mock ASR engine with streaming support."""
     asr = MagicMock()
-    asr.process_pcm = MagicMock(return_value=(text, is_final))
+    asr.process_pcm = MagicMock(return_value=text)
+    asr.stop = MagicMock(return_value=text)
+    asr.start = MagicMock()
+    asr.close = MagicMock()
     asr.supports_streaming = supports_streaming
-    asr.reset = MagicMock()
     return asr
 
 
 class TestASRProcessor:
-    def _make_processor(self, text="hello", is_final=True, bus=None, supports_streaming=True):
+    def _make_processor(self, text="hello", bus=None, supports_streaming=True):
         from tank_backend.pipeline.processors.asr import ASRProcessor
 
-        asr = _make_streaming_asr(text, is_final, supports_streaming)
+        asr = _make_streaming_asr(text, supports_streaming)
         proc = ASRProcessor(asr=asr, bus=bus, user="TestUser")
         return proc, asr
 
@@ -203,11 +205,20 @@ class TestASRProcessor:
         assert "latency_s" in received[0].payload
 
     async def test_posts_user_transcript_to_bus(self):
+        """Final transcript posted to bus on END_SPEECH."""
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+
         bus = Bus()
         received = []
         bus.subscribe("ui_message", lambda m: received.append(m))
 
         proc, _ = self._make_processor(text="你好世界", bus=bus)
+
+        # Send START_SPEECH to initialize msg_id
+        start_speech = VADResult(status=VADStatus.START_SPEECH, started_at_s=BASE_TIME)
+        await _collect(proc, start_speech)
+
+        # Send END_SPEECH to finalize
         await _collect(proc, _make_vad_result_end_speech())
         bus.poll()
 
@@ -231,23 +242,47 @@ class TestASRProcessor:
 
         assert len(received) == 0
 
-    async def test_flush_event_resets_asr(self):
+    async def test_flush_event_stops_asr(self):
         proc, asr = self._make_processor()
-        asr.reset = MagicMock()
         event = PipelineEvent(type="flush")
         consumed = proc.handle_event(event)
         assert consumed is False
-        asr.reset.assert_called_once()
+        asr.stop.assert_called_once()
 
-    # ── Streaming mode (AudioFrame → partial → END_SPEECH → final) ───────
+    # ── Streaming mode (START_SPEECH → AudioFrame → END_SPEECH) ───────────
+
+    async def test_streaming_start_speech_starts_session(self):
+        """START_SPEECH calls asr.start() and posts speech_start."""
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+
+        bus = Bus()
+        speech_starts = []
+        bus.subscribe("speech_start", lambda m: speech_starts.append(m))
+
+        proc, asr = self._make_processor(text="你好", bus=bus)
+        start_speech = VADResult(status=VADStatus.START_SPEECH, started_at_s=BASE_TIME)
+        await _collect(proc, start_speech)
+        bus.poll()
+
+        asr.start.assert_called_once()
+        assert len(speech_starts) == 1
+        assert speech_starts[0].source == "asr"
 
     async def test_streaming_audio_frame_partial_transcript(self):
         """AudioFrame with non-empty partial text → ui_message with is_final=False."""
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+
         bus = Bus()
         received = []
         bus.subscribe("ui_message", lambda m: received.append(m))
 
         proc, _ = self._make_processor(text="你好", bus=bus)
+
+        # First send START_SPEECH to start session
+        start_speech = VADResult(status=VADStatus.START_SPEECH, started_at_s=BASE_TIME)
+        await _collect(proc, start_speech)
+
+        # Then send AudioFrame
         frame = _make_audio_frame(timestamp_s=BASE_TIME)
         outputs = await _collect(proc, frame)
         bus.poll()
@@ -263,25 +298,36 @@ class TestASRProcessor:
         assert display_msg.is_final is False
 
     async def test_streaming_first_partial_posts_speech_start(self):
-        """First non-empty partial transcript triggers speech_start on bus."""
+        """speech_start is posted on START_SPEECH, not on first partial."""
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+
         bus = Bus()
         speech_starts = []
         bus.subscribe("speech_start", lambda m: speech_starts.append(m))
 
         proc, _ = self._make_processor(text="hello", bus=bus)
-        await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME))
+
+        # START_SPEECH posts speech_start
+        start_speech = VADResult(status=VADStatus.START_SPEECH, started_at_s=BASE_TIME)
+        await _collect(proc, start_speech)
         bus.poll()
 
         assert len(speech_starts) == 1
         assert speech_starts[0].source == "asr"
 
     async def test_streaming_speech_start_posted_only_once(self):
-        """speech_start is posted only on the first non-empty partial, not repeated."""
+        """speech_start is posted only on START_SPEECH, not repeated on frames."""
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+
         bus = Bus()
         speech_starts = []
         bus.subscribe("speech_start", lambda m: speech_starts.append(m))
 
         proc, _ = self._make_processor(text="hello", bus=bus)
+
+        # START_SPEECH
+        start_speech = VADResult(status=VADStatus.START_SPEECH, started_at_s=BASE_TIME)
+        await _collect(proc, start_speech)
 
         # Send multiple frames
         for i in range(5):
@@ -291,30 +337,40 @@ class TestASRProcessor:
         assert len(speech_starts) == 1
 
     async def test_streaming_no_speech_start_on_empty_text(self):
-        """Empty partial text → no speech_start posted."""
+        """speech_start is posted on START_SPEECH even if later text is empty."""
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+
         bus = Bus()
         speech_starts = []
         bus.subscribe("speech_start", lambda m: speech_starts.append(m))
 
         proc, _ = self._make_processor(text="", bus=bus)
-        await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME))
+
+        # START_SPEECH posts speech_start regardless of text
+        start_speech = VADResult(status=VADStatus.START_SPEECH, started_at_s=BASE_TIME)
+        await _collect(proc, start_speech)
         bus.poll()
 
-        assert len(speech_starts) == 0
+        # speech_start is posted on START_SPEECH
+        assert len(speech_starts) == 1
 
     async def test_streaming_end_speech_finalizes(self):
-        """AudioFrames then VADResult END_SPEECH → BrainInputEvent with final text."""
+        """START_SPEECH → AudioFrames → END_SPEECH → BrainInputEvent with final text."""
+        from tank_backend.audio.input.vad import VADResult, VADStatus
         from tank_backend.pipeline.processors.asr import ASRProcessor
 
-        # ASR returns partial "你好" on frames, then we finalize on END_SPEECH
+        # ASR returns partial on process_pcm, final on stop()
         asr = MagicMock()
         asr.supports_streaming = True
-        asr.reset = MagicMock()
-        # First call (AudioFrame) returns partial
-        # Second call would be on END_SPEECH but streaming mode uses accumulated text
-        asr.process_pcm = MagicMock(return_value=("你好世界", False))
+        asr.start = MagicMock()
+        asr.process_pcm = MagicMock(return_value="你好世界")
+        asr.stop = MagicMock(return_value="你好世界，今天天气很好")
 
         proc = ASRProcessor(asr=asr, user="TestUser")
+
+        # START_SPEECH
+        start_speech = VADResult(status=VADStatus.START_SPEECH, started_at_s=BASE_TIME)
+        await _collect(proc, start_speech)
 
         # Send a few AudioFrames to build up partial text
         for i in range(3):
@@ -327,8 +383,9 @@ class TestASRProcessor:
         assert len(outputs) == 1
         brain_event = outputs[0][1]
         assert brain_event is not None
-        assert brain_event.text == "你好世界"
+        assert brain_event.text == "你好世界，今天天气很好"
         assert brain_event.user == "TestUser"
+        asr.stop.assert_called_once()
 
     async def test_non_streaming_engine_ignores_frames(self):
         """supports_streaming=False → AudioFrame yields None, no bus messages."""
@@ -363,30 +420,39 @@ class TestASRProcessor:
 
     async def test_flush_resets_streaming_state(self):
         """Flush event resets streaming state so next utterance starts clean."""
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+
         bus = Bus()
         proc, asr = self._make_processor(text="partial", bus=bus)
 
-        # Build up some streaming state
+        # Start session and build up some streaming state
+        start_speech = VADResult(status=VADStatus.START_SPEECH, started_at_s=BASE_TIME)
+        await _collect(proc, start_speech)
         await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME))
         assert proc._partial_text == "partial"
-        assert proc._speech_start_posted is True
+        assert proc._streaming_msg_id is not None
 
         # Flush
         event = PipelineEvent(type="flush")
         proc.handle_event(event)
 
         assert proc._partial_text == ""
-        assert proc._speech_start_posted is False
         assert proc._streaming_msg_id is None
-        asr.reset.assert_called_once()
+        asr.stop.assert_called()
 
     async def test_streaming_same_text_no_duplicate_ui_message(self):
         """If ASR returns the same text on consecutive frames, no duplicate ui_message."""
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+
         bus = Bus()
         received = []
         bus.subscribe("ui_message", lambda m: received.append(m))
 
         proc, _ = self._make_processor(text="hello", bus=bus)
+
+        # START_SPEECH first to initialize session
+        start_speech = VADResult(status=VADStatus.START_SPEECH, started_at_s=BASE_TIME)
+        await _collect(proc, start_speech)
 
         # Two frames, same text
         await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME))
