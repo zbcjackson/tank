@@ -132,6 +132,7 @@ export class OpenWakeWordDetector implements WakeWordDetector {
 
     const engineOpts: WakeWordEngineOptions = {
       baseAssetUrl: modelDir,
+      ortWasmPath: '/ort/',
       keywords: [keyword],
       modelFiles,
       detectionThreshold: threshold,
