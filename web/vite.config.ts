@@ -46,6 +46,12 @@ export default defineConfig({
       },
     },
   },
+  optimizeDeps: {
+    // @tauri-apps/api is only loaded at runtime inside Tauri (dynamic import
+    // guarded by __TAURI__). Exclude it from the dep scanner so Vite doesn't
+    // warn when running the plain web dev server where it's not installed.
+    exclude: ['@tauri-apps/api'],
+  },
   build: {
     // WKWebView (Tauri) uses Safari's engine — target safari13 for compatibility
     target: process.env.TAURI_ENV_PLATFORM ? 'safari13' : undefined,
