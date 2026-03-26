@@ -126,7 +126,7 @@ export class AudioProcessor {
       this.micVad = await MicVADClass.new({
         model: 'v5',
         baseAssetPath: '/vad/',
-        onnxWASMBasePath: '/vad/',
+        onnxWASMBasePath: '/ort/',
         startOnLoad: true,
 
         // Share our existing MediaStream — no second mic
