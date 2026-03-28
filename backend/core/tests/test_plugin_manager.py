@@ -1,6 +1,6 @@
 """Tests for PluginManager lifecycle."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
@@ -14,8 +14,6 @@ from tank_backend.plugin.manager import (
 )
 from tank_backend.plugin.manifest import ExtensionManifest, PluginManifest
 from tank_backend.plugin.registry import ExtensionRegistry
-
-MANIFEST_PATCH = "tank_backend.plugin.manager.read_plugin_manifest"
 
 
 def _tts_ext():
@@ -48,28 +46,143 @@ def _asr_manifest():
     )
 
 
+def _make_plugin_dir(plugins_dir, name, manifest_data):
+    """Create a plugin directory with plugin.yaml."""
+    plugin_dir = plugins_dir / name
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "plugin.yaml").write_text(
+        yaml.safe_dump(manifest_data)
+    )
+    return plugin_dir
+
+
+# ── Discovery tests ──────────────────────────────────────────────
+
+
+class TestDiscoverPlugins:
+    """Tests for filesystem-based plugin discovery."""
+
+    def test_discovers_plugins_from_directory(self, tmp_path):
+        plugins_dir = tmp_path / "plugins"
+        _make_plugin_dir(plugins_dir, "tts-edge", {
+            "name": "tts-edge",
+            "display_name": "Edge TTS",
+            "description": "test",
+            "extensions": [
+                {"name": "tts", "type": "tts", "factory": "tts_edge:create_engine"},
+            ],
+        })
+        _make_plugin_dir(plugins_dir, "asr-sherpa", {
+            "name": "asr-sherpa",
+            "display_name": "Sherpa ASR",
+            "description": "test",
+            "extensions": [
+                {"name": "asr", "type": "asr", "factory": "asr_sherpa:create_engine"},
+            ],
+        })
+
+        pm = PluginManager(
+            plugins_yaml_path=tmp_path / "plugins.yaml",
+            plugins_dir=plugins_dir,
+        )
+        found = pm.discover_plugins()
+
+        assert len(found) == 2
+        assert "tts-edge" in found
+        assert "asr-sherpa" in found
+        assert found["tts-edge"].extensions[0].type == "tts"
+
+    def test_skips_dirs_without_manifest(self, tmp_path):
+        plugins_dir = tmp_path / "plugins"
+        _make_plugin_dir(plugins_dir, "tts-edge", {
+            "name": "tts-edge",
+            "extensions": [],
+        })
+        # Directory without plugin.yaml
+        (plugins_dir / "no-manifest").mkdir()
+
+        pm = PluginManager(
+            plugins_yaml_path=tmp_path / "plugins.yaml",
+            plugins_dir=plugins_dir,
+        )
+        found = pm.discover_plugins()
+
+        assert len(found) == 1
+        assert "tts-edge" in found
+
+    def test_skips_invalid_manifests(self, tmp_path):
+        plugins_dir = tmp_path / "plugins"
+        _make_plugin_dir(plugins_dir, "good-plugin", {
+            "name": "good-plugin",
+            "extensions": [],
+        })
+        # Invalid manifest (missing name)
+        bad_dir = plugins_dir / "bad-plugin"
+        bad_dir.mkdir(parents=True)
+        (bad_dir / "plugin.yaml").write_text(
+            yaml.safe_dump({"display_name": "No Name"})
+        )
+
+        pm = PluginManager(
+            plugins_yaml_path=tmp_path / "plugins.yaml",
+            plugins_dir=plugins_dir,
+        )
+        found = pm.discover_plugins()
+
+        assert len(found) == 1
+        assert "good-plugin" in found
+
+    def test_empty_plugins_dir(self, tmp_path):
+        plugins_dir = tmp_path / "plugins"
+        plugins_dir.mkdir()
+
+        pm = PluginManager(
+            plugins_yaml_path=tmp_path / "plugins.yaml",
+            plugins_dir=plugins_dir,
+        )
+        found = pm.discover_plugins()
+
+        assert found == {}
+
+    def test_missing_plugins_dir(self, tmp_path):
+        pm = PluginManager(
+            plugins_yaml_path=tmp_path / "plugins.yaml",
+            plugins_dir=tmp_path / "nonexistent",
+        )
+        found = pm.discover_plugins()
+
+        assert found == {}
+
+
 # ── PluginManager tests ──────────────────────────────────────────────
 
 
 class TestPluginManager:
     """Tests for PluginManager lifecycle."""
 
+    def _make_pm_with_plugin(self, tmp_path, plugin_name, manifest_data):
+        """Create a PluginManager with a plugin dir and plugins.yaml."""
+        plugins_dir = tmp_path / "plugins"
+        _make_plugin_dir(plugins_dir, plugin_name, manifest_data)
+        return PluginManager(
+            plugins_yaml_path=tmp_path / "plugins.yaml",
+            plugins_dir=plugins_dir,
+        )
+
     def test_load_all_generates_yaml_when_missing(self, tmp_path):
         """load_all auto-generates plugins.yaml if it doesn't exist."""
         plugins_yaml = tmp_path / "plugins.yaml"
         assert not plugins_yaml.exists()
 
-        pm = PluginManager(plugins_yaml_path=plugins_yaml)
-        manifest = _tts_manifest()
-
-        with (
-            patch.object(
-                pm, "discover_plugins",
-                return_value={"tts-edge": manifest},
-            ),
-            patch(MANIFEST_PATCH, return_value=manifest),
-        ):
-            registry = pm.load_all()
+        pm = self._make_pm_with_plugin(tmp_path, "tts-edge", {
+            "name": "tts-edge",
+            "display_name": "Edge TTS",
+            "description": "test",
+            "extensions": [
+                {"name": "tts", "type": "tts", "factory": "tts_edge:create_engine"},
+            ],
+        })
+        registry = pm.load_all()
 
         assert plugins_yaml.exists()
         assert registry.has("tts-edge:tts")
@@ -84,9 +197,15 @@ class TestPluginManager:
             },
         }))
 
-        pm = PluginManager(plugins_yaml_path=plugins_yaml)
-        with patch(MANIFEST_PATCH, return_value=_tts_manifest()):
-            registry = pm.load_all()
+        pm = self._make_pm_with_plugin(tmp_path, "tts-edge", {
+            "name": "tts-edge",
+            "display_name": "Edge TTS",
+            "description": "test",
+            "extensions": [
+                {"name": "tts", "type": "tts", "factory": "tts_edge:create_engine"},
+            ],
+        })
+        registry = pm.load_all()
 
         assert registry.has("tts-edge:tts")
         assert len(registry) == 1
@@ -101,7 +220,10 @@ class TestPluginManager:
             },
         }))
 
-        pm = PluginManager(plugins_yaml_path=plugins_yaml)
+        pm = PluginManager(
+            plugins_yaml_path=plugins_yaml,
+            plugins_dir=tmp_path / "plugins",
+        )
         registry = pm.load_all()
 
         assert not registry.has("tts-edge:tts")
@@ -117,9 +239,15 @@ class TestPluginManager:
             },
         }))
 
-        pm = PluginManager(plugins_yaml_path=plugins_yaml)
-        with patch(MANIFEST_PATCH, return_value=_tts_manifest()):
-            registry = pm.load_all()
+        pm = self._make_pm_with_plugin(tmp_path, "tts-edge", {
+            "name": "tts-edge",
+            "display_name": "Edge TTS",
+            "description": "test",
+            "extensions": [
+                {"name": "tts", "type": "tts", "factory": "tts_edge:create_engine"},
+            ],
+        })
+        registry = pm.load_all()
 
         assert not registry.has("tts-edge:tts")
 
@@ -128,11 +256,22 @@ class TestPluginManager:
         plugins_yaml = tmp_path / "plugins.yaml"
         plugins_yaml.write_text("{}")
 
-        pm = PluginManager(plugins_yaml_path=plugins_yaml)
-        pm.load_all()
+        plugins_dir = tmp_path / "plugins"
+        _make_plugin_dir(plugins_dir, "asr-sherpa", {
+            "name": "asr-sherpa",
+            "display_name": "Sherpa ASR",
+            "description": "test",
+            "extensions": [
+                {"name": "asr", "type": "asr", "factory": "asr_sherpa:create_engine"},
+            ],
+        })
 
-        with patch(MANIFEST_PATCH, return_value=_asr_manifest()):
-            pm.install("asr-sherpa")
+        pm = PluginManager(
+            plugins_yaml_path=plugins_yaml,
+            plugins_dir=plugins_dir,
+        )
+        pm.load_all()
+        pm.install("asr-sherpa")
 
         assert pm.registry.has("asr-sherpa:asr")
 
@@ -150,9 +289,15 @@ class TestPluginManager:
             },
         }))
 
-        pm = PluginManager(plugins_yaml_path=plugins_yaml)
-        with patch(MANIFEST_PATCH, return_value=_tts_manifest()):
-            pm.load_all()
+        pm = self._make_pm_with_plugin(tmp_path, "tts-edge", {
+            "name": "tts-edge",
+            "display_name": "Edge TTS",
+            "description": "test",
+            "extensions": [
+                {"name": "tts", "type": "tts", "factory": "tts_edge:create_engine"},
+            ],
+        })
+        pm.load_all()
 
         assert pm.registry.has("tts-edge:tts")
 
@@ -172,16 +317,22 @@ class TestPluginManager:
             },
         }))
 
-        pm = PluginManager(plugins_yaml_path=plugins_yaml)
-        with patch(MANIFEST_PATCH, return_value=_tts_manifest()):
-            pm.load_all()
-            assert pm.registry.has("tts-edge:tts")
+        pm = self._make_pm_with_plugin(tmp_path, "tts-edge", {
+            "name": "tts-edge",
+            "display_name": "Edge TTS",
+            "description": "test",
+            "extensions": [
+                {"name": "tts", "type": "tts", "factory": "tts_edge:create_engine"},
+            ],
+        })
+        pm.load_all()
+        assert pm.registry.has("tts-edge:tts")
 
-            pm.disable_plugin("tts-edge")
-            assert not pm.registry.has("tts-edge:tts")
+        pm.disable_plugin("tts-edge")
+        assert not pm.registry.has("tts-edge:tts")
 
-            pm.enable_plugin("tts-edge")
-            assert pm.registry.has("tts-edge:tts")
+        pm.enable_plugin("tts-edge")
+        assert pm.registry.has("tts-edge:tts")
 
     def test_enable_disable_extension(self, tmp_path):
         """enable/disable_extension toggles individual extension."""
@@ -193,19 +344,25 @@ class TestPluginManager:
             },
         }))
 
-        pm = PluginManager(plugins_yaml_path=plugins_yaml)
-        with patch(MANIFEST_PATCH, return_value=_tts_manifest()):
-            pm.load_all()
-            assert pm.registry.has("tts-edge:tts")
+        pm = self._make_pm_with_plugin(tmp_path, "tts-edge", {
+            "name": "tts-edge",
+            "display_name": "Edge TTS",
+            "description": "test",
+            "extensions": [
+                {"name": "tts", "type": "tts", "factory": "tts_edge:create_engine"},
+            ],
+        })
+        pm.load_all()
+        assert pm.registry.has("tts-edge:tts")
 
-            pm.disable_extension("tts-edge", "tts")
-            assert not pm.registry.has("tts-edge:tts")
+        pm.disable_extension("tts-edge", "tts")
+        assert not pm.registry.has("tts-edge:tts")
 
-            pm.enable_extension("tts-edge", "tts")
-            assert pm.registry.has("tts-edge:tts")
+        pm.enable_extension("tts-edge", "tts")
+        assert pm.registry.has("tts-edge:tts")
 
-    def test_missing_plugin_not_installed_logs_warning(self, tmp_path):
-        """Plugin in yaml but not installed is skipped with warning."""
+    def test_missing_plugin_not_found_logs_warning(self, tmp_path):
+        """Plugin in yaml but not in plugins dir is skipped with warning."""
         plugins_yaml = tmp_path / "plugins.yaml"
         plugins_yaml.write_text(yaml.safe_dump({
             "nonexistent-plugin": {
@@ -214,12 +371,14 @@ class TestPluginManager:
             },
         }))
 
-        pm = PluginManager(plugins_yaml_path=plugins_yaml)
-        with patch(
-            MANIFEST_PATCH,
-            side_effect=ImportError("not installed"),
-        ):
-            registry = pm.load_all()
+        plugins_dir = tmp_path / "plugins"
+        plugins_dir.mkdir()
+
+        pm = PluginManager(
+            plugins_yaml_path=plugins_yaml,
+            plugins_dir=plugins_dir,
+        )
+        registry = pm.load_all()
 
         assert len(registry) == 0
 
@@ -354,15 +513,21 @@ class TestPluginsYaml:
     def test_auto_generation(self, tmp_path):
         """generate_plugins_yaml creates file from discovered plugins."""
         plugins_yaml = tmp_path / "plugins.yaml"
+        plugins_dir = tmp_path / "plugins"
+        _make_plugin_dir(plugins_dir, "tts-edge", {
+            "name": "tts-edge",
+            "display_name": "Edge TTS",
+            "description": "test",
+            "extensions": [
+                {"name": "tts", "type": "tts", "factory": "tts_edge:create_engine"},
+            ],
+        })
 
-        pm = PluginManager(plugins_yaml_path=plugins_yaml)
-
-        manifests = {"tts-edge": _tts_manifest()}
-
-        with patch.object(
-            pm, "discover_plugins", return_value=manifests,
-        ):
-            path = pm.generate_plugins_yaml()
+        pm = PluginManager(
+            plugins_yaml_path=plugins_yaml,
+            plugins_dir=plugins_dir,
+        )
+        path = pm.generate_plugins_yaml()
 
         assert path.exists()
         data = yaml.safe_load(path.read_text())

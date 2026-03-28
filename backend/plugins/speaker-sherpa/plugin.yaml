@@ -1,0 +1,8 @@
+name: speaker-sherpa
+display_name: Sherpa-ONNX Speaker ID
+description: Sherpa-ONNX speaker embedding plugin for voiceprint recognition
+
+extensions:
+  - name: speaker_id
+    type: speaker_id
+    factory: speaker_sherpa:create_engine

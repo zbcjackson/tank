@@ -1,0 +1,8 @@
+name: asr-sherpa
+display_name: Sherpa-ONNX ASR
+description: Sherpa-ONNX streaming ASR plugin
+
+extensions:
+  - name: asr
+    type: asr
+    factory: asr_sherpa:create_engine

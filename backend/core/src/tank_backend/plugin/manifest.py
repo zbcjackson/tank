@@ -1,13 +1,16 @@
-"""Plugin manifest reading from pyproject.toml [tool.tank] section."""
+"""Plugin manifest reading from plugin.yaml files."""
 
 from __future__ import annotations
 
-import importlib.metadata
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
+
 logger = logging.getLogger(__name__)
+
+MANIFEST_FILENAME = "plugin.yaml"
 
 
 @dataclass(frozen=True)
@@ -29,169 +32,79 @@ class PluginManifest:
     extensions: list[ExtensionManifest] = field(default_factory=list)
 
 
-def read_plugin_manifest(
-    plugin_name: str,
-    *,
-    slot_type: str | None = None,
-) -> PluginManifest:
-    """Read ``[tool.tank]`` from an installed package's pyproject.toml.
-
-    Falls back to a synthetic single-extension manifest for legacy plugins
-    that expose ``create_engine()`` but have no ``[tool.tank]`` section.
+def read_manifest_from_yaml(path: Path) -> PluginManifest:
+    """Read plugin manifest from a ``plugin.yaml`` file.
 
     Args:
-        plugin_name: Package name (e.g. ``"tts-edge"``).
-        slot_type: Slot type hint used for legacy fallback (e.g. ``"tts"``).
+        path: Path to the ``plugin.yaml`` file.
 
     Returns:
         PluginManifest describing the plugin and its extensions.
 
     Raises:
-        ImportError: If the package is not installed.
+        FileNotFoundError: If the file does not exist.
+        ValueError: If required fields are missing.
     """
-    try:
-        dist = importlib.metadata.distribution(plugin_name)
-    except importlib.metadata.PackageNotFoundError as exc:
-        raise ImportError(
-            f"Plugin '{plugin_name}' is not installed."
-        ) from exc
+    data = yaml.safe_load(path.read_text())
+    if not isinstance(data, dict) or "name" not in data:
+        raise ValueError(f"Invalid plugin manifest: {path} (missing 'name')")
 
-    # Try to read [tool.tank] from the package's pyproject.toml
-    tank_meta = _read_tool_tank(dist)
-
-    if tank_meta is not None:
-        return _parse_manifest(plugin_name, tank_meta)
-
-    # Legacy fallback: synthesize manifest from create_engine convention
-    logger.debug(
-        "No [tool.tank] in '%s'; using legacy fallback", plugin_name
-    )
-    return _legacy_manifest(plugin_name, slot_type)
-
-
-def _read_tool_tank(
-    dist: importlib.metadata.Distribution,
-) -> dict | None:
-    """Extract ``[tool.tank]`` dict from a distribution's pyproject.toml."""
-    # importlib.metadata doesn't expose pyproject.toml directly on all
-    # Python versions, so we try to read it from the package's source.
-    try:
-        import tomllib
-    except ModuleNotFoundError:  # Python < 3.11
-        try:
-            import tomli as tomllib  # type: ignore[no-redef]
-        except ModuleNotFoundError:
-            logger.debug("tomllib/tomli unavailable; skipping manifest read")
-            return None
-
-    # Locate pyproject.toml via the distribution's origin
-    files = dist.files
-    if files:
-        # Pass 1: check .pth files first (editable installs via uv/pip).
-        # The .pth file may not be the first entry in RECORD — e.g. when
-        # the package declares console scripts, the bin/ entry comes first.
-        for f in files:
-            located = dist.locate_file(f)
-            if located is None:
-                continue
-            located = Path(located).resolve()
-            if located.suffix == ".pth" and located.exists():
-                source_dir = _read_pth_source_dir(located)
-                if source_dir is not None:
-                    result = _find_tool_tank_in_ancestors(
-                        source_dir, tomllib,
-                    )
-                    if result is not None:
-                        return result
-
-        # Pass 2: standard (non-editable) path — walk up from the first
-        # locatable file in the distribution.
-        for f in files:
-            located = dist.locate_file(f)
-            if located is None:
-                continue
-            located = Path(located).resolve()
-            result = _find_tool_tank_in_ancestors(
-                located.parent, tomllib,
-            )
-            if result is not None:
-                return result
-            break
-
-    return None
-
-
-def _read_pth_source_dir(pth_path: Path) -> Path | None:
-    """Read a ``.pth`` file and return the source directory it points to."""
-    try:
-        text = pth_path.read_text().strip()
-        if text.startswith("import "):
-            return None
-        candidate = Path(text)
-        return candidate if candidate.is_dir() else None
-    except OSError:
-        return None
-
-
-def _find_tool_tank_in_ancestors(start: Path, tomllib: object) -> dict | None:
-    """Walk up from *start* looking for ``pyproject.toml`` with ``[tool.tank]``."""
-    for parent in (start, *start.parents):
-        candidate = parent / "pyproject.toml"
-        if candidate.exists():
-            with open(candidate, "rb") as fh:
-                data = tomllib.load(fh)  # type: ignore[union-attr]
-            return data.get("tool", {}).get("tank")
-    return None
-
-
-def _parse_manifest(plugin_name: str, tank_meta: dict) -> PluginManifest:
-    """Parse a ``[tool.tank]`` dict into a PluginManifest."""
     extensions = [
         ExtensionManifest(
             name=ext["name"],
             type=ext["type"],
             factory=ext["factory"],
         )
-        for ext in tank_meta.get("extensions", [])
+        for ext in data.get("extensions", [])
     ]
 
     return PluginManifest(
-        plugin_name=tank_meta.get("plugin_name", plugin_name),
-        display_name=tank_meta.get("display_name", plugin_name),
-        description=tank_meta.get("description", ""),
+        plugin_name=data["name"],
+        display_name=data.get("display_name", data["name"]),
+        description=data.get("description", ""),
         extensions=extensions,
     )
 
 
-def _legacy_manifest(
+def read_plugin_manifest(
     plugin_name: str,
-    slot_type: str | None = None,
+    *,
+    plugins_dir: Path | None = None,
 ) -> PluginManifest:
-    """Build a synthetic manifest for plugins without ``[tool.tank]``."""
-    module_name = plugin_name.replace("-", "_")
-    ext_type = slot_type or _infer_type_from_name(plugin_name)
+    """Read manifest for a named plugin from the plugins directory.
 
-    return PluginManifest(
-        plugin_name=plugin_name,
-        display_name=plugin_name,
-        description=f"Legacy plugin: {plugin_name}",
-        extensions=[
-            ExtensionManifest(
-                name=ext_type,
-                type=ext_type,
-                factory=f"{module_name}:create_engine",
-            )
-        ],
-    )
+    Locates ``plugins/<plugin_name>/plugin.yaml`` and parses it.
+
+    Args:
+        plugin_name: Plugin directory name (e.g. ``"tts-edge"``).
+        plugins_dir: Root plugins directory. Auto-detected if ``None``.
+
+    Returns:
+        PluginManifest describing the plugin and its extensions.
+
+    Raises:
+        ImportError: If the plugin directory or manifest is not found.
+    """
+    if plugins_dir is None:
+        plugins_dir = _find_plugins_dir()
+
+    manifest_path = plugins_dir / plugin_name / MANIFEST_FILENAME
+    if not manifest_path.exists():
+        raise ImportError(
+            f"Plugin '{plugin_name}' not found "
+            f"(no {MANIFEST_FILENAME} at {manifest_path})"
+        )
+
+    return read_manifest_from_yaml(manifest_path)
 
 
-def _infer_type_from_name(plugin_name: str) -> str:
-    """Best-effort type inference from plugin name prefix."""
-    lower = plugin_name.lower()
-    if lower.startswith("tts"):
-        return "tts"
-    if lower.startswith("asr"):
-        return "asr"
-    if lower.startswith("speaker"):
-        return "speaker_id"
-    return "unknown"
+def _find_plugins_dir() -> Path:
+    """Locate the ``plugins/`` directory relative to ``config.yaml``.
+
+    ``config.yaml`` lives at ``backend/core/config.yaml``;
+    ``plugins/`` lives at ``backend/plugins/``.
+    """
+    from .config import find_config_yaml
+
+    config_yaml = find_config_yaml()
+    return config_yaml.parent.parent / "plugins"

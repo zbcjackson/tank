@@ -1,0 +1,8 @@
+name: tts-cosyvoice
+display_name: CosyVoice TTS
+description: CosyVoice TTS plugin with SFT and zero-shot modes
+
+extensions:
+  - name: tts
+    type: tts
+    factory: tts_cosyvoice:create_engine

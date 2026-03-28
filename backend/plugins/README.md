@@ -4,7 +4,7 @@ Pluggable components for the Tank Voice Assistant backend.
 
 ## Overview
 
-The Tank backend uses a plugin architecture to support different ASR, TTS, and speaker identification engines. Plugins are discovered automatically at startup via `[tool.tank]` manifests in their `pyproject.toml`, registered in an `ExtensionRegistry`, and instantiated on demand.
+The Tank backend uses a plugin architecture to support different ASR, TTS, and speaker identification engines. Plugins are discovered automatically at startup by scanning `plugin.yaml` manifests in the `plugins/` directory, registered in an `ExtensionRegistry`, and instantiated on demand.
 
 ## Architecture
 
@@ -18,6 +18,7 @@ backend/
 └── plugins/                # Plugin implementations
     ├── asr-sherpa/         # Sherpa-ONNX streaming ASR
     ├── asr-elevenlabs/     # ElevenLabs ASR
+    ├── asr-funasr/         # FunASR streaming ASR
     ├── tts-edge/           # Edge TTS
     ├── tts-elevenlabs/     # ElevenLabs TTS
     ├── tts-cosyvoice/      # CosyVoice TTS
@@ -26,7 +27,7 @@ backend/
 
 ### How It Works
 
-1. **Discovery** — `PluginManager` scans installed packages for `[tool.tank]` in `pyproject.toml`
+1. **Discovery** — `PluginManager` scans `plugins/*/plugin.yaml` on the filesystem
 2. **Inventory** — `plugins.yaml` (auto-generated on first run) controls per-plugin/extension enable/disable
 3. **Registration** — enabled extensions are registered in `ExtensionRegistry` as manifests
 4. **Validation** — `config.yaml` slot refs are checked against the registry at startup
@@ -117,6 +118,7 @@ You can disable a plugin or individual extension here without touching `config.y
 |--------|-------------|--------|
 | **asr-sherpa** | Sherpa-ONNX streaming ASR | ✅ Production |
 | **asr-elevenlabs** | ElevenLabs realtime ASR | ✅ Production |
+| **asr-funasr** | FunASR streaming ASR (self-hosted or DashScope) | ✅ Production |
 
 ### TTS Plugins
 
@@ -146,6 +148,7 @@ plugins/
     │   └── engine.py
     ├── tests/
     │   └── test_engine.py
+    ├── plugin.yaml
     ├── pyproject.toml
     └── README.md
 ```
@@ -193,7 +196,22 @@ def create_engine(config: dict) -> MyTTSEngine:
 __all__ = ["create_engine", "MyTTSEngine"]
 ```
 
-### 4. Declare Manifest in `pyproject.toml`
+### 4. Create Plugin Manifest (`plugin.yaml`)
+
+```yaml
+name: tts-myplugin
+display_name: My TTS
+description: My custom TTS plugin
+
+extensions:
+  - name: tts
+    type: tts
+    factory: tts_myplugin:create_engine
+```
+
+This is how `PluginManager` discovers your plugin. The `factory` field is `"module:callable"` — the registry calls this to create engine instances.
+
+### 5. Create `pyproject.toml`
 
 ```toml
 [project]
@@ -215,23 +233,11 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.tank]
-plugin_name = "tts-myplugin"
-display_name = "My TTS"
-description = "My custom TTS plugin"
-
-[[tool.tank.extensions]]
-name = "tts"
-type = "tts"
-factory = "tts_myplugin:create_engine"
-
 [tool.uv.sources]
 tank-contracts = { workspace = true }
 ```
 
-The `[tool.tank]` section is how `PluginManager` discovers your plugin. The `factory` field is `"module:callable"` — the registry calls this to create engine instances.
-
-### 5. Add Tests
+### 6. Add Tests
 
 Create `tests/test_engine.py`:
 
@@ -257,24 +263,10 @@ async def test_generate_stream():
     assert len(chunks) > 0
 ```
 
-### 6. Register in Workspace
-
-Add to `backend/pyproject.toml`:
-
-```toml
-[tool.uv.workspace]
-members = [
-    "core",
-    "contracts",
-    "plugins/tts-edge",
-    "plugins/tts-myplugin",  # Add your plugin
-]
-```
-
-### 7. Configure and Run
+### 7. Install and Run
 
 ```bash
-# Install
+# Install dependencies (plugin is auto-detected via plugins/* glob)
 cd backend
 uv sync
 
@@ -301,20 +293,17 @@ pm.load_all()
 pm.install("tts-myplugin")
 ```
 
-## Plugin Manifest Reference
+## Plugin Manifest Reference (`plugin.yaml`)
 
-The `[tool.tank]` section in `pyproject.toml`:
+```yaml
+name: tts-myplugin          # Plugin name (must match directory name)
+display_name: My TTS         # Human-readable name
+description: Description     # Short description
 
-```toml
-[tool.tank]
-plugin_name = "tts-myplugin"     # Package name (must match [project].name)
-display_name = "My TTS"          # Human-readable name
-description = "Description"      # Short description
-
-[[tool.tank.extensions]]         # One or more extensions
-name = "tts"                     # Extension name (used in "plugin:ext" ref)
-type = "tts"                     # Extension type: "asr" | "tts" | "speaker_id"
-factory = "module:callable"      # Factory: "module_name:function_name"
+extensions:                  # One or more extensions
+  - name: tts                # Extension name (used in "plugin:ext" ref)
+    type: tts                # Extension type: "asr" | "tts" | "speaker_id"
+    factory: module:callable # Factory: "module_name:function_name"
 ```
 
 A single plugin can provide multiple extensions (e.g., both ASR and TTS).
@@ -328,7 +317,7 @@ pm = PluginManager()
 registry = pm.load_all()
 
 # Discovery
-plugins = pm.discover_plugins()          # Scan installed packages
+plugins = pm.discover_plugins()          # Scan plugins/ directory
 
 # Install / Uninstall
 pm.install("tts-myplugin")              # Add to plugins.yaml + register
@@ -362,8 +351,8 @@ pm.validate_config(app_config)           # Check config.yaml refs
 
 ### Plugin Not Discovered
 
-1. Ensure `[tool.tank]` section exists in `pyproject.toml`
-2. Run `uv sync` to install the package
+1. Ensure `plugin.yaml` exists in the plugin directory
+2. Run `uv sync` from `backend/` to install dependencies
 3. Delete `core/plugins.yaml` and restart to trigger re-discovery
 4. Check logs for `"Discovered plugin: ..."` messages
 

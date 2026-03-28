@@ -18,15 +18,5 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.tank]
-plugin_name = "tts-elevenlabs"
-display_name = "ElevenLabs TTS"
-description = "ElevenLabs realtime streaming TTS plugin"
-
-[[tool.tank.extensions]]
-name = "tts"
-type = "tts"
-factory = "tts_elevenlabs:create_engine"
-
 [tool.uv.sources]
 tank-contracts = { workspace = true }

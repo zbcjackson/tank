@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib.metadata
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -11,9 +10,9 @@ from typing import Any
 import yaml
 
 from .manifest import (
+    MANIFEST_FILENAME,
     PluginManifest,
-    _parse_manifest,
-    _read_tool_tank,
+    read_manifest_from_yaml,
     read_plugin_manifest,
 )
 from .registry import ExtensionRegistry
@@ -100,12 +99,17 @@ class PluginManager:
     """Lifecycle orchestrator: discovery → loading → registration → validation.
 
     Reads ``plugins.yaml`` to know which plugins/extensions are enabled,
-    reads each plugin's ``[tool.tank]`` manifest, and populates an
+    reads each plugin's ``plugin.yaml`` manifest, and populates an
     :class:`ExtensionRegistry` with the enabled extensions.
     """
 
-    def __init__(self, plugins_yaml_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        plugins_yaml_path: Path | None = None,
+        plugins_dir: Path | None = None,
+    ) -> None:
         self._plugins_yaml_path = plugins_yaml_path
+        self._plugins_dir = plugins_dir
         self._registry = ExtensionRegistry()
         self._entries: dict[str, PluginEntry] = {}
 
@@ -116,15 +120,21 @@ class PluginManager:
     # ── Discovery ──────────────────────────────────────────────
 
     def discover_plugins(self) -> dict[str, PluginManifest]:
-        """Scan installed distributions for ``[tool.tank]`` manifests."""
+        """Scan the ``plugins/`` directory for ``plugin.yaml`` manifests."""
+        plugins_dir = self._resolve_plugins_dir()
         found: dict[str, PluginManifest] = {}
-        for dist in importlib.metadata.distributions():
-            tank_meta = _read_tool_tank(dist)
-            if tank_meta is None:
-                continue
-            manifest = _parse_manifest(dist.metadata["Name"], tank_meta)
-            found[manifest.plugin_name] = manifest
-            logger.debug("Discovered plugin: %s", manifest.plugin_name)
+        if not plugins_dir.is_dir():
+            logger.warning("Plugins directory not found: %s", plugins_dir)
+            return found
+        for manifest_path in sorted(plugins_dir.glob(f"*/{MANIFEST_FILENAME}")):
+            try:
+                manifest = read_manifest_from_yaml(manifest_path)
+                found[manifest.plugin_name] = manifest
+                logger.debug("Discovered plugin: %s", manifest.plugin_name)
+            except (ValueError, KeyError) as exc:
+                logger.warning(
+                    "Skipping invalid manifest %s: %s", manifest_path, exc
+                )
         return found
 
     def generate_plugins_yaml(self) -> Path:
@@ -181,7 +191,9 @@ class PluginManager:
 
     def install(self, plugin_name: str) -> None:
         """Add a plugin to plugins.yaml with all extensions enabled."""
-        manifest = read_plugin_manifest(plugin_name)
+        manifest = read_plugin_manifest(
+            plugin_name, plugins_dir=self._resolve_plugins_dir(),
+        )
         entry = PluginEntry(
             name=plugin_name,
             extensions={
@@ -268,6 +280,15 @@ class PluginManager:
         config_yaml = find_config_yaml()
         return config_yaml.parent / "plugins.yaml"
 
+    def _resolve_plugins_dir(self) -> Path:
+        """Return the path to the ``plugins/`` directory."""
+        if self._plugins_dir is not None:
+            return self._plugins_dir
+
+        from .manifest import _find_plugins_dir
+
+        return _find_plugins_dir()
+
     def _read_plugins_yaml(self, path: Path) -> dict[str, PluginEntry]:
         """Parse plugins.yaml into PluginEntry objects."""
         try:
@@ -295,10 +316,12 @@ class PluginManager:
     def _register_plugin(self, plugin_name: str, entry: PluginEntry) -> None:
         """Read manifest and register enabled extensions."""
         try:
-            manifest = read_plugin_manifest(plugin_name)
+            manifest = read_plugin_manifest(
+                plugin_name, plugins_dir=self._resolve_plugins_dir(),
+            )
         except ImportError:
             logger.warning(
-                "Plugin '%s' listed in plugins.yaml but not installed", plugin_name
+                "Plugin '%s' listed in plugins.yaml but not found", plugin_name
             )
             return
 

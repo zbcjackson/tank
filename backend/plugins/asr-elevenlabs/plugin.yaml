@@ -1,0 +1,8 @@
+name: asr-elevenlabs
+display_name: ElevenLabs ASR
+description: ElevenLabs realtime streaming ASR plugin
+
+extensions:
+  - name: asr
+    type: asr
+    factory: asr_elevenlabs:create_engine

@@ -1,0 +1,8 @@
+name: asr-funasr
+display_name: FunASR ASR
+description: FunASR streaming ASR plugin (self-hosted or DashScope)
+
+extensions:
+  - name: asr
+    type: asr
+    factory: asr_funasr:create_engine

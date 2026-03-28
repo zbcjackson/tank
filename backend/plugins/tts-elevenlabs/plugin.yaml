@@ -1,0 +1,8 @@
+name: tts-elevenlabs
+display_name: ElevenLabs TTS
+description: ElevenLabs realtime streaming TTS plugin
+
+extensions:
+  - name: tts
+    type: tts
+    factory: tts_elevenlabs:create_engine

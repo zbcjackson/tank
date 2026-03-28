@@ -1,0 +1,8 @@
+name: tts-edge
+display_name: Edge TTS
+description: Microsoft Edge TTS plugin
+
+extensions:
+  - name: tts
+    type: tts
+    factory: tts_edge:create_engine
