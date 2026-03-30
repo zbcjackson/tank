@@ -64,7 +64,7 @@ Then read the docs for the sub-project(s) you are working on:
 Run ALL of these every time you finish a task. Do not skip any step.
 
 1. `cd web && pnpm lint` — ESLint
-2. `cd web && npx tsc --noEmit` — TypeScript type checking
+2. `cd web && npx tsc -b --noEmit` — TypeScript type checking (must use `-b` to follow project references; plain `tsc --noEmit` checks nothing on a references-only tsconfig)
 3. `cd backend && uv run ruff check src/ tests/` — Python lint
 4. `cd backend && uv run pytest` — Backend unit tests (78 tests)
 5. `cd cli && uv run ruff check src/ tests/` — CLI Python lint

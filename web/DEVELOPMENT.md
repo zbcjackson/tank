@@ -21,8 +21,8 @@ pnpm install
 # Start dev server with HMR (opens on http://localhost:5173)
 pnpm dev
 
-# Type-check without building
-npx tsc --noEmit
+# Type-check without building (must use -b to follow project references)
+npx tsc -b --noEmit
 
 # Lint
 pnpm lint
@@ -93,5 +93,5 @@ The backend URL defaults to `localhost:8000`. To point at a different server, ed
 ### TypeScript errors
 
 ```bash
-npx tsc --noEmit
+npx tsc -b --noEmit
 ```
