@@ -32,7 +32,7 @@ export class BrowserAudioAdapter implements PlatformAudioAdapter {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async startCapture(onAudio: (samples: Int16Array) => void): Promise<CaptureHandle> {
+  async startCapture(_onAudio: (samples: Int16Array) => void): Promise<CaptureHandle> {
     // Browser capture is handled by AudioProcessor (getUserMedia + AudioWorklet).
     return { stop() {} };
   }
@@ -76,7 +76,7 @@ export class BrowserAudioAdapter implements PlatformAudioAdapter {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  setOnRmsChange(cb: ((rms: number) => void) | null): void {
+  setOnRmsChange(_cb: ((rms: number) => void) | null): void {
     // Browser uses AnalyserNode for waveform — RMS callback not needed.
   }
 

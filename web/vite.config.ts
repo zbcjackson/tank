@@ -55,5 +55,10 @@ export default defineConfig({
   build: {
     // WKWebView (Tauri) uses Safari's engine — target safari13 for compatibility
     target: process.env.TAURI_ENV_PLATFORM ? 'safari13' : undefined,
+    rollupOptions: {
+      // @tauri-apps/api is only available inside Tauri at runtime (dynamic import
+      // guarded by __TAURI__). Externalize so Rollup doesn't fail on web builds.
+      external: ['@tauri-apps/api/core', '@tauri-apps/api/event'],
+    },
   },
 });

@@ -29,7 +29,7 @@ interface WaveformProps {
 export const Waveform = ({ active, getAnalyserNode, rmsAmplitude }: WaveformProps) => {
   const [liveHeights, setLiveHeights] = useState<number[]>(IDLE_HEIGHTS);
   const rafRef = useRef<number>(0);
-  const dataArrayRef = useRef<Uint8Array | null>(null);
+  const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
   const getAnalyserRef = useRef(getAnalyserNode);
   useEffect(() => {
     getAnalyserRef.current = getAnalyserNode;

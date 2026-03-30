@@ -227,7 +227,7 @@ export const ChatMode = ({
               style={TEXTAREA_MAX_HEIGHT}
             />
             <div className="absolute right-2 bottom-2 flex items-center gap-1.5">
-              {assistantStatus !== 'idle' && assistantStatus !== 'listening' ? (
+              {assistantStatus !== 'idle' ? (
                 <button
                   type="button"
                   data-testid="stop-button"

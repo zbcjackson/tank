@@ -5,8 +5,10 @@ export class RingBuffer<T> {
   private buf: (T | undefined)[];
   private head = 0;
   private count = 0;
+  private capacity: number;
 
-  constructor(private capacity: number) {
+  constructor(capacity: number) {
+    this.capacity = capacity;
     this.buf = new Array<T | undefined>(capacity);
   }
 

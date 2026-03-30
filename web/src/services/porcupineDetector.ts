@@ -8,6 +8,7 @@
 import {
   PorcupineWorker,
   BuiltInKeyword,
+  PorcupineErrors,
   type PorcupineKeyword,
   type PorcupineModel,
 } from '@picovoice/porcupine-web';
@@ -67,8 +68,8 @@ export class PorcupineDetector implements WakeWordDetector {
       },
       config.model,
       {
-        processErrorCallback: (error: string) => {
-          console.error(`[Porcupine] Process error: ${error}`);
+        processErrorCallback: (error: PorcupineErrors.PorcupineError) => {
+          console.error(`[Porcupine] Process error: ${error.message}`);
         },
       },
     );
