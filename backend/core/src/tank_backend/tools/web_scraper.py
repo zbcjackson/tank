@@ -1,37 +1,35 @@
 import logging
+import re
 from typing import Any
-from urllib.parse import urljoin, urlparse
-
-import requests
-from bs4 import BeautifulSoup
+from urllib.parse import urlparse
 
 from .base import BaseTool, ToolInfo, ToolParameter
 
 logger = logging.getLogger(__name__)
 
+_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/120.0.0.0 Safari/537.36"
+)
+
+_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
+
 
 class WebScraperTool(BaseTool):
-    def __init__(self, timeout: int = 10, max_content_length: int = 50000):
+    def __init__(self, timeout: int = 15, max_content_length: int = 50000):
         self.timeout = timeout
         self.max_content_length = max_content_length
-        self.session = requests.Session()
-        _USER_AGENT = (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/91.0.4472.124 Safari/537.36"
-        )
-        self.session.headers.update(
-            {
-                "User-Agent": _USER_AGENT
-            }
-        )
+        self._http_crawler: Any = None
+        self._browser_crawler: Any = None
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
             name="web_scraper",
             description=(
-                "Fetch and extract content from web URLs"
-                " to provide detailed information from web pages"
+                "Fetch and extract content from web URLs."
+                " Returns clean markdown for LLM consumption."
+                " Supports JavaScript-rendered pages via use_browser option."
             ),
             parameters=[
                 ToolParameter(
@@ -50,84 +48,86 @@ class WebScraperTool(BaseTool):
                     required=False,
                     default=False,
                 ),
+                ToolParameter(
+                    name="use_browser",
+                    type="boolean",
+                    description=(
+                        "Set to true for JavaScript-heavy pages that need browser rendering."
+                        " Slower but handles SPAs and dynamic content."
+                    ),
+                    required=False,
+                    default=False,
+                ),
             ],
         )
 
-    def _clean_text(self, text: str) -> str:
-        """Clean and normalize extracted text"""
-        if not text:
-            return ""
+    async def _get_http_crawler(self) -> Any:
+        if self._http_crawler is None:
+            from crawl4ai import AsyncWebCrawler, HTTPCrawlerConfig
+            from crawl4ai.async_crawler_strategy import AsyncHTTPCrawlerStrategy
 
-        # Remove extra whitespace and normalize line breaks
-        lines = [line.strip() for line in text.split("\n")]
-        lines = [line for line in lines if line]  # Remove empty lines
-        return "\n".join(lines)
+            http_config = HTTPCrawlerConfig(
+                method="GET",
+                headers={"User-Agent": _USER_AGENT},
+                follow_redirects=True,
+                verify_ssl=True,
+            )
+            strategy = AsyncHTTPCrawlerStrategy(browser_config=http_config)
+            self._http_crawler = AsyncWebCrawler(crawler_strategy=strategy)
+            await self._http_crawler.start()
+        return self._http_crawler
 
-    def _extract_content(self, soup: BeautifulSoup, url: str) -> dict[str, Any]:
-        """Extract meaningful content from the parsed HTML"""
-        content = {}
+    async def _get_browser_crawler(self) -> Any:
+        if self._browser_crawler is None:
+            try:
+                from crawl4ai import AsyncWebCrawler, BrowserConfig
 
-        # Extract title
-        title_tag = soup.find("title")
-        content["title"] = title_tag.get_text().strip() if title_tag else ""
-
-        # Extract meta description
-        meta_desc = soup.find("meta", attrs={"name": "description"})
-        if not meta_desc:
-            meta_desc = soup.find("meta", attrs={"property": "og:description"})
-        content["meta_description"] = meta_desc.get("content", "").strip() if meta_desc else ""
-
-        # Remove script and style elements
-        for script in soup(["script", "style", "nav", "header", "footer", "aside"]):
-            script.decompose()
-
-        # Try to find main content areas
-        main_content = None
-        for selector in ["main", "article", ".content", "#content", ".main", "#main"]:
-            main_content = soup.select_one(selector)
-            if main_content:
-                break
-
-        if not main_content:
-            main_content = soup.find("body")
-
-        if main_content:
-            # Extract text content
-            text_content = main_content.get_text()
-            content["text"] = self._clean_text(text_content)
-
-            # Limit content length to avoid overwhelming the LLM
-            if len(content["text"]) > self.max_content_length:
-                content["text"] = (
-                    content["text"][: self.max_content_length] + "... [Content truncated]"
+                browser_config = BrowserConfig(
+                    headless=True,
+                    text_mode=True,
+                    user_agent=_USER_AGENT,
                 )
-        else:
-            content["text"] = ""
+                self._browser_crawler = AsyncWebCrawler(config=browser_config)
+                await self._browser_crawler.start()
+            except (ImportError, Exception) as e:
+                raise RuntimeError(
+                    f"Browser mode requires Playwright. Install with: playwright install chromium. "
+                    f"Error: {e}"
+                ) from e
+        return self._browser_crawler
 
-        # Extract headings for structure
+    def _extract_headings(self, markdown: str) -> list[dict[str, str]]:
         headings = []
-        for h in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
-            headings.append({"level": h.name, "text": h.get_text().strip()})
-        content["headings"] = headings[:10]  # Limit to first 10 headings
+        for match in _HEADING_RE.finditer(markdown):
+            level = len(match.group(1))
+            text = match.group(2).strip()
+            if text:
+                headings.append({"level": f"h{level}", "text": text})
+            if len(headings) >= 10:
+                break
+        return headings
 
-        return content
+    def _extract_links(self, links_dict: dict[str, list[dict]]) -> list[dict[str, str]]:
+        result = []
+        for category in ("internal", "external"):
+            for link in links_dict.get(category, []):
+                href = link.get("href", "")
+                text = link.get("text", "").strip()
+                if href and text and href.startswith(("http://", "https://")):
+                    result.append({"url": href, "text": text})
+                if len(result) >= 20:
+                    return result
+        return result
 
-    def _extract_links(self, soup: BeautifulSoup, base_url: str) -> list:
-        """Extract links from the page"""
-        links = []
-        for a_tag in soup.find_all("a", href=True):
-            href = a_tag.get("href")
-            if href:
-                # Convert relative URLs to absolute
-                absolute_url = urljoin(base_url, href)
-                link_text = a_tag.get_text().strip()
-                if link_text and absolute_url.startswith(("http://", "https://")):
-                    links.append({"url": absolute_url, "text": link_text})
+    def _truncate(self, text: str) -> str:
+        if len(text) > self.max_content_length:
+            return text[: self.max_content_length] + "... [Content truncated]"
+        return text
 
-        return links[:20]  # Limit to first 20 links
-
-    async def execute(self, url: str, extract_links: bool = False) -> dict[str, Any]:
-        logger.info(f"Web scraping URL: {url}")
+    async def execute(
+        self, url: str, extract_links: bool = False, use_browser: bool = False
+    ) -> dict[str, Any]:
+        logger.info(f"Web scraping URL: {url} (browser={use_browser})")
 
         # Validate URL
         try:
@@ -139,7 +139,7 @@ class WebScraperTool(BaseTool):
                     "message": f"无法访问URL '{url}'，请检查URL格式是否正确。",
                 }
 
-            if parsed_url.scheme not in ["http", "https"]:
+            if parsed_url.scheme not in ("http", "https"):
                 return {
                     "url": url,
                     "error": "Only HTTP and HTTPS URLs are supported.",
@@ -154,71 +154,118 @@ class WebScraperTool(BaseTool):
             }
 
         try:
-            # Fetch the webpage
-            response = self.session.get(url, timeout=self.timeout)
-            response.raise_for_status()
+            from crawl4ai import CacheMode, CrawlerRunConfig
 
-            # Check content type
-            content_type = response.headers.get("content-type", "").lower()
-            if "text/html" not in content_type:
-                return {
-                    "url": url,
-                    "error": f"URL does not return HTML content. Content-Type: {content_type}",
-                    "message": f"该URL不是HTML网页，无法提取文本内容。内容类型: {content_type}",
-                }
+            crawler = await (
+                self._get_browser_crawler() if use_browser else self._get_http_crawler()
+            )
 
-            # Parse HTML
-            soup = BeautifulSoup(response.content, "html.parser")
+            run_config = CrawlerRunConfig(
+                cache_mode=CacheMode.BYPASS,
+                page_timeout=self.timeout * 1000,
+                excluded_tags=["nav", "header", "footer", "aside"],
+            )
 
-            # Extract content
-            content = self._extract_content(soup, url)
+            result = await crawler.arun(url=url, config=run_config)
 
-            result = {
-                "url": url,
-                "title": content["title"],
-                "meta_description": content["meta_description"],
-                "text_content": content["text"],
-                "headings": content["headings"],
+            if not result.success:
+                return self._map_error(url, result.status_code, result.error_message)
+
+            # Extract markdown content
+            markdown_text = ""
+            if result.markdown is not None:
+                markdown_text = str(result.markdown)
+
+            # Extract metadata
+            metadata = result.metadata or {}
+            title = metadata.get("title", "")
+            meta_desc = metadata.get("description", "") or metadata.get(
+                "og:description", ""
+            )
+
+            text_content = self._truncate(markdown_text)
+
+            response = {
+                "url": result.redirected_url or url,
+                "title": title,
+                "meta_description": meta_desc,
+                "text_content": text_content,
+                "headings": self._extract_headings(markdown_text),
                 "status": "success",
-                "message": f"Successfully extracted content from '{content['title'] or url}'",
+                "message": f"Successfully extracted content from '{title or url}'",
             }
 
-            # Add links if requested
             if extract_links:
-                links = self._extract_links(soup, url)
-                result["links"] = links
-                result["message"] += f" and found {len(links)} links"
+                links = self._extract_links(result.links or {})
+                response["links"] = links
+                response["message"] += f" and found {len(links)} links"
 
-            return result
+            return response
 
-        except requests.exceptions.Timeout:
-            error_message = f"Timeout while accessing {url}"
-            logger.error(error_message)
+        except TimeoutError:
+            logger.error(f"Timeout while accessing {url}")
             return {
                 "url": url,
                 "error": "Request timeout",
                 "message": f"访问 '{url}' 超时，请稍后再试或检查网络连接。",
             }
 
-        except requests.exceptions.ConnectionError:
-            error_message = f"Connection error while accessing {url}"
-            logger.error(error_message)
+        except ConnectionError:
+            logger.error(f"Connection error while accessing {url}")
             return {
                 "url": url,
                 "error": "Connection error",
                 "message": f"无法连接到 '{url}'，请检查URL是否正确或网络连接。",
             }
 
-        except requests.exceptions.HTTPError as e:
-            error_message = f"HTTP error {e.response.status_code} while accessing {url}"
-            logger.error(error_message)
-            return {
-                "url": url,
-                "error": f"HTTP {e.response.status_code}",
-                "message": f"访问 '{url}' 时发生HTTP错误 {e.response.status_code}。",
-            }
+        except RuntimeError as e:
+            if "Playwright" in str(e):
+                logger.error(f"Browser not available: {e}")
+                return {
+                    "url": url,
+                    "error": str(e),
+                    "message": "浏览器模式不可用，请安装 Playwright。",
+                }
+            logger.error(f"Runtime error scraping {url}: {e}")
+            return {"url": url, "error": str(e), "message": f"抓取 '{url}' 时出现错误: {e}"}
 
         except Exception as e:
-            error_message = f"Error scraping {url}: {str(e)}"
-            logger.error(error_message)
-            return {"url": url, "error": str(e), "message": f"抓取 '{url}' 时出现错误: {str(e)}"}
+            logger.error(f"Error scraping {url}: {e}")
+            return {"url": url, "error": str(e), "message": f"抓取 '{url}' 时出现错误: {e}"}
+
+    def _map_error(
+        self, url: str, status_code: int | None, error_message: str | None
+    ) -> dict[str, Any]:
+        msg = error_message or "Unknown error"
+
+        if status_code and 400 <= status_code < 600:
+            return {
+                "url": url,
+                "error": f"HTTP {status_code}",
+                "message": f"访问 '{url}' 时发生HTTP错误 {status_code}。",
+            }
+
+        lower_msg = msg.lower()
+        if "timeout" in lower_msg:
+            return {
+                "url": url,
+                "error": "Request timeout",
+                "message": f"访问 '{url}' 超时，请稍后再试或检查网络连接。",
+            }
+
+        if "connect" in lower_msg or "dns" in lower_msg or "resolve" in lower_msg:
+            return {
+                "url": url,
+                "error": "Connection error",
+                "message": f"无法连接到 '{url}'，请检查URL是否正确或网络连接。",
+            }
+
+        return {"url": url, "error": msg, "message": f"抓取 '{url}' 时出现错误: {msg}"}
+
+    async def close(self) -> None:
+        if self._http_crawler:
+            await self._http_crawler.close()
+            self._http_crawler = None
+        if self._browser_crawler:
+            await self._browser_crawler.close()
+            self._browser_crawler = None
