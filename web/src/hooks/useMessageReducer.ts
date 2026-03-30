@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 
 import type { WebsocketMessage, Capabilities } from '../services/websocket';
 import type { StatusEvent } from './useAssistantStatus';
-import type { Step, StepType, ToolContent, Message } from '../types/message';
+import type { Step, StepType, ToolContent, ApprovalContent, Message } from '../types/message';
 import type { WeatherData } from '../components/Assistant/WeatherCard';
 
 /**
@@ -88,6 +88,7 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
       let activityType: StepType = 'text';
       if (metadataType === 'THOUGHT') activityType = 'thinking';
       else if (metadataType === 'TOOL') activityType = 'tool';
+      else if (metadataType === 'APPROVAL') activityType = 'approval';
 
       if (msg.type === 'transcript') activityType = 'text';
 
@@ -155,6 +156,23 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
             result: hasResult ? msg.content : undefined,
           };
 
+          // Auto-resolve matching pending approval when tool starts executing
+          if (status === 'executing' || status === 'success') {
+            const approvalIdx = updated.findIndex(
+              (s) =>
+                s.type === 'approval' &&
+                (s.content as ApprovalContent).toolName === toolData.name &&
+                (s.content as ApprovalContent).status === 'pending',
+            );
+            if (approvalIdx > -1) {
+              const ac = updated[approvalIdx].content as ApprovalContent;
+              updated[approvalIdx] = {
+                ...updated[approvalIdx],
+                content: { ...ac, status: 'approved' },
+              };
+            }
+          }
+
           if (existingIdx > -1) {
             const existing = updated[existingIdx].content as ToolContent;
             updated[existingIdx] = {
@@ -199,6 +217,38 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
               },
             ];
           }
+        }
+
+        // --- APPROVAL ACTIVITIES ---
+        if (activityType === 'approval') {
+          const approvalData: ApprovalContent = {
+            approvalId: (msg.metadata?.approval_id as string) || '',
+            toolName: (msg.metadata?.tool_name as string) || '',
+            toolArgs: (msg.metadata?.tool_args as Record<string, unknown>) || {},
+            description: (msg.metadata?.description as string) || msg.content || '',
+            status: 'pending',
+          };
+
+          if (existingIdx > -1) {
+            updated[existingIdx] = {
+              ...updated[existingIdx],
+              content: approvalData,
+              isFinal: msg.is_final,
+            };
+            return updated;
+          }
+
+          return [
+            ...prev,
+            {
+              id: stepId,
+              role,
+              type: 'approval' as const,
+              content: approvalData,
+              msgId,
+              isFinal: msg.is_final,
+            },
+          ];
         }
 
         return prev;

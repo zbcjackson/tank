@@ -155,13 +155,16 @@ approval_policies:
     - get_weather
     - get_time
     - calculate
+    - web_search
+    - web_scraper
+    # - sandbox_exec
+    # - sandbox_bash
+    - sandbox_process
   require_approval:
     - sandbox_exec
     - sandbox_bash
-    - sandbox_process
-  require_approval_first_time:
-    - web_search
-    - web_scraper
+  # require_approval_first_time:
+  #   - sandbox_process
 
 # Tools — optional API keys for tool plugins
 tools:

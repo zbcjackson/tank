@@ -57,6 +57,7 @@ function App() {
     connectionState,
     connectionMetadata,
     sendMessage,
+    respondToApproval,
     toggleMode,
     toggleMute,
     isMuted,
@@ -101,6 +102,7 @@ function App() {
               assistantStatus={assistantStatus}
               onSendMessage={sendMessage}
               onStopSpeaking={stopSpeaking}
+              onApprovalRespond={respondToApproval}
               pauseAudioCapture={pauseAudioCapture}
               resumeAudioCapture={resumeAudioCapture}
             />

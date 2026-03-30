@@ -32,6 +32,7 @@ interface ChatModeProps {
   assistantStatus: AssistantStatus;
   onSendMessage: (text: string) => void;
   onStopSpeaking: () => void;
+  onApprovalRespond: (approvalId: string, approved: boolean) => void;
   pauseAudioCapture: () => void;
   resumeAudioCapture: () => void;
 }
@@ -41,6 +42,7 @@ export const ChatMode = ({
   assistantStatus,
   onSendMessage,
   onStopSpeaking,
+  onApprovalRespond,
   pauseAudioCapture,
   resumeAudioCapture,
 }: ChatModeProps) => {
@@ -175,6 +177,7 @@ export const ChatMode = ({
                     <MessageStep
                       step={{ id: msg.id, type: msg.type, content: msg.content }}
                       role={msg.role}
+                      onApprovalRespond={onApprovalRespond}
                     />
                   </div>
                 </div>

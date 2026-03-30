@@ -2,9 +2,10 @@ import { motion } from 'framer-motion';
 import { Wrench } from 'lucide-react';
 import { WeatherCard } from './WeatherCard';
 import type { WeatherData } from './WeatherCard';
+import { ApprovalCard } from './ApprovalCard';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { Step, ToolContent } from '../../types/message';
+import type { Step, ToolContent, ApprovalContent } from '../../types/message';
 
 const remarkPlugins = [remarkGfm];
 
@@ -39,9 +40,10 @@ const markdownComponents = {
 interface MessageStepProps {
   step: Pick<Step, 'id' | 'type' | 'content'>;
   role: 'user' | 'assistant';
+  onApprovalRespond?: (approvalId: string, approved: boolean) => void;
 }
 
-export const MessageStep = ({ step, role }: MessageStepProps) => {
+export const MessageStep = ({ step, role, onApprovalRespond }: MessageStepProps) => {
   if (step.type === 'text') {
     return (
       <div
@@ -125,6 +127,10 @@ export const MessageStep = ({ step, role }: MessageStepProps) => {
 
   if (step.type === 'weather') {
     return <WeatherCard data={step.content as WeatherData} />;
+  }
+
+  if (step.type === 'approval' && onApprovalRespond) {
+    return <ApprovalCard content={step.content as ApprovalContent} onRespond={onApprovalRespond} />;
   }
 
   return null;

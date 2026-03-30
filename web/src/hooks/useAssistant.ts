@@ -10,9 +10,9 @@ import {
 import { useAssistantStatus, type AssistantStatus } from './useAssistantStatus';
 import { useMessageReducer } from './useMessageReducer';
 import { useAudioPipeline } from './useAudioPipeline';
-import type { Step, StepType, ToolContent, Message } from '../types/message';
+import type { Step, StepType, ToolContent, ApprovalContent, Message } from '../types/message';
 
-export type { Step, StepType, ToolContent, Message, ConversationState, AssistantStatus };
+export type { Step, StepType, ToolContent, ApprovalContent, Message, ConversationState, AssistantStatus };
 
 const DEFAULT_CAPABILITIES: Capabilities = { asr: true, tts: true, speaker_id: false };
 
@@ -123,6 +123,18 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     [clientRef, addLocalUserStep],
   );
 
+  const respondToApproval = useCallback(
+    (approvalId: string, approved: boolean) => {
+      if (!clientRef.current) return;
+      clientRef.current.sendMessage('approval_response', '', {
+        approval_id: approvalId,
+        approved,
+        reason: '',
+      });
+    },
+    [clientRef],
+  );
+
   const toggleMode = useCallback(
     () =>
       setMode((prev) => {
@@ -178,6 +190,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     conversationState,
     wakeWordKeyword: wakeWordDetector?.keyword ?? null,
     sendMessage,
+    respondToApproval,
     toggleMode,
     toggleMute,
     getAnalyserNode,

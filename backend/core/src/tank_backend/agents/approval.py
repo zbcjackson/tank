@@ -80,7 +80,9 @@ class _PendingApproval:
 
     request: ApprovalRequest
     future: asyncio.Future[ApprovalResult]
+    loop: asyncio.AbstractEventLoop
     timeout_handle: asyncio.TimerHandle | None = None
+    resolved: bool = False
 
 
 class ApprovalManager:
@@ -113,6 +115,7 @@ class ApprovalManager:
         self._pending[request.approval_id] = _PendingApproval(
             request=request,
             future=future,
+            loop=loop,
             timeout_handle=timeout_handle,
         )
 
@@ -127,13 +130,18 @@ class ApprovalManager:
             self._cleanup(request.approval_id)
 
     def resolve(self, approval_id: str, approved: bool, reason: str = "") -> bool:
-        """Resolve a pending approval. Returns True if the approval existed."""
+        """Resolve a pending approval. Returns True if the approval existed.
+
+        Thread-safe: the Future may live on a different event loop (e.g. a
+        ThreadedQueue consumer thread). We use ``call_soon_threadsafe`` so the
+        resolution is scheduled on the loop that owns the Future.
+        """
         pending = self._pending.get(approval_id)
         if pending is None:
             logger.warning("Resolve called for unknown approval_id=%s", approval_id)
             return False
 
-        if pending.future.done():
+        if pending.resolved or pending.future.done():
             logger.warning("Resolve called for already-resolved approval_id=%s", approval_id)
             return False
 
@@ -142,7 +150,8 @@ class ApprovalManager:
             approved=approved,
             reason=reason,
         )
-        pending.future.set_result(result)
+        pending.resolved = True
+        pending.loop.call_soon_threadsafe(pending.future.set_result, result)
 
         action = "approved" if approved else "rejected"
         logger.info("Approval %s: id=%s reason=%s", action, approval_id, reason or "(none)")
