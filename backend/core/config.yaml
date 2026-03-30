@@ -49,7 +49,7 @@ asr:
   extension: asr-funasr:asr
   config:
     api_key: ${DASHSCOPE_API_KEY}
-    model: paraformer-realtime-v2
+    model: fun-asr-realtime-2026-02-28
     sample_rate: 16000
 
 # asr:
