@@ -100,6 +100,60 @@ sandbox:
   max_timeout: 600
   network_enabled: true
 
+# File access policy — controls which files the agent can read/write/delete.
+# Rules are evaluated top-down; first match wins.
+# Levels: allow | require_approval | deny
+file_access:
+  default_read: allow
+  default_write: require_approval
+  default_delete: require_approval
+  rules:
+    - paths:
+        - "~/.ssh/**"
+        - "~/.gnupg/**"
+        - "~/.aws/**"
+        - "~/.config/gcloud/**"
+        - "~/Library/Keychains/**"
+        - "**/.env"
+        - "**/.env.*"
+        - "**/*.pem"
+        - "**/*.key"
+        - "**/id_rsa*"
+        - "**/id_ed25519*"
+        - "**/credentials*"
+        - "**/*secret*"
+      read: deny
+      write: deny
+      delete: deny
+      reason: "Secrets and credentials"
+    - paths:
+        - "~/.bashrc"
+        - "~/.zshrc"
+        - "~/.profile"
+        - "~/.bash_profile"
+        - "~/.gitconfig"
+        - "~/Library/**"
+        - "/etc/**"
+        - "/System/**"
+        - "/usr/**"
+        - "/bin/**"
+        - "/sbin/**"
+      read: allow
+      write: require_approval
+      delete: deny
+      reason: "System configuration"
+    - paths:
+        - "/opt/**"
+        - "/usr/local/**"
+      read: allow
+      write: require_approval
+      delete: require_approval
+      reason: "Package manager directory"
+  backup:
+    enabled: true
+    path: ~/.tank/backups
+    max_age_days: 30
+
 # Assistant — pipeline-level settings
 assistant:
   speech_interrupt_enabled: true
@@ -126,7 +180,7 @@ agents:
   code:
     type: code
     llm_profile: default
-    tools: [sandbox_exec, sandbox_bash, sandbox_process]
+    tools: [sandbox_exec, sandbox_bash, sandbox_process, file_read, file_write, file_delete, file_list]
 
 # Router — classifies user intent and dispatches to the right agent.
 # Fast-path: regex keyword match (zero latency).
@@ -148,23 +202,22 @@ router:
       keywords: [calculate, compute, what time, 计算, 几点, 天气]
       description: Calculations, time queries, and weather
 
-# Approval policies — control which tools require user confirmation before executing.
-# Tools not listed in any category default to always_approve (backward compatible).
-approval_policies:
-  always_approve:
-    - get_weather
-    - get_time
-    - calculate
-    - web_search
-    - web_scraper
-    # - sandbox_exec
-    # - sandbox_bash
-    - sandbox_process
-  require_approval:
-    - sandbox_exec
-    - sandbox_bash
-  # require_approval_first_time:
-  #   - sandbox_process
+# Approval policies — optional config for tools that need user confirmation.
+#
+# Sandbox tools (sandbox_exec, sandbox_bash) always require approval — hardcoded
+# in ApprovalPolicy, no need to list them here.
+#
+# File tools (file_read, file_write, file_delete, file_list) handle their own
+# approval via FileAccessPolicy with per-path granularity — no need to list here.
+#
+# This config is for future tools that don't implement their own policy.
+# Tools not listed default to always_approve.
+#
+# approval_policies:
+#   require_approval:
+#     - some_future_dangerous_tool
+#   require_approval_first_time:
+#     - some_future_tool
 
 # Tools — optional API keys for tool plugins
 tools:

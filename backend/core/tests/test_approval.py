@@ -93,6 +93,25 @@ class TestApprovalPolicy:
         policy = ApprovalPolicy()
         assert policy.needs_approval("anything") is False
 
+    def test_hardcoded_sandbox_tools_always_require_approval(self):
+        """sandbox_exec and sandbox_bash require approval even with empty config."""
+        policy = ApprovalPolicy()
+        assert policy.needs_approval("sandbox_exec") is True
+        assert policy.needs_approval("sandbox_bash") is True
+
+    def test_hardcoded_cannot_be_overridden_by_always_approve(self):
+        """Putting sandbox_exec in always_approve doesn't bypass hardcoded check."""
+        policy = ApprovalPolicy(always_approve={"sandbox_exec"})
+        assert policy.needs_approval("sandbox_exec") is True
+
+    def test_file_tools_not_hardcoded(self):
+        """File tools handle their own approval — not in hardcoded set."""
+        policy = ApprovalPolicy()
+        assert policy.needs_approval("file_read") is False
+        assert policy.needs_approval("file_write") is False
+        assert policy.needs_approval("file_delete") is False
+        assert policy.needs_approval("file_list") is False
+
 
 # ---------------------------------------------------------------------------
 # ApprovalManager tests

@@ -48,6 +48,23 @@ class ToolManager:
         ]:
             self.register_tool(tool)
 
+    def register_file_tools(
+        self, policy: Any, backup: Any, approval_callback: Any = None,
+    ) -> None:
+        """Register file tools (read, write, delete, list) with access policy."""
+        from .file_delete import FileDeleteTool
+        from .file_list import FileListTool
+        from .file_read import FileReadTool
+        from .file_write import FileWriteTool
+
+        for tool in [
+            FileReadTool(policy, approval_callback=approval_callback),
+            FileWriteTool(policy, backup, approval_callback=approval_callback),
+            FileDeleteTool(policy, backup, approval_callback=approval_callback),
+            FileListTool(policy, approval_callback=approval_callback),
+        ]:
+            self.register_tool(tool)
+
     def register_tool(self, tool: BaseTool):
         info = tool.get_info()
         self.tools[info.name] = tool

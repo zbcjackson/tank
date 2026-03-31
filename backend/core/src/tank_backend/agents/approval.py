@@ -39,8 +39,27 @@ def make_approval_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
+# Tools that always require approval regardless of config.
+# These run arbitrary commands — no in-tool policy to protect the user.
+HARDCODED_REQUIRE_APPROVAL: frozenset[str] = frozenset({
+    "sandbox_exec",
+    "sandbox_bash",
+})
+
+
 class ApprovalPolicy:
     """Config-driven policy determining which tools require approval.
+
+    Sandbox tools (``sandbox_exec``, ``sandbox_bash``) always require approval
+    — this is hardcoded and cannot be overridden by config.
+
+    File tools handle their own approval via ``ApprovalCallback`` inside
+    ``execute()`` with per-path granularity, so they don't need tool-level
+    approval here.
+
+    The config-driven lists (``always_approve``, ``require_approval``,
+    ``require_approval_first_time``) are an optional mechanism for future
+    tools that don't implement their own policy.
 
     Tools not listed in any category default to ``always_approve``.
     """
@@ -58,6 +77,9 @@ class ApprovalPolicy:
 
     def needs_approval(self, tool_name: str) -> bool:
         """Return True if the tool requires user approval before execution."""
+        # Hardcoded tools always require approval
+        if tool_name in HARDCODED_REQUIRE_APPROVAL:
+            return True
         if tool_name in self._require_approval:
             return True
         if tool_name in self._require_approval_first_time:

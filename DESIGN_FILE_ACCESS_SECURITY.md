@@ -274,16 +274,98 @@ Agent calls file_write("/Users/alice/projects/app.py", content)
   │   ├─ Check rules: no match for ~/projects/**
   │   └─ Fall back to default_write: require_approval
   │
-  ├─ ApprovalManager.request_approval(...)
-  │   └─ User approves via voice/UI
+  ├─ ApprovalCallback(tool_name, path, operation, reason)
+  │   ├─ Bridges to ApprovalManager.request_approval(...)
+  │   ├─ User sees: "write /Users/alice/projects/app.py (default policy)"
+  │   └─ User approves or denies via voice/UI
   │
   ├─ BackupManager.snapshot(path)  [if file exists]
   │   └─ Copy to ~/.tank/backups/2026-03-31T14:22:01/projects/app.py
   │
-  └─ Execute write
-      ├─ Sandboxed: sandbox.exec_command("cat > '{path}' << 'EOF'\n{content}\nEOF")
-      └─ Unsandboxed: Path(path).write_text(content)
+  └─ Execute write: Path(path).write_text(content)
 ```
+
+#### Approval Architecture: Two Layers, No Conflict
+
+Tank has two execution paths that can invoke tools:
+
+1. **Agent path** (ChatAgent) — checks `ApprovalPolicy` by tool name before calling `execute()`
+2. **Brain path** (Brain processor) — passes `ToolManager` directly to LLM, no approval check
+
+The agent-layer approval only knows the tool name (`"file_write"`), not the
+specific path. It cannot distinguish "write to ~/projects/app.py" from "write
+to /etc/hosts".
+
+To solve this, file tools enforce `require_approval` **inside** `execute()`
+via an `ApprovalCallback`:
+
+```python
+@runtime_checkable
+class ApprovalCallback(Protocol):
+    """Async callback for path-specific approval inside a tool."""
+    async def __call__(
+        self, tool_name: str, path: str, operation: str, reason: str,
+    ) -> bool: ...
+```
+
+The callback is injected at tool registration time and bridges to the existing
+`ApprovalManager`:
+
+```python
+# In Assistant — lazy callback (ApprovalManager created after tools)
+async def _file_approval_callback(
+    self, tool_name: str, path: str, operation: str, reason: str,
+) -> bool:
+    mgr = getattr(self, "_approval_manager", None)
+    if mgr is None:
+        return False  # No approval system → deny (safe default)
+    request = ApprovalRequest(
+        approval_id=make_approval_id(),
+        tool_name=tool_name,
+        tool_args={"path": path, "operation": operation},
+        description=f"{operation} {path} ({reason})",
+        session_id="file_access",
+    )
+    result = await mgr.request_approval(request)
+    return result.approved
+```
+
+This means:
+
+| Scenario | What happens |
+|----------|-------------|
+| Policy returns `allow` | Tool proceeds immediately, no approval prompt |
+| Policy returns `require_approval` + callback exists | Tool calls callback → user sees path-specific approval → approved or denied |
+| Policy returns `require_approval` + no callback | Tool denies (safe default) |
+| Policy returns `deny` | Tool refuses immediately, no approval prompt |
+| Brain direct path (no agent-layer approval) | Tool-layer approval still fires — this is the critical protection |
+
+#### Simplified Approval Architecture
+
+The approval system has two tiers, each handling the tools it's best suited for:
+
+| Tool category | Approval mechanism | Granularity | Configurable? |
+|---------------|-------------------|-------------|---------------|
+| Sandbox tools (`sandbox_exec`, `sandbox_bash`) | Hardcoded in `ApprovalPolicy` | Per-tool-name | No — always requires approval |
+| File tools (`file_read`, `file_write`, `file_delete`, `file_list`) | `ApprovalCallback` inside `execute()` | Per-path + per-operation | Yes — via `file_access` rules in config |
+| Future tools | Optional `approval_policies` config | Per-tool-name | Yes — opt-in via config |
+
+Why this split:
+
+- **Sandbox tools** run arbitrary commands — there's no way to evaluate the
+  command's safety without a full shell parser. Tool-level approval is the
+  only practical gate.
+- **File tools** have structured arguments (path, operation) that can be
+  evaluated by `FileAccessPolicy`. Per-path approval is strictly better than
+  per-tool-name approval.
+- **Future tools** can use either pattern: implement their own in-tool policy
+  (like file tools), or opt into the config-driven `approval_policies` for
+  simple tool-level gating.
+
+The `approval_policies` config section is optional and empty by default.
+Sandbox tools don't need it (hardcoded). File tools don't need it (in-tool
+policy). It exists as a fallback for tools that don't warrant a full policy
+system.
 
 #### Reads: Host-Side vs Sandbox
 
@@ -668,22 +750,21 @@ sandbox:
   bubblewrap:
     extra_args: []
 
-# ─── Tool Approval Policies (existing, extended) ────────────────────
-approval_policies:
-  always_approve:
-    - get_weather
-    - get_time
-    - calculate
-    - file_read
-    - file_list
-  require_approval:
-    - sandbox_exec
-    - sandbox_bash
-    - file_write
-    - file_delete
-  require_approval_first_time:
-    - web_search
-    - web_scraper
+# ─── Tool Approval Policies ──────────────────────────────────────────
+# Sandbox tools (sandbox_exec, sandbox_bash) always require approval —
+# hardcoded in ApprovalPolicy, no config needed.
+#
+# File tools handle their own approval via ApprovalCallback with per-path
+# granularity — no config needed.
+#
+# This section is optional, for future tools that don't implement their
+# own policy. Tools not listed default to always_approve.
+#
+# approval_policies:
+#   require_approval:
+#     - some_future_dangerous_tool
+#   require_approval_first_time:
+#     - some_future_tool
 ```
 
 ### How Layers Interact — Example Walkthrough
@@ -695,17 +776,21 @@ Layer 1 — LLM instructions:
   System prompt says "confirm before modifying system config"
   → Agent might still call file_delete (prompt injection, confusion)
 
-Layer 2 — File access policy:
+Layer 2 — File access policy (inside tool.execute()):
   file_access.rules match "~/.bashrc" → "System configuration"
   delete: deny
   → BLOCKED. Tool returns "Access denied: ~/.bashrc (System configuration)"
 
   (If this were a write instead of delete, it would be require_approval,
-   and Layer 3 would engage)
+   and the ApprovalCallback would fire — see below)
 
-Layer 3 — ApprovalManager:
-  (Not reached for deny. For require_approval, user sees approval request
-   and can approve or reject)
+Layer 3 — ApprovalCallback (inside tool.execute()):
+  (Not reached for deny. For require_approval:)
+  → Tool calls ApprovalCallback("file_write", "~/.bashrc", "write", "System configuration")
+  → Callback bridges to ApprovalManager.request_approval(...)
+  → User sees: "write ~/.bashrc (System configuration)" — approves or denies
+  → If denied: tool returns error. If approved: proceeds to write.
+  This works on ALL execution paths (agent, brain, future plugins).
 
 Layer 4 — Sandbox boundary:
   ~ is mounted as ro in sandbox
