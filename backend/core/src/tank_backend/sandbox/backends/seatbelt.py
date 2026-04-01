@@ -20,7 +20,7 @@ import subprocess
 from dataclasses import dataclass
 from enum import Enum
 
-from ..types import BashResult, ExecResult
+from ..types import BashResult, ExecResult, ProcessOutput, SandboxCapabilities
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +152,10 @@ class SeatbeltSandbox:
         self._policy = policy or SandboxPolicy()
         self._profile = _build_seatbelt_profile(self._policy)
 
+        from .process_tracker import ProcessTracker
+
+        self._tracker = ProcessTracker()
+
     # ── Sandbox protocol ──────────────────────────────────────────
 
     @property
@@ -159,18 +163,34 @@ class SeatbeltSandbox:
         """Always True — Seatbelt is stateless."""
         return True
 
+    @property
+    def capabilities(self) -> SandboxCapabilities:
+        return SandboxCapabilities(
+            persistent_sessions=False,
+            background_processes=True,
+            same_path_mounts=True,
+            backend_name="seatbelt",
+        )
+
     async def cleanup(self) -> None:
-        """No-op — nothing to tear down."""
+        """Kill any tracked background processes."""
+        self._tracker.cleanup()
 
     async def exec_command(
         self,
         command: str,
         timeout: int | None = None,
         working_dir: str | None = None,
+        background: bool = False,
     ) -> ExecResult:
         """Run *command* inside a Seatbelt sandbox and return the result."""
         effective_timeout = self._effective_timeout(timeout)
         cwd = working_dir or self._policy.working_dir
+
+        if background:
+            return await asyncio.to_thread(
+                self._exec_background, command, cwd
+            )
 
         return await asyncio.to_thread(
             self._exec_sync, command, effective_timeout, cwd
@@ -199,6 +219,20 @@ class SeatbeltSandbox:
             exit_code=result.exit_code,
         )
 
+    # ── Background process management ────────────────────────────
+
+    def list_processes(self) -> list[dict]:
+        return self._tracker.list_all()
+
+    async def poll_process(self, process_id: str) -> ProcessOutput:
+        return self._tracker.poll(process_id)
+
+    async def kill_process(self, process_id: str) -> None:
+        self._tracker.kill(process_id)
+
+    async def process_log(self, process_id: str) -> str:
+        return self._tracker.log(process_id)
+
     # ── Internals ─────────────────────────────────────────────────
 
     def _effective_timeout(self, timeout: int | None) -> int:
@@ -208,11 +242,9 @@ class SeatbeltSandbox:
             self._policy.max_timeout,
         )
 
-    def _exec_sync(
-        self, command: str, timeout: int, working_dir: str
-    ) -> ExecResult:
-        """Blocking subprocess call — runs on a thread via to_thread."""
-        cmd: list[str] = [
+    def _seatbelt_cmd(self, command: str) -> list[str]:
+        """Build the sandbox-exec command list."""
+        return [
             "sandbox-exec",
             "-p",
             self._profile,
@@ -220,6 +252,31 @@ class SeatbeltSandbox:
             "-c",
             command,
         ]
+
+    def _exec_background(self, command: str, working_dir: str) -> ExecResult:
+        """Start a background process and return its ID."""
+        cmd = self._seatbelt_cmd(command)
+        try:
+            process_id = self._tracker.start(cmd, command, working_dir)
+            return ExecResult(
+                stdout=process_id,
+                stderr="",
+                exit_code=0,
+                timed_out=False,
+            )
+        except RuntimeError as exc:
+            return ExecResult(
+                stdout="",
+                stderr=str(exc),
+                exit_code=1,
+                timed_out=False,
+            )
+
+    def _exec_sync(
+        self, command: str, timeout: int, working_dir: str
+    ) -> ExecResult:
+        """Blocking subprocess call — runs on a thread via to_thread."""
+        cmd = self._seatbelt_cmd(command)
 
         logger.debug("seatbelt exec: %s (timeout=%ds, cwd=%s)", command, timeout, working_dir)
 

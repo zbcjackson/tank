@@ -39,8 +39,8 @@ from ..pipeline.processors import (
 )
 from ..plugin import AppConfig
 from ..plugin.manager import PluginManager
-from ..sandbox.config import SandboxConfig
-from ..sandbox.manager import SandboxManager
+from ..sandbox.factory import SandboxFactory
+from ..sandbox.policy import SandboxPolicy
 from ..tools.manager import ToolManager
 from .events import BrainInputEvent, DisplayMessage, InputType, SignalMessage, UIMessage
 from .runtime import RuntimeContext
@@ -120,6 +120,10 @@ class Assistant:
     def _init_tools_and_sandbox(self) -> None:
         """Set up ToolManager, checkpointer, and optional sandbox.
 
+        Uses SandboxFactory to auto-detect the best backend (Seatbelt on
+        macOS, Bubblewrap on Linux, Docker as fallback).  Same-path mounts
+        ensure the agent sees the same paths the user talks about.
+
         File tools are registered later in ``_build_pipeline()`` after
         ApprovalManager and Bus are available.
         """
@@ -130,12 +134,19 @@ class Assistant:
         self._checkpointer = self._create_checkpointer()
 
         sandbox_raw = self._app_config.get_section("sandbox")
-        sandbox_config = SandboxConfig.from_dict(sandbox_raw)
-        self._sandbox: SandboxManager | None = None
-        if sandbox_config.enabled:
-            self._sandbox = SandboxManager(sandbox_config)
-            self._tool_manager.register_sandbox_tools(self._sandbox)
-            logger.info("Sandbox tools registered (container created lazily)")
+        sandbox_policy = SandboxPolicy.from_dict(sandbox_raw)
+        self._sandbox = None
+        if sandbox_policy.enabled:
+            try:
+                self._sandbox = SandboxFactory.create(sandbox_policy)
+                self._tool_manager.register_sandbox_tools(self._sandbox)
+                logger.info("Sandbox tools registered (backend created lazily)")
+            except Exception:
+                logger.warning(
+                    "Failed to create sandbox backend — continuing without sandbox",
+                    exc_info=True,
+                )
+                self._sandbox = None
 
     def _init_memory(self) -> None:
         """Create optional MemoryService from config.yaml ``memory:`` section."""

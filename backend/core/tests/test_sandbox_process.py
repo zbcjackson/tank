@@ -4,19 +4,17 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from tank_backend.sandbox.types import ProcessOutput
 from tank_backend.tools.sandbox_process import SandboxProcessTool
 
 
 @pytest.fixture
 def mock_sandbox():
     sandbox = MagicMock()
-    sandbox.list_sessions = MagicMock(return_value=[])
-    sandbox.session_read = AsyncMock(return_value="")
-    sandbox.session_log = AsyncMock(return_value="")
-    sandbox.session_write = AsyncMock()
-    sandbox.session_kill = AsyncMock()
-    sandbox.session_clear = MagicMock()
-    sandbox.session_remove = AsyncMock()
+    sandbox.list_processes = MagicMock(return_value=[])
+    sandbox.poll_process = AsyncMock()
+    sandbox.process_log = AsyncMock(return_value="")
+    sandbox.kill_process = AsyncMock()
     return sandbox
 
 
@@ -31,77 +29,71 @@ class TestSandboxProcessTool:
         assert info.name == "sandbox_process"
         param_names = {p.name for p in info.parameters}
         assert "action" in param_names
-        assert "session" in param_names
-        assert "input" in param_names
+        assert "process_id" in param_names
 
     async def test_list_empty(self, tool, mock_sandbox):
         result = await tool.execute(action="list")
-        assert result["sessions"] == []
-        assert "No active" in result["message"]
+        assert result["processes"] == []
+        assert "No background" in result["message"]
 
-    async def test_list_with_sessions(self, tool, mock_sandbox):
-        mock_sandbox.list_sessions.return_value = [
-            {"name": "dev", "status": "running", "output_lines": 42},
-            {"name": "bg", "status": "exited", "output_lines": 10},
+    async def test_list_with_processes(self, tool, mock_sandbox):
+        mock_sandbox.list_processes.return_value = [
+            {
+                "process_id": "abc123", "status": "running",
+                "command": "./build.sh", "output_lines": 42,
+            },
+            {
+                "process_id": "def456", "status": "exited",
+                "command": "sleep 10", "output_lines": 0,
+            },
         ]
         result = await tool.execute(action="list")
-        assert len(result["sessions"]) == 2
-        assert "dev" in result["message"]
-        assert "bg" in result["message"]
+        assert len(result["processes"]) == 2
+        assert "abc123" in result["message"]
+        assert "def456" in result["message"]
 
     async def test_poll(self, tool, mock_sandbox):
-        mock_sandbox.session_read.return_value = "new output\n"
-        result = await tool.execute(action="poll", session="dev")
+        mock_sandbox.poll_process.return_value = ProcessOutput(
+            output="new output\n", status="running"
+        )
+        result = await tool.execute(action="poll", process_id="abc123")
         assert result["output"] == "new output\n"
-        mock_sandbox.session_read.assert_awaited_once_with("dev")
+        mock_sandbox.poll_process.assert_awaited_once_with("abc123")
 
     async def test_poll_empty(self, tool, mock_sandbox):
-        mock_sandbox.session_read.return_value = ""
-        result = await tool.execute(action="poll", session="dev")
+        mock_sandbox.poll_process.return_value = ProcessOutput(
+            output="", status="running"
+        )
+        result = await tool.execute(action="poll", process_id="abc123")
         assert result["message"] == "(no new output)"
 
     async def test_log(self, tool, mock_sandbox):
-        mock_sandbox.session_log.return_value = "full history\n"
-        result = await tool.execute(action="log", session="dev")
+        mock_sandbox.process_log.return_value = "full history\n"
+        result = await tool.execute(action="log", process_id="abc123")
         assert result["output"] == "full history\n"
 
     async def test_log_empty(self, tool, mock_sandbox):
-        mock_sandbox.session_log.return_value = ""
-        result = await tool.execute(action="log", session="dev")
+        mock_sandbox.process_log.return_value = ""
+        result = await tool.execute(action="log", process_id="abc123")
         assert result["message"] == "(no output history)"
 
-    async def test_write(self, tool, mock_sandbox):
-        result = await tool.execute(action="write", session="dev", input="hello\n")
-        assert result["status"] == "written"
-        mock_sandbox.session_write.assert_awaited_once_with("dev", "hello\n")
-
     async def test_kill(self, tool, mock_sandbox):
-        result = await tool.execute(action="kill", session="dev")
+        result = await tool.execute(action="kill", process_id="abc123")
         assert result["status"] == "killed"
-        mock_sandbox.session_kill.assert_awaited_once_with("dev")
+        mock_sandbox.kill_process.assert_awaited_once_with("abc123")
 
-    async def test_clear(self, tool, mock_sandbox):
-        result = await tool.execute(action="clear", session="dev")
-        assert result["status"] == "cleared"
-        mock_sandbox.session_clear.assert_called_once_with("dev")
-
-    async def test_remove(self, tool, mock_sandbox):
-        result = await tool.execute(action="remove", session="dev")
-        assert result["status"] == "removed"
-        mock_sandbox.session_remove.assert_awaited_once_with("dev")
-
-    async def test_missing_session_for_non_list_action(self, tool):
+    async def test_missing_process_id_for_non_list_action(self, tool):
         result = await tool.execute(action="poll")
         assert "error" in result
-        assert "Session name required" in result["error"]
+        assert "process_id required" in result["error"]
 
     async def test_unknown_action(self, tool):
-        result = await tool.execute(action="restart", session="dev")
+        result = await tool.execute(action="restart", process_id="abc123")
         assert "error" in result
         assert "Unknown action" in result["error"]
 
     async def test_error_handling(self, tool, mock_sandbox):
-        mock_sandbox.session_kill.side_effect = ValueError("not found")
-        result = await tool.execute(action="kill", session="ghost")
+        mock_sandbox.kill_process.side_effect = ValueError("not found")
+        result = await tool.execute(action="kill", process_id="ghost")
         assert "error" in result
         assert "not found" in result["error"]

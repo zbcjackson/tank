@@ -10,7 +10,7 @@
 llm:
   default:
     api_key: ${LLM_API_KEY}
-    model: openai/gpt-oss-120b
+    model: openai/gpt-5.4-nano
     base_url: https://openrouter.ai/api/v1
     temperature: 0.7
     max_tokens: 10000
@@ -92,13 +92,39 @@ speaker:
 
 sandbox:
   enabled: true
-  image: tank-sandbox:latest
-  workspace_host_path: ./workspace
+  backend: auto                          # auto | docker | seatbelt | bubblewrap
+
+  # What the sandbox can physically see (Plane A enforcement)
+  # Same-path mounts: host path == container path
+  mounts:
+    - host: "~"
+      mode: ro
+
+  # Never mountable — hardcoded, not overridable by user config.
+  # Reading these files IS the security breach.
+  # (Enforced in code via DENIED_MOUNTS_HARDCODED — listed here for reference)
+  # denied_mounts_hardcoded:
+  #   - ~/.ssh
+  #   - ~/.gnupg
+  #   - ~/Library/Keychains
+  #   - /var/run/docker.sock
+
+  # Configurable denied mounts — sensible defaults, user can modify
+  denied_mounts:
+    - ~/.aws
+    - ~/.azure
+    - ~/.config/gcloud
+
+  # Resource limits
   memory_limit: 1g
   cpu_count: 2
-  default_timeout: 120
+  timeout: 120
   max_timeout: 600
-  network_enabled: true
+
+  # Docker-specific
+  docker:
+    image: tank-sandbox:latest
+    workspace_host_path: ./workspace
 
 # File access policy — controls which files the agent can read/write/delete.
 # Rules are evaluated top-down; first match wins.

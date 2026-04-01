@@ -1,4 +1,8 @@
-"""sandbox_bash tool — persistent shell sessions in Docker sandbox."""
+"""sandbox_bash tool — persistent shell sessions in Docker sandbox.
+
+This tool is Docker-only. On native backends (Seatbelt, Bubblewrap) the
+agent should chain commands in a single ``sandbox_exec`` call instead.
+"""
 
 from __future__ import annotations
 
@@ -28,11 +32,14 @@ class SandboxBashTool(BaseTool):
         return ToolInfo(
             name="sandbox_bash",
             description=(
-                "Run commands in a persistent bash session inside the sandbox. "
+                "Run commands in a persistent bash session inside the sandbox "
+                "(Docker backend only). "
                 "Working directory and environment variables persist across calls. "
                 "Sessions are created implicitly on first use. "
                 "For command-and-response mode, provide 'command'. "
-                "For interactive programs, use action='create'/'write'/'read'."
+                "For interactive programs, use action='create'/'write'/'read'. "
+                "On non-Docker backends, use sandbox_exec instead and chain "
+                "commands with && in a single call."
             ),
             parameters=[
                 ToolParameter(

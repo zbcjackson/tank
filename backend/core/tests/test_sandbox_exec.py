@@ -29,6 +29,7 @@ class TestSandboxExecTool:
         assert "command" in param_names
         assert "timeout" in param_names
         assert "working_dir" in param_names
+        assert "background" in param_names
 
     async def test_execute_success(self, tool, mock_sandbox):
         mock_sandbox.exec_command.return_value = ExecResult(
@@ -38,7 +39,8 @@ class TestSandboxExecTool:
         assert result["exit_code"] == 0
         assert "hello world" in result["message"]
         mock_sandbox.exec_command.assert_awaited_once_with(
-            command="echo hello world", timeout=120, working_dir="/workspace"
+            command="echo hello world", timeout=120, working_dir="/workspace",
+            background=False,
         )
 
     async def test_execute_with_stderr(self, tool, mock_sandbox):
@@ -63,7 +65,8 @@ class TestSandboxExecTool:
         )
         await tool.execute(command="pwd", working_dir="/tmp")
         mock_sandbox.exec_command.assert_awaited_once_with(
-            command="pwd", timeout=120, working_dir="/tmp"
+            command="pwd", timeout=120, working_dir="/tmp",
+            background=False,
         )
 
     async def test_execute_no_output(self, tool, mock_sandbox):
@@ -78,3 +81,15 @@ class TestSandboxExecTool:
         result = await tool.execute(command="echo hi")
         assert "error" in result
         assert "Docker not available" in result["error"]
+
+    async def test_execute_background(self, tool, mock_sandbox):
+        mock_sandbox.exec_command.return_value = ExecResult(
+            stdout="abc123def456", stderr="", exit_code=0
+        )
+        result = await tool.execute(command="./build.sh", background=True)
+        assert result["process_id"] == "abc123def456"
+        assert "background" in result["message"].lower()
+        mock_sandbox.exec_command.assert_awaited_once_with(
+            command="./build.sh", timeout=120, working_dir="/workspace",
+            background=True,
+        )

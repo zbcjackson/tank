@@ -13,7 +13,16 @@ from pathlib import Path
 from typing import Any
 
 from .config import SandboxConfig
-from .types import BashResult, ExecResult, SessionInfo, SessionStatus
+from .types import (
+    BashResult,
+    ExecResult,
+    ProcessInfo,
+    ProcessOutput,
+    ProcessStatus,
+    SandboxCapabilities,
+    SessionInfo,
+    SessionStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +39,19 @@ class SandboxManager:
     on the first tool call and destroyed when ``cleanup`` is called.
     """
 
-    def __init__(self, config: SandboxConfig) -> None:
+    def __init__(
+        self,
+        config: SandboxConfig,
+        volumes: dict[str, dict[str, str]] | None = None,
+    ) -> None:
         self._config = config
+        self._volumes = volumes
         self._container: Any | None = None
         self._client: Any | None = None
         self._sessions: dict[str, SessionInfo] = {}
         self._reader_threads: dict[str, threading.Thread] = {}
+        self._bg_processes: dict[str, ProcessInfo] = {}
+        self._bg_readers: dict[str, threading.Thread] = {}
 
     # ── Container lifecycle ──────────────────────────────────────
 
@@ -55,14 +71,27 @@ class SandboxManager:
 
         network_mode = "bridge" if self._config.network_enabled else "none"
 
+        if self._volumes is not None:
+            # Same-path mounts: use provided volumes, set HOME to host user's home
+            volumes = dict(self._volumes)
+            host_home = str(Path.home())
+            working_dir = host_home
+            environment = {"HOME": host_home}
+        else:
+            # Legacy: single workspace mount at /workspace
+            volumes = {workspace: {"bind": "/workspace", "mode": "rw"}}
+            working_dir = "/workspace"
+            environment = {}
+
         self._container = self._client.containers.run(
             image=self._config.image,
             command="sleep infinity",
             detach=True,
             stdin_open=True,
             tty=False,
-            working_dir="/workspace",
-            volumes={workspace: {"bind": "/workspace", "mode": "rw"}},
+            working_dir=working_dir,
+            volumes=volumes,
+            environment=environment or None,
             mem_limit=self._config.memory_limit,
             nano_cpus=self._config.cpu_count * 1_000_000_000,
             network_mode=network_mode,
@@ -94,6 +123,15 @@ class SandboxManager:
     def is_running(self) -> bool:
         return self._container is not None
 
+    @property
+    def capabilities(self) -> SandboxCapabilities:
+        return SandboxCapabilities(
+            persistent_sessions=True,
+            background_processes=True,
+            same_path_mounts=self._volumes is not None,
+            backend_name="docker",
+        )
+
     def _effective_timeout(self, timeout: int | None) -> int:
         """Clamp an optional timeout to [default, max]."""
         return min(timeout or self._config.default_timeout, self._config.max_timeout)
@@ -105,9 +143,14 @@ class SandboxManager:
         command: str,
         timeout: int | None = None,
         working_dir: str = "/workspace",
+        background: bool = False,
     ) -> ExecResult:
-        """Run a command to completion and return its output."""
+        """Run a command to completion, or start it in the background."""
         await self.ensure_container()
+        if background:
+            return await asyncio.to_thread(
+                self._exec_background, command, working_dir
+            )
         return await asyncio.to_thread(
             self._exec_sync, command, self._effective_timeout(timeout), working_dir
         )
@@ -130,6 +173,121 @@ class SandboxManager:
             exit_code=exit_code,
             timed_out=timed_out,
         )
+
+    def _exec_background(self, command: str, working_dir: str) -> ExecResult:
+        """Start a detached exec inside the container and track it."""
+        import uuid
+
+        process_id = uuid.uuid4().hex[:12]
+
+        exec_result = self._client.api.exec_create(
+            self._container.id,
+            ["bash", "-c", command],
+            stdin=False,
+            tty=False,
+            workdir=working_dir,
+        )
+        exec_id = exec_result["Id"]
+        sock = self._client.api.exec_start(exec_id, socket=True, tty=False)
+
+        info = ProcessInfo(
+            process_id=process_id,
+            command=command,
+            handle=exec_id,
+        )
+        self._bg_processes[process_id] = info
+
+        thread = threading.Thread(
+            target=self._bg_reader_loop,
+            args=(process_id, sock),
+            daemon=True,
+            name=f"bg-reader-{process_id}",
+        )
+        self._bg_readers[process_id] = thread
+        thread.start()
+
+        logger.info("Background process started: %s (exec_id=%s)", process_id, exec_id[:12])
+        return ExecResult(stdout=process_id, stderr="", exit_code=0, timed_out=False)
+
+    def _bg_reader_loop(self, process_id: str, sock: Any) -> None:
+        """Background thread: read from Docker exec socket into output buffer."""
+        info = self._bg_processes.get(process_id)
+        if info is None:
+            return
+
+        raw = _raw_socket(sock)
+        try:
+            while True:
+                try:
+                    data = raw.recv(4096)
+                except OSError:
+                    break
+                if not data:
+                    break
+                text = data.decode("utf-8", errors="replace")
+                info.output_buffer.append(text)
+        except Exception as exc:
+            logger.debug("BG reader for %s ended: %s", process_id, exc)
+        finally:
+            # Check exit code via Docker inspect
+            try:
+                inspect = self._client.api.exec_inspect(info.handle)
+                info.exit_code = inspect.get("ExitCode")
+            except Exception:
+                pass
+            info.status = ProcessStatus.EXITED
+
+    # ── Background process management (protocol) ─────────────────
+
+    def list_processes(self) -> list[dict]:
+        """List all tracked background processes."""
+        return [info.to_dict() for info in self._bg_processes.values()]
+
+    async def poll_process(self, process_id: str) -> ProcessOutput:
+        """Read new output from a background process since last poll."""
+        info = self._bg_processes.get(process_id)
+        if info is None:
+            raise ValueError(f"Process '{process_id}' not found")
+
+        buf = info.output_buffer
+        offset = info.poll_offset
+        current_len = len(buf)
+        if current_len <= offset:
+            new_text = ""
+        else:
+            new_text = "".join(list(buf)[offset:current_len])
+            info.poll_offset = current_len
+
+        return ProcessOutput(
+            output=new_text,
+            status=info.status.value,
+            exit_code=info.exit_code,
+        )
+
+    async def kill_process(self, process_id: str) -> None:
+        """Kill a background process by sending SIGKILL to the exec."""
+        info = self._bg_processes.get(process_id)
+        if info is None:
+            raise ValueError(f"Process '{process_id}' not found")
+        if info.status == ProcessStatus.RUNNING:
+            # Docker doesn't have a direct "kill exec" API — we use exec_inspect
+            # to get the PID and then kill it inside the container
+            try:
+                inspect = self._client.api.exec_inspect(info.handle)
+                pid = inspect.get("Pid")
+                if pid and pid > 0:
+                    self._container.exec_run(["kill", "-9", str(pid)])
+            except Exception:
+                pass
+            info.status = ProcessStatus.EXITED
+            logger.info("Background process killed: %s", process_id)
+
+    async def process_log(self, process_id: str) -> str:
+        """Full output history for a background process."""
+        info = self._bg_processes.get(process_id)
+        if info is None:
+            raise ValueError(f"Process '{process_id}' not found")
+        return "".join(info.output_buffer)
 
     # ── Persistent bash sessions ─────────────────────────────────
 
