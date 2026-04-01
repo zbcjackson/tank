@@ -122,8 +122,7 @@ class TestChatStreamBounded:
             chunk = _make_stream_chunk_with_tool_call()
             mock_stream = MagicMock()
             mock_stream.__aiter__ = MagicMock(return_value=AsyncIterator([chunk]))
-            mock_stream._iterator = AsyncMock()
-            mock_stream._iterator.aclose = AsyncMock()
+            mock_stream.close = AsyncMock()
             mock_stream.response = AsyncMock()
             mock_stream.response.aclose = AsyncMock()
             return mock_stream

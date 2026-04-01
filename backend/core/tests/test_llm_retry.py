@@ -215,8 +215,7 @@ async def test_chat_stream_uses_retry(llm, mock_completion):
 
     mock_stream_obj = MagicMock()
     mock_stream_obj.__aiter__ = lambda self: mock_stream()
-    mock_stream_obj._iterator = MagicMock()
-    mock_stream_obj._iterator.aclose = AsyncMock()
+    mock_stream_obj.close = AsyncMock()
     mock_stream_obj.response = MagicMock()
     mock_stream_obj.response.aclose = AsyncMock()
 
