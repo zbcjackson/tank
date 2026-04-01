@@ -56,9 +56,11 @@ All code, config, and documentation use these terms consistently:
 | Concept | Term | NOT |
 |---------|------|----|
 | The three access levels | `allow` / `require_approval` / `deny` | ~~ask~~, ~~prompt~~, ~~block~~, ~~permission~~ |
-| The config section | `approval_policies` | ~~permissions~~, ~~access_control~~ |
+| The config section | `approval_policies` (optional, for future tools) | ~~permissions~~, ~~access_control~~ |
 | The runtime gate | `ApprovalManager` | ~~PermissionManager~~ |
-| The policy evaluator | `ApprovalPolicy` | ~~PermissionPolicy~~ |
+| Tool-level policy | `ToolApprovalPolicy` | ~~ApprovalPolicy~~, ~~PermissionPolicy~~ |
+| File-level policy | `FileAccessPolicy` | |
+| Shared approval helper | `request_with_notification()` | |
 | The user interaction | "approval request" | ~~prompt~~, ~~permission dialog~~ |
 | File operations | `read` / `write` / `delete` | ~~get~~, ~~put~~, ~~remove~~ |
 | Network operations | `connect` | ~~access~~, ~~fetch~~ |
@@ -141,7 +143,9 @@ file_access:
   default_write: require_approval
   default_delete: require_approval
 
-  # Rules evaluated top-down, first match wins
+  # Rules matched by most-specific-match-wins (not top-down).
+  # Higher priority wins first, then higher specificity.
+  # Optional priority field (default 0) for explicit overrides.
   rules:
     # Secrets — hard deny (even reads)
     - paths:
@@ -201,31 +205,43 @@ file_access:
 
 ```python
 class FileAccessPolicy:
-    """Evaluates file access rules. Backend-agnostic."""
+    """Evaluates file access rules. Most-specific-match-wins."""
 
     def evaluate(self, path: str, operation: str) -> AccessDecision:
-        """
-        Args:
-            path: Absolute or ~-prefixed path
-            operation: "read" | "write" | "delete"
-
-        Returns:
-            AccessDecision with level (allow/require_approval/deny) and reason
-        """
         resolved = os.path.realpath(os.path.expanduser(path))
 
-        # Check rules top-down, first match wins
-        for rule in self.rules:
-            if self._path_matches(resolved, rule.paths):
-                level = getattr(rule, operation, None)
-                if level is not None:
-                    return AccessDecision(level=level, reason=rule.reason)
+        # Collect all matching rules with specificity scores
+        matches = []
+        for rule in self._rules:
+            best_spec = self._best_specificity(resolved, rule.paths)
+            if best_spec is not None:
+                matches.append((rule.priority, best_spec, rule))
 
-        # Fall back to defaults
-        return AccessDecision(
-            level=self._defaults[operation],
-            reason="default policy",
-        )
+        if not matches:
+            return AccessDecision(level=self._defaults[operation], reason="default policy")
+
+        # Highest priority first, then highest specificity
+        matches.sort(key=lambda x: (x[0], x[1]), reverse=True)
+
+        # Warn on conflicts (same priority + specificity, different levels)
+        if len(matches) > 1:
+            top, second = matches[0], matches[1]
+            if top[0] == second[0] and top[1] == second[1]:
+                if getattr(top[2], operation) != getattr(second[2], operation):
+                    logger.warning("Conflicting rules for %s %s", operation, path)
+
+        best_rule = matches[0][2]
+        return AccessDecision(level=getattr(best_rule, operation), reason=best_rule.reason)
+
+    @staticmethod
+    def _specificity(pattern: str) -> int:
+        """Higher = more specific. Exact path > single glob > recursive glob."""
+        expanded = os.path.expanduser(pattern)
+        if "*" not in expanded:
+            return 1000 + len(expanded)    # exact path
+        if "**" not in expanded:
+            return 500 + len(expanded.split("*")[0])  # single glob
+        return len(expanded.split("**")[0])  # recursive glob
 ```
 
 Path matching supports:

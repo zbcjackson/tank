@@ -22,6 +22,7 @@ class FileAccessRule:
     write: AccessLevel = "allow"
     delete: AccessLevel = "allow"
     reason: str = ""
+    priority: int = 0
 
 
 @dataclass(frozen=True)
@@ -35,7 +36,11 @@ class AccessDecision:
 class FileAccessPolicy:
     """Evaluates file access rules. Backend-agnostic.
 
-    Rules are evaluated top-down; first match wins.
+    Rules are matched by most-specific-match-wins:
+    1. Higher ``priority`` wins first.
+    2. Among equal priority, higher specificity wins (exact path > single glob > recursive glob).
+    3. If two rules tie on both priority and specificity with different levels, a warning is logged.
+
     If no rule matches, the default for the operation is returned.
     """
 
@@ -68,26 +73,73 @@ class FileAccessPolicy:
 
         resolved = os.path.realpath(os.path.expanduser(path))
 
+        # Collect all matching rules with their best specificity score
+        matches: list[tuple[int, int, FileAccessRule]] = []
         for rule in self._rules:
-            if self._rule_matches(resolved, rule.paths):
-                level = getattr(rule, operation)
-                return AccessDecision(level=level, reason=rule.reason)
+            best_spec = self._best_specificity(resolved, rule.paths)
+            if best_spec is not None:
+                matches.append((rule.priority, best_spec, rule))
 
-        return AccessDecision(
-            level=self._defaults[operation],
-            reason="default policy",
-        )
+        if not matches:
+            return AccessDecision(
+                level=self._defaults[operation],
+                reason="default policy",
+            )
+
+        # Sort: highest priority first, then highest specificity
+        matches.sort(key=lambda x: (x[0], x[1]), reverse=True)
+
+        # Warn on conflicts: same priority + specificity but different levels
+        if len(matches) > 1:
+            top_pri, top_spec, top_rule = matches[0]
+            sec_pri, sec_spec, sec_rule = matches[1]
+            if top_pri == sec_pri and top_spec == sec_spec:
+                level_a = getattr(top_rule, operation)
+                level_b = getattr(sec_rule, operation)
+                if level_a != level_b:
+                    logger.warning(
+                        "Conflicting rules for %s %s: %r (%s) vs %r (%s) — using first",
+                        operation, path, top_rule.reason, level_a, sec_rule.reason, level_b,
+                    )
+
+        best_rule = matches[0][2]
+        level = getattr(best_rule, operation)
+        return AccessDecision(level=level, reason=best_rule.reason)
+
+    # ------------------------------------------------------------------
+    # Specificity scoring
+    # ------------------------------------------------------------------
+
+    def _best_specificity(self, resolved: str, patterns: tuple[str, ...]) -> int | None:
+        """Return the highest specificity score among matching patterns, or None."""
+        best: int | None = None
+        for pattern in patterns:
+            if self._path_matches(resolved, pattern):
+                score = self._specificity(pattern)
+                if best is None or score > best:
+                    best = score
+        return best
+
+    @staticmethod
+    def _specificity(pattern: str) -> int:
+        """Score a pattern's specificity. Higher = more specific.
+
+        - Exact path (no globs): 1000 + length
+        - Single glob (*): 500 + prefix length
+        - Recursive glob (**): 0 + prefix length
+        """
+        expanded = os.path.expanduser(pattern)
+        if "*" not in expanded:
+            return 1000 + len(expanded)
+        if "**" not in expanded:
+            prefix = expanded.split("*")[0]
+            return 500 + len(prefix)
+        prefix = expanded.split("**")[0]
+        return len(prefix)
 
     # ------------------------------------------------------------------
     # Pattern matching
     # ------------------------------------------------------------------
-
-    def _rule_matches(self, resolved: str, patterns: tuple[str, ...]) -> bool:
-        """Check if *resolved* absolute path matches any pattern."""
-        for pattern in patterns:
-            if self._path_matches(resolved, pattern):
-                return True
-        return False
 
     @staticmethod
     def _path_matches(resolved: str, pattern: str) -> bool:
@@ -133,12 +185,10 @@ class FileAccessPolicy:
             return True
 
         # --- Simple glob or exact path (no **) ---
-        # For patterns with *, resolve the directory part and use fnmatch
         if "*" in expanded:
             dir_part, name_part = os.path.split(expanded)
             resolved_dir = os.path.realpath(dir_part)
             resolved_parent, resolved_name = os.path.split(resolved)
-            # Only match if the parent directory matches and the filename matches the pattern
             if resolved_parent == resolved_dir:
                 return fnmatch.fnmatch(resolved_name, name_part)
             return False
@@ -167,6 +217,7 @@ class FileAccessPolicy:
                     write=rule_data.get("write", "allow"),
                     delete=rule_data.get("delete", "allow"),
                     reason=rule_data.get("reason", ""),
+                    priority=rule_data.get("priority", 0),
                 )
             )
 

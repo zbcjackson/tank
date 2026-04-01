@@ -1,4 +1,4 @@
-"""Tests for the approval system: ApprovalManager, ApprovalPolicy, dataclasses."""
+"""Tests for the approval system: ApprovalManager, ToolApprovalPolicy, dataclasses."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import pytest
 
 from tank_backend.agents.approval import (
     ApprovalManager,
-    ApprovalPolicy,
+    ToolApprovalPolicy,
     ApprovalRequest,
     ApprovalResult,
     make_approval_id,
@@ -49,26 +49,26 @@ def test_make_approval_id_unique():
 
 
 # ---------------------------------------------------------------------------
-# ApprovalPolicy tests
+# ToolApprovalPolicy tests
 # ---------------------------------------------------------------------------
 
-class TestApprovalPolicy:
+class TestToolApprovalPolicy:
     def test_require_approval(self):
-        policy = ApprovalPolicy(require_approval={"sandbox_exec", "sandbox_bash"})
+        policy = ToolApprovalPolicy(require_approval={"sandbox_exec", "sandbox_bash"})
         assert policy.needs_approval("sandbox_exec") is True
         assert policy.needs_approval("sandbox_bash") is True
 
     def test_always_approve(self):
-        policy = ApprovalPolicy(always_approve={"weather", "get_time"})
+        policy = ToolApprovalPolicy(always_approve={"weather", "get_time"})
         assert policy.needs_approval("weather") is False
         assert policy.needs_approval("get_time") is False
 
     def test_unlisted_defaults_to_no_approval(self):
-        policy = ApprovalPolicy(require_approval={"sandbox_exec"})
+        policy = ToolApprovalPolicy(require_approval={"sandbox_exec"})
         assert policy.needs_approval("unknown_tool") is False
 
     def test_first_time_approval(self):
-        policy = ApprovalPolicy(require_approval_first_time={"web_search"})
+        policy = ToolApprovalPolicy(require_approval_first_time={"web_search"})
         # First time → needs approval
         assert policy.needs_approval("web_search") is True
         # Record approval
@@ -77,7 +77,7 @@ class TestApprovalPolicy:
         assert policy.needs_approval("web_search") is False
 
     def test_first_time_reset(self):
-        policy = ApprovalPolicy(require_approval_first_time={"web_search"})
+        policy = ToolApprovalPolicy(require_approval_first_time={"web_search"})
         policy.record_approved("web_search")
         assert policy.needs_approval("web_search") is False
         policy.reset()
@@ -85,28 +85,28 @@ class TestApprovalPolicy:
 
     def test_require_approval_always_asks(self):
         """require_approval ignores record_approved — always asks."""
-        policy = ApprovalPolicy(require_approval={"sandbox_exec"})
+        policy = ToolApprovalPolicy(require_approval={"sandbox_exec"})
         policy.record_approved("sandbox_exec")
         assert policy.needs_approval("sandbox_exec") is True
 
     def test_empty_policy_approves_all(self):
-        policy = ApprovalPolicy()
+        policy = ToolApprovalPolicy()
         assert policy.needs_approval("anything") is False
 
     def test_hardcoded_sandbox_tools_always_require_approval(self):
         """sandbox_exec and sandbox_bash require approval even with empty config."""
-        policy = ApprovalPolicy()
+        policy = ToolApprovalPolicy()
         assert policy.needs_approval("sandbox_exec") is True
         assert policy.needs_approval("sandbox_bash") is True
 
     def test_hardcoded_cannot_be_overridden_by_always_approve(self):
         """Putting sandbox_exec in always_approve doesn't bypass hardcoded check."""
-        policy = ApprovalPolicy(always_approve={"sandbox_exec"})
+        policy = ToolApprovalPolicy(always_approve={"sandbox_exec"})
         assert policy.needs_approval("sandbox_exec") is True
 
     def test_file_tools_not_hardcoded(self):
         """File tools handle their own approval — not in hardcoded set."""
-        policy = ApprovalPolicy()
+        policy = ToolApprovalPolicy()
         assert policy.needs_approval("file_read") is False
         assert policy.needs_approval("file_write") is False
         assert policy.needs_approval("file_delete") is False

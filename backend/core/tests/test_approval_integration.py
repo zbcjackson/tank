@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-from tank_backend.agents.approval import ApprovalManager, ApprovalPolicy
+from tank_backend.agents.approval import ApprovalManager, ToolApprovalPolicy
 from tank_backend.agents.base import AgentOutputType, AgentState
 from tank_backend.agents.chat_agent import ChatAgent, _build_tool_description, _parse_tool_args
 from tank_backend.core.events import UpdateType
@@ -95,7 +95,7 @@ class TestChatAgentApprovalFlow:
 
     async def test_approval_needed_yielded_for_requiring_tool(self):
         """When a tool requires approval, APPROVAL_NEEDED is yielded instead of TOOL_EXECUTING."""
-        policy = ApprovalPolicy(require_approval={"sandbox_exec"})
+        policy = ToolApprovalPolicy(require_approval={"sandbox_exec"})
         manager = ApprovalManager(timeout=5.0)
 
         llm = MagicMock()
@@ -131,7 +131,7 @@ class TestChatAgentApprovalFlow:
 
     async def test_rejection_returns_error_in_tool_result(self):
         """When user rejects, the tool result should contain a rejection message."""
-        policy = ApprovalPolicy(require_approval={"sandbox_exec"})
+        policy = ToolApprovalPolicy(require_approval={"sandbox_exec"})
         manager = ApprovalManager(timeout=5.0)
 
         llm = MagicMock()
@@ -165,7 +165,7 @@ class TestChatAgentApprovalFlow:
 
     async def test_always_approve_tool_skips_approval(self):
         """Tools in always_approve should execute without APPROVAL_NEEDED."""
-        policy = ApprovalPolicy(
+        policy = ToolApprovalPolicy(
             always_approve={"calculate"},
             require_approval={"sandbox_exec"},
         )
@@ -192,7 +192,7 @@ class TestChatAgentApprovalFlow:
 
     async def test_first_time_approval_then_auto(self):
         """first-time tools should ask once, then auto-approve."""
-        policy = ApprovalPolicy(require_approval_first_time={"web_search"})
+        policy = ToolApprovalPolicy(require_approval_first_time={"web_search"})
         manager = ApprovalManager(timeout=5.0)
 
         llm = MagicMock()
@@ -247,7 +247,7 @@ class TestChatAgentApprovalFlow:
 
     async def test_no_tools_no_approval(self):
         """Text-only responses should work with approval configured."""
-        policy = ApprovalPolicy(require_approval={"sandbox_exec"})
+        policy = ToolApprovalPolicy(require_approval={"sandbox_exec"})
         manager = ApprovalManager(timeout=5.0)
 
         llm = MagicMock()

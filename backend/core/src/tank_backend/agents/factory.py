@@ -14,7 +14,7 @@ from .task_agent import TaskAgent
 if TYPE_CHECKING:
     from ..llm.llm import LLM
     from ..tools.manager import ToolManager
-    from .approval import ApprovalManager, ApprovalPolicy
+    from .approval import ApprovalManager, ToolApprovalPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ def create_agent(
     tool_manager: ToolManager | None = None,
     config: dict[str, Any] | None = None,
     approval_manager: ApprovalManager | None = None,
-    approval_policy: ApprovalPolicy | None = None,
+    approval_policy: ToolApprovalPolicy | None = None,
     session_id: str = "",
 ) -> Agent:
     """Create an agent instance from a type string and config.
@@ -46,7 +46,7 @@ def create_agent(
         tool_manager: Shared ToolManager (agents filter tools internally).
         config: Optional dict with keys: ``tools`` (list[str]), ``system_prompt`` (str).
         approval_manager: Optional ApprovalManager for tool approval gates.
-        approval_policy: Optional ApprovalPolicy for determining which tools need approval.
+        approval_policy: Optional ToolApprovalPolicy for determining which tools need approval.
         session_id: Session ID for approval tracking.
 
     Returns:

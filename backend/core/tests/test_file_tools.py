@@ -387,3 +387,89 @@ class TestFileListTool:
         assert entries["file.txt"]["size"] == 7
         assert entries["subdir"]["type"] == "dir"
         assert entries["subdir"]["size"] is None
+
+
+# ---------------------------------------------------------------------------
+# FileReadTool — large and binary file handling
+# ---------------------------------------------------------------------------
+
+class TestFileReadLargeAndBinary:
+    @pytest.mark.asyncio
+    async def test_binary_file_rejected(self, tmp_path: Path):
+        f = tmp_path / "image.png"
+        f.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+
+        tool = FileReadTool(_make_policy("allow"))
+        result = await tool.execute(path=str(f))
+
+        assert "error" in result
+        assert result["error"] == "Binary file"
+        assert "binary" in result["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_large_file_rejected(self, tmp_path: Path):
+        f = tmp_path / "big.txt"
+        f.write_text("x" * 2_000_000)  # 2MB
+
+        tool = FileReadTool(_make_policy("allow"))
+        result = await tool.execute(path=str(f), max_size=1_000_000)
+
+        assert result["error"] == "File too large"
+        assert result["size"] == 2_000_000
+        assert result["max_size"] == 1_000_000
+
+    @pytest.mark.asyncio
+    async def test_large_file_allowed_with_range(self, tmp_path: Path):
+        lines = [f"line {i}\n" for i in range(100_000)]
+        f = tmp_path / "big.txt"
+        f.write_text("".join(lines))
+
+        tool = FileReadTool(_make_policy("allow"))
+        result = await tool.execute(path=str(f), max_size=100, offset=0, limit=5)
+
+        assert "content" in result
+        assert result["content"].count("\n") == 5
+        assert result["limit"] == 5
+
+    @pytest.mark.asyncio
+    async def test_offset_and_limit(self, tmp_path: Path):
+        f = tmp_path / "lines.txt"
+        f.write_text("line0\nline1\nline2\nline3\nline4\n")
+
+        tool = FileReadTool(_make_policy("allow"))
+        result = await tool.execute(path=str(f), offset=2, limit=2)
+
+        assert result["content"] == "line2\nline3\n"
+        assert result["offset"] == 2
+        assert result["limit"] == 2
+
+    @pytest.mark.asyncio
+    async def test_offset_only(self, tmp_path: Path):
+        f = tmp_path / "lines.txt"
+        f.write_text("line0\nline1\nline2\n")
+
+        tool = FileReadTool(_make_policy("allow"))
+        result = await tool.execute(path=str(f), offset=1)
+
+        assert result["content"] == "line1\nline2\n"
+
+    @pytest.mark.asyncio
+    async def test_custom_max_size(self, tmp_path: Path):
+        f = tmp_path / "small.txt"
+        f.write_text("hello")
+
+        tool = FileReadTool(_make_policy("allow"))
+        result = await tool.execute(path=str(f), max_size=10)
+
+        assert result["content"] == "hello"
+
+    @pytest.mark.asyncio
+    async def test_file_size_in_result(self, tmp_path: Path):
+        f = tmp_path / "data.txt"
+        f.write_text("12345")
+
+        tool = FileReadTool(_make_policy("allow"))
+        result = await tool.execute(path=str(f))
+
+        assert result["file_size"] == 5
+        assert result["size"] == 5

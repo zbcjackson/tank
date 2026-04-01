@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from ..core.events import UpdateType
 from .approval import (
     ApprovalManager,
-    ApprovalPolicy,
+    ToolApprovalPolicy,
     ApprovalRequest,
     make_approval_id,
 )
@@ -44,7 +44,7 @@ class _ApprovalToolExecutor:
         self,
         tool_manager: ToolManager,
         approval_manager: ApprovalManager,
-        approval_policy: ApprovalPolicy,
+        approval_policy: ToolApprovalPolicy,
         session_id: str,
     ) -> None:
         self._tool_manager = tool_manager
@@ -93,7 +93,7 @@ class ChatAgent(Agent):
         system_prompt: str | None = None,
         tool_filter: list[str] | None = None,
         approval_manager: ApprovalManager | None = None,
-        approval_policy: ApprovalPolicy | None = None,
+        approval_policy: ToolApprovalPolicy | None = None,
         session_id: str = "",
     ) -> None:
         super().__init__(name)

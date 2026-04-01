@@ -47,7 +47,7 @@ HARDCODED_REQUIRE_APPROVAL: frozenset[str] = frozenset({
 })
 
 
-class ApprovalPolicy:
+class ToolApprovalPolicy:
     """Config-driven policy determining which tools require approval.
 
     Sandbox tools (``sandbox_exec``, ``sandbox_bash``) always require approval
@@ -208,3 +208,47 @@ class ApprovalManager:
         pending = self._pending.pop(approval_id, None)
         if pending and pending.timeout_handle:
             pending.timeout_handle.cancel()
+
+
+async def request_with_notification(
+    manager: ApprovalManager,
+    request: ApprovalRequest,
+    bus: Any = None,
+) -> ApprovalResult:
+    """Request approval and notify the UI via Bus.
+
+    Shared helper used by both tool-level approval (via ChatAgent) and
+    file-level approval (via ApprovalCallback in file tools).
+
+    Args:
+        manager: The ApprovalManager that tracks pending approvals.
+        request: The approval request to submit.
+        bus: Optional pipeline Bus for posting UI notifications.
+
+    Returns:
+        ApprovalResult with approved=True/False.
+    """
+    if bus is not None:
+        from ..core.events import DisplayMessage, UpdateType
+        from ..pipeline import BusMessage
+
+        bus.post(BusMessage(
+            type="ui_message",
+            source="Approval",
+            payload=DisplayMessage(
+                speaker="Brain",
+                text=request.description,
+                is_user=False,
+                msg_id=f"approval_{request.approval_id}",
+                is_final=False,
+                update_type=UpdateType.APPROVAL,
+                metadata={
+                    "approval_id": request.approval_id,
+                    "tool_name": request.tool_name,
+                    "tool_args": request.tool_args,
+                    "description": request.description,
+                },
+            ),
+        ))
+
+    return await manager.request_approval(request)

@@ -39,11 +39,10 @@ from ..pipeline.processors import (
 )
 from ..plugin import AppConfig
 from ..plugin.manager import PluginManager
-from ..policy import BackupManager, FileAccessPolicy
 from ..sandbox.config import SandboxConfig
 from ..sandbox.manager import SandboxManager
 from ..tools.manager import ToolManager
-from .events import BrainInputEvent, DisplayMessage, InputType, SignalMessage, UIMessage, UpdateType
+from .events import BrainInputEvent, DisplayMessage, InputType, SignalMessage, UIMessage
 from .runtime import RuntimeContext
 from .shutdown import GracefulShutdown
 
@@ -119,24 +118,14 @@ class Assistant:
         return registry
 
     def _init_tools_and_sandbox(self) -> None:
-        """Set up ToolManager, checkpointer, and optional sandbox."""
+        """Set up ToolManager, checkpointer, and optional sandbox.
+
+        File tools are registered later in ``_build_pipeline()`` after
+        ApprovalManager and Bus are available.
+        """
         tools_raw = self._app_config.get_section("tools")
         serper_key = tools_raw.get("serper_api_key") or None
         self._tool_manager = ToolManager(serper_api_key=serper_key)
-
-        # File access policy + backup.
-        # The approval callback is lazy — ApprovalManager is created later
-        # in _build_pipeline, so we capture `self` and resolve at call time.
-        file_access_raw = self._app_config.get_section("file_access", {})
-        file_access_policy = FileAccessPolicy.from_dict(file_access_raw)
-        backup_config = file_access_raw.get("backup", {})
-        backup_manager = BackupManager.from_dict(backup_config)
-        self._tool_manager.register_file_tools(
-            file_access_policy,
-            backup_manager,
-            approval_callback=self._file_approval_callback,
-        )
-        logger.info("File tools registered")
 
         self._checkpointer = self._create_checkpointer()
 
@@ -147,61 +136,6 @@ class Assistant:
             self._sandbox = SandboxManager(sandbox_config)
             self._tool_manager.register_sandbox_tools(self._sandbox)
             logger.info("Sandbox tools registered (container created lazily)")
-
-    async def _file_approval_callback(
-        self, tool_name: str, path: str, operation: str, reason: str,
-    ) -> bool:
-        """Path-specific approval callback for file tools.
-
-        Bridges the file access policy's ``require_approval`` decisions to the
-        existing ``ApprovalManager``.  Also posts a UI message so the frontend
-        (and voice approval) can display the approval dialog.
-        """
-        mgr = getattr(self, "_approval_manager", None)
-        if mgr is None:
-            logger.warning(
-                "File approval requested but no ApprovalManager — denying %s on %s",
-                operation, path,
-            )
-            return False
-
-        from ..agents.approval import ApprovalRequest, make_approval_id
-
-        approval_id = make_approval_id()
-        description = f"{operation} {path} ({reason})"
-        request = ApprovalRequest(
-            approval_id=approval_id,
-            tool_name=tool_name,
-            tool_args={"path": path, "operation": operation},
-            description=description,
-            session_id="file_access",
-        )
-
-        # Post approval UI message so the frontend shows the dialog
-        # and voice approval can intercept it.
-        bus = getattr(self, "_bus", None)
-        if bus is not None:
-            bus.post(BusMessage(
-                type="ui_message",
-                source="Assistant",
-                payload=DisplayMessage(
-                    speaker="Brain",
-                    text=description,
-                    is_user=False,
-                    msg_id=f"approval_{approval_id}",
-                    is_final=False,
-                    update_type=UpdateType.APPROVAL,
-                    metadata={
-                        "approval_id": approval_id,
-                        "tool_name": tool_name,
-                        "tool_args": {"path": path, "operation": operation},
-                        "description": description,
-                    },
-                ),
-            ))
-
-        result = await mgr.request_approval(request)
-        return result.approved
 
     def _init_memory(self) -> None:
         """Create optional MemoryService from config.yaml ``memory:`` section."""
@@ -269,6 +203,15 @@ class Assistant:
 
         llm_summarization = self._create_summarization_llm()
         agent_graph, self._approval_manager = self._build_agent_graph()
+
+        # Register file tools now that approval_manager and bus exist
+        file_access_raw = self._app_config.get_section("file_access", {})
+        self._tool_manager.register_file_tools(
+            config=file_access_raw,
+            approval_manager=self._approval_manager,
+            bus=self._bus,
+        )
+        logger.info("File tools registered")
 
         self.brain = Brain(
             llm=self._llm,
@@ -456,19 +399,19 @@ class Assistant:
         return AgentGraph(agents=agents, router=router), approval_manager
 
     def _build_approval_policy(self) -> tuple[object | None, object | None]:
-        """Build ApprovalPolicy and ApprovalManager from config.
+        """Build ToolApprovalPolicy and ApprovalManager from config.
 
         Always creates an ApprovalManager — file tools need it for
         path-specific approval via ApprovalCallback, even when the
         approval_policies config section is empty.
         """
-        from ..agents.approval import ApprovalManager, ApprovalPolicy
+        from ..agents.approval import ApprovalManager, ToolApprovalPolicy
 
         approval_raw = self._app_config.get_section("approval_policies")
         if not approval_raw:
             approval_raw = {}
 
-        policy = ApprovalPolicy(
+        policy = ToolApprovalPolicy(
             always_approve=set(approval_raw.get("always_approve", [])),
             require_approval=set(approval_raw.get("require_approval", [])),
             require_approval_first_time=set(

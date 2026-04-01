@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -279,3 +280,79 @@ def test_access_decision_frozen():
     assert d.reason == "test"
     with pytest.raises(AttributeError):
         d.level = "allow"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# Priority
+# ---------------------------------------------------------------------------
+
+def test_priority_overrides_specificity():
+    """Higher priority wins even if less specific."""
+    home = os.path.expanduser("~")
+    policy = FileAccessPolicy(
+        rules=(
+            FileAccessRule(paths=("~/.ssh/id_rsa",), read="allow", priority=0, reason="exact"),
+            FileAccessRule(paths=("~/.ssh/**",), read="deny", priority=100, reason="high-pri"),
+        ),
+    )
+    decision = policy.evaluate(f"{home}/.ssh/id_rsa", "read")
+    assert decision.level == "deny"
+    assert decision.reason == "high-pri"
+
+
+def test_specificity_wins_at_same_priority():
+    """Exact path beats glob at same priority."""
+    home = os.path.expanduser("~")
+    policy = FileAccessPolicy(
+        rules=(
+            FileAccessRule(paths=("~/.ssh/**",), read="deny", priority=0, reason="glob"),
+            FileAccessRule(paths=(f"{home}/.ssh/config",), read="allow", priority=0, reason="exact"),
+        ),
+    )
+    # Exact match wins
+    decision = policy.evaluate(f"{home}/.ssh/config", "read")
+    assert decision.level == "allow"
+    assert decision.reason == "exact"
+
+    # Non-exact still matches glob
+    decision = policy.evaluate(f"{home}/.ssh/id_rsa", "read")
+    assert decision.level == "deny"
+    assert decision.reason == "glob"
+
+
+def test_single_glob_more_specific_than_double_star():
+    """``/tmp/*.log`` is more specific than ``/tmp/**``."""
+    policy = FileAccessPolicy(
+        rules=(
+            FileAccessRule(paths=("/tmp/**",), read="allow", reason="broad"),
+            FileAccessRule(paths=("/tmp/*.log",), read="deny", reason="logs"),
+        ),
+    )
+    decision = policy.evaluate("/tmp/app.log", "read")
+    assert decision.level == "deny"
+    assert decision.reason == "logs"
+
+
+def test_priority_from_dict():
+    policy = FileAccessPolicy.from_dict({
+        "rules": [
+            {"paths": ["~/.ssh/**"], "read": "deny", "priority": 100, "reason": "SSH"},
+        ],
+    })
+    home = os.path.expanduser("~")
+    assert policy.evaluate(f"{home}/.ssh/id_rsa", "read").level == "deny"
+
+
+def test_conflict_warning(caplog):
+    """Two rules with same priority and specificity but different levels log a warning."""
+    policy = FileAccessPolicy(
+        rules=(
+            FileAccessRule(paths=("/tmp/**",), read="deny", priority=0, reason="rule-a"),
+            FileAccessRule(paths=("/tmp/**",), read="allow", priority=0, reason="rule-b"),
+        ),
+    )
+    with caplog.at_level(logging.WARNING):
+        decision = policy.evaluate("/tmp/file.txt", "read")
+    assert "Conflicting rules" in caplog.text
+    # First rule wins on tie
+    assert decision.level == "deny"
