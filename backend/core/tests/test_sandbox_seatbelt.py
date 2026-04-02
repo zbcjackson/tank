@@ -177,7 +177,7 @@ class TestSeatbeltSandboxExecCommand:
         mock_run.assert_called_once()
         call_args = mock_run.call_args
         cmd = call_args[0][0]
-        assert cmd[0] == "sandbox-exec"
+        assert cmd[0] == "/usr/bin/sandbox-exec"
         assert cmd[1] == "-p"
         assert cmd[3] == "bash"
         assert cmd[4] == "-c"

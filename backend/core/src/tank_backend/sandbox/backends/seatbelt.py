@@ -207,7 +207,7 @@ class SeatbeltSandbox:
     def _seatbelt_cmd(self, command: str) -> list[str]:
         """Build the sandbox-exec command list."""
         return [
-            "sandbox-exec",
+            "/usr/bin/sandbox-exec",
             "-p",
             self._profile,
             "bash",
