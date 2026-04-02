@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING, Any
 from ..core.events import UpdateType
 from .approval import (
     ApprovalManager,
-    ToolApprovalPolicy,
     ApprovalRequest,
+    ToolApprovalPolicy,
     make_approval_id,
 )
 from .base import Agent, AgentOutput, AgentOutputType, AgentState
@@ -196,10 +196,11 @@ class ChatAgent(Agent):
 
                     if output.type in (
                         AgentOutputType.TOOL_CALLING,
+                        AgentOutputType.TOOL_EXECUTING,
                         AgentOutputType.TOOL_RESULT,
                     ):
                         tool_call_count += 1
-                        if output.type == AgentOutputType.TOOL_CALLING:
+                        if output.type == AgentOutputType.TOOL_EXECUTING:
                             logger.info(
                                 "Agent[%s] tool call: %s(%s)",
                                 self.name,
