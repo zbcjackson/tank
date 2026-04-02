@@ -21,7 +21,9 @@ def _make_brain(
     tool_manager = MagicMock()
     bus = Bus()
 
-    with patch(f"{MODULE}.Brain._load_system_prompt", return_value="You are a helpful assistant."):
+    # Mock system prompt to match what tests expect
+    mock_prompt = "You are a helpful assistant."
+    with patch(f"{MODULE}.Brain._load_system_prompt", return_value=mock_prompt):
         brain = Brain(
             llm=llm,
             tool_manager=tool_manager,
@@ -73,7 +75,7 @@ class TestMaybeCompact:
 
         # System prompt should still be first
         assert brain._conversation_history[0]["role"] == "system"
-        assert brain._conversation_history[0]["content"] == "You are a helpful assistant."
+        assert "You are a helpful assistant." in brain._conversation_history[0]["content"]
 
         # Summary message should be second
         assert brain._conversation_history[1]["role"] == "system"
@@ -141,7 +143,8 @@ class TestMaybeCompact:
 
     async def test_few_messages_falls_back_to_truncation(self):
         """With <=5 non-system messages over budget, should truncate directly."""
-        brain = _make_brain(max_history_tokens=10)  # Very low threshold
+        # Increased from 10 to account for system prompt
+        brain = _make_brain(max_history_tokens=200)
 
         for i in range(5):
             brain._add_to_conversation_history("user", f"Message {i}")
@@ -152,7 +155,7 @@ class TestMaybeCompact:
         brain._llm.chat_completion_async.assert_not_called()
         # But should have truncated to fit budget
         total_tokens = brain._count_tokens(brain._conversation_history)
-        assert total_tokens <= 10
+        assert total_tokens <= 200
 
 
 class TestSummarizationLLMProfile:

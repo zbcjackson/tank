@@ -26,7 +26,7 @@ def tool(mock_sandbox):
 class TestSandboxBashTool:
     def test_get_info(self, tool):
         info = tool.get_info()
-        assert info.name == "sandbox_bash"
+        assert info.name == "persistent_shell"
         param_names = {p.name for p in info.parameters}
         assert "command" in param_names
         assert "session" in param_names

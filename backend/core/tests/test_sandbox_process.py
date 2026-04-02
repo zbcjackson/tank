@@ -26,7 +26,7 @@ def tool(mock_sandbox):
 class TestSandboxProcessTool:
     def test_get_info(self, tool):
         info = tool.get_info()
-        assert info.name == "sandbox_process"
+        assert info.name == "manage_process"
         param_names = {p.name for p in info.parameters}
         assert "action" in param_names
         assert "process_id" in param_names

@@ -16,10 +16,10 @@ from tank_backend.core.events import UpdateType
 
 
 def _make_tool_manager_mock() -> MagicMock:
-    """Build a mock ToolManager with one tool: sandbox_exec."""
+    """Build a mock ToolManager with one tool: run_command."""
     tm = MagicMock()
     tm.get_openai_tools.return_value = [
-        {"type": "function", "function": {"name": "sandbox_exec", "parameters": {}}},
+        {"type": "function", "function": {"name": "run_command", "parameters": {}}},
         {"type": "function", "function": {"name": "calculate", "parameters": {}}},
     ]
     tm.execute_openai_tool_call = AsyncMock(return_value={"result": "42"})
@@ -72,7 +72,7 @@ class TestChatAgentWithoutApproval:
 
     async def test_no_approval_passes_tools_directly(self):
         llm = MagicMock()
-        llm.chat_stream = MagicMock(return_value=_llm_stream_with_tool("sandbox_exec"))
+        llm.chat_stream = MagicMock(return_value=_llm_stream_with_tool("run_command"))
         tm = _make_tool_manager_mock()
 
         agent = ChatAgent(name="test", llm=llm, tool_manager=tm)
@@ -95,11 +95,11 @@ class TestChatAgentApprovalFlow:
 
     async def test_approval_needed_yielded_for_requiring_tool(self):
         """When a tool requires approval, APPROVAL_NEEDED is yielded instead of TOOL_EXECUTING."""
-        policy = ToolApprovalPolicy(require_approval={"sandbox_exec"})
+        policy = ToolApprovalPolicy(require_approval={"run_command"})
         manager = ApprovalManager(timeout=5.0)
 
         llm = MagicMock()
-        llm.chat_stream = MagicMock(return_value=_llm_stream_with_tool("sandbox_exec"))
+        llm.chat_stream = MagicMock(return_value=_llm_stream_with_tool("run_command"))
         tm = _make_tool_manager_mock()
 
         agent = ChatAgent(
@@ -131,11 +131,11 @@ class TestChatAgentApprovalFlow:
 
     async def test_rejection_returns_error_in_tool_result(self):
         """When user rejects, the tool result should contain a rejection message."""
-        policy = ToolApprovalPolicy(require_approval={"sandbox_exec"})
+        policy = ToolApprovalPolicy(require_approval={"run_command"})
         manager = ApprovalManager(timeout=5.0)
 
         llm = MagicMock()
-        llm.chat_stream = MagicMock(return_value=_llm_stream_with_tool("sandbox_exec"))
+        llm.chat_stream = MagicMock(return_value=_llm_stream_with_tool("run_command"))
         tm = _make_tool_manager_mock()
 
         agent = ChatAgent(
@@ -167,7 +167,7 @@ class TestChatAgentApprovalFlow:
         """Tools in always_approve should execute without APPROVAL_NEEDED."""
         policy = ToolApprovalPolicy(
             always_approve={"calculate"},
-            require_approval={"sandbox_exec"},
+            require_approval={"run_command"},
         )
         manager = ApprovalManager(timeout=5.0)
 
@@ -285,15 +285,20 @@ class TestHelpers:
         result = _parse_tool_args(d)
         assert result is d
 
-    def test_build_description_sandbox_exec(self):
-        desc = _build_tool_description("sandbox_exec", {"code": "print('hello')"})
-        assert "Run Python code" in desc
-        assert "print('hello')" in desc
+    def test_build_description_run_command(self):
+        desc = _build_tool_description("run_command", {"command": "python script.py"})
+        assert "Run command" in desc
+        assert "python script.py" in desc
 
-    def test_build_description_sandbox_bash(self):
-        desc = _build_tool_description("sandbox_bash", {"command": "ls -la"})
-        assert "Run bash command" in desc
+    def test_build_description_persistent_shell(self):
+        desc = _build_tool_description("persistent_shell", {"command": "ls -la"})
+        assert "Run in shell" in desc
         assert "ls -la" in desc
+
+    def test_build_description_manage_process(self):
+        desc = _build_tool_description("manage_process", {"action": "poll", "process_id": "abc123"})
+        assert "Process poll" in desc
+        assert "abc123" in desc
 
     def test_build_description_generic(self):
         desc = _build_tool_description("my_tool", {"arg": "val"})
@@ -301,6 +306,6 @@ class TestHelpers:
 
     def test_build_description_truncation(self):
         long_code = "x" * 200
-        desc = _build_tool_description("sandbox_exec", {"code": long_code})
+        desc = _build_tool_description("run_command", {"command": long_code})
         assert "..." in desc
         assert len(desc) < 200

@@ -85,8 +85,9 @@ class Brain(Processor):
         self._echo_config = echo_guard_config or EchoGuardConfig()
         self._echo_detector = SelfEchoDetector(self._echo_config)
 
-        # Load system prompt from file
+        # Load system prompt from file and append platform context
         self._system_prompt = self._load_system_prompt()
+        self._system_prompt += "\n\n" + self._build_platform_context()
 
         # Initialize conversation history with system prompt as first message
         self._conversation_history: list[ChatCompletionMessageParam] = [
@@ -104,11 +105,34 @@ class Brain(Processor):
             with open(prompt_path, encoding="utf-8") as f:
                 return f.read().strip()
         except FileNotFoundError:
-            logger.error(f"System prompt file not found at {prompt_path}")
+            logger.error("System prompt file not found at %s", prompt_path)
             raise
         except Exception as e:
-            logger.error(f"Error loading system prompt: {e}")
+            logger.error("Error loading system prompt: %s", e)
             raise
+
+    @staticmethod
+    def _build_platform_context() -> str:
+        """Build a platform context block so the LLM knows the user's environment."""
+        import os
+        import platform
+
+        home = str(Path.home())
+        system = platform.system()
+        os_label = {
+            "Darwin": "macOS",
+            "Linux": "Linux",
+            "Windows": "Windows",
+        }.get(system, system)
+
+        lines = [
+            "ENVIRONMENT:",
+            f"- Operating system: {os_label}",
+            f"- Home directory: {home}",
+            f"- Current user: {os.getenv('USER') or os.getenv('USERNAME', 'unknown')}",
+        ]
+
+        return "\n".join(lines)
 
     @property
     def _summarization_llm(self) -> "LLM":

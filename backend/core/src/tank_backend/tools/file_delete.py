@@ -31,10 +31,10 @@ class FileDeleteTool(BaseTool):
         return ToolInfo(
             name="file_delete",
             description=(
-                "Delete a file on the host filesystem. "
+                "Delete a file. "
                 "Automatically backs up the file before deleting. "
-                "Use this tool (not sandbox_exec) for deleting files — "
-                "it enforces access policy and creates backups."
+                "Use this for deleting files — it enforces access policy "
+                "and creates backups."
             ),
             parameters=[
                 ToolParameter(
@@ -58,8 +58,9 @@ class FileDeleteTool(BaseTool):
                 "denied": True,
                 "message": f"Cannot delete {path}: {decision.reason}",
             }
-        if decision.level == "require_approval":
-            if not await self._request_approval(path, "delete", decision.reason):
+        if decision.level == "require_approval" and not await self._request_approval(
+            path, "delete", decision.reason
+        ):
                 return {
                     "error": f"Approval denied: {path} ({decision.reason})",
                     "denied": True,

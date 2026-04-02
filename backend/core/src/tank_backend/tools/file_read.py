@@ -33,9 +33,9 @@ class FileReadTool(BaseTool):
         return ToolInfo(
             name="file_read",
             description=(
-                "Read the contents of a text file on the host filesystem. "
-                "Use this tool (not sandbox_exec) for reading files — "
-                "it enforces access policy and protects sensitive paths. "
+                "Read the contents of a text file. "
+                "Use this for reading files — it enforces access policy "
+                "and protects sensitive paths. "
                 "Binary files are detected and rejected. "
                 "Large files can be read in portions using offset and limit."
             ),
@@ -94,8 +94,9 @@ class FileReadTool(BaseTool):
                 "denied": True,
                 "message": f"Cannot read {path}: {decision.reason}",
             }
-        if decision.level == "require_approval":
-            if not await self._request_approval(path, "read", decision.reason):
+        if decision.level == "require_approval" and not await self._request_approval(
+            path, "read", decision.reason
+        ):
                 return {
                     "error": f"Approval denied: {path} ({decision.reason})",
                     "denied": True,

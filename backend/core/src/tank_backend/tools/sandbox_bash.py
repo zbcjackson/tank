@@ -30,16 +30,13 @@ class SandboxBashTool(BaseTool):
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
-            name="sandbox_bash",
+            name="persistent_shell",
             description=(
-                "Run commands in a persistent bash session inside the sandbox "
-                "(Docker backend only). "
+                "Run commands in a persistent bash session. "
                 "Working directory and environment variables persist across calls. "
                 "Sessions are created implicitly on first use. "
                 "For command-and-response mode, provide 'command'. "
-                "For interactive programs, use action='create'/'write'/'read'. "
-                "On non-Docker backends, use sandbox_exec instead and chain "
-                "commands with && in a single call."
+                "For interactive programs, use action='create'/'write'/'read'."
             ),
             parameters=[
                 ToolParameter(

@@ -22,9 +22,9 @@ class SandboxProcessTool(BaseTool):
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
-            name="sandbox_process",
+            name="manage_process",
             description=(
-                "Manage sandbox background processes started with sandbox_exec(background=true). "
+                "Manage background processes started with run_command(background=true). "
                 "Actions: "
                 "'list' (all background processes), "
                 "'poll' (recent output since last poll), "

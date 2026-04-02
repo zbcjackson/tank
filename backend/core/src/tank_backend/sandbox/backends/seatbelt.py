@@ -35,49 +35,50 @@ def _quote(path: str) -> str:
 def _build_seatbelt_profile(policy: BackendPolicy) -> str:
     """Generate a Scheme-syntax Seatbelt profile from *policy*.
 
-    The profile starts with ``(version 1)`` and ``(deny default)`` so
-    everything is blocked unless explicitly allowed.
+    Strategy: allow-read-default, deny sensitive paths.
+
+    Modern macOS bash/coreutils need access to dyld shared cache, system
+    frameworks, and other paths that are impractical to enumerate.  Instead
+    of deny-default + allow-specific, we allow all reads by default and
+    explicitly deny sensitive paths (``~/.ssh``, ``~/.gnupg``, etc.).
+
+    Writes are still deny-default — only explicitly listed writable paths
+    are allowed.
     """
     lines: list[str] = [
         "(version 1)",
         "(deny default)",
         "",
-        ";; --- baseline: allow process execution and minimal I/O ---",
+        ";; --- baseline: allow process execution and IPC ---",
         "(allow process-exec)",
         "(allow process-fork)",
         "(allow sysctl-read)",
         "(allow mach-lookup)",
+        "(allow mach-register)",
         "(allow signal (target self))",
         "",
-        ";; --- filesystem ---",
+        ";; --- filesystem: allow-read-default, deny-write-default ---",
+        "(allow file-read*)",
     ]
 
-    # Denied paths first (deny takes priority in profile order)
-    for p in policy.denied_paths:
-        lines.append(f'(deny file-read* (subpath "{_quote(p)}"))')
-        lines.append(f'(deny file-write* (subpath "{_quote(p)}"))')
+    # Denied paths — block both read and write
+    if policy.denied_paths:
+        lines.append("")
+        lines.append(";; --- denied paths (sensitive) ---")
+        for p in policy.denied_paths:
+            lines.append(f'(deny file-read* (subpath "{_quote(p)}"))')
+            lines.append(f'(deny file-write* (subpath "{_quote(p)}"))')
 
-    # Read-only paths
-    for p in policy.read_only_paths:
-        lines.append(f'(allow file-read* (subpath "{_quote(p)}"))')
+    # Writable paths — explicitly allowed
+    if policy.writable_paths:
+        lines.append("")
+        lines.append(";; --- writable paths ---")
+        for p in policy.writable_paths:
+            lines.append(f'(allow file-write* (subpath "{_quote(p)}"))')
 
-    # Writable paths (implies read)
-    for p in policy.writable_paths:
-        lines.append(f'(allow file-read* (subpath "{_quote(p)}"))')
-        lines.append(f'(allow file-write* (subpath "{_quote(p)}"))')
-
-    # Always allow reading system essentials so bash/coreutils work
+    # Always allow writing to /dev/null and /dev/tty
     lines.append("")
-    lines.append(";; --- system essentials ---")
-    lines.append('(allow file-read* (subpath "/usr/lib"))')
-    lines.append('(allow file-read* (subpath "/usr/bin"))')
-    lines.append('(allow file-read* (subpath "/bin"))')
-    lines.append('(allow file-read* (subpath "/usr/share"))')
-    lines.append('(allow file-read* (subpath "/dev"))')
-    lines.append('(allow file-read* (subpath "/private/var/db"))')
-    lines.append('(allow file-read* (literal "/private/etc/shells"))')
-    lines.append('(allow file-read* (literal "/dev/null"))')
-    lines.append('(allow file-read* (literal "/dev/urandom"))')
+    lines.append(";; --- device writes ---")
     lines.append('(allow file-write* (literal "/dev/null"))')
     lines.append('(allow file-write* (literal "/dev/tty"))')
 
@@ -87,8 +88,6 @@ def _build_seatbelt_profile(policy: BackendPolicy) -> str:
     if policy.network == NetworkMode.NONE:
         lines.append("(deny network*)")
     elif policy.network in (NetworkMode.ALLOW_ALL, NetworkMode.RESTRICTED):
-        # Seatbelt cannot filter by hostname — allow all outbound.
-        # For RESTRICTED mode the allowed_hosts list is advisory only.
         lines.append("(allow network*)")
         if policy.network == NetworkMode.RESTRICTED and policy.allowed_hosts:
             lines.append(

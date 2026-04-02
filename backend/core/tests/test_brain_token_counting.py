@@ -28,7 +28,9 @@ def _make_brain(max_history_tokens: int = 8000) -> Brain:
     tool_manager = MagicMock()
     bus = Bus()
 
-    with patch(f"{MODULE}.Brain._load_system_prompt", return_value="You are a helpful assistant."):
+    # Mock system prompt to match what tests expect
+    mock_prompt = "You are a helpful assistant."
+    with patch(f"{MODULE}.Brain._load_system_prompt", return_value=mock_prompt):
         brain = Brain(
             llm=llm,
             tool_manager=tool_manager,
@@ -94,7 +96,7 @@ class TestTruncateHistory:
         brain._truncate_history(100)
         # System prompt should always be first
         assert brain._conversation_history[0]["role"] == "system"
-        assert brain._conversation_history[0]["content"] == "You are a helpful assistant."
+        assert "You are a helpful assistant." in brain._conversation_history[0]["content"]
 
     def test_recent_messages_preserved(self):
         brain = _make_brain(max_history_tokens=200)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from .base import BaseTool, ToolInfo, ToolParameter
@@ -18,19 +19,20 @@ class SandboxExecTool(BaseTool):
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
-            name="sandbox_exec",
+            name="run_command",
             description=(
-                "Execute a shell command inside a sandboxed environment. "
-                "The command runs to completion and returns stdout, stderr, and exit code. "
+                "Run a shell command on the user's machine. "
+                "The command can access the user's home directory and files. "
+                "Returns stdout, stderr, and exit code. "
                 "Set background=true to start a long-running process and get a process ID "
-                "back immediately — then use sandbox_process to poll output or kill it. "
-                "Use for one-shot commands like ls, curl, python script.py, pip install, etc."
+                "back immediately — then use manage_process to poll output or kill it. "
+                "Use for commands like ls, cat, grep, python, pip install, git, etc."
             ),
             parameters=[
                 ToolParameter(
                     name="command",
                     type="string",
-                    description="Shell command to execute (e.g. 'ls -la', 'python script.py')",
+                    description="Shell command to execute (e.g. 'ls -la ~', 'python script.py')",
                     required=True,
                 ),
                 ToolParameter(
@@ -46,9 +48,11 @@ class SandboxExecTool(BaseTool):
                 ToolParameter(
                     name="working_dir",
                     type="string",
-                    description="Working directory for the command (default: /workspace)",
+                    description=(
+                        "Working directory for the command"
+                        " (default: user's home directory)"
+                    ),
                     required=False,
-                    default="/workspace",
                 ),
                 ToolParameter(
                     name="background",
@@ -66,11 +70,11 @@ class SandboxExecTool(BaseTool):
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         command: str = kwargs["command"]
         timeout: int = kwargs.get("timeout", 120)
-        working_dir: str = kwargs.get("working_dir", "/workspace")
+        working_dir: str = kwargs.get("working_dir") or str(Path.home())
         background: bool = kwargs.get("background", False)
 
         logger.info(
-            "sandbox_exec: %s (timeout=%ds, cwd=%s, bg=%s)",
+            "run_command: %s (timeout=%ds, cwd=%s, bg=%s)",
             command, timeout, working_dir, background,
         )
 
@@ -88,7 +92,7 @@ class SandboxExecTool(BaseTool):
                 data["process_id"] = result.stdout
                 data["message"] = (
                     f"Process started in background (id: {result.stdout}). "
-                    "Use sandbox_process to poll output or kill it."
+                    "Use manage_process to poll output or kill it."
                 )
             else:
                 parts = [

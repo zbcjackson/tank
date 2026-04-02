@@ -31,11 +31,11 @@ class FileWriteTool(BaseTool):
         return ToolInfo(
             name="file_write",
             description=(
-                "Write content to a file on the host filesystem. "
+                "Write content to a file. "
                 "Creates parent directories if needed. "
                 "Automatically backs up existing files before overwriting. "
-                "Use this tool (not sandbox_exec) for writing files — "
-                "it enforces access policy and creates backups."
+                "Use this for writing files — it enforces access policy "
+                "and creates backups."
             ),
             parameters=[
                 ToolParameter(
@@ -74,8 +74,9 @@ class FileWriteTool(BaseTool):
                 "denied": True,
                 "message": f"Cannot write {path}: {decision.reason}",
             }
-        if decision.level == "require_approval":
-            if not await self._request_approval(path, "write", decision.reason):
+        if decision.level == "require_approval" and not await self._request_approval(
+            path, "write", decision.reason
+        ):
                 return {
                     "error": f"Approval denied: {path} ({decision.reason})",
                     "denied": True,

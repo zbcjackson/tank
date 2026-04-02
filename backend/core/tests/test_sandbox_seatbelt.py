@@ -71,17 +71,17 @@ class TestBuildSeatbeltProfile:
         assert "(deny network*)" in profile  # default is NONE
 
     def test_read_only_paths(self):
+        """With allow-read-default, read_only_paths are not explicitly listed."""
         policy = BackendPolicy(read_only_paths=("/usr/local", "/opt"))
         profile = _build_seatbelt_profile(policy)
-        assert '(allow file-read* (subpath "/usr/local"))' in profile
-        assert '(allow file-read* (subpath "/opt"))' in profile
+        # All reads are allowed by default — no per-path read rules
+        assert "(allow file-read*)" in profile
         # Should not have write permission
         assert '(allow file-write* (subpath "/usr/local"))' not in profile
 
     def test_writable_paths(self):
         policy = BackendPolicy(writable_paths=("/tmp/workspace",))
         profile = _build_seatbelt_profile(policy)
-        assert '(allow file-read* (subpath "/tmp/workspace"))' in profile
         assert '(allow file-write* (subpath "/tmp/workspace"))' in profile
 
     def test_denied_paths(self):
@@ -111,15 +111,14 @@ class TestBuildSeatbeltProfile:
         assert "pypi.org" in profile
         assert "advisory" in profile
 
-    def test_system_essentials_always_included(self, default_policy):
+    def test_baseline_allows_all_reads(self, default_policy):
+        """Allow-read-default: profile has a blanket file-read allow."""
         profile = _build_seatbelt_profile(default_policy)
-        assert '(allow file-read* (subpath "/usr/lib"))' in profile
-        assert '(allow file-read* (subpath "/usr/bin"))' in profile
-        assert '(allow file-read* (subpath "/bin"))' in profile
-        assert '(allow file-read* (literal "/dev/null"))' in profile
+        assert "(allow file-read*)" in profile
+        assert '(allow file-write* (literal "/dev/null"))' in profile
 
     def test_path_with_special_chars(self):
-        policy = BackendPolicy(read_only_paths=('/path with "quotes"',))
+        policy = BackendPolicy(denied_paths=('/path with "quotes"',))
         profile = _build_seatbelt_profile(policy)
         assert 'path with \\"quotes\\"' in profile
 
@@ -409,9 +408,9 @@ class TestSeatbeltSandboxIntegration:
         sandbox = SeatbeltSandbox(custom_policy)
         profile = sandbox.profile
 
-        # Verify policy paths are in the generated profile
-        assert "/usr/local" in profile
-        assert "/opt" in profile
+        # read_only_paths are covered by blanket (allow file-read*) — not emitted
+        # Verify writable and denied paths are in the generated profile
+        assert "(allow file-read*)" in profile
         assert "/tmp/workspace" in profile
         assert "/etc/shadow" in profile
 

@@ -24,7 +24,7 @@ def tool(mock_sandbox):
 class TestSandboxExecTool:
     def test_get_info(self, tool):
         info = tool.get_info()
-        assert info.name == "sandbox_exec"
+        assert info.name == "run_command"
         param_names = {p.name for p in info.parameters}
         assert "command" in param_names
         assert "timeout" in param_names
@@ -38,10 +38,11 @@ class TestSandboxExecTool:
         result = await tool.execute(command="echo hello world")
         assert result["exit_code"] == 0
         assert "hello world" in result["message"]
-        mock_sandbox.exec_command.assert_awaited_once_with(
-            command="echo hello world", timeout=120, working_dir="/workspace",
-            background=False,
-        )
+        # working_dir default is now str(Path.home()), not "/workspace"
+        call_args = mock_sandbox.exec_command.call_args
+        assert call_args.kwargs["command"] == "echo hello world"
+        assert call_args.kwargs["timeout"] == 120
+        assert call_args.kwargs["background"] is False
 
     async def test_execute_with_stderr(self, tool, mock_sandbox):
         mock_sandbox.exec_command.return_value = ExecResult(
@@ -89,7 +90,8 @@ class TestSandboxExecTool:
         result = await tool.execute(command="./build.sh", background=True)
         assert result["process_id"] == "abc123def456"
         assert "background" in result["message"].lower()
-        mock_sandbox.exec_command.assert_awaited_once_with(
-            command="./build.sh", timeout=120, working_dir="/workspace",
-            background=True,
-        )
+        # working_dir default is now str(Path.home()), not "/workspace"
+        call_args = mock_sandbox.exec_command.call_args
+        assert call_args.kwargs["command"] == "./build.sh"
+        assert call_args.kwargs["timeout"] == 120
+        assert call_args.kwargs["background"] is True

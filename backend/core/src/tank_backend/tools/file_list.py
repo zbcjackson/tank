@@ -29,9 +29,9 @@ class FileListTool(BaseTool):
         return ToolInfo(
             name="file_list",
             description=(
-                "List the contents of a directory on the host filesystem. "
+                "List the contents of a directory. "
                 "Returns file names, types, and sizes. "
-                "Use this tool for browsing directories."
+                "Use this to browse directories and find files."
             ),
             parameters=[
                 ToolParameter(
@@ -63,8 +63,9 @@ class FileListTool(BaseTool):
                 "denied": True,
                 "message": f"Cannot list {path}: {decision.reason}",
             }
-        if decision.level == "require_approval":
-            if not await self._request_approval(path, "read", decision.reason):
+        if decision.level == "require_approval" and not await self._request_approval(
+            path, "read", decision.reason
+        ):
                 return {
                     "error": f"Approval denied: {path} ({decision.reason})",
                     "denied": True,
