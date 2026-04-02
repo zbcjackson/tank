@@ -60,24 +60,24 @@ asr:
 #     num_threads: 4
 #     sample_rate: 16000
 
+#tts:
+#  enabled: true
+#  extension: tts-cosyvoice:tts
+#  config:
+#    provider: dashscope
+#    dashscope_api_key: ${DASHSCOPE_API_KEY}
+#    dashscope_model: cosyvoice-v3.5-flash
+#    dashscope_voice_en: longanyang
+#    dashscope_voice_zh: cosyvoice-v3.5-flash-bailian-fc5eda1e8aea40ce8e6b336e35d40464
+#    dashscope_region: cn
+#    sample_rate: 22050
+
 tts:
   enabled: true
-  extension: tts-cosyvoice:tts
+  extension: tts-edge:tts
   config:
-    provider: dashscope
-    dashscope_api_key: ${DASHSCOPE_API_KEY}
-    dashscope_model: cosyvoice-v3.5-flash
-    dashscope_voice_en: longanyang
-    dashscope_voice_zh: cosyvoice-v3.5-flash-bailian-fc5eda1e8aea40ce8e6b336e35d40464
-    dashscope_region: cn
-    sample_rate: 22050
-
-# tts:
-#   enabled: true
-#   extension: tts-edge:tts
-#   config:
-#     voice_en: en-US-JennyNeural
-#     voice_zh: zh-CN-XiaoxiaoNeural
+    voice_en: en-US-JennyNeural
+    voice_zh: zh-CN-XiaoxiaoNeural
 
 speaker:
   enabled: true
