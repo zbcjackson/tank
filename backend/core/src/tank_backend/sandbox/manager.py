@@ -1,4 +1,4 @@
-"""Docker sandbox manager — container lifecycle, exec, and PTY sessions."""
+"""Docker sandbox backend — container lifecycle, exec, and PTY sessions."""
 
 from __future__ import annotations
 
@@ -32,10 +32,10 @@ def _raw_socket(sock: Any) -> Any:
     return sock._sock if hasattr(sock, "_sock") else sock
 
 
-class SandboxManager:
-    """Manages a single Docker container and its bash sessions.
+class DockerSandbox:
+    """Docker sandbox backend — manages a container and its bash sessions.
 
-    One SandboxManager per assistant session.  The container is created lazily
+    One DockerSandbox per assistant session. The container is created lazily
     on the first tool call and destroyed when ``cleanup`` is called.
     """
 

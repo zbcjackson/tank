@@ -3,17 +3,31 @@
 from __future__ import annotations
 
 import os
+import platform
 from dataclasses import dataclass, field
 from typing import Literal
 
-# Paths that are NEVER mountable — reading these files IS the security breach.
-# Not overridable by user config.
-DENIED_MOUNTS_HARDCODED: tuple[str, ...] = (
-    "~/.ssh",
-    "~/.gnupg",
-    "~/Library/Keychains",
-    "/var/run/docker.sock",
-)
+
+def _build_denied_mounts_hardcoded() -> tuple[str, ...]:
+    """Build platform-aware hardcoded denied paths.
+
+    These paths are NEVER mountable — reading them IS the security breach.
+    Not overridable by user config.
+    """
+    common = (
+        "~/.ssh",
+        "~/.gnupg",
+    )
+    system = platform.system()
+    if system == "Darwin":
+        return (*common, "~/Library/Keychains", "/var/run/docker.sock")
+    if system == "Linux":
+        return (*common, "/var/run/docker.sock")
+    # Windows or unknown — just the common ones
+    return common
+
+
+DENIED_MOUNTS_HARDCODED: tuple[str, ...] = _build_denied_mounts_hardcoded()
 
 
 @dataclass(frozen=True)
@@ -77,49 +91,10 @@ class SandboxPolicy:
 
     @staticmethod
     def from_dict(data: dict) -> SandboxPolicy:
-        """Create policy from a dict (e.g. parsed YAML section).
-
-        Supports two config formats:
-
-        **New format** (design doc):
-            mounts: [{host: "~", mode: ro}]
-            denied_mounts: ["~/.aws"]
-
-        **Legacy format** (current config.yaml):
-            workspace_host_path: ./workspace
-            network_enabled: true
-        """
+        """Create policy from a dict (e.g. parsed YAML ``sandbox:`` section)."""
         if not data:
             return SandboxPolicy(enabled=False)
 
-        # Detect legacy format by presence of legacy-only keys
-        if "image" in data or "workspace_host_path" in data or "network_enabled" in data:
-            return SandboxPolicy._from_legacy_dict(data)
-
-        return SandboxPolicy._from_new_dict(data)
-
-    @staticmethod
-    def _from_legacy_dict(data: dict) -> SandboxPolicy:
-        """Parse the old Docker-specific config format."""
-        network_enabled = data.get("network_enabled", True)
-        network = NetworkPolicy(mode="allow_all" if network_enabled else "none")
-
-        # Legacy format has no mounts — just a workspace path
-        return SandboxPolicy(
-            enabled=data.get("enabled", True),
-            backend="docker",
-            docker_image=data.get("image", "tank-sandbox:latest"),
-            docker_workspace=data.get("workspace_host_path", "./workspace"),
-            memory_limit=data.get("memory_limit", "1g"),
-            cpu_count=data.get("cpu_count", 2),
-            timeout=data.get("default_timeout", 120),
-            max_timeout=data.get("max_timeout", 600),
-            network=network,
-        )
-
-    @staticmethod
-    def _from_new_dict(data: dict) -> SandboxPolicy:
-        """Parse the new unified config format."""
         # Parse mounts
         mounts_raw = data.get("mounts", [])
         mounts = tuple(
@@ -153,9 +128,6 @@ class SandboxPolicy:
                 k: (tuple(v) if isinstance(v, list) else v)
                 for k, v in net_raw.items()
             })
-        elif data.get("network_enabled") is not None:
-            mode = "allow_all" if data["network_enabled"] else "none"
-            network = NetworkPolicy(mode=mode)
 
         # Docker-specific
         docker_raw = data.get("docker", {})
@@ -171,7 +143,7 @@ class SandboxPolicy:
             network=network,
             memory_limit=data.get("memory_limit", "1g"),
             cpu_count=data.get("cpu_count", 2),
-            timeout=data.get("timeout", data.get("default_timeout", 120)),
+            timeout=data.get("timeout", 120),
             max_timeout=data.get("max_timeout", 600),
             docker_image=docker_raw.get("image", "tank-sandbox:latest"),
             docker_workspace=docker_raw.get(

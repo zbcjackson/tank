@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from ..sandbox.manager import SandboxManager
+from ..sandbox.manager import DockerSandbox
 from .base import BaseTool, ToolInfo, ToolParameter
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ class SandboxBashTool(BaseTool):
       like top, vim, or long-running servers.
     """
 
-    def __init__(self, sandbox: SandboxManager) -> None:
+    def __init__(self, sandbox: DockerSandbox) -> None:
         self._sandbox = sandbox
 
     def get_info(self) -> ToolInfo:

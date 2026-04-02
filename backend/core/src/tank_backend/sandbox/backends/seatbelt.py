@@ -1,7 +1,7 @@
 """Seatbelt (macOS) sandbox backend.
 
 Uses macOS sandbox-exec to run commands in a restricted environment.
-Seatbelt profiles are generated dynamically from SandboxPolicy using
+Seatbelt profiles are generated dynamically from BackendPolicy using
 Apple's Scheme-based sandbox profile language (SBPL).
 
 Limitations:
@@ -17,49 +17,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import subprocess
-from dataclasses import dataclass
-from enum import Enum
 
 from ..types import BashResult, ExecResult, ProcessOutput, SandboxCapabilities
+from .shared import BackendPolicy, NetworkMode
 
 logger = logging.getLogger(__name__)
-
-
-# ── Policy types ──────────────────────────────────────────────────
-
-
-class NetworkMode(str, Enum):
-    """Network access level for the sandbox."""
-
-    NONE = "none"
-    ALLOW_ALL = "allow_all"
-    RESTRICTED = "restricted"
-
-
-@dataclass(frozen=True)
-class SandboxPolicy:
-    """Declarative policy that drives sandbox profile generation.
-
-    Attributes:
-        read_only_paths: Paths the sandboxed process may read.
-        writable_paths:  Paths the sandboxed process may read *and* write.
-        denied_paths:    Paths explicitly denied (overrides read/write).
-        network:         Network access mode.
-        allowed_hosts:   Hostnames to allow when network is RESTRICTED.
-                         (Documented-only on Seatbelt — cannot be enforced.)
-        default_timeout: Seconds before a command is killed.
-        max_timeout:     Hard upper bound for any requested timeout.
-        working_dir:     Default working directory for commands.
-    """
-
-    read_only_paths: tuple[str, ...] = ()
-    writable_paths: tuple[str, ...] = ()
-    denied_paths: tuple[str, ...] = ()
-    network: NetworkMode = NetworkMode.NONE
-    allowed_hosts: tuple[str, ...] = ()
-    default_timeout: int = 120
-    max_timeout: int = 600
-    working_dir: str = "/tmp"
 
 
 # ── Profile generation ────────────────────────────────────────────
@@ -70,7 +32,7 @@ def _quote(path: str) -> str:
     return path.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _build_seatbelt_profile(policy: SandboxPolicy) -> str:
+def _build_seatbelt_profile(policy: BackendPolicy) -> str:
     """Generate a Scheme-syntax Seatbelt profile from *policy*.
 
     The profile starts with ``(version 1)`` and ``(deny default)`` so
@@ -148,8 +110,8 @@ class SeatbeltSandbox:
     container or session.
     """
 
-    def __init__(self, policy: SandboxPolicy | None = None) -> None:
-        self._policy = policy or SandboxPolicy()
+    def __init__(self, policy: BackendPolicy | None = None) -> None:
+        self._policy = policy or BackendPolicy()
         self._profile = _build_seatbelt_profile(self._policy)
 
         from .process_tracker import ProcessTracker
@@ -305,7 +267,10 @@ class SeatbeltSandbox:
         except FileNotFoundError:
             return ExecResult(
                 stdout="",
-                stderr="sandbox-exec not found — is this macOS?",
+                stderr=(
+                    "sandbox-exec not found. "
+                    "Expected at /usr/bin/sandbox-exec on macOS."
+                ),
                 exit_code=127,
                 timed_out=False,
             )

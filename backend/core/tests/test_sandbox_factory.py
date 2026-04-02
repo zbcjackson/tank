@@ -159,9 +159,9 @@ class TestCreate:
         with patch.dict("sys.modules", {"docker": mock_docker}):
             policy = SandboxPolicy(backend="docker")
             sandbox = SandboxFactory.create(policy)
-            from tank_backend.sandbox.manager import SandboxManager
+            from tank_backend.sandbox.manager import DockerSandbox
 
-            assert isinstance(sandbox, SandboxManager)
+            assert isinstance(sandbox, DockerSandbox)
 
     def test_policy_values_propagated_to_docker(self):
         mock_docker = MagicMock()
@@ -363,48 +363,6 @@ class TestSandboxPolicyNewFormat:
 
     def test_enabled_false(self):
         data = {"enabled": False}
-        policy = SandboxPolicy.from_dict(data)
-        assert policy.enabled is False
-
-
-class TestSandboxPolicyLegacyFormat:
-    """Tests for backward compatibility with the old Docker-specific format."""
-
-    def test_legacy_format_detected(self):
-        data = {
-            "enabled": True,
-            "image": "tank-sandbox:latest",
-            "workspace_host_path": "./workspace",
-            "memory_limit": "1g",
-            "cpu_count": 2,
-            "default_timeout": 120,
-            "max_timeout": 600,
-            "network_enabled": True,
-        }
-        policy = SandboxPolicy.from_dict(data)
-        assert policy.enabled is True
-        assert policy.backend == "docker"
-        assert policy.docker_image == "tank-sandbox:latest"
-        assert policy.docker_workspace == "./workspace"
-        assert policy.memory_limit == "1g"
-        assert policy.cpu_count == 2
-        assert policy.timeout == 120
-        assert policy.max_timeout == 600
-        assert policy.network.mode == "allow_all"
-
-    def test_legacy_network_disabled(self):
-        data = {
-            "image": "tank-sandbox:latest",
-            "network_enabled": False,
-        }
-        policy = SandboxPolicy.from_dict(data)
-        assert policy.network.mode == "none"
-
-    def test_legacy_disabled(self):
-        data = {
-            "enabled": False,
-            "image": "tank-sandbox:latest",
-        }
         policy = SandboxPolicy.from_dict(data)
         assert policy.enabled is False
 

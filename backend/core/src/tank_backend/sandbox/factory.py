@@ -124,7 +124,7 @@ class SandboxFactory:
         the agent sees the same paths the user talks about.
         """
         from .config import SandboxConfig
-        from .manager import SandboxManager
+        from .manager import DockerSandbox
 
         # Build same-path volume mounts from policy.mounts
         volumes: dict[str, dict[str, str]] = {}
@@ -154,7 +154,7 @@ class SandboxFactory:
             max_timeout=policy.max_timeout,
             network_enabled=(policy.network.mode != "none"),
         )
-        manager = SandboxManager(config, volumes=volumes)
+        manager = DockerSandbox(config, volumes=volumes)
         return manager
 
     @staticmethod
@@ -164,34 +164,19 @@ class SandboxFactory:
 
     @classmethod
     def _to_backend_policy(cls, policy: SandboxPolicy, backend: str) -> object:
-        """Translate shared SandboxPolicy to a backend-local SandboxPolicy.
+        """Translate shared SandboxPolicy to a backend-local BackendPolicy.
 
-        Each backend defines its own SandboxPolicy + NetworkMode types.
-        This method bridges the shared policy to the backend-specific one.
+        Both native backends (Seatbelt, Bubblewrap) share the same
+        ``BackendPolicy`` dataclass from ``backends.shared``.
         """
-        if backend == "seatbelt":
-            from .backends.seatbelt import NetworkMode as SeatbeltNetworkMode
-            from .backends.seatbelt import SandboxPolicy as SeatbeltPolicy
+        from .backends.shared import BackendPolicy, NetworkMode
 
-            return SeatbeltPolicy(
+        if backend in ("seatbelt", "bubblewrap"):
+            return BackendPolicy(
                 read_only_paths=policy.read_only_paths,
                 writable_paths=policy.writable_paths,
                 denied_paths=policy.denied_paths,
-                network=SeatbeltNetworkMode(policy.network.mode),
-                allowed_hosts=policy.network.allowed_hosts,
-                default_timeout=policy.timeout,
-                max_timeout=policy.max_timeout,
-            )
-
-        if backend == "bubblewrap":
-            from .backends.bubblewrap import NetworkMode as BwrapNetworkMode
-            from .backends.bubblewrap import SandboxPolicy as BwrapPolicy
-
-            return BwrapPolicy(
-                read_only_paths=policy.read_only_paths,
-                writable_paths=policy.writable_paths,
-                denied_paths=policy.denied_paths,
-                network=BwrapNetworkMode(policy.network.mode),
+                network=NetworkMode(policy.network.mode),
                 allowed_hosts=policy.network.allowed_hosts,
                 default_timeout=policy.timeout,
                 max_timeout=policy.max_timeout,

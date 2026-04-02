@@ -20,55 +20,18 @@ from __future__ import annotations
 import asyncio
 import logging
 import subprocess
-from dataclasses import dataclass
-from enum import Enum
 
 from ..types import BashResult, ExecResult, ProcessOutput, SandboxCapabilities
+from .shared import BackendPolicy, NetworkMode
 
 logger = logging.getLogger(__name__)
-
-
-# ── Policy types ──────────────────────────────────────────────────
-
-
-class NetworkMode(str, Enum):
-    """Network access level for the sandbox."""
-
-    NONE = "none"
-    ALLOW_ALL = "allow_all"
-    RESTRICTED = "restricted"
-
-
-@dataclass(frozen=True)
-class SandboxPolicy:
-    """Declarative policy for Bubblewrap sandbox.
-
-    Attributes:
-        read_only_paths: Paths the sandboxed process may read.
-        writable_paths:  Paths the sandboxed process may read and write.
-        denied_paths:    Paths explicitly denied (not mounted).
-        network:         Network access mode.
-        allowed_hosts:   Hostnames to allow when network is RESTRICTED.
-        default_timeout: Seconds before a command is killed.
-        max_timeout:     Hard upper bound for any requested timeout.
-        working_dir:     Default working directory for commands.
-    """
-
-    read_only_paths: tuple[str, ...] = ()
-    writable_paths: tuple[str, ...] = ()
-    denied_paths: tuple[str, ...] = ()
-    network: NetworkMode = NetworkMode.NONE
-    allowed_hosts: tuple[str, ...] = ()
-    default_timeout: int = 120
-    max_timeout: int = 600
-    working_dir: str = "/tmp"
 
 
 # ── Bubblewrap command builder ────────────────────────────────────
 
 
 def _build_bwrap_args(
-    policy: SandboxPolicy,
+    policy: BackendPolicy,
     command: str,
     working_dir: str,
 ) -> list[str]:
@@ -140,8 +103,8 @@ class BubblewrapSandbox:
     isolated ``bwrap`` invocation — there is no persistent container or session.
     """
 
-    def __init__(self, policy: SandboxPolicy | None = None) -> None:
-        self._policy = policy or SandboxPolicy()
+    def __init__(self, policy: BackendPolicy | None = None) -> None:
+        self._policy = policy or BackendPolicy()
 
         from .process_tracker import ProcessTracker
 

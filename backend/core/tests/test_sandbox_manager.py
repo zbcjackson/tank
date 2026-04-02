@@ -1,11 +1,11 @@
-"""Tests for SandboxManager with mocked docker-py."""
+"""Tests for DockerSandbox with mocked docker-py."""
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from tank_backend.sandbox.config import SandboxConfig
-from tank_backend.sandbox.manager import SandboxManager, _strip_command_echo
+from tank_backend.sandbox.manager import DockerSandbox, _strip_command_echo
 from tank_backend.sandbox.types import SessionInfo, SessionStatus
 
 MODULE = "tank_backend.sandbox.manager"
@@ -37,9 +37,9 @@ def mock_docker_client():
 
 @pytest.fixture
 def manager(config, mock_docker_client):
-    """Create a SandboxManager with pre-set mocked Docker internals."""
+    """Create a DockerSandbox with pre-set mocked Docker internals."""
     client, container = mock_docker_client
-    mgr = SandboxManager(config)
+    mgr = DockerSandbox(config)
     # Directly inject mocked internals — no patching needed
     mgr._client = client
     mgr._container = container
@@ -104,9 +104,9 @@ class TestSessionInfo:
         assert d["output_lines"] == 0
 
 
-class TestSandboxManagerContainerLifecycle:
+class TestDockerSandboxContainerLifecycle:
     async def test_ensure_container_creates_once(self, config):
-        mgr = SandboxManager(config)
+        mgr = DockerSandbox(config)
         mock_client = MagicMock()
         mock_container = MagicMock()
         mock_container.short_id = "xyz"
@@ -135,7 +135,7 @@ class TestSandboxManagerContainerLifecycle:
         assert manager.is_running is False
 
 
-class TestSandboxManagerExec:
+class TestDockerSandboxExec:
     async def test_exec_command_success(self, manager):
         manager._container.exec_run.return_value = (0, (b"hello\n", b""))
 
@@ -179,7 +179,7 @@ class TestSandboxManagerExec:
 
     async def test_exec_ensures_container(self, config):
         """exec_command should create container if not exists."""
-        mgr = SandboxManager(config)
+        mgr = DockerSandbox(config)
         mock_client = MagicMock()
         mock_container = MagicMock()
         mock_container.short_id = "new"
@@ -195,7 +195,7 @@ class TestSandboxManagerExec:
             assert mock_client.containers.run.call_count == 1
 
 
-class TestSandboxManagerSessions:
+class TestDockerSandboxSessions:
     def test_list_sessions_empty(self, manager):
         assert manager.list_sessions() == []
 

@@ -7,10 +7,9 @@ from unittest.mock import MagicMock, patch
 
 from tank_backend.sandbox.backends.bubblewrap import (
     BubblewrapSandbox,
-    NetworkMode,
-    SandboxPolicy,
     _build_bwrap_args,
 )
+from tank_backend.sandbox.backends.shared import BackendPolicy, NetworkMode
 
 # ── Policy and argument generation tests ──────────────────────────
 
@@ -20,7 +19,7 @@ class TestBuildBwrapArgs:
 
     def test_minimal_policy(self):
         """Test with minimal policy (no paths, no network)."""
-        policy = SandboxPolicy()
+        policy = BackendPolicy()
         args = _build_bwrap_args(policy, "echo hello", "/tmp")
 
         assert args[0] == "bwrap"
@@ -34,7 +33,7 @@ class TestBuildBwrapArgs:
 
     def test_read_only_paths(self):
         """Test read-only path bindings."""
-        policy = SandboxPolicy(
+        policy = BackendPolicy(
             read_only_paths=("/usr", "/lib", "/bin"),
         )
         args = _build_bwrap_args(policy, "ls", "/tmp")
@@ -47,7 +46,7 @@ class TestBuildBwrapArgs:
 
     def test_writable_paths(self):
         """Test writable path bindings."""
-        policy = SandboxPolicy(
+        policy = BackendPolicy(
             writable_paths=("/tmp", "/workspace"),
         )
         args = _build_bwrap_args(policy, "touch file", "/tmp")
@@ -58,7 +57,7 @@ class TestBuildBwrapArgs:
 
     def test_denied_paths_excluded(self):
         """Test that denied paths are not mounted."""
-        policy = SandboxPolicy(
+        policy = BackendPolicy(
             read_only_paths=("/usr", "/etc"),
             denied_paths=("/etc",),
         )
@@ -76,7 +75,7 @@ class TestBuildBwrapArgs:
 
     def test_network_none(self):
         """Test network disabled mode."""
-        policy = SandboxPolicy(network=NetworkMode.NONE)
+        policy = BackendPolicy(network=NetworkMode.NONE)
         args = _build_bwrap_args(policy, "curl example.com", "/tmp")
 
         assert "--unshare-net" in args
@@ -84,7 +83,7 @@ class TestBuildBwrapArgs:
 
     def test_network_allow_all(self):
         """Test network enabled mode."""
-        policy = SandboxPolicy(network=NetworkMode.ALLOW_ALL)
+        policy = BackendPolicy(network=NetworkMode.ALLOW_ALL)
         args = _build_bwrap_args(policy, "curl example.com", "/tmp")
 
         assert "--share-net" in args
@@ -92,7 +91,7 @@ class TestBuildBwrapArgs:
 
     def test_network_restricted(self):
         """Test restricted network mode (currently unshares network)."""
-        policy = SandboxPolicy(
+        policy = BackendPolicy(
             network=NetworkMode.RESTRICTED,
             allowed_hosts=("example.com", "api.github.com"),
         )
@@ -103,7 +102,7 @@ class TestBuildBwrapArgs:
 
     def test_essential_devices_always_bound(self):
         """Test that essential device nodes are always bound."""
-        policy = SandboxPolicy()
+        policy = BackendPolicy()
         args = _build_bwrap_args(policy, "echo test", "/tmp")
 
         assert "--dev-bind" in args
@@ -114,7 +113,7 @@ class TestBuildBwrapArgs:
 
     def test_proc_filesystem_mounted(self):
         """Test that /proc is mounted."""
-        policy = SandboxPolicy()
+        policy = BackendPolicy()
         args = _build_bwrap_args(policy, "ps", "/tmp")
 
         assert "--proc" in args
@@ -122,7 +121,7 @@ class TestBuildBwrapArgs:
 
     def test_working_directory_set(self):
         """Test that working directory is set correctly."""
-        policy = SandboxPolicy()
+        policy = BackendPolicy()
         args = _build_bwrap_args(policy, "pwd", "/custom/path")
 
         assert "--chdir" in args
@@ -131,7 +130,7 @@ class TestBuildBwrapArgs:
 
     def test_command_passed_to_bash(self):
         """Test that command is passed to bash -c."""
-        policy = SandboxPolicy()
+        policy = BackendPolicy()
         command = "echo 'hello world' && ls -la"
         args = _build_bwrap_args(policy, command, "/tmp")
 
@@ -156,7 +155,7 @@ class TestBubblewrapSandbox:
 
     def test_init_custom_policy(self):
         """Test initialization with custom policy."""
-        policy = SandboxPolicy(
+        policy = BackendPolicy(
             read_only_paths=("/usr",),
             default_timeout=60,
         )
@@ -176,19 +175,19 @@ class TestBubblewrapSandbox:
 
     def test_effective_timeout_default(self):
         """Test timeout defaults to policy default."""
-        policy = SandboxPolicy(default_timeout=100)
+        policy = BackendPolicy(default_timeout=100)
         sandbox = BubblewrapSandbox(policy)
         assert sandbox._effective_timeout(None) == 100
 
     def test_effective_timeout_custom(self):
         """Test custom timeout is used when provided."""
-        policy = SandboxPolicy(default_timeout=100)
+        policy = BackendPolicy(default_timeout=100)
         sandbox = BubblewrapSandbox(policy)
         assert sandbox._effective_timeout(50) == 50
 
     def test_effective_timeout_clamped_to_max(self):
         """Test timeout is clamped to max_timeout."""
-        policy = SandboxPolicy(default_timeout=100, max_timeout=200)
+        policy = BackendPolicy(default_timeout=100, max_timeout=200)
         sandbox = BubblewrapSandbox(policy)
         assert sandbox._effective_timeout(300) == 200
 
@@ -305,7 +304,7 @@ class TestExecCommand:
 
     async def test_exec_command_uses_policy_working_dir(self):
         """Test that policy working_dir is used when not specified."""
-        policy = SandboxPolicy(working_dir="/workspace")
+        policy = BackendPolicy(working_dir="/workspace")
         sandbox = BubblewrapSandbox(policy)
 
         with patch(f"{MODULE}.subprocess.run") as mock_run:
@@ -441,7 +440,7 @@ class TestBubblewrapIntegration:
 
     async def test_full_command_flow(self):
         """Test complete command execution flow."""
-        policy = SandboxPolicy(
+        policy = BackendPolicy(
             read_only_paths=("/usr", "/lib"),
             writable_paths=("/tmp",),
             network=NetworkMode.ALLOW_ALL,

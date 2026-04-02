@@ -7,12 +7,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from tank_backend.sandbox.backends.seatbelt import (
-    NetworkMode,
-    SandboxPolicy,
     SeatbeltSandbox,
     _build_seatbelt_profile,
     _quote,
 )
+from tank_backend.sandbox.backends.shared import BackendPolicy, NetworkMode
 
 MODULE = "tank_backend.sandbox.backends.seatbelt"
 
@@ -22,12 +21,12 @@ MODULE = "tank_backend.sandbox.backends.seatbelt"
 
 @pytest.fixture
 def default_policy():
-    return SandboxPolicy()
+    return BackendPolicy()
 
 
 @pytest.fixture
 def custom_policy():
-    return SandboxPolicy(
+    return BackendPolicy(
         read_only_paths=("/usr/local", "/opt"),
         writable_paths=("/tmp/workspace",),
         denied_paths=("/etc/shadow",),
@@ -40,7 +39,7 @@ def custom_policy():
 
 @pytest.fixture
 def restricted_network_policy():
-    return SandboxPolicy(
+    return BackendPolicy(
         network=NetworkMode.RESTRICTED,
         allowed_hosts=("github.com", "pypi.org"),
     )
@@ -72,7 +71,7 @@ class TestBuildSeatbeltProfile:
         assert "(deny network*)" in profile  # default is NONE
 
     def test_read_only_paths(self):
-        policy = SandboxPolicy(read_only_paths=("/usr/local", "/opt"))
+        policy = BackendPolicy(read_only_paths=("/usr/local", "/opt"))
         profile = _build_seatbelt_profile(policy)
         assert '(allow file-read* (subpath "/usr/local"))' in profile
         assert '(allow file-read* (subpath "/opt"))' in profile
@@ -80,25 +79,25 @@ class TestBuildSeatbeltProfile:
         assert '(allow file-write* (subpath "/usr/local"))' not in profile
 
     def test_writable_paths(self):
-        policy = SandboxPolicy(writable_paths=("/tmp/workspace",))
+        policy = BackendPolicy(writable_paths=("/tmp/workspace",))
         profile = _build_seatbelt_profile(policy)
         assert '(allow file-read* (subpath "/tmp/workspace"))' in profile
         assert '(allow file-write* (subpath "/tmp/workspace"))' in profile
 
     def test_denied_paths(self):
-        policy = SandboxPolicy(denied_paths=("/etc/shadow", "/root"))
+        policy = BackendPolicy(denied_paths=("/etc/shadow", "/root"))
         profile = _build_seatbelt_profile(policy)
         assert '(deny file-read* (subpath "/etc/shadow"))' in profile
         assert '(deny file-write* (subpath "/etc/shadow"))' in profile
         assert '(deny file-read* (subpath "/root"))' in profile
 
     def test_network_none(self):
-        policy = SandboxPolicy(network=NetworkMode.NONE)
+        policy = BackendPolicy(network=NetworkMode.NONE)
         profile = _build_seatbelt_profile(policy)
         assert "(deny network*)" in profile
 
     def test_network_allow_all(self):
-        policy = SandboxPolicy(network=NetworkMode.ALLOW_ALL)
+        policy = BackendPolicy(network=NetworkMode.ALLOW_ALL)
         profile = _build_seatbelt_profile(policy)
         assert "(allow network*)" in profile
         assert "(deny network*)" not in profile
@@ -120,7 +119,7 @@ class TestBuildSeatbeltProfile:
         assert '(allow file-read* (literal "/dev/null"))' in profile
 
     def test_path_with_special_chars(self):
-        policy = SandboxPolicy(read_only_paths=('/path with "quotes"',))
+        policy = BackendPolicy(read_only_paths=('/path with "quotes"',))
         profile = _build_seatbelt_profile(policy)
         assert 'path with \\"quotes\\"' in profile
 
@@ -431,9 +430,9 @@ class TestSeatbeltSandboxIntegration:
         assert mock_run.call_count == 2
 
 
-class TestSandboxPolicy:
+class TestBackendPolicy:
     def test_default_values(self):
-        policy = SandboxPolicy()
+        policy = BackendPolicy()
         assert policy.read_only_paths == ()
         assert policy.writable_paths == ()
         assert policy.denied_paths == ()
@@ -444,7 +443,7 @@ class TestSandboxPolicy:
         assert policy.working_dir == "/tmp"
 
     def test_custom_values(self):
-        policy = SandboxPolicy(
+        policy = BackendPolicy(
             read_only_paths=("/usr",),
             writable_paths=("/tmp",),
             denied_paths=("/etc",),
@@ -464,7 +463,7 @@ class TestSandboxPolicy:
         assert policy.working_dir == "/workspace"
 
     def test_frozen_dataclass(self):
-        policy = SandboxPolicy()
+        policy = BackendPolicy()
         with pytest.raises(dataclasses.FrozenInstanceError):
             policy.network = NetworkMode.ALLOW_ALL
 

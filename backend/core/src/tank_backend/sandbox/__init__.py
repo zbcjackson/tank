@@ -10,7 +10,7 @@ Use SandboxFactory.create(policy) to get the best available backend.
 
 from .config import SandboxConfig
 from .factory import SandboxBackendUnavailable, SandboxFactory
-from .manager import SandboxManager
+from .manager import DockerSandbox
 from .policy import DENIED_MOUNTS_HARDCODED, MountSpec, NetworkPolicy, SandboxPolicy
 from .protocol import Sandbox
 from .types import BashResult, ExecResult, SandboxCapabilities, SessionInfo, SessionStatus
@@ -26,7 +26,7 @@ __all__ = [
     "SandboxCapabilities",
     "SandboxConfig",
     "SandboxFactory",
-    "SandboxManager",
+    "DockerSandbox",
     "SandboxPolicy",
     "SessionInfo",
     "SessionStatus",

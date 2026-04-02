@@ -35,25 +35,29 @@ class ToolManager:
         for tool in default_tools:
             self.register_tool(tool)
 
-    def register_sandbox_tools(self, sandbox_manager: Any) -> None:
+    def register_sandbox_tools(self, sandbox: Any) -> None:
         """Register sandbox tools with a Sandbox backend.
 
         ``sandbox_exec`` and ``sandbox_process`` are registered on all
         backends.  ``sandbox_bash`` is only registered when the backend
         supports persistent sessions (Docker).
+
+        Args:
+            sandbox: A Sandbox protocol implementation (DockerSandbox,
+                SeatbeltSandbox, or BubblewrapSandbox).
         """
         from .sandbox_exec import SandboxExecTool
         from .sandbox_process import SandboxProcessTool
 
-        self.register_tool(SandboxExecTool(sandbox_manager))
-        self.register_tool(SandboxProcessTool(sandbox_manager))
+        self.register_tool(SandboxExecTool(sandbox))
+        self.register_tool(SandboxProcessTool(sandbox))
 
         # sandbox_bash requires persistent sessions (Docker-only)
-        caps = getattr(sandbox_manager, "capabilities", None)
+        caps = getattr(sandbox, "capabilities", None)
         if caps is not None and caps.persistent_sessions:
             from .sandbox_bash import SandboxBashTool
 
-            self.register_tool(SandboxBashTool(sandbox_manager))
+            self.register_tool(SandboxBashTool(sandbox))
             logger.info("sandbox_bash registered (persistent sessions available)")
         else:
             logger.info("sandbox_bash skipped (backend has no persistent sessions)")
