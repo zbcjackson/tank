@@ -15,8 +15,15 @@ logger = logging.getLogger("ToolManager")
 
 
 class ToolManager:
-    def __init__(self, serper_api_key: str = None):
+    def __init__(
+        self,
+        serper_api_key: str = None,
+        network_policy: Any = None,
+        audit_logger: Any = None,
+    ):
         self.serper_api_key = serper_api_key
+        self._network_policy = network_policy
+        self._audit_logger = audit_logger
         self.tools: dict[str, BaseTool] = {}
         self.register_default_tools()
 
@@ -25,15 +32,42 @@ class ToolManager:
             WeatherTool(),
             TimeTool(),
             CalculatorTool(),
-            WebScraperTool(),
         ]
-
-        # Only add WebSearchTool if we have the API key
-        if self.serper_api_key:
-            default_tools.append(WebSearchTool(self.serper_api_key))
 
         for tool in default_tools:
             self.register_tool(tool)
+
+    def register_web_tools(
+        self,
+        approval_manager: Any = None,
+        bus: Any = None,
+    ) -> None:
+        """Register web tools with network policy and approval wiring.
+
+        Called after ApprovalManager exists so ``require_approval`` hosts
+        can trigger the approval flow.
+
+        Args:
+            approval_manager: Optional ApprovalManager for host-specific approval.
+            bus: Optional pipeline Bus for posting approval UI notifications.
+        """
+        callback = None
+        if approval_manager is not None:
+            callback = _make_file_approval_callback(approval_manager, bus)
+
+        self.register_tool(WebScraperTool(
+            network_policy=self._network_policy,
+            audit_logger=self._audit_logger,
+            approval_callback=callback,
+        ))
+
+        if self.serper_api_key:
+            self.register_tool(WebSearchTool(
+                self.serper_api_key,
+                network_policy=self._network_policy,
+                audit_logger=self._audit_logger,
+                approval_callback=callback,
+            ))
 
     def register_sandbox_tools(self, sandbox: Any) -> None:
         """Register sandbox tools with a Sandbox backend.
@@ -67,6 +101,7 @@ class ToolManager:
         config: dict | None = None,
         approval_manager: Any = None,
         bus: Any = None,
+        audit_logger: Any = None,
     ) -> None:
         """Register file tools from config, with approval and bus wiring.
 
@@ -74,6 +109,7 @@ class ToolManager:
             config: Parsed ``file_access:`` section from config.yaml.
             approval_manager: Optional ApprovalManager for path-specific approval.
             bus: Optional pipeline Bus for posting approval UI notifications.
+            audit_logger: Optional AuditLogger for structured operation logging.
         """
         from ..policy import BackupManager, FileAccessPolicy
         from .file_delete import FileDeleteTool
@@ -90,10 +126,10 @@ class ToolManager:
             callback = _make_file_approval_callback(approval_manager, bus)
 
         for tool in [
-            FileReadTool(policy, approval_callback=callback),
-            FileWriteTool(policy, backup, approval_callback=callback),
-            FileDeleteTool(policy, backup, approval_callback=callback),
-            FileListTool(policy, approval_callback=callback),
+            FileReadTool(policy, approval_callback=callback, audit_logger=audit_logger),
+            FileWriteTool(policy, backup, approval_callback=callback, audit_logger=audit_logger),
+            FileDeleteTool(policy, backup, approval_callback=callback, audit_logger=audit_logger),
+            FileListTool(policy, approval_callback=callback, audit_logger=audit_logger),
         ]:
             self.register_tool(tool)
 

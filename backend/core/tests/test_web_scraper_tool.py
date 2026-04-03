@@ -411,3 +411,78 @@ async def test_close_noop_when_no_crawlers(tool):
     await tool.close()  # Should not raise
     assert tool._http_crawler is None
     assert tool._browser_crawler is None
+
+
+# --- Network policy ---
+
+
+async def test_network_policy_deny_blocks_scrape():
+    policy = MagicMock()
+    policy.evaluate.return_value = MagicMock(level="deny", reason="Anonymous network")
+    tool = WebScraperTool(network_policy=policy)
+
+    result = await tool.execute(url="https://hidden.onion/page")
+
+    assert "error" in result
+    assert "Network access denied" in result["error"]
+    policy.evaluate.assert_called_once_with("hidden.onion")
+
+
+async def test_network_policy_require_approval_denied():
+    policy = MagicMock()
+    policy.evaluate.return_value = MagicMock(
+        level="require_approval", reason="Content sharing",
+    )
+    cb = AsyncMock(return_value=False)
+    tool = WebScraperTool(network_policy=policy, approval_callback=cb)
+
+    result = await tool.execute(url="https://pastebin.com/raw/abc")
+
+    assert "error" in result
+    assert "Approval denied" in result["error"]
+    cb.assert_awaited_once_with(
+        "web_scraper", "pastebin.com", "connect", "Content sharing",
+    )
+
+
+async def test_network_policy_require_approval_granted():
+    policy = MagicMock()
+    policy.evaluate.return_value = MagicMock(
+        level="require_approval", reason="Content sharing",
+    )
+    cb = AsyncMock(return_value=True)
+    crawl_result = _make_crawl_result(url="https://pastebin.com/raw/abc")
+    tool = WebScraperTool(network_policy=policy, approval_callback=cb)
+    _tool_with_crawler(tool, crawl_result)
+
+    result = await tool.execute(url="https://pastebin.com/raw/abc")
+
+    assert result.get("status") == "success"
+    cb.assert_awaited_once()
+
+
+async def test_network_policy_require_approval_no_callback_denies():
+    policy = MagicMock()
+    policy.evaluate.return_value = MagicMock(
+        level="require_approval", reason="Content sharing",
+    )
+    tool = WebScraperTool(network_policy=policy)  # no callback
+
+    result = await tool.execute(url="https://pastebin.com/raw/abc")
+
+    assert "error" in result
+    assert "Approval denied" in result["error"]
+
+
+async def test_network_policy_allow_proceeds():
+    policy = MagicMock()
+    policy.evaluate.return_value = MagicMock(
+        level="allow", reason="default policy",
+    )
+    crawl_result = _make_crawl_result()
+    tool = WebScraperTool(network_policy=policy)
+    _tool_with_crawler(tool, crawl_result)
+
+    result = await tool.execute(url="https://example.com")
+
+    assert result.get("status") == "success"

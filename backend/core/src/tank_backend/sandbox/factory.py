@@ -28,11 +28,11 @@ class SandboxFactory:
     _probe_cache: dict[str, bool] = {}
 
     @classmethod
-    def create(cls, policy: SandboxPolicy) -> Sandbox:
+    def create(cls, policy: SandboxPolicy, credential_env: dict[str, str] | None = None) -> Sandbox:
         """Return the best available sandbox for the given policy."""
         backend_name = cls._resolve_backend(policy.backend)
         logger.info("Creating sandbox backend: %s", backend_name)
-        return cls._build(backend_name, policy)
+        return cls._build(backend_name, policy, credential_env=credential_env)
 
     @classmethod
     def _resolve_backend(cls, requested: str) -> str:
@@ -98,7 +98,12 @@ class SandboxFactory:
             return False
 
     @classmethod
-    def _build(cls, name: str, policy: SandboxPolicy) -> Sandbox:
+    def _build(
+        cls,
+        name: str,
+        policy: SandboxPolicy,
+        credential_env: dict[str, str] | None = None,
+    ) -> Sandbox:
         """Build a sandbox instance for the given backend."""
         if name == "seatbelt":
             from .backends.seatbelt import SeatbeltSandbox
@@ -111,12 +116,16 @@ class SandboxFactory:
             return BubblewrapSandbox(cls._to_backend_policy(policy, "bubblewrap"))
 
         if name == "docker":
-            return cls._build_docker(policy)
+            return cls._build_docker(policy, credential_env=credential_env)
 
         raise ValueError(f"Unknown backend: {name}")
 
     @classmethod
-    def _build_docker(cls, policy: SandboxPolicy) -> Sandbox:
+    def _build_docker(
+        cls,
+        policy: SandboxPolicy,
+        credential_env: dict[str, str] | None = None,
+    ) -> Sandbox:
         """Build a Docker sandbox with same-path mounts.
 
         Translates the unified SandboxPolicy into a SandboxConfig that
@@ -154,7 +163,7 @@ class SandboxFactory:
             max_timeout=policy.max_timeout,
             network_enabled=(policy.network.mode != "none"),
         )
-        manager = DockerSandbox(config, volumes=volumes)
+        manager = DockerSandbox(config, volumes=volumes, extra_env=credential_env)
         return manager
 
     @staticmethod

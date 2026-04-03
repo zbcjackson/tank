@@ -10,8 +10,17 @@ logger = logging.getLogger(__name__)
 
 
 class WebSearchTool(BaseTool):
-    def __init__(self, api_key: str):
+    def __init__(
+        self,
+        api_key: str,
+        network_policy: Any = None,
+        audit_logger: Any = None,
+        approval_callback: Any = None,
+    ):
         self.api_key = api_key
+        self._network_policy = network_policy
+        self._audit = audit_logger
+        self._approval_callback = approval_callback
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -36,6 +45,37 @@ class WebSearchTool(BaseTool):
 
     async def execute(self, query: str) -> dict[str, Any]:
         logger.info(f"Web searching for: {query}")
+
+        # Network policy check
+        host = "google.serper.dev"
+        if self._network_policy is not None:
+            decision = self._network_policy.evaluate(host)
+            if decision.level == "deny":
+                logger.warning("web_search denied by network policy: %s", host)
+                if self._audit is not None:
+                    await self._audit.log_network_op(host, "deny", decision.reason)
+                return {
+                    "query": query,
+                    "error": f"Network access denied: {host} ({decision.reason})",
+                    "message": f"Cannot search: network policy blocks {host}.",
+                }
+            if decision.level == "require_approval":
+                approved = await self._request_approval(
+                    host, "connect", decision.reason,
+                )
+                if not approved:
+                    if self._audit is not None:
+                        await self._audit.log_network_op(
+                            host, "denied_by_user", decision.reason,
+                        )
+                    return {
+                        "query": query,
+                        "error": f"Approval denied: {host} ({decision.reason})",
+                        "message": f"User denied connecting to {host}.",
+                    }
+            if self._audit is not None:
+                await self._audit.log_network_op(host, "allow", decision.reason)
+
         try:
             # Use Serper API for web search
             url = "https://google.serper.dev/search"
@@ -125,3 +165,17 @@ class WebSearchTool(BaseTool):
                 "error": str(e),
                 "message": f"抱歉，搜索'{query}'时出现错误。请稍后再试或重新表述您的问题。",
             }
+
+    async def _request_approval(
+        self, host: str, operation: str, reason: str,
+    ) -> bool:
+        """Request host-specific approval. Returns False if no callback or denied."""
+        if self._approval_callback is None:
+            logger.warning(
+                "web_search require_approval but no callback — denying: %s",
+                host,
+            )
+            return False
+        return await self._approval_callback(
+            "web_search", host, operation, reason,
+        )

@@ -180,6 +180,35 @@ file_access:
     path: ~/.tank/backups
     max_age_days: 30
 
+# Network access policy — controls which hosts the agent can connect to.
+# Levels: allow | require_approval | deny
+network_access:
+  default: allow
+  rules:
+    - hosts:
+        - "pastebin.com"
+        - "hastebin.com"
+        - "0x0.st"
+        - "transfer.sh"
+        - "dpaste.org"
+      policy: require_approval
+      reason: "Content sharing service — could leak data"
+    - hosts:
+        - "*.onion"
+        - "*.i2p"
+      policy: deny
+      reason: "Anonymous network"
+  service_credentials:
+    - name: serper
+      env_var: SERPER_API_KEY
+      allowed_hosts:
+        - "google.serper.dev"
+
+# Audit log — structured append-only log for file and network operations.
+audit:
+  enabled: true
+  log_path: ~/.tank/audit.jsonl
+
 # Assistant — pipeline-level settings
 assistant:
   speech_interrupt_enabled: true

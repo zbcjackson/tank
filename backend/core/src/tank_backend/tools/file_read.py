@@ -25,9 +25,11 @@ class FileReadTool(BaseTool):
         self,
         policy: FileAccessPolicy,
         approval_callback: ApprovalCallback | None = None,
+        audit_logger: Any = None,
     ) -> None:
         self._policy = policy
         self._approval_callback = approval_callback
+        self._audit = audit_logger
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -89,6 +91,7 @@ class FileReadTool(BaseTool):
         decision = self._policy.evaluate(path, "read")
         if decision.level == "deny":
             logger.warning("file_read denied: %s (%s)", path, decision.reason)
+            await self._audit_op("read", path, "deny", decision.reason)
             return {
                 "error": f"Access denied: {path} ({decision.reason})",
                 "denied": True,
@@ -97,6 +100,7 @@ class FileReadTool(BaseTool):
         if decision.level == "require_approval" and not await self._request_approval(
             path, "read", decision.reason
         ):
+                await self._audit_op("read", path, "denied_by_user", decision.reason)
                 return {
                     "error": f"Approval denied: {path} ({decision.reason})",
                     "denied": True,
@@ -164,6 +168,7 @@ class FileReadTool(BaseTool):
         if limit is not None:
             result["limit"] = limit
         logger.info("file_read: %s (%d chars)", resolved, len(content))
+        await self._audit_op("read", path, "allow", decision.reason)
         return result
 
     # ------------------------------------------------------------------
@@ -199,3 +204,7 @@ class FileReadTool(BaseTool):
             )
             return False
         return await self._approval_callback("file_read", path, operation, reason)
+
+    async def _audit_op(self, operation: str, path: str, decision: str, reason: str) -> None:
+        if self._audit is not None:
+            await self._audit.log_file_op(operation, path, decision, reason)

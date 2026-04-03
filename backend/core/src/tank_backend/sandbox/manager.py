@@ -43,9 +43,11 @@ class DockerSandbox:
         self,
         config: SandboxConfig,
         volumes: dict[str, dict[str, str]] | None = None,
+        extra_env: dict[str, str] | None = None,
     ) -> None:
         self._config = config
         self._volumes = volumes
+        self._extra_env = extra_env or {}
         self._container: Any | None = None
         self._client: Any | None = None
         self._sessions: dict[str, SessionInfo] = {}
@@ -76,12 +78,12 @@ class DockerSandbox:
             volumes = dict(self._volumes)
             host_home = str(Path.home())
             working_dir = host_home
-            environment = {"HOME": host_home}
+            environment = {"HOME": host_home, **self._extra_env}
         else:
             # Legacy: single workspace mount at /workspace
             volumes = {workspace: {"bind": "/workspace", "mode": "rw"}}
             working_dir = "/workspace"
-            environment = {}
+            environment = dict(self._extra_env)
 
         self._container = self._client.containers.run(
             image=self._config.image,

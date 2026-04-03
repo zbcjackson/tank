@@ -17,11 +17,21 @@ _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
 
 class WebScraperTool(BaseTool):
-    def __init__(self, timeout: int = 15, max_content_length: int = 50000):
+    def __init__(
+        self,
+        timeout: int = 15,
+        max_content_length: int = 50000,
+        network_policy: Any = None,
+        audit_logger: Any = None,
+        approval_callback: Any = None,
+    ):
         self.timeout = timeout
         self.max_content_length = max_content_length
         self._http_crawler: Any = None
         self._browser_crawler: Any = None
+        self._network_policy = network_policy
+        self._audit = audit_logger
+        self._approval_callback = approval_callback
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -153,6 +163,36 @@ class WebScraperTool(BaseTool):
                 "message": f"URL格式验证失败: {str(e)}",
             }
 
+        # Network policy check
+        host = parsed_url.netloc.lower()
+        if self._network_policy is not None:
+            decision = self._network_policy.evaluate(host)
+            if decision.level == "deny":
+                logger.warning("web_scraper denied by network policy: %s", host)
+                if self._audit is not None:
+                    await self._audit.log_network_op(host, "deny", decision.reason)
+                return {
+                    "url": url,
+                    "error": f"Network access denied: {host} ({decision.reason})",
+                    "message": f"Cannot scrape: network policy blocks {host}.",
+                }
+            if decision.level == "require_approval":
+                approved = await self._request_approval(
+                    host, "connect", decision.reason,
+                )
+                if not approved:
+                    if self._audit is not None:
+                        await self._audit.log_network_op(
+                            host, "denied_by_user", decision.reason,
+                        )
+                    return {
+                        "url": url,
+                        "error": f"Approval denied: {host} ({decision.reason})",
+                        "message": f"User denied connecting to {host}.",
+                    }
+            if self._audit is not None:
+                await self._audit.log_network_op(host, "allow", decision.reason)
+
         try:
             from crawl4ai import CacheMode, CrawlerRunConfig
 
@@ -269,3 +309,17 @@ class WebScraperTool(BaseTool):
         if self._browser_crawler:
             await self._browser_crawler.close()
             self._browser_crawler = None
+
+    async def _request_approval(
+        self, host: str, operation: str, reason: str,
+    ) -> bool:
+        """Request host-specific approval. Returns False if no callback or denied."""
+        if self._approval_callback is None:
+            logger.warning(
+                "web_scraper require_approval but no callback — denying: %s",
+                host,
+            )
+            return False
+        return await self._approval_callback(
+            "web_scraper", host, operation, reason,
+        )
