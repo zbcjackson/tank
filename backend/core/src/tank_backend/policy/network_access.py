@@ -5,7 +5,10 @@ from __future__ import annotations
 import fnmatch
 import logging
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from ..pipeline.bus import Bus
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +46,11 @@ class NetworkAccessPolicy:
         self,
         rules: tuple[NetworkAccessRule, ...] = (),
         default: AccessLevel = "allow",
+        bus: Bus | None = None,
     ) -> None:
         self._rules = rules
         self._default = default
+        self._bus = bus
 
     def evaluate(self, host: str) -> NetworkAccessDecision:
         """Evaluate network access for a host.
@@ -61,21 +66,45 @@ class NetworkAccessPolicy:
         for rule in self._rules:
             for pattern in rule.hosts:
                 if fnmatch.fnmatch(host_lower, pattern.lower()):
-                    return NetworkAccessDecision(
+                    decision = NetworkAccessDecision(
                         level=rule.policy, reason=rule.reason,
                     )
+                    self._publish(host, decision)
+                    return decision
 
-        return NetworkAccessDecision(level=self._default, reason="default policy")
+        decision = NetworkAccessDecision(level=self._default, reason="default policy")
+        self._publish(host, decision)
+        return decision
+
+    # ------------------------------------------------------------------
+    # Bus integration
+    # ------------------------------------------------------------------
+
+    def _publish(self, host: str, decision: NetworkAccessDecision) -> None:
+        """Publish decision to the Bus if connected."""
+        if self._bus is None:
+            return
+        from ..pipeline.bus import BusMessage
+
+        self._bus.post(BusMessage(
+            type="network_access_decision",
+            source="network_access_policy",
+            payload={
+                "host": host,
+                "level": decision.level,
+                "reason": decision.reason,
+            },
+        ))
 
     # ------------------------------------------------------------------
     # Factory
     # ------------------------------------------------------------------
 
     @staticmethod
-    def from_dict(data: dict) -> NetworkAccessPolicy:
+    def from_dict(data: dict, bus: Bus | None = None) -> NetworkAccessPolicy:
         """Create policy from a dict (e.g. parsed YAML ``network_access:`` section)."""
         if not data:
-            return NetworkAccessPolicy()
+            return NetworkAccessPolicy(bus=bus)
 
         rules: list[NetworkAccessRule] = []
         for rule_data in data.get("rules", []):
@@ -91,4 +120,5 @@ class NetworkAccessPolicy:
         return NetworkAccessPolicy(
             rules=tuple(rules),
             default=data.get("default", "allow"),
+            bus=bus,
         )

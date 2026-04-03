@@ -22,12 +22,10 @@ class FileDeleteTool(BaseTool):
         policy: FileAccessPolicy,
         backup: BackupManager,
         approval_callback: ApprovalCallback | None = None,
-        audit_logger: Any = None,
     ) -> None:
         self._policy = policy
         self._backup = backup
         self._approval_callback = approval_callback
-        self._audit = audit_logger
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -55,7 +53,6 @@ class FileDeleteTool(BaseTool):
         decision = self._policy.evaluate(path, "delete")
         if decision.level == "deny":
             logger.warning("file_delete denied: %s (%s)", path, decision.reason)
-            await self._audit_op("delete", path, "deny", decision.reason)
             return {
                 "error": f"Access denied: {path} ({decision.reason})",
                 "denied": True,
@@ -64,7 +61,6 @@ class FileDeleteTool(BaseTool):
         if decision.level == "require_approval" and not await self._request_approval(
             path, "delete", decision.reason
         ):
-                await self._audit_op("delete", path, "denied_by_user", decision.reason)
                 return {
                     "error": f"Approval denied: {path} ({decision.reason})",
                     "denied": True,
@@ -89,7 +85,6 @@ class FileDeleteTool(BaseTool):
             return {"error": str(e), "message": f"Error deleting {path}: {e}"}
 
         logger.info("file_delete: %s", resolved)
-        await self._audit_op("delete", path, "allow", decision.reason)
         result: dict[str, Any] = {
             "path": str(resolved),
             "message": f"Deleted {resolved}",
@@ -106,7 +101,3 @@ class FileDeleteTool(BaseTool):
             )
             return False
         return await self._approval_callback("file_delete", path, operation, reason)
-
-    async def _audit_op(self, operation: str, path: str, decision: str, reason: str) -> None:
-        if self._audit is not None:
-            await self._audit.log_file_op(operation, path, decision, reason)

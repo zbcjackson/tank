@@ -22,12 +22,10 @@ class FileWriteTool(BaseTool):
         policy: FileAccessPolicy,
         backup: BackupManager,
         approval_callback: ApprovalCallback | None = None,
-        audit_logger: Any = None,
     ) -> None:
         self._policy = policy
         self._backup = backup
         self._approval_callback = approval_callback
-        self._audit = audit_logger
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -71,7 +69,6 @@ class FileWriteTool(BaseTool):
         decision = self._policy.evaluate(path, "write")
         if decision.level == "deny":
             logger.warning("file_write denied: %s (%s)", path, decision.reason)
-            await self._audit_op("write", path, "deny", decision.reason)
             return {
                 "error": f"Access denied: {path} ({decision.reason})",
                 "denied": True,
@@ -80,7 +77,6 @@ class FileWriteTool(BaseTool):
         if decision.level == "require_approval" and not await self._request_approval(
             path, "write", decision.reason
         ):
-                await self._audit_op("write", path, "denied_by_user", decision.reason)
                 return {
                     "error": f"Approval denied: {path} ({decision.reason})",
                     "denied": True,
@@ -100,7 +96,6 @@ class FileWriteTool(BaseTool):
             return {"error": str(e), "message": f"Error writing {path}: {e}"}
 
         logger.info("file_write: %s (%d chars)", resolved, len(content))
-        await self._audit_op("write", path, "allow", decision.reason)
         result: dict[str, Any] = {
             "path": str(resolved),
             "size": len(content),
@@ -123,7 +118,3 @@ class FileWriteTool(BaseTool):
             )
             return False
         return await self._approval_callback("file_write", path, operation, reason)
-
-    async def _audit_op(self, operation: str, path: str, decision: str, reason: str) -> None:
-        if self._audit is not None:
-            await self._audit.log_file_op(operation, path, decision, reason)

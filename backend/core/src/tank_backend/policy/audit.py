@@ -1,27 +1,35 @@
-"""Audit logger — structured append-only log for file and network operations."""
+"""Audit logger — structured append-only log for file and network operations.
+
+Subscribes to policy decision messages on the Bus and writes them to a JSONL file.
+"""
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..pipeline.bus import Bus, BusMessage
 
 logger = logging.getLogger(__name__)
 
 
 class AuditLogger:
-    """Logs file/network operations to a JSONL file.
+    """Logs policy decisions to a JSONL file via Bus subscription.
 
     Each line is a JSON object with:
     - ``timestamp`` (ISO 8601 UTC)
     - ``category`` (``"file"`` or ``"network"``)
-    - ``operation`` (``"read"`` / ``"write"`` / ``"delete"`` / ``"connect"``)
-    - ``target`` (file path or hostname)
-    - ``decision`` (``"allow"`` / ``"require_approval"`` / ``"deny"``)
+    - ``operation`` / ``host``
+    - ``level`` (``"allow"`` / ``"require_approval"`` / ``"deny"``)
     - ``reason`` (policy reason string)
-    - ``user`` (optional speaker/session identifier)
+
+    Call ``subscribe(bus)`` to wire up — the logger then receives all
+    ``file_access_decision`` and ``network_access_decision`` messages
+    automatically.
     """
 
     def __init__(
@@ -32,56 +40,51 @@ class AuditLogger:
         self._enabled = enabled
         self._log_path = Path(log_path).expanduser() if enabled else None
 
-    async def log_file_op(
-        self,
-        operation: str,
-        path: str,
-        decision: str,
-        reason: str,
-        user: str = "",
-    ) -> None:
-        """Log a file operation (read/write/delete)."""
+    def subscribe(self, bus: Bus) -> None:
+        """Subscribe to policy decision messages on the Bus."""
         if not self._enabled:
             return
-        await self._append({
+        bus.subscribe("file_access_decision", self._on_file_decision)
+        bus.subscribe("network_access_decision", self._on_network_decision)
+
+    # ------------------------------------------------------------------
+    # Bus handlers (sync — called from Bus.poll())
+    # ------------------------------------------------------------------
+
+    def _on_file_decision(self, message: BusMessage) -> None:
+        payload = message.payload
+        self._write_line({
             "category": "file",
-            "operation": operation,
-            "target": path,
-            "decision": decision,
-            "reason": reason,
-            "user": user,
+            "operation": payload.get("operation", ""),
+            "target": payload.get("path", ""),
+            "decision": payload.get("level", ""),
+            "reason": payload.get("reason", ""),
         })
 
-    async def log_network_op(
-        self,
-        host: str,
-        decision: str,
-        reason: str,
-    ) -> None:
-        """Log a network access decision."""
-        if not self._enabled:
-            return
-        await self._append({
+    def _on_network_decision(self, message: BusMessage) -> None:
+        payload = message.payload
+        self._write_line({
             "category": "network",
             "operation": "connect",
-            "target": host,
-            "decision": decision,
-            "reason": reason,
+            "target": payload.get("host", ""),
+            "decision": payload.get("level", ""),
+            "reason": payload.get("reason", ""),
         })
 
-    async def _append(self, entry: dict) -> None:
-        """Append a single JSON line to the audit log."""
-        entry["timestamp"] = datetime.now(timezone.utc).isoformat()
-        try:
-            await asyncio.to_thread(self._write_line, entry)
-        except Exception:
-            logger.debug("Audit log write failed", exc_info=True)
+    # ------------------------------------------------------------------
+    # Internal
+    # ------------------------------------------------------------------
 
     def _write_line(self, entry: dict) -> None:
-        assert self._log_path is not None
-        self._log_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self._log_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        if not self._enabled or self._log_path is None:
+            return
+        entry["timestamp"] = datetime.now(timezone.utc).isoformat()
+        try:
+            self._log_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except Exception:
+            logger.debug("Audit log write failed", exc_info=True)
 
     # ------------------------------------------------------------------
     # Factory

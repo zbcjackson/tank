@@ -4,6 +4,7 @@ from typing import Any
 
 import requests
 
+from ..policy.credentials import ServiceCredentialManager
 from .base import BaseTool, ToolInfo, ToolParameter
 
 logger = logging.getLogger(__name__)
@@ -12,14 +13,12 @@ logger = logging.getLogger(__name__)
 class WebSearchTool(BaseTool):
     def __init__(
         self,
-        api_key: str,
+        credential_manager: ServiceCredentialManager,
         network_policy: Any = None,
-        audit_logger: Any = None,
         approval_callback: Any = None,
     ):
-        self.api_key = api_key
+        self._credentials = credential_manager
         self._network_policy = network_policy
-        self._audit = audit_logger
         self._approval_callback = approval_callback
 
     def get_info(self) -> ToolInfo:
@@ -46,14 +45,21 @@ class WebSearchTool(BaseTool):
     async def execute(self, query: str) -> dict[str, Any]:
         logger.info(f"Web searching for: {query}")
 
+        # Resolve credential at call time
+        api_key = self._credentials.get_credential("serper")
+        if not api_key:
+            return {
+                "query": query,
+                "error": "No API key configured for web search",
+                "message": "Web search is not available — no serper credential.",
+            }
+
         # Network policy check
         host = "google.serper.dev"
         if self._network_policy is not None:
             decision = self._network_policy.evaluate(host)
             if decision.level == "deny":
                 logger.warning("web_search denied by network policy: %s", host)
-                if self._audit is not None:
-                    await self._audit.log_network_op(host, "deny", decision.reason)
                 return {
                     "query": query,
                     "error": f"Network access denied: {host} ({decision.reason})",
@@ -64,17 +70,11 @@ class WebSearchTool(BaseTool):
                     host, "connect", decision.reason,
                 )
                 if not approved:
-                    if self._audit is not None:
-                        await self._audit.log_network_op(
-                            host, "denied_by_user", decision.reason,
-                        )
                     return {
                         "query": query,
                         "error": f"Approval denied: {host} ({decision.reason})",
                         "message": f"User denied connecting to {host}.",
                     }
-            if self._audit is not None:
-                await self._audit.log_network_op(host, "allow", decision.reason)
 
         try:
             # Use Serper API for web search
@@ -87,7 +87,7 @@ class WebSearchTool(BaseTool):
                 }
             )
 
-            headers = {"X-API-KEY": self.api_key, "Content-Type": "application/json"}
+            headers = {"X-API-KEY": api_key, "Content-Type": "application/json"}
 
             response = requests.post(url, headers=headers, data=payload, timeout=10)
             response.raise_for_status()

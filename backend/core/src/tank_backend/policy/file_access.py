@@ -6,7 +6,10 @@ import fnmatch
 import logging
 import os
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from ..pipeline.bus import Bus
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +53,7 @@ class FileAccessPolicy:
         default_read: AccessLevel = "allow",
         default_write: AccessLevel = "require_approval",
         default_delete: AccessLevel = "require_approval",
+        bus: Bus | None = None,
     ) -> None:
         self._rules = rules
         self._defaults: dict[str, AccessLevel] = {
@@ -57,6 +61,7 @@ class FileAccessPolicy:
             "write": default_write,
             "delete": default_delete,
         }
+        self._bus = bus
 
     def evaluate(self, path: str, operation: str) -> AccessDecision:
         """Evaluate file access for a path and operation.
@@ -81,10 +86,12 @@ class FileAccessPolicy:
                 matches.append((rule.priority, best_spec, rule))
 
         if not matches:
-            return AccessDecision(
+            decision = AccessDecision(
                 level=self._defaults[operation],
                 reason="default policy",
             )
+            self._publish(operation, path, decision)
+            return decision
 
         # Sort: highest priority first, then highest specificity
         matches.sort(key=lambda x: (x[0], x[1]), reverse=True)
@@ -104,7 +111,9 @@ class FileAccessPolicy:
 
         best_rule = matches[0][2]
         level = getattr(best_rule, operation)
-        return AccessDecision(level=level, reason=best_rule.reason)
+        decision = AccessDecision(level=level, reason=best_rule.reason)
+        self._publish(operation, path, decision)
+        return decision
 
     # ------------------------------------------------------------------
     # Specificity scoring
@@ -198,14 +207,35 @@ class FileAccessPolicy:
         return resolved == resolved_pattern
 
     # ------------------------------------------------------------------
+    # Bus integration
+    # ------------------------------------------------------------------
+
+    def _publish(self, operation: str, path: str, decision: AccessDecision) -> None:
+        """Publish decision to the Bus if connected."""
+        if self._bus is None:
+            return
+        from ..pipeline.bus import BusMessage
+
+        self._bus.post(BusMessage(
+            type="file_access_decision",
+            source="file_access_policy",
+            payload={
+                "operation": operation,
+                "path": path,
+                "level": decision.level,
+                "reason": decision.reason,
+            },
+        ))
+
+    # ------------------------------------------------------------------
     # Factory
     # ------------------------------------------------------------------
 
     @staticmethod
-    def from_dict(data: dict) -> FileAccessPolicy:
+    def from_dict(data: dict, bus: Bus | None = None) -> FileAccessPolicy:
         """Create policy from a dict (e.g. parsed YAML ``file_access:`` section)."""
         if not data:
-            return FileAccessPolicy()
+            return FileAccessPolicy(bus=bus)
 
         rules: list[FileAccessRule] = []
         for rule_data in data.get("rules", []):
@@ -226,4 +256,5 @@ class FileAccessPolicy:
             default_read=data.get("default_read", "allow"),
             default_write=data.get("default_write", "require_approval"),
             default_delete=data.get("default_delete", "require_approval"),
+            bus=bus,
         )

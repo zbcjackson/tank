@@ -22,7 +22,6 @@ class WebScraperTool(BaseTool):
         timeout: int = 15,
         max_content_length: int = 50000,
         network_policy: Any = None,
-        audit_logger: Any = None,
         approval_callback: Any = None,
     ):
         self.timeout = timeout
@@ -30,7 +29,6 @@ class WebScraperTool(BaseTool):
         self._http_crawler: Any = None
         self._browser_crawler: Any = None
         self._network_policy = network_policy
-        self._audit = audit_logger
         self._approval_callback = approval_callback
 
     def get_info(self) -> ToolInfo:
@@ -169,8 +167,6 @@ class WebScraperTool(BaseTool):
             decision = self._network_policy.evaluate(host)
             if decision.level == "deny":
                 logger.warning("web_scraper denied by network policy: %s", host)
-                if self._audit is not None:
-                    await self._audit.log_network_op(host, "deny", decision.reason)
                 return {
                     "url": url,
                     "error": f"Network access denied: {host} ({decision.reason})",
@@ -181,17 +177,11 @@ class WebScraperTool(BaseTool):
                     host, "connect", decision.reason,
                 )
                 if not approved:
-                    if self._audit is not None:
-                        await self._audit.log_network_op(
-                            host, "denied_by_user", decision.reason,
-                        )
                     return {
                         "url": url,
                         "error": f"Approval denied: {host} ({decision.reason})",
                         "message": f"User denied connecting to {host}.",
                     }
-            if self._audit is not None:
-                await self._audit.log_network_op(host, "allow", decision.reason)
 
         try:
             from crawl4ai import CacheMode, CrawlerRunConfig

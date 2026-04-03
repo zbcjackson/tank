@@ -67,6 +67,7 @@ class Assistant:
         audio_sink_factory: AudioSinkFactory | None = None,
     ) -> None:
         registry = self._init_config_and_llm()
+        self._init_bus()
         self._init_tools_and_sandbox()
         self._init_memory()
 
@@ -135,24 +136,18 @@ class Assistant:
         )
 
         net_raw = self._app_config.get_section("network_access", {})
-        self._network_policy = NetworkAccessPolicy.from_dict(net_raw)
+        self._network_policy = NetworkAccessPolicy.from_dict(net_raw, bus=self._bus)
         self._credential_manager = ServiceCredentialManager.from_dict(
             net_raw.get("service_credentials", [])
         )
 
         audit_raw = self._app_config.get_section("audit", {})
         self._audit_logger = AuditLogger.from_dict(audit_raw)
+        self._audit_logger.subscribe(self._bus)
 
-        # ToolManager — use credential manager for serper key (backward compat)
-        serper_key = self._credential_manager.get_credential("serper")
-        if not serper_key:
-            # Fallback to old tools.serper_api_key config
-            tools_raw = self._app_config.get_section("tools")
-            serper_key = tools_raw.get("serper_api_key") or None
         self._tool_manager = ToolManager(
-            serper_api_key=serper_key,
+            credential_manager=self._credential_manager,
             network_policy=self._network_policy,
-            audit_logger=self._audit_logger,
         )
 
         self._checkpointer = self._create_checkpointer()
@@ -248,7 +243,6 @@ class Assistant:
             config=file_access_raw,
             approval_manager=self._approval_manager,
             bus=self._bus,
-            audit_logger=self._audit_logger,
         )
         logger.info("File tools registered")
 
