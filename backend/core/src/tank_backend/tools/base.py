@@ -43,3 +43,12 @@ class BaseTool(ABC):
     @abstractmethod
     async def execute(self, **kwargs) -> Any:
         pass
+
+
+class ToolGroup(ABC):
+    """A cohesive set of tools that share construction dependencies."""
+
+    @abstractmethod
+    def create_tools(self) -> list[BaseTool]:
+        """Return the tools this group provides."""
+        ...

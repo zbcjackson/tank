@@ -41,6 +41,13 @@ from ..plugin import AppConfig
 from ..plugin.manager import PluginManager
 from ..sandbox.factory import SandboxFactory
 from ..sandbox.policy import SandboxPolicy
+from ..tools.groups import (
+    DefaultToolGroup,
+    FileToolGroup,
+    SandboxToolGroup,
+    WebToolGroup,
+    make_approval_callback,
+)
 from ..tools.manager import ToolManager
 from .events import BrainInputEvent, DisplayMessage, InputType, SignalMessage, UIMessage
 from .runtime import RuntimeContext
@@ -145,10 +152,8 @@ class Assistant:
         self._audit_logger = AuditLogger.from_dict(audit_raw)
         self._audit_logger.subscribe(self._bus)
 
-        self._tool_manager = ToolManager(
-            credential_manager=self._credential_manager,
-            network_policy=self._network_policy,
-        )
+        self._tool_manager = ToolManager()
+        self._tool_manager.register_all(DefaultToolGroup().create_tools())
 
         self._checkpointer = self._create_checkpointer()
 
@@ -161,7 +166,9 @@ class Assistant:
                 self._sandbox = SandboxFactory.create(
                     sandbox_policy, credential_env=credential_env or None,
                 )
-                self._tool_manager.register_sandbox_tools(self._sandbox)
+                self._tool_manager.register_all(
+                    SandboxToolGroup(self._sandbox).create_tools()
+                )
                 logger.info("Sandbox tools registered (backend created lazily)")
             except Exception:
                 logger.warning(
@@ -237,19 +244,21 @@ class Assistant:
         llm_summarization = self._create_summarization_llm()
         agent_graph, self._approval_manager = self._build_agent_graph()
 
-        # Register file tools now that approval_manager and bus exist
+        # Register file and web tools now that approval_manager exists
+        approval_cb = None
+        if self._approval_manager is not None:
+            approval_cb = make_approval_callback(self._approval_manager, self._bus)
+
         file_access_raw = self._app_config.get_section("file_access", {})
-        self._tool_manager.register_file_tools(
-            config=file_access_raw,
-            approval_manager=self._approval_manager,
-            bus=self._bus,
+        self._tool_manager.register_all(
+            FileToolGroup(file_access_raw, approval_cb, self._bus).create_tools()
         )
         logger.info("File tools registered")
 
-        # Register web tools now that approval_manager exists
-        self._tool_manager.register_web_tools(
-            approval_manager=self._approval_manager,
-            bus=self._bus,
+        self._tool_manager.register_all(
+            WebToolGroup(
+                self._credential_manager, self._network_policy, approval_cb,
+            ).create_tools()
         )
         logger.info("Web tools registered")
 
