@@ -1,34 +1,131 @@
+"""ToolManager — owns the entire tool domain.
+
+Creates policies, credentials, approval system, and tool groups internally.
+External code only needs ``ToolManager(app_config, bus)`` and the public API.
+"""
+
 from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Iterable
 from typing import Any
 
-from .base import BaseTool, ToolInfo
+from .base import BaseTool, ToolGroup, ToolInfo
 
 logger = logging.getLogger("ToolManager")
 
 
 class ToolManager:
-    """Pure registry for BaseTool instances.
+    """Registry + domain owner for all tools.
 
-    Tool construction is handled by ``ToolGroup`` subclasses — this class
-    only stores, queries, and executes tools.
+    Owns: NetworkAccessPolicy, ServiceCredentialManager, AuditLogger,
+    ApprovalManager, ToolApprovalPolicy, and all ToolGroups.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, app_config: Any, bus: Any = None) -> None:
         self.tools: dict[str, BaseTool] = {}
+        self._groups: list[ToolGroup] = []
+        self._bus = bus
+
+        # --- Shared tool infrastructure ---
+        from ..policy import (
+            AuditLogger,
+            NetworkAccessPolicy,
+            ServiceCredentialManager,
+        )
+
+        net_raw = app_config.get_section("network_access", {})
+        self._network_policy = NetworkAccessPolicy.from_dict(net_raw, bus=bus)
+        self._credential_manager = ServiceCredentialManager.from_dict(
+            net_raw.get("service_credentials", [])
+        )
+
+        audit_raw = app_config.get_section("audit", {})
+        self._audit_logger = AuditLogger.from_dict(audit_raw)
+        if bus is not None:
+            self._audit_logger.subscribe(bus)
+
+        # --- Approval system ---
+        from ..agents.approval import ApprovalManager, ToolApprovalPolicy
+
+        approval_raw = app_config.get_section("approval_policies") or {}
+        self._approval_policy = ToolApprovalPolicy(
+            always_approve=set(approval_raw.get("always_approve", [])),
+            require_approval=set(approval_raw.get("require_approval", [])),
+            require_approval_first_time=set(
+                approval_raw.get("require_approval_first_time", [])
+            ),
+        )
+        self._approval_manager = ApprovalManager()
+
+        # --- Register tool groups ---
+        from .groups import (
+            DefaultToolGroup,
+            FileToolGroup,
+            SandboxToolGroup,
+            WebToolGroup,
+            make_approval_callback,
+        )
+
+        self._register_group(DefaultToolGroup())
+
+        sandbox_raw = app_config.get_section("sandbox", {})
+        self._register_group(
+            SandboxToolGroup(sandbox_raw, self._credential_manager)
+        )
+
+        approval_cb = make_approval_callback(self._approval_manager, bus)
+
+        file_raw = app_config.get_section("file_access", {})
+        self._register_group(FileToolGroup(file_raw, approval_cb, bus))
+
+        self._register_group(
+            WebToolGroup(
+                self._credential_manager, self._network_policy, approval_cb,
+            )
+        )
+
+        logger.info(
+            "ToolManager initialised: %d tools from %d groups",
+            len(self.tools), len(self._groups),
+        )
+
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
+
+    @property
+    def approval_manager(self) -> Any:
+        """ApprovalManager for tool execution approval gates."""
+        return self._approval_manager
+
+    @property
+    def approval_policy(self) -> Any:
+        """ToolApprovalPolicy for deciding which tools need approval."""
+        return self._approval_policy
+
+    # ------------------------------------------------------------------
+    # Group lifecycle
+    # ------------------------------------------------------------------
+
+    def _register_group(self, group: ToolGroup) -> None:
+        self._groups.append(group)
+        for tool in group.create_tools():
+            self.register_tool(tool)
+
+    async def cleanup(self) -> None:
+        """Delegate cleanup to all groups that own resources."""
+        for group in self._groups:
+            await group.cleanup()
+
+    # ------------------------------------------------------------------
+    # Tool registry
+    # ------------------------------------------------------------------
 
     def register_tool(self, tool: BaseTool) -> None:
         info = tool.get_info()
         self.tools[info.name] = tool
         logger.info(f"Registered tool: {info.name}")
-
-    def register_all(self, tools: Iterable[BaseTool]) -> None:
-        """Register multiple tools at once."""
-        for tool in tools:
-            self.register_tool(tool)
 
     def get_tool_info(self) -> list[ToolInfo]:
         return [tool.get_info() for tool in self.tools.values()]
@@ -41,7 +138,8 @@ class ToolManager:
             for param in info.parameters:
                 required_str = "required" if param.required else "optional"
                 params_desc.append(
-                    f"  - {param.name} ({param.type}, {required_str}): {param.description}"
+                    f"  - {param.name} ({param.type}, {required_str}): "
+                    f"{param.description}"
                 )
 
             tool_desc = f"**{info.name}**: {info.description}"
@@ -51,6 +149,10 @@ class ToolManager:
             descriptions.append(tool_desc)
 
         return "\n\n".join(descriptions)
+
+    # ------------------------------------------------------------------
+    # Tool execution
+    # ------------------------------------------------------------------
 
     async def execute_tool(self, tool_name: str, **kwargs) -> dict[str, Any]:
         if tool_name not in self.tools:

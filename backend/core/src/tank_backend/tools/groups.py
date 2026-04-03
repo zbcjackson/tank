@@ -1,9 +1,8 @@
 """Tool groups — cohesive sets of tools with shared construction dependencies.
 
 Each group encapsulates the imports, dependency wiring, and conditional
-registration logic for a category of tools.  ``ToolManager`` stays a pure
-registry; the composition root (``Assistant``) creates groups and feeds
-their tools into the manager.
+registration logic for a category of tools.  ``ToolManager`` creates groups
+internally — external code only sees ``ToolManager``.
 """
 
 from __future__ import annotations
@@ -94,12 +93,49 @@ class WebToolGroup(ToolGroup):
 
 
 class SandboxToolGroup(ToolGroup):
-    """Sandbox execution tools — need a Sandbox backend instance."""
+    """Sandbox execution tools — builds sandbox from config, owns lifecycle."""
 
-    def __init__(self, sandbox: Any) -> None:
-        self._sandbox = sandbox
+    def __init__(
+        self,
+        config: dict | None = None,
+        credential_manager: Any = None,
+    ) -> None:
+        self._sandbox = None
+        config = config or {}
+
+        from ..sandbox.policy import SandboxPolicy
+
+        policy = SandboxPolicy.from_dict(config)
+        if not policy.enabled:
+            return
+
+        try:
+            from ..sandbox.factory import SandboxFactory
+
+            cred_env = (
+                credential_manager.get_env_for_sandbox()
+                if credential_manager else None
+            )
+            self._sandbox = SandboxFactory.create(
+                policy, credential_env=cred_env or None,
+            )
+            logger.info("Sandbox backend created (lazily)")
+        except Exception:
+            logger.warning(
+                "Failed to create sandbox backend — continuing without sandbox",
+                exc_info=True,
+            )
+            self._sandbox = None
+
+    @property
+    def sandbox(self) -> Any:
+        """The underlying Sandbox instance, or None."""
+        return self._sandbox
 
     def create_tools(self) -> list[BaseTool]:
+        if self._sandbox is None:
+            return []
+
         from .sandbox_exec import SandboxExecTool
         from .sandbox_process import SandboxProcessTool
 
@@ -118,6 +154,10 @@ class SandboxToolGroup(ToolGroup):
             logger.info("sandbox_bash skipped (backend has no persistent sessions)")
 
         return tools
+
+    async def cleanup(self) -> None:
+        if self._sandbox is not None and self._sandbox.is_running:
+            await self._sandbox.cleanup()
 
 
 class FileToolGroup(ToolGroup):

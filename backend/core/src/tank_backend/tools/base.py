@@ -52,3 +52,6 @@ class ToolGroup(ABC):
     def create_tools(self) -> list[BaseTool]:
         """Return the tools this group provides."""
         ...
+
+    async def cleanup(self) -> None:  # noqa: B027
+        """Override for groups that own resources needing cleanup."""

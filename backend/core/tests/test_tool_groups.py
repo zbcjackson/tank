@@ -1,8 +1,10 @@
-"""Tests for ToolGroup pattern and ToolManager registry."""
+"""Tests for ToolGroup pattern and ToolManager integration."""
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from tank_backend.tools.base import BaseTool, ToolInfo
 from tank_backend.tools.groups import (
@@ -30,26 +32,22 @@ class _StubTool(BaseTool):
         return {"ok": True}
 
 
-# ------------------------------------------------------------------
-# ToolManager registry
-# ------------------------------------------------------------------
+def _make_app_config(**overrides):
+    """Build a mock AppConfig with sensible defaults."""
+    sections = {
+        "network_access": {},
+        "audit": {},
+        "approval_policies": {},
+        "sandbox": {},
+        "file_access": {},
+    }
+    sections.update(overrides)
 
-def test_register_tool():
-    tm = ToolManager()
-    tm.register_tool(_StubTool("alpha"))
-    assert "alpha" in tm.tools
-
-
-def test_register_all():
-    tm = ToolManager()
-    tm.register_all([_StubTool("a"), _StubTool("b"), _StubTool("c")])
-    assert set(tm.tools.keys()) == {"a", "b", "c"}
-
-
-def test_register_all_empty():
-    tm = ToolManager()
-    tm.register_all([])
-    assert tm.tools == {}
+    cfg = MagicMock()
+    cfg.get_section = MagicMock(
+        side_effect=lambda key, default=None: sections.get(key, default or {}),
+    )
+    return cfg
 
 
 # ------------------------------------------------------------------
@@ -63,39 +61,97 @@ def test_default_group_creates_three_tools():
 
 
 # ------------------------------------------------------------------
-# SandboxToolGroup
+# SandboxToolGroup (builds from config)
 # ------------------------------------------------------------------
 
-def test_sandbox_group_without_persistent_sessions():
-    sandbox = MagicMock()
-    sandbox.capabilities.persistent_sessions = False
+def test_sandbox_group_disabled():
+    group = SandboxToolGroup(config={"enabled": False})
+    assert group.create_tools() == []
+    assert group.sandbox is None
 
-    tools = SandboxToolGroup(sandbox).create_tools()
-    names = {t.get_info().name for t in tools}
-    assert "run_command" in names
-    assert "manage_process" in names
-    assert "persistent_shell" not in names
+
+def test_sandbox_group_enabled():
+    mock_sandbox = MagicMock()
+    mock_sandbox.capabilities.persistent_sessions = False
+
+    with patch(
+        "tank_backend.sandbox.factory.SandboxFactory.create",
+        return_value=mock_sandbox,
+    ):
+        group = SandboxToolGroup(
+            config={"enabled": True, "backend": "docker"},
+        )
+        tools = group.create_tools()
+        names = {t.get_info().name for t in tools}
+        assert "run_command" in names
+        assert "manage_process" in names
+        assert "persistent_shell" not in names
+        assert group.sandbox is mock_sandbox
 
 
 def test_sandbox_group_with_persistent_sessions():
-    sandbox = MagicMock()
-    sandbox.capabilities.persistent_sessions = True
+    mock_sandbox = MagicMock()
+    mock_sandbox.capabilities.persistent_sessions = True
 
-    tools = SandboxToolGroup(sandbox).create_tools()
-    names = {t.get_info().name for t in tools}
-    assert "run_command" in names
-    assert "manage_process" in names
-    assert "persistent_shell" in names
+    with patch(
+        "tank_backend.sandbox.factory.SandboxFactory.create",
+        return_value=mock_sandbox,
+    ):
+        group = SandboxToolGroup(
+            config={"enabled": True, "backend": "docker"},
+        )
+        tools = group.create_tools()
+        names = {t.get_info().name for t in tools}
+        assert "persistent_shell" in names
 
 
-def test_sandbox_group_no_capabilities_attr():
-    """Sandbox without capabilities attribute should skip persistent_shell."""
-    sandbox = MagicMock(spec=[])  # no attributes at all
+def test_sandbox_group_creation_failure():
+    """If SandboxFactory.create raises, group returns no tools."""
+    with patch(
+        "tank_backend.sandbox.factory.SandboxFactory.create",
+        side_effect=RuntimeError("no backend"),
+    ):
+        group = SandboxToolGroup(
+            config={"enabled": True, "backend": "docker"},
+        )
+        assert group.create_tools() == []
+        assert group.sandbox is None
 
-    tools = SandboxToolGroup(sandbox).create_tools()
-    names = {t.get_info().name for t in tools}
-    assert "persistent_shell" not in names
-    assert len(tools) == 2
+
+@pytest.mark.asyncio
+async def test_sandbox_group_cleanup():
+    mock_sandbox = MagicMock()
+    mock_sandbox.is_running = True
+    mock_sandbox.cleanup = AsyncMock()
+    mock_sandbox.capabilities.persistent_sessions = False
+
+    with patch(
+        "tank_backend.sandbox.factory.SandboxFactory.create",
+        return_value=mock_sandbox,
+    ):
+        group = SandboxToolGroup(
+            config={"enabled": True, "backend": "docker"},
+        )
+        await group.cleanup()
+        mock_sandbox.cleanup.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_sandbox_group_cleanup_not_running():
+    mock_sandbox = MagicMock()
+    mock_sandbox.is_running = False
+    mock_sandbox.cleanup = AsyncMock()
+    mock_sandbox.capabilities.persistent_sessions = False
+
+    with patch(
+        "tank_backend.sandbox.factory.SandboxFactory.create",
+        return_value=mock_sandbox,
+    ):
+        group = SandboxToolGroup(
+            config={"enabled": True, "backend": "docker"},
+        )
+        await group.cleanup()
+        mock_sandbox.cleanup.assert_not_awaited()
 
 
 # ------------------------------------------------------------------
@@ -120,17 +176,75 @@ def test_file_group_creates_four_tools():
 
 
 # ------------------------------------------------------------------
-# Integration: groups → manager
+# ToolManager integration
 # ------------------------------------------------------------------
 
-def test_groups_feed_into_manager():
-    tm = ToolManager()
-    tm.register_all(DefaultToolGroup().create_tools())
-    assert len(tm.tools) == 3
+def test_tool_manager_creates_default_tools():
+    cfg = _make_app_config()
+    tm = ToolManager(app_config=cfg)
+    assert "calculate" in tm.tools
+    assert "get_time" in tm.tools
+    assert "get_weather" in tm.tools
 
-    cred_mgr = MagicMock()
-    tm.register_all(WebToolGroup(cred_mgr).create_tools())
-    assert len(tm.tools) == 5
 
-    tm.register_all(FileToolGroup(config={}).create_tools())
-    assert len(tm.tools) == 9
+def test_tool_manager_has_approval_manager():
+    cfg = _make_app_config()
+    tm = ToolManager(app_config=cfg)
+    assert tm.approval_manager is not None
+
+
+def test_tool_manager_has_approval_policy():
+    cfg = _make_app_config()
+    tm = ToolManager(app_config=cfg)
+    assert tm.approval_policy is not None
+
+
+def test_tool_manager_registers_file_tools():
+    cfg = _make_app_config()
+    tm = ToolManager(app_config=cfg)
+    assert "file_read" in tm.tools
+    assert "file_write" in tm.tools
+
+
+def test_tool_manager_registers_web_tools():
+    cfg = _make_app_config()
+    tm = ToolManager(app_config=cfg)
+    assert "web_search" in tm.tools
+    assert "web_scraper" in tm.tools
+
+
+def test_tool_manager_sandbox_disabled_by_default():
+    cfg = _make_app_config()
+    tm = ToolManager(app_config=cfg)
+    assert "run_command" not in tm.tools
+
+
+def test_tool_manager_register_tool():
+    cfg = _make_app_config()
+    tm = ToolManager(app_config=cfg)
+    tm.register_tool(_StubTool("custom"))
+    assert "custom" in tm.tools
+
+
+@pytest.mark.asyncio
+async def test_tool_manager_cleanup_delegates():
+    cfg = _make_app_config()
+    tm = ToolManager(app_config=cfg)
+
+    # All groups should have cleanup called without error
+    await tm.cleanup()
+
+
+def test_tool_manager_approval_policy_from_config():
+    cfg = _make_app_config(
+        approval_policies={
+            "always_approve": ["calculate"],
+            "require_approval": ["run_command"],
+            "require_approval_first_time": ["web_search"],
+        }
+    )
+    tm = ToolManager(app_config=cfg)
+    policy = tm.approval_policy
+    assert not policy.needs_approval("calculate")
+    assert policy.needs_approval("run_command")
+    assert policy.needs_approval("web_search")

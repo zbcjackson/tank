@@ -39,15 +39,6 @@ from ..pipeline.processors import (
 )
 from ..plugin import AppConfig
 from ..plugin.manager import PluginManager
-from ..sandbox.factory import SandboxFactory
-from ..sandbox.policy import SandboxPolicy
-from ..tools.groups import (
-    DefaultToolGroup,
-    FileToolGroup,
-    SandboxToolGroup,
-    WebToolGroup,
-    make_approval_callback,
-)
 from ..tools.manager import ToolManager
 from .events import BrainInputEvent, DisplayMessage, InputType, SignalMessage, UIMessage
 from .runtime import RuntimeContext
@@ -75,7 +66,7 @@ class Assistant:
     ) -> None:
         registry = self._init_config_and_llm()
         self._init_bus()
-        self._init_tools_and_sandbox()
+        self._init_tools()
         self._init_memory()
 
         self.shutdown_signal = GracefulShutdown()
@@ -125,57 +116,14 @@ class Assistant:
 
         return registry
 
-    def _init_tools_and_sandbox(self) -> None:
-        """Set up ToolManager, checkpointer, and optional sandbox.
-
-        Uses SandboxFactory to auto-detect the best backend (Seatbelt on
-        macOS, Bubblewrap on Linux, Docker as fallback).  Same-path mounts
-        ensure the agent sees the same paths the user talks about.
-
-        File tools are registered later in ``_build_pipeline()`` after
-        ApprovalManager and Bus are available.
-        """
-        # Network access policy + service credentials
-        from ..policy import (
-            AuditLogger,
-            NetworkAccessPolicy,
-            ServiceCredentialManager,
+    def _init_tools(self) -> None:
+        """Create ToolManager — it owns all tool-domain concerns."""
+        self._tool_manager = ToolManager(
+            app_config=self._app_config,
+            bus=self._bus,
         )
-
-        net_raw = self._app_config.get_section("network_access", {})
-        self._network_policy = NetworkAccessPolicy.from_dict(net_raw, bus=self._bus)
-        self._credential_manager = ServiceCredentialManager.from_dict(
-            net_raw.get("service_credentials", [])
-        )
-
-        audit_raw = self._app_config.get_section("audit", {})
-        self._audit_logger = AuditLogger.from_dict(audit_raw)
-        self._audit_logger.subscribe(self._bus)
-
-        self._tool_manager = ToolManager()
-        self._tool_manager.register_all(DefaultToolGroup().create_tools())
 
         self._checkpointer = self._create_checkpointer()
-
-        sandbox_raw = self._app_config.get_section("sandbox")
-        sandbox_policy = SandboxPolicy.from_dict(sandbox_raw)
-        self._sandbox = None
-        if sandbox_policy.enabled:
-            try:
-                credential_env = self._credential_manager.get_env_for_sandbox()
-                self._sandbox = SandboxFactory.create(
-                    sandbox_policy, credential_env=credential_env or None,
-                )
-                self._tool_manager.register_all(
-                    SandboxToolGroup(self._sandbox).create_tools()
-                )
-                logger.info("Sandbox tools registered (backend created lazily)")
-            except Exception:
-                logger.warning(
-                    "Failed to create sandbox backend — continuing without sandbox",
-                    exc_info=True,
-                )
-                self._sandbox = None
 
     def _init_memory(self) -> None:
         """Create optional MemoryService from config.yaml ``memory:`` section."""
@@ -242,25 +190,7 @@ class Assistant:
         self._add_input_processors(builder, registry, asr_engine, echo_guard_cfg)
 
         llm_summarization = self._create_summarization_llm()
-        agent_graph, self._approval_manager = self._build_agent_graph()
-
-        # Register file and web tools now that approval_manager exists
-        approval_cb = None
-        if self._approval_manager is not None:
-            approval_cb = make_approval_callback(self._approval_manager, self._bus)
-
-        file_access_raw = self._app_config.get_section("file_access", {})
-        self._tool_manager.register_all(
-            FileToolGroup(file_access_raw, approval_cb, self._bus).create_tools()
-        )
-        logger.info("File tools registered")
-
-        self._tool_manager.register_all(
-            WebToolGroup(
-                self._credential_manager, self._network_policy, approval_cb,
-            ).create_tools()
-        )
-        logger.info("Web tools registered")
+        agent_graph = self._build_agent_graph()
 
         self.brain = Brain(
             llm=self._llm,
@@ -273,7 +203,7 @@ class Assistant:
             llm_summarization=llm_summarization,
             checkpointer=self._checkpointer,
             agent_graph=agent_graph,
-            approval_manager=self._approval_manager,
+            approval_manager=self._tool_manager.approval_manager,
             memory_service=self._memory_service,
         )
         builder.add(self.brain)
@@ -419,23 +349,19 @@ class Assistant:
         except (KeyError, ValueError):
             return None
 
-    def _build_agent_graph(self) -> tuple[object | None, object | None]:
-        """Build AgentGraph from config.yaml agents: + router: sections, or (None, None).
+    def _build_agent_graph(self) -> object | None:
+        """Build AgentGraph from config.yaml agents: + router: sections, or None.
 
-        If no ``agents:`` section is present in config, returns (None, None) and the
+        If no ``agents:`` section is present in config, returns None and the
         Brain uses its direct LLM path (backward compatible).
-
-        Returns:
-            Tuple of (AgentGraph or None, ApprovalManager or None).
         """
         agents_raw = self._app_config.get_section("agents")
         if not agents_raw:
-            return None, None
+            return None
 
         from ..agents.graph import AgentGraph
 
-        approval_policy, approval_manager = self._build_approval_policy()
-        agents = self._build_agents(agents_raw, approval_manager, approval_policy)
+        agents = self._build_agents(agents_raw)
         router = self._build_router()
 
         logger.info(
@@ -445,42 +371,11 @@ class Assistant:
             len(router.routes),
             router.default_agent,
         )
-        return AgentGraph(agents=agents, router=router), approval_manager
-
-    def _build_approval_policy(self) -> tuple[object | None, object | None]:
-        """Build ToolApprovalPolicy and ApprovalManager from config.
-
-        Always creates an ApprovalManager — file tools need it for
-        path-specific approval via ApprovalCallback, even when the
-        approval_policies config section is empty.
-        """
-        from ..agents.approval import ApprovalManager, ToolApprovalPolicy
-
-        approval_raw = self._app_config.get_section("approval_policies")
-        if not approval_raw:
-            approval_raw = {}
-
-        policy = ToolApprovalPolicy(
-            always_approve=set(approval_raw.get("always_approve", [])),
-            require_approval=set(approval_raw.get("require_approval", [])),
-            require_approval_first_time=set(
-                approval_raw.get("require_approval_first_time", [])
-            ),
-        )
-        manager = ApprovalManager()
-        logger.info(
-            "Approval policies loaded: always=%s, require=%s, first_time=%s",
-            approval_raw.get("always_approve", []),
-            approval_raw.get("require_approval", []),
-            approval_raw.get("require_approval_first_time", []),
-        )
-        return policy, manager
+        return AgentGraph(agents=agents, router=router)
 
     def _build_agents(
         self,
         agents_raw: dict,
-        approval_manager: object | None,
-        approval_policy: object | None,
     ) -> dict[str, object]:
         """Instantiate all agents from the agents: config section."""
         from ..agents.factory import create_agent
@@ -506,8 +401,8 @@ class Assistant:
                 llm=agent_llm,
                 tool_manager=self._tool_manager,
                 config=agent_cfg,
-                approval_manager=approval_manager,
-                approval_policy=approval_policy,
+                approval_manager=self._tool_manager.approval_manager,
+                approval_policy=self._tool_manager.approval_policy,
             )
         return agents
 
@@ -590,7 +485,7 @@ class Assistant:
     @property
     def approval_manager(self):
         """Return the ApprovalManager instance, or None if not configured."""
-        return self._approval_manager
+        return self._tool_manager.approval_manager
 
     @property
     def metrics(self) -> dict:
@@ -656,8 +551,7 @@ class Assistant:
         if self._bus_poll_thread is not None:
             self._bus_poll_thread.join(timeout=2.0)
 
-        if self._sandbox is not None and self._sandbox.is_running:
-            await self._sandbox.cleanup()
+        await self._tool_manager.cleanup()
 
         if self._checkpointer is not None:
             self._checkpointer.close()
