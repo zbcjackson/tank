@@ -247,7 +247,7 @@ class TestChatAgentApprovalFlow:
 
     async def test_no_tools_no_approval(self):
         """Text-only responses should work with approval configured."""
-        policy = ToolApprovalPolicy(require_approval={"sandbox_exec"})
+        policy = ToolApprovalPolicy(require_approval={"run_command"})
         manager = ApprovalManager(timeout=5.0)
 
         llm = MagicMock()

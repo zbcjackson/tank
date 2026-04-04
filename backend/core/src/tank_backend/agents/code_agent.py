@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from ..llm.llm import LLM
     from ..tools.manager import ToolManager
 
-_DEFAULT_TOOLS = ["sandbox_exec", "sandbox_bash", "sandbox_process"]
+_DEFAULT_TOOLS = ["run_command", "persistent_shell", "manage_process"]
 
 
 def _load_prompt(name: str) -> str:

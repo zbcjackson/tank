@@ -140,7 +140,7 @@ The Brain delegates to an agent graph that routes user intent to specialized age
 | `ChatAgent` | `chat_agent.py` | All registered | General conversation with tool calling. Default agent. |
 | `SearchAgent` | `search_agent.py` | web_search, web_scraper | Web search + summarization |
 | `TaskAgent` | `task_agent.py` | calculate, get_time, get_weather | Calculations, time, weather |
-| `CodeAgent` | `code_agent.py` | sandbox_exec, sandbox_bash, sandbox_process | Code execution in Docker sandbox |
+| `CodeAgent` | `code_agent.py` | run_command, persistent_shell, manage_process | Code execution in Docker sandbox |
 
 **Agent Graph Flow**:
 ```
@@ -169,7 +169,7 @@ Tools can require human approval before execution. The approval flow:
 
 **Approval Policies** (configured in `config.yaml`):
 - `always_approve` — no approval needed (weather, time, calculator)
-- `require_approval` — always ask (sandbox_exec, sandbox_bash)
+- `require_approval` — always ask (run_command, persistent_shell)
 - `require_approval_first_time` — ask once per session, then auto-approve (web_search)
 
 ### 4. LLM Integration (`src/tank_backend/llm/`)
@@ -253,9 +253,9 @@ Tools can require human approval before execution. The approval flow:
 - `time.py` — Current date/time
 - `web_search.py` — Real-time web search (requires SERPER_API_KEY)
 - `web_scraper.py` — Web content extraction
-- `sandbox_exec.py` — Execute code in Docker sandbox
-- `sandbox_bash.py` — Run shell commands in Docker sandbox
-- `sandbox_process.py` — Long-running process management in sandbox
+- `sandbox_exec.py` — Run a command in Docker sandbox
+- `sandbox_bash.py` — Persistent shell session in Docker sandbox
+- `sandbox_process.py` — Process management in sandbox
 
 ### 8. Plugin System (`src/tank_backend/plugin/`)
 

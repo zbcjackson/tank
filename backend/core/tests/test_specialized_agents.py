@@ -100,8 +100,8 @@ class TestTaskAgent:
 class TestCodeAgent:
     def test_has_default_tool_filter(self):
         agent = CodeAgent(llm=_make_llm())
-        assert "sandbox_exec" in agent._tool_filter
-        assert "sandbox_bash" in agent._tool_filter
+        assert "run_command" in agent._tool_filter
+        assert "persistent_shell" in agent._tool_filter
 
     def test_has_system_prompt(self):
         agent = CodeAgent(llm=_make_llm())

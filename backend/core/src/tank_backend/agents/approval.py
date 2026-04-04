@@ -42,15 +42,15 @@ def make_approval_id() -> str:
 # Tools that always require approval regardless of config.
 # These run arbitrary commands — no in-tool policy to protect the user.
 HARDCODED_REQUIRE_APPROVAL: frozenset[str] = frozenset({
-    "sandbox_exec",
-    "sandbox_bash",
+    "run_command",
+    "persistent_shell",
 })
 
 
 class ToolApprovalPolicy:
     """Config-driven policy determining which tools require approval.
 
-    Sandbox tools (``sandbox_exec``, ``sandbox_bash``) always require approval
+    Sandbox tools (``run_command``, ``persistent_shell``) always require approval
     — this is hardcoded and cannot be overridden by config.
 
     File tools handle their own approval via ``ApprovalCallback`` inside

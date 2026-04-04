@@ -26,7 +26,10 @@ class SandboxExecTool(BaseTool):
                 "Returns stdout, stderr, and exit code. "
                 "Set background=true to start a long-running process and get a process ID "
                 "back immediately — then use manage_process to poll output or kill it. "
-                "Use for commands like ls, cat, grep, python, pip install, git, etc."
+                "Use for: system info (du, df, top, ps, uname, uptime, free), "
+                "file operations (ls, find, cat, grep, wc), "
+                "development (python, node, git, pip, npm), "
+                "and any other shell command the user asks to run."
             ),
             parameters=[
                 ToolParameter(

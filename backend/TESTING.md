@@ -286,16 +286,16 @@ from tank_backend.agents.approval import ApprovalPolicy, ApprovalManager
 def test_approval_policy():
     policy = ApprovalPolicy(
         always_approve={"weather", "time"},
-        require_approval={"sandbox_exec"},
+        require_approval={"run_command"},
         require_approval_first_time={"web_search"},
     )
     assert not policy.needs_approval("weather")
-    assert policy.needs_approval("sandbox_exec")
+    assert policy.needs_approval("run_command")
     assert policy.needs_approval("web_search")
 
 async def test_approval_manager_resolves():
     manager = ApprovalManager()
-    request = ApprovalRequest(tool_name="sandbox_exec", tool_args={}, description="Run code")
+    request = ApprovalRequest(tool_name="run_command", tool_args={}, description="Run code")
 
     # Simulate approval in background
     import asyncio

@@ -8,9 +8,9 @@ import pytest
 
 from tank_backend.agents.approval import (
     ApprovalManager,
-    ToolApprovalPolicy,
     ApprovalRequest,
     ApprovalResult,
+    ToolApprovalPolicy,
     make_approval_id,
 )
 from tank_backend.agents.base import AgentOutputType
@@ -28,7 +28,7 @@ def test_approval_needed_in_agent_output_type():
 def test_approval_request_is_frozen():
     req = ApprovalRequest(
         approval_id="abc",
-        tool_name="sandbox_exec",
+        tool_name="run_command",
         tool_args={"code": "print(1)"},
         description="Run Python code: print(1)",
         session_id="s1",
@@ -54,9 +54,9 @@ def test_make_approval_id_unique():
 
 class TestToolApprovalPolicy:
     def test_require_approval(self):
-        policy = ToolApprovalPolicy(require_approval={"sandbox_exec", "sandbox_bash"})
-        assert policy.needs_approval("sandbox_exec") is True
-        assert policy.needs_approval("sandbox_bash") is True
+        policy = ToolApprovalPolicy(require_approval={"run_command", "persistent_shell"})
+        assert policy.needs_approval("run_command") is True
+        assert policy.needs_approval("persistent_shell") is True
 
     def test_always_approve(self):
         policy = ToolApprovalPolicy(always_approve={"weather", "get_time"})
@@ -64,7 +64,7 @@ class TestToolApprovalPolicy:
         assert policy.needs_approval("get_time") is False
 
     def test_unlisted_defaults_to_no_approval(self):
-        policy = ToolApprovalPolicy(require_approval={"sandbox_exec"})
+        policy = ToolApprovalPolicy(require_approval={"run_command"})
         assert policy.needs_approval("unknown_tool") is False
 
     def test_first_time_approval(self):
@@ -85,24 +85,24 @@ class TestToolApprovalPolicy:
 
     def test_require_approval_always_asks(self):
         """require_approval ignores record_approved — always asks."""
-        policy = ToolApprovalPolicy(require_approval={"sandbox_exec"})
-        policy.record_approved("sandbox_exec")
-        assert policy.needs_approval("sandbox_exec") is True
+        policy = ToolApprovalPolicy(require_approval={"run_command"})
+        policy.record_approved("run_command")
+        assert policy.needs_approval("run_command") is True
 
     def test_empty_policy_approves_all(self):
         policy = ToolApprovalPolicy()
         assert policy.needs_approval("anything") is False
 
     def test_hardcoded_sandbox_tools_always_require_approval(self):
-        """sandbox_exec and sandbox_bash require approval even with empty config."""
+        """run_command and persistent_shell require approval even with empty config."""
         policy = ToolApprovalPolicy()
-        assert policy.needs_approval("sandbox_exec") is True
-        assert policy.needs_approval("sandbox_bash") is True
+        assert policy.needs_approval("run_command") is True
+        assert policy.needs_approval("persistent_shell") is True
 
     def test_hardcoded_cannot_be_overridden_by_always_approve(self):
-        """Putting sandbox_exec in always_approve doesn't bypass hardcoded check."""
-        policy = ToolApprovalPolicy(always_approve={"sandbox_exec"})
-        assert policy.needs_approval("sandbox_exec") is True
+        """Putting run_command in always_approve doesn't bypass hardcoded check."""
+        policy = ToolApprovalPolicy(always_approve={"run_command"})
+        assert policy.needs_approval("run_command") is True
 
     def test_file_tools_not_hardcoded(self):
         """File tools handle their own approval — not in hardcoded set."""
@@ -122,7 +122,7 @@ class TestApprovalManager:
         manager = ApprovalManager(timeout=10.0)
         req = ApprovalRequest(
             approval_id="test1",
-            tool_name="sandbox_exec",
+            tool_name="run_command",
             tool_args={"code": "print(1)"},
             description="Run Python code",
             session_id="s1",
@@ -143,7 +143,7 @@ class TestApprovalManager:
         manager = ApprovalManager(timeout=10.0)
         req = ApprovalRequest(
             approval_id="test2",
-            tool_name="sandbox_bash",
+            tool_name="persistent_shell",
             tool_args={"command": "rm -rf /"},
             description="Run bash: rm -rf /",
             session_id="s1",
@@ -163,7 +163,7 @@ class TestApprovalManager:
         manager = ApprovalManager(timeout=0.05)
         req = ApprovalRequest(
             approval_id="timeout1",
-            tool_name="sandbox_exec",
+            tool_name="run_command",
             tool_args={},
             description="test",
             session_id="s1",

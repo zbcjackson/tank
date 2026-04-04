@@ -115,7 +115,7 @@ agents:
   code:
     type: code
     llm_profile: default
-    tools: [sandbox_exec, sandbox_bash, sandbox_process]
+    tools: [run_command, persistent_shell, manage_process]
 
 # Router — intent classification for agent dispatch.
 router:
@@ -142,9 +142,9 @@ approval_policies:
     - get_time
     - calculate
   require_approval:
-    - sandbox_exec
-    - sandbox_bash
-    - sandbox_process
+    - run_command
+    - persistent_shell
+    - manage_process
   require_approval_first_time:
     - web_search
     - web_scraper

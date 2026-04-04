@@ -235,7 +235,7 @@ agents:
   code:
     type: code
     llm_profile: default
-    tools: [sandbox_exec, sandbox_bash, sandbox_process, file_read, file_write, file_delete, file_list]
+    tools: [run_command, persistent_shell, manage_process, file_read, file_write, file_delete, file_list]
 
 # Router — classifies user intent and dispatches to the right agent.
 # Fast-path: regex keyword match (zero latency).
@@ -251,7 +251,7 @@ router:
     code:
       agent: code
       keywords: [run code, execute, python, script, 运行代码, 执行]
-      description: Code execution in sandbox
+      description: Code execution, shell commands, and system diagnostics
     task:
       agent: task
       keywords: [calculate, compute, what time, 计算, 几点, 天气]
@@ -259,7 +259,7 @@ router:
 
 # Approval policies — optional config for tools that need user confirmation.
 #
-# Sandbox tools (sandbox_exec, sandbox_bash) always require approval — hardcoded
+# Sandbox tools (run_command, persistent_shell) always require approval — hardcoded
 # in ApprovalPolicy, no need to list them here.
 #
 # File tools (file_read, file_write, file_delete, file_list) handle their own
