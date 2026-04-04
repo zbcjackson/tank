@@ -180,17 +180,27 @@ export class AudioProcessor {
   }
 
   /**
-   * Pause/resume MicVAD during TTS playback to prevent echo triggering.
+   * During TTS playback, bypass the frontend VAD gate so all audio
+   * flows to the backend. The backend VAD (with its echo-guard threshold)
+   * handles speech detection and can trigger an interrupt.
+   *
+   * When playback ends, resume MicVAD but keep the gate open so any
+   * in-progress speech continues flowing. MicVAD's onSpeechEnd will
+   * close the gate naturally when the user stops talking.
    */
   setSpeaking(speaking: boolean): void {
     if (!this.micVad) return;
 
     if (speaking) {
       this.clearTrailingSilenceTimer();
+      // Pause MicVAD (its echo-unaware model would misfire) but keep
+      // the gate open so captured frames still reach the backend.
       this.micVad.pause();
-      this.vadOpen = false;
-      this.preRollBuffer.clear();
+      this.vadOpen = true;
     } else {
+      // Resume MicVAD but do NOT close vadOpen — if the user is
+      // mid-sentence the gate must stay open until MicVAD fires
+      // onSpeechEnd naturally.
       this.micVad.start();
     }
   }

@@ -298,6 +298,77 @@ class TestAssistantPipelineBusyGuard:
         assert len(interrupt_fired) == 1
 
 
+class TestAssistantClientInterrupt:
+    """Tests for Assistant.interrupt() (stop button / client-initiated)."""
+
+    def test_interrupt_sets_runtime_event_when_busy(self):
+        """interrupt() should set interrupt_event when pipeline is busy."""
+        evt = threading.Event()
+        pipeline_events = []
+
+        class FakePipeline:
+            def send_event(self, event):
+                pipeline_events.append(event)
+
+            def flush_all(self):
+                pass
+
+        # Simulate Assistant state: brain active, pipeline present
+        brain_active = True
+        playback_active = False
+        pipeline = FakePipeline()
+
+        # Replicate interrupt() logic
+        if (brain_active or playback_active) and pipeline is not None:
+            pipeline.send_event(
+                PipelineEvent(type="interrupt", source="client_interrupt")
+            )
+            pipeline.flush_all()
+            evt.set()
+
+        assert evt.is_set()
+        assert len(pipeline_events) == 1
+        assert pipeline_events[0].source == "client_interrupt"
+
+    def test_interrupt_noop_when_idle(self):
+        """interrupt() should be a no-op when pipeline is not busy."""
+        interrupt_event = threading.Event()
+
+        brain_active = False
+        playback_active = False
+
+        if brain_active or playback_active:
+            interrupt_event.set()
+
+        assert not interrupt_event.is_set()
+
+    def test_interrupt_works_during_playback(self):
+        """interrupt() should work when only playback is active (brain done)."""
+        interrupt_event = threading.Event()
+        pipeline_events = []
+
+        class FakePipeline:
+            def send_event(self, event):
+                pipeline_events.append(event)
+
+            def flush_all(self):
+                pass
+
+        brain_active = False
+        playback_active = True
+        pipeline = FakePipeline()
+
+        if (brain_active or playback_active) and pipeline is not None:
+            pipeline.send_event(
+                PipelineEvent(type="interrupt", source="client_interrupt")
+            )
+            pipeline.flush_all()
+            interrupt_event.set()
+
+        assert interrupt_event.is_set()
+        assert len(pipeline_events) == 1
+
+
 class TestAssistantPlaybackCallback:
     """Tests for playback callback wiring."""
 

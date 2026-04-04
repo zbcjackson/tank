@@ -23,8 +23,11 @@ export interface PlatformAudioAdapter {
   /** Play Int16 PCM chunk at 24 kHz. Returns estimated duration in ms. */
   playChunk(data: ArrayBuffer): Promise<PlayChunkResult>;
 
-  /** Stop playback immediately (interruption). */
+  /** Stop playback immediately (interruption). Rejects further playChunk calls until reset. */
   stopPlayback(): Promise<void>;
+
+  /** Re-enable playback after a stop. Called when a new response begins. */
+  resetPlayback(): void;
 
   /** AnalyserNode for waveform viz, or null if platform uses RMS instead. */
   getAnalyserNode(): AnalyserNode | null;

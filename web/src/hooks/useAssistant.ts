@@ -108,7 +108,9 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     // 'idle' state is handled by enableWakeWord() in useConversationSession
   }, [conversationState, audioProcessorRef]);
 
-  // Pause/resume MicVAD during TTS playback to suppress echo
+  // During TTS playback, bypass frontend MicVAD gate so audio flows to
+  // the backend. The backend VAD (with echo-guard threshold) detects
+  // user speech and can trigger an interrupt.
   useEffect(() => {
     audioProcessorRef.current?.setSpeaking(isSpeaking);
   }, [isSpeaking, audioProcessorRef]);
@@ -117,10 +119,16 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
   const sendMessage = useCallback(
     (text: string) => {
       if (!clientRef.current) return;
+      // Auto-interrupt if assistant is still speaking/responding
+      if (isAssistantTyping) {
+        clientRef.current.sendInterrupt();
+        playbackRef.current?.stop();
+        dispatchStatus({ type: 'INTERRUPT' });
+      }
       addLocalUserStep(text);
       clientRef.current.sendMessage('input', text);
     },
-    [clientRef, addLocalUserStep],
+    [clientRef, playbackRef, addLocalUserStep, isAssistantTyping, dispatchStatus],
   );
 
   const respondToApproval = useCallback(

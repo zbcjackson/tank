@@ -12,6 +12,7 @@ export class AudioPlayback {
   private platformAdapter: PlatformAudioAdapter | null = null;
   private speakingTimer: ReturnType<typeof setTimeout> | null = null;
   private onSpeakingChange?: (isSpeaking: boolean) => void;
+  private stopped: boolean = false;
 
   setPlatformAdapter(adapter: PlatformAudioAdapter) {
     this.platformAdapter = adapter;
@@ -26,7 +27,7 @@ export class AudioPlayback {
   }
 
   async play(data: ArrayBuffer): Promise<void> {
-    if (!this.platformAdapter) return;
+    if (!this.platformAdapter || this.stopped) return;
 
     try {
       const { durationMs } = await this.platformAdapter.playChunk(data);
@@ -46,6 +47,7 @@ export class AudioPlayback {
   }
 
   stop(): void {
+    this.stopped = true;
     this.platformAdapter?.stopPlayback().catch((e) => {
       console.error('Error stopping playback:', e);
     });
@@ -55,6 +57,11 @@ export class AudioPlayback {
       this.speakingTimer = null;
     }
     this.onSpeakingChange?.(false);
+  }
+
+  reset(): void {
+    this.stopped = false;
+    this.platformAdapter?.resetPlayback();
   }
 
   dispose(): void {

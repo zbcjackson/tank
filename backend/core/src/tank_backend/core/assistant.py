@@ -652,21 +652,36 @@ class Assistant:
         return self._brain_active or self._playback_active
 
     def _on_speech_start(self, _message: BusMessage) -> None:
-        """Handle speech_start: send interrupt event through pipeline if busy."""
+        """Handle speech_start: interrupt pipeline if busy."""
         if not self._speech_interrupt_enabled:
             return
         if not self._pipeline_busy:
             return
+        self._interrupt_pipeline("speech_interrupt")
+
+    def interrupt(self) -> None:
+        """Public API: interrupt active processing (e.g. from stop button)."""
+        if not self._pipeline_busy:
+            return
+        self._interrupt_pipeline("client_interrupt")
+
+    def _interrupt_pipeline(self, source: str) -> None:
+        """Send interrupt event downstream of ASR, flush those queues, set flag.
+
+        VAD and ASR are left untouched so the user's interrupting speech
+        continues to be transcribed while Brain/TTS/Playback are cancelled.
+        """
         if self._pipeline is not None:
-            logger.info("Speech interrupt: cancelling active processing")
-            self._pipeline.send_event(
+            logger.info("Interrupt: cancelling active processing (source=%s)", source)
+            self._pipeline.send_event_from(
                 PipelineEvent(
                     type="interrupt",
                     direction=EventDirection.DOWNSTREAM,
-                    source="speech_interrupt",
-                )
+                    source=source,
+                ),
+                after="asr",
             )
-            self._pipeline.flush_all()
+            self._pipeline.flush_from(after="asr")
             self.runtime.interrupt_event.set()
 
     def _poll_bus_loop(self) -> None:

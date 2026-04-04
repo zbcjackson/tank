@@ -57,12 +57,14 @@ class ASRProcessor(Processor):
         self._partial_text: str = ""
         self._streaming_msg_id: str | None = None
         self._streaming_started_at: float | None = None
+        self._speech_detected_sent: bool = False
 
     def _reset_state(self) -> None:
         """Reset state for a new utterance."""
         self._partial_text = ""
         self._streaming_msg_id = None
         self._streaming_started_at = None
+        self._speech_detected_sent = False
 
     def _post_speech_start(self, timestamp_s: float | None = None) -> None:
         """Post speech_start to bus (triggers interrupt in assistant)."""
@@ -74,8 +76,17 @@ class ASRProcessor(Processor):
             ))
 
     def _post_partial(self, text: str) -> None:
-        """Post partial transcript to UI."""
+        """Post partial transcript to UI. On first real text, also notify frontend."""
         if self._bus and self._streaming_msg_id:
+            # First non-empty partial → tell frontend real speech was detected
+            if not self._speech_detected_sent:
+                self._speech_detected_sent = True
+                from ...core.events import SignalMessage
+                self._bus.post(BusMessage(
+                    type="ui_message",
+                    source=self.name,
+                    payload=SignalMessage(signal_type="speech_detected"),
+                ))
             self._bus.post(BusMessage(
                 type="ui_message",
                 source=self.name,
@@ -85,6 +96,15 @@ class ASRProcessor(Processor):
     def _post_final(self, text: str) -> None:
         """Post final transcript to UI."""
         if self._bus and self._streaming_msg_id:
+            # Batch mode: speech_detected may not have been sent via _post_partial
+            if not self._speech_detected_sent:
+                self._speech_detected_sent = True
+                from ...core.events import SignalMessage
+                self._bus.post(BusMessage(
+                    type="ui_message",
+                    source=self.name,
+                    payload=SignalMessage(signal_type="speech_detected"),
+                ))
             self._bus.post(BusMessage(
                 type="ui_message",
                 source=self.name,

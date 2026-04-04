@@ -62,7 +62,19 @@ export function useAudioPipeline({
     const client = new VoiceAssistantClient(sessionId);
     clientRef.current = client;
     client.connect(
-      onMessage,
+      (msg) => {
+        // Reset playback gate when a new response cycle begins
+        if (msg.type === 'signal' && msg.content === 'processing_started') {
+          playback.reset();
+        }
+        // Backend detected user speech — stop local playback so the
+        // user isn't talking over stale audio still draining on the frontend.
+        if (msg.type === 'signal' && msg.content === 'speech_detected') {
+          playback.stop();
+          dispatchStatus({ type: 'INTERRUPT' });
+        }
+        onMessage(msg);
+      },
       (data) => playback.play(data), // Binary frames → playback
       () => {}, // onOpen - handled by onConnectionStateChange
       (state, metadata) => {

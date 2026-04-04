@@ -79,6 +79,10 @@ export class TauriAudioAdapter implements PlatformAudioAdapter {
     this.onRmsChange?.(0);
   }
 
+  resetPlayback(): void {
+    // Tauri adapter doesn't need a stopped flag — native side handles it.
+  }
+
   getAnalyserNode(): AnalyserNode | null {
     return null;
   }

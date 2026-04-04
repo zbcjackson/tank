@@ -103,6 +103,27 @@ class Pipeline:
         for q in self._queues:
             q.flush()
 
+    def send_event_from(self, event: PipelineEvent, after: str) -> None:
+        """Propagate event only to processors after the named one."""
+        found = False
+        for proc in self._processors:
+            if found:
+                consumed = proc.handle_event(event)
+                if consumed:
+                    break
+            elif proc.name == after:
+                found = True
+
+    def flush_from(self, after: str) -> None:
+        """Flush queues feeding processors after the named one."""
+        found = False
+        for i, proc in enumerate(self._processors):
+            if found:
+                if i < len(self._queues):
+                    self._queues[i].flush()
+            elif proc.name == after:
+                found = True
+
     def health_snapshot(self, stuck_threshold_s: float = 10.0) -> PipelineHealth:
         """Collect health from all processors and queues."""
         queue_health = [q.health(stuck_threshold_s) for q in self._queues]

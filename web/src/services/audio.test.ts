@@ -136,11 +136,11 @@ describe('AudioProcessor', () => {
       await (processor as any).initVad();
     });
 
-    it('pauses MicVAD and closes vadOpen when speaking=true', () => {
+    it('pauses MicVAD and opens vadOpen when speaking=true', () => {
       processor.setSpeaking(true);
       expect(mockVadInstance.pause).toHaveBeenCalled();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect((processor as any).vadOpen).toBe(false);
+      expect((processor as any).vadOpen).toBe(true);
     });
 
     it('resumes MicVAD when speaking=false', () => {

@@ -222,8 +222,11 @@ class TestASRProcessor:
         await _collect(proc, _make_vad_result_end_speech())
         bus.poll()
 
-        assert len(received) == 1
-        display_msg = received[0].payload
+        assert len(received) == 2
+        # First message: speech_detected signal
+        assert received[0].payload.signal_type == "speech_detected"
+        # Second message: the actual transcript
+        display_msg = received[1].payload
         assert display_msg.is_user is True
         assert display_msg.text == "你好世界"
         assert display_msg.speaker == "TestUser"
@@ -290,9 +293,10 @@ class TestASRProcessor:
         # AudioFrame yields None (brain waits for final)
         assert outputs[0][1] is None
 
-        # Partial transcript posted to UI
-        assert len(received) == 1
-        display_msg = received[0].payload
+        # Partial transcript posted to UI (speech_detected signal + partial)
+        assert len(received) == 2
+        assert received[0].payload.signal_type == "speech_detected"
+        display_msg = received[1].payload
         assert display_msg.is_user is True
         assert display_msg.text == "你好"
         assert display_msg.is_final is False
@@ -459,8 +463,9 @@ class TestASRProcessor:
         await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME + 0.02))
         bus.poll()
 
-        # Only one ui_message (text didn't change on second frame)
-        assert len(received) == 1
+        # speech_detected + one partial (text didn't change on second frame)
+        assert len(received) == 2
+        assert received[0].payload.signal_type == "speech_detected"
 
 
 # ── TTSProcessor ─────────────────────────────────────────────────────────────

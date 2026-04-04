@@ -167,6 +167,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                             )
                     elif msg.content == "idle":
                         logger.info(f"Client idle: {session_id}")
+                    elif msg.content == "interrupt":
+                        logger.info(f"Client interrupt: {session_id}")
+                        assistant.interrupt()
                     elif msg.content == "ping":
                         await websocket.send_text(
                             WebsocketMessage(

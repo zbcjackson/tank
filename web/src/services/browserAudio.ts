@@ -12,6 +12,7 @@ export class BrowserAudioAdapter implements PlatformAudioAdapter {
   private audioContext: AudioContext | null = null;
   private analyserNode: AnalyserNode | null = null;
   private nextStartTime: number = 0;
+  private stopped: boolean = false;
 
   /** Ensure AudioContext + AnalyserNode exist (lazy init on first playback). */
   private ensureAudioContext() {
@@ -38,6 +39,7 @@ export class BrowserAudioAdapter implements PlatformAudioAdapter {
   }
 
   async playChunk(data: ArrayBuffer): Promise<PlayChunkResult> {
+    if (this.stopped) return { durationMs: 0 };
     this.ensureAudioContext();
 
     const int16Array = new Int16Array(data);
@@ -63,12 +65,17 @@ export class BrowserAudioAdapter implements PlatformAudioAdapter {
   }
 
   async stopPlayback(): Promise<void> {
+    this.stopped = true;
     if (this.audioContext) {
       await this.audioContext.close();
       this.audioContext = null;
       this.analyserNode = null;
       this.nextStartTime = 0;
     }
+  }
+
+  resetPlayback(): void {
+    this.stopped = false;
   }
 
   getAnalyserNode(): AnalyserNode | null {
