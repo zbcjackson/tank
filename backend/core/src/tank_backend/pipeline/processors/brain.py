@@ -389,51 +389,65 @@ class Brain(Processor):
         state = AgentState(messages=list(self._conversation_history))
         full_response_text = ""
 
-        async for output in self._agent_graph.run(state):  # type: ignore[union-attr]
-            # Check for interruption
-            if self._interrupt_event.is_set():
-                raise BrainInterrupted()
+        gen = self._agent_graph.run(state)  # type: ignore[union-attr]
+        try:
+            async for output in gen:
+                # Check for interruption
+                if self._interrupt_event.is_set():
+                    raise BrainInterrupted()
 
-            update_type = _agent_to_update_type(output.type)
-            if update_type is None:
-                continue
+                update_type = _agent_to_update_type(output.type)
+                if update_type is None:
+                    continue
 
+                self._bus.post(BusMessage(
+                    type="ui_message",
+                    source=self.name,
+                    payload=DisplayMessage(
+                        speaker="Brain",
+                        text=output.content,
+                        is_user=False,
+                        msg_id=msg_id,
+                        is_final=False,
+                        update_type=update_type,
+                        metadata=output.metadata,
+                    ),
+                ))
+
+                if output.type == AgentOutputType.TOKEN:
+                    full_response_text += output.content
+
+            # Finalize UI block
             self._bus.post(BusMessage(
                 type="ui_message",
                 source=self.name,
                 payload=DisplayMessage(
-                    speaker="Brain",
-                    text=output.content,
-                    is_user=False,
-                    msg_id=msg_id,
-                    is_final=False,
-                    update_type=update_type,
-                    metadata=output.metadata,
+                    speaker="Brain", text="", is_user=False,
+                    msg_id=msg_id, is_final=True,
                 ),
             ))
 
-            if output.type == AgentOutputType.TOKEN:
-                full_response_text += output.content
+            if full_response_text:
+                self._add_to_conversation_history("assistant", full_response_text)
+                await self._maybe_compact()
+                self._checkpoint()
+                self._schedule_memory_store(full_response_text)
+                if self._tts_enabled:
+                    return AudioOutputRequest(content=full_response_text, language=language)
 
-        # Finalize UI block
-        self._bus.post(BusMessage(
-            type="ui_message",
-            source=self.name,
-            payload=DisplayMessage(
-                speaker="Brain", text="", is_user=False,
-                msg_id=msg_id, is_final=True,
-            ),
-        ))
+            return None
 
-        if full_response_text:
-            self._add_to_conversation_history("assistant", full_response_text)
-            await self._maybe_compact()
-            self._checkpoint()
-            self._schedule_memory_store(full_response_text)
-            if self._tts_enabled:
-                return AudioOutputRequest(content=full_response_text, language=language)
-
-        return None
+        except BrainInterrupted:
+            # Save what the assistant already said so the LLM has context
+            if full_response_text.strip():
+                self._add_to_conversation_history("assistant", full_response_text)
+                self._checkpoint()
+            raise
+        except Exception as e:
+            logger.error(f"Agent stream processing error: {e}")
+            raise
+        finally:
+            await gen.aclose()
 
     async def _process_via_llm(
         self, msg_id: str, language: str, tools: list[dict[str, Any]]

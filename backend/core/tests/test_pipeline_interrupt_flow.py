@@ -131,7 +131,62 @@ class TestPipelineInterruptFlow:
         assert len(p4.events) == 1  # playback receives and consumes
 
 
-class TestBusSubscribeAll:
+class TestFlushFromScope:
+    """Tests for flush_from scope — verifies which queues are flushed."""
+
+    def test_flush_from_brain_preserves_brain_input_queue(self):
+        """flush_from(after='brain') should NOT flush the brain's input queue."""
+        bus = Bus()
+        p_asr = EventCapturingProcessor("asr")
+        p_brain = EventCapturingProcessor("brain")
+        p_tts = EventCapturingProcessor("tts")
+        p_playback = EventCapturingProcessor("playback")
+
+        pipeline = (
+            PipelineBuilder(bus)
+            .add(p_asr)
+            .add(p_brain)
+            .add(p_tts)
+            .add(p_playback)
+            .build()
+        )
+
+        # Push items into brain and tts queues
+        pipeline._queues[1].push("brain_item")  # q_brain
+        pipeline._queues[2].push("tts_item")  # q_tts
+
+        # Flush only downstream of brain
+        pipeline.flush_from(after="brain")
+
+        # Brain's input queue should still have the item
+        assert not pipeline._queues[1]._queue.empty()
+        # TTS queue should be flushed
+        assert pipeline._queues[2]._queue.empty()
+
+    def test_flush_from_brain_flushes_tts_and_playback(self):
+        """flush_from(after='brain') should flush TTS and Playback queues."""
+        bus = Bus()
+        p_asr = EventCapturingProcessor("asr")
+        p_brain = EventCapturingProcessor("brain")
+        p_tts = EventCapturingProcessor("tts")
+        p_playback = EventCapturingProcessor("playback")
+
+        pipeline = (
+            PipelineBuilder(bus)
+            .add(p_asr)
+            .add(p_brain)
+            .add(p_tts)
+            .add(p_playback)
+            .build()
+        )
+
+        pipeline._queues[2].push("tts_item")
+        pipeline._queues[3].push("playback_item")
+
+        pipeline.flush_from(after="brain")
+
+        assert pipeline._queues[2]._queue.empty()
+        assert pipeline._queues[3]._queue.empty()
     """Tests for Bus.subscribe_all catch-all handler."""
 
     def test_subscribe_all_receives_all_types(self):

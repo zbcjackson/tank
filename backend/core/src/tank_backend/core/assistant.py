@@ -681,7 +681,7 @@ class Assistant:
                 ),
                 after="asr",
             )
-            self._pipeline.flush_from(after="asr")
+            self._pipeline.flush_from(after="brain")
             self.runtime.interrupt_event.set()
 
     def _poll_bus_loop(self) -> None:
