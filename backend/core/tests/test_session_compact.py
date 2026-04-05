@@ -1,4 +1,4 @@
-"""Tests for session reset (wake word conversation lifecycle)."""
+"""Tests for session compact (wake word conversation lifecycle)."""
 
 import threading
 from unittest.mock import MagicMock
@@ -18,8 +18,8 @@ async def _collect(processor, item):
     return results
 
 
-class TestBrainSessionReset:
-    """Tests for Brain.reset_conversation() and system reset event handling."""
+class TestBrainSessionCompact:
+    """Tests for Brain compact via __compact__ system event."""
 
     @pytest.fixture
     def bus(self):
@@ -56,33 +56,36 @@ class TestBrainSessionReset:
         assert brain._conversation_history[0]["role"] == "system"
         assert brain._conversation_history[0]["content"] == brain._system_prompt
 
-    async def test_handle_system_reset_event(self, brain, mock_llm):
-        """process() with SYSTEM/__reset__ should reset history and not call LLM."""
+    async def test_compact_under_budget_preserves_history(self, brain, mock_llm):
+        """__compact__ with small history (under token budget) should keep all messages."""
         brain._conversation_history.append({"role": "user", "content": "hello"})
         brain._conversation_history.append({"role": "assistant", "content": "hi"})
+        history_before = list(brain._conversation_history)
 
         event = BrainInputEvent(
             type=InputType.SYSTEM,
-            text="__reset__",
+            text="__compact__",
             user="system",
             language=None,
             confidence=None,
         )
         results = await _collect(brain, event)
 
-        assert len(brain._conversation_history) == 1
-        assert brain._conversation_history[0]["role"] == "system"
+        # Under budget — history unchanged
+        assert brain._conversation_history == history_before
         mock_llm.chat_stream.assert_not_called()
         assert results == [(FlowReturn.OK, None)]
 
-    async def test_handle_system_reset_does_not_emit_signals(self, brain, bus):
-        """System reset should not post any UI messages to bus."""
+    async def test_compact_does_not_emit_signals_when_under_budget(self, brain, bus):
+        """__compact__ under budget should not post any UI messages to bus."""
         received = []
         bus.subscribe("ui_message", lambda m: received.append(m.payload))
 
+        brain._conversation_history.append({"role": "user", "content": "hello"})
+
         event = BrainInputEvent(
             type=InputType.SYSTEM,
-            text="__reset__",
+            text="__compact__",
             user="system",
             language=None,
             confidence=None,
@@ -92,8 +95,8 @@ class TestBrainSessionReset:
 
         assert len(received) == 0
 
-    async def test_handle_ignores_non_reset_system_events(self, brain, mock_llm):
-        """System events with text other than __reset__ should not reset history."""
+    async def test_handle_ignores_non_compact_system_events(self, brain, mock_llm):
+        """System events with text other than __compact__ should not compact history."""
         brain._conversation_history.append({"role": "user", "content": "hello"})
 
         event = BrainInputEvent(
@@ -103,8 +106,6 @@ class TestBrainSessionReset:
             language=None,
             confidence=None,
         )
-        # "some_other_command" is non-blank and non-reset, so Brain will try to process.
-        # Just verify it doesn't reset history.
         history_before = len(brain._conversation_history)
         await _collect(brain, event)
         assert len(brain._conversation_history) >= history_before

@@ -49,7 +49,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     [dispatchStatus],
   );
 
-  const { steps, messages, latestMessage, handleMessage, clearSteps, addLocalUserStep } =
+  const { steps, messages, latestMessage, handleMessage, addLocalUserStep } =
     useMessageReducer(messageCallbacks);
 
   // --- Audio pipeline ---
@@ -87,7 +87,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     latestMessage,
     isSpeaking,
     config: wakeWordConfig,
-    onSessionStart: clearSteps,
+    onSessionStart: undefined,
   });
 
   // Keep ref in sync so the AudioProcessor callback can read it

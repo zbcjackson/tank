@@ -603,14 +603,14 @@ class Assistant:
                 ),
             )
 
-    def reset_session(self) -> None:
-        """Reset Brain conversation history via pipeline."""
+    def compact_session(self) -> None:
+        """Compact Brain conversation history via pipeline (summarize if over budget)."""
         if self._pipeline is not None:
             self._pipeline.push_at(
                 "brain",
                 BrainInputEvent(
                     type=InputType.SYSTEM,
-                    text="__reset__",
+                    text="__compact__",
                     user="system",
                     language=None,
                     confidence=None,

@@ -210,9 +210,10 @@ class Brain(Processor):
         """Process a BrainInputEvent and yield AudioOutputRequest for TTS."""
         event: BrainInputEvent = item
 
-        # Handle system reset before normal processing
-        if event.type == InputType.SYSTEM and event.text == "__reset__":
-            self.reset_conversation()
+        # Handle system compact before normal processing
+        if event.type == InputType.SYSTEM and event.text == "__compact__":
+            await self._maybe_compact()
+            self._checkpoint()
             yield FlowReturn.OK, None
             return
 

@@ -70,9 +70,11 @@ class TTSProcessor(Processor):
                     break
                 chunk_count += 1
                 yield FlowReturn.OK, chunk
+        except Exception as e:
+            logger.warning("TTSProcessor: TTS engine error after %d chunks: %s", chunk_count, e)
         finally:
             await chunk_stream.aclose()
-            logger.info(f"TTSProcessor: finished, yielded {chunk_count} chunks")
+            logger.info("TTSProcessor: finished, yielded %d chunks", chunk_count)
 
         elapsed = time.time() - started_at
 

@@ -9,7 +9,7 @@
  * Transitions:
  *   loading → idle:   detector loads successfully
  *   loading → active: detector fails to load (fallback to always-on)
- *   idle → active:    wake word detected (sends "wake", resets context)
+ *   idle → active:    wake word detected (sends "wake", compacts context if over budget)
  *   idle → active:    TTS starts playing (silent reopen, no "wake" sent)
  *   active → idle:    silence timeout fires
  *
@@ -87,7 +87,7 @@ export function useConversationSession({
     }
   }, []);
 
-  // Transition: idle → active (wake word detected — sends "wake", resets context)
+  // Transition: idle → active (wake word detected — sends "wake")
   const startSession = useCallback(() => {
     if (stateRef.current === 'active') return;
 

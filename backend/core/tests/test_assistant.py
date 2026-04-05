@@ -65,21 +65,21 @@ class TestAssistantProcessInput:
         assert not should_process
 
 
-class TestAssistantResetSession:
-    """Tests for Assistant.reset_session."""
+class TestAssistantCompactSession:
+    """Tests for Assistant.compact_session."""
 
-    def test_reset_session_creates_system_event(self):
-        """reset_session should create a __reset__ BrainInputEvent."""
+    def test_compact_session_creates_system_event(self):
+        """compact_session should create a __compact__ BrainInputEvent."""
         event = BrainInputEvent(
             type=InputType.SYSTEM,
-            text="__reset__",
+            text="__compact__",
             user="system",
             language=None,
             confidence=None,
         )
 
         assert event.type == InputType.SYSTEM
-        assert event.text == "__reset__"
+        assert event.text == "__compact__"
 
 
 class TestAssistantUICallbacks:
@@ -386,7 +386,7 @@ class TestAssistantPlaybackCallback:
 
 
 class TestPipelinePushAt:
-    """Tests for Pipeline.push_at() used by process_input/reset_session."""
+    """Tests for Pipeline.push_at() used by process_input/compact_session."""
 
     def test_push_at_finds_processor_by_name(self):
         """push_at should push to the queue feeding the named processor."""

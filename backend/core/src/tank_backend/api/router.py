@@ -147,7 +147,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         break
                     elif msg.content == "wake":
                         try:
-                            assistant.reset_session()
+                            assistant.compact_session()
                             await websocket.send_text(
                                 WebsocketMessage(
                                     type=MessageType.SIGNAL,
@@ -156,7 +156,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                                 ).model_dump_json()
                             )
                         except Exception as e:
-                            logger.error(f"Session reset failed: {e}", exc_info=True)
+                            logger.error(f"Session compact failed: {e}", exc_info=True)
                             await websocket.send_text(
                                 WebsocketMessage(
                                     type=MessageType.SIGNAL,
