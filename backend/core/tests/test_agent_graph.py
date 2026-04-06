@@ -4,17 +4,6 @@ from tank_backend.agents.base import Agent, AgentOutput, AgentOutputType, AgentS
 from tank_backend.agents.graph import AgentGraph
 
 
-class MockRouter(Agent):
-    """Router that always hands off to a specific agent."""
-
-    def __init__(self, target: str):
-        super().__init__("router")
-        self._target = target
-
-    async def run(self, state):
-        yield AgentOutput(type=AgentOutputType.HANDOFF, target_agent=self._target)
-
-
 class MockAgent(Agent):
     """Agent that yields a sequence of tokens then DONE."""
 
@@ -43,10 +32,9 @@ class MockHandoffAgent(Agent):
 
 
 class TestAgentGraph:
-    async def test_router_to_agent_flow(self):
-        router = MockRouter("chat")
+    async def test_default_agent_flow(self):
         chat = MockAgent("chat", ["Hello", " world"])
-        graph = AgentGraph(agents={"chat": chat}, router=router)
+        graph = AgentGraph(agents={"chat": chat}, default_agent="chat")
 
         state = AgentState(messages=[{"role": "user", "content": "hi"}])
         outputs = [o async for o in graph.run(state)]
@@ -55,11 +43,10 @@ class TestAgentGraph:
         assert tokens == ["Hello", " world"]
 
     async def test_handoff_chain(self):
-        """Router → agent A (handoff) → agent B (done)."""
-        router = MockRouter("A")
+        """Agent A (handoff) → agent B (done)."""
         agent_a = MockHandoffAgent("A", ["step1"], handoff_to="B")
         agent_b = MockAgent("B", ["step2", "step3"])
-        graph = AgentGraph(agents={"A": agent_a, "B": agent_b}, router=router)
+        graph = AgentGraph(agents={"A": agent_a, "B": agent_b}, default_agent="A")
 
         state = AgentState()
         outputs = [o async for o in graph.run(state)]
@@ -77,17 +64,13 @@ class TestAgentGraph:
                 )
 
         loop_agent = InfiniteHandoffAgent("loop")
-        router = MockRouter("loop")
         graph = AgentGraph(
-            agents={"loop": loop_agent}, router=router, max_iterations=3
+            agents={"loop": loop_agent}, default_agent="loop", max_iterations=3
         )
 
         state = AgentState()
         outputs = [o async for o in graph.run(state)]
-        # Should terminate without error; no TOKEN/DONE outputs expected
         assert len(outputs) == 0
-
-        # History should show 3 iterations (router + 2 loop handoffs)
         assert len(state.agent_history) == 3
 
     async def test_streaming_outputs(self):
@@ -103,8 +86,7 @@ class TestAgentGraph:
                 yield AgentOutput(type=AgentOutputType.TOKEN, content="result")
                 yield AgentOutput(type=AgentOutputType.DONE)
 
-        router = MockRouter("tool")
-        graph = AgentGraph(agents={"tool": ToolAgent("tool")}, router=router)
+        graph = AgentGraph(agents={"tool": ToolAgent("tool")}, default_agent="tool")
 
         state = AgentState()
         outputs = [o async for o in graph.run(state)]
@@ -113,34 +95,33 @@ class TestAgentGraph:
         assert AgentOutputType.THOUGHT in types
         assert AgentOutputType.TOOL_CALLING in types
         assert AgentOutputType.TOKEN in types
-        # HANDOFF and DONE should NOT appear in outputs
         assert AgentOutputType.HANDOFF not in types
         assert AgentOutputType.DONE not in types
 
     async def test_unknown_handoff_target_stops(self):
         """HANDOFF to unknown agent should terminate gracefully."""
 
-        class BadRouter(Agent):
+        class BadHandoffAgent(Agent):
             async def run(self, state):
                 yield AgentOutput(
                     type=AgentOutputType.HANDOFF, target_agent="nonexistent"
                 )
 
-        graph = AgentGraph(agents={"chat": MockAgent("chat", [])}, router=BadRouter("router"))
+        graph = AgentGraph(
+            agents={"bad": BadHandoffAgent("bad")}, default_agent="bad"
+        )
         state = AgentState()
         outputs = [o async for o in graph.run(state)]
         assert len(outputs) == 0
 
     async def test_agent_history_tracks_execution(self):
-        router = MockRouter("chat")
         chat = MockAgent("chat", ["hi"])
-        graph = AgentGraph(agents={"chat": chat}, router=router)
+        graph = AgentGraph(agents={"chat": chat}, default_agent="chat")
 
         state = AgentState()
         async for _ in graph.run(state):
             pass
 
-        assert "router" in state.agent_history
         assert "chat" in state.agent_history
 
     async def test_agent_without_done_treated_as_complete(self):
@@ -149,14 +130,21 @@ class TestAgentGraph:
         class NoDoneAgent(Agent):
             async def run(self, state):
                 yield AgentOutput(type=AgentOutputType.TOKEN, content="hi")
-                # No DONE yield
 
-        router = MockRouter("no_done")
         graph = AgentGraph(
-            agents={"no_done": NoDoneAgent("no_done")}, router=router
+            agents={"no_done": NoDoneAgent("no_done")}, default_agent="no_done"
         )
 
         state = AgentState()
         outputs = [o async for o in graph.run(state)]
         assert len(outputs) == 1
         assert outputs[0].content == "hi"
+
+    async def test_unknown_default_stops(self):
+        """When default agent doesn't exist, graph stops gracefully."""
+        chat = MockAgent("chat", ["hi"])
+        graph = AgentGraph(agents={"chat": chat}, default_agent="nonexistent")
+
+        state = AgentState()
+        outputs = [o async for o in graph.run(state)]
+        assert len(outputs) == 0

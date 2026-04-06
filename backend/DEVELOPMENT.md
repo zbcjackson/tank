@@ -98,42 +98,11 @@ tts:
 brain:
   max_history_tokens: 8000             # auto-summarize when exceeded
 
-# Agent orchestration — route user messages to specialized agents.
-# Remove this section entirely to use the default direct-LLM path.
+# Agent orchestration — single agent with all tools.
 agents:
   chat:
     type: chat
     llm_profile: default
-  search:
-    type: search
-    llm_profile: default
-    tools: [web_search, web_scraper]
-  task:
-    type: task
-    llm_profile: default
-    tools: [calculate, get_time, get_weather]
-  code:
-    type: code
-    llm_profile: default
-    tools: [run_command, persistent_shell, manage_process]
-
-# Router — intent classification for agent dispatch.
-router:
-  llm_profile: default                 # enables LLM-based slow-path classification
-  default: chat
-  routes:
-    search:
-      agent: search
-      keywords: [search, look up, find, google, 搜索, 查找, 查一下]
-      description: Web search and information retrieval
-    code:
-      agent: code
-      keywords: [run code, execute, python, script, 运行代码, 执行]
-      description: Code execution in sandbox
-    task:
-      agent: task
-      keywords: [calculate, compute, what time, 计算, 几点, 天气]
-      description: Calculations, time queries, and weather
 
 # Approval policies — control which tools require user confirmation.
 approval_policies:
@@ -317,51 +286,6 @@ open htmlcov/index.html
    ```bash
    touch tests/test_my_tool.py
    uv run pytest tests/test_my_tool.py
-   ```
-
-### Adding a New Agent
-
-1. **Create agent file** in `src/tank_backend/agents/`
-   ```python
-   from .chat_agent import ChatAgent
-
-   class MyAgent(ChatAgent):
-       """Specialized agent for my domain."""
-
-       def __init__(self, llm, tool_manager, approval_manager=None):
-           super().__init__(llm, tool_manager, approval_manager)
-           self.name = "my_agent"
-           self.system_prompt = "You are a specialized assistant for..."
-   ```
-
-2. **Register in factory** (`agents/factory.py`)
-   ```python
-   def create_agent(agent_type: str, ...) -> Agent:
-       if agent_type == "my_domain":
-           return MyAgent(llm, tool_manager, approval_manager)
-   ```
-
-3. **Add to config.yaml**
-   ```yaml
-   agents:
-     my_domain:
-       type: my_domain
-       llm_profile: default
-       tools: [tool_a, tool_b]
-
-   router:
-     routes:
-       my_domain:
-         agent: my_domain
-         keywords: [keyword1, keyword2, 关键词]
-         description: What this agent handles
-   ```
-
-4. **Set approval policy** (optional)
-   ```yaml
-   approval_policies:
-     require_approval:
-       - tool_a
    ```
 
 ### Adding a New Pipeline Processor

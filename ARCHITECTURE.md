@@ -52,9 +52,9 @@ Each sub-project is independently deployable with its own dependencies and tests
 │  │ Bounded queues · Backpressure · Bidirectional events   │  │
 │  └────────────────────────────────────────────────────────┘  │
 │                                                              │
-│  Layer 2: Agent Orchestration (LangGraph-inspired)           │
+│  Layer 2: Agent Orchestration                              │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │ Router → AgentGraph → [Chat|Search|Task|Code] Agent   │  │
+│  │ AgentGraph → ChatAgent (all tools)                    │  │
 │  │ Approval gates · Checkpointing · Streaming to TTS     │  │
 │  └────────────────────────────────────────────────────────┘  │
 │                                                              │
@@ -73,7 +73,7 @@ Each sub-project is independently deployable with its own dependencies and tests
 ### Why Three Layers
 
 - **Layer 1 (Audio Pipeline)** has hard real-time constraints — 20ms audio frames, interrupt within 10ms, backpressure on queues. It must never block on agent logic.
-- **Layer 2 (Agent Orchestration)** is where intelligence lives — routing to the right agent, managing conversation state, handling tool approval. Must stream LLM tokens to TTS immediately (not batch them).
+- **Layer 2 (Agent Orchestration)** is where intelligence lives — a single ChatAgent with all tools, managing conversation state, handling tool approval. Streams LLM tokens to TTS immediately (not batch them).
 - **Layer 3 (LLM Transport)** is a thin wrapper — raw `AsyncOpenAI` with retry, token counting, and Langfuse tracing. No framework, no abstraction tax.
 
 ## Communication Protocol

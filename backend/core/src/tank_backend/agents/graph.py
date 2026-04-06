@@ -1,4 +1,4 @@
-"""AgentGraph — orchestrates router and agent loop."""
+"""AgentGraph — orchestrates agent execution loop."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ MAX_GRAPH_ITERATIONS = 5
 
 
 class AgentGraph:
-    """Simple loop orchestrator: Router yields HANDOFF → graph resolves agent → agent runs.
+    """Simple loop orchestrator: resolves default agent → agent runs → streams outputs.
 
     All TOKEN/THOUGHT/TOOL outputs stream through immediately.
     HANDOFF triggers resolution of the next agent.
@@ -24,17 +24,25 @@ class AgentGraph:
     def __init__(
         self,
         agents: dict[str, Agent],
-        router: Agent,
+        default_agent: str = "chat",
         max_iterations: int = MAX_GRAPH_ITERATIONS,
     ) -> None:
         self._agents = agents
-        self._router = router
+        self._default_agent = default_agent
         self._max_iterations = max_iterations
 
     async def run(self, state: AgentState) -> AsyncIterator[AgentOutput]:
         """Execute the agent graph, streaming all outputs."""
         graph_start = time.monotonic()
-        current_agent: Agent = self._router
+
+        if self._default_agent not in self._agents:
+            logger.error(
+                "Default agent %r not found in %s",
+                self._default_agent, list(self._agents.keys()),
+            )
+            return
+
+        current_agent: Agent = self._agents[self._default_agent]
 
         for iteration in range(1, self._max_iterations + 1):
             state.agent_history.append(current_agent.name)

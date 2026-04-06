@@ -1,14 +1,10 @@
 """Agent orchestration layer for the Tank backend."""
 
-from .approval import ApprovalManager, ToolApprovalPolicy, ApprovalRequest, ApprovalResult
+from .approval import ApprovalManager, ApprovalRequest, ApprovalResult, ToolApprovalPolicy
 from .base import Agent, AgentOutput, AgentOutputType, AgentState
 from .chat_agent import ChatAgent
-from .code_agent import CodeAgent
 from .factory import create_agent
 from .graph import AgentGraph
-from .router import Route, Router
-from .search_agent import SearchAgent
-from .task_agent import TaskAgent
 
 __all__ = [
     "Agent",
@@ -17,14 +13,9 @@ __all__ = [
     "AgentOutputType",
     "AgentState",
     "ApprovalManager",
-    "ToolApprovalPolicy",
     "ApprovalRequest",
     "ApprovalResult",
     "ChatAgent",
-    "CodeAgent",
-    "Route",
-    "Router",
-    "SearchAgent",
-    "TaskAgent",
+    "ToolApprovalPolicy",
     "create_agent",
 ]

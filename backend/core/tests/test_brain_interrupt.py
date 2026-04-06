@@ -25,16 +25,7 @@ class _SlowAgent(Agent):
         yield AgentOutput(type=AgentOutputType.DONE)
 
 
-class _SimpleRouter(Agent):
-    def __init__(self, target: str):
-        super().__init__("router")
-        self._target = target
-
-    async def run(self, state):
-        yield AgentOutput(type=AgentOutputType.HANDOFF, target_agent=self._target)
-
-
-def _make_brain(agent_graph=None):
+def _make_brain(agent_graph):
     """Create a Brain with minimal mocks."""
     llm = MagicMock()
     tool_manager = MagicMock()
@@ -79,8 +70,7 @@ class TestBrainInterruptResume:
         """After BrainInterrupted, the next call to process() should work normally."""
         interrupt_event = threading.Event()
         slow_agent = _SlowAgent(interrupt_event)
-        router = _SimpleRouter("slow")
-        graph = AgentGraph(agents={"slow": slow_agent}, router=router)
+        graph = AgentGraph(agents={"slow": slow_agent}, default_agent="slow")
 
         brain, bus, _ = _make_brain(agent_graph=graph)
         brain._interrupt_event = interrupt_event
@@ -106,8 +96,7 @@ class TestBrainInterruptResume:
                 yield AgentOutput(type=AgentOutputType.DONE)
 
         simple_agent = SimpleAgent()
-        router2 = _SimpleRouter("simple")
-        graph2 = AgentGraph(agents={"simple": simple_agent}, router=router2)
+        graph2 = AgentGraph(agents={"simple": simple_agent}, default_agent="simple")
         brain._agent_graph = graph2
 
         # Second event — should be processed normally
@@ -125,8 +114,7 @@ class TestProcessViaAgentsInterrupt:
         """Partial response text should be saved to conversation history on interrupt."""
         interrupt_event = threading.Event()
         slow_agent = _SlowAgent(interrupt_event)
-        router = _SimpleRouter("slow")
-        graph = AgentGraph(agents={"slow": slow_agent}, router=router)
+        graph = AgentGraph(agents={"slow": slow_agent}, default_agent="slow")
 
         brain, bus, _ = _make_brain(agent_graph=graph)
         brain._interrupt_event = interrupt_event
@@ -156,8 +144,7 @@ class TestProcessViaAgentsInterrupt:
 
         interrupt_event = threading.Event()
         slow_agent = _SlowAgent(interrupt_event)
-        router = _SimpleRouter("slow")
-        graph = AgentGraph(agents={"slow": slow_agent}, router=router)
+        graph = AgentGraph(agents={"slow": slow_agent}, default_agent="slow")
         # Monkey-patch the graph's run method to track closure
         graph.run = lambda state: tracking_run(graph, state)
 

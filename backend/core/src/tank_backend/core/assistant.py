@@ -349,29 +349,23 @@ class Assistant:
         except (KeyError, ValueError):
             return None
 
-    def _build_agent_graph(self) -> object | None:
-        """Build AgentGraph from config.yaml agents: + router: sections, or None.
-
-        If no ``agents:`` section is present in config, returns None and the
-        Brain uses its direct LLM path (backward compatible).
-        """
-        agents_raw = self._app_config.get_section("agents")
-        if not agents_raw:
-            return None
-
+    def _build_agent_graph(self) -> object:
+        """Build AgentGraph with a single ChatAgent from config.yaml agents: section."""
         from ..agents.graph import AgentGraph
 
-        agents = self._build_agents(agents_raw)
-        router = self._build_router()
+        agents_raw = self._app_config.get_section("agents")
+        if not agents_raw:
+            agents_raw = {"chat": {"type": "chat", "llm_profile": "default"}}
 
+        agents = self._build_agents(agents_raw)
+        default_agent = next(iter(agents))
         logger.info(
-            "AgentGraph built: %d agents (%s), %d routes, default=%s",
+            "AgentGraph built: %d agents (%s), default=%s",
             len(agents),
             list(agents.keys()),
-            len(router.routes),
-            router.default_agent,
+            default_agent,
         )
-        return AgentGraph(agents=agents, router=router)
+        return AgentGraph(agents=agents, default_agent=default_agent)
 
     def _build_agents(
         self,
@@ -405,37 +399,6 @@ class Assistant:
                 approval_policy=self._tool_manager.approval_policy,
             )
         return agents
-
-    def _build_router(self) -> object:
-        """Build Router from the router: config section."""
-        from ..agents.router import Route, Router
-
-        router_raw = self._app_config.get_section("router")
-        default_agent = router_raw.get("default", "chat") if router_raw else "chat"
-        routes: list[Route] = []
-
-        if router_raw and "routes" in router_raw:
-            for route_name, route_cfg in router_raw["routes"].items():
-                routes.append(
-                    Route(
-                        name=route_name,
-                        agent_name=route_cfg.get("agent", route_name),
-                        keywords=route_cfg.get("keywords", []),
-                        description=route_cfg.get("description", ""),
-                    )
-                )
-
-        router_llm = None
-        if router_raw and router_raw.get("llm_profile"):
-            try:
-                rp = self._app_config.get_llm_profile(router_raw["llm_profile"])
-                router_llm = create_llm_from_profile(rp)
-            except (KeyError, ValueError):
-                logger.warning(
-                    "Router LLM profile %r not found", router_raw["llm_profile"]
-                )
-
-        return Router(routes=routes, default_agent=default_agent, llm=router_llm)
 
     def _create_checkpointer(self) -> object | None:
         """Create Checkpointer if persistence is enabled in config, or None."""

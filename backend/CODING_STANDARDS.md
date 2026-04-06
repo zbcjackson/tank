@@ -135,13 +135,9 @@ src/tank_backend/
 ├── agents/
 │   ├── base.py              # Agent ABC, AgentState, AgentOutput
 │   ├── graph.py             # AgentGraph orchestrator
-│   ├── router.py            # Intent classifier
 │   ├── approval.py          # ApprovalManager + policy
 │   ├── factory.py           # Agent factory
-│   ├── chat_agent.py        # General conversation
-│   ├── search_agent.py      # Web search
-│   ├── task_agent.py        # Calculator/time/weather
-│   └── code_agent.py        # Sandbox code execution
+│   └── chat_agent.py        # Single conversational agent (all tools)
 ├── pipeline/
 │   ├── processor.py         # Processor ABC, AudioCaps, FlowReturn
 │   ├── event.py             # PipelineEvent
@@ -351,25 +347,10 @@ class MyObserver:
 
 ### Agent Pattern
 
-- **Extend `ChatAgent`** for most use cases — it handles LLM calling, tool execution, and streaming
-- Override `system_prompt` and tool set for specialization
+- A single `ChatAgent` handles all conversations — it manages LLM calling, tool execution, and streaming
+- Configure via `system_prompt.txt` and `config.yaml` (no subclassing needed)
 - Yield `AgentOutput` for each piece of streaming output
 - Use `AgentOutputType` enum for structured output types
-
-```python
-from .chat_agent import ChatAgent
-
-class MyAgent(ChatAgent):
-    """Specialized agent for a specific domain."""
-
-    def __init__(self, llm, tool_manager, approval_manager=None):
-        super().__init__(llm, tool_manager, approval_manager)
-        self.name = "my_agent"
-        self.system_prompt = "You are a specialized assistant for..."
-
-    # ChatAgent handles run(), tool calling, approval gates automatically.
-    # Override only if you need custom behavior.
-```
 
 ### Agent State
 

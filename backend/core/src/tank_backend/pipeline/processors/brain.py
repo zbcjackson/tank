@@ -77,9 +77,14 @@ class Brain(Processor):
         self._tts_enabled = tts_enabled
         self._checkpointer = checkpointer
         self._session_id = session_id
-        self._agent_graph = agent_graph
         self._approval_manager = approval_manager
         self._memory_service = memory_service
+
+        # Auto-create a default AgentGraph wrapping the LLM when none provided
+        if agent_graph is not None:
+            self._agent_graph = agent_graph
+        else:
+            self._agent_graph = self._create_default_agent_graph()
 
         # Echo guard — self-echo text detection (Layer 2)
         self._echo_config = echo_guard_config or EchoGuardConfig()
@@ -97,6 +102,19 @@ class Brain(Processor):
         # QoS state: when TTS is overloaded, reduce response aggressiveness
         self._qos_skip_tools = False
         self._bus.subscribe("qos", self._on_qos)
+
+    def _create_default_agent_graph(self) -> "AgentGraph":
+        """Create a default AgentGraph with a single ChatAgent wrapping self._llm."""
+        from ...agents.chat_agent import ChatAgent
+        from ...agents.graph import AgentGraph
+
+        agent = ChatAgent(
+            name="chat",
+            llm=self._llm,
+            tool_manager=self._tool_manager,
+            approval_manager=self._approval_manager,
+        )
+        return AgentGraph(agents={"chat": agent}, default_agent="chat")
 
     def _load_system_prompt(self) -> str:
         """Load system prompt from file."""
@@ -375,15 +393,13 @@ class Brain(Processor):
     async def _process_stream(
         self, msg_id: str, language: str, tools: list[dict[str, Any]]
     ) -> AudioOutputRequest | None:
-        """Run the streaming LLM process. Returns AudioOutputRequest or None."""
-        if self._agent_graph is not None:
-            return await self._process_via_agents(msg_id, language)
-        return await self._process_via_llm(msg_id, language, tools)
+        """Run the streaming LLM process via AgentGraph."""
+        return await self._process_via_agents(msg_id, language)
 
     async def _process_via_agents(
         self, msg_id: str, language: str
     ) -> AudioOutputRequest | None:
-        """Process via AgentGraph — route to specialized agents."""
+        """Process via AgentGraph."""
         from ...agents.base import AgentOutputType, AgentState
 
         state = AgentState(messages=list(self._conversation_history))
@@ -445,84 +461,6 @@ class Brain(Processor):
             raise
         except Exception as e:
             logger.error(f"Agent stream processing error: {e}")
-            raise
-        finally:
-            await gen.aclose()
-
-    async def _process_via_llm(
-        self, msg_id: str, language: str, tools: list[dict[str, Any]]
-    ) -> AudioOutputRequest | None:
-        """Run the streaming LLM process directly. Returns AudioOutputRequest or None."""
-        full_response_text = ""
-        from ...core.events import UpdateType
-
-        gen = self._llm.chat_stream(
-            messages=self._conversation_history,
-            tools=tools,
-            tool_executor=self._tool_manager,
-        )
-        try:
-            async for update_type, content, metadata in gen:
-                # Check for interruption
-                if self._interrupt_event.is_set():
-                    raise BrainInterrupted()
-
-                # Push update to UI via bus
-                self._bus.post(BusMessage(
-                    type="ui_message",
-                    source=self.name,
-                    payload=DisplayMessage(
-                        speaker="Brain",
-                        text=content,
-                        is_user=False,
-                        msg_id=msg_id,
-                        is_final=False,
-                        update_type=update_type,
-                        metadata=metadata,
-                    ),
-                ))
-
-                if update_type == UpdateType.TEXT:
-                    full_response_text += content
-
-            # Stream ended successfully
-            # 1. Finalize UI block
-            self._bus.post(BusMessage(
-                type="ui_message",
-                source=self.name,
-                payload=DisplayMessage(
-                    speaker="Brain", text="", is_user=False,
-                    msg_id=msg_id, is_final=True,
-                ),
-            ))
-
-            # 2. Add to history
-            if full_response_text:
-                self._add_to_conversation_history("assistant", full_response_text)
-
-                # 2b. Compact history if over token budget
-                await self._maybe_compact()
-
-                # 2c. Persist conversation state
-                self._checkpoint()
-
-                # 2d. Store memory (fire-and-forget)
-                self._schedule_memory_store(full_response_text)
-
-                # 3. Trigger TTS only when enabled and response is non-empty
-                if self._tts_enabled:
-                    return AudioOutputRequest(content=full_response_text, language=language)
-
-            return None
-
-        except BrainInterrupted:
-            # Save what the assistant already said so the LLM has context
-            if full_response_text.strip():
-                self._add_to_conversation_history("assistant", full_response_text)
-                self._checkpoint()
-            raise
-        except Exception as e:
-            logger.error(f"Stream processing error: {e}")
             raise
         finally:
             await gen.aclose()

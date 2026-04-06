@@ -217,45 +217,12 @@ assistant:
 brain:
   max_history_tokens: 8000
 
-# Agent orchestration — route user messages to specialized agents.
-# Remove this section entirely to use the default direct-LLM path.
+# Agent orchestration — single agent with all tools.
+# The LLM decides which tools to call naturally — no routing overhead.
 agents:
   chat:
     type: chat
     llm_profile: default
-    # tools: all (no filter — chat agent gets every registered tool)
-  search:
-    type: search
-    llm_profile: default
-    tools: [web_search, web_scraper]
-  task:
-    type: task
-    llm_profile: default
-    tools: [calculate, get_time, get_weather]
-  code:
-    type: code
-    llm_profile: default
-    tools: [run_command, persistent_shell, manage_process, file_read, file_write, file_delete, file_list]
-
-# Router — classifies user intent and dispatches to the right agent.
-# Fast-path: regex keyword match (zero latency).
-# Slow-path: LLM classification (requires llm_profile, optional).
-router:
-  llm_profile: default # uncomment to enable LLM-based slow-path classification
-  default: chat
-  routes:
-    search:
-      agent: search
-      keywords: [search, look up, find, google, 搜索, 查找, 查一下]
-      description: Web search and information retrieval
-    code:
-      agent: code
-      keywords: [run code, execute, python, script, 运行代码, 执行]
-      description: Code execution, shell commands, and system diagnostics
-    task:
-      agent: task
-      keywords: [calculate, compute, what time, 计算, 几点, 天气]
-      description: Calculations, time queries, and weather
 
 # Approval policies — optional config for tools that need user confirmation.
 #

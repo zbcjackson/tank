@@ -7,7 +7,7 @@ This document describes the architecture of the Tank Backend API Server.
 The backend is a FastAPI-based server organized into three layers:
 
 1. **Audio Pipeline** (real-time, latency-critical) — processors chained via bounded queues with backpressure, event-driven interruption, and fan-out support
-2. **Agent Orchestration** (stateful, multi-agent) — intent routing, specialized agents, human-in-the-loop approval, conversation persistence
+2. **Agent Orchestration** (stateful) — single agent with all tools, human-in-the-loop approval, conversation persistence
 3. **LLM Transport** (thin wrapper) — raw `AsyncOpenAI` with retry, token counting, Langfuse tracing
 
 Cross-cutting: Message Bus for decoupled observability, health monitoring, and alerting.
@@ -25,9 +25,9 @@ Cross-cutting: Message Bus for decoupled observability, health monitoring, and a
 │  │ Audio Out ← [Playback] ← [Q] ← [TTS] ← [Echo Guard] ← Brain │ │
 │  └────────────────────────────────────────────────────────────────┘ │
 │                                                                     │
-│  Layer 2: Agent Orchestration (LangGraph-inspired)                  │
+│  Layer 2: Agent Orchestration                                      │
 │  ┌────────────────────────────────────────────────────────────────┐ │
-│  │ Router → AgentGraph → [Chat|Search|Task|Code] Agent           │ │
+│  │ AgentGraph → ChatAgent (all tools)                            │ │
 │  │ Approval gates · Checkpointing · Streaming tokens to TTS      │ │
 │  └────────────────────────────────────────────────────────────────┘ │
 │                                                                     │
@@ -118,7 +118,7 @@ Both layers are backend-only, platform-independent, and fail-open.
 
 ### 3. Agent Orchestration (`src/tank_backend/agents/`)
 
-The Brain delegates to an agent graph that routes user intent to specialized agents.
+The Brain delegates to an AgentGraph that runs a single ChatAgent with access to all tools. The LLM decides which tools to call naturally — no routing overhead.
 
 **Components**:
 
@@ -127,31 +127,21 @@ The Brain delegates to an agent graph that routes user intent to specialized age
 | `Agent` | `base.py` | ABC: `async run(state, llm) → AsyncIterator[AgentOutput]` |
 | `AgentState` | `base.py` | Shared state: messages, metadata, agent_history, turn counter |
 | `AgentOutput` | `base.py` | Streaming output: TOKEN, THOUGHT, TOOL_CALLING, TOOL_EXECUTING, TOOL_RESULT, APPROVAL_NEEDED, HANDOFF, DONE |
-| `Router` | `router.py` | Intent classifier: fast-path keyword matching + optional slow-path LLM classification |
-| `AgentGraph` | `graph.py` | Orchestrator: Router → Agent → Handoff → Agent → Done. Max 5 iterations. |
+| `ChatAgent` | `chat_agent.py` | Conversational agent with tool calling. All registered tools available. |
+| `AgentGraph` | `graph.py` | Orchestrator: runs agent, streams outputs, tracks stats. Max 5 iterations. |
 | `ApprovalManager` | `approval.py` | Async approval gate for sensitive tool calls |
 | `ApprovalPolicy` | `approval.py` | Config-driven: `always_approve`, `require_approval`, `require_approval_first_time` |
 | `create_agent` | `factory.py` | Factory function: agent type string → Agent instance |
 
-**Specialized Agents**:
-
-| Agent | File | Tools | Purpose |
-|-------|------|-------|---------|
-| `ChatAgent` | `chat_agent.py` | All registered | General conversation with tool calling. Default agent. |
-| `SearchAgent` | `search_agent.py` | web_search, web_scraper | Web search + summarization |
-| `TaskAgent` | `task_agent.py` | calculate, get_time, get_weather | Calculations, time, weather |
-| `CodeAgent` | `code_agent.py` | run_command, persistent_shell, manage_process | Code execution in Docker sandbox |
-
 **Agent Graph Flow**:
 ```
-User message → Router (keyword/LLM classification)
-  → Resolve agent (chat/search/task/code)
+User message
+  → ChatAgent (all tools, comprehensive system prompt)
   → Agent.run(state) streams:
       TOKEN → TTS immediately (no batching)
       TOOL_CALLING → check ApprovalPolicy
         → APPROVAL_NEEDED → pause, await user response
         → or auto-approve → TOOL_EXECUTING → TOOL_RESULT
-      HANDOFF → switch to another agent
       DONE → end turn
 ```
 
@@ -278,7 +268,7 @@ Assistant.__init__()
   ├── registry = PluginManager().load_all()
   ├── app_config = AppConfig(registry=registry)   ← validates extension refs
   ├── Build Pipeline via PipelineBuilder
-  ├── Create AgentGraph with configured agents + router
+  ├── Create AgentGraph with ChatAgent
   └── Wire processors, bus, observers
 ```
 
@@ -291,8 +281,7 @@ All runtime configuration lives in `backend/core/config.yaml`. Secrets stay in `
 - `echo_guard` — VAD threshold switching + self-echo text detection
 - `asr` / `tts` / `speaker` — Plugin slot assignments
 - `sandbox` — Docker sandbox settings for code execution tools
-- `agents` — Specialized agent definitions (type, llm_profile, tools)
-- `router` — Intent classification routes with keywords
+- `agents` — Agent definitions (type, llm_profile)
 - `approval_policies` — Tool approval tiers
 - `brain` — Conversation processing (max_history_tokens)
 - `persistence` — Session checkpointing (enabled, db_path)
@@ -338,13 +327,9 @@ src/tank_backend/
 ├── agents/                       # Agent orchestration (Layer 2)
 │   ├── base.py                   # Agent ABC, AgentState, AgentOutput
 │   ├── graph.py                  # AgentGraph orchestrator
-│   ├── router.py                 # Intent classifier
 │   ├── approval.py               # ApprovalManager + ApprovalPolicy
 │   ├── factory.py                # Agent factory
-│   ├── chat_agent.py             # General conversation agent
-│   ├── search_agent.py           # Web search agent
-│   ├── task_agent.py             # Calculator/time/weather agent
-│   └── code_agent.py             # Sandbox code execution agent
+│   └── chat_agent.py             # Single conversational agent (all tools)
 ├── pipeline/                     # Pipeline architecture (Layer 1)
 │   ├── processor.py              # Processor ABC, AudioCaps, FlowReturn
 │   ├── event.py                  # PipelineEvent, EventDirection

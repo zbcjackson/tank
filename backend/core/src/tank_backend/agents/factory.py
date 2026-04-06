@@ -7,9 +7,6 @@ from typing import TYPE_CHECKING, Any
 
 from .base import Agent
 from .chat_agent import ChatAgent
-from .code_agent import CodeAgent
-from .search_agent import SearchAgent
-from .task_agent import TaskAgent
 
 if TYPE_CHECKING:
     from ..llm.llm import LLM
@@ -21,9 +18,6 @@ logger = logging.getLogger(__name__)
 # Registry of agent type → class
 _AGENT_TYPES: dict[str, type[ChatAgent]] = {
     "chat": ChatAgent,
-    "search": SearchAgent,
-    "task": TaskAgent,
-    "code": CodeAgent,
 }
 
 
@@ -81,13 +75,7 @@ def create_agent(
     if session_id:
         kwargs["session_id"] = session_id
 
-    # For the base ChatAgent, we need to pass the name explicitly
-    if cls is ChatAgent:
-        agent = ChatAgent(name=name, **kwargs)
-    else:
-        agent = cls(**kwargs)
-        # Override name if config specifies a different one
-        agent.name = name
+    agent = cls(name=name, **kwargs)
 
     logger.info("Created agent %r (type=%s)", name, agent_type)
     return agent

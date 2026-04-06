@@ -176,7 +176,7 @@ tests/
 ├── test_api.py                    # FastAPI routes / WebSocket
 ├── test_pipeline.py               # Pipeline primitives (Bus, Queue, FlowReturn)
 ├── test_processors.py             # Individual processor tests
-├── test_agents.py                 # Agent orchestration (Router, AgentGraph)
+├── test_agents.py                 # Agent orchestration (AgentGraph)
 ├── test_approval.py               # Approval system (policy, manager, API)
 ├── test_echo_guard.py             # Echo guard (Layer 2 text detection)
 ├── test_checkpointer.py           # Conversation persistence
@@ -238,26 +238,6 @@ def test_queue_backpressure():
 ```
 
 ## Testing Agents
-
-### Testing the Router
-
-```python
-from tank_backend.agents.router import Router, Route
-
-async def test_router_keyword_match():
-    routes = [Route(name="search", agent="search", keywords=["search", "find", "搜索"])]
-    router = Router(routes=routes, default="chat")
-
-    result = await router.route("please search for Python tutorials")
-    assert result == "search"
-
-async def test_router_falls_back_to_default():
-    routes = [Route(name="search", agent="search", keywords=["search"])]
-    router = Router(routes=routes, default="chat")
-
-    result = await router.route("hello, how are you?")
-    assert result == "chat"
-```
 
 ### Testing Agents
 
