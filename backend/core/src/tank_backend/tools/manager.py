@@ -154,7 +154,7 @@ class ToolManager:
     # Tool execution
     # ------------------------------------------------------------------
 
-    async def execute_tool(self, tool_name: str, **kwargs) -> dict[str, Any]:
+    async def execute_tool(self, tool_name: str, **kwargs) -> dict[str, Any] | str:
         if tool_name not in self.tools:
             error_msg = (
                 f"Tool '{tool_name}' not found. "
@@ -175,12 +175,21 @@ class ToolManager:
             logger.error(error_msg)
             return {"error": error_msg, "tool_name": tool_name, "parameters": kwargs}
 
-    def get_openai_tools(self) -> list[dict[str, Any]]:
-        """Convert tools to OpenAI function calling format."""
+    def get_openai_tools(
+        self, exclude: set[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Convert tools to OpenAI function calling format.
+
+        Args:
+            exclude: Optional set of tool names to omit from the result.
+        """
         openai_tools = []
 
         for tool in self.tools.values():
             info = tool.get_info()
+
+            if exclude and info.name in exclude:
+                continue
 
             properties = {}
             required = []

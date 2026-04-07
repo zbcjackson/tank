@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -117,6 +118,17 @@ class ApprovalManager:
     def __init__(self, timeout: float = DEFAULT_APPROVAL_TIMEOUT) -> None:
         self._timeout = timeout
         self._pending: dict[str, _PendingApproval] = {}
+        self._on_request_callback: Callable[[ApprovalRequest], None] | None = None
+
+    def set_on_request(self, callback: Callable[[ApprovalRequest], None]) -> None:
+        """Register a callback invoked whenever an approval is requested.
+
+        The Brain uses this to post approval notifications to the UI,
+        ensuring they go through the same Bus/WebSocket path as all
+        other UI messages — regardless of whether the request originates
+        from the outer agent or an inner worker agent.
+        """
+        self._on_request_callback = callback
 
     async def request_approval(self, request: ApprovalRequest) -> ApprovalResult:
         """Create a pending approval and wait for resolution or timeout.
@@ -145,6 +157,13 @@ class ApprovalManager:
             "Approval requested: id=%s tool=%s session=%s",
             request.approval_id, request.tool_name, request.session_id,
         )
+
+        # Notify the Brain (or whoever registered) so it can post to the UI
+        if self._on_request_callback is not None:
+            try:
+                self._on_request_callback(request)
+            except Exception:
+                logger.error("on_request callback error", exc_info=True)
 
         try:
             return await future

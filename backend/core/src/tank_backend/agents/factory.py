@@ -10,8 +10,6 @@ from .worker_tool import WorkerTool
 
 if TYPE_CHECKING:
     from ..llm.llm import LLM
-    from ..pipeline.bus import Bus
-    from ..tools.base import BaseTool
     from ..tools.manager import ToolManager
     from .approval import ApprovalManager, ToolApprovalPolicy
 
@@ -40,31 +38,30 @@ def create_agent(
     approval_manager: ApprovalManager | None = None,
     approval_policy: ToolApprovalPolicy | None = None,
     session_id: str = "",
-    bus: Bus | None = None,
 ) -> ChatAgent:
     """Create a ChatAgent from config.
 
-    If ``config`` contains a ``workers`` section, worker tools are created
-    and injected as extra tools on the agent. Otherwise a plain ChatAgent
-    with all tools is returned.
+    If ``config`` contains a ``workers`` section, WorkerTools are registered
+    in the ToolManager and worker-owned tools are excluded from the agent's
+    view. Otherwise a plain ChatAgent with all tools is returned.
 
     Args:
         name: Agent name (used as key in AgentGraph).
         llm: LLM instance.
-        tool_manager: Shared ToolManager (agents filter tools internally).
+        tool_manager: Shared ToolManager (WorkerTools are registered here).
         config: Optional dict with keys: ``llm_profile``, ``system_prompt``,
                 ``workers`` (dict of worker configs).
         approval_manager: Optional ApprovalManager for tool approval gates.
         approval_policy: Optional ToolApprovalPolicy for tool approval.
         session_id: Session ID for approval tracking.
+        bus: Optional Bus for forwarding worker approval requests to the UI.
 
     Returns:
-        ChatAgent instance (with or without worker tools).
+        ChatAgent instance (with or without worker delegation).
     """
     cfg = config or {}
     workers_cfg = cfg.get("workers", {})
 
-    extra_tools: list[BaseTool] = []
     worker_owned_tools: set[str] = set()
     worker_lines: list[str] = []
 
@@ -89,9 +86,12 @@ def create_agent(
             description=worker_cfg.get("description", f"Delegate tasks to {worker_name}"),
             worker_agent=inner_agent,
             timeout=float(worker_cfg.get("timeout", 120)),
-            bus=bus,
         )
-        extra_tools.append(worker_tool)
+
+        # Register in ToolManager so it's visible and executable like any other tool
+        if tool_manager is not None:
+            tool_manager.register_tool(worker_tool)
+
         worker_lines.append(f"- {tool_name}: {worker_cfg.get('description', '')}")
 
         logger.info(
@@ -112,17 +112,16 @@ def create_agent(
         llm=llm,
         tool_manager=tool_manager,
         system_prompt=system_prompt,
-        extra_tools=extra_tools or None,
         exclude_tools=worker_owned_tools or None,
         approval_manager=approval_manager,
         approval_policy=approval_policy,
         session_id=session_id,
     )
 
-    if extra_tools:
+    if workers_cfg:
         logger.info(
             "Created agent %r with %d workers, excluding %d direct tools",
-            name, len(extra_tools), len(worker_owned_tools),
+            name, len(workers_cfg), len(worker_owned_tools),
         )
     else:
         logger.info("Created agent %r (no workers)", name)

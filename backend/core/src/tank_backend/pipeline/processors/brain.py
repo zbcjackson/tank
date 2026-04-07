@@ -80,6 +80,11 @@ class Brain(Processor):
         self._approval_manager = approval_manager
         self._memory_service = memory_service
 
+        # Register approval notification callback so worker approvals
+        # go through the same Bus path as outer-agent approvals.
+        if approval_manager is not None:
+            approval_manager.set_on_request(self._on_approval_request)
+
         # Auto-create a default AgentGraph wrapping the LLM when none provided
         if agent_graph is not None:
             self._agent_graph = agent_graph
@@ -93,6 +98,9 @@ class Brain(Processor):
         # Load system prompt from file and append platform context
         self._system_prompt = self._load_system_prompt()
         self._system_prompt += "\n\n" + self._build_platform_context()
+
+        # Track current msg_id for approval notifications from workers
+        self._current_msg_id: str = ""
 
         # Initialize conversation history with system prompt as first message
         self._conversation_history: list[ChatCompletionMessageParam] = [
@@ -402,7 +410,11 @@ class Brain(Processor):
         """Process via AgentGraph."""
         from ...agents.base import AgentOutputType, AgentState
 
-        state = AgentState(messages=list(self._conversation_history))
+        state = AgentState(
+            messages=list(self._conversation_history),
+            metadata={"msg_id": msg_id},
+        )
+        self._current_msg_id = msg_id
         full_response_text = ""
 
         gen = self._agent_graph.run(state)  # type: ignore[union-attr]
@@ -622,6 +634,35 @@ class Brain(Processor):
         if language and language.startswith("zh"):
             return "对不起，出现错误，请重试。"
         return "Sorry, an error occurred. Please try again."
+
+    def _on_approval_request(self, request: Any) -> None:
+        """Post approval request to the UI via Bus.
+
+        Called by ApprovalManager whenever any agent (outer or worker)
+        requests approval. This ensures the notification always goes
+        through the Brain's Bus — no stale references.
+        """
+        from ...core.events import DisplayMessage, UpdateType
+
+        description = request.description
+        self._bus.post(BusMessage(
+            type="ui_message",
+            source=self.name,
+            payload=DisplayMessage(
+                speaker="Brain",
+                text=description,
+                is_user=False,
+                msg_id=self._current_msg_id,
+                is_final=False,
+                update_type=UpdateType.APPROVAL,
+                metadata={
+                    "approval_id": request.approval_id,
+                    "tool_name": request.tool_name,
+                    "tool_args": request.tool_args,
+                    "description": description,
+                },
+            ),
+        ))
 
 
 def _agent_to_update_type(agent_output_type: Any) -> Any:

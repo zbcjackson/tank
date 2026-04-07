@@ -75,7 +75,6 @@ class Assistant:
         asr_engine = self._create_engine(registry, "asr")
         tts_engine = self._create_engine(registry, "tts")
 
-        self._init_bus()
         self._init_observers()
         self._pipeline = self._build_pipeline(registry, asr_engine, tts_engine)
         self._init_health_monitor()
@@ -373,7 +372,6 @@ class Assistant:
             config=agents_cfg,
             approval_manager=self._tool_manager.approval_manager,
             approval_policy=self._tool_manager.approval_policy,
-            bus=self._bus,
         )
 
         logger.info("AgentGraph built: agent=chat")
