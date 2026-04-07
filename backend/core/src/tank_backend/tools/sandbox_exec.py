@@ -74,6 +74,7 @@ class SandboxExecTool(BaseTool):
         command: str = kwargs["command"]
         timeout: int = kwargs.get("timeout", 120)
         working_dir: str = kwargs.get("working_dir") or str(Path.home())
+        working_dir = str(Path(working_dir).expanduser())
         background: bool = kwargs.get("background", False)
 
         logger.info(

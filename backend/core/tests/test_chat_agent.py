@@ -202,3 +202,126 @@ class TestChatAgent:
 
         # Only the original user message should remain
         assert len(state.messages) == 1
+
+
+class TestChatAgentExtraTools:
+    """Tests for extra_tools and exclude_tools parameters."""
+
+    async def test_extra_tools_included_in_get_tools(self):
+        """Extra tools should appear in the tool list alongside ToolManager tools."""
+        from tank_backend.tools.base import BaseTool, ToolInfo, ToolParameter
+
+        class FakeTool(BaseTool):
+            def get_info(self):
+                return ToolInfo(
+                    name="delegate_to_coder",
+                    description="Delegate code tasks",
+                    parameters=[ToolParameter(name="task", type="string", description="task")],
+                )
+
+            async def execute(self, **kwargs):
+                return {"result": "done"}
+
+        captured_tools = []
+
+        async def chat_stream(messages, tools=None, **kwargs):
+            captured_tools.extend(tools or [])
+            yield (UpdateType.TEXT, "ok", {"turn": 1})
+
+        llm = MagicMock()
+        llm.chat_stream = chat_stream
+
+        tool_manager = MagicMock()
+        tool_manager.get_openai_tools.return_value = [
+            {"type": "function", "function": {"name": "calculator", "description": "calc"}},
+        ]
+
+        agent = ChatAgent(
+            name="chat", llm=llm,
+            tool_manager=tool_manager,
+            extra_tools=[FakeTool()],
+        )
+        state = AgentState(messages=[{"role": "user", "content": "hi"}])
+        async for _ in agent.run(state):
+            pass
+
+        names = [t["function"]["name"] for t in captured_tools]
+        assert "calculator" in names
+        assert "delegate_to_coder" in names
+
+    async def test_exclude_tools_removed_from_get_tools(self):
+        """Excluded tools should not appear in the tool list."""
+        captured_tools = []
+
+        async def chat_stream(messages, tools=None, **kwargs):
+            captured_tools.extend(tools or [])
+            yield (UpdateType.TEXT, "ok", {"turn": 1})
+
+        llm = MagicMock()
+        llm.chat_stream = chat_stream
+
+        tool_manager = MagicMock()
+        tool_manager.get_openai_tools.return_value = [
+            {"type": "function", "function": {"name": "run_command", "description": "run"}},
+            {"type": "function", "function": {"name": "calculator", "description": "calc"}},
+        ]
+
+        agent = ChatAgent(
+            name="chat", llm=llm,
+            tool_manager=tool_manager,
+            exclude_tools={"run_command"},
+        )
+        state = AgentState(messages=[{"role": "user", "content": "hi"}])
+        async for _ in agent.run(state):
+            pass
+
+        names = [t["function"]["name"] for t in captured_tools]
+        assert "calculator" in names
+        assert "run_command" not in names
+
+    async def test_extra_tools_none_is_backward_compatible(self):
+        """Default extra_tools=None should not change behavior."""
+        events = [(UpdateType.TEXT, "ok", {"turn": 1})]
+        llm = _make_llm(events)
+        agent = ChatAgent(name="chat", llm=llm)
+
+        state = AgentState(messages=[{"role": "user", "content": "hi"}])
+        outputs = [o async for o in agent.run(state)]
+
+        tokens = [o for o in outputs if o.type == AgentOutputType.TOKEN]
+        assert len(tokens) == 1
+
+    async def test_extra_tools_only_no_tool_manager(self):
+        """ChatAgent with extra_tools but no tool_manager should still work."""
+        from tank_backend.tools.base import BaseTool, ToolInfo, ToolParameter
+
+        class FakeTool(BaseTool):
+            def get_info(self):
+                return ToolInfo(
+                    name="my_tool",
+                    description="A tool",
+                    parameters=[ToolParameter(name="x", type="string", description="x")],
+                )
+
+            async def execute(self, **kwargs):
+                return {"result": "ok"}
+
+        captured_tools = []
+
+        async def chat_stream(messages, tools=None, **kwargs):
+            captured_tools.extend(tools or [])
+            yield (UpdateType.TEXT, "ok", {"turn": 1})
+
+        llm = MagicMock()
+        llm.chat_stream = chat_stream
+
+        agent = ChatAgent(
+            name="chat", llm=llm,
+            extra_tools=[FakeTool()],
+        )
+        state = AgentState(messages=[{"role": "user", "content": "hi"}])
+        async for _ in agent.run(state):
+            pass
+
+        assert len(captured_tools) == 1
+        assert captured_tools[0]["function"]["name"] == "my_tool"

@@ -1,81 +1,130 @@
-"""Agent factory — creates agents from config dictionaries."""
+"""Agent factory — creates a ChatAgent from the ``agents:`` config section."""
 
 from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING, Any
 
-from .base import Agent
 from .chat_agent import ChatAgent
+from .worker_tool import WorkerTool
 
 if TYPE_CHECKING:
     from ..llm.llm import LLM
+    from ..pipeline.bus import Bus
+    from ..tools.base import BaseTool
     from ..tools.manager import ToolManager
     from .approval import ApprovalManager, ToolApprovalPolicy
 
 logger = logging.getLogger(__name__)
 
-# Registry of agent type → class
-_AGENT_TYPES: dict[str, type[ChatAgent]] = {
-    "chat": ChatAgent,
-}
+_DEFAULT_ORCHESTRATOR_PROMPT = """\
+You are an orchestrator. For simple tasks (weather, time, calculations, casual chat), \
+handle them directly using the available tools. For complex tasks that require \
+multiple steps, code execution, file operations, or web research, delegate to a \
+specialist using the appropriate delegate_to_* tool.
+
+When delegating:
+- Provide a clear, specific task description
+- The specialist will execute the task and return results
+- Synthesize the specialist's results into a concise, conversational response
+- Do NOT repeat the specialist's raw output verbatim — summarize it naturally
+
+{worker_descriptions}"""
 
 
 def create_agent(
     name: str,
-    agent_type: str,
     llm: LLM,
     tool_manager: ToolManager | None = None,
     config: dict[str, Any] | None = None,
     approval_manager: ApprovalManager | None = None,
     approval_policy: ToolApprovalPolicy | None = None,
     session_id: str = "",
-) -> Agent:
-    """Create an agent instance from a type string and config.
+    bus: Bus | None = None,
+) -> ChatAgent:
+    """Create a ChatAgent from config.
+
+    If ``config`` contains a ``workers`` section, worker tools are created
+    and injected as extra tools on the agent. Otherwise a plain ChatAgent
+    with all tools is returned.
 
     Args:
         name: Agent name (used as key in AgentGraph).
-        agent_type: One of "chat", "search", "task", "code".
-        llm: LLM instance for this agent.
+        llm: LLM instance.
         tool_manager: Shared ToolManager (agents filter tools internally).
-        config: Optional dict with keys: ``tools`` (list[str]), ``system_prompt`` (str).
+        config: Optional dict with keys: ``llm_profile``, ``system_prompt``,
+                ``workers`` (dict of worker configs).
         approval_manager: Optional ApprovalManager for tool approval gates.
-        approval_policy: Optional ToolApprovalPolicy for determining which tools need approval.
+        approval_policy: Optional ToolApprovalPolicy for tool approval.
         session_id: Session ID for approval tracking.
 
     Returns:
-        Agent instance.
-
-    Raises:
-        ValueError: If agent_type is unknown.
+        ChatAgent instance (with or without worker tools).
     """
-    cls = _AGENT_TYPES.get(agent_type)
-    if cls is None:
-        raise ValueError(
-            f"Unknown agent type {agent_type!r}. "
-            f"Available: {sorted(_AGENT_TYPES.keys())}"
+    cfg = config or {}
+    workers_cfg = cfg.get("workers", {})
+
+    extra_tools: list[BaseTool] = []
+    worker_owned_tools: set[str] = set()
+    worker_lines: list[str] = []
+
+    for worker_name, worker_cfg in workers_cfg.items():
+        tool_name = f"delegate_to_{worker_name}"
+        worker_tools = worker_cfg.get("tools", [])
+        worker_owned_tools.update(worker_tools)
+
+        inner_agent = ChatAgent(
+            name=f"worker_{worker_name}",
+            llm=llm,
+            tool_manager=tool_manager,
+            system_prompt=worker_cfg.get("system_prompt"),
+            tool_filter=worker_tools or None,
+            approval_manager=approval_manager,
+            approval_policy=approval_policy,
+            session_id=session_id,
         )
 
-    cfg = config or {}
-    kwargs: dict[str, Any] = {
-        "llm": llm,
-        "tool_manager": tool_manager,
-    }
+        worker_tool = WorkerTool(
+            name=tool_name,
+            description=worker_cfg.get("description", f"Delegate tasks to {worker_name}"),
+            worker_agent=inner_agent,
+            timeout=float(worker_cfg.get("timeout", 120)),
+            bus=bus,
+        )
+        extra_tools.append(worker_tool)
+        worker_lines.append(f"- {tool_name}: {worker_cfg.get('description', '')}")
 
-    if "tools" in cfg:
-        kwargs["tool_filter"] = cfg["tools"]
-    if "system_prompt" in cfg:
-        kwargs["system_prompt"] = cfg["system_prompt"]
+        logger.info(
+            "Worker %r: tools=%s, timeout=%.0fs",
+            worker_name, worker_tools, worker_tool._timeout,
+        )
 
-    # Pass approval params through to all ChatAgent subclasses
-    if approval_manager is not None:
-        kwargs["approval_manager"] = approval_manager
-    if approval_policy is not None:
-        kwargs["approval_policy"] = approval_policy
-    if session_id:
-        kwargs["session_id"] = session_id
+    # Build system prompt — only inject orchestrator prompt when workers exist
+    system_prompt = cfg.get("system_prompt")
+    if system_prompt is None and worker_lines:
+        worker_desc = "Available specialists:\n" + "\n".join(worker_lines)
+        system_prompt = _DEFAULT_ORCHESTRATOR_PROMPT.format(
+            worker_descriptions=worker_desc,
+        )
 
-    agent = cls(name=name, **kwargs)
+    agent = ChatAgent(
+        name=name,
+        llm=llm,
+        tool_manager=tool_manager,
+        system_prompt=system_prompt,
+        extra_tools=extra_tools or None,
+        exclude_tools=worker_owned_tools or None,
+        approval_manager=approval_manager,
+        approval_policy=approval_policy,
+        session_id=session_id,
+    )
 
-    logger.info("Created agent %r (type=%s)", name, agent_type)
+    if extra_tools:
+        logger.info(
+            "Created agent %r with %d workers, excluding %d direct tools",
+            name, len(extra_tools), len(worker_owned_tools),
+        )
+    else:
+        logger.info("Created agent %r (no workers)", name)
+
     return agent

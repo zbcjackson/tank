@@ -351,54 +351,33 @@ class Assistant:
 
     def _build_agent_graph(self) -> object:
         """Build AgentGraph with a single ChatAgent from config.yaml agents: section."""
+        from ..agents.factory import create_agent
         from ..agents.graph import AgentGraph
 
-        agents_raw = self._app_config.get_section("agents")
-        if not agents_raw:
-            agents_raw = {"chat": {"type": "chat", "llm_profile": "default"}}
-
-        agents = self._build_agents(agents_raw)
-        default_agent = next(iter(agents))
-        logger.info(
-            "AgentGraph built: %d agents (%s), default=%s",
-            len(agents),
-            list(agents.keys()),
-            default_agent,
-        )
-        return AgentGraph(agents=agents, default_agent=default_agent)
-
-    def _build_agents(
-        self,
-        agents_raw: dict,
-    ) -> dict[str, object]:
-        """Instantiate all agents from the agents: config section."""
-        from ..agents.factory import create_agent
-
-        agents: dict[str, object] = {}
-        for name, agent_cfg in agents_raw.items():
-            agent_type = agent_cfg.get("type", "chat")
-            llm_profile_name = agent_cfg.get("llm_profile", "default")
-            try:
-                llm_profile = self._app_config.get_llm_profile(llm_profile_name)
-                agent_llm = create_llm_from_profile(llm_profile)
-            except (KeyError, ValueError):
-                logger.warning(
-                    "Agent %r references unknown LLM profile %r — using default",
-                    name,
-                    llm_profile_name,
-                )
-                agent_llm = self._llm
-
-            agents[name] = create_agent(
-                name=name,
-                agent_type=agent_type,
-                llm=agent_llm,
-                tool_manager=self._tool_manager,
-                config=agent_cfg,
-                approval_manager=self._tool_manager.approval_manager,
-                approval_policy=self._tool_manager.approval_policy,
+        agents_cfg = self._app_config.get_section("agents") or {}
+        llm_profile_name = agents_cfg.get("llm_profile", "default")
+        try:
+            llm_profile = self._app_config.get_llm_profile(llm_profile_name)
+            agent_llm = create_llm_from_profile(llm_profile)
+        except (KeyError, ValueError):
+            logger.warning(
+                "Agent references unknown LLM profile %r — using default",
+                llm_profile_name,
             )
-        return agents
+            agent_llm = self._llm
+
+        agent = create_agent(
+            name="chat",
+            llm=agent_llm,
+            tool_manager=self._tool_manager,
+            config=agents_cfg,
+            approval_manager=self._tool_manager.approval_manager,
+            approval_policy=self._tool_manager.approval_policy,
+            bus=self._bus,
+        )
+
+        logger.info("AgentGraph built: agent=chat")
+        return AgentGraph(agents={"chat": agent}, default_agent="chat")
 
     def _create_checkpointer(self) -> object | None:
         """Create Checkpointer if persistence is enabled in config, or None."""

@@ -220,9 +220,22 @@ brain:
 # Agent orchestration — single agent with all tools.
 # The LLM decides which tools to call naturally — no routing overhead.
 agents:
-  chat:
-    type: chat
-    llm_profile: default
+  llm_profile: default
+
+  # Workers (optional) — uncomment to enable orchestrator + workers mode.
+  # Without workers, the agent handles everything directly (plain chat mode).
+  # With workers, simple tasks are handled directly while complex tasks are
+  # delegated to specialist workers.
+  #
+  workers:
+    coder:
+     description: "Execute shell commands, file operations, and system tasks"
+     tools: [run_command, persistent_shell, manage_process, file_read, file_write, file_delete, file_list]
+     timeout: 180
+    researcher:
+     description: "Search the web and extract information from pages"
+     tools: [web_search, web_scraper]
+     timeout: 60
 
 # Approval policies — optional config for tools that need user confirmation.
 #

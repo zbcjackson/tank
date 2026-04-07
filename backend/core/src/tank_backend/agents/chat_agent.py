@@ -19,6 +19,7 @@ from .base import Agent, AgentOutput, AgentOutputType, AgentState
 
 if TYPE_CHECKING:
     from ..llm.llm import LLM
+    from ..tools.base import BaseTool, ToolInfo
     from ..tools.manager import ToolManager
 
 logger = logging.getLogger(__name__)
@@ -78,6 +79,29 @@ class _ApprovalToolExecutor:
         return await self._tool_manager.execute_openai_tool_call(tool_call)
 
 
+class _CombinedToolExecutor:
+    """Dispatches tool calls to either the primary executor or extra BaseTool instances."""
+
+    def __init__(
+        self,
+        primary: Any,
+        extra_tools: dict[str, BaseTool],
+    ) -> None:
+        self._primary = primary
+        self._extra = extra_tools
+
+    async def execute_openai_tool_call(self, tool_call: Any) -> dict[str, Any]:
+        name = tool_call.function.name
+        if name in self._extra:
+            args = json.loads(tool_call.function.arguments)
+            result = await self._extra[name].execute(**args)
+            # BaseTool.execute may return a string or dict; normalise to dict
+            if isinstance(result, str):
+                return {"result": result}
+            return result
+        return await self._primary.execute_openai_tool_call(tool_call)
+
+
 class ChatAgent(Agent):
     """Default conversational agent — delegates to LLM.chat_stream().
 
@@ -95,6 +119,8 @@ class ChatAgent(Agent):
         approval_manager: ApprovalManager | None = None,
         approval_policy: ToolApprovalPolicy | None = None,
         session_id: str = "",
+        extra_tools: list[BaseTool] | None = None,
+        exclude_tools: set[str] | None = None,
     ) -> None:
         super().__init__(name)
         self._llm = llm
@@ -104,24 +130,54 @@ class ChatAgent(Agent):
         self._approval_manager = approval_manager
         self._approval_policy = approval_policy
         self._session_id = session_id
+        self._extra_tools: list[BaseTool] = extra_tools or []
+        self._exclude_tools: set[str] = exclude_tools or set()
 
     def _get_tools(self) -> tuple[list[dict[str, Any]], Any]:
-        """Return (openai_tools, tool_executor) respecting optional filter and approval."""
-        if self._tool_manager is None:
+        """Return (openai_tools, tool_executor) with filter, exclusion, extras, and approval."""
+        if self._tool_manager is None and not self._extra_tools:
             return [], None
-        tools = self._tool_manager.get_openai_tools()
+
+        tools: list[dict[str, Any]] = []
+        if self._tool_manager is not None:
+            tools = self._tool_manager.get_openai_tools()
+
+        # Remove excluded tools (tools owned by workers in orchestrator mode)
+        if self._exclude_tools:
+            tools = [t for t in tools if t["function"]["name"] not in self._exclude_tools]
+
+        # Append extra tools (e.g. WorkerTool instances)
+        extra_map: dict[str, BaseTool] = {}
+        for extra in self._extra_tools:
+            info = extra.get_info()
+            extra_map[info.name] = extra
+            tools.append(_tool_info_to_openai(info))
+
+        # Apply explicit filter if present
         if self._tool_filter is not None:
             allowed = set(self._tool_filter)
             tools = [t for t in tools if t["function"]["name"] in allowed]
 
         executor: Any = self._tool_manager
-        if self._approval_manager is not None and self._approval_policy is not None:
+        has_approval = (
+            self._approval_manager is not None
+            and self._approval_policy is not None
+            and self._tool_manager is not None
+        )
+        if has_approval:
             executor = _ApprovalToolExecutor(
                 tool_manager=self._tool_manager,
                 approval_manager=self._approval_manager,
                 approval_policy=self._approval_policy,
                 session_id=self._session_id,
             )
+
+        # Wrap with combined executor when extra tools are present
+        if extra_map and executor is not None:
+            executor = _CombinedToolExecutor(primary=executor, extra_tools=extra_map)
+        elif extra_map:
+            # No tool_manager — extra tools only (unlikely but safe)
+            executor = _CombinedToolExecutor(primary=None, extra_tools=extra_map)
 
         return tools, executor
 
@@ -282,3 +338,29 @@ def _build_tool_description(tool_name: str, tool_args: dict[str, Any]) -> str:
     # Generic fallback
     args_preview = str(tool_args)[:80]
     return f"Execute {tool_name}({args_preview})"
+
+
+def _tool_info_to_openai(info: ToolInfo) -> dict[str, Any]:
+    """Convert a ToolInfo to OpenAI function calling format."""
+    properties: dict[str, Any] = {}
+    required: list[str] = []
+    for param in info.parameters:
+        properties[param.name] = {
+            "type": param.type,
+            "description": param.description,
+        }
+        if param.required:
+            required.append(param.name)
+
+    return {
+        "type": "function",
+        "function": {
+            "name": info.name,
+            "description": info.description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+            },
+        },
+    }

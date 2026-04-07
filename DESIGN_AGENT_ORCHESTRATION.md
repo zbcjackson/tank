@@ -3,6 +3,7 @@
 ## Status
 
 Phase 1 implemented — 2026-04-06. Single agent, no router. See git history for the migration.
+Phase 2 implemented — 2026-04-06. Orchestrator + Workers. Workers are tools on the agent (`WorkerTool`). Enable by adding a `workers:` section under `agents:` in config.yaml.
 
 ## Problem
 
