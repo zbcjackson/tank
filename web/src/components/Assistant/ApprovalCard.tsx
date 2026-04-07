@@ -83,9 +83,9 @@ export const ApprovalCard = ({ content, onRespond }: ApprovalCardProps) => {
 
         {/* Body */}
         <div className="p-3 space-y-3">
-          <div className="text-[12px] font-mono bg-black/30 text-text-secondary p-3 rounded-xl border border-border-subtle">
-            {content.description}
-          </div>
+          <pre className="text-[12px] font-mono bg-black/30 text-text-secondary p-3 rounded-xl border border-border-subtle overflow-x-auto whitespace-pre-wrap break-all m-0">
+            <code>{content.description}</code>
+          </pre>
 
           {/* Action buttons — only when pending */}
           {isPending && (

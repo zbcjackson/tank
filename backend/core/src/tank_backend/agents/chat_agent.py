@@ -276,18 +276,11 @@ def _parse_tool_args(args_str: str) -> dict[str, Any]:
 
 def _build_tool_description(tool_name: str, tool_args: dict[str, Any]) -> str:
     """Build a human-readable description of a tool call."""
-    if tool_name == "run_command" and "command" in tool_args:
-        cmd = tool_args["command"]
-        preview = cmd[:100] + "..." if len(cmd) > 100 else cmd
-        return f"Run command: {preview}"
-    if tool_name == "persistent_shell" and "command" in tool_args:
-        cmd = tool_args["command"]
-        preview = cmd[:100] + "..." if len(cmd) > 100 else cmd
-        return f"Run in shell: {preview}"
+    if tool_name in ("run_command", "persistent_shell") and "command" in tool_args:
+        return tool_args["command"]
     if tool_name == "manage_process":
         action = tool_args.get("action", "")
         pid = tool_args.get("process_id", "")
         return f"Process {action}: {pid}" if pid else f"Process {action}"
     # Generic fallback
-    args_preview = str(tool_args)[:80]
-    return f"Execute {tool_name}({args_preview})"
+    return f"{tool_name}({json.dumps(tool_args, ensure_ascii=False)})"

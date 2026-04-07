@@ -287,13 +287,11 @@ class TestHelpers:
 
     def test_build_description_run_command(self):
         desc = _build_tool_description("run_command", {"command": "python script.py"})
-        assert "Run command" in desc
-        assert "python script.py" in desc
+        assert desc == "python script.py"
 
     def test_build_description_persistent_shell(self):
         desc = _build_tool_description("persistent_shell", {"command": "ls -la"})
-        assert "Run in shell" in desc
-        assert "ls -la" in desc
+        assert desc == "ls -la"
 
     def test_build_description_manage_process(self):
         desc = _build_tool_description("manage_process", {"action": "poll", "process_id": "abc123"})
@@ -302,10 +300,10 @@ class TestHelpers:
 
     def test_build_description_generic(self):
         desc = _build_tool_description("my_tool", {"arg": "val"})
-        assert "Execute my_tool" in desc
+        assert "my_tool" in desc
+        assert "val" in desc
 
-    def test_build_description_truncation(self):
+    def test_build_description_no_truncation(self):
         long_code = "x" * 200
         desc = _build_tool_description("run_command", {"command": long_code})
-        assert "..." in desc
-        assert len(desc) < 200
+        assert desc == long_code
