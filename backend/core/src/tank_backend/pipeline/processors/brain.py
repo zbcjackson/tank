@@ -17,6 +17,7 @@ from ...core.events import (
     DisplayMessage,
     InputType,
     SignalMessage,
+    UpdateType,
 )
 from ...observability.trace import generate_trace_id
 from ..bus import Bus, BusMessage
@@ -426,6 +427,12 @@ class Brain(Processor):
 
                 update_type = _agent_to_update_type(output.type)
                 if update_type is None:
+                    continue
+
+                # Hide delegate tools from UI — they are internal orchestration
+                if update_type == UpdateType.TOOL and output.metadata.get(
+                    "name", ""
+                ).startswith("delegate_to_"):
                     continue
 
                 self._bus.post(BusMessage(
