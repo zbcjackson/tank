@@ -183,7 +183,7 @@ export const Chat: React.FC = () => {
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSendText()}
+          onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && handleSendText()}
           placeholder="Enter command or speak..."
           className="flex-1 bg-transparent border-none focus:ring-0 text-sm placeholder:text-zinc-700"
         />
