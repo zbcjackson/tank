@@ -429,10 +429,12 @@ class Brain(Processor):
                 if update_type is None:
                     continue
 
-                # Hide delegate tools from UI — they are internal orchestration
-                if update_type == UpdateType.TOOL and output.metadata.get(
-                    "name", ""
-                ).startswith("delegate_to_"):
+                # Hide internal orchestration tools from UI
+                _tool_name = output.metadata.get("name", "")
+                if update_type == UpdateType.TOOL and (
+                    _tool_name.startswith("delegate_to_")
+                    or _tool_name.startswith("review_")
+                ):
                     continue
 
                 self._bus.post(BusMessage(

@@ -234,40 +234,12 @@ async def request_with_notification(
     request: ApprovalRequest,
     bus: Any = None,
 ) -> ApprovalResult:
-    """Request approval and notify the UI via Bus.
+    """Request approval via the ApprovalManager.
 
-    Shared helper used by both tool-level approval (via ChatAgent) and
-    file-level approval (via ApprovalCallback in file tools).
+    The UI notification is handled by the manager's ``on_request`` callback
+    (registered by the Brain). No need to post to the Bus here — that would
+    cause duplicate notifications.
 
-    Args:
-        manager: The ApprovalManager that tracks pending approvals.
-        request: The approval request to submit.
-        bus: Optional pipeline Bus for posting UI notifications.
-
-    Returns:
-        ApprovalResult with approved=True/False.
+    The ``bus`` parameter is kept for backward compatibility but ignored.
     """
-    if bus is not None:
-        from ..core.events import DisplayMessage, UpdateType
-        from ..pipeline import BusMessage
-
-        bus.post(BusMessage(
-            type="ui_message",
-            source="Approval",
-            payload=DisplayMessage(
-                speaker="Brain",
-                text=request.description,
-                is_user=False,
-                msg_id=f"approval_{request.approval_id}",
-                is_final=False,
-                update_type=UpdateType.APPROVAL,
-                metadata={
-                    "approval_id": request.approval_id,
-                    "tool_name": request.tool_name,
-                    "tool_args": request.tool_args,
-                    "description": request.description,
-                },
-            ),
-        ))
-
     return await manager.request_approval(request)

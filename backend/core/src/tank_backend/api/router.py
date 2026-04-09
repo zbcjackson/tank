@@ -54,6 +54,10 @@ def _ui_msg_to_ws_msg(msg: UIMessage, session_id: str) -> WebsocketMessage | Non
             if msg.update_type == UpdateType.TOOL:
                 index = msg.metadata.get("index", 0)
                 step_id += f"_{index}"
+            elif msg.update_type == UpdateType.APPROVAL:
+                approval_id = msg.metadata.get("approval_id", "")
+                if approval_id:
+                    step_id = f"{msg.msg_id}_approval_{approval_id}"
             ws_msg.metadata["step_id"] = step_id
         return ws_msg
     logger.warning(f"Unknown UI message type: {type(msg)}")

@@ -59,6 +59,7 @@ class EdgeTTSEngine(TTSEngine):
             "pipe:1",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
         )
         assert proc.stdin is not None and proc.stdout is not None
 

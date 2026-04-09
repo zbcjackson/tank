@@ -22,6 +22,14 @@ MAX_RETRY_ATTEMPTS = 3
 RETRY_BASE_DELAY = 1.0
 RETRY_MAX_DELAY = 10.0
 
+# Worker tool prefixes — tools matching these are candidates for concurrent execution
+_CONCURRENT_PREFIXES = ("delegate_to_", "review_")
+
+
+def _is_concurrent_safe(name: str) -> bool:
+    """Return True if a tool is a worker delegation (candidate for concurrency)."""
+    return any(name.startswith(p) for p in _CONCURRENT_PREFIXES)
+
 
 class LLM:
     def __init__(
@@ -90,6 +98,7 @@ class LLM:
         """
         working_messages = messages.copy()
         turn = 0
+        rejected_tools: set[str] = set()
 
         for _iteration in range(MAX_TOOL_ITERATIONS):
             turn += 1
@@ -107,7 +116,13 @@ class LLM:
             if self.extra_body:
                 api_kwargs["extra_body"] = self.extra_body
             if tools:
-                api_kwargs["tools"] = tools
+                # Remove rejected tools so the LLM cannot retry them
+                effective_tools = [
+                    t for t in tools
+                    if t.get("function", {}).get("name") not in rejected_tools
+                ] if rejected_tools else tools
+                if effective_tools:
+                    api_kwargs["tools"] = effective_tools
 
             full_content = ""
             full_reasoning = ""
@@ -193,70 +208,166 @@ class LLM:
 
             # If there are tool calls, execute them and continue the loop
             if tool_calls_data and tool_executor:
-                for idx in sorted(tool_calls_data.keys()):
-                    tc = tool_calls_data[idx]
-                    try:
-                        # Yield status update
+                from openai.types.chat.chat_completion_message_tool_call import (
+                    ChatCompletionMessageToolCall,
+                    Function,
+                )
+
+                sorted_indices = sorted(tool_calls_data.keys())
+
+                # Split into concurrent-safe (worker) and sequential tools
+                concurrent_items = [
+                    (idx, tool_calls_data[idx])
+                    for idx in sorted_indices
+                    if _is_concurrent_safe(tool_calls_data[idx]["name"])
+                ]
+                sequential_items = [
+                    (idx, tool_calls_data[idx])
+                    for idx in sorted_indices
+                    if not _is_concurrent_safe(tool_calls_data[idx]["name"])
+                ]
+
+                # --- Run concurrent-safe tools in parallel ---
+                if len(concurrent_items) > 1:
+                    logger.info(
+                        "Running %d worker tools concurrently: %s",
+                        len(concurrent_items),
+                        [tc["name"] for _, tc in concurrent_items],
+                    )
+
+                    # Emit all "executing" statuses first
+                    for idx, tc in concurrent_items:
                         yield (
-                            UpdateType.TOOL,
-                            "",
+                            UpdateType.TOOL, "",
                             {
-                                "index": idx,
-                                "name": tc["name"],
+                                "index": idx, "name": tc["name"],
                                 "arguments": tc["arguments"],
-                                "status": "executing",
+                                "status": "executing", "turn": turn,
+                            },
+                        )
+
+                    # Build coroutines and gather
+                    async def _exec_one(tc_item: dict[str, Any]) -> Any:
+                        obj = ChatCompletionMessageToolCall(
+                            id=tc_item["id"], type="function",
+                            function=Function(
+                                name=tc_item["name"],
+                                arguments=tc_item["arguments"],
+                            ),
+                        )
+                        return await tool_executor.execute_openai_tool_call(obj)
+
+                    results = await asyncio.gather(
+                        *(_exec_one(tc) for _, tc in concurrent_items),
+                        return_exceptions=True,
+                    )
+
+                    # Process results
+                    for (idx, tc), result in zip(
+                        concurrent_items, results, strict=True,
+                    ):
+                        if isinstance(result, Exception):
+                            yield (
+                                UpdateType.TOOL, f"Error: {result!s}",
+                                {
+                                    "index": idx, "name": tc["name"],
+                                    "status": "error", "turn": turn,
+                                },
+                            )
+                            working_messages.append({
+                                "role": "tool", "tool_call_id": tc["id"],
+                                "name": tc["name"],
+                                "content": f"Error: {result!s}",
+                            })
+                        else:
+                            is_error = (
+                                isinstance(result, dict) and "error" in result
+                            )
+                            if is_error:
+                                rejected_tools.add(tc["name"])
+                            result_str = str(result)
+                            summary = (
+                                (result_str[:200] + "...")
+                                if len(result_str) > 200 else result_str
+                            )
+                            yield (
+                                UpdateType.TOOL, summary,
+                                {
+                                    "index": idx, "name": tc["name"],
+                                    "status": "error" if is_error else "success",
+                                    "turn": turn,
+                                },
+                            )
+                            working_messages.append({
+                                "role": "tool", "tool_call_id": tc["id"],
+                                "name": tc["name"], "content": result_str,
+                            })
+
+                elif len(concurrent_items) == 1:
+                    # Single worker tool — run sequentially (no gather overhead)
+                    sequential_items = concurrent_items + sequential_items
+                    concurrent_items = []
+
+                # --- Run remaining tools sequentially ---
+                for idx, tc in sequential_items:
+                    try:
+                        yield (
+                            UpdateType.TOOL, "",
+                            {
+                                "index": idx, "name": tc["name"],
+                                "arguments": tc["arguments"],
+                                "status": "executing", "turn": turn,
+                            },
+                        )
+
+                        tool_call_obj = ChatCompletionMessageToolCall(
+                            id=tc["id"], type="function",
+                            function=Function(
+                                name=tc["name"], arguments=tc["arguments"],
+                            ),
+                        )
+
+                        result = await tool_executor.execute_openai_tool_call(
+                            tool_call_obj,
+                        )
+
+                        is_error = (
+                            isinstance(result, dict) and "error" in result
+                        )
+                        if is_error:
+                            rejected_tools.add(tc["name"])
+
+                        result_str = str(result)
+                        summary = (
+                            (result_str[:200] + "...")
+                            if len(result_str) > 200 else result_str
+                        )
+
+                        yield (
+                            UpdateType.TOOL, summary,
+                            {
+                                "index": idx, "name": tc["name"],
+                                "status": "error" if is_error else "success",
                                 "turn": turn,
                             },
                         )
 
-                        # Mock the tool call object for executor
-                        from openai.types.chat.chat_completion_message_tool_call import (
-                            ChatCompletionMessageToolCall,
-                            Function,
-                        )
-
-                        tool_call_obj = ChatCompletionMessageToolCall(
-                            id=tc["id"],
-                            type="function",
-                            function=Function(name=tc["name"], arguments=tc["arguments"]),
-                        )
-
-                        result = await tool_executor.execute_openai_tool_call(tool_call_obj)
-
-                        # Summary for UI (truncated)
-                        result_str = str(result)
-                        summary = (
-                            (result_str[:200] + "...") if len(result_str) > 200 else result_str
-                        )
-
-                        yield (
-                            UpdateType.TOOL,
-                            summary,
-                            {"index": idx, "name": tc["name"], "status": "success", "turn": turn},
-                        )
-
-                        working_messages.append(
-                            {
-                                "role": "tool",
-                                "tool_call_id": tc["id"],
-                                "name": tc["name"],
-                                "content": result_str,
-                            }
-                        )
+                        working_messages.append({
+                            "role": "tool", "tool_call_id": tc["id"],
+                            "name": tc["name"], "content": result_str,
+                        })
                     except Exception as e:
                         yield (
-                            UpdateType.TOOL,
-                            f"Error: {str(e)}",
-                            {"index": idx, "name": tc["name"], "status": "error", "turn": turn},
-                        )
-                        working_messages.append(
+                            UpdateType.TOOL, f"Error: {e!s}",
                             {
-                                "role": "tool",
-                                "tool_call_id": tc["id"],
-                                "name": tc["name"],
-                                "content": f"Error: {str(e)}",
-                            }
+                                "index": idx, "name": tc["name"],
+                                "status": "error", "turn": turn,
+                            },
                         )
+                        working_messages.append({
+                            "role": "tool", "tool_call_id": tc["id"],
+                            "name": tc["name"], "content": f"Error: {e!s}",
+                        })
                 # Continue loop to get next response after tools
                 continue
             else:

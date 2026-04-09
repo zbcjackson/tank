@@ -237,6 +237,28 @@ agents:
      tools: [web_search, web_scraper]
      timeout: 60
 
+  # Review loops (optional) — pair a worker with a reviewer for verification.
+  # The reviewer checks the worker's output and can request retries.
+  # Parallel execution is automatic — when the LLM calls multiple delegate_to_*
+  # tools in one turn, they run concurrently via asyncio.gather.
+  #
+  # review_loops:
+  #   code_review:
+  #     description: "Execute a coding task with automatic review"
+  #     worker: coder
+  #     reviewer_prompt: "Review the output for correctness and safety. Start with APPROVED: or REJECTED:"
+  #     reviewer_tools: [file_read, file_list]  # optional — tools the reviewer can use
+  #     max_iterations: 3
+  #     timeout: 300
+
+  # Verifier — auto-created when a coder worker exists. Read-only agent that
+  # checks the coder's output. The orchestrator calls delegate_to_verifier
+  # after delegate_to_coder, and retries if VERDICT: FAIL.
+  # Uncomment to customize (defaults are sensible):
+  # verifier:
+  #   tools: [run_command, file_read, file_list]
+  #   timeout: 120
+
 # Approval policies — optional config for tools that need user confirmation.
 #
 # Sandbox tools (run_command, persistent_shell) always require approval — hardcoded

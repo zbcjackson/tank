@@ -4,6 +4,8 @@
 
 Phase 1 implemented — 2026-04-06. Single agent, no router. See git history for the migration.
 Phase 2 implemented — 2026-04-06. Orchestrator + Workers. Workers are tools on the agent (`WorkerTool`). Enable by adding a `workers:` section under `agents:` in config.yaml.
+Phase 3 implemented — 2026-04-08. Verification via auto-created `verifier` worker. Read-only agent that checks coder output. The orchestrator's natural tool loop handles retries — no hardcoded review loop needed. Inspired by claude-code's verification agent pattern.
+Phase 4 implemented — 2026-04-08. Parallel Fan-Out via concurrent tool execution in `llm.py`. When the LLM calls multiple `delegate_to_*` tools in one turn, they run concurrently via `asyncio.gather`. No special tool needed — the LLM naturally calls multiple tools and the runtime parallelizes them.
 
 ## Problem
 

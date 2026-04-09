@@ -52,6 +52,7 @@ def _build_seatbelt_profile(policy: BackendPolicy) -> str:
         ";; --- baseline: allow process execution and IPC ---",
         "(allow process-exec)",
         "(allow process-fork)",
+        "(allow process-info*)",
         "(allow sysctl-read)",
         "(allow mach-lookup)",
         "(allow mach-register)",
