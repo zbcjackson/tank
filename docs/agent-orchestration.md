@@ -1,20 +1,24 @@
 # Agent Orchestration
 
-This document describes Tank's agent orchestration system — how the LLM handles conversations, delegates work to specialist workers, verifies results, and manages tool approval.
+This document describes Tank's agent orchestration system — how the main agent handles conversations, delegates work to sub-agents, and manages tool approval.
 
 ## Architecture Overview
 
-Tank uses an **orchestrator-workers** pattern inspired by Anthropic's "Building Effective Agents" guidance and OpenAI's `agent.as_tool()` pattern.
+Tank uses a single main agent with access to ALL tools. For complex tasks, the main agent spawns sub-agents via the `agent` tool. Sub-agents are defined as markdown files and run through the same `AgentRunner.run_agent()` execution path.
 
 ```
 User message
-  → AgentGraph
-    → Orchestrator (ChatAgent with all delegate_to_* tools)
-      ├─ Handles simple tasks directly (weather, time, chat)
-      ├─ Delegates complex tasks to workers via delegate_to_* tool calls
-      ├─ Multiple delegate_to_* calls in one turn run concurrently
-      └─ Synthesizes worker results into a response
-        → Streamed to TTS
+  → BrainProcessor
+    → AgentGraph
+      → Main LLMAgent (all tools including `agent`)
+        ├─ Handles simple tasks directly (weather, time, chat, file ops, shell)
+        ├─ Spawns sub-agents via `agent` tool for complex/isolated tasks
+        │    → AgentRunner.run_agent()
+        │      → LLMAgent with filtered tools + own system prompt
+        │      → Approval inherited from parent
+        │      → Outputs streamed via Bus
+        └─ Synthesizes results into a response
+          → Streamed to TTS
 ```
 
 Key files:
@@ -22,52 +26,88 @@ Key files:
 | File | Purpose |
 |------|---------|
 | `agents/base.py` | `Agent` ABC, `AgentState`, `AgentOutput`, `AgentOutputType` |
-| `agents/chat_agent.py` | `ChatAgent` — conversational agent with tool calling and approval gating |
-| `agents/graph.py` | `AgentGraph` — orchestrator loop, streams outputs, tracks stats |
-| `agents/worker_tool.py` | `WorkerTool` — wraps a `ChatAgent` as a callable tool |
-| `agents/factory.py` | `create_agent()` — builds orchestrator + workers from config |
+| `agents/llm_agent.py` | `LLMAgent` — agent that runs via LLM with tool calling and approval |
+| `agents/runner.py` | `AgentRunner` — single execution method for all agents |
+| `agents/agent_tool.py` | `AgentTool` — the `agent` tool for spawning sub-agents |
+| `agents/definition.py` | `AgentDefinition` — model + loader from markdown files |
+| `agents/graph.py` | `AgentGraph` — orchestrator loop, streams outputs |
 | `agents/approval.py` | `ApprovalManager`, `ToolApprovalPolicy` |
-| `llm/llm.py` | `LLM.chat_stream()` — parallel tool execution for concurrent-safe tools |
+| `llm/llm.py` | `LLM.chat_stream()` — streaming with tool execution loop |
 
 ## How It Works
 
-### Single Agent (No Workers)
+### Main Agent
 
-Without a `workers:` section in config, Tank runs a single `ChatAgent` with access to all registered tools. No routing, no delegation overhead. This is the simplest mode.
+The main agent has access to every registered tool — file operations, shell commands, web search, skills, and the `agent` tool. The system prompt guides when to delegate vs handle directly:
 
-### Orchestrator + Workers
+- Simple tasks (weather, time, calculations, quick file reads): handle directly
+- Complex tasks (multi-step coding, research, planning): spawn a sub-agent
+- Parallel tasks: call `agent` multiple times in one response
 
-When `workers:` is defined under an agent in `config.yaml`, the factory:
+### Sub-Agents via `agent` Tool
 
-1. Creates a `ChatAgent` for each worker with a restricted `tool_filter`
-2. Wraps each worker in a `WorkerTool` (registered as `delegate_to_{name}`)
-3. Excludes worker-owned tools from the orchestrator via `exclude_tools`
-4. Injects delegation instructions into the orchestrator's system prompt
+When the LLM calls `agent(prompt="...", subagent_type="coder")`:
 
-The orchestrator sees workers as regular tools. The LLM decides when to delegate — no separate router.
+1. `AgentTool.execute()` looks up the agent definition
+2. Calls `AgentRunner.run_agent()` which:
+   - Checks depth limit (max 3 levels deep)
+   - Checks concurrent agent limit (max 5)
+   - Creates an `LLMAgent` with the definition's system prompt
+   - Filters tools: all tools minus `disallowed_tools` minus global disallowed set
+   - Passes `approval_manager` and `approval_policy` (inherited from parent)
+   - Streams all `AgentOutput` items back
+3. The result text is returned to the main agent as the tool result
 
-### Parallel Fan-Out
+### Agent Definitions
 
-When the LLM calls multiple `delegate_to_*` tools in a single turn, they execute concurrently via `asyncio.gather`. This is handled in `llm.py`:
+Agents are defined as markdown files with YAML frontmatter in `.tank/agents/`:
 
-- `_CONCURRENT_PREFIXES = ("delegate_to_", "review_")` defines which tools are safe to parallelize
-- `_is_concurrent_safe(name)` checks the prefix
-- All concurrent tool calls in the same turn are gathered and awaited together
+```yaml
+# backend/agents/coder.md
+---
+name: coder
+description: "Execute code, manage files, run shell commands"
+disallowed-tools: []
+skills: []
+max-turns: 25
+---
 
-The orchestrator prompt explicitly instructs: *"call multiple delegate_to_* tools in the SAME response — do NOT call them one at a time."*
+You are a coding agent. Execute commands and modify files to complete tasks.
+Do NOT just describe what you would do — actually execute the commands.
+```
 
-### Verifier (Auto-Created)
+Default agents:
 
-When a `coder` worker exists and no `verifier` is explicitly configured, the factory auto-creates one:
+| Agent | Description | Disallowed Tools |
+|-------|-------------|-----------------|
+| `coder` | Code execution, file ops, shell | None |
+| `researcher` | Web search, information gathering | file_write, file_delete, run_command, persistent_shell, manage_process |
+| `tasker` | Task planning, coordination | file_write, file_delete, run_command, persistent_shell |
+| `verifier` | Code verification (background) | file_write, file_delete, persistent_shell, manage_process, agent |
 
-- Read-only tools: `run_command`, `file_read`, `file_list`
-- System prompt enforces: "STRICTLY READ-ONLY. Do NOT modify, create, or delete any files."
-- Must end response with `VERDICT: PASS` or `VERDICT: FAIL`
-- Orchestrator prompt instructs: "After delegate_to_coder completes, ALWAYS call delegate_to_verifier"
+Definition loading priority: project (`backend/agents/`) > user (`~/.tank/agents/`).
 
-The orchestrator's natural tool loop handles retries — if the verifier fails, the orchestrator can re-delegate to the coder with feedback. No hardcoded review loop needed.
+### Tool Filtering
 
-To disable auto-verification when a coder worker exists, explicitly define a custom verifier or remove the coder worker.
+Sub-agents use a **disallowed tools** pattern (not an allowlist):
+
+1. Start with ALL registered tools
+2. Remove the agent definition's `disallowed_tools`
+3. For sub-agents, also remove global disallowed set: `agent`, `use_skill`, `list_skills`, `create_skill`, `install_skill`
+
+This means sub-agents can't spawn further sub-agents by default (the `agent` tool is globally disallowed for sub-agents).
+
+### Parallel Execution
+
+When the LLM calls multiple `agent` tools in a single turn, they can run concurrently. The `agent` tool supports `run_in_background=true` for parallel execution. The concurrency mechanism in `LLM.chat_stream()` detects concurrent-safe tool calls and runs them via `asyncio.gather`.
+
+### Langfuse Tracing
+
+Each `LLMAgent` passes trace metadata to `LLM.chat_stream()`:
+- `name`: `agent:{agent_name}` (e.g., `agent:chat`, `agent:agent_coder`)
+- `metadata`: `{"agent_name": name}`
+
+This appears in Langfuse as separate traces per agent, filterable by name.
 
 ## Approval System
 
@@ -75,17 +115,19 @@ To disable auto-verification when a coder worker exists, explicitly define a cus
 
 | Tool category | Mechanism | Granularity |
 |---------------|-----------|-------------|
-| Sandbox tools (`run_command`, `persistent_shell`) | `ToolApprovalPolicy` in `ChatAgent` | Per-tool-name |
+| Sandbox tools (`run_command`, `persistent_shell`) | `ToolApprovalPolicy` in `LLMAgent` | Per-tool-name |
 | File tools (`file_read`, `file_write`, etc.) | `ApprovalCallback` inside `execute()` | Per-path + per-operation |
 
 ### Approval Flow
 
-1. `ChatAgent` intercepts `TOOL_EXECUTING` output
+1. `LLMAgent` intercepts `TOOL_EXECUTING` output
 2. Checks `ToolApprovalPolicy.needs_approval(tool_name)`
 3. If approval needed: creates `ApprovalRequest`, yields `APPROVAL_NEEDED`
 4. `ApprovalManager` holds a Future — client notified via WebSocket
-5. User approves/rejects via REST API (`POST /api/approvals/{id}/respond`) or voice
+5. User approves/rejects via REST API or voice
 6. Agent resumes with tool result or rejection notice
+
+Sub-agents inherit the parent's `approval_manager` and `approval_policy` — same approval rules apply.
 
 ### Approval Policies
 
@@ -106,72 +148,39 @@ approval_policies:
     - web_scraper
 ```
 
-`require_approval_first_time` asks once per session, then auto-approves subsequent calls to the same tool.
-
 ## Configuration
 
-### Basic (Single Agent)
-
 ```yaml
 agents:
-  chat:
-    type: chat
-    llm_profile: default
+  llm_profile: default
+  dirs:
+    - ../agents              # project-level agent definitions
+    - ~/.tank/agents         # user-level agent definitions
+  max_depth: 3               # max sub-agent nesting depth
+  max_concurrent: 5          # max parallel background agents
 ```
 
-### With Workers
+### Limits
 
-```yaml
-agents:
-  chat:
-    type: chat
-    llm_profile: default
-    workers:
-      coder:
-        description: "Execute code and modify files"
-        tools: [run_command, persistent_shell, file_write, file_delete]
-        system_prompt: |
-          You are a code execution specialist...
-        timeout: 120
-      researcher:
-        description: "Search the web and gather information"
-        tools: [web_search, web_scraper]
-        timeout: 60
-```
-
-### AgentGraph Limits
-
-- Max iterations per turn: **5** (configurable in `AgentGraph`)
-- Worker timeout: **120s** default (per-worker, set in config)
-- Approval timeout: **120s** (in `ApprovalManager`)
-- LLM bounded tool iterations: **10** (in `llm.py`, `MAX_TOOL_ITERATIONS`)
+| Limit | Default | Where |
+|-------|---------|-------|
+| Max agent depth | 3 | `AgentRunner` |
+| Max concurrent agents | 5 | `AgentRunner` |
+| Max turns per agent | 25 | `AgentDefinition.max_turns` |
+| AgentGraph iterations | 5 | `AgentGraph` |
+| LLM tool iterations | 10 | `LLM.chat_stream()` |
+| Approval timeout | 120s | `ApprovalManager` |
 
 ## Gotchas
 
-1. **Worker tools are hidden from the orchestrator.** Tools assigned to workers are excluded from the orchestrator's tool list via `exclude_tools`. The orchestrator can only call `delegate_to_*` tools, not worker-owned tools directly.
+1. **Main agent has ALL tools.** Unlike the old orchestrator/worker pattern, the main agent can call `run_command`, `file_write`, etc. directly. The system prompt guides when to delegate vs handle directly — this is an LLM judgment call, not a code constraint.
 
-2. **Concurrent execution requires matching prefixes.** Only tools starting with `delegate_to_` or `review_` run concurrently. All other tools execute sequentially. Adding a new concurrent-safe prefix requires updating `_CONCURRENT_PREFIXES` in `llm.py`.
+2. **Sub-agents can't spawn sub-agents by default.** The `agent` tool is in the global disallowed set for sub-agents. This prevents infinite recursion. To allow it, remove `agent` from a specific agent definition's `disallowed_tools` — but be careful with depth limits.
 
-3. **Verifier must end with a VERDICT line.** If the verifier's response doesn't end with `VERDICT: PASS` or `VERDICT: FAIL`, the orchestrator won't recognize the verification result. This is enforced by the verifier's system prompt, not by code.
+3. **Agent definitions are loaded at startup.** Changes to `.tank/agents/*.md` files require a server restart (or hot-reload via watchfiles). The definitions are not re-scanned per request.
 
-4. **Worker timeout is independent of LLM iteration limit.** A worker can time out at 120s even if the LLM hasn't hit its 10-iteration limit. These are separate safety bounds.
+4. **Concurrent execution requires the `agent` tool to be concurrent-safe.** Currently, `agent` tool calls run sequentially unless `run_in_background=true` is set. The `_CONCURRENT_PREFIXES` in `llm.py` controls which tools run in parallel.
 
-5. **Approval timeout is silent.** If the user doesn't respond within 120s, the approval request times out and the tool call fails. There's no retry — the orchestrator sees a timeout error and must decide what to do.
+5. **Approval timeout is silent.** If the user doesn't respond within 120s, the approval request times out and the tool call fails. The agent sees a timeout error.
 
-6. **Orchestrator prompt is auto-injected.** When workers exist, `factory.py` appends delegation instructions to the orchestrator's system prompt. This includes worker descriptions and usage guidance. Custom system prompts should not duplicate this.
-
-## Streaming Behavior
-
-Every `AgentOutput` is yielded immediately as an async generator — no batching:
-
-| Output Type | What Happens |
-|-------------|-------------|
-| `TOKEN` | Streamed to TTS immediately |
-| `THOUGHT` | Sent to client as thinking indicator |
-| `TOOL_CALLING` | Sent to client as tool call notification |
-| `TOOL_EXECUTING` | Intercepted for approval check |
-| `TOOL_RESULT` | Fed back into LLM for next iteration |
-| `APPROVAL_NEEDED` | Pauses agent, awaits user response |
-| `DONE` | Ends the turn |
-
-This is the critical difference from LangGraph: tokens stream to TTS the moment they're produced, not in batches.
+6. **Langfuse tracing uses `name` and `metadata` kwargs only.** The Langfuse v4 SDK's `OpenAiArgsExtractor` only extracts `name`, `metadata`, `trace_id`, `parent_observation_id` from kwargs. Other keys (`tags`, `session_id`) leak through to the OpenAI API and cause errors.
