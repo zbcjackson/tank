@@ -91,10 +91,16 @@ class LLM:
         max_tokens: int | None = None,
         tools: list[dict[str, Any]] | None = None,
         tool_executor: Any = None,
+        trace_metadata: dict[str, Any] | None = None,
     ) -> AsyncGenerator[tuple[UpdateType, str, dict[str, Any]], None]:
         """
         Stream chat completion with automatic tool call handling.
         Yields: (UpdateType, content_delta, metadata)
+
+        Args:
+            trace_metadata: Optional Langfuse trace metadata. Keys like
+                ``trace_name``, ``session_id``, ``tags`` are passed as
+                ``langfuse_*`` extra_body fields for per-call tracing.
         """
         working_messages = messages.copy()
         turn = 0
@@ -115,6 +121,18 @@ class LLM:
                 api_kwargs["stream_options"] = {"include_usage": True}
             if self.extra_body:
                 api_kwargs["extra_body"] = self.extra_body
+            # Langfuse v4: trace metadata as top-level kwargs.
+            # Only pass keys that OpenAiArgsExtractor explicitly
+            # extracts (name, metadata, trace_id, parent_observation_id).
+            # Other keys (tags, session_id) leak through to the OpenAI
+            # API and cause "unexpected keyword argument" errors.
+            if trace_metadata:
+                if "trace_name" in trace_metadata:
+                    api_kwargs["name"] = trace_metadata["trace_name"]
+                if "metadata" in trace_metadata:
+                    api_kwargs["metadata"] = trace_metadata["metadata"]
+                if "trace_id" in trace_metadata:
+                    api_kwargs["trace_id"] = trace_metadata["trace_id"]
             if tools:
                 # Remove rejected tools so the LLM cannot retry them
                 effective_tools = [

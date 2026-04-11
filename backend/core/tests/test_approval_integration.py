@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from tank_backend.agents.approval import ApprovalManager, ToolApprovalPolicy
 from tank_backend.agents.base import AgentOutputType, AgentState
-from tank_backend.agents.chat_agent import ChatAgent, _build_tool_description, _parse_tool_args
+from tank_backend.agents.llm_agent import ChatAgent, _build_tool_description, _parse_tool_args
 from tank_backend.core.events import UpdateType
 
 # ---------------------------------------------------------------------------

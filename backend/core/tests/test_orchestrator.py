@@ -1,35 +1,33 @@
-"""Tests for agent creation with workers and tool routing."""
+"""Tests for agent orchestration — definitions, runner, and agent tool."""
 
+from __future__ import annotations
+
+import textwrap
+from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
-from tank_backend.agents.base import AgentOutputType, AgentState
-from tank_backend.agents.factory import create_agent
+import pytest
+
+from tank_backend.agents.base import AgentOutputType
 from tank_backend.core.events import UpdateType
 
 
-def _make_tool_manager(tool_names: list[str]) -> MagicMock:
-    """Create a mock ToolManager that respects exclude filtering."""
+def _make_tool_manager(tool_names: list[str] | None = None) -> MagicMock:
+    """Create a mock ToolManager."""
     tm = MagicMock()
-    # Track registered tools so get_openai_tools can include them
-    registered: list[dict] = []
-
-    def register_tool(tool):
-        info = tool.get_info()
-        registered.append(
-            {"type": "function", "function": {"name": info.name, "description": info.description}}
-        )
+    names = tool_names or ["calculator", "run_command", "web_search"]
+    tm.tools = {n: MagicMock() for n in names}
 
     def get_openai_tools(exclude=None):
-        base = [
+        tools = [
             {"type": "function", "function": {"name": n, "description": f"{n} tool"}}
-            for n in tool_names
+            for n in names
         ]
-        all_tools = base + registered
         if exclude:
-            return [t for t in all_tools if t["function"]["name"] not in exclude]
-        return all_tools
+            return [t for t in tools if t["function"]["name"] not in exclude]
+        return tools
 
-    tm.register_tool = register_tool
     tm.get_openai_tools = get_openai_tools
     return tm
 
@@ -37,7 +35,7 @@ def _make_tool_manager(tool_names: list[str]) -> MagicMock:
 def _make_llm(events=None):
     llm = MagicMock()
 
-    async def chat_stream(messages, tools=None, **kwargs):
+    async def chat_stream(messages, tools=None, tool_executor=None, **kwargs):
         for event in (events or [(UpdateType.TEXT, "ok", {"turn": 1})]):
             yield event
 
@@ -45,62 +43,283 @@ def _make_llm(events=None):
     return llm
 
 
-class TestToolRouting:
-    async def test_get_tools_includes_worker_tools_excludes_owned(self):
-        """Worker tools visible, worker-owned tools hidden."""
+# ---------------------------------------------------------------------------
+# AgentDefinition tests
+# ---------------------------------------------------------------------------
+
+class TestAgentDefinition:
+    def test_parse_valid_agent_file(self, tmp_path: Path) -> None:
+        from tank_backend.agents.definition import parse_agent_file
+
+        path = tmp_path / "coder.md"
+        path.write_text(textwrap.dedent("""\
+            ---
+            name: coder
+            description: "Execute code"
+            disallowed-tools: [agent]
+            skills: [commit]
+            max-turns: 20
+            background: false
+            ---
+
+            You are a coding agent.
+        """))
+
+        defn = parse_agent_file(path)
+        assert defn.name == "coder"
+        assert defn.description == "Execute code"
+        assert defn.disallowed_tools == frozenset({"agent"})
+        assert defn.skills == ("commit",)
+        assert defn.max_turns == 20
+        assert defn.background is False
+        assert "coding agent" in defn.system_prompt
+
+    def test_parse_missing_name(self, tmp_path: Path) -> None:
+        from tank_backend.agents.definition import parse_agent_file
+
+        path = tmp_path / "bad.md"
+        path.write_text("---\ndescription: test\n---\nBody\n")
+
+        with pytest.raises(ValueError, match="Missing required field 'name'"):
+            parse_agent_file(path)
+
+    def test_parse_missing_frontmatter(self, tmp_path: Path) -> None:
+        from tank_backend.agents.definition import parse_agent_file
+
+        path = tmp_path / "bad.md"
+        path.write_text("Just text without frontmatter\n")
+
+        with pytest.raises(ValueError, match="missing YAML frontmatter"):
+            parse_agent_file(path)
+
+    def test_parse_comma_separated_disallowed(self, tmp_path: Path) -> None:
+        from tank_backend.agents.definition import parse_agent_file
+
+        path = tmp_path / "test.md"
+        path.write_text(
+            "---\nname: test\ndescription: t\n"
+            "disallowed-tools: agent, file_write\n---\nBody\n"
+        )
+
+        defn = parse_agent_file(path)
+        assert defn.disallowed_tools == frozenset({"agent", "file_write"})
+
+    def test_load_definitions_priority(self, tmp_path: Path) -> None:
+        from tank_backend.agents.definition import load_agent_definitions
+
+        dir1 = tmp_path / "dir1"
+        dir2 = tmp_path / "dir2"
+        dir1.mkdir()
+        dir2.mkdir()
+
+        (dir1 / "coder.md").write_text(
+            "---\nname: coder\ndescription: first\n---\nFirst\n"
+        )
+        (dir2 / "coder.md").write_text(
+            "---\nname: coder\ndescription: second\n---\nSecond\n"
+        )
+
+        defs = load_agent_definitions([dir1, dir2])
+        assert defs["coder"].description == "first"
+
+    def test_load_definitions_nonexistent_dir(self, tmp_path: Path) -> None:
+        from tank_backend.agents.definition import load_agent_definitions
+
+        defs = load_agent_definitions([tmp_path / "nope"])
+        assert defs == {}
+
+    def test_load_from_config_compat(self) -> None:
+        from tank_backend.agents.definition import load_agents_from_config
+
         config = {
             "workers": {
                 "coder": {
-                    "description": "Run code",
+                    "description": "Execute commands",
                     "tools": ["run_command"],
+                    "timeout": 180,
                 },
             },
         }
-        agent = create_agent(
-            "chat",
-            llm=_make_llm(),
-            tool_manager=_make_tool_manager(["run_command", "calculator", "weather"]),
-            config=config,
-        )
 
-        tools, _executor = agent._get_tools()
-        tool_names = {t["function"]["name"] for t in tools}
+        defs = load_agents_from_config(config)
+        assert "coder" in defs
+        assert defs["coder"].description == "Execute commands"
 
-        assert "delegate_to_coder" in tool_names
-        assert "calculator" in tool_names
-        assert "weather" in tool_names
-        assert "run_command" not in tool_names
 
-    async def test_streams_tokens_with_workers(self):
-        events = [
-            (UpdateType.TEXT, "Hello", {"turn": 1}),
-            (UpdateType.TEXT, " there", {"turn": 1}),
-        ]
-        config = {
-            "workers": {
-                "coder": {"description": "code", "tools": ["run_command"]},
-            },
+# ---------------------------------------------------------------------------
+# AgentRunner tests
+# ---------------------------------------------------------------------------
+
+class TestAgentRunner:
+    def _make_runner(
+        self, definitions: dict[str, Any] | None = None,
+    ) -> Any:
+        from tank_backend.agents.definition import AgentDefinition
+        from tank_backend.agents.runner import AgentRunner
+
+        defs = definitions or {
+            "coder": AgentDefinition(
+                name="coder",
+                description="Execute code",
+                system_prompt="You are a coder.",
+            ),
+            "researcher": AgentDefinition(
+                name="researcher",
+                description="Research",
+                system_prompt="You are a researcher.",
+                disallowed_tools=frozenset({"run_command", "file_write"}),
+            ),
         }
-        agent = create_agent(
-            "chat",
-            llm=_make_llm(events),
-            tool_manager=_make_tool_manager(["run_command"]),
-            config=config,
+
+        return AgentRunner(
+            llm=_make_llm(),
+            tool_manager=_make_tool_manager(),
+            bus=MagicMock(),
+            approval_manager=MagicMock(),
+            approval_policy=MagicMock(),
+            definitions=defs,
         )
 
-        state = AgentState(messages=[{"role": "user", "content": "hi"}])
-        outputs = [o async for o in agent.run(state)]
+    def test_get_definition(self) -> None:
+        runner = self._make_runner()
+        assert runner.get_definition("coder") is not None
+        assert runner.get_definition("nonexistent") is None
 
-        tokens = [o.content for o in outputs if o.type == AgentOutputType.TOKEN]
-        assert tokens == ["Hello", " there"]
-        assert any(o.type == AgentOutputType.DONE for o in outputs)
+    @pytest.mark.asyncio()
+    async def test_run_agent_yields_outputs(self) -> None:
 
-    async def test_streams_tokens_without_workers(self):
-        events = [(UpdateType.TEXT, "Hi", {"turn": 1})]
-        agent = create_agent("chat", llm=_make_llm(events))
+        runner = self._make_runner()
+        defn = runner.get_definition("coder")
+        assert defn is not None
 
-        state = AgentState(messages=[{"role": "user", "content": "hello"}])
-        outputs = [o async for o in agent.run(state)]
+        outputs = []
+        async for output in runner.run_agent(
+            agent_def=defn,
+            messages=[{"role": "user", "content": "hello"}],
+        ):
+            outputs.append(output)
 
-        tokens = [o.content for o in outputs if o.type == AgentOutputType.TOKEN]
-        assert tokens == ["Hi"]
+        assert len(outputs) > 0
+        assert any(o.type == AgentOutputType.TOKEN for o in outputs)
+
+    @pytest.mark.asyncio()
+    async def test_depth_limit_enforced(self) -> None:
+        from tank_backend.agents.definition import AgentDefinition
+        from tank_backend.agents.runner import AgentRunner
+
+        runner = AgentRunner(
+            llm=_make_llm(),
+            tool_manager=_make_tool_manager(),
+            bus=MagicMock(),
+            approval_manager=MagicMock(),
+            approval_policy=MagicMock(),
+            definitions={
+                "coder": AgentDefinition(
+                    name="coder",
+                    description="code",
+                    system_prompt="code",
+                ),
+            },
+            max_depth=1,
+        )
+
+        defn = runner.get_definition("coder")
+        assert defn is not None
+
+        # First level: should work
+        outputs = []
+        async for output in runner.run_agent(
+            agent_def=defn,
+            messages=[{"role": "user", "content": "hello"}],
+        ):
+            outputs.append(output)
+        assert any(o.type == AgentOutputType.TOKEN for o in outputs)
+
+        # Get the agent_id from the first run
+        agent_id = None
+        for aid, _tracker in runner._active_agents.items():
+            agent_id = aid
+            break
+
+        # Second level with parent: should be blocked (depth=1 >= max_depth=1)
+        outputs2 = []
+        async for output in runner.run_agent(
+            agent_def=defn,
+            messages=[{"role": "user", "content": "hello"}],
+            parent_agent_id=agent_id,
+        ):
+            outputs2.append(output)
+
+        assert any("max depth" in o.content for o in outputs2)
+
+
+# ---------------------------------------------------------------------------
+# AgentTool tests
+# ---------------------------------------------------------------------------
+
+class TestAgentTool:
+    def test_get_info(self) -> None:
+        from tank_backend.agents.agent_tool import AgentTool
+        from tank_backend.agents.definition import AgentDefinition
+        from tank_backend.agents.runner import AgentRunner
+
+        runner = AgentRunner(
+            llm=_make_llm(),
+            tool_manager=_make_tool_manager(),
+            bus=MagicMock(),
+            approval_manager=MagicMock(),
+            approval_policy=MagicMock(),
+            definitions={
+                "coder": AgentDefinition(
+                    name="coder", description="code", system_prompt="code",
+                ),
+            },
+        )
+
+        tool = AgentTool(runner)
+        info = tool.get_info()
+        assert info.name == "agent"
+        assert "coder" in info.description
+        assert len(info.parameters) >= 2
+
+    @pytest.mark.asyncio()
+    async def test_execute_unknown_type(self) -> None:
+        from tank_backend.agents.agent_tool import AgentTool
+        from tank_backend.agents.runner import AgentRunner
+
+        runner = AgentRunner(
+            llm=_make_llm(),
+            tool_manager=_make_tool_manager(),
+            bus=MagicMock(),
+            approval_manager=MagicMock(),
+            approval_policy=MagicMock(),
+            definitions={},
+        )
+
+        tool = AgentTool(runner)
+        result = await tool.execute(prompt="hello", subagent_type="nonexistent")
+        assert "error" in result
+
+    @pytest.mark.asyncio()
+    async def test_execute_coder(self) -> None:
+        from tank_backend.agents.agent_tool import AgentTool
+        from tank_backend.agents.definition import AgentDefinition
+        from tank_backend.agents.runner import AgentRunner
+
+        runner = AgentRunner(
+            llm=_make_llm(),
+            tool_manager=_make_tool_manager(),
+            bus=MagicMock(),
+            approval_manager=MagicMock(),
+            approval_policy=MagicMock(),
+            definitions={
+                "coder": AgentDefinition(
+                    name="coder", description="code", system_prompt="code",
+                ),
+            },
+        )
+
+        tool = AgentTool(runner)
+        result = await tool.execute(prompt="write hello world", subagent_type="coder")
+        assert "message" in result
+        assert result["agent_type"] == "coder"

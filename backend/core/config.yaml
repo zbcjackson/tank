@@ -217,47 +217,15 @@ assistant:
 brain:
   max_history_tokens: 8000
 
-# Agent orchestration — single agent with all tools.
-# The LLM decides which tools to call naturally — no routing overhead.
+# Agent orchestration — main agent has all tools, delegates via `agent` tool.
+# Agent definitions are loaded from .tank/agents/*.md files.
 agents:
   llm_profile: default
-
-  # Workers (optional) — uncomment to enable orchestrator + workers mode.
-  # Without workers, the agent handles everything directly (plain chat mode).
-  # With workers, simple tasks are handled directly while complex tasks are
-  # delegated to specialist workers.
-  #
-  workers:
-    coder:
-     description: "Execute shell commands, file operations, and system tasks"
-     tools: [run_command, persistent_shell, manage_process, file_read, file_write, file_delete, file_list]
-     timeout: 180
-    researcher:
-     description: "Search the web and extract information from pages"
-     tools: [web_search, web_scraper]
-     timeout: 60
-
-  # Review loops (optional) — pair a worker with a reviewer for verification.
-  # The reviewer checks the worker's output and can request retries.
-  # Parallel execution is automatic — when the LLM calls multiple delegate_to_*
-  # tools in one turn, they run concurrently via asyncio.gather.
-  #
-  # review_loops:
-  #   code_review:
-  #     description: "Execute a coding task with automatic review"
-  #     worker: coder
-  #     reviewer_prompt: "Review the output for correctness and safety. Start with APPROVED: or REJECTED:"
-  #     reviewer_tools: [file_read, file_list]  # optional — tools the reviewer can use
-  #     max_iterations: 3
-  #     timeout: 300
-
-  # Verifier — auto-created when a coder worker exists. Read-only agent that
-  # checks the coder's output. The orchestrator calls delegate_to_verifier
-  # after delegate_to_coder, and retries if VERDICT: FAIL.
-  # Uncomment to customize (defaults are sensible):
-  # verifier:
-  #   tools: [run_command, file_read, file_list]
-  #   timeout: 120
+  dirs:
+    - ../agents              # project-level agent definitions
+    - ~/.tank/agents         # user-level agent definitions
+  max_depth: 3               # max sub-agent nesting depth
+  max_concurrent: 5          # max parallel background agents
 
 # Approval policies — optional config for tools that need user confirmation.
 #

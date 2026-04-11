@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock
 
 from tank_backend.agents.base import AgentOutputType, AgentState
-from tank_backend.agents.chat_agent import ChatAgent, _translate
+from tank_backend.agents.llm_agent import ChatAgent, _translate
 from tank_backend.core.events import UpdateType
 
 

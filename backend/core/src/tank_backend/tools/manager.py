@@ -104,6 +104,12 @@ class ToolManager:
         """ToolApprovalPolicy for deciding which tools need approval."""
         return self._approval_policy
 
+    def set_agent_runner(self, runner: Any) -> None:
+        """Register the agent tool. Called by Assistant after construction."""
+        from ..agents.agent_tool import AgentTool
+
+        self.register_tool(AgentTool(runner))
+
     # ------------------------------------------------------------------
     # Group lifecycle
     # ------------------------------------------------------------------

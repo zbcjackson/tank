@@ -349,9 +349,14 @@ class Assistant:
             return None
 
     def _build_agent_graph(self) -> object:
-        """Build AgentGraph with a single ChatAgent from config.yaml agents: section."""
-        from ..agents.factory import create_agent
+        """Build AgentGraph with a main ChatAgent that has all tools + agent tool."""
+        from ..agents.definition import (
+            load_agent_definitions,
+            load_agents_from_config,
+        )
         from ..agents.graph import AgentGraph
+        from ..agents.llm_agent import LLMAgent
+        from ..agents.runner import AgentRunner
 
         agents_cfg = self._app_config.get_section("agents") or {}
         llm_profile_name = agents_cfg.get("llm_profile", "default")
@@ -365,17 +370,86 @@ class Assistant:
             )
             agent_llm = self._llm
 
-        agent = create_agent(
+        # Load agent definitions from .tank/agents/ directories
+        raw_dirs = agents_cfg.get("dirs", ["../agents", "~/.tank/agents"])
+        agent_dirs = [Path(d).expanduser().resolve() for d in raw_dirs]
+        definitions = load_agent_definitions(agent_dirs)
+
+        # Backward compat: merge config.yaml workers into definitions
+        if "workers" in agents_cfg:
+            config_defs = load_agents_from_config(agents_cfg)
+            for name, defn in config_defs.items():
+                definitions.setdefault(name, defn)
+
+        # Create AgentRunner
+        runner = AgentRunner(
+            llm=agent_llm,
+            tool_manager=self._tool_manager,
+            bus=self._bus,
+            approval_manager=self._tool_manager.approval_manager,
+            approval_policy=self._tool_manager.approval_policy,
+            definitions=definitions,
+            max_depth=agents_cfg.get("max_depth", 3),
+            max_concurrent=agents_cfg.get("max_concurrent", 5),
+        )
+
+        # Register agent tool in ToolManager
+        self._tool_manager.set_agent_runner(runner)
+
+        # Build main agent system prompt with available agent types
+        agent_catalog = self._build_agent_catalog(definitions)
+        system_prompt = agents_cfg.get("system_prompt")
+        if system_prompt is None:
+            system_prompt = self._build_main_agent_prompt(agent_catalog)
+
+        # Main agent: ALL tools (including agent tool), no exclusions
+        main_agent = LLMAgent(
             name="chat",
             llm=agent_llm,
             tool_manager=self._tool_manager,
-            config=agents_cfg,
+            system_prompt=system_prompt,
             approval_manager=self._tool_manager.approval_manager,
             approval_policy=self._tool_manager.approval_policy,
         )
 
-        logger.info("AgentGraph built: agent=chat")
-        return AgentGraph(agents={"chat": agent}, default_agent="chat")
+        logger.info(
+            "AgentGraph built: agent=chat, %d agent definitions loaded",
+            len(definitions),
+        )
+        return AgentGraph(agents={"chat": main_agent}, default_agent="chat")
+
+    @staticmethod
+    def _build_agent_catalog(
+        definitions: dict[str, object],
+    ) -> str:
+        """Build a compact catalog of available agents for the system prompt."""
+        if not definitions:
+            return ""
+        lines = []
+        for defn in definitions.values():
+            entry = f"- {defn.name}: {defn.description}"  # type: ignore[union-attr]
+            lines.append(entry)
+        return "\n".join(lines)
+
+    @staticmethod
+    def _build_main_agent_prompt(agent_catalog: str) -> str:
+        """Build the main agent's system prompt."""
+        prompt = (
+            "You have direct access to all tools including file operations, "
+            "shell commands, web search, and more.\n\n"
+            "For simple tasks, handle them directly — don't spawn agents "
+            "unnecessarily.\n\n"
+            "Use the `agent` tool when:\n"
+            "- The task is complex and benefits from a specialist's "
+            "focused context\n"
+            "- You want to run multiple tasks in parallel (call agent "
+            "multiple times in one response)\n"
+            "- The task needs isolation (experimental changes)\n"
+            "- A specific agent has skills relevant to the task\n"
+        )
+        if agent_catalog:
+            prompt += f"\nAvailable agents:\n{agent_catalog}\n"
+        return prompt
 
     def _create_checkpointer(self) -> object | None:
         """Create Checkpointer if persistence is enabled in config, or None."""

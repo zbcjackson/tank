@@ -1,4 +1,4 @@
-"""ChatAgent — wraps existing LLM.chat_stream as an Agent."""
+"""LLMAgent — runs an agent via LLM.chat_stream with tool calling."""
 
 from __future__ import annotations
 
@@ -78,8 +78,8 @@ class _ApprovalToolExecutor:
         return await self._tool_manager.execute_openai_tool_call(tool_call)
 
 
-class ChatAgent(Agent):
-    """Default conversational agent — delegates to LLM.chat_stream().
+class LLMAgent(Agent):
+    """Agent that delegates to LLM.chat_stream().
 
     Translates the ``(UpdateType, content, metadata)`` tuples from
     ``LLM.chat_stream()`` into ``AgentOutput`` items.
@@ -157,6 +157,10 @@ class ChatAgent(Agent):
             messages=messages,
             tools=tools or None,
             tool_executor=executor,
+            trace_metadata={
+                "trace_name": f"agent:{self.name}",
+                "metadata": {"agent_name": self.name},
+            },
         )
         try:
             async for update_type, content, metadata in gen:
@@ -284,3 +288,7 @@ def _build_tool_description(tool_name: str, tool_args: dict[str, Any]) -> str:
         return f"Process {action}: {pid}" if pid else f"Process {action}"
     # Generic fallback
     return f"{tool_name}({json.dumps(tool_args, ensure_ascii=False)})"
+
+
+# Backward compat alias — old code imports ChatAgent from this module
+ChatAgent = LLMAgent

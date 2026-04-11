@@ -114,10 +114,10 @@ class Brain(Processor):
 
     def _create_default_agent_graph(self) -> "AgentGraph":
         """Create a default AgentGraph with a single ChatAgent wrapping self._llm."""
-        from ...agents.chat_agent import ChatAgent
         from ...agents.graph import AgentGraph
+        from ...agents.llm_agent import LLMAgent
 
-        agent = ChatAgent(
+        agent = LLMAgent(
             name="chat",
             llm=self._llm,
             tool_manager=self._tool_manager,
@@ -429,14 +429,6 @@ class Brain(Processor):
                 if update_type is None:
                     continue
 
-                # Hide internal orchestration tools from UI
-                _tool_name = output.metadata.get("name", "")
-                if update_type == UpdateType.TOOL and (
-                    _tool_name.startswith("delegate_to_")
-                    or _tool_name.startswith("review_")
-                ):
-                    continue
-
                 self._bus.post(BusMessage(
                     type="ui_message",
                     source=self.name,
@@ -651,7 +643,7 @@ class Brain(Processor):
         requests approval. This ensures the notification always goes
         through the Brain's Bus — no stale references.
         """
-        from ...core.events import DisplayMessage, UpdateType
+        from ...core.events import DisplayMessage
 
         description = request.description
         self._bus.post(BusMessage(
@@ -677,7 +669,6 @@ class Brain(Processor):
 def _agent_to_update_type(agent_output_type: Any) -> Any:
     """Map AgentOutputType → UpdateType for bus messages. Returns None for unmapped types."""
     from ...agents.base import AgentOutputType
-    from ...core.events import UpdateType
 
     _MAP = {
         AgentOutputType.TOKEN: UpdateType.TEXT,

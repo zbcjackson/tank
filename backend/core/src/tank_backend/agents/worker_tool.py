@@ -11,7 +11,7 @@ from ..tools.base import BaseTool, ToolInfo, ToolParameter
 from .base import AgentOutputType, AgentState
 
 if TYPE_CHECKING:
-    from .chat_agent import ChatAgent
+    from .llm_agent import LLMAgent as ChatAgent
 
 logger = logging.getLogger(__name__)
 
