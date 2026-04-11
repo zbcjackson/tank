@@ -21,7 +21,6 @@ def _make_brain(
     tool_manager = MagicMock()
     bus = Bus()
 
-    # Mock system prompt to match what tests expect
     mock_prompt = "You are a helpful assistant."
     with patch(f"{MODULE}.Brain._load_system_prompt", return_value=mock_prompt):
         brain = Brain(

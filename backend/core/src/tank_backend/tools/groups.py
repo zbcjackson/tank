@@ -189,3 +189,79 @@ class FileToolGroup(ToolGroup):
             FileDeleteTool(policy, backup, approval_callback=self._approval_callback),
             FileListTool(policy, approval_callback=self._approval_callback),
         ]
+
+
+class SkillToolGroup(ToolGroup):
+    """Skills system — single router tool + catalog in system-reminder."""
+
+    def __init__(
+        self, config: dict | None = None, bus: Any = None,
+        tool_manager: Any = None,
+    ) -> None:
+        self._config = config or {}
+        self._bus = bus
+        self._tool_manager = tool_manager
+        self._manager: Any = None
+        self._use_skill_tool: Any = None  # ref for agent_runner wiring
+
+    def create_tools(self) -> list[BaseTool]:
+        if not self._config.get("enabled", False):
+            return []
+
+        from pathlib import Path
+
+        from ..skills.manager import SkillManager
+        from ..skills.registry import SkillRegistry
+        from ..skills.reviewer import SecurityReviewer
+        from .skill_tools import (
+            CreateSkillTool,
+            InstallSkillTool,
+            ListSkillsTool,
+            UseSkillTool,
+        )
+
+        raw_dirs = self._config.get("dirs", [])
+        skill_dirs = [Path(d).expanduser().resolve() for d in raw_dirs]
+
+        registry = SkillRegistry(skill_dirs)
+        registry.scan()
+
+        auto_approve_threshold = self._config.get(
+            "auto_approve_threshold", "low",
+        )
+
+        reviewer = SecurityReviewer()
+        self._manager = SkillManager(
+            registry, reviewer, self._bus,
+            auto_approve_threshold=auto_approve_threshold,
+        )
+        self._manager.startup()
+
+        reviewed = [
+            s for s in registry.list_all()
+            if s.reviewed and s.content_hash == s.review_hash
+        ]
+        logger.info(
+            "SkillToolGroup: %d reviewed skills, 4 management tools",
+            len(reviewed),
+        )
+
+        self._use_skill_tool = UseSkillTool(self._manager)
+
+        return [
+            self._use_skill_tool,
+            ListSkillsTool(self._manager),
+            CreateSkillTool(self._manager),
+            InstallSkillTool(self._manager),
+        ]
+
+    def get_skill_catalog(self) -> str:
+        """Return a compact skill catalog for system-reminder injection."""
+        if self._manager is None:
+            return ""
+        return self._manager.get_skill_catalog()
+
+    def set_agent_runner(self, runner: Any) -> None:
+        """Wire AgentRunner into UseSkillTool for fork-mode execution."""
+        if self._use_skill_tool is not None:
+            self._use_skill_tool._agent_runner = runner

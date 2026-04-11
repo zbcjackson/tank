@@ -63,6 +63,7 @@ class ToolManager:
             DefaultToolGroup,
             FileToolGroup,
             SandboxToolGroup,
+            SkillToolGroup,
             WebToolGroup,
             make_approval_callback,
         )
@@ -85,6 +86,10 @@ class ToolManager:
             )
         )
 
+        skills_raw = app_config.get_section("skills", {})
+        self._skill_group = SkillToolGroup(skills_raw, bus, tool_manager=self)
+        self._register_group(self._skill_group)
+
         logger.info(
             "ToolManager initialised: %d tools from %d groups",
             len(self.tools), len(self._groups),
@@ -105,10 +110,18 @@ class ToolManager:
         return self._approval_policy
 
     def set_agent_runner(self, runner: Any) -> None:
-        """Register the agent tool. Called by Assistant after construction."""
+        """Register the agent tool and wire runner into skills.
+
+        Called by Assistant after construction.
+        """
         from ..agents.agent_tool import AgentTool
 
         self.register_tool(AgentTool(runner))
+        self._skill_group.set_agent_runner(runner)
+
+    def get_skill_catalog(self) -> str:
+        """Return a compact skill catalog for system-reminder injection."""
+        return self._skill_group.get_skill_catalog()
 
     # ------------------------------------------------------------------
     # Group lifecycle

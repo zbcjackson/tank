@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -303,7 +304,12 @@ class LLM:
                             )
                             if is_error:
                                 rejected_tools.add(tc["name"])
-                            result_str = str(result)
+                            if isinstance(result, dict) and "message" in result:
+                                result_str = result["message"]
+                            elif isinstance(result, dict):
+                                result_str = json.dumps(result, ensure_ascii=False)
+                            else:
+                                result_str = str(result)
                             summary = (
                                 (result_str[:200] + "...")
                                 if len(result_str) > 200 else result_str
@@ -355,7 +361,17 @@ class LLM:
                         if is_error:
                             rejected_tools.add(tc["name"])
 
-                        result_str = str(result)
+                        # Use "message" field for tool result content when
+                        # available — gives tools control over what the LLM
+                        # sees (e.g. skill instructions).  Fall back to
+                        # json for dicts, str() for everything else.
+                        if isinstance(result, dict) and "message" in result:
+                            result_str = result["message"]
+                        elif isinstance(result, dict):
+                            result_str = json.dumps(result, ensure_ascii=False)
+                        else:
+                            result_str = str(result)
+
                         summary = (
                             (result_str[:200] + "...")
                             if len(result_str) > 200 else result_str
@@ -374,6 +390,7 @@ class LLM:
                             "role": "tool", "tool_call_id": tc["id"],
                             "name": tc["name"], "content": result_str,
                         })
+
                     except Exception as e:
                         yield (
                             UpdateType.TOOL, f"Error: {e!s}",

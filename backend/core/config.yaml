@@ -99,6 +99,8 @@ sandbox:
   mounts:
     - host: "~"
       mode: ro
+    - host: "~/.agent-browser"
+      mode: rw
 
   # Never mountable — hardcoded, not overridable by user config.
   # Reading these files IS the security breach.
@@ -247,6 +249,20 @@ agents:
 # Tools — optional API keys for tool plugins
 tools:
   serper_api_key: ${SERPER_API_KEY:-}
+
+# Skills — reusable, composable capabilities that Tank can learn and execute.
+# Each skill is a directory with a SKILL.md file (YAML frontmatter + markdown).
+# Skills are registered as individual tools so the LLM knows when to use them.
+skills:
+  enabled: true
+  dirs:
+    - ../skills              # project-local skills
+    - ~/.tank/skills         # user-global skills
+  # Auto-approve skills at or below this risk level on startup.
+  # "low" = prompt-only skills auto-approved (default)
+  # "medium" = also auto-approve skills with scripts or network tools
+  # "high" = auto-approve everything except critical (dangerous patterns)
+  auto_approve_threshold: low
 
 # Conversation persistence — save/restore conversation history across restarts.
 # Disabled by default. Enable and set db_path to activate.

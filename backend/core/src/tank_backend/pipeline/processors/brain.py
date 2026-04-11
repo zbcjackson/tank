@@ -318,15 +318,23 @@ class Brain(Processor):
             payload=SignalMessage(signal_type="processing_started", msg_id=assistant_msg_id),
         ))
 
-        # Temporarily augment system prompt with memory context
+        # Temporarily augment system prompt with skill catalog + memory context
         original_system = self._conversation_history[0]["content"]
+        augmented_system = original_system
+
+        skill_catalog = self._tool_manager.get_skill_catalog()
+        if skill_catalog:
+            augmented_system += f"\n\n{skill_catalog}"
+
         if memory_context:
+            augmented_system += (
+                f"\n\nKNOWN FACTS ABOUT {event.user}:\n{memory_context}"
+            )
+
+        if augmented_system != original_system:
             self._conversation_history[0] = {
                 "role": "system",
-                "content": (
-                    f"{original_system}\n\n"
-                    f"KNOWN FACTS ABOUT {event.user}:\n{memory_context}"
-                ),
+                "content": augmented_system,
             }
 
         try:
