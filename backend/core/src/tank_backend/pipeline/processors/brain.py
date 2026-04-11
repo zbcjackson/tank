@@ -227,11 +227,21 @@ class Brain(Processor):
     async def _store_memory_safe(
         self, user_id: str, user_msg: str, assistant_msg: str
     ) -> None:
-        """Store memory with error isolation — never crashes the pipeline."""
-        try:
-            await self._memory_service.store_turn(user_id, user_msg, assistant_msg)
-        except Exception:
-            logger.warning("Memory storage failed for user %s", user_id, exc_info=True)
+        """Store memory with error isolation and retry — never crashes the pipeline."""
+        import asyncio as _asyncio
+
+        for attempt in range(1, 4):
+            try:
+                await self._memory_service.store_turn(user_id, user_msg, assistant_msg)
+                return
+            except Exception:
+                if attempt == 3:
+                    logger.warning(
+                        "Memory storage failed for user %s after %d attempts",
+                        user_id, attempt, exc_info=True,
+                    )
+                else:
+                    await _asyncio.sleep(1.0 * attempt)
 
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         """Process a BrainInputEvent and yield AudioOutputRequest for TTS."""
