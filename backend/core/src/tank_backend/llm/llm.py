@@ -1,3 +1,13 @@
+"""LLM client — streaming chat with tool execution and simple completion.
+
+``chat_stream`` is the primary method for agent conversations (streaming +
+tool loop).  ``complete`` is for simple one-shot calls (summarization,
+connection checks).  Both share ``_create_with_retry`` for consistent
+retry behavior.
+"""
+
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
@@ -11,7 +21,7 @@ from openai import (
     InternalServerError,
     RateLimitError,
 )
-from openai.types.chat import ChatCompletionAssistantMessageParam, ChatCompletionMessageParam
+from openai.types.chat import ChatCompletionMessageParam
 
 from ..core.events import UpdateType
 from ..observability.langfuse_client import initialize_langfuse
@@ -21,9 +31,8 @@ logger = logging.getLogger("LLM")
 MAX_TOOL_ITERATIONS = 10
 MAX_RETRY_ATTEMPTS = 3
 RETRY_BASE_DELAY = 1.0
-RETRY_MAX_DELAY = 10.0
+RETRY_MAX_DELAY = 8.0
 
-# Worker tool prefixes — tools matching these are candidates for concurrent execution
 _CONCURRENT_PREFIXES = ("delegate_to_", "review_")
 
 
@@ -52,7 +61,6 @@ class LLM:
         self.stream_options = stream_options
         self.extra_body = extra_body or {}
 
-        # Initialize Langfuse tracing if configured (patches AsyncOpenAI in-place)
         initialize_langfuse()
 
         # Initialize OpenAI client with custom base URL and headers
@@ -85,6 +93,10 @@ class LLM:
                 await asyncio.sleep(delay)
         raise last_exc  # type: ignore[misc]
 
+    # ------------------------------------------------------------------
+    # Streaming chat with tool execution (used by LLMAgent)
+    # ------------------------------------------------------------------
+
     async def chat_stream(
         self,
         messages: list[ChatCompletionMessageParam],
@@ -94,14 +106,14 @@ class LLM:
         tool_executor: Any = None,
         trace_metadata: dict[str, Any] | None = None,
     ) -> AsyncGenerator[tuple[UpdateType, str, dict[str, Any]], None]:
-        """
-        Stream chat completion with automatic tool call handling.
+        """Stream chat completion with automatic tool call handling.
+
         Yields: (UpdateType, content_delta, metadata)
 
         Args:
             trace_metadata: Optional Langfuse trace metadata. Keys like
-                ``trace_name``, ``session_id``, ``tags`` are passed as
-                ``langfuse_*`` extra_body fields for per-call tracing.
+                ``trace_name``, ``metadata`` are passed as top-level
+                kwargs for per-call tracing.
         """
         working_messages = messages.copy()
         turn = 0
@@ -149,66 +161,67 @@ class LLM:
 
             stream = await self._create_with_retry(**api_kwargs)
 
-            try:
-                async for chunk in stream:
-                    if not chunk.choices:
-                        continue
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
 
-                    delta = chunk.choices[0].delta
+                delta = chunk.choices[0].delta
 
-                    # 1. Handle Reasoning (Thought) - Provider specific (e.g. DeepSeek)
-                    reasoning = getattr(delta, "reasoning_content", None) or getattr(
-                        delta, "reasoning", None
+                # Handle reasoning/thinking content
+                if hasattr(delta, "reasoning") and delta.reasoning:
+                    full_reasoning += delta.reasoning
+                    yield (
+                        UpdateType.THOUGHT, delta.reasoning,
+                        {"turn": turn},
                     )
-                    if reasoning:
-                        full_reasoning += reasoning
-                        yield UpdateType.THOUGHT, reasoning, {"turn": turn}
 
-                    # 2. Handle Content (Text)
-                    if delta.content:
-                        full_content += delta.content
-                        yield UpdateType.TEXT, delta.content, {"turn": turn}
+                # Handle regular content
+                if delta.content:
+                    full_content += delta.content
+                    yield (
+                        UpdateType.TEXT, delta.content,
+                        {"turn": turn},
+                    )
 
-                    # 3. Handle Tool Calls Delta
-                    if delta.tool_calls:
-                        for tc_delta in delta.tool_calls:
-                            idx = tc_delta.index
-                            if idx not in tool_calls_data:
-                                tool_calls_data[idx] = {"id": None, "name": "", "arguments": ""}
-
+                # Handle tool calls
+                if delta.tool_calls:
+                    for tc_delta in delta.tool_calls:
+                        idx = tc_delta.index
+                        if idx not in tool_calls_data:
+                            tool_calls_data[idx] = {
+                                "id": tc_delta.id or "",
+                                "name": (
+                                    tc_delta.function.name
+                                    if tc_delta.function and tc_delta.function.name
+                                    else ""
+                                ),
+                                "arguments": "",
+                            }
+                        else:
                             if tc_delta.id:
                                 tool_calls_data[idx]["id"] = tc_delta.id
-                            if tc_delta.function:
-                                if tc_delta.function.name:
-                                    tool_calls_data[idx]["name"] += tc_delta.function.name
-                                if tc_delta.function.arguments:
-                                    tool_calls_data[idx]["arguments"] += tc_delta.function.arguments
+                            if tc_delta.function and tc_delta.function.name:
+                                tool_calls_data[idx]["name"] = tc_delta.function.name
 
-                            # Yield unified tool step update for UI
-                            yield (
-                                UpdateType.TOOL,
-                                "",
-                                {
-                                    "index": idx,
-                                    "name": tool_calls_data[idx]["name"],
-                                    "arguments": tool_calls_data[idx]["arguments"],
-                                    "status": "calling",
-                                    "turn": turn,
-                                },
-                            )
-            finally:
-                # Explicitly close the stream's internal resources.
-                # Use .close() which works on both native AsyncStream and
-                # Langfuse's LangfuseResponseGeneratorAsync wrapper.
-                if hasattr(stream, "close"):
-                    await stream.close()
-                elif hasattr(stream, "response"):
-                    await stream.response.aclose()
+                        if tc_delta.function and tc_delta.function.arguments:
+                            tool_calls_data[idx]["arguments"] += tc_delta.function.arguments
 
-            # ... (Prepare assistant message)
-            assistant_msg: dict[str, Any] = {"role": "assistant", "content": full_content}
+                        yield (
+                            UpdateType.TOOL, "",
+                            {
+                                "index": idx,
+                                "name": tool_calls_data[idx]["name"],
+                                "arguments": tool_calls_data[idx]["arguments"],
+                                "status": "calling", "turn": turn,
+                            },
+                        )
+
+            # Build assistant message for history
+            assistant_msg: dict[str, Any] = {
+                "role": "assistant",
+                "content": full_content or None,
+            }
             if tool_calls_data:
-                # Convert accumulated tool calls to OpenAI format
                 formatted_tool_calls = []
                 for idx in sorted(tool_calls_data.keys()):
                     formatted_tool_calls.append(
@@ -414,178 +427,62 @@ class LLM:
                 MAX_TOOL_ITERATIONS,
             )
 
+    # ------------------------------------------------------------------
+    # Simple completion (used by summarization, connection checks)
+    # ------------------------------------------------------------------
+
+    async def complete(
+        self,
+        messages: list[ChatCompletionMessageParam],
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        trace_metadata: dict[str, Any] | None = None,
+    ) -> str:
+        """Simple non-streaming LLM call. Returns the response text.
+
+        No tool loop — just a single request/response.  Shares
+        ``_create_with_retry`` with ``chat_stream`` for consistent
+        retry behavior.
+        """
+        api_kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature if temperature is not None else self.temperature,
+            "max_tokens": max_tokens if max_tokens is not None else self.max_tokens,
+            "stream": False,
+        }
+        if self.extra_body:
+            api_kwargs["extra_body"] = self.extra_body
+        if trace_metadata:
+            if "trace_name" in trace_metadata:
+                api_kwargs["name"] = trace_metadata["trace_name"]
+            if "metadata" in trace_metadata:
+                api_kwargs["metadata"] = trace_metadata["metadata"]
+
+        response = await self._create_with_retry(**api_kwargs)
+        return response.choices[0].message.content or ""
+
     async def chat_completion_async(
         self,
         messages: list[ChatCompletionMessageParam],
         temperature: float = 0.7,
         max_tokens: int = 1000,
-        stream: bool = False,
-        tools: list[dict[str, Any]] | None = None,
-        tool_executor=None,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
-        """
-        Chat completion with automatic tool call handling.
-
-        Args:
-            messages: List of ChatCompletionMessageParam objects
-            temperature: Sampling temperature
-            max_tokens: Maximum tokens to generate
-            stream: Whether to stream the response
-            tools: Available tools for the model to use
-            tool_executor: Object that can execute tool calls
-                (must have execute_openai_tool_call method)
-        """
-        try:
-            # Create a working copy of messages to avoid modifying the original
-            working_messages: list[ChatCompletionMessageParam] = messages.copy()
-            total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-
-            for iterations in range(1, MAX_TOOL_ITERATIONS + 1):
-                logger.debug(f"LLM iteration {iterations} with {len(working_messages)} messages")
-
-                # Prepare kwargs for the API call
-                api_kwargs = {
-                    "model": self.model,
-                    "messages": working_messages,
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                    "stream": stream,
-                }
-
-                if tools:
-                    api_kwargs["tools"] = tools
-                if self.extra_body:
-                    api_kwargs["extra_body"] = self.extra_body
-
-                # Make the API call
-                response = await self._create_with_retry(**api_kwargs)
-
-                # Accumulate usage statistics
-                if response.usage:
-                    total_usage["prompt_tokens"] += response.usage.prompt_tokens or 0
-                    total_usage["completion_tokens"] += response.usage.completion_tokens or 0
-                    total_usage["total_tokens"] += response.usage.total_tokens or 0
-
-                # Get the assistant's message
-                choice = response.choices[0]
-                assistant_message = choice.message
-
-                # Add the assistant's message to working messages
-                assistant_msg: ChatCompletionAssistantMessageParam = {
-                    "role": "assistant",
-                    "content": assistant_message.content,
-                }
-
-                # Add tool calls if they exist
-                if hasattr(assistant_message, "tool_calls") and assistant_message.tool_calls:
-                    assistant_msg["tool_calls"] = assistant_message.tool_calls
-
-                working_messages.append(assistant_msg)
-
-                # Check if there are tool calls
-                if (
-                    hasattr(assistant_message, "tool_calls")
-                    and assistant_message.tool_calls
-                    and tool_executor
-                ):
-                    logger.info(f"Processing {len(assistant_message.tool_calls)} tool calls")
-
-                    # Execute each tool call and add results as tool messages
-                    for tool_call in assistant_message.tool_calls:
-                        try:
-                            # Execute the tool call
-                            tool_result = await tool_executor.execute_openai_tool_call(tool_call)
-
-                            # Convert tool result to string
-                            if isinstance(tool_result, dict):
-                                if "error" in tool_result:
-                                    result_content = f"Error: {tool_result['error']}"
-                                elif "message" in tool_result:
-                                    result_content = tool_result["message"]
-                                else:
-                                    result_content = str(tool_result)
-                            else:
-                                result_content = str(tool_result)
-
-                            # Add tool response as a tool message
-                            working_messages.append(
-                                {
-                                    "role": "tool",
-                                    "content": result_content,
-                                    "tool_call_id": tool_call.id,
-                                    "name": tool_call.function.name,
-                                }
-                            )
-
-                            logger.debug(f"Tool {tool_call.function.name} executed successfully")
-
-                        except Exception as e:
-                            logger.error(f"Error executing tool {tool_call.function.name}: {e}")
-                            # Add error message as tool response
-                            working_messages.append(
-                                {
-                                    "role": "tool",
-                                    "content": (
-                                f"Error executing {tool_call.function.name}: "
-                                f"{str(e)}"
-                            ),
-                                    "tool_call_id": tool_call.id,
-                                    "name": tool_call.function.name,
-                                }
-                            )
-                else:
-                    # No more tool calls, return the final response
-                    result = {
-                        "choices": [
-                            {
-                                "message": {
-                                    "role": assistant_message.role,
-                                    "content": assistant_message.content,
-                                },
-                                "finish_reason": choice.finish_reason,
-                            }
-                        ],
-                        "usage": total_usage,
-                        "model": response.model,
-                        "id": response.id,
-                        "tool_iterations": iterations,
-                    }
-
-                    # Add tool calls if present (for debugging/logging purposes)
-                    if hasattr(assistant_message, "tool_calls") and assistant_message.tool_calls:
-                        result["choices"][0]["message"]["tool_calls"] = assistant_message.tool_calls
-
-                    return result
-            else:
-                logger.warning(
-                    "chat_completion_async hit MAX_TOOL_ITERATIONS (%d) — stopping tool loop",
-                    MAX_TOOL_ITERATIONS,
-                )
-                # Return last assistant message as final response
-                return {
-                    "choices": [
-                        {
-                            "message": {
-                                "role": "assistant",
-                                "content": assistant_message.content,
-                            },
-                            "finish_reason": "max_tool_iterations",
-                        }
-                    ],
-                    "usage": total_usage,
-                    "model": response.model,
-                    "id": response.id,
-                    "tool_iterations": iterations,
-                }
-
-        except Exception as e:
-            logger.error(f"Chat completion error: {e}")
-            raise
+        """Deprecated — use ``complete()`` instead."""
+        content = await self.complete(
+            messages, temperature=temperature, max_tokens=max_tokens,
+        )
+        return {
+            "choices": [{"message": {"role": "assistant", "content": content}}],
+        }
 
     async def check_connection(self) -> bool:
         try:
-            test_messages = [{"role": "user", "content": "Hello, can you hear me?"}]
-            await self.chat_completion_async(test_messages, max_tokens=16)
+            test_messages: list[ChatCompletionMessageParam] = [
+                {"role": "user", "content": "Hello, can you hear me?"},
+            ]
+            await self.complete(test_messages, max_tokens=16)
             return True
         except Exception as e:
             logger.error(f"Connection check failed: {e}")
