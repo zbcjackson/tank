@@ -126,7 +126,7 @@ class ApprovalManager:
         The Brain uses this to post approval notifications to the UI,
         ensuring they go through the same Bus/WebSocket path as all
         other UI messages — regardless of whether the request originates
-        from the outer agent or an inner worker agent.
+        from the outer agent or an inner sub-agent.
         """
         self._on_request_callback = callback
 

@@ -350,10 +350,7 @@ class Assistant:
 
     def _build_agent_graph(self) -> object:
         """Build AgentGraph with a main ChatAgent that has all tools + agent tool."""
-        from ..agents.definition import (
-            load_agent_definitions,
-            load_agents_from_config,
-        )
+        from ..agents.definition import load_agent_definitions
         from ..agents.graph import AgentGraph
         from ..agents.llm_agent import LLMAgent
         from ..agents.runner import AgentRunner
@@ -374,12 +371,6 @@ class Assistant:
         raw_dirs = agents_cfg.get("dirs", ["../agents", "~/.tank/agents"])
         agent_dirs = [Path(d).expanduser().resolve() for d in raw_dirs]
         definitions = load_agent_definitions(agent_dirs)
-
-        # Backward compat: merge config.yaml workers into definitions
-        if "workers" in agents_cfg:
-            config_defs = load_agents_from_config(agents_cfg)
-            for name, defn in config_defs.items():
-                definitions.setdefault(name, defn)
 
         # Create AgentRunner
         runner = AgentRunner(

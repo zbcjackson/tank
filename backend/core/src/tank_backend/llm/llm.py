@@ -33,12 +33,12 @@ MAX_RETRY_ATTEMPTS = 3
 RETRY_BASE_DELAY = 1.0
 RETRY_MAX_DELAY = 8.0
 
-_CONCURRENT_PREFIXES = ("delegate_to_", "review_")
+_CONCURRENT_SAFE_TOOLS = frozenset({"agent"})
 
 
 def _is_concurrent_safe(name: str) -> bool:
-    """Return True if a tool is a worker delegation (candidate for concurrency)."""
-    return any(name.startswith(p) for p in _CONCURRENT_PREFIXES)
+    """Return True if a tool can safely run in parallel with others."""
+    return name in _CONCURRENT_SAFE_TOOLS
 
 
 class LLM:
@@ -247,7 +247,7 @@ class LLM:
 
                 sorted_indices = sorted(tool_calls_data.keys())
 
-                # Split into concurrent-safe (worker) and sequential tools
+                # Split into concurrent-safe and sequential tools
                 concurrent_items = [
                     (idx, tool_calls_data[idx])
                     for idx in sorted_indices
@@ -262,7 +262,7 @@ class LLM:
                 # --- Run concurrent-safe tools in parallel ---
                 if len(concurrent_items) > 1:
                     logger.info(
-                        "Running %d worker tools concurrently: %s",
+                        "Running %d tools concurrently: %s",
                         len(concurrent_items),
                         [tc["name"] for _, tc in concurrent_items],
                     )
@@ -341,7 +341,7 @@ class LLM:
                             })
 
                 elif len(concurrent_items) == 1:
-                    # Single worker tool — run sequentially (no gather overhead)
+                    # Single concurrent tool — run sequentially (no gather overhead)
                     sequential_items = concurrent_items + sequential_items
                     concurrent_items = []
 

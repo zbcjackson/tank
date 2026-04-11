@@ -81,8 +81,8 @@ class Brain(Processor):
         self._approval_manager = approval_manager
         self._memory_service = memory_service
 
-        # Register approval notification callback so worker approvals
-        # go through the same Bus path as outer-agent approvals.
+        # Register approval notification callback so sub-agent approvals
+        # go through the same Bus path as main agent approvals.
         if approval_manager is not None:
             approval_manager.set_on_request(self._on_approval_request)
 
@@ -100,7 +100,7 @@ class Brain(Processor):
         self._system_prompt = self._load_system_prompt()
         self._system_prompt += "\n\n" + self._build_platform_context()
 
-        # Track current msg_id for approval notifications from workers
+        # Track current msg_id for approval notifications from sub-agents
         self._current_msg_id: str = ""
 
         # Initialize conversation history with system prompt as first message
@@ -657,7 +657,7 @@ class Brain(Processor):
     def _on_approval_request(self, request: Any) -> None:
         """Post approval request to the UI via Bus.
 
-        Called by ApprovalManager whenever any agent (outer or worker)
+        Called by ApprovalManager whenever any agent (main or sub-agent)
         requests approval. This ensures the notification always goes
         through the Brain's Bus — no stale references.
         """

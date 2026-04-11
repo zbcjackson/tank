@@ -128,23 +128,6 @@ class TestAgentDefinition:
         defs = load_agent_definitions([tmp_path / "nope"])
         assert defs == {}
 
-    def test_load_from_config_compat(self) -> None:
-        from tank_backend.agents.definition import load_agents_from_config
-
-        config = {
-            "workers": {
-                "coder": {
-                    "description": "Execute commands",
-                    "tools": ["run_command"],
-                    "timeout": 180,
-                },
-            },
-        }
-
-        defs = load_agents_from_config(config)
-        assert "coder" in defs
-        assert defs["coder"].description == "Execute commands"
-
 
 # ---------------------------------------------------------------------------
 # AgentRunner tests

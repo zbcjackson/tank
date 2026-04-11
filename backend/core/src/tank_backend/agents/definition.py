@@ -100,26 +100,3 @@ def load_agent_definitions(dirs: list[Path]) -> dict[str, AgentDefinition]:
             except ValueError as e:
                 logger.warning("Skipping invalid agent file %s: %s", path, e)
     return definitions
-
-
-def load_agents_from_config(config: dict[str, Any]) -> dict[str, AgentDefinition]:
-    """Backward compat: convert config.yaml workers: section to AgentDefinitions."""
-    workers = config.get("workers", {})
-    definitions: dict[str, AgentDefinition] = {}
-
-    for worker_name, worker_cfg in workers.items():
-        description = worker_cfg.get("description", f"Agent: {worker_name}")
-        system_prompt = worker_cfg.get(
-            "system_prompt",
-            f"You are a {worker_name} agent. Use the available tools to complete tasks. "
-            f"Do NOT just describe what you would do — actually execute the commands.",
-        )
-
-        definitions[worker_name] = AgentDefinition(
-            name=worker_name,
-            description=description,
-            system_prompt=system_prompt,
-            max_turns=int(worker_cfg.get("timeout", 180) / 7),
-        )
-
-    return definitions
