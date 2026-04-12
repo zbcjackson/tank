@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from ..bus import Bus, BusMessage
 from ..event import PipelineEvent
 from ..processor import FlowReturn, Processor
+from .tts_normalizer import normalize_for_tts
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -48,16 +49,23 @@ class TTSProcessor(Processor):
         # QoS: check if feeding queue is overloaded
         self._check_qos()
 
+        # Normalize text for speech (strip markdown, emoji, special chars)
+        normalized_text = normalize_for_tts(request.content)
+        if not normalized_text.strip():
+            logger.info("TTSProcessor: nothing speakable after normalization, skipping")
+            return
+
         logger.info(
             "TTSProcessor: received AudioOutputRequest"
-            f" (text_len={len(request.content)}, lang={request.language})"
+            f" (original_len={len(request.content)}, normalized_len={len(normalized_text)},"
+            f" lang={request.language})"
         )
 
         started_at = time.time()
         chunk_count = 0
 
         chunk_stream = self._tts_engine.generate_stream(
-            request.content,
+            normalized_text,
             language=request.language,
             voice=request.voice,
             is_interrupted=lambda: self._interrupted,
