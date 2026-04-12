@@ -1,11 +1,11 @@
-"""Tests for sandbox_process tool."""
+"""Tests for manage_process tool."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from tank_backend.sandbox.types import ProcessOutput
-from tank_backend.tools.sandbox_process import SandboxProcessTool
+from tank_backend.tools.manage_process import ManageProcessTool
 
 
 @pytest.fixture
@@ -20,10 +20,10 @@ def mock_sandbox():
 
 @pytest.fixture
 def tool(mock_sandbox):
-    return SandboxProcessTool(mock_sandbox)
+    return ManageProcessTool(mock_sandbox)
 
 
-class TestSandboxProcessTool:
+class TestManageProcessTool:
     def test_get_info(self, tool):
         info = tool.get_info()
         assert info.name == "manage_process"

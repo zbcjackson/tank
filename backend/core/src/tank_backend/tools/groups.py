@@ -136,22 +136,22 @@ class SandboxToolGroup(ToolGroup):
         if self._sandbox is None:
             return []
 
-        from .sandbox_exec import SandboxExecTool
-        from .sandbox_process import SandboxProcessTool
+        from .manage_process import ManageProcessTool
+        from .run_command import RunCommandTool
 
         tools: list[BaseTool] = [
-            SandboxExecTool(self._sandbox),
-            SandboxProcessTool(self._sandbox),
+            RunCommandTool(self._sandbox),
+            ManageProcessTool(self._sandbox),
         ]
 
         caps = getattr(self._sandbox, "capabilities", None)
         if caps is not None and caps.persistent_sessions:
-            from .sandbox_bash import SandboxBashTool
+            from .persistent_shell import PersistentShellTool
 
-            tools.append(SandboxBashTool(self._sandbox))
-            logger.info("sandbox_bash included (persistent sessions available)")
+            tools.append(PersistentShellTool(self._sandbox))
+            logger.info("persistent_shell included (persistent sessions available)")
         else:
-            logger.info("sandbox_bash skipped (backend has no persistent sessions)")
+            logger.info("persistent_shell skipped (backend has no persistent sessions)")
 
         return tools
 

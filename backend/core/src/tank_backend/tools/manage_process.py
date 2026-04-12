@@ -1,4 +1,4 @@
-"""sandbox_process tool — manage background processes across all backends."""
+"""manage_process tool — manage background processes."""
 
 from __future__ import annotations
 
@@ -10,12 +10,8 @@ from .base import BaseTool, ToolInfo, ToolParameter
 logger = logging.getLogger(__name__)
 
 
-class SandboxProcessTool(BaseTool):
-    """Manage sandbox background processes: list, poll, log, kill.
-
-    Works on all backends (Docker, Seatbelt, Bubblewrap) via the Sandbox
-    protocol's process management methods.
-    """
+class ManageProcessTool(BaseTool):
+    """Manage background processes: list, poll, log, kill."""
 
     def __init__(self, sandbox: Any) -> None:
         self._sandbox = sandbox
@@ -79,7 +75,7 @@ class SandboxProcessTool(BaseTool):
             return await handler(process_id)
 
         except Exception as e:
-            logger.error("sandbox_process failed: %s", e, exc_info=True)
+            logger.error("manage_process failed: %s", e, exc_info=True)
             return {"error": str(e), "message": f"Sandbox process error: {e}"}
 
     def _handle_list(self) -> dict[str, Any]:

@@ -1,11 +1,11 @@
-"""Tests for sandbox_exec tool."""
+"""Tests for run_command tool."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from tank_backend.sandbox.types import ExecResult
-from tank_backend.tools.sandbox_exec import SandboxExecTool
+from tank_backend.tools.run_command import RunCommandTool
 
 
 @pytest.fixture
@@ -18,10 +18,10 @@ def mock_sandbox():
 
 @pytest.fixture
 def tool(mock_sandbox):
-    return SandboxExecTool(mock_sandbox)
+    return RunCommandTool(mock_sandbox)
 
 
-class TestSandboxExecTool:
+class TestRunCommandTool:
     def test_get_info(self, tool):
         info = tool.get_info()
         assert info.name == "run_command"

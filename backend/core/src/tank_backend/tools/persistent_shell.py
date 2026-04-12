@@ -1,7 +1,7 @@
-"""sandbox_bash tool — persistent shell sessions in Docker sandbox.
+"""persistent_shell tool — persistent shell sessions (Docker-only).
 
-This tool is Docker-only. On native backends (Seatbelt, Bubblewrap) the
-agent should chain commands in a single ``sandbox_exec`` call instead.
+On native backends (Seatbelt, Bubblewrap) the agent should chain
+commands in a single ``run_command`` call instead.
 """
 
 from __future__ import annotations
@@ -15,8 +15,8 @@ from .base import BaseTool, ToolInfo, ToolParameter
 logger = logging.getLogger(__name__)
 
 
-class SandboxBashTool(BaseTool):
-    """Persistent bash sessions inside the sandbox container.
+class PersistentShellTool(BaseTool):
+    """Persistent bash sessions.
 
     Two modes:
     - **command** (default): Send a command, wait for output. Working dir and
@@ -99,7 +99,7 @@ class SandboxBashTool(BaseTool):
                 }
 
             timeout: int = kwargs.get("timeout", 120)
-            logger.info("sandbox_bash [%s]: %s", session, command)
+            logger.info("persistent_shell [%s]: %s", session, command)
 
             result = await self._sandbox.bash_command(
                 command=command,
@@ -111,7 +111,7 @@ class SandboxBashTool(BaseTool):
             return data
 
         except Exception as e:
-            logger.error("sandbox_bash failed: %s", e, exc_info=True)
+            logger.error("persistent_shell failed: %s", e, exc_info=True)
             return {"error": str(e), "message": f"Sandbox bash error: {e}"}
 
     async def _handle_action(

@@ -1,11 +1,11 @@
-"""Tests for sandbox_bash tool."""
+"""Tests for persistent_shell tool."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from tank_backend.sandbox.types import BashResult
-from tank_backend.tools.sandbox_bash import SandboxBashTool
+from tank_backend.tools.persistent_shell import PersistentShellTool
 
 
 @pytest.fixture
@@ -20,10 +20,10 @@ def mock_sandbox():
 
 @pytest.fixture
 def tool(mock_sandbox):
-    return SandboxBashTool(mock_sandbox)
+    return PersistentShellTool(mock_sandbox)
 
 
-class TestSandboxBashTool:
+class TestPersistentShellTool:
     def test_get_info(self, tool):
         info = tool.get_info()
         assert info.name == "persistent_shell"

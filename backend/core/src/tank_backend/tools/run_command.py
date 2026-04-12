@@ -1,4 +1,4 @@
-"""sandbox_exec tool — one-shot command execution in sandbox."""
+"""run_command tool — one-shot command execution."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from .base import BaseTool, ToolInfo, ToolParameter
 logger = logging.getLogger(__name__)
 
 
-class SandboxExecTool(BaseTool):
-    """Run a command inside the sandbox, either to completion or in the background."""
+class RunCommandTool(BaseTool):
+    """Run a command, either to completion or in the background."""
 
     def __init__(self, sandbox: Any) -> None:
         self._sandbox = sandbox
@@ -109,5 +109,5 @@ class SandboxExecTool(BaseTool):
             return data
 
         except Exception as e:
-            logger.error("sandbox_exec failed: %s", e, exc_info=True)
+            logger.error("run_command failed: %s", e, exc_info=True)
             return {"error": str(e), "message": f"Sandbox exec error: {e}"}
