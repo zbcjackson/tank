@@ -303,6 +303,7 @@ class LLM:
                                 UpdateType.TOOL, f"Error: {result!s}",
                                 {
                                     "index": idx, "name": tc["name"],
+                                    "arguments": tc["arguments"],
                                     "status": "error", "turn": turn,
                                 },
                             )
@@ -331,6 +332,7 @@ class LLM:
                                 UpdateType.TOOL, summary,
                                 {
                                     "index": idx, "name": tc["name"],
+                                    "arguments": tc["arguments"],
                                     "status": "error" if is_error else "success",
                                     "turn": turn,
                                 },
@@ -394,6 +396,7 @@ class LLM:
                             UpdateType.TOOL, summary,
                             {
                                 "index": idx, "name": tc["name"],
+                                "arguments": tc["arguments"],
                                 "status": "error" if is_error else "success",
                                 "turn": turn,
                             },
@@ -409,6 +412,7 @@ class LLM:
                             UpdateType.TOOL, f"Error: {e!s}",
                             {
                                 "index": idx, "name": tc["name"],
+                                "arguments": tc["arguments"],
                                 "status": "error", "turn": turn,
                             },
                         )
