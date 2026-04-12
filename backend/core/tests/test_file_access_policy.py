@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
 
 import pytest
 
@@ -13,7 +12,6 @@ from tank_backend.policy.file_access import (
     FileAccessPolicy,
     FileAccessRule,
 )
-
 
 # ---------------------------------------------------------------------------
 # from_dict
@@ -306,7 +304,9 @@ def test_specificity_wins_at_same_priority():
     policy = FileAccessPolicy(
         rules=(
             FileAccessRule(paths=("~/.ssh/**",), read="deny", priority=0, reason="glob"),
-            FileAccessRule(paths=(f"{home}/.ssh/config",), read="allow", priority=0, reason="exact"),
+            FileAccessRule(
+                paths=(f"{home}/.ssh/config",), read="allow", priority=0, reason="exact"
+            ),
         ),
     )
     # Exact match wins

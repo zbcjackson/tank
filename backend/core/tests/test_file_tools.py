@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
-import os
 from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -16,7 +13,6 @@ from tank_backend.tools.file_delete import FileDeleteTool
 from tank_backend.tools.file_list import FileListTool
 from tank_backend.tools.file_read import FileReadTool
 from tank_backend.tools.file_write import FileWriteTool
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -167,8 +163,10 @@ class TestFileWriteTool:
         cb = _make_approval(True)
         backup = _make_backup(None)
 
-        tool = FileWriteTool(_make_policy("require_approval", "System"), backup, approval_callback=cb)
-        result = await tool.execute(path=str(f), content="new config")
+        tool = FileWriteTool(
+            _make_policy("require_approval", "System"), backup, approval_callback=cb
+        )
+        await tool.execute(path=str(f), content="new config")
 
         assert f.read_text() == "new config"
         cb.assert_awaited_once_with("file_write", str(f), "write", "System")
@@ -194,7 +192,7 @@ class TestFileWriteTool:
         f = tmp_path / "sub" / "dir" / "file.txt"
 
         tool = FileWriteTool(_make_policy("allow"), _make_backup(None))
-        result = await tool.execute(path=str(f), content="nested")
+        await tool.execute(path=str(f), content="nested")
 
         assert f.read_text() == "nested"
 
@@ -235,8 +233,10 @@ class TestFileDeleteTool:
         cb = _make_approval(True)
         backup = _make_backup("/backup/temp.txt")
 
-        tool = FileDeleteTool(_make_policy("require_approval", "Caution"), backup, approval_callback=cb)
-        result = await tool.execute(path=str(f))
+        tool = FileDeleteTool(
+            _make_policy("require_approval", "Caution"), backup, approval_callback=cb
+        )
+        await tool.execute(path=str(f))
 
         assert not f.exists()
         cb.assert_awaited_once_with("file_delete", str(f), "delete", "Caution")
@@ -245,7 +245,9 @@ class TestFileDeleteTool:
     async def test_delete_require_approval_denied(self):
         cb = _make_approval(False)
 
-        tool = FileDeleteTool(_make_policy("require_approval"), _make_backup(), approval_callback=cb)
+        tool = FileDeleteTool(
+            _make_policy("require_approval"), _make_backup(), approval_callback=cb
+        )
         result = await tool.execute(path="/tmp/file.txt")
 
         assert result.get("denied") is True

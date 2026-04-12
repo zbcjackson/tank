@@ -186,9 +186,7 @@ class FileAccessPolicy:
                     tail = "/" + "/".join(segments[i:])
                     if fnmatch.fnmatch(tail, suffix):
                         return True
-                if fnmatch.fnmatch("/" + segments[-1], suffix):
-                    return True
-                return False
+                return bool(fnmatch.fnmatch("/" + segments[-1], suffix))
 
             # No suffix — prefix/** matches everything under prefix
             return True
