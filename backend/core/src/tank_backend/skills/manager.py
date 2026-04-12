@@ -243,7 +243,7 @@ class SkillManager:
     async def install(
         self, source: str, skill_name: str | None = None,
     ) -> dict[str, Any]:
-        """Install skill(s) from a git URL or local path.
+        """Install skill(s) from a git URL, clawhub slug, or local path.
 
         If the source contains multiple skills and *skill_name* is given,
         only that skill is installed.  If *skill_name* is ``None``, all
@@ -251,14 +251,14 @@ class SkillManager:
         """
         import shutil
 
-        from .source import GitSource, LocalSource, find_skill_dirs
+        from .source import ClawHubSource, GitSource, LocalSource, find_skill_dirs
 
-        sources = [GitSource(), LocalSource()]
+        sources = [GitSource(), ClawHubSource(), LocalSource()]
         matched = next((s for s in sources if s.matches(source)), None)
         if matched is None:
             return {"error": f"No source handler for: {source}"}
 
-        is_remote = isinstance(matched, GitSource)
+        is_remote = not isinstance(matched, LocalSource)
         try:
             root = await matched.fetch(source)
         except RuntimeError as e:

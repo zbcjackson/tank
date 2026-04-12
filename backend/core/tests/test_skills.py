@@ -691,7 +691,7 @@ class TestSkillToolGroup:
         group = SkillToolGroup(config={"enabled": False})
         assert group.create_tools() == []
 
-    def test_enabled_creates_four_tools(self, tmp_path: Path) -> None:
+    def test_enabled_creates_five_tools(self, tmp_path: Path) -> None:
         from tank_backend.tools.groups import SkillToolGroup
 
         skills_dir = tmp_path / "skills"
@@ -703,7 +703,10 @@ class TestSkillToolGroup:
         tools = group.create_tools()
 
         names = [t.get_info().name for t in tools]
-        assert names == ["use_skill", "list_skills", "create_skill", "install_skill"]
+        assert names == [
+            "use_skill", "list_skills", "create_skill",
+            "install_skill", "search_skills",
+        ]
 
     def test_auto_review_on_startup(self, tmp_skill_dir: Path) -> None:
         from tank_backend.tools.groups import SkillToolGroup
@@ -772,3 +775,299 @@ class TestSkillToolGroup:
 
         catalog = group.get_skill_catalog()
         assert "dangerous-skill" not in catalog
+
+
+# ---------------------------------------------------------------------------
+# ClawHubSource tests
+# ---------------------------------------------------------------------------
+
+class TestClawHubSource:
+    def test_matches_clawhub_prefix(self) -> None:
+        from tank_backend.skills.source import ClawHubSource
+
+        source = ClawHubSource()
+        assert source.matches("clawhub:gifgrep") is True
+        assert source.matches("clawhub:my-skill") is True
+
+    def test_matches_rejects_urls(self) -> None:
+        from tank_backend.skills.source import ClawHubSource
+
+        source = ClawHubSource()
+        assert source.matches("https://github.com/user/repo") is False
+        assert source.matches("git@github.com:user/repo.git") is False
+
+    def test_matches_rejects_paths(self) -> None:
+        from tank_backend.skills.source import ClawHubSource
+
+        source = ClawHubSource()
+        assert source.matches("/tmp/my-skill") is False
+        assert source.matches("./skills/my-skill") is False
+
+    @pytest.mark.asyncio()
+    async def test_fetch_invalid_slug(self) -> None:
+        from tank_backend.skills.source import ClawHubSource
+
+        source = ClawHubSource()
+        with pytest.raises(RuntimeError, match="Invalid ClawHub slug"):
+            await source.fetch("clawhub:Bad_Slug!")
+
+    @pytest.mark.asyncio()
+    async def test_fetch_not_found(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from tank_backend.skills.source import ClawHubSource
+
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("tank_backend.skills.source.httpx.AsyncClient", return_value=mock_client):
+            source = ClawHubSource()
+            with pytest.raises(RuntimeError, match="not found on clawhub.ai"):
+                await source.fetch("clawhub:nonexistent")
+
+    @pytest.mark.asyncio()
+    async def test_fetch_malware_blocked(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from tank_backend.skills.source import ClawHubSource
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "skill": {"slug": "bad-skill"},
+            "moderation": {
+                "isMalwareBlocked": True,
+                "verdict": "malware",
+            },
+        }
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("tank_backend.skills.source.httpx.AsyncClient", return_value=mock_client):
+            source = ClawHubSource()
+            with pytest.raises(RuntimeError, match="blocked by clawhub.ai moderation"):
+                await source.fetch("clawhub:bad-skill")
+
+    @pytest.mark.asyncio()
+    async def test_fetch_moderation_null(self, tmp_path: Path) -> None:
+        """API returns moderation: null for many skills — must not crash."""
+        import io
+        import zipfile
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from tank_backend.skills.source import ClawHubSource
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr(
+                "SKILL.md",
+                "---\nname: null-mod\ndescription: test\n---\nBody\n",
+            )
+        zip_bytes = buf.getvalue()
+
+        detail_response = MagicMock()
+        detail_response.status_code = 200
+        detail_response.json.return_value = {
+            "skill": {"slug": "null-mod"},
+            "moderation": None,
+        }
+
+        download_response = MagicMock()
+        download_response.status_code = 200
+        download_response.content = zip_bytes
+
+        async def mock_get(url, **kwargs):
+            if "/download" in url:
+                return download_response
+            return detail_response
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=mock_get)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("tank_backend.skills.source.httpx.AsyncClient", return_value=mock_client):
+            source = ClawHubSource()
+            root = await source.fetch("clawhub:null-mod")
+
+        try:
+            assert (root / "SKILL.md").exists()
+        finally:
+            import shutil
+            shutil.rmtree(root.parent, ignore_errors=True)
+        import io
+        import zipfile
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from tank_backend.skills.source import ClawHubSource
+
+        # Build a zip containing a SKILL.md
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as zf:
+            zf.writestr(
+                "my-skill/SKILL.md",
+                "---\nname: my-skill\ndescription: test\n---\nBody\n",
+            )
+        zip_bytes = buf.getvalue()
+
+        # Mock the skill detail response (sync .json() and .raise_for_status())
+        detail_response = MagicMock()
+        detail_response.status_code = 200
+        detail_response.json.return_value = {
+            "skill": {"slug": "my-skill"},
+            "moderation": {"isMalwareBlocked": False, "verdict": "clean"},
+        }
+
+        # Mock the download response
+        download_response = MagicMock()
+        download_response.status_code = 200
+        download_response.content = zip_bytes
+
+        async def mock_get(url, **kwargs):
+            if "/download" in url:
+                return download_response
+            return detail_response
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=mock_get)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("tank_backend.skills.source.httpx.AsyncClient", return_value=mock_client):
+            source = ClawHubSource()
+            root = await source.fetch("clawhub:my-skill")
+
+        try:
+            assert (root / "SKILL.md").exists()
+        finally:
+            import shutil
+            # Clean up temp dir (go up to the mkdtemp root)
+            shutil.rmtree(root.parent, ignore_errors=True)
+
+    @pytest.mark.asyncio()
+    async def test_search_returns_candidates(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from tank_backend.skills.source import ClawHubSource
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "results": [
+                {
+                    "slug": "gifgrep",
+                    "displayName": "GifGrep",
+                    "summary": "Search for GIFs",
+                    "version": "1.0.0",
+                },
+                {
+                    "slug": "code-review",
+                    "displayName": "Code Review",
+                    "summary": "Review code",
+                    "version": "2.0.0",
+                },
+            ],
+        }
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("tank_backend.skills.source.httpx.AsyncClient", return_value=mock_client):
+            candidates = await ClawHubSource.search("gif")
+
+        assert len(candidates) == 2
+        assert candidates[0].name == "GifGrep"
+        assert candidates[0].source_type == "clawhub"
+        assert candidates[0].identifier == "clawhub:gifgrep"
+        assert candidates[1].name == "Code Review"
+        assert candidates[1].identifier == "clawhub:code-review"
+
+    @pytest.mark.asyncio()
+    async def test_search_empty_results(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from tank_backend.skills.source import ClawHubSource
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"results": []}
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("tank_backend.skills.source.httpx.AsyncClient", return_value=mock_client):
+            candidates = await ClawHubSource.search("nonexistent-query-xyz")
+
+        assert candidates == []
+
+
+# ---------------------------------------------------------------------------
+# SearchSkillsTool tests
+# ---------------------------------------------------------------------------
+
+class TestSearchSkillsTool:
+    def test_get_info(self) -> None:
+        from tank_backend.tools.skill_tools import SearchSkillsTool
+
+        tool = SearchSkillsTool()
+        info = tool.get_info()
+        assert info.name == "search_skills"
+        assert len(info.parameters) == 1
+        assert info.parameters[0].name == "query"
+
+    @pytest.mark.asyncio()
+    async def test_execute_returns_results(self) -> None:
+        from unittest.mock import AsyncMock, patch
+
+        from tank_backend.skills.models import SkillCandidate
+        from tank_backend.tools.skill_tools import SearchSkillsTool
+
+        candidates = [
+            SkillCandidate(
+                name="GifGrep",
+                description="Search for GIFs",
+                source_type="clawhub",
+                identifier="clawhub:gifgrep",
+            ),
+        ]
+
+        with patch(
+            "tank_backend.skills.source.ClawHubSource.search",
+            new_callable=AsyncMock,
+            return_value=candidates,
+        ):
+            tool = SearchSkillsTool()
+            result = await tool.execute(query="gif")
+
+        assert len(result["results"]) == 1
+        assert result["results"][0]["name"] == "GifGrep"
+        assert result["results"][0]["install_id"] == "clawhub:gifgrep"
+
+    @pytest.mark.asyncio()
+    async def test_execute_empty(self) -> None:
+        from unittest.mock import AsyncMock, patch
+
+        from tank_backend.tools.skill_tools import SearchSkillsTool
+
+        with patch(
+            "tank_backend.skills.source.ClawHubSource.search",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
+            tool = SearchSkillsTool()
+            result = await tool.execute(query="nothing")
+
+        assert result["results"] == []
+        assert "No skills found" in result["message"]

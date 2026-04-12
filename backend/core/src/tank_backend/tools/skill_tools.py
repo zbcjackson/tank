@@ -260,7 +260,7 @@ class CreateSkillTool(BaseTool):
 
 
 class InstallSkillTool(BaseTool):
-    """Install a skill from a git URL or local path."""
+    """Install a skill from a git URL, ClawHub registry, or local path."""
 
     def __init__(self, manager: Any) -> None:
         self._manager = manager
@@ -269,7 +269,9 @@ class InstallSkillTool(BaseTool):
         return ToolInfo(
             name="install_skill",
             description=(
-                "Install a skill from a git repository URL or local path. "
+                "Install a skill from a git repository URL, ClawHub registry, "
+                "or local path. For ClawHub, use 'clawhub:<slug>' format "
+                "(e.g. 'clawhub:gifgrep'). Use search_skills to find slugs. "
                 "If the source contains multiple skills, specify skill_name "
                 "to install just one, or omit it to install all. "
                 "Each skill is security reviewed before activation."
@@ -279,7 +281,8 @@ class InstallSkillTool(BaseTool):
                     name="source",
                     type="string",
                     description=(
-                        "Git URL (e.g. 'https://github.com/user/skills-repo') "
+                        "Git URL (e.g. 'https://github.com/user/skills-repo'), "
+                        "ClawHub slug (e.g. 'clawhub:gifgrep'), "
                         "or local path to a directory containing SKILL.md"
                     ),
                     required=True,
@@ -300,3 +303,58 @@ class InstallSkillTool(BaseTool):
         source: str = kwargs["source"]
         skill_name: str | None = kwargs.get("skill_name") or None
         return await self._manager.install(source, skill_name=skill_name)
+
+
+class SearchSkillsTool(BaseTool):
+    """Search the ClawHub registry for skills."""
+
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="search_skills",
+            description=(
+                "Search the ClawHub skill registry (clawhub.ai) for skills "
+                "matching a query. Returns skill names, descriptions, and "
+                "slugs that can be passed to install_skill as 'clawhub:<slug>'."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="query",
+                    type="string",
+                    description="Search query (e.g. 'code review', 'git hooks')",
+                    required=True,
+                ),
+            ],
+        )
+
+    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+        from ..skills.source import ClawHubSource
+
+        query: str = kwargs["query"]
+        try:
+            candidates = await ClawHubSource.search(query)
+        except Exception as e:
+            logger.error("ClawHub search failed: %s", e)
+            return {"error": str(e), "message": f"Search failed: {e}"}
+
+        if not candidates:
+            return {"results": [], "message": f"No skills found for '{query}'."}
+
+        entries = [
+            {
+                "name": c.name,
+                "description": c.description,
+                "install_id": c.identifier,
+            }
+            for c in candidates
+        ]
+        lines = [
+            f"- {e['name']}: {e['description']} (install: {e['install_id']})"
+            for e in entries
+        ]
+        return {
+            "results": entries,
+            "message": (
+                f"Found {len(entries)} skill(s) on clawhub.ai:\n"
+                + "\n".join(lines)
+            ),
+        }
