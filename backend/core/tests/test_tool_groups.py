@@ -169,10 +169,13 @@ def test_web_group_creates_two_tools():
 # FileToolGroup
 # ------------------------------------------------------------------
 
-def test_file_group_creates_four_tools():
+def test_file_group_creates_six_tools():
     tools = FileToolGroup(config={}).create_tools()
     names = {t.get_info().name for t in tools}
-    assert names == {"file_read", "file_write", "file_delete", "file_list"}
+    assert names == {
+        "file_read", "file_write", "file_edit",
+        "file_delete", "file_list", "file_search",
+    }
 
 
 # ------------------------------------------------------------------

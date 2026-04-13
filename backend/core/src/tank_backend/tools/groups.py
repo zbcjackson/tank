@@ -176,8 +176,10 @@ class FileToolGroup(ToolGroup):
     def create_tools(self) -> list[BaseTool]:
         from ..policy import BackupManager, FileAccessPolicy
         from .file_delete import FileDeleteTool
+        from .file_edit import FileEditTool
         from .file_list import FileListTool
         from .file_read import FileReadTool
+        from .file_search import FileSearchTool
         from .file_write import FileWriteTool
 
         policy = FileAccessPolicy.from_dict(self._config, bus=self._bus)
@@ -186,8 +188,10 @@ class FileToolGroup(ToolGroup):
         return [
             FileReadTool(policy, approval_callback=self._approval_callback),
             FileWriteTool(policy, backup, approval_callback=self._approval_callback),
+            FileEditTool(policy, backup, approval_callback=self._approval_callback),
             FileDeleteTool(policy, backup, approval_callback=self._approval_callback),
             FileListTool(policy, approval_callback=self._approval_callback),
+            FileSearchTool(policy, approval_callback=self._approval_callback),
         ]
 
 

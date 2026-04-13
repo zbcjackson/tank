@@ -1,17 +1,19 @@
-"""Tests for file tools — FileReadTool, FileWriteTool, FileDeleteTool, FileListTool."""
+"""Tests for file tools — all six file tools."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from tank_backend.policy.backup import BackupManager
 from tank_backend.policy.file_access import AccessDecision, FileAccessPolicy
 from tank_backend.tools.file_delete import FileDeleteTool
+from tank_backend.tools.file_edit import FileEditTool
 from tank_backend.tools.file_list import FileListTool
 from tank_backend.tools.file_read import FileReadTool
+from tank_backend.tools.file_search import FileSearchTool
 from tank_backend.tools.file_write import FileWriteTool
 
 # ---------------------------------------------------------------------------
@@ -475,3 +477,674 @@ class TestFileReadLargeAndBinary:
 
         assert result["file_size"] == 5
         assert result["size"] == 5
+
+
+# ---------------------------------------------------------------------------
+# FileEditTool
+# ---------------------------------------------------------------------------
+
+class TestFileEditTool:
+    def test_get_info(self):
+        tool = FileEditTool(_make_policy(), _make_backup())
+        info = tool.get_info()
+        assert info.name == "file_edit"
+        assert len(info.parameters) >= 3
+
+    @pytest.mark.asyncio
+    async def test_edit_allowed(self, tmp_path: Path):
+        f = tmp_path / "code.py"
+        f.write_text("def hello():\n    return 'world'\n")
+        backup = _make_backup("/backup/code.py")
+
+        tool = FileEditTool(_make_policy("allow"), backup)
+        result = await tool.execute(
+            path=str(f), old_string="'world'", new_string="'universe'",
+        )
+
+        assert f.read_text() == "def hello():\n    return 'universe'\n"
+        assert result["replacements"] == 1
+        assert result["backup_path"] == "/backup/code.py"
+
+    @pytest.mark.asyncio
+    async def test_edit_denied(self):
+        tool = FileEditTool(_make_policy("deny", "Secrets"), _make_backup())
+        result = await tool.execute(
+            path="/fake/.ssh/config", old_string="a", new_string="b",
+        )
+        assert result.get("denied") is True
+        assert "Secrets" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_edit_require_approval_granted(self, tmp_path: Path):
+        f = tmp_path / "config.txt"
+        f.write_text("old_value")
+        cb = _make_approval(True)
+        backup = _make_backup(None)
+
+        tool = FileEditTool(
+            _make_policy("require_approval", "System"), backup, approval_callback=cb,
+        )
+        await tool.execute(
+            path=str(f), old_string="old_value", new_string="new_value",
+        )
+
+        assert f.read_text() == "new_value"
+        cb.assert_awaited_once_with("file_edit", str(f), "write", "System")
+
+    @pytest.mark.asyncio
+    async def test_edit_require_approval_denied(self):
+        cb = _make_approval(False)
+
+        tool = FileEditTool(
+            _make_policy("require_approval"), _make_backup(), approval_callback=cb,
+        )
+        result = await tool.execute(
+            path="/etc/hosts", old_string="a", new_string="b",
+        )
+        assert result.get("denied") is True
+
+    @pytest.mark.asyncio
+    async def test_edit_require_approval_no_callback_denies(self):
+        tool = FileEditTool(_make_policy("require_approval"), _make_backup())
+        result = await tool.execute(
+            path="/etc/hosts", old_string="a", new_string="b",
+        )
+        assert result.get("denied") is True
+
+    @pytest.mark.asyncio
+    async def test_edit_file_not_found(self):
+        tool = FileEditTool(_make_policy("allow"), _make_backup(None))
+        result = await tool.execute(
+            path="/nonexistent/file.txt", old_string="a", new_string="b",
+        )
+        assert "error" in result
+        assert "not found" in result["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_edit_not_a_file(self, tmp_path: Path):
+        tool = FileEditTool(_make_policy("allow"), _make_backup(None))
+        result = await tool.execute(
+            path=str(tmp_path), old_string="a", new_string="b",
+        )
+        assert "error" in result
+        assert "not a file" in result["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_edit_old_string_not_found(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("hello world")
+
+        tool = FileEditTool(_make_policy("allow"), _make_backup(None))
+        result = await tool.execute(
+            path=str(f), old_string="nonexistent", new_string="x",
+        )
+        assert "error" in result
+        assert "not found" in result["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_edit_ambiguous_match(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("foo bar foo baz")
+
+        tool = FileEditTool(_make_policy("allow"), _make_backup(None))
+        result = await tool.execute(
+            path=str(f), old_string="foo", new_string="qux",
+        )
+        assert "error" in result
+        assert "ambiguous" in result["message"].lower() or "multiple" in result["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_edit_same_old_new_rejected(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("hello")
+
+        tool = FileEditTool(_make_policy("allow"), _make_backup(None))
+        result = await tool.execute(
+            path=str(f), old_string="hello", new_string="hello",
+        )
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_edit_replace_all(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("foo bar foo baz foo")
+
+        tool = FileEditTool(_make_policy("allow"), _make_backup(None))
+        result = await tool.execute(
+            path=str(f), old_string="foo", new_string="qux", replace_all=True,
+        )
+
+        assert f.read_text() == "qux bar qux baz qux"
+        assert result["replacements"] == 3
+
+    # --- Insert mode tests ---
+
+    @pytest.mark.asyncio
+    async def test_insert_after_line_middle(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("line1\nline2\nline3\n")
+
+        tool = FileEditTool(_make_policy("allow"), _make_backup(None))
+        result = await tool.execute(
+            path=str(f), old_string="", new_string="inserted\n",
+            insert_after_line=2,
+        )
+
+        assert f.read_text() == "line1\nline2\ninserted\nline3\n"
+        assert result["insert_after_line"] == 2
+
+    @pytest.mark.asyncio
+    async def test_insert_after_line_zero_prepends(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("existing\n")
+
+        tool = FileEditTool(_make_policy("allow"), _make_backup(None))
+        await tool.execute(
+            path=str(f), old_string="", new_string="first\n",
+            insert_after_line=0,
+        )
+
+        assert f.read_text() == "first\nexisting\n"
+
+    @pytest.mark.asyncio
+    async def test_insert_after_last_line_appends(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("line1\nline2\n")
+
+        tool = FileEditTool(_make_policy("allow"), _make_backup(None))
+        await tool.execute(
+            path=str(f), old_string="", new_string="line3\n",
+            insert_after_line=2,
+        )
+
+        assert f.read_text() == "line1\nline2\nline3\n"
+
+    @pytest.mark.asyncio
+    async def test_insert_beyond_last_line_appends(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("line1\n")
+
+        tool = FileEditTool(_make_policy("allow"), _make_backup(None))
+        await tool.execute(
+            path=str(f), old_string="", new_string="appended\n",
+            insert_after_line=999,
+        )
+
+        assert f.read_text() == "line1\nappended\n"
+
+    @pytest.mark.asyncio
+    async def test_insert_negative_line_rejected(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("content\n")
+
+        tool = FileEditTool(_make_policy("allow"), _make_backup(None))
+        result = await tool.execute(
+            path=str(f), old_string="", new_string="x",
+            insert_after_line=-1,
+        )
+
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_insert_empty_new_string_rejected(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("content\n")
+
+        tool = FileEditTool(_make_policy("allow"), _make_backup(None))
+        result = await tool.execute(
+            path=str(f), old_string="", new_string="",
+            insert_after_line=1,
+        )
+
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_insert_denied(self):
+        tool = FileEditTool(_make_policy("deny", "Secrets"), _make_backup())
+        result = await tool.execute(
+            path="/fake/.ssh/config", old_string="", new_string="x",
+            insert_after_line=1,
+        )
+        assert result.get("denied") is True
+
+    @pytest.mark.asyncio
+    async def test_insert_with_backup(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("line1\n")
+        backup = _make_backup("/backup/file.txt")
+
+        tool = FileEditTool(_make_policy("allow"), backup)
+        result = await tool.execute(
+            path=str(f), old_string="", new_string="line2\n",
+            insert_after_line=1,
+        )
+
+        assert result["backup_path"] == "/backup/file.txt"
+
+    @pytest.mark.asyncio
+    async def test_empty_old_string_without_insert_line_rejected(
+        self, tmp_path: Path,
+    ):
+        """Empty old_string without insert_after_line is ambiguous."""
+        f = tmp_path / "file.txt"
+        f.write_text("content\n")
+
+        tool = FileEditTool(_make_policy("allow"), _make_backup(None))
+        result = await tool.execute(
+            path=str(f), old_string="", new_string="x",
+        )
+
+        assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# FileSearchTool
+# ---------------------------------------------------------------------------
+
+def _make_search_tool(policy=None, approval_callback=None):
+    """Create a FileSearchTool forced to Python fallback (no rg)."""
+    with patch("tank_backend.tools.file_search.find_rg_binary", return_value=None):
+        return FileSearchTool(
+            policy or _make_policy(),
+            approval_callback=approval_callback,
+        )
+
+
+class TestFileSearchTool:
+    """Core search tests — use Python fallback for deterministic output."""
+
+    def test_get_info(self):
+        tool = _make_search_tool()
+        info = tool.get_info()
+        assert info.name == "file_search"
+        assert len(info.parameters) >= 2
+
+    @pytest.mark.asyncio
+    async def test_search_literal(self, tmp_path: Path):
+        f = tmp_path / "code.py"
+        f.write_text("line1\nfoo bar\nline3\nfoo baz\nline5\n")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(path=str(f), pattern="foo")
+
+        assert result["match_count"] == 2
+        assert len(result["matches"]) == 2
+        assert result["matches"][0]["line_number"] == 2
+        assert "foo bar" in result["matches"][0]["line"]
+
+    @pytest.mark.asyncio
+    async def test_search_regex(self, tmp_path: Path):
+        f = tmp_path / "data.txt"
+        f.write_text("apple 123\nbanana 456\ncherry 789\n")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(f), pattern=r"\d{3}", is_regex=True,
+        )
+
+        assert result["match_count"] == 3
+
+    @pytest.mark.asyncio
+    async def test_search_with_context(self, tmp_path: Path):
+        f = tmp_path / "log.txt"
+        f.write_text("a\nb\nTARGET\nd\ne\n")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(f), pattern="TARGET", context_lines=1,
+        )
+
+        assert result["match_count"] == 1
+        match = result["matches"][0]
+        assert match["line_number"] == 3
+        assert len(match["context_before"]) == 1
+        assert len(match["context_after"]) == 1
+        assert "b" in match["context_before"][0]
+        assert "d" in match["context_after"][0]
+
+    @pytest.mark.asyncio
+    async def test_search_max_results(self, tmp_path: Path):
+        f = tmp_path / "many.txt"
+        f.write_text("\n".join(f"match line {i}" for i in range(100)))
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(f), pattern="match", max_results=5,
+        )
+
+        assert len(result["matches"]) == 5
+        assert result["match_count"] == 5
+        assert result.get("truncated") is True
+
+    @pytest.mark.asyncio
+    async def test_search_no_matches(self, tmp_path: Path):
+        f = tmp_path / "empty_search.txt"
+        f.write_text("hello world\n")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(path=str(f), pattern="nonexistent")
+
+        assert result["match_count"] == 0
+        assert result["matches"] == []
+
+    @pytest.mark.asyncio
+    async def test_search_denied(self):
+        tool = _make_search_tool(_make_policy("deny", "Secrets"))
+        result = await tool.execute(
+            path="/fake/.ssh/id_rsa", pattern="key",
+        )
+
+        assert result.get("denied") is True
+        assert "Secrets" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_search_require_approval_granted(self, tmp_path: Path):
+        f = tmp_path / "config.txt"
+        f.write_text("password=secret\n")
+        cb = _make_approval(True)
+
+        tool = _make_search_tool(
+            _make_policy("require_approval", "Sensitive"),
+            approval_callback=cb,
+        )
+        result = await tool.execute(path=str(f), pattern="password")
+
+        assert result["match_count"] == 1
+        cb.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_search_require_approval_denied(self):
+        cb = _make_approval(False)
+
+        tool = _make_search_tool(
+            _make_policy("require_approval"), approval_callback=cb,
+        )
+        result = await tool.execute(
+            path="/etc/hosts", pattern="localhost",
+        )
+
+        assert result.get("denied") is True
+
+    @pytest.mark.asyncio
+    async def test_search_require_approval_no_callback_denies(self):
+        tool = _make_search_tool(_make_policy("require_approval"))
+        result = await tool.execute(
+            path="/etc/hosts", pattern="localhost",
+        )
+
+        assert result.get("denied") is True
+
+    @pytest.mark.asyncio
+    async def test_search_file_not_found(self):
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path="/nonexistent/file.txt", pattern="x",
+        )
+
+        assert "error" in result
+        assert "not found" in result["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_search_directory_is_valid(self, tmp_path: Path):
+        """Directories are valid targets — file_search scans contents."""
+        (tmp_path / "a.txt").write_text("nothing here")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), pattern="nonexistent",
+        )
+
+        assert result["match_count"] == 0
+        assert "error" not in result
+
+    @pytest.mark.asyncio
+    async def test_search_invalid_regex(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("hello")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(f), pattern="[invalid", is_regex=True,
+        )
+
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_search_directory(self, tmp_path: Path):
+        (tmp_path / "a.txt").write_text("foo bar\nbaz\n")
+        (tmp_path / "b.txt").write_text("no match\n")
+        (tmp_path / "c.txt").write_text("foo again\n")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), pattern="foo",
+        )
+
+        assert result["match_count"] == 2
+        files = {m["file"] for m in result["matches"]}
+        assert str(tmp_path / "a.txt") in files
+        assert str(tmp_path / "c.txt") in files
+
+
+class TestFileSearchNewParams:
+    """Tests for new parameters added in the ripgrep refactor."""
+
+    @pytest.mark.asyncio
+    async def test_search_recursive(self, tmp_path: Path):
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (tmp_path / "top.txt").write_text("target\n")
+        (sub / "nested.txt").write_text("target\n")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), pattern="target",
+        )
+
+        assert result["match_count"] == 2
+        files = {m["file"] for m in result["matches"]}
+        assert str(tmp_path / "top.txt") in files
+        assert str(sub / "nested.txt") in files
+
+    @pytest.mark.asyncio
+    async def test_search_glob_filter(self, tmp_path: Path):
+        (tmp_path / "code.py").write_text("target\n")
+        (tmp_path / "data.txt").write_text("target\n")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), pattern="target", glob="*.py",
+        )
+
+        assert result["match_count"] == 1
+        assert "code.py" in result["matches"][0]["file"]
+
+    @pytest.mark.asyncio
+    async def test_search_file_type_filter(self, tmp_path: Path):
+        (tmp_path / "app.py").write_text("target\n")
+        (tmp_path / "readme.md").write_text("target\n")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), pattern="target", file_type="py",
+        )
+
+        assert result["match_count"] == 1
+        assert "app.py" in result["matches"][0]["file"]
+
+    @pytest.mark.asyncio
+    async def test_search_case_insensitive(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("Hello\nhello\nHELLO\n")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(f), pattern="hello", case_insensitive=True,
+        )
+
+        assert result["match_count"] == 3
+
+    @pytest.mark.asyncio
+    async def test_search_output_mode_files(self, tmp_path: Path):
+        (tmp_path / "a.txt").write_text("match\n")
+        (tmp_path / "b.txt").write_text("no\n")
+        (tmp_path / "c.txt").write_text("match\n")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), pattern="match",
+            output_mode="files_with_matches",
+        )
+
+        assert result["match_count"] == 2
+        assert "files" in result
+        files = set(result["files"])
+        assert str(tmp_path / "a.txt") in files
+        assert str(tmp_path / "c.txt") in files
+
+    @pytest.mark.asyncio
+    async def test_search_output_mode_count(self, tmp_path: Path):
+        (tmp_path / "a.txt").write_text("foo\nfoo\nbar\n")
+        (tmp_path / "b.txt").write_text("foo\n")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), pattern="foo",
+            output_mode="count",
+        )
+
+        assert result["match_count"] == 3
+        assert "file_counts" in result
+
+    @pytest.mark.asyncio
+    async def test_search_head_limit_and_offset(self, tmp_path: Path):
+        f = tmp_path / "lines.txt"
+        f.write_text(
+            "\n".join(f"match {i}" for i in range(20)) + "\n",
+        )
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(f), pattern="match",
+            head_limit=5, offset=3,
+        )
+
+        assert result["match_count"] == 5
+        assert result["matches"][0]["line_number"] == 4  # 0-indexed line 3
+
+    @pytest.mark.asyncio
+    async def test_search_invalid_output_mode(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("hello")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(f), pattern="hello", output_mode="bad",
+        )
+
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_search_context_before_after(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("a\nb\nc\nTARGET\ne\nf\ng\n")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(f), pattern="TARGET",
+            context_before=2, context_after=1,
+        )
+
+        match = result["matches"][0]
+        assert len(match["context_before"]) == 2
+        assert len(match["context_after"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_search_skips_hidden_dirs(self, tmp_path: Path):
+        hidden = tmp_path / ".hidden"
+        hidden.mkdir()
+        (hidden / "secret.txt").write_text("target\n")
+        (tmp_path / "visible.txt").write_text("target\n")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), pattern="target",
+        )
+
+        assert result["match_count"] == 1
+        assert "visible.txt" in result["matches"][0]["file"]
+
+
+class TestFileSearchRipgrepPath:
+    """Tests that verify ripgrep integration via mocked subprocess."""
+
+    @pytest.mark.asyncio
+    async def test_uses_ripgrep_when_available(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("hello world\n")
+
+        with patch(
+            "tank_backend.tools.file_search.find_rg_binary",
+            return_value="/usr/bin/rg",
+        ):
+            tool = FileSearchTool(_make_policy("allow"))
+
+        rg_output = f"{f}:1:hello world"
+        mock_result = MagicMock()
+        mock_result.lines = [rg_output]
+        mock_result.truncated = False
+        mock_result.exit_code = 0
+        mock_result.error = None
+
+        with patch(
+            "tank_backend.tools.file_search.run_ripgrep",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ) as mock_rg:
+            result = await tool.execute(
+                path=str(f), pattern="hello",
+            )
+
+            mock_rg.assert_awaited_once()
+            assert result["match_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_falls_back_when_rg_missing(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("hello world\n")
+
+        tool = _make_search_tool(_make_policy("allow"))
+        assert tool._rg_binary is None
+
+        result = await tool.execute(path=str(f), pattern="hello")
+
+        assert result["match_count"] == 1
+        assert "hello world" in result["matches"][0]["line"]
+
+    @pytest.mark.asyncio
+    async def test_ripgrep_error_returned(self, tmp_path: Path):
+        f = tmp_path / "file.txt"
+        f.write_text("hello\n")
+
+        with patch(
+            "tank_backend.tools.file_search.find_rg_binary",
+            return_value="/usr/bin/rg",
+        ):
+            tool = FileSearchTool(_make_policy("allow"))
+
+        mock_result = MagicMock()
+        mock_result.error = "ripgrep error: bad regex"
+        mock_result.lines = []
+        mock_result.truncated = False
+        mock_result.exit_code = 2
+
+        with patch(
+            "tank_backend.tools.file_search.run_ripgrep",
+            new_callable=AsyncMock,
+            return_value=mock_result,
+        ):
+            result = await tool.execute(
+                path=str(f), pattern="[bad", is_regex=True,
+            )
+
+            assert "error" in result
