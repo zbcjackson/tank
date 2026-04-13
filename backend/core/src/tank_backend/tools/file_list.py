@@ -1,8 +1,13 @@
-"""file_list tool — list directory contents with policy check."""
+"""file_list tool — list/find directory contents with policy check.
+
+Uses ripgrep (``rg --files``) for glob search when available,
+falling back to Python ``os.walk`` + ``fnmatch``.
+"""
 
 from __future__ import annotations
 
 import asyncio
+import fnmatch
 import logging
 import os
 from pathlib import Path
@@ -10,12 +15,19 @@ from typing import Any
 
 from ..policy.file_access import FileAccessPolicy
 from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter
+from .ripgrep import find_rg_binary, run_rg_files
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_MAX_RESULTS = 200
+
 
 class FileListTool(BaseTool):
-    """List directory contents on the host filesystem, subject to file access policy."""
+    """List or find files/directories, subject to file access policy.
+
+    Without a glob pattern, lists the immediate contents of a directory.
+    With a glob pattern, recursively finds matching files and directories.
+    """
 
     def __init__(
         self,
@@ -24,28 +36,65 @@ class FileListTool(BaseTool):
     ) -> None:
         self._policy = policy
         self._approval_callback = approval_callback
+        self._rg_binary = find_rg_binary()
+        if self._rg_binary:
+            logger.info("file_list: using ripgrep at %s", self._rg_binary)
+        else:
+            logger.info(
+                "file_list: ripgrep not found, using Python fallback",
+            )
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
             name="file_list",
             description=(
-                "List the contents of a directory. "
-                "Returns file names, types, and sizes. "
-                "Use this to browse directories and find files."
+                "List or find files and directories. "
+                "Without a glob pattern, lists immediate directory "
+                "contents. With a glob pattern, recursively finds "
+                "matching files and directories by name. "
+                "Use this to browse directories, find files by name, "
+                "or locate folders."
             ),
             parameters=[
                 ToolParameter(
                     name="path",
                     type="string",
-                    description="Absolute or ~-prefixed path to the directory to list",
+                    description=(
+                        "Absolute or ~-prefixed path to the directory"
+                    ),
                     required=True,
+                ),
+                ToolParameter(
+                    name="glob",
+                    type="string",
+                    description=(
+                        "Glob pattern to match file/directory names "
+                        "(e.g. '*.py', '*教材*'). "
+                        "When provided, searches recursively. "
+                        "Supports * and ? wildcards."
+                    ),
+                    required=False,
+                    default=None,
                 ),
                 ToolParameter(
                     name="show_hidden",
                     type="boolean",
-                    description="Include hidden files (starting with .) (default: false)",
+                    description=(
+                        "Include hidden files/dirs starting with . "
+                        "(default: false)"
+                    ),
                     required=False,
                     default=False,
+                ),
+                ToolParameter(
+                    name="max_results",
+                    type="integer",
+                    description=(
+                        "Max results for glob search "
+                        f"(default: {_DEFAULT_MAX_RESULTS})"
+                    ),
+                    required=False,
+                    default=_DEFAULT_MAX_RESULTS,
                 ),
             ],
         )
@@ -53,49 +102,109 @@ class FileListTool(BaseTool):
     async def execute(self, **kwargs: Any) -> dict[str, Any]:
         path: str = kwargs["path"]
         show_hidden: bool = kwargs.get("show_hidden", False)
+        glob_pat: str | None = kwargs.get("glob")
+        max_results: int = (
+            kwargs.get("max_results", _DEFAULT_MAX_RESULTS)
+            or _DEFAULT_MAX_RESULTS
+        )
 
         # 1. Policy check (listing uses "read" operation)
         decision = self._policy.evaluate(path, "read")
         if decision.level == "deny":
-            logger.warning("file_list denied: %s (%s)", path, decision.reason)
+            logger.warning(
+                "file_list denied: %s (%s)", path, decision.reason,
+            )
             return {
                 "error": f"Access denied: {path} ({decision.reason})",
                 "denied": True,
                 "message": f"Cannot list {path}: {decision.reason}",
             }
-        if decision.level == "require_approval" and not await self._request_approval(
-            path, "read", decision.reason
+        if (
+            decision.level == "require_approval"
+            and not await self._request_approval(
+                path, "read", decision.reason,
+            )
         ):
-                return {
-                    "error": f"Approval denied: {path} ({decision.reason})",
-                    "denied": True,
-                    "message": f"User denied listing {path}: {decision.reason}",
-                }
+            return {
+                "error": f"Approval denied: {path} ({decision.reason})",
+                "denied": True,
+                "message": (
+                    f"User denied listing {path}: {decision.reason}"
+                ),
+            }
 
         resolved = Path(path).expanduser().resolve()
 
         if not resolved.exists():
-            return {"error": "Directory not found", "message": f"Not found: {path}"}
+            return {
+                "error": "Directory not found",
+                "message": f"Not found: {path}",
+            }
         if not resolved.is_dir():
-            return {"error": "Not a directory", "message": f"Not a directory: {path}"}
+            return {
+                "error": "Not a directory",
+                "message": f"Not a directory: {path}",
+            }
 
-        # 2. List entries
+        # 2. Dispatch: glob search vs flat listing
         try:
-            entries = await asyncio.to_thread(self._scan_dir, resolved, show_hidden)
+            if glob_pat:
+                if self._rg_binary:
+                    return await self._glob_ripgrep(
+                        resolved, glob_pat, show_hidden, max_results,
+                    )
+                entries, truncated = await asyncio.to_thread(
+                    self._glob_python,
+                    resolved, glob_pat, show_hidden, max_results,
+                )
+                logger.info(
+                    "file_list glob: %s pattern=%r (%d entries)",
+                    resolved, glob_pat, len(entries),
+                )
+                result: dict[str, Any] = {
+                    "path": str(resolved),
+                    "glob": glob_pat,
+                    "entries": entries,
+                    "count": len(entries),
+                    "message": self._format_entries_message(
+                        f"Found {len(entries)} match(es) in {resolved}",
+                        entries, truncated,
+                    ),
+                }
+                if truncated:
+                    result["truncated"] = True
+                return result
+
+            entries = await asyncio.to_thread(
+                self._scan_dir, resolved, show_hidden,
+            )
         except Exception as e:
             logger.error("file_list failed: %s", e, exc_info=True)
-            return {"error": str(e), "message": f"Error listing {path}: {e}"}
+            return {
+                "error": str(e),
+                "message": f"Error listing {path}: {e}",
+            }
 
-        logger.info("file_list: %s (%d entries)", resolved, len(entries))
+        logger.info(
+            "file_list: %s (%d entries)", resolved, len(entries),
+        )
         return {
             "path": str(resolved),
             "entries": entries,
             "count": len(entries),
-            "message": f"Listed {resolved} ({len(entries)} entries)",
+            "message": self._format_entries_message(
+                f"Listed {resolved} ({len(entries)} entries)", entries,
+            ),
         }
 
+    # ------------------------------------------------------------------
+    # Flat directory listing (existing behavior)
+    # ------------------------------------------------------------------
+
     @staticmethod
-    def _scan_dir(resolved: Path, show_hidden: bool) -> list[dict[str, Any]]:
+    def _scan_dir(
+        resolved: Path, show_hidden: bool,
+    ) -> list[dict[str, Any]]:
         entries: list[dict[str, Any]] = []
         with os.scandir(resolved) as it:
             for entry in sorted(it, key=lambda e: e.name):
@@ -106,7 +215,9 @@ class FileListTool(BaseTool):
                     entries.append({
                         "name": entry.name,
                         "type": "dir" if entry.is_dir() else "file",
-                        "size": stat.st_size if entry.is_file() else None,
+                        "size": (
+                            stat.st_size if entry.is_file() else None
+                        ),
                     })
                 except OSError:
                     entries.append({
@@ -116,10 +227,243 @@ class FileListTool(BaseTool):
                     })
         return entries
 
-    async def _request_approval(self, path: str, operation: str, reason: str) -> bool:
+    # ------------------------------------------------------------------
+    # Recursive glob search — ripgrep path
+    # ------------------------------------------------------------------
+
+    async def _glob_ripgrep(
+        self,
+        resolved: Path,
+        pattern: str,
+        show_hidden: bool,
+        max_results: int,
+    ) -> dict[str, Any]:
+        """Use ``rg --files --glob`` for files + dir name scan.
+
+        ``rg --files`` only lists files, not directories. We supplement
+        with a lightweight directory-name-only walk so that searching
+        for ``*教材*`` finds a folder named ``教材``.
+        """
+        # 1. rg --files for file matches (fast)
+        rg_result = await run_rg_files(
+            self._rg_binary,
+            str(resolved),
+            glob=pattern,
+            show_hidden=show_hidden,
+            head_limit=max_results,
+        )
+
+        entries: list[dict[str, Any]] = []
+        truncated = False
+
+        if rg_result.error:
+            logger.warning(
+                "file_list rg --files failed, falling back: %s",
+                rg_result.error,
+            )
+            entries, truncated = await asyncio.to_thread(
+                self._glob_python,
+                resolved, pattern, show_hidden, max_results,
+            )
+        else:
+            # 2. Scan directory names (rg --files skips dirs)
+            dir_entries = await asyncio.to_thread(
+                self._find_matching_dirs,
+                resolved, pattern, show_hidden, max_results,
+            )
+            entries.extend(dir_entries)
+
+            # 3. Parse rg file results
+            remaining = max_results - len(entries)
+            for line in rg_result.lines:
+                if remaining <= 0:
+                    truncated = True
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                p = Path(line)
+                try:
+                    rel = str(p.relative_to(resolved))
+                except ValueError:
+                    rel = p.name
+                entry: dict[str, Any] = {
+                    "name": p.name,
+                    "path": str(p),
+                    "relative_path": rel,
+                    "type": "file",
+                }
+                try:
+                    entry["size"] = p.stat().st_size
+                except OSError:
+                    entry["size"] = None
+                entries.append(entry)
+                remaining -= 1
+
+            if rg_result.truncated and not truncated:
+                truncated = True
+
+        logger.info(
+            "file_list glob (rg): %s pattern=%r (%d entries)",
+            resolved, pattern, len(entries),
+        )
+        result: dict[str, Any] = {
+            "path": str(resolved),
+            "glob": pattern,
+            "entries": entries,
+            "count": len(entries),
+            "message": self._format_entries_message(
+                f"Found {len(entries)} match(es) in {resolved}",
+                entries, truncated,
+            ),
+        }
+        if truncated:
+            result["truncated"] = True
+        return result
+
+    @staticmethod
+    def _find_matching_dirs(
+        root: Path,
+        pattern: str,
+        show_hidden: bool,
+        max_results: int,
+    ) -> list[dict[str, Any]]:
+        """Recursively find directories matching a glob pattern.
+
+        Lightweight — only checks directory names, never reads files.
+        """
+        entries: list[dict[str, Any]] = []
+
+        for dirpath, dirnames, _ in os.walk(root):
+            if not show_hidden:
+                dirnames[:] = [
+                    d for d in dirnames if not d.startswith(".")
+                ]
+            rel_dir = os.path.relpath(dirpath, root)
+
+            for dname in sorted(dirnames):
+                if fnmatch.fnmatch(dname, pattern):
+                    full = os.path.join(dirpath, dname)
+                    entries.append({
+                        "name": dname,
+                        "path": full,
+                        "relative_path": (
+                            os.path.join(rel_dir, dname)
+                            if rel_dir != "."
+                            else dname
+                        ),
+                        "type": "dir",
+                    })
+                    if len(entries) >= max_results:
+                        return entries
+
+        return entries
+
+    # ------------------------------------------------------------------
+    # Recursive glob search — Python fallback
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _glob_python(
+        root: Path,
+        pattern: str,
+        show_hidden: bool,
+        max_results: int,
+    ) -> tuple[list[dict[str, Any]], bool]:
+        """Recursively find files/dirs matching a glob pattern."""
+        entries: list[dict[str, Any]] = []
+        truncated = False
+
+        for dirpath, dirnames, filenames in os.walk(root):
+            # Skip hidden directories
+            if not show_hidden:
+                dirnames[:] = [
+                    d for d in dirnames if not d.startswith(".")
+                ]
+
+            rel_dir = os.path.relpath(dirpath, root)
+
+            # Check directory names
+            for dname in sorted(dirnames):
+                if fnmatch.fnmatch(dname, pattern):
+                    full = os.path.join(dirpath, dname)
+                    entries.append({
+                        "name": dname,
+                        "path": full,
+                        "relative_path": os.path.join(rel_dir, dname)
+                        if rel_dir != "."
+                        else dname,
+                        "type": "dir",
+                    })
+                    if len(entries) >= max_results:
+                        return entries, True
+
+            # Check file names
+            for fname in sorted(filenames):
+                if not show_hidden and fname.startswith("."):
+                    continue
+                if fnmatch.fnmatch(fname, pattern):
+                    full = os.path.join(dirpath, fname)
+                    try:
+                        size = os.path.getsize(full)
+                    except OSError:
+                        size = None
+                    entries.append({
+                        "name": fname,
+                        "path": full,
+                        "relative_path": os.path.join(rel_dir, fname)
+                        if rel_dir != "."
+                        else fname,
+                        "type": "file",
+                        "size": size,
+                    })
+                    if len(entries) >= max_results:
+                        return entries, True
+
+        return entries, truncated
+
+    async def _request_approval(
+        self, path: str, operation: str, reason: str,
+    ) -> bool:
         if self._approval_callback is None:
             logger.warning(
-                "file_list require_approval but no callback — denying: %s", path,
+                "file_list require_approval but no callback "
+                "— denying: %s",
+                path,
             )
             return False
-        return await self._approval_callback("file_list", path, operation, reason)
+        return await self._approval_callback(
+            "file_list", path, operation, reason,
+        )
+
+    # ------------------------------------------------------------------
+    # Message formatting
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _format_entries_message(
+        header: str,
+        entries: list[dict[str, Any]],
+        truncated: bool = False,
+    ) -> str:
+        """Build a message with header + entry list for LLM consumption.
+
+        ``llm.py`` uses ``result["message"]`` as the tool result sent to
+        the LLM, so this must contain the actual data, not just a summary.
+        """
+        if truncated:
+            header += " (truncated)"
+        if not entries:
+            return header
+        lines = [header]
+        for e in entries:
+            etype = e.get("type", "file")
+            name = e.get("relative_path") or e.get("name", "")
+            size = e.get("size")
+            if etype == "dir":
+                lines.append(f"  [dir]  {name}")
+            elif size is not None:
+                lines.append(f"  [file] {name} ({size}B)")
+            else:
+                lines.append(f"  [file] {name}")
+        return "\n".join(lines)

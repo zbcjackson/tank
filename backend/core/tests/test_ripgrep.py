@@ -10,7 +10,9 @@ import pytest
 from tank_backend.tools.ripgrep import (
     RipgrepResult,
     build_rg_args,
+    build_rg_files_args,
     find_rg_binary,
+    run_rg_files,
     run_rg_sync,
     run_ripgrep,
 )
@@ -362,3 +364,133 @@ class TestRunRipgrep:
 
         assert len(result.lines) == 500
         assert result.truncated is False
+
+
+# ---------------------------------------------------------------------------
+# build_rg_files_args
+# ---------------------------------------------------------------------------
+
+class TestBuildRgFilesArgs:
+    def test_defaults(self):
+        args = build_rg_files_args()
+        assert "--files" in args
+        assert "--color=never" in args
+        assert "--sort=modified" in args
+        # hidden not included by default
+        assert "--hidden" not in args
+
+    def test_show_hidden(self):
+        args = build_rg_files_args(show_hidden=True)
+        assert "--hidden" in args
+
+    def test_glob_filter(self):
+        args = build_rg_files_args(glob="*.py")
+        idx = args.index("*.py")
+        assert args[idx - 1] == "--glob"
+
+    def test_no_sort(self):
+        args = build_rg_files_args(sort_modified=False)
+        assert "--sort=modified" not in args
+
+    def test_vcs_excludes(self):
+        args = build_rg_files_args()
+        assert "!.git" in args
+
+
+# ---------------------------------------------------------------------------
+# run_rg_files (async)
+# ---------------------------------------------------------------------------
+
+class TestRunRgFiles:
+    @pytest.mark.asyncio
+    async def test_lists_files(self):
+        lines = ["/tmp/a.py", "/tmp/b.py", "/tmp/sub/c.py"]
+        mock_result = RipgrepResult(lines=lines, exit_code=0)
+
+        with patch(
+            "tank_backend.tools.ripgrep.run_rg_sync",
+            return_value=mock_result,
+        ):
+            result = await run_rg_files(
+                "/usr/bin/rg", "/tmp", glob="*.py",
+            )
+
+        assert len(result.lines) == 3
+        assert result.truncated is False
+
+    @pytest.mark.asyncio
+    async def test_pagination(self):
+        lines = [f"/tmp/file_{i}.txt" for i in range(20)]
+        mock_result = RipgrepResult(lines=lines, exit_code=0)
+
+        with patch(
+            "tank_backend.tools.ripgrep.run_rg_sync",
+            return_value=mock_result,
+        ):
+            result = await run_rg_files(
+                "/usr/bin/rg", "/tmp", head_limit=5, offset=3,
+            )
+
+        assert len(result.lines) == 5
+        assert result.truncated is True
+        assert "file_3" in result.lines[0]
+
+    @pytest.mark.asyncio
+    async def test_error_passthrough(self):
+        mock_result = RipgrepResult(
+            exit_code=-1, error="binary not found",
+        )
+        with patch(
+            "tank_backend.tools.ripgrep.run_rg_sync",
+            return_value=mock_result,
+        ):
+            result = await run_rg_files("/bad/rg", "/tmp")
+
+        assert result.error == "binary not found"
+
+    @pytest.mark.asyncio
+    async def test_filters_macos_bundles(self):
+        """Files inside .pages/.app/.numbers bundles are excluded."""
+        lines = [
+            "/docs/report.pdf",
+            "/docs/slides.pages/Data/image.jpg",
+            "/docs/slides.pages/Index.zip",
+            "/apps/MyApp.app/Contents/Info.plist",
+            "/docs/budget.numbers/Data/sheet.xml",
+            "/docs/real_file.txt",
+        ]
+        mock_result = RipgrepResult(lines=lines, exit_code=0)
+
+        with patch(
+            "tank_backend.tools.ripgrep.run_rg_sync",
+            return_value=mock_result,
+        ):
+            result = await run_rg_files(
+                "/usr/bin/rg", "/docs", head_limit=0,
+            )
+
+        assert len(result.lines) == 2
+        assert "/docs/report.pdf" in result.lines
+        assert "/docs/real_file.txt" in result.lines
+
+    @pytest.mark.asyncio
+    async def test_bundle_filter_keeps_bundle_itself(self):
+        """A file named foo.pages (not inside a bundle) is kept."""
+        lines = [
+            "/docs/foo.pages",
+            "/docs/bar.pages/Data/internal.jpg",
+        ]
+        mock_result = RipgrepResult(lines=lines, exit_code=0)
+
+        with patch(
+            "tank_backend.tools.ripgrep.run_rg_sync",
+            return_value=mock_result,
+        ):
+            result = await run_rg_files(
+                "/usr/bin/rg", "/docs", head_limit=0,
+            )
+
+        # foo.pages itself is kept (it's the filename, not a parent dir)
+        # bar.pages/Data/internal.jpg is filtered (inside a bundle)
+        assert len(result.lines) == 1
+        assert "/docs/foo.pages" in result.lines

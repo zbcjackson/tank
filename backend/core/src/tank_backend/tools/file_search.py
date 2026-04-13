@@ -110,12 +110,13 @@ class FileSearchTool(BaseTool):
                     name="output_mode",
                     type="string",
                     description=(
-                        "Output mode: 'content' (matching lines, default), "
-                        "'files_with_matches' (file paths only), "
+                        "Output mode: "
+                        "'files_with_matches' (file paths only, default), "
+                        "'content' (matching lines with line numbers), "
                         "or 'count' (match counts per file)"
                     ),
                     required=False,
-                    default="content",
+                    default="files_with_matches",
                 ),
                 ToolParameter(
                     name="glob",
@@ -206,7 +207,7 @@ class FileSearchTool(BaseTool):
         path: str = kwargs["path"]
         pattern: str = kwargs["pattern"]
         is_regex: bool = kwargs.get("is_regex", False)
-        output_mode: str = kwargs.get("output_mode", "content")
+        output_mode: str = kwargs.get("output_mode", "files_with_matches")
         glob_pat: str | None = kwargs.get("glob")
         file_type: str | None = kwargs.get("file_type")
         case_insensitive: bool = kwargs.get("case_insensitive", False)
@@ -363,15 +364,30 @@ class FileSearchTool(BaseTool):
         output_mode: str,
         truncated: bool,
     ) -> dict[str, Any]:
-        """Format ripgrep output lines into the tool result dict."""
+        """Format ripgrep output lines into the tool result dict.
+
+        Uses relative paths and compact formats to minimize token usage.
+        """
+        base = Path(path)
+
+        def _rel(abs_path: str) -> str:
+            """Convert absolute path to relative if under search root."""
+            try:
+                return str(Path(abs_path).relative_to(base))
+            except ValueError:
+                return abs_path
+
         if output_mode == "files_with_matches":
-            files = [ln.strip() for ln in lines if ln.strip()]
+            files = [_rel(ln.strip()) for ln in lines if ln.strip()]
+            content = "\n".join(files) if files else "No files found"
+            header = f"Found matches in {len(files)} file(s)"
+            if truncated:
+                header += " (truncated)"
             result: dict[str, Any] = {
                 "path": path,
                 "pattern": pattern,
-                "match_count": len(files),
-                "files": files,
-                "message": f"Found matches in {len(files)} file(s)",
+                "num_files": len(files),
+                "message": f"{header}\n{content}",
             }
             if truncated:
                 result["truncated"] = True
@@ -379,57 +395,54 @@ class FileSearchTool(BaseTool):
 
         if output_mode == "count":
             total = 0
-            counts: list[dict[str, Any]] = []
+            count_lines: list[str] = []
             for ln in lines:
                 if ":" in ln:
                     file_part, _, count_str = ln.rpartition(":")
                     try:
                         c = int(count_str.strip())
-                        counts.append({"file": file_part, "count": c})
+                        count_lines.append(f"{_rel(file_part)}:{c}")
                         total += c
                     except ValueError:
                         pass
+            content = "\n".join(count_lines) if count_lines else "No matches"
+            header = (
+                f"Found {total} match(es) across "
+                f"{len(count_lines)} file(s)"
+            )
+            if truncated:
+                header += " (truncated)"
             result = {
                 "path": path,
                 "pattern": pattern,
-                "match_count": total,
-                "file_counts": counts,
-                "message": f"Found {total} match(es) across "
-                           f"{len(counts)} file(s)",
+                "num_files": len(count_lines),
+                "num_matches": total,
+                "message": f"{header}\n{content}",
             }
             if truncated:
                 result["truncated"] = True
             return result
 
-        # content mode — parse "file:line:text" lines
-        matches: list[dict[str, Any]] = []
+        # content mode — relativize paths, return as joined string
+        out_lines: list[str] = []
         for ln in lines:
-            # rg format: file:line_number:text (with --line-number)
-            # Context lines use file-line_number-text (dash separator)
             parts = ln.split(":", 2)
             if len(parts) >= 3:
-                try:
-                    line_num = int(parts[1])
-                    matches.append({
-                        "file": parts[0],
-                        "line_number": line_num,
-                        "line": parts[2],
-                    })
-                except ValueError:
-                    # Context separator line or other format
-                    matches.append({"raw": ln})
+                out_lines.append(f"{_rel(parts[0])}:{parts[1]}:{parts[2]}")
             elif ln.strip() == "--":
-                # rg context separator
-                continue
+                out_lines.append("--")
             elif ln.strip():
-                matches.append({"raw": ln})
+                out_lines.append(ln)
 
+        content = "\n".join(out_lines) if out_lines else "No matches found"
+        header = f"Found {len(out_lines)} line(s) in {path}"
+        if truncated:
+            header += " (truncated)"
         result = {
             "path": path,
             "pattern": pattern,
-            "match_count": len(matches),
-            "matches": matches,
-            "message": f"Found {len(matches)} match(es) in {path}",
+            "num_lines": len(out_lines),
+            "message": f"{header}\n{content}",
         }
         if truncated:
             result["truncated"] = True
@@ -501,33 +514,65 @@ class FileSearchTool(BaseTool):
         matches: list[dict[str, Any]],
         truncated: bool,
     ) -> dict[str, Any]:
+        base = Path(path)
+
+        def _rel(abs_path: str) -> str:
+            try:
+                return str(Path(abs_path).relative_to(base))
+            except ValueError:
+                return abs_path
+
         if output_mode == "files_with_matches":
+            files = [_rel(m["file"]) for m in matches]
+            content = "\n".join(files) if files else "No files found"
+            header = f"Found matches in {len(files)} file(s)"
+            if truncated:
+                header += " (truncated)"
             result: dict[str, Any] = {
                 "path": path,
                 "pattern": pattern,
-                "match_count": len(matches),
-                "files": [m["file"] for m in matches],
-                "message": f"Found matches in {len(matches)} file(s)",
+                "num_files": len(files),
+                "message": f"{header}\n{content}",
             }
         elif output_mode == "count":
             total = sum(m.get("count", 0) for m in matches)
+            count_lines = [
+                f"{_rel(m['file'])}:{m['count']}" for m in matches
+            ]
+            content = "\n".join(count_lines) if count_lines else "No matches"
+            header = (
+                f"Found {total} match(es) across "
+                f"{len(matches)} file(s)"
+            )
+            if truncated:
+                header += " (truncated)"
             result = {
                 "path": path,
                 "pattern": pattern,
-                "match_count": total,
-                "file_counts": matches,
-                "message": (
-                    f"Found {total} match(es) across "
-                    f"{len(matches)} file(s)"
-                ),
+                "num_files": len(matches),
+                "num_matches": total,
+                "message": f"{header}\n{content}",
             }
         else:
+            # content mode
+            out_lines: list[str] = []
+            for m in matches:
+                f = _rel(m.get("file", ""))
+                ln = m.get("line_number", "")
+                text = m.get("line", "")
+                if f:
+                    out_lines.append(f"{f}:{ln}:{text}")
+                else:
+                    out_lines.append(f"{ln}:{text}")
+            content = "\n".join(out_lines) if out_lines else "No matches found"
+            header = f"Found {len(out_lines)} line(s) in {path}"
+            if truncated:
+                header += " (truncated)"
             result = {
                 "path": path,
                 "pattern": pattern,
-                "match_count": len(matches),
-                "matches": matches,
-                "message": f"Found {len(matches)} match(es) in {path}",
+                "num_lines": len(out_lines),
+                "message": f"{header}\n{content}",
             }
         if truncated:
             result["truncated"] = True

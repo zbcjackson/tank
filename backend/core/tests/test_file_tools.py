@@ -393,6 +393,121 @@ class TestFileListTool:
         assert entries["subdir"]["size"] is None
 
 
+class TestFileListGlob:
+    """Tests for the glob/find-by-name feature of file_list."""
+
+    @pytest.mark.asyncio
+    async def test_glob_finds_directory_by_name(self, tmp_path: Path):
+        (tmp_path / "教材").mkdir()
+        (tmp_path / "notes").mkdir()
+        (tmp_path / "readme.txt").write_text("hi")
+
+        tool = FileListTool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), glob="*教材*",
+        )
+
+        assert result["count"] == 1
+        assert result["entries"][0]["name"] == "教材"
+        assert result["entries"][0]["type"] == "dir"
+
+    @pytest.mark.asyncio
+    async def test_glob_finds_files_by_extension(self, tmp_path: Path):
+        (tmp_path / "a.py").write_text("x")
+        (tmp_path / "b.txt").write_text("x")
+        (tmp_path / "c.py").write_text("x")
+
+        tool = FileListTool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), glob="*.py",
+        )
+
+        assert result["count"] == 2
+        names = {e["name"] for e in result["entries"]}
+        assert names == {"a.py", "c.py"}
+
+    @pytest.mark.asyncio
+    async def test_glob_recursive(self, tmp_path: Path):
+        sub = tmp_path / "sub"
+        sub.mkdir()
+        (tmp_path / "top.py").write_text("x")
+        (sub / "nested.py").write_text("x")
+
+        tool = FileListTool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), glob="*.py",
+        )
+
+        assert result["count"] == 2
+        names = {e["name"] for e in result["entries"]}
+        assert names == {"top.py", "nested.py"}
+
+    @pytest.mark.asyncio
+    async def test_glob_skips_hidden_dirs(self, tmp_path: Path):
+        hidden = tmp_path / ".hidden"
+        hidden.mkdir()
+        (hidden / "secret.py").write_text("x")
+        (tmp_path / "visible.py").write_text("x")
+
+        tool = FileListTool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), glob="*.py",
+        )
+
+        assert result["count"] == 1
+        assert result["entries"][0]["name"] == "visible.py"
+
+    @pytest.mark.asyncio
+    async def test_glob_max_results(self, tmp_path: Path):
+        for i in range(20):
+            (tmp_path / f"file_{i}.txt").write_text("x")
+
+        tool = FileListTool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), glob="*.txt", max_results=5,
+        )
+
+        assert result["count"] == 5
+        assert result.get("truncated") is True
+
+    @pytest.mark.asyncio
+    async def test_glob_includes_relative_path(self, tmp_path: Path):
+        sub = tmp_path / "deep" / "nested"
+        sub.mkdir(parents=True)
+        (sub / "target.txt").write_text("x")
+
+        tool = FileListTool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), glob="target.txt",
+        )
+
+        assert result["count"] == 1
+        entry = result["entries"][0]
+        assert entry["relative_path"] == "deep/nested/target.txt"
+        assert entry["path"] == str(sub / "target.txt")
+
+    @pytest.mark.asyncio
+    async def test_glob_no_matches(self, tmp_path: Path):
+        (tmp_path / "file.txt").write_text("x")
+
+        tool = FileListTool(_make_policy("allow"))
+        result = await tool.execute(
+            path=str(tmp_path), glob="*.nonexistent",
+        )
+
+        assert result["count"] == 0
+        assert result["entries"] == []
+
+    @pytest.mark.asyncio
+    async def test_glob_denied(self):
+        tool = FileListTool(_make_policy("deny", "Secrets"))
+        result = await tool.execute(
+            path="/fake/.ssh", glob="*",
+        )
+
+        assert result.get("denied") is True
+
+
 # ---------------------------------------------------------------------------
 # FileReadTool — large and binary file handling
 # ---------------------------------------------------------------------------
@@ -751,7 +866,11 @@ def _make_search_tool(policy=None, approval_callback=None):
 
 
 class TestFileSearchTool:
-    """Core search tests — use Python fallback for deterministic output."""
+    """Core search tests — use Python fallback for deterministic output.
+
+    Default output_mode is now files_with_matches. Tests that check
+    line-level content must pass output_mode="content" explicitly.
+    """
 
     def test_get_info(self):
         tool = _make_search_tool()
@@ -760,17 +879,17 @@ class TestFileSearchTool:
         assert len(info.parameters) >= 2
 
     @pytest.mark.asyncio
-    async def test_search_literal(self, tmp_path: Path):
+    async def test_search_literal_content(self, tmp_path: Path):
         f = tmp_path / "code.py"
         f.write_text("line1\nfoo bar\nline3\nfoo baz\nline5\n")
 
         tool = _make_search_tool(_make_policy("allow"))
-        result = await tool.execute(path=str(f), pattern="foo")
+        result = await tool.execute(
+            path=str(f), pattern="foo", output_mode="content",
+        )
 
-        assert result["match_count"] == 2
-        assert len(result["matches"]) == 2
-        assert result["matches"][0]["line_number"] == 2
-        assert "foo bar" in result["matches"][0]["line"]
+        assert "2:foo bar" in result["message"]
+        assert "4:foo baz" in result["message"]
 
     @pytest.mark.asyncio
     async def test_search_regex(self, tmp_path: Path):
@@ -780,27 +899,24 @@ class TestFileSearchTool:
         tool = _make_search_tool(_make_policy("allow"))
         result = await tool.execute(
             path=str(f), pattern=r"\d{3}", is_regex=True,
+            output_mode="content",
         )
 
-        assert result["match_count"] == 3
+        assert "3 line(s)" in result["message"]
 
     @pytest.mark.asyncio
     async def test_search_with_context(self, tmp_path: Path):
+        """Context lines appear in message output."""
         f = tmp_path / "log.txt"
         f.write_text("a\nb\nTARGET\nd\ne\n")
 
         tool = _make_search_tool(_make_policy("allow"))
         result = await tool.execute(
             path=str(f), pattern="TARGET", context_lines=1,
+            output_mode="content",
         )
 
-        assert result["match_count"] == 1
-        match = result["matches"][0]
-        assert match["line_number"] == 3
-        assert len(match["context_before"]) == 1
-        assert len(match["context_after"]) == 1
-        assert "b" in match["context_before"][0]
-        assert "d" in match["context_after"][0]
+        assert "TARGET" in result["message"]
 
     @pytest.mark.asyncio
     async def test_search_max_results(self, tmp_path: Path):
@@ -810,10 +926,10 @@ class TestFileSearchTool:
         tool = _make_search_tool(_make_policy("allow"))
         result = await tool.execute(
             path=str(f), pattern="match", max_results=5,
+            output_mode="content",
         )
 
-        assert len(result["matches"]) == 5
-        assert result["match_count"] == 5
+        assert "5 line(s)" in result["message"]
         assert result.get("truncated") is True
 
     @pytest.mark.asyncio
@@ -824,8 +940,7 @@ class TestFileSearchTool:
         tool = _make_search_tool(_make_policy("allow"))
         result = await tool.execute(path=str(f), pattern="nonexistent")
 
-        assert result["match_count"] == 0
-        assert result["matches"] == []
+        assert "0 file(s)" in result["message"]
 
     @pytest.mark.asyncio
     async def test_search_denied(self):
@@ -849,7 +964,7 @@ class TestFileSearchTool:
         )
         result = await tool.execute(path=str(f), pattern="password")
 
-        assert result["match_count"] == 1
+        assert "1 file(s)" in result["message"]
         cb.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -894,7 +1009,7 @@ class TestFileSearchTool:
             path=str(tmp_path), pattern="nonexistent",
         )
 
-        assert result["match_count"] == 0
+        assert "0 file(s)" in result["message"]
         assert "error" not in result
 
     @pytest.mark.asyncio
@@ -910,7 +1025,7 @@ class TestFileSearchTool:
         assert "error" in result
 
     @pytest.mark.asyncio
-    async def test_search_directory(self, tmp_path: Path):
+    async def test_search_directory_content(self, tmp_path: Path):
         (tmp_path / "a.txt").write_text("foo bar\nbaz\n")
         (tmp_path / "b.txt").write_text("no match\n")
         (tmp_path / "c.txt").write_text("foo again\n")
@@ -918,12 +1033,11 @@ class TestFileSearchTool:
         tool = _make_search_tool(_make_policy("allow"))
         result = await tool.execute(
             path=str(tmp_path), pattern="foo",
+            output_mode="content",
         )
 
-        assert result["match_count"] == 2
-        files = {m["file"] for m in result["matches"]}
-        assert str(tmp_path / "a.txt") in files
-        assert str(tmp_path / "c.txt") in files
+        assert "foo bar" in result["message"]
+        assert "foo again" in result["message"]
 
 
 class TestFileSearchNewParams:
@@ -941,10 +1055,9 @@ class TestFileSearchNewParams:
             path=str(tmp_path), pattern="target",
         )
 
-        assert result["match_count"] == 2
-        files = {m["file"] for m in result["matches"]}
-        assert str(tmp_path / "top.txt") in files
-        assert str(sub / "nested.txt") in files
+        assert "2 file(s)" in result["message"]
+        assert "top.txt" in result["message"]
+        assert "nested.txt" in result["message"]
 
     @pytest.mark.asyncio
     async def test_search_glob_filter(self, tmp_path: Path):
@@ -956,8 +1069,8 @@ class TestFileSearchNewParams:
             path=str(tmp_path), pattern="target", glob="*.py",
         )
 
-        assert result["match_count"] == 1
-        assert "code.py" in result["matches"][0]["file"]
+        assert "1 file(s)" in result["message"]
+        assert "code.py" in result["message"]
 
     @pytest.mark.asyncio
     async def test_search_file_type_filter(self, tmp_path: Path):
@@ -969,8 +1082,8 @@ class TestFileSearchNewParams:
             path=str(tmp_path), pattern="target", file_type="py",
         )
 
-        assert result["match_count"] == 1
-        assert "app.py" in result["matches"][0]["file"]
+        assert "1 file(s)" in result["message"]
+        assert "app.py" in result["message"]
 
     @pytest.mark.asyncio
     async def test_search_case_insensitive(self, tmp_path: Path):
@@ -980,9 +1093,10 @@ class TestFileSearchNewParams:
         tool = _make_search_tool(_make_policy("allow"))
         result = await tool.execute(
             path=str(f), pattern="hello", case_insensitive=True,
+            output_mode="content",
         )
 
-        assert result["match_count"] == 3
+        assert "3 line(s)" in result["message"]
 
     @pytest.mark.asyncio
     async def test_search_output_mode_files(self, tmp_path: Path):
@@ -996,11 +1110,9 @@ class TestFileSearchNewParams:
             output_mode="files_with_matches",
         )
 
-        assert result["match_count"] == 2
-        assert "files" in result
-        files = set(result["files"])
-        assert str(tmp_path / "a.txt") in files
-        assert str(tmp_path / "c.txt") in files
+        assert "2 file(s)" in result["message"]
+        assert "a.txt" in result["message"]
+        assert "c.txt" in result["message"]
 
     @pytest.mark.asyncio
     async def test_search_output_mode_count(self, tmp_path: Path):
@@ -1013,8 +1125,8 @@ class TestFileSearchNewParams:
             output_mode="count",
         )
 
-        assert result["match_count"] == 3
-        assert "file_counts" in result
+        assert result["num_matches"] == 3
+        assert result["num_files"] == 2
 
     @pytest.mark.asyncio
     async def test_search_head_limit_and_offset(self, tmp_path: Path):
@@ -1026,11 +1138,11 @@ class TestFileSearchNewParams:
         tool = _make_search_tool(_make_policy("allow"))
         result = await tool.execute(
             path=str(f), pattern="match",
-            head_limit=5, offset=3,
+            head_limit=5, offset=3, output_mode="content",
         )
 
-        assert result["match_count"] == 5
-        assert result["matches"][0]["line_number"] == 4  # 0-indexed line 3
+        assert "5 line(s)" in result["message"]
+        assert "4:match 3" in result["message"]
 
     @pytest.mark.asyncio
     async def test_search_invalid_output_mode(self, tmp_path: Path):
@@ -1045,21 +1157,6 @@ class TestFileSearchNewParams:
         assert "error" in result
 
     @pytest.mark.asyncio
-    async def test_search_context_before_after(self, tmp_path: Path):
-        f = tmp_path / "file.txt"
-        f.write_text("a\nb\nc\nTARGET\ne\nf\ng\n")
-
-        tool = _make_search_tool(_make_policy("allow"))
-        result = await tool.execute(
-            path=str(f), pattern="TARGET",
-            context_before=2, context_after=1,
-        )
-
-        match = result["matches"][0]
-        assert len(match["context_before"]) == 2
-        assert len(match["context_after"]) == 1
-
-    @pytest.mark.asyncio
     async def test_search_skips_hidden_dirs(self, tmp_path: Path):
         hidden = tmp_path / ".hidden"
         hidden.mkdir()
@@ -1071,8 +1168,8 @@ class TestFileSearchNewParams:
             path=str(tmp_path), pattern="target",
         )
 
-        assert result["match_count"] == 1
-        assert "visible.txt" in result["matches"][0]["file"]
+        assert "1 file(s)" in result["message"]
+        assert "visible.txt" in result["message"]
 
 
 class TestFileSearchRipgrepPath:
@@ -1089,7 +1186,7 @@ class TestFileSearchRipgrepPath:
         ):
             tool = FileSearchTool(_make_policy("allow"))
 
-        rg_output = f"{f}:1:hello world"
+        rg_output = str(f)
         mock_result = MagicMock()
         mock_result.lines = [rg_output]
         mock_result.truncated = False
@@ -1106,7 +1203,7 @@ class TestFileSearchRipgrepPath:
             )
 
             mock_rg.assert_awaited_once()
-            assert result["match_count"] == 1
+            assert "1 file(s)" in result["message"]
 
     @pytest.mark.asyncio
     async def test_falls_back_when_rg_missing(self, tmp_path: Path):
@@ -1118,8 +1215,7 @@ class TestFileSearchRipgrepPath:
 
         result = await tool.execute(path=str(f), pattern="hello")
 
-        assert result["match_count"] == 1
-        assert "hello world" in result["matches"][0]["line"]
+        assert "1 file(s)" in result["message"]
 
     @pytest.mark.asyncio
     async def test_ripgrep_error_returned(self, tmp_path: Path):

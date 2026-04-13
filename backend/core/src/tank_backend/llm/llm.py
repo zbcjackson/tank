@@ -28,8 +28,8 @@ from ..observability.langfuse_client import initialize_langfuse
 
 logger = logging.getLogger("LLM")
 
-MAX_TOOL_ITERATIONS = 10
-MAX_RETRY_ATTEMPTS = 3
+MAX_TOOL_ITERATIONS = 100
+MAX_RETRY_ATTEMPTS = 5
 RETRY_BASE_DELAY = 1.0
 RETRY_MAX_DELAY = 8.0
 

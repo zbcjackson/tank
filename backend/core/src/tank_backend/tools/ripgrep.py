@@ -24,6 +24,15 @@ _EXIT_ERROR = 2
 # VCS dirs to always exclude
 _VCS_EXCLUDES = ("!.git", "!.svn", "!.hg", "!.bzr", "!.jj")
 
+# macOS document bundles — directories that Finder shows as single files.
+# rg traverses into them, surfacing internal assets that confuse the LLM.
+# Used for post-filtering rg --files output (rg globs can't reliably
+# exclude nested bundle dirs).
+_BUNDLE_EXTENSIONS = frozenset((
+    ".app", ".pages", ".key", ".numbers",
+    ".bundle", ".framework", ".photoslibrary",
+))
+
 # EAGAIN detection
 _EAGAIN_MARKERS = ("os error 11", "Resource temporarily unavailable")
 
@@ -206,6 +215,95 @@ def run_rg_sync(
         lines=lines,
         truncated=truncated,
         exit_code=proc.returncode,
+    )
+
+
+# ------------------------------------------------------------------
+# File listing (rg --files)
+# ------------------------------------------------------------------
+
+def build_rg_files_args(
+    *,
+    glob: str | None = None,
+    show_hidden: bool = False,
+    sort_modified: bool = True,
+) -> list[str]:
+    """Build ``rg --files`` argument list for file/directory listing."""
+    args: list[str] = [
+        "--files",
+        "--color=never",
+    ]
+
+    if show_hidden:
+        args.append("--hidden")
+
+    if sort_modified:
+        args.append("--sort=modified")
+
+    # Exclude VCS directories
+    for vcs in _VCS_EXCLUDES:
+        args.extend(("--glob", vcs))
+
+    if glob:
+        args.extend(("--glob", glob))
+
+    return args
+
+
+def _is_inside_bundle(path: str) -> bool:
+    """Check if a file path passes through a macOS bundle directory."""
+    parts = path.split("/")
+    return any(
+        "." in part and part.rsplit(".", 1)[-1] in {
+            ext.lstrip(".") for ext in _BUNDLE_EXTENSIONS
+        }
+        for part in parts[:-1]  # skip the filename itself
+    )
+
+
+async def run_rg_files(
+    rg_binary: str,
+    path: str,
+    *,
+    glob: str | None = None,
+    show_hidden: bool = False,
+    sort_modified: bool = True,
+    head_limit: int = DEFAULT_HEAD_LIMIT,
+    offset: int = 0,
+    timeout: int = TIMEOUT_SECONDS,
+) -> RipgrepResult:
+    """List files via ``rg --files`` with optional glob filtering.
+
+    Returns file paths, one per line. Applies pagination post-hoc.
+    """
+    args = build_rg_files_args(
+        glob=glob,
+        show_hidden=show_hidden,
+        sort_modified=sort_modified,
+    )
+
+    result = await asyncio.to_thread(
+        run_rg_sync, rg_binary, args, path, timeout=timeout,
+    )
+
+    if result.error:
+        return result
+
+    # Filter out files inside macOS bundles
+    lines = [ln for ln in result.lines if not _is_inside_bundle(ln)]
+
+    # Apply pagination
+    if offset > 0:
+        lines = lines[offset:]
+    truncated = result.truncated
+    if head_limit > 0 and len(lines) > head_limit:
+        lines = lines[:head_limit]
+        truncated = True
+
+    return RipgrepResult(
+        lines=lines,
+        truncated=truncated,
+        exit_code=result.exit_code,
     )
 
 
