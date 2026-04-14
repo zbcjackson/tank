@@ -68,6 +68,7 @@ class Assistant:
         self._init_bus()
         self._init_tools()
         self._init_memory()
+        self._init_prompt_assembler()
 
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()
@@ -152,6 +153,12 @@ class Assistant:
                            exc_info=True)
             self._memory_service = None
 
+    def _init_prompt_assembler(self) -> None:
+        """Create PromptAssembler — subscribes to Bus for lazy AGENTS.md discovery."""
+        from ..prompts.assembler import PromptAssembler
+
+        self._prompt_assembler = PromptAssembler(bus=self._bus)
+
     def _init_bus(self) -> None:
         """Create bus, subscribe UI and playback tracking events."""
         self._bus = Bus()
@@ -204,6 +211,7 @@ class Assistant:
             agent_graph=agent_graph,
             approval_manager=self._tool_manager.approval_manager,
             memory_service=self._memory_service,
+            prompt_assembler=self._prompt_assembler,
         )
         builder.add(self.brain)
 
@@ -382,6 +390,7 @@ class Assistant:
             definitions=definitions,
             max_depth=agents_cfg.get("max_depth", 3),
             max_concurrent=agents_cfg.get("max_concurrent", 5),
+            prompt_assembler=self._prompt_assembler,
         )
 
         # Register agent tool in ToolManager

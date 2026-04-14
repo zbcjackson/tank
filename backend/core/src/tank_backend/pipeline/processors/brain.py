@@ -67,6 +67,7 @@ class Brain(Processor):
         agent_graph: "AgentGraph | None" = None,
         approval_manager: Any = None,
         memory_service: Any = None,
+        prompt_assembler: Any = None,
     ):
         super().__init__(name="brain")
         self._llm = llm
@@ -80,6 +81,7 @@ class Brain(Processor):
         self._session_id = session_id
         self._approval_manager = approval_manager
         self._memory_service = memory_service
+        self._prompt_assembler = prompt_assembler
 
         # Register approval notification callback so sub-agent approvals
         # go through the same Bus path as main agent approvals.
@@ -96,9 +98,12 @@ class Brain(Processor):
         self._echo_config = echo_guard_config or EchoGuardConfig()
         self._echo_detector = SelfEchoDetector(self._echo_config)
 
-        # Load system prompt from file and append platform context
-        self._system_prompt = self._load_system_prompt()
-        self._system_prompt += "\n\n" + self._build_platform_context()
+        # Assemble system prompt from multiple sources (or fall back to legacy)
+        if self._prompt_assembler is not None:
+            self._system_prompt = self._prompt_assembler.assemble()
+        else:
+            self._system_prompt = self._load_system_prompt()
+            self._system_prompt += "\n\n" + self._build_platform_context()
 
         # Track current msg_id for approval notifications from sub-agents
         self._current_msg_id: str = ""
@@ -168,6 +173,9 @@ class Brain(Processor):
 
     def reset_conversation(self) -> None:
         """Reset conversation history to initial state (system prompt only)."""
+        if self._prompt_assembler is not None:
+            self._prompt_assembler.mark_dirty()
+            self._system_prompt = self._prompt_assembler.assemble()
         self._conversation_history = [{"role": "system", "content": self._system_prompt}]
         self._checkpoint()
         logger.info("Conversation history reset")
@@ -327,6 +335,15 @@ class Brain(Processor):
             source=self.name,
             payload=SignalMessage(signal_type="processing_started", msg_id=assistant_msg_id),
         ))
+
+        # Rebuild system prompt if new workspace AGENTS.md discovered
+        if self._prompt_assembler is not None and self._prompt_assembler.needs_rebuild():
+            self._system_prompt = self._prompt_assembler.assemble()
+            self._conversation_history[0] = {
+                "role": "system",
+                "content": self._system_prompt,
+            }
+            logger.info("System prompt rebuilt (new workspace rules discovered)")
 
         # Temporarily augment system prompt with skill catalog + memory context
         original_system = self._conversation_history[0]["content"]

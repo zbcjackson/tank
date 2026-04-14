@@ -50,6 +50,7 @@ class AgentRunner:
         definitions: dict[str, AgentDefinition],
         max_depth: int = MAX_AGENT_DEPTH,
         max_concurrent: int = MAX_CONCURRENT_AGENTS,
+        prompt_assembler: Any = None,
     ) -> None:
         self._llm = llm
         self._tool_manager = tool_manager
@@ -60,6 +61,7 @@ class AgentRunner:
         self._max_depth = max_depth
         self._max_concurrent = max_concurrent
         self._active_agents: dict[str, _AgentTracker] = {}
+        self._prompt_assembler = prompt_assembler
 
     @property
     def definitions(self) -> dict[str, AgentDefinition]:
@@ -143,11 +145,13 @@ class AgentRunner:
 
         effective_max_turns = max_turns or agent_def.max_turns
 
+        system_prompt = self._build_sub_agent_prompt(agent_def, messages)
+
         agent = LLMAgent(
             name=f"agent_{agent_def.name}",
             llm=self._llm,
             tool_manager=self._tool_manager,
-            system_prompt=agent_def.system_prompt,
+            system_prompt=system_prompt,
             exclude_tools=exclude_tools,
             approval_manager=self._approval_manager,
             approval_policy=self._approval_policy,
@@ -223,6 +227,45 @@ class AgentRunner:
         if tracker is None:
             return 1
         return tracker.depth + 1
+
+    def _build_sub_agent_prompt(
+        self,
+        agent_def: AgentDefinition,
+        messages: list[dict[str, Any]],
+    ) -> str:
+        """Build a sub-agent's system prompt.
+
+        Combines the agent definition's own prompt with workspace rules
+        relevant to the task's paths and base security rules.
+        """
+        parts: list[str] = [agent_def.system_prompt]
+
+        if self._prompt_assembler is not None:
+            # Append workspace rules relevant to paths mentioned in messages
+            paths = self._extract_paths_from_messages(messages)
+            workspace_rules = self._prompt_assembler.get_workspace_rules_for(paths)
+            if workspace_rules:
+                parts.append("--- Workspace Rules ---\n" + workspace_rules)
+
+            # Always append base security rules
+            base_rules = self._prompt_assembler.get_base_rules()
+            if base_rules:
+                parts.append("--- Security Rules ---\n" + base_rules)
+
+        return "\n\n".join(parts)
+
+    @staticmethod
+    def _extract_paths_from_messages(messages: list[dict[str, Any]]) -> list[str]:
+        """Extract file/directory paths from message content (simple heuristic)."""
+        import re
+
+        path_re = re.compile(r"(?:~|/)[^\s,;\"'`\]\)}>]+")
+        paths: list[str] = []
+        for msg in messages:
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                paths.extend(path_re.findall(content))
+        return paths
 
     def _post_bus_event(
         self, event: str, agent_id: str, agent_name: str,
