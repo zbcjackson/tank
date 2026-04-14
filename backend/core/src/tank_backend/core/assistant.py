@@ -532,6 +532,8 @@ class Assistant:
 
     async def start(self) -> None:
         """Start pipeline."""
+        await self._tool_manager.async_init()
+
         if self._pipeline is not None:
             await self._pipeline.start()
 

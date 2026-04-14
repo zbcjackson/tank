@@ -285,3 +285,10 @@ memory:
 # observability:
 #   langfuse:
 #     host: http://localhost:3001
+
+mcp_servers:
+  time:
+    transport: stdio
+    command: uvx
+    args: ["mcp-server-time"]
+    approval: always_approve

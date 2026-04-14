@@ -90,6 +90,20 @@ class ToolManager:
         self._skill_group = SkillToolGroup(skills_raw, bus, tool_manager=self)
         self._register_group(self._skill_group)
 
+        # --- MCP servers (async connection deferred to async_init) ---
+        self._mcp_group = None
+        mcp_raw = app_config.get_section("mcp_servers", {})
+        if mcp_raw:
+            from ..mcp.client import MCPServerConfig
+            from ..mcp.tool_group import MCPToolGroup
+
+            configs = [
+                MCPServerConfig(name=name, **cfg)
+                for name, cfg in mcp_raw.items()
+            ]
+            self._mcp_group = MCPToolGroup(configs)
+            self._groups.append(self._mcp_group)
+
         logger.info(
             "ToolManager initialised: %d tools from %d groups",
             len(self.tools), len(self._groups),
@@ -136,6 +150,32 @@ class ToolManager:
         """Delegate cleanup to all groups that own resources."""
         for group in self._groups:
             await group.cleanup()
+
+    async def async_init(self) -> None:
+        """Async initialization phase — connects MCP servers and registers tools.
+
+        Call after construction (e.g. in Assistant.start or FastAPI lifespan).
+        """
+        if self._mcp_group is None:
+            return
+        errors = await self._mcp_group.async_init()
+        for tool in self._mcp_group.create_tools():
+            self.register_tool(tool)
+        # Merge MCP approval overrides into policy
+        _TIER_TO_ATTR = {
+            "always_approve": "_always_approve",
+            "require_approval": "_require_approval",
+            "require_approval_first_time": "_require_approval_first_time",
+        }
+        overrides = self._mcp_group.get_approval_overrides()
+        for tool_name, tier in overrides.items():
+            attr = _TIER_TO_ATTR.get(tier)
+            if attr is not None:
+                getattr(self._approval_policy, attr).add(tool_name)
+            else:
+                logger.warning(f"Unknown approval tier '{tier}' for MCP tool '{tool_name}'")
+        if errors:
+            logger.warning(f"MCP servers with errors: {list(errors.keys())}")
 
     # ------------------------------------------------------------------
     # Tool registry
@@ -210,27 +250,33 @@ class ToolManager:
             if exclude and info.name in exclude:
                 continue
 
-            properties = {}
-            required = []
+            raw_schema = tool.get_raw_schema()
+            if raw_schema is not None:
+                parameters = raw_schema
+            else:
+                properties = {}
+                required = []
 
-            for param in info.parameters:
-                properties[param.name] = {
-                    "type": param.type,
-                    "description": param.description,
+                for param in info.parameters:
+                    properties[param.name] = {
+                        "type": param.type,
+                        "description": param.description,
+                    }
+                    if param.required:
+                        required.append(param.name)
+
+                parameters = {
+                    "type": "object",
+                    "properties": properties,
+                    "required": required,
                 }
-                if param.required:
-                    required.append(param.name)
 
             openai_tool = {
                 "type": "function",
                 "function": {
                     "name": info.name,
                     "description": info.description,
-                    "parameters": {
-                        "type": "object",
-                        "properties": properties,
-                        "required": required,
-                    },
+                    "parameters": parameters,
                 },
             }
 

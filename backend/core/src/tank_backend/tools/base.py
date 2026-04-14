@@ -44,6 +44,14 @@ class BaseTool(ABC):
     async def execute(self, **kwargs) -> Any:
         pass
 
+    def get_raw_schema(self) -> dict | None:
+        """Override to provide a raw JSON Schema for OpenAI function calling.
+
+        When not None, ``ToolManager.get_openai_tools()`` uses this directly
+        instead of building the schema from ``ToolParameter`` entries.
+        """
+        return None
+
 
 class ToolGroup(ABC):
     """A cohesive set of tools that share construction dependencies."""
