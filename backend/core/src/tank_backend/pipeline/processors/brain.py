@@ -5,7 +5,6 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import tiktoken
@@ -67,7 +66,6 @@ class Brain(Processor):
         agent_graph: "AgentGraph | None" = None,
         approval_manager: Any = None,
         memory_service: Any = None,
-        prompt_assembler: Any = None,
     ):
         super().__init__(name="brain")
         self._llm = llm
@@ -81,7 +79,6 @@ class Brain(Processor):
         self._session_id = session_id
         self._approval_manager = approval_manager
         self._memory_service = memory_service
-        self._prompt_assembler = prompt_assembler
 
         # Register approval notification callback so sub-agent approvals
         # go through the same Bus path as main agent approvals.
@@ -98,12 +95,11 @@ class Brain(Processor):
         self._echo_config = echo_guard_config or EchoGuardConfig()
         self._echo_detector = SelfEchoDetector(self._echo_config)
 
-        # Assemble system prompt from multiple sources (or fall back to legacy)
-        if self._prompt_assembler is not None:
-            self._system_prompt = self._prompt_assembler.assemble()
-        else:
-            self._system_prompt = self._load_system_prompt()
-            self._system_prompt += "\n\n" + self._build_platform_context()
+        # Assemble system prompt from multiple sources
+        from ...prompts.assembler import PromptAssembler
+
+        self._prompt_assembler = PromptAssembler(bus=bus)
+        self._system_prompt = self._prompt_assembler.assemble()
 
         # Track current msg_id for approval notifications from sub-agents
         self._current_msg_id: str = ""
@@ -130,42 +126,6 @@ class Brain(Processor):
         )
         return AgentGraph(agents={"chat": agent}, default_agent="chat")
 
-    def _load_system_prompt(self) -> str:
-        """Load system prompt from file."""
-        prompt_path = Path(__file__).parent.parent.parent / "prompts" / "system_prompt.txt"
-        try:
-            with open(prompt_path, encoding="utf-8") as f:
-                return f.read().strip()
-        except FileNotFoundError:
-            logger.error("System prompt file not found at %s", prompt_path)
-            raise
-        except Exception as e:
-            logger.error("Error loading system prompt: %s", e)
-            raise
-
-    @staticmethod
-    def _build_platform_context() -> str:
-        """Build a platform context block so the LLM knows the user's environment."""
-        import os
-        import platform
-
-        home = str(Path.home())
-        system = platform.system()
-        os_label = {
-            "Darwin": "macOS",
-            "Linux": "Linux",
-            "Windows": "Windows",
-        }.get(system, system)
-
-        lines = [
-            "ENVIRONMENT:",
-            f"- Operating system: {os_label}",
-            f"- Home directory: {home}",
-            f"- Current user: {os.getenv('USER') or os.getenv('USERNAME', 'unknown')}",
-        ]
-
-        return "\n".join(lines)
-
     @property
     def _summarization_llm(self) -> "LLM":
         """LLM used for summarization — dedicated instance or fallback to conversation LLM."""
@@ -173,9 +133,8 @@ class Brain(Processor):
 
     def reset_conversation(self) -> None:
         """Reset conversation history to initial state (system prompt only)."""
-        if self._prompt_assembler is not None:
-            self._prompt_assembler.mark_dirty()
-            self._system_prompt = self._prompt_assembler.assemble()
+        self._prompt_assembler.mark_dirty()
+        self._system_prompt = self._prompt_assembler.assemble()
         self._conversation_history = [{"role": "system", "content": self._system_prompt}]
         self._checkpoint()
         logger.info("Conversation history reset")
@@ -337,7 +296,7 @@ class Brain(Processor):
         ))
 
         # Rebuild system prompt if new workspace AGENTS.md discovered
-        if self._prompt_assembler is not None and self._prompt_assembler.needs_rebuild():
+        if self._prompt_assembler.needs_rebuild():
             self._system_prompt = self._prompt_assembler.assemble()
             self._conversation_history[0] = {
                 "role": "system",

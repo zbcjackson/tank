@@ -1,4 +1,4 @@
-"""AgentsResolver — discovers AGENTS.md files for workspace paths."""
+"""AgentsFileResolver — discovers AGENTS.md files for workspace paths."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 AGENTS_FILENAME = "AGENTS.md"
 
 
-class AgentsResolver:
+class AgentsFileResolver:
     """Discovers AGENTS.md files by walking ancestor directories.
 
     Subscribes to ``file_access_decision`` Bus messages to lazily discover

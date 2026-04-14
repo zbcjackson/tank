@@ -2,13 +2,13 @@
 
 from .assembler import AssemblerConfig, PromptAssembler, PromptScope
 from .cache import FileCache
-from .resolver import AgentsResolver
+from .resolver import AgentsFileResolver
 from .sanitizer import sanitize
 
 __all__ = [
     "AssemblerConfig",
     "FileCache",
-    "AgentsResolver",
+    "AgentsFileResolver",
     "PromptAssembler",
     "PromptScope",
     "sanitize",

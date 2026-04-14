@@ -22,7 +22,7 @@ def _make_brain(
     bus = Bus()
 
     mock_prompt = "You are a helpful assistant."
-    with patch(f"{MODULE}.Brain._load_system_prompt", return_value=mock_prompt):
+    with patch("tank_backend.prompts.assembler.PromptAssembler.assemble", return_value=mock_prompt):
         brain = Brain(
             llm=llm,
             tool_manager=tool_manager,

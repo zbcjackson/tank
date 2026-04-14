@@ -50,7 +50,6 @@ class AgentRunner:
         definitions: dict[str, AgentDefinition],
         max_depth: int = MAX_AGENT_DEPTH,
         max_concurrent: int = MAX_CONCURRENT_AGENTS,
-        prompt_assembler: Any = None,
     ) -> None:
         self._llm = llm
         self._tool_manager = tool_manager
@@ -61,7 +60,11 @@ class AgentRunner:
         self._max_depth = max_depth
         self._max_concurrent = max_concurrent
         self._active_agents: dict[str, _AgentTracker] = {}
-        self._prompt_assembler = prompt_assembler
+
+        # Create own PromptAssembler for sub-agent prompt building
+        from ..prompts.assembler import PromptAssembler
+
+        self._prompt_assembler = PromptAssembler(bus=bus)
 
     @property
     def definitions(self) -> dict[str, AgentDefinition]:
@@ -240,17 +243,16 @@ class AgentRunner:
         """
         parts: list[str] = [agent_def.system_prompt]
 
-        if self._prompt_assembler is not None:
-            # Append workspace rules relevant to paths mentioned in messages
-            paths = self._extract_paths_from_messages(messages)
-            workspace_rules = self._prompt_assembler.get_workspace_rules_for(paths)
-            if workspace_rules:
-                parts.append("--- Workspace Rules ---\n" + workspace_rules)
+        # Append workspace rules relevant to paths mentioned in messages
+        paths = self._extract_paths_from_messages(messages)
+        workspace_rules = self._prompt_assembler.get_workspace_rules_for(paths)
+        if workspace_rules:
+            parts.append("--- Workspace Rules ---\n" + workspace_rules)
 
-            # Always append base security rules
-            base_rules = self._prompt_assembler.get_base_rules()
-            if base_rules:
-                parts.append("--- Security Rules ---\n" + base_rules)
+        # Always append base security rules
+        base_rules = self._prompt_assembler.get_base_rules()
+        if base_rules:
+            parts.append("--- Security Rules ---\n" + base_rules)
 
         return "\n\n".join(parts)
 

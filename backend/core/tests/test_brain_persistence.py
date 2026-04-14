@@ -27,7 +27,8 @@ def _make_brain(checkpointer=None, session_id=None):
     tool_manager = MagicMock()
     bus = Bus()
 
-    with patch(f"{MODULE}.Brain._load_system_prompt", return_value="You are helpful."):
+    assembler_path = "tank_backend.prompts.assembler.PromptAssembler.assemble"
+    with patch(assembler_path, return_value="You are helpful."):
         brain = Brain(
             llm=llm,
             tool_manager=tool_manager,

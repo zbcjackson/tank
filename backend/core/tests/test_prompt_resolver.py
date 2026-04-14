@@ -1,16 +1,16 @@
-"""Tests for prompts.resolver — AgentsResolver."""
+"""Tests for prompts.resolver — AgentsFileResolver."""
 
 from unittest.mock import MagicMock
 
 import pytest
 
-from tank_backend.prompts.resolver import AGENTS_FILENAME, AgentsResolver
+from tank_backend.prompts.resolver import AGENTS_FILENAME, AgentsFileResolver
 
 
-class TestAgentsResolver:
+class TestAgentsFileResolver:
     @pytest.fixture
     def resolver(self):
-        return AgentsResolver()
+        return AgentsFileResolver()
 
     @pytest.fixture
     def tree_single(self, tmp_path):
@@ -110,7 +110,7 @@ class TestAgentsResolver:
     def test_on_file_access_triggers_discovery(self, tree_single):
         project, file_path = tree_single
         bus = MagicMock()
-        resolver = AgentsResolver(bus=bus)
+        resolver = AgentsFileResolver(bus=bus)
 
         # Verify subscribe was called
         bus.subscribe.assert_called_once_with("file_access_decision", resolver._on_file_access)
@@ -130,7 +130,7 @@ class TestAgentsResolver:
 
     def test_on_file_access_ignores_deny(self, tree_single):
         project, file_path = tree_single
-        resolver = AgentsResolver()
+        resolver = AgentsFileResolver()
 
         from tank_backend.pipeline.bus import BusMessage
 
@@ -144,7 +144,7 @@ class TestAgentsResolver:
         assert not resolver.has_new_discovery
 
     def test_on_file_access_ignores_bad_payload(self):
-        resolver = AgentsResolver()
+        resolver = AgentsFileResolver()
 
         from tank_backend.pipeline.bus import BusMessage
 
@@ -157,7 +157,7 @@ class TestAgentsResolver:
         assert not resolver.has_new_discovery
 
     def test_on_file_access_ignores_missing_path(self):
-        resolver = AgentsResolver()
+        resolver = AgentsFileResolver()
 
         from tank_backend.pipeline.bus import BusMessage
 

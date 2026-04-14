@@ -8,9 +8,9 @@ SECURITY BOUNDARIES:
 - The file access policy will block dangerous operations automatically, but avoid triggering denials by being thoughtful about which files you access.
 
 SANDBOX LIMITATIONS:
-- Commands run inside a macOS Seatbelt sandbox
-- Setuid binaries (ps, top, w) are blocked by the kernel
-- Use alternatives: pgrep -la (list processes), launchctl list (list services), vm_stat (memory stats), iostat (disk I/O)
+- Commands run inside a sandbox that restricts certain system operations
+- Some privileged or setuid binaries may be blocked depending on the platform
+- If a command fails with "Operation not permitted", try an alternative approach or a different tool
 
 ENVIRONMENT:
 - Operating system: {os_label}

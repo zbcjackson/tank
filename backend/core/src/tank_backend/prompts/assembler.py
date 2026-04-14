@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from .cache import FileCache
-from .resolver import AgentsResolver
+from .resolver import AgentsFileResolver
 from .sanitizer import sanitize
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ class PromptAssembler:
 
     Create one instance per session.  Call :meth:`assemble` to get the
     current system prompt.  The assembler subscribes to the Bus internally
-    (via :class:`AgentsResolver`) so workspace ``AGENTS.md`` files are
+    (via :class:`AgentsFileResolver`) so workspace ``AGENTS.md`` files are
     discovered lazily when tools access paths.
     """
 
@@ -71,7 +71,7 @@ class PromptAssembler:
     ) -> None:
         self._config = config or AssemblerConfig()
         self._cache = FileCache()
-        self._resolver = AgentsResolver(bus=bus)
+        self._resolver = AgentsFileResolver(bus=bus)
         self._previous_scope = PromptScope()
         self._needs_rebuild = True
         self._cached_prompt: str = ""
@@ -81,7 +81,7 @@ class PromptAssembler:
     # ------------------------------------------------------------------
 
     @property
-    def resolver(self) -> AgentsResolver:
+    def resolver(self) -> AgentsFileResolver:
         """Access the underlying resolver (e.g. for manual ``resolve_chain``)."""
         return self._resolver
 
