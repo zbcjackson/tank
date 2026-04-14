@@ -195,11 +195,12 @@ async def test_retry_delay_is_exponential(llm):
                     messages=[{"role": "user", "content": "test"}],
                 )
 
-            # Verify exponential backoff: 1s, 2s
-            assert mock_sleep.call_count == 2
+            # Verify exponential backoff: 1s, 2s, 4s, 8s
+            assert mock_sleep.call_count == MAX_RETRY_ATTEMPTS - 1
             calls = [call[0][0] for call in mock_sleep.call_args_list]
-            assert calls[0] == RETRY_BASE_DELAY  # 1.0s
-            assert calls[1] == RETRY_BASE_DELAY * 2  # 2.0s
+            for i, delay in enumerate(calls):
+                expected = min(RETRY_BASE_DELAY * (2 ** i), 8.0)
+                assert delay == expected
 
 
 async def test_chat_stream_uses_retry(llm, mock_completion):

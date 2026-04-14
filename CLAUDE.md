@@ -72,6 +72,10 @@ Run ALL of these every time you finish a task. Do not skip any step.
 
 All six must pass before considering work complete.
 
+## Test Failure Policy
+
+Fix ALL failing tests whenever you run the test suite — whether they are caused by your changes or pre-existing. A red test suite is never acceptable. Do not dismiss failures as "pre-existing" or "unrelated".
+
 ## Planning Rules
 
 - Every plan MUST include a "Tests" section — write new E2E or unit tests for any behavior change
