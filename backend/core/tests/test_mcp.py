@@ -338,7 +338,7 @@ class TestMCPToolGroup:
         assert group.create_tools() == []
 
     @pytest.mark.asyncio
-    async def test_async_init_discovers_tools(self):
+    async def test_connect_servers_discovers_tools(self):
         tool1 = _make_mcp_tool("read_file", "Read")
         tool2 = _make_mcp_tool("write_file", "Write")
 
@@ -354,7 +354,7 @@ class TestMCPToolGroup:
             mock_conn.return_value = {}
             mock_disc.return_value = [("fs", tool1), ("fs", tool2)]
 
-            errors = await group.async_init()
+            errors = await group.connect_servers()
 
         assert errors == {}
         tools = group.create_tools()
@@ -363,7 +363,7 @@ class TestMCPToolGroup:
         assert names == {"mcp_fs__read_file", "mcp_fs__write_file"}
 
     @pytest.mark.asyncio
-    async def test_async_init_returns_errors(self):
+    async def test_connect_servers_returns_errors(self):
         configs = [
             MCPServerConfig(name="good", transport="stdio", command="echo"),
             MCPServerConfig(name="bad", transport="stdio", command="nope"),
@@ -379,7 +379,7 @@ class TestMCPToolGroup:
             mock_conn.return_value = {"bad": RuntimeError("fail")}
             mock_disc.return_value = [("good", _make_mcp_tool("tool1"))]
 
-            errors = await group.async_init()
+            errors = await group.connect_servers()
 
         assert "bad" in errors
         assert len(group.create_tools()) == 1
@@ -448,7 +448,7 @@ class TestToolManagerMCPIntegration:
         assert tm._mcp_group is not None
 
     @pytest.mark.asyncio
-    async def test_async_init_registers_mcp_tools(self):
+    async def test_connect_servers_registers_mcp_tools(self):
         cfg = _make_app_config(mcp_servers={
             "fs": {
                 "transport": "stdio",
@@ -470,12 +470,12 @@ class TestToolManagerMCPIntegration:
             mock_conn.return_value = {}
             mock_disc.return_value = [("fs", tool)]
 
-            await tm.async_init()
+            await tm.connect_mcp_servers()
 
         assert "mcp_fs__read_file" in tm.tools
 
     @pytest.mark.asyncio
-    async def test_async_init_merges_approval_overrides(self):
+    async def test_connect_servers_merges_approval_overrides(self):
         cfg = _make_app_config(mcp_servers={
             "fs": {
                 "transport": "stdio",
@@ -499,18 +499,18 @@ class TestToolManagerMCPIntegration:
             mock_conn.return_value = {}
             mock_disc.return_value = [("fs", read_tool), ("fs", write_tool)]
 
-            await tm.async_init()
+            await tm.connect_mcp_servers()
 
         policy = tm.approval_policy
         assert "mcp_fs__read_file" in policy._always_approve
         assert "mcp_fs__write_file" in policy._require_approval
 
     @pytest.mark.asyncio
-    async def test_async_init_no_mcp_is_noop(self):
+    async def test_connect_servers_no_mcp_is_noop(self):
         cfg = _make_app_config()
         tm = _make_tool_manager(cfg)
         # Should not raise
-        await tm.async_init()
+        await tm.connect_mcp_servers()
 
     def test_get_openai_tools_uses_raw_schema(self):
         """MCP tools with raw schema bypass ToolParameter building."""

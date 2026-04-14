@@ -24,10 +24,10 @@ class MCPToolGroup(ToolGroup):
         self._tools: list[BaseTool] = []
 
     def create_tools(self) -> list[BaseTool]:
-        """Return discovered tools. Empty until async_init() is called."""
+        """Return discovered tools. Empty until connect_servers() is called."""
         return self._tools
 
-    async def async_init(self) -> dict[str, Exception]:
+    async def connect_servers(self) -> dict[str, Exception]:
         """Connect to all servers and discover tools.
 
         Must be called after construction. Returns {name: error} for failures.

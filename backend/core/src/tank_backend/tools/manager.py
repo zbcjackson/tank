@@ -151,14 +151,14 @@ class ToolManager:
         for group in self._groups:
             await group.cleanup()
 
-    async def async_init(self) -> None:
-        """Async initialization phase — connects MCP servers and registers tools.
+    async def connect_mcp_servers(self) -> None:
+        """Connect to configured MCP servers and register their tools.
 
         Call after construction (e.g. in Assistant.start or FastAPI lifespan).
         """
         if self._mcp_group is None:
             return
-        errors = await self._mcp_group.async_init()
+        errors = await self._mcp_group.connect_servers()
         for tool in self._mcp_group.create_tools():
             self.register_tool(tool)
         # Merge MCP approval overrides into policy
