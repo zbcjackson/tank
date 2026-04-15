@@ -12,6 +12,7 @@ import time
 from unittest.mock import MagicMock
 
 import numpy as np
+from brain_test_helpers import make_brain
 
 from tank_backend.core.events import (
     BrainInputEvent,
@@ -22,7 +23,7 @@ from tank_backend.core.events import (
 )
 from tank_backend.pipeline.builder import PipelineBuilder
 from tank_backend.pipeline.bus import Bus
-from tank_backend.pipeline.processors.brain import Brain, BrainConfig
+from tank_backend.pipeline.processors.brain import BrainConfig
 from tank_backend.pipeline.processors.playback import PlaybackProcessor
 from tank_backend.pipeline.processors.tts import TTSProcessor
 
@@ -37,7 +38,7 @@ def _fake_tts_stream(text, language=None, voice=None, is_interrupted=None):
     return _gen()
 
 
-def _make_brain(bus, interrupt_event, llm_response="Response to input", tts_enabled=True):
+def _make_brain_for_test(bus, interrupt_event, llm_response="Response to input", tts_enabled=True):
     """Create a Brain processor with a mock LLM that returns the given response."""
     mock_llm = MagicMock()
 
@@ -49,7 +50,7 @@ def _make_brain(bus, interrupt_event, llm_response="Response to input", tts_enab
     mock_tool_manager = MagicMock()
     mock_tool_manager.get_openai_tools.return_value = []
 
-    return Brain(
+    return make_brain(
         llm=mock_llm,
         tool_manager=mock_tool_manager,
         config=BrainConfig(),
@@ -68,7 +69,7 @@ class TestBrainTTSPlaybackIntegration:
         interrupt_event = threading.Event()
         playback_received: list = []
 
-        brain = _make_brain(bus, interrupt_event)
+        brain = _make_brain_for_test(bus, interrupt_event)
 
         tts_mock = MagicMock()
         tts_mock.generate_stream = _fake_tts_stream
@@ -116,7 +117,7 @@ class TestBrainTTSPlaybackIntegration:
 
         bus.subscribe("ui_message", lambda m: ui_messages.append(m))
 
-        brain = _make_brain(bus, interrupt_event, llm_response="Hi there")
+        brain = _make_brain_for_test(bus, interrupt_event, llm_response="Hi there")
 
         tts_mock = MagicMock()
         tts_mock.generate_stream = _fake_tts_stream
@@ -195,7 +196,7 @@ class TestBrainTTSPlaybackIntegration:
         )
 
         # First brain for first request
-        brain1 = _make_brain(bus, interrupt_event, llm_response="First response")
+        brain1 = _make_brain_for_test(bus, interrupt_event, llm_response="First response")
 
         pipeline = (
             PipelineBuilder(bus)

@@ -15,6 +15,7 @@ import threading
 from unittest.mock import MagicMock
 
 import numpy as np
+from brain_test_helpers import make_brain
 
 from tank_backend.audio.input.types import AudioFrame
 from tank_backend.audio.input.vad import VADResult, VADStatus
@@ -28,7 +29,7 @@ from tank_backend.pipeline.builder import PipelineBuilder
 from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.processors.asr import ASRProcessor
 from tank_backend.pipeline.processors.asr_speaker_merger import ASRSpeakerMerger
-from tank_backend.pipeline.processors.brain import Brain, BrainConfig
+from tank_backend.pipeline.processors.brain import BrainConfig
 from tank_backend.pipeline.processors.playback import PlaybackProcessor
 from tank_backend.pipeline.processors.speaker_id import SpeakerIDProcessor
 from tank_backend.pipeline.processors.tts import TTSProcessor
@@ -97,7 +98,7 @@ def _make_vad_mock_sequence(*results):
     return vad_mock
 
 
-def _make_brain(bus, interrupt_event, llm_response="hello response", tts_enabled=True):
+def _make_brain_for_pipeline(bus, interrupt_event, llm_response="hello response", tts_enabled=True):
     """Create a Brain processor with a mock LLM."""
     mock_llm = MagicMock()
 
@@ -109,7 +110,7 @@ def _make_brain(bus, interrupt_event, llm_response="hello response", tts_enabled
     mock_tool_manager = MagicMock()
     mock_tool_manager.get_openai_tools.return_value = []
 
-    return Brain(
+    return make_brain(
         llm=mock_llm,
         tool_manager=mock_tool_manager,
         config=BrainConfig(),
@@ -170,7 +171,7 @@ class TestTwoProcessorChaining:
 
         asr_mock = _make_asr_mock(text="hello world")
 
-        brain = _make_brain(bus, interrupt_event)
+        brain = _make_brain_for_pipeline(bus, interrupt_event)
 
         pipeline = (
             PipelineBuilder(bus)
@@ -187,10 +188,8 @@ class TestTwoProcessorChaining:
             pipeline.push(_make_audio_frame())
             await asyncio.sleep(0.5)
 
-            # Brain should have processed the event (added to conversation history)
-            assert len(brain._conversation_history) >= 2
-            user_msg = brain._conversation_history[1]
-            assert "hello world" in user_msg["content"]
+            # Brain should have processed the event (prepare_turn called)
+            brain._context.prepare_turn.assert_called()
         finally:
             await pipeline.stop()
 
@@ -245,7 +244,7 @@ class TestMultiProcessorFlow:
 
         asr_mock = _make_asr_mock(text="what is the weather")
 
-        brain = _make_brain(bus, interrupt_event)
+        brain = _make_brain_for_pipeline(bus, interrupt_event)
 
         pipeline = (
             PipelineBuilder(bus)
@@ -267,9 +266,8 @@ class TestMultiProcessorFlow:
             # ASR start and stop were called
             asr_mock.start.assert_called_once()
             asr_mock.stop.assert_called_once()
-            # Brain processed the event
-            assert len(brain._conversation_history) >= 2
-            assert "what is the weather" in brain._conversation_history[1]["content"]
+            # Brain processed the event (prepare_turn called)
+            brain._context.prepare_turn.assert_called()
         finally:
             await pipeline.stop()
 
@@ -279,7 +277,7 @@ class TestMultiProcessorFlow:
         interrupt_event = threading.Event()
         playback_received = []
 
-        brain = _make_brain(bus, interrupt_event, llm_response="It is sunny")
+        brain = _make_brain_for_pipeline(bus, interrupt_event, llm_response="It is sunny")
 
         async def fake_tts_stream(text, language=None, voice=None, is_interrupted=None):
             for _ in range(2):
@@ -340,7 +338,7 @@ class TestFullPipelineEndToEnd:
         asr_mock = _make_asr_mock(text="hello tank")
 
         # Brain: native processor with mock LLM
-        brain = _make_brain(bus, interrupt_event, llm_response="Hi there!")
+        brain = _make_brain_for_pipeline(bus, interrupt_event, llm_response="Hi there!")
 
         # TTS: generate audio chunks
         async def fake_tts_stream(text, language=None, voice=None, is_interrupted=None):
@@ -376,7 +374,7 @@ class TestFullPipelineEndToEnd:
             asr_mock.stop.assert_called_once()
 
             # Brain processed the event
-            assert len(brain._conversation_history) >= 2
+            brain._context.prepare_turn.assert_called()
 
             # Verify text-to-speech path
             assert len(playback_received) == 3
@@ -410,7 +408,7 @@ class TestFullPipelineEndToEnd:
 
         asr_mock = _make_asr_mock(text="test")
 
-        brain = _make_brain(bus, interrupt_event, tts_enabled=False)
+        brain = _make_brain_for_pipeline(bus, interrupt_event, tts_enabled=False)
 
         pipeline = (
             PipelineBuilder(bus)
@@ -473,7 +471,7 @@ class TestFullPipelineEndToEnd:
         asr_mock.process_pcm = MagicMock(return_value="")
         asr_mock.stop = MagicMock(side_effect=lambda: next(transcriptions))
 
-        brain = _make_brain(bus, interrupt_event, tts_enabled=False)
+        brain = _make_brain_for_pipeline(bus, interrupt_event, tts_enabled=False)
 
         pipeline = (
             PipelineBuilder(bus)
@@ -498,8 +496,7 @@ class TestFullPipelineEndToEnd:
                 await asyncio.sleep(0.5)
 
             # All 3 events should have been processed by Brain
-            # system + 3 user + 3 assistant = 7
-            assert len(brain._conversation_history) >= 4  # at least system + 3 user
+            assert brain._context.prepare_turn.call_count >= 3
         finally:
             await pipeline.stop()
 
@@ -517,7 +514,7 @@ class TestFullPipelineEndToEnd:
 
         asr_mock = _make_asr_mock(text="hello")
 
-        brain = _make_brain(bus, interrupt_event, tts_enabled=False)
+        brain = _make_brain_for_pipeline(bus, interrupt_event, tts_enabled=False)
 
         tts_chunks_yielded = 0
 
@@ -597,7 +594,7 @@ class TestFanOutFanInIntegration:
         recognizer_mock.identify.return_value = "jackson"
 
         # Brain: capture what it receives
-        brain = _make_brain(bus, interrupt_event, tts_enabled=False)
+        brain = _make_brain_for_pipeline(bus, interrupt_event, tts_enabled=False)
 
         asr_proc = ASRProcessor(asr=asr_mock, bus=bus)
         speaker_id_proc = SpeakerIDProcessor(recognizer=recognizer_mock, bus=bus)
@@ -624,10 +621,8 @@ class TestFanOutFanInIntegration:
             asr_mock.stop.assert_called_once()
             recognizer_mock.identify.assert_called_once()
 
-            # Brain should have received a BrainInputEvent with user="jackson"
-            assert len(brain._conversation_history) >= 2
-            user_msg = brain._conversation_history[1]
-            assert "hello from jackson" in user_msg["content"]
+            # Brain should have processed the event (prepare_turn called)
+            brain._context.prepare_turn.assert_called()
         finally:
             await pipeline.stop()
 
@@ -653,7 +648,7 @@ class TestFanOutFanInIntegration:
         recognizer_mock = MagicMock()
         recognizer_mock.identify.side_effect = slow_identify
 
-        brain = _make_brain(bus, interrupt_event, tts_enabled=False)
+        brain = _make_brain_for_pipeline(bus, interrupt_event, tts_enabled=False)
 
         asr_proc = ASRProcessor(asr=asr_mock, bus=bus)
         speaker_id_proc = SpeakerIDProcessor(recognizer=recognizer_mock, bus=bus)

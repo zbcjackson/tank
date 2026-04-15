@@ -7,8 +7,6 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import tiktoken
-
 from ...core.events import (
     AudioOutputRequest,
     BrainInputEvent,
@@ -27,9 +25,8 @@ from .echo_guard import EchoGuardConfig, SelfEchoDetector
 if TYPE_CHECKING:
     import threading
 
-    from openai.types.chat import ChatCompletionMessageParam
-
     from ...agents.graph import AgentGraph
+    from ...context import ContextManager
     from ...llm.llm import LLM
     from ...tools.manager import ToolManager
 
@@ -49,6 +46,8 @@ class Brain(Processor):
     Native pipeline Processor that receives BrainInputEvent from the ASR stage
     and yields AudioOutputRequest for the TTS stage downstream.
     UI messages are posted directly to the Bus.
+
+    All conversation context management is delegated to :class:`ContextManager`.
     """
 
     def __init__(
@@ -58,27 +57,21 @@ class Brain(Processor):
         config: BrainConfig,
         bus: Bus,
         interrupt_event: "threading.Event",
+        context: "ContextManager",
         tts_enabled: bool = True,
         echo_guard_config: EchoGuardConfig | None = None,
-        llm_summarization: "LLM | None" = None,
-        checkpointer: Any = None,
-        session_id: str | None = None,
         agent_graph: "AgentGraph | None" = None,
         approval_manager: Any = None,
-        memory_service: Any = None,
     ):
         super().__init__(name="brain")
         self._llm = llm
-        self._llm_summarization = llm_summarization
         self._tool_manager = tool_manager
         self._config = config
         self._bus = bus
         self._interrupt_event = interrupt_event
         self._tts_enabled = tts_enabled
-        self._checkpointer = checkpointer
-        self._session_id = session_id
         self._approval_manager = approval_manager
-        self._memory_service = memory_service
+        self._context = context
 
         # Register approval notification callback so sub-agent approvals
         # go through the same Bus path as main agent approvals.
@@ -95,19 +88,11 @@ class Brain(Processor):
         self._echo_config = echo_guard_config or EchoGuardConfig()
         self._echo_detector = SelfEchoDetector(self._echo_config)
 
-        # Assemble system prompt from multiple sources
-        from ...prompts.assembler import PromptAssembler
-
-        self._prompt_assembler = PromptAssembler(bus=bus)
-        self._system_prompt = self._prompt_assembler.assemble()
+        # Start or resume session
+        self._context.resume_or_new()
 
         # Track current msg_id for approval notifications from sub-agents
         self._current_msg_id: str = ""
-
-        # Initialize conversation history with system prompt as first message
-        self._conversation_history: list[ChatCompletionMessageParam] = [
-            {"role": "system", "content": self._system_prompt}
-        ]
 
         # QoS state: when TTS is overloaded, reduce response aggressiveness
         self._qos_skip_tools = False
@@ -126,89 +111,23 @@ class Brain(Processor):
         )
         return AgentGraph(agents={"chat": agent}, default_agent="chat")
 
-    @property
-    def _summarization_llm(self) -> "LLM":
-        """LLM used for summarization — dedicated instance or fallback to conversation LLM."""
-        return self._llm_summarization or self._llm
-
     def reset_conversation(self) -> None:
-        """Reset conversation history to initial state (system prompt only)."""
-        self._prompt_assembler.mark_dirty()
-        self._system_prompt = self._prompt_assembler.assemble()
-        self._conversation_history = [{"role": "system", "content": self._system_prompt}]
-        self._checkpoint()
-        logger.info("Conversation history reset")
+        """Clear context and start a new session."""
+        self._context.clear()
+        logger.info("Conversation cleared — new session: %s", self._context.session_id)
 
-    def set_session_id(self, session_id: str) -> None:
-        """Set session ID and load checkpoint if available."""
-        self._session_id = session_id
-        if self._checkpointer is None:
-            return
-        try:
-            history = self._checkpointer.load(session_id)
-            if history:
-                self._conversation_history = history
-                logger.info(
-                    "Loaded checkpoint for session %s (%d messages)",
-                    session_id,
-                    len(history),
-                )
-        except Exception:
-            logger.error("Failed to load checkpoint for session %s", session_id, exc_info=True)
+    def close(self) -> None:
+        """Cleanup — close context manager."""
+        self._context.close()
 
-    def _checkpoint(self) -> None:
-        """Persist current conversation history if checkpointer is available."""
-        if self._checkpointer is None or self._session_id is None:
-            return
-        try:
-            self._checkpointer.save(self._session_id, self._conversation_history)
-        except Exception:
-            logger.error("Failed to checkpoint session %s", self._session_id, exc_info=True)
+    @property
+    def session_id(self) -> str | None:
+        """Current session ID."""
+        return self._context.session_id
 
     # ------------------------------------------------------------------
-    # Memory helpers
+    # Pipeline processing
     # ------------------------------------------------------------------
-
-    async def _recall_memory(self, user: str, text: str) -> str:
-        """Retrieve relevant memories for a user. Returns formatted string or empty."""
-        if self._memory_service is None or not user or user == "Unknown":
-            return ""
-        try:
-            memories = await self._memory_service.recall(user, text)
-            if memories:
-                return "\n".join(f"- {m}" for m in memories)
-        except Exception:
-            logger.warning("Memory recall failed for user %s", user, exc_info=True)
-        return ""
-
-    def _schedule_memory_store(self, assistant_response: str) -> None:
-        """Fire-and-forget: extract and store facts from the turn."""
-        import asyncio
-
-        user = getattr(self, "_last_user", None)
-        user_text = getattr(self, "_last_user_text", None)
-        if self._memory_service is None or not user or user == "Unknown" or not user_text:
-            return
-        asyncio.create_task(self._store_memory_safe(user, user_text, assistant_response))
-
-    async def _store_memory_safe(
-        self, user_id: str, user_msg: str, assistant_msg: str
-    ) -> None:
-        """Store memory with error isolation and retry — never crashes the pipeline."""
-        import asyncio as _asyncio
-
-        for attempt in range(1, 4):
-            try:
-                await self._memory_service.store_turn(user_id, user_msg, assistant_msg)
-                return
-            except Exception:
-                if attempt == 3:
-                    logger.warning(
-                        "Memory storage failed for user %s after %d attempts",
-                        user_id, attempt, exc_info=True,
-                    )
-                else:
-                    await _asyncio.sleep(1.0 * attempt)
 
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         """Process a BrainInputEvent and yield AudioOutputRequest for TTS."""
@@ -216,8 +135,7 @@ class Brain(Processor):
 
         # Handle system compact before normal processing
         if event.type == InputType.SYSTEM and event.text == "__compact__":
-            await self._maybe_compact()
-            self._checkpoint()
+            await self._context.maybe_compact()
             yield FlowReturn.OK, None
             return
 
@@ -246,18 +164,13 @@ class Brain(Processor):
             intent = _classify_approval_intent(event.text)
             if intent is not None:
                 pending = self._approval_manager.get_pending(
-                    session_id=self._session_id,
+                    session_id=self._context.session_id,
                 )
                 if pending:
-                    req = pending[0]  # Resolve the oldest pending
-                    self._approval_manager.resolve(
-                        req.approval_id, approved=intent, reason="voice",
-                    )
-                    logger.info(
-                        "Voice approval: %s → %s for %s",
-                        event.text, "approved" if intent else "rejected",
-                        req.tool_name,
-                    )
+                    req = pending[0]  # Resolve the oldest pending request
+                    self._approval_manager.resolve(req.id, approved=intent)
+                    action = "approved" if intent else "rejected"
+                    logger.info("Voice approval: %s request %s", action, req.id)
                     yield FlowReturn.OK, None
                     return
 
@@ -267,25 +180,22 @@ class Brain(Processor):
         logger.info("Brain start processing %s (%s) at %.3f", event.text, event.user, started_at)
 
         # --- Memory recall (pre-turn) ---
-        memory_context = await self._recall_memory(event.user, event.text)
+        await self._context.recall_memory(event.user, event.text)
 
-        # Add to history with speaker identity via `name` field
-        self._add_to_conversation_history("user", event.text, name=event.user)
-
-        # Capture for post-turn memory storage
-        self._last_user = event.user
-        self._last_user_text = event.text
+        # --- Prepare messages for LLM ---
+        skill_catalog = self._tool_manager.get_skill_catalog()
+        messages = self._context.prepare_turn(event.user, event.text, skill_catalog)
 
         # Generate Assistant Message ID
         assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
         language = "zh"
 
         # Generate trace ID for observability linking
-        trace_id = generate_trace_id(self._session_id or "unknown")
+        trace_id = generate_trace_id(self._context.session_id or "unknown")
         self._bus.post(BusMessage(
             type="trace_id",
             source=self.name,
-            payload={"trace_id": trace_id, "session_id": self._session_id},
+            payload={"trace_id": trace_id, "session_id": self._context.session_id},
         ))
 
         # Send processing_started signal
@@ -295,39 +205,10 @@ class Brain(Processor):
             payload=SignalMessage(signal_type="processing_started", msg_id=assistant_msg_id),
         ))
 
-        # Rebuild system prompt if new workspace AGENTS.md discovered
-        if self._prompt_assembler.needs_rebuild():
-            self._system_prompt = self._prompt_assembler.assemble()
-            self._conversation_history[0] = {
-                "role": "system",
-                "content": self._system_prompt,
-            }
-            logger.info("System prompt rebuilt (new workspace rules discovered)")
-
-        # Temporarily augment system prompt with skill catalog + memory context
-        original_system = self._conversation_history[0]["content"]
-        augmented_system = original_system
-
-        skill_catalog = self._tool_manager.get_skill_catalog()
-        if skill_catalog:
-            augmented_system += f"\n\n{skill_catalog}"
-
-        if memory_context:
-            augmented_system += (
-                f"\n\nKNOWN FACTS ABOUT {event.user}:\n{memory_context}"
-            )
-
-        if augmented_system != original_system:
-            self._conversation_history[0] = {
-                "role": "system",
-                "content": augmented_system,
-            }
-
         try:
-            tools = [] if self._qos_skip_tools else self._tool_manager.get_openai_tools()
-            if self._qos_skip_tools:
-                logger.info("Brain: skipping tools due to QoS feedback")
-            audio_request = await self._process_stream(assistant_msg_id, language, tools)
+            audio_request = await self._process_via_agents(
+                messages, assistant_msg_id, language, event,
+            )
 
             elapsed = time.time() - started_at
             logger.info("Brain response finished at %.3f, duration_s=%.3f", time.time(), elapsed)
@@ -381,9 +262,6 @@ class Brain(Processor):
             ))
             yield FlowReturn.OK, None
         finally:
-            # Restore original system prompt (remove memory augmentation)
-            self._conversation_history[0] = {"role": "system", "content": original_system}
-
             # Always send processing_ended signal
             self._bus.post(BusMessage(
                 type="ui_message",
@@ -393,20 +271,18 @@ class Brain(Processor):
                 ),
             ))
 
-    async def _process_stream(
-        self, msg_id: str, language: str, tools: list[dict[str, Any]]
-    ) -> AudioOutputRequest | None:
-        """Run the streaming LLM process via AgentGraph."""
-        return await self._process_via_agents(msg_id, language)
-
     async def _process_via_agents(
-        self, msg_id: str, language: str
+        self,
+        messages: list[dict[str, Any]],
+        msg_id: str,
+        language: str,
+        event: BrainInputEvent,
     ) -> AudioOutputRequest | None:
         """Process via AgentGraph."""
         from ...agents.base import AgentOutputType, AgentState
 
         state = AgentState(
-            messages=list(self._conversation_history),
+            messages=messages,
             metadata={"msg_id": msg_id},
         )
         self._current_msg_id = msg_id
@@ -451,10 +327,11 @@ class Brain(Processor):
             ))
 
             if full_response_text:
-                self._add_to_conversation_history("assistant", full_response_text)
-                await self._maybe_compact()
-                self._checkpoint()
-                self._schedule_memory_store(full_response_text)
+                self._context.finish_turn(full_response_text)
+                await self._context.maybe_compact()
+                self._context.schedule_memory_store(
+                    event.user, event.text, full_response_text,
+                )
                 if self._tts_enabled:
                     return AudioOutputRequest(content=full_response_text, language=language)
 
@@ -463,8 +340,7 @@ class Brain(Processor):
         except BrainInterrupted:
             # Save what the assistant already said so the LLM has context
             if full_response_text.strip():
-                self._add_to_conversation_history("assistant", full_response_text)
-                self._checkpoint()
+                self._context.finish_turn(full_response_text)
             raise
         except Exception as e:
             logger.error(f"Agent stream processing error: {e}")
@@ -481,198 +357,58 @@ class Brain(Processor):
             return False  # propagate
         return False
 
-    def _on_qos(self, message: "BusMessage") -> None:
-        """Handle QoS feedback from TTS: skip tools when severely overloaded."""
+    def _on_qos(self, message: BusMessage) -> None:
+        """Handle QoS feedback from TTS/playback."""
         payload = message.payload or {}
-        severity = payload.get("severity", 0.5)
-        self._qos_skip_tools = severity > 0.7
-        if self._qos_skip_tools:
+        severity = payload.get("severity", 0)
+        if severity >= 0.5:
+            self._qos_skip_tools = True
             logger.info("Brain QoS: skipping tool calls (severity=%.2f)", severity)
 
-    # Shared tiktoken encoder — cl100k_base works for GPT-4/3.5 and is a
-    # reasonable approximation for other OpenAI-compatible models.
-    _encoder = tiktoken.get_encoding("cl100k_base")
-
-    def _count_tokens(self, messages: list["ChatCompletionMessageParam"]) -> int:
-        """Estimate token count for a list of chat messages."""
-        total = 0
-        for msg in messages:
-            # ~4 tokens overhead per message (role, delimiters)
-            total += 4
-            content = msg.get("content") or ""
-            if isinstance(content, str):
-                total += len(self._encoder.encode(content))
-        return total
-
-    async def _maybe_compact(self) -> None:
-        """Compact conversation history if token count exceeds budget.
-
-        Strategy: try summarization first (preserves context), fall back to
-        truncation (drops oldest messages) if summarization fails or there
-        aren't enough messages to summarize.
-        """
-        total_tokens = self._count_tokens(self._conversation_history)
-        budget = self._config.max_history_tokens
-
-        if total_tokens <= budget:
-            return
-
-        # Keep system prompt (index 0) + last 5 messages
-        system_msg = self._conversation_history[0]
-        rest = self._conversation_history[1:]
-
-        if len(rest) <= 5:
-            # Not enough messages to summarize — go straight to truncation
-            self._truncate_history(budget)
-            return
-
-        # Try summarization first
-        to_summarize = rest[:-5]
-        to_keep = rest[-5:]
-
-        summary_prompt = (
-            "Summarize the following conversation history concisely. "
-            "Preserve key facts, decisions, and context. "
-            "Keep it under 500 tokens.\n\n"
-        )
-        for msg in to_summarize:
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            summary_prompt += f"{role}: {content}\n\n"
-
-        try:
-            summary_messages = [
-                {"role": "system", "content": "You are a helpful assistant that summarizes."},
-                {"role": "user", "content": summary_prompt},
-            ]
-            response = await self._summarization_llm.chat_completion_async(
-                messages=summary_messages,
-                temperature=0.3,
-                max_tokens=500,
-            )
-
-            summary_text = response["choices"][0]["message"]["content"]
-
-            summary_msg = {
-                "role": "system",
-                "content": f"Previous conversation summary: {summary_text}",
-            }
-            self._conversation_history = [system_msg, summary_msg] + to_keep
-
-            new_tokens = self._count_tokens(self._conversation_history)
-            logger.info(
-                "History summarized: %d → %d tokens (%d messages → %d)",
-                total_tokens,
-                new_tokens,
-                len(to_summarize) + len(to_keep) + 1,
-                len(self._conversation_history),
-            )
-
-            self._bus.post(BusMessage(
-                type="ui_message",
-                source=self.name,
-                payload=SignalMessage(
-                    signal_type="context_summarized",
-                    msg_id="",
-                    metadata={
-                        "old_tokens": total_tokens,
-                        "new_tokens": new_tokens,
-                        "messages_summarized": len(to_summarize),
-                        "messages_kept": len(to_keep),
-                    },
-                ),
-            ))
-        except Exception as e:
-            logger.error(f"Summarization failed, falling back to truncation: {e}", exc_info=True)
-            self._truncate_history(budget)
-
-    def _truncate_history(self, token_budget: int) -> None:
-        """Drop oldest non-system messages to fit within token budget."""
-        total_tokens = self._count_tokens(self._conversation_history)
-        if total_tokens <= token_budget:
-            return
-
-        system_msg = self._conversation_history[0]
-        rest = self._conversation_history[1:]
-
-        system_tokens = self._count_tokens([system_msg])
-        remaining_budget = token_budget - system_tokens
-        keep_from = len(rest)
-        running = 0
-        for i in range(len(rest) - 1, -1, -1):
-            msg_tokens = self._count_tokens([rest[i]])
-            if running + msg_tokens > remaining_budget:
-                break
-            running += msg_tokens
-            keep_from = i
-
-        self._conversation_history = [system_msg] + rest[keep_from:]
-        new_tokens = self._count_tokens(self._conversation_history)
-        logger.info(
-            "History truncated: %d → %d tokens (%d messages kept)",
-            total_tokens,
-            new_tokens,
-            len(self._conversation_history),
-        )
-
-    def _add_to_conversation_history(
-        self, role: str, content: str, *, name: str | None = None
-    ) -> None:
-        """Append a message to conversation history."""
-        msg: dict[str, str] = {"role": role, "content": content}
-        if name:
-            msg["name"] = name
-        self._conversation_history.append(msg)
-
-    def _get_error_message(self, language: str | None) -> str:
-        """Get error message in user's language."""
-        if language and language.startswith("zh"):
-            return "对不起，出现错误，请重试。"
-        return "Sorry, an error occurred. Please try again."
-
     def _on_approval_request(self, request: Any) -> None:
-        """Post approval request to the UI via Bus.
-
-        Called by ApprovalManager whenever any agent (main or sub-agent)
-        requests approval. This ensures the notification always goes
-        through the Brain's Bus — no stale references.
-        """
-        from ...core.events import DisplayMessage
-
-        description = request.description
+        """Forward approval request from sub-agent to UI via Bus."""
         self._bus.post(BusMessage(
             type="ui_message",
             source=self.name,
             payload=DisplayMessage(
                 speaker="Brain",
-                text=description,
+                text=request.description,
                 is_user=False,
                 msg_id=self._current_msg_id,
                 is_final=False,
-                update_type=UpdateType.APPROVAL,
-                metadata={
-                    "approval_id": request.approval_id,
-                    "tool_name": request.tool_name,
-                    "tool_args": request.tool_args,
-                    "description": description,
-                },
+                update_type=UpdateType.APPROVAL_REQUEST,
+                metadata={"approval_id": request.id},
             ),
         ))
 
+    @staticmethod
+    def _get_error_message(language: str | None) -> str:
+        """Get error message in user's language."""
+        if language and language.startswith("zh"):
+            return "对不起，出现错误，请重试。"
+        return "Sorry, an error occurred. Please try again."
 
-def _agent_to_update_type(agent_output_type: Any) -> Any:
-    """Map AgentOutputType → UpdateType for bus messages. Returns None for unmapped types."""
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _classify_approval_intent(text: str) -> bool | None:
+    """Classify user text as approval (True), rejection (False), or neither (None)."""
+    return _classify_approval_intent_local(text)
+
+
+def _agent_to_update_type(agent_output_type: Any) -> UpdateType | None:
+    """Map AgentOutputType to UpdateType for UI messages."""
     from ...agents.base import AgentOutputType
 
-    _MAP = {
+    return {
         AgentOutputType.TOKEN: UpdateType.TEXT,
-        AgentOutputType.THOUGHT: UpdateType.THOUGHT,
         AgentOutputType.TOOL_CALLING: UpdateType.TOOL,
         AgentOutputType.TOOL_EXECUTING: UpdateType.TOOL,
         AgentOutputType.TOOL_RESULT: UpdateType.TOOL,
-        AgentOutputType.APPROVAL_NEEDED: UpdateType.APPROVAL,
-    }
-    return _MAP.get(agent_output_type)
+    }.get(agent_output_type)
 
 
 # --- Voice approval intent classification ---
@@ -692,7 +428,7 @@ _NEGATIVE_KEYWORDS = frozenset({
 })
 
 
-def _classify_approval_intent(text: str) -> bool | None:
+def _classify_approval_intent_local(text: str) -> bool | None:
     """Classify user text as approval (True), rejection (False), or ambiguous (None).
 
     Uses simple keyword matching. Returns None for ambiguous text,
@@ -702,7 +438,7 @@ def _classify_approval_intent(text: str) -> bool | None:
     if not normalized:
         return None
 
-    # Check exact matches and substring matches
+    # Check exact matches
     if normalized in _POSITIVE_KEYWORDS:
         return True
     if normalized in _NEGATIVE_KEYWORDS:

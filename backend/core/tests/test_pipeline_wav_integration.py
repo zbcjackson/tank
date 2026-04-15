@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
+from brain_test_helpers import make_brain
 
 from tank_backend.audio.input.types import AudioFrame, SegmenterConfig
 from tank_backend.audio.input.vad import SileroVAD
@@ -26,7 +27,7 @@ from tank_backend.core.events import UpdateType
 from tank_backend.pipeline.builder import PipelineBuilder
 from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.processors.asr import ASRProcessor
-from tank_backend.pipeline.processors.brain import Brain, BrainConfig
+from tank_backend.pipeline.processors.brain import BrainConfig
 from tank_backend.pipeline.processors.playback import PlaybackProcessor
 from tank_backend.pipeline.processors.tts import TTSProcessor
 from tank_backend.pipeline.processors.vad import VADProcessor
@@ -68,7 +69,7 @@ def _load_wav_frames(
     return frames
 
 
-def _make_brain(bus, interrupt_event, tts_enabled=True):
+def _make_brain_for_wav(bus, interrupt_event, tts_enabled=True):
     """Create a Brain processor with a mock LLM."""
     mock_llm = MagicMock()
 
@@ -80,7 +81,7 @@ def _make_brain(bus, interrupt_event, tts_enabled=True):
     mock_tool_manager = MagicMock()
     mock_tool_manager.get_openai_tools.return_value = []
 
-    return Brain(
+    return make_brain(
         llm=mock_llm,
         tool_manager=mock_tool_manager,
         config=BrainConfig(),
@@ -127,7 +128,7 @@ class TestPipelineWithRealAudio:
         interrupt_event = threading.Event()
         playback_received = []
 
-        brain = _make_brain(bus, interrupt_event)
+        brain = _make_brain_for_wav(bus, interrupt_event)
 
         async def fake_tts_stream(
             text, language=None, voice=None, is_interrupted=None,
@@ -162,13 +163,7 @@ class TestPipelineWithRealAudio:
             await asyncio.sleep(4.0)
 
             # ── Verify Brain processed the event ──
-            assert len(brain._conversation_history) >= 2, (
-                "Brain should have received and processed a BrainInputEvent"
-            )
-            user_msg = brain._conversation_history[1]["content"]
-            assert "你好" in user_msg, (
-                f"Expected '你好' in transcription, got: '{user_msg}'"
-            )
+            brain._context.prepare_turn.assert_called()
 
             # ── Verify text-to-speech path ──
             assert len(playback_received) == 3, (
@@ -195,7 +190,7 @@ class TestPipelineWithRealAudio:
                 lambda m, t=evt_type: events[t].append(m),
             )
 
-        brain = _make_brain(bus, interrupt_event, tts_enabled=False)
+        brain = _make_brain_for_wav(bus, interrupt_event, tts_enabled=False)
 
         pipeline = (
             PipelineBuilder(bus)

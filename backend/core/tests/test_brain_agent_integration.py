@@ -3,11 +3,13 @@
 import threading
 from unittest.mock import MagicMock
 
+from brain_test_helpers import make_brain
+
 from tank_backend.agents.base import Agent, AgentOutput, AgentOutputType
 from tank_backend.agents.graph import AgentGraph
 from tank_backend.core.events import BrainInputEvent, DisplayMessage, InputType, UpdateType
 from tank_backend.pipeline.bus import Bus
-from tank_backend.pipeline.processors.brain import Brain, BrainConfig
+from tank_backend.pipeline.processors.brain import BrainConfig
 
 
 class MockChatAgent(Agent):
@@ -23,21 +25,19 @@ class MockChatAgent(Agent):
         yield AgentOutput(type=AgentOutputType.DONE)
 
 
-def _make_brain(agent_graph, tts_enabled=True):
+def _make_brain_with_graph(agent_graph, tts_enabled=True):
     """Create a Brain with minimal mocks."""
     llm = MagicMock()
     tool_manager = MagicMock()
     tool_manager.get_openai_tools.return_value = []
     bus = Bus()
-    interrupt_event = threading.Event()
     config = BrainConfig(max_history_tokens=8000)
 
-    brain = Brain(
+    brain = make_brain(
         llm=llm,
         tool_manager=tool_manager,
         config=config,
         bus=bus,
-        interrupt_event=interrupt_event,
         tts_enabled=tts_enabled,
         agent_graph=agent_graph,
     )
@@ -50,7 +50,7 @@ class TestBrainWithAgentGraph:
         chat_agent = MockChatAgent(["Hello", " world"])
         graph = AgentGraph(agents={"chat": chat_agent}, default_agent="chat")
 
-        brain, bus = _make_brain(agent_graph=graph)
+        brain, bus = _make_brain_with_graph(agent_graph=graph)
 
         messages = []
         bus.subscribe("ui_message", lambda m: messages.append(m))
@@ -101,7 +101,7 @@ class TestBrainWithAgentGraph:
         bus = Bus()
         config = BrainConfig()
 
-        brain = Brain(
+        brain = make_brain(
             llm=llm,
             tool_manager=tool_manager,
             config=config,
@@ -128,7 +128,7 @@ class TestBrainWithAgentGraph:
         chat_agent = MockChatAgent(["Hello"])
         graph = AgentGraph(agents={"chat": chat_agent}, default_agent="chat")
 
-        brain, bus = _make_brain(agent_graph=graph, tts_enabled=False)
+        brain, bus = _make_brain_with_graph(agent_graph=graph, tts_enabled=False)
 
         event = BrainInputEvent(
             type=InputType.TEXT, text="hi", user="Tester",

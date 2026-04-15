@@ -1,10 +1,12 @@
 """Tests for Brain streaming LLM responses as a Processor."""
 
 import threading
-from unittest.mock import MagicMock
 
 import pytest
+from brain_test_helpers import make_brain, make_mock_context
 
+from tank_backend.agents.base import Agent, AgentOutput, AgentOutputType
+from tank_backend.agents.graph import AgentGraph
 from tank_backend.core.events import (
     BrainInputEvent,
     DisplayMessage,
@@ -13,7 +15,6 @@ from tank_backend.core.events import (
 )
 from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.processor import FlowReturn
-from tank_backend.pipeline.processors.brain import Brain, BrainConfig
 
 
 async def _collect(processor, item):
@@ -23,41 +24,45 @@ async def _collect(processor, item):
     return results
 
 
+class _StreamingAgent(Agent):
+    """Agent that yields TOOL_CALLING, TOOL_RESULT, then TOKEN events."""
+
+    def __init__(self):
+        super().__init__("streaming")
+
+    async def run(self, state):
+        yield AgentOutput(
+            type=AgentOutputType.TOOL_CALLING, content="",
+            metadata={"index": 0, "name": "get_weather", "status": "calling"},
+        )
+        yield AgentOutput(
+            type=AgentOutputType.TOOL_RESULT, content="Sunny",
+            metadata={"index": 0, "name": "get_weather", "status": "success"},
+        )
+        yield AgentOutput(
+            type=AgentOutputType.TOKEN, content="The weather is sunny.",
+            metadata={"turn": 1},
+        )
+        yield AgentOutput(type=AgentOutputType.DONE)
+
+
 @pytest.fixture
 def bus():
     return Bus()
 
 
 @pytest.fixture
-def mock_llm():
-    llm = MagicMock()
+def brain(bus):
+    agent = _StreamingAgent()
+    graph = AgentGraph(agents={"streaming": agent}, default_agent="streaming")
 
-    async def async_gen(*args, **kwargs):
-        yield UpdateType.THOUGHT, "Thinking...", {}
-        yield UpdateType.TOOL, "", {"index": 0, "name": "get_weather", "status": "calling"}
-        yield UpdateType.TOOL, "Sunny", {"index": 0, "name": "get_weather", "status": "success"}
-        yield UpdateType.TEXT, "The weather is sunny.", {}
-
-    llm.chat_stream.return_value = async_gen()
-    return llm
-
-
-@pytest.fixture
-def brain(bus, mock_llm):
-    mock_tool_manager = MagicMock()
-    mock_tool_manager.get_openai_tools.return_value = []
-    config = BrainConfig()
-
-    return Brain(
-        llm=mock_llm,
-        tool_manager=mock_tool_manager,
-        config=config,
+    return make_brain(
         bus=bus,
-        interrupt_event=threading.Event(),
+        agent_graph=graph,
     )
 
 
-async def test_brain_streaming_full_flow(brain, bus, mock_llm):
+async def test_brain_streaming_full_flow(brain, bus):
     event = BrainInputEvent(
         type=InputType.TEXT,
         text="What is the weather?",
@@ -84,7 +89,6 @@ async def test_brain_streaming_full_flow(brain, bus, mock_llm):
 
     # 2. Assistant messages (filter out SignalMessage)
     assistant_msgs = [m for m in ui_messages if isinstance(m, DisplayMessage) and not m.is_user]
-    assert any(m.update_type == UpdateType.THOUGHT for m in assistant_msgs)
     assert any(m.update_type == UpdateType.TOOL for m in assistant_msgs)
     assert any(
         m.update_type == UpdateType.TEXT and m.text == "The weather is sunny."
@@ -95,31 +99,41 @@ async def test_brain_streaming_full_flow(brain, bus, mock_llm):
     assert assistant_msgs[-1].is_final is True
 
 
-async def test_interrupted_response_saved_to_history(bus):
-    """When Brain is interrupted mid-stream, partial text is saved to conversation history."""
+async def test_interrupted_response_saved_to_context(bus):
+    """When Brain is interrupted mid-stream, partial text is saved via context.finish_turn."""
     interrupt_event = threading.Event()
 
-    # LLM streams two TEXT chunks then the interrupt fires
-    async def interrupted_gen(*args, **kwargs):
-        yield UpdateType.TEXT, "The weather ", {}
-        yield UpdateType.TEXT, "is sunny", {}
-        # Simulate interrupt being set between chunks
-        interrupt_event.set()
-        yield UpdateType.TEXT, " today.", {}
+    class InterruptingAgent(Agent):
+        def __init__(self, interrupt_event):
+            super().__init__("interrupting")
+            self._interrupt = interrupt_event
 
-    mock_llm = MagicMock()
-    mock_llm.chat_stream.return_value = interrupted_gen()
+        async def run(self, state):
+            yield AgentOutput(
+                type=AgentOutputType.TOKEN, content="The weather ",
+                metadata={"turn": 1},
+            )
+            yield AgentOutput(
+                type=AgentOutputType.TOKEN, content="is sunny",
+                metadata={"turn": 1},
+            )
+            # Simulate interrupt being set between chunks
+            self._interrupt.set()
+            yield AgentOutput(
+                type=AgentOutputType.TOKEN, content=" today.",
+                metadata={"turn": 1},
+            )
+            yield AgentOutput(type=AgentOutputType.DONE)
 
-    mock_tool_manager = MagicMock()
-    mock_tool_manager.get_openai_tools.return_value = []
-    config = BrainConfig()
+    agent = InterruptingAgent(interrupt_event)
+    graph = AgentGraph(agents={"interrupting": agent}, default_agent="interrupting")
 
-    brain = Brain(
-        llm=mock_llm,
-        tool_manager=mock_tool_manager,
-        config=config,
+    ctx = make_mock_context()
+    brain = make_brain(
         bus=bus,
         interrupt_event=interrupt_event,
+        context=ctx,
+        agent_graph=graph,
     )
 
     event = BrainInputEvent(
@@ -135,10 +149,8 @@ async def test_interrupted_response_saved_to_history(bus):
     # Should yield None (interrupted, no TTS)
     assert results[0][1] is None
 
-    # Partial response should be saved in conversation history
-    # History: [system, user_msg, assistant_partial]
-    history = brain._conversation_history
-    assistant_msgs = [m for m in history if m.get("role") == "assistant"]
-    assert len(assistant_msgs) == 1
+    # Partial response should be saved via context.finish_turn
+    ctx.finish_turn.assert_called_once()
+    saved_text = ctx.finish_turn.call_args[0][0]
     # At least the first two chunks were accumulated before interrupt
-    assert "The weather " in assistant_msgs[0]["content"]
+    assert "The weather " in saved_text

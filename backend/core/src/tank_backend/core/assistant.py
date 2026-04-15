@@ -12,7 +12,6 @@ from typing import Any
 from ..audio.input.types import AudioFrame, AudioSourceFactory
 from ..audio.output.types import AudioSinkFactory
 from ..llm.profile import create_llm_from_profile
-from ..memory import MemoryConfig, MemoryService
 from ..pipeline import Bus, BusMessage, Pipeline, PipelineBuilder
 from ..pipeline.event import EventDirection, PipelineEvent
 from ..pipeline.observers import (
@@ -67,7 +66,7 @@ class Assistant:
         registry = self._init_config_and_llm()
         self._init_bus()
         self._init_tools()
-        self._init_memory()
+        self._init_context()
 
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()
@@ -122,35 +121,22 @@ class Assistant:
             bus=self._bus,
         )
 
-        self._checkpointer = self._create_checkpointer()
+    def _init_context(self) -> None:
+        """Create ContextManager — owns session lifecycle, memory, prompt assembly."""
+        from ..context import ContextConfig, ContextManager
 
-    def _init_memory(self) -> None:
-        """Create optional MemoryService from config.yaml ``memory:`` section."""
-        memory_raw = self._app_config.get_section("memory", {"enabled": False})
-        memory_config = MemoryConfig.from_dict(memory_raw)
-
-        self._memory_service: MemoryService | None = None
-        if not memory_config.enabled:
-            return
-
-        # Inherit LLM credentials from the default profile when not explicitly set
-        profile = self._app_config.get_llm_profile("default")
-        resolved_config = MemoryConfig(
-            enabled=True,
-            db_path=memory_config.db_path,
-            llm_api_key=memory_config.llm_api_key or profile.api_key,
-            llm_base_url=memory_config.llm_base_url or profile.base_url,
-            llm_model=memory_config.llm_model or "",
-            search_limit=memory_config.search_limit,
+        ctx_raw = self._app_config.get_section("context", {})
+        brain_raw = self._app_config.get_section("brain", {"max_history_tokens": 8000})
+        context_config = ContextConfig(
+            max_history_tokens=brain_raw.get("max_history_tokens", 8000),
+            store_type=ctx_raw.get("store_type", "file"),
+            store_path=ctx_raw.get("store_path", "~/.tank/sessions"),
         )
-
-        try:
-            self._memory_service = MemoryService(resolved_config)
-            logger.info("Memory service initialised (db_path=%s)", resolved_config.db_path)
-        except Exception:
-            logger.warning("Failed to initialise memory service — continuing without it",
-                           exc_info=True)
-            self._memory_service = None
+        self._context = ContextManager(
+            app_config=self._app_config,
+            bus=self._bus,
+            config=context_config,
+        )
 
     def _init_bus(self) -> None:
         """Create bus, subscribe UI and playback tracking events."""
@@ -188,7 +174,6 @@ class Assistant:
 
         self._add_input_processors(builder, registry, asr_engine, echo_guard_cfg)
 
-        llm_summarization = self._create_summarization_llm()
         agent_graph = self._build_agent_graph()
 
         self.brain = Brain(
@@ -197,13 +182,11 @@ class Assistant:
             config=self._brain_config,
             bus=self._bus,
             interrupt_event=self.runtime.interrupt_event,
+            context=self._context,
             tts_enabled=tts_engine is not None,
             echo_guard_config=echo_guard_cfg,
-            llm_summarization=llm_summarization,
-            checkpointer=self._checkpointer,
             agent_graph=agent_graph,
             approval_manager=self._tool_manager.approval_manager,
-            memory_service=self._memory_service,
         )
         builder.add(self.brain)
 
@@ -340,14 +323,6 @@ class Assistant:
             logger.warning("Failed to create voiceprint recognizer", exc_info=True)
             return None
 
-    def _create_summarization_llm(self) -> object | None:
-        """Create optional summarization LLM from 'summarization' profile, or None."""
-        try:
-            profile = self._app_config.get_llm_profile("summarization")
-            return create_llm_from_profile(profile)
-        except (KeyError, ValueError):
-            return None
-
     def _build_agent_graph(self) -> object:
         """Build AgentGraph with a main ChatAgent that has all tools + agent tool."""
         from ..agents.definition import load_agent_definitions
@@ -442,18 +417,6 @@ class Assistant:
             prompt += f"\nAvailable agents:\n{agent_catalog}\n"
         return prompt
 
-    def _create_checkpointer(self) -> object | None:
-        """Create Checkpointer if persistence is enabled in config, or None."""
-        persistence_cfg = self._app_config.get_section("persistence")
-        if not persistence_cfg.get("enabled", False):
-            return None
-
-        from ..persistence.checkpointer import Checkpointer
-
-        db_path = persistence_cfg.get("db_path", "../data/sessions.db")
-        logger.info("Persistence enabled: %s", db_path)
-        return Checkpointer(db_path)
-
     def _build_echo_guard_config(self, raw: dict) -> EchoGuardConfig:
         """Build EchoGuardConfig from config.yaml echo_guard section."""
         if not raw:
@@ -475,8 +438,8 @@ class Assistant:
     # ------------------------------------------------------------------
 
     def set_session_id(self, session_id: str) -> None:
-        """Forward session ID to Brain for checkpoint loading."""
-        self.brain.set_session_id(session_id)
+        """Resume a specific session by ID."""
+        self._context.resume_session(session_id)
 
     @property
     def capabilities(self) -> dict[str, bool]:
@@ -560,8 +523,7 @@ class Assistant:
 
         await self._tool_manager.cleanup()
 
-        if self._checkpointer is not None:
-            self._checkpointer.close()
+        self.brain.close()
 
         logger.info("Assistant stopped")
 

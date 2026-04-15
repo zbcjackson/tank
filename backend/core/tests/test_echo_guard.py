@@ -314,10 +314,9 @@ class TestPlaybackProcessorSignals:
 
 class TestBrainEchoGuard:
     def _make_brain(self, bus=None, echo_config=None):
-        import threading
         from unittest.mock import MagicMock
 
-        from tank_backend.pipeline.processors.brain import Brain, BrainConfig
+        from brain_test_helpers import make_brain
 
         if bus is None:
             bus = Bus()
@@ -326,12 +325,10 @@ class TestBrainEchoGuard:
         mock_tool_manager = MagicMock()
         mock_tool_manager.get_openai_tools.return_value = []
 
-        brain = Brain(
+        brain = make_brain(
             llm=mock_llm,
             tool_manager=mock_tool_manager,
-            config=BrainConfig(),
             bus=bus,
-            interrupt_event=threading.Event(),
             echo_guard_config=echo_config,
         )
         return brain

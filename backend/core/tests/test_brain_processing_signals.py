@@ -1,13 +1,13 @@
 """Tests for Brain processing_started/ended signals via Bus."""
 
-import threading
 from unittest.mock import MagicMock
 
 import pytest
+from brain_test_helpers import make_brain
 
 from tank_backend.core.events import BrainInputEvent, InputType, SignalMessage, UpdateType
 from tank_backend.pipeline.bus import Bus
-from tank_backend.pipeline.processors.brain import Brain, BrainConfig
+from tank_backend.pipeline.processors.brain import BrainConfig
 
 
 async def _collect(processor, item):
@@ -39,12 +39,11 @@ def brain(bus, mock_llm):
     mock_tool_manager.get_openai_tools.return_value = []
     config = BrainConfig()
 
-    return Brain(
+    return make_brain(
         llm=mock_llm,
         tool_manager=mock_tool_manager,
         config=config,
         bus=bus,
-        interrupt_event=threading.Event(),
     )
 
 

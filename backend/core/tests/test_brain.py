@@ -4,11 +4,12 @@ import threading
 from unittest.mock import MagicMock
 
 import pytest
+from brain_test_helpers import make_brain, make_mock_context
 
 from tank_backend.core.events import BrainInputEvent, InputType
 from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.processor import FlowReturn, Processor
-from tank_backend.pipeline.processors.brain import Brain, BrainConfig
+from tank_backend.pipeline.processors.brain import BrainConfig
 
 
 async def _collect(processor, item):
@@ -43,13 +44,18 @@ class TestBrain:
         return BrainConfig()
 
     @pytest.fixture
-    def brain(self, mock_llm, mock_tool_manager, mock_config, bus, interrupt_event):
-        return Brain(
+    def mock_context(self):
+        return make_mock_context()
+
+    @pytest.fixture
+    def brain(self, mock_llm, mock_tool_manager, mock_config, bus, interrupt_event, mock_context):
+        return make_brain(
             llm=mock_llm,
             tool_manager=mock_tool_manager,
             config=mock_config,
             bus=bus,
             interrupt_event=interrupt_event,
+            context=mock_context,
         )
 
     def test_brain_inherits_from_processor(self, brain):
@@ -65,29 +71,20 @@ class TestBrain:
         assert hasattr(brain, "process")
         assert callable(brain.process)
 
-    def test_brain_loads_system_prompt(self, brain):
-        """Brain should load system prompt from file."""
-        assert hasattr(brain, "_system_prompt")
-        assert isinstance(brain._system_prompt, str)
-        assert len(brain._system_prompt) > 0
-        assert "Tank" in brain._system_prompt
+    def test_brain_has_context(self, brain, mock_context):
+        """Brain should have a context manager."""
+        assert brain._context is mock_context
 
-    def test_brain_initializes_conversation_history_with_system(self, brain):
-        """Brain should initialize conversation history with system prompt as first message."""
-        assert hasattr(brain, "_conversation_history")
-        assert len(brain._conversation_history) == 1
-        assert brain._conversation_history[0]["role"] == "system"
-        assert brain._conversation_history[0]["content"] == brain._system_prompt
+    def test_brain_initializes_with_context_messages(self, brain, mock_context):
+        """Brain should use context for conversation history."""
+        assert mock_context.resume_or_new.called
+        assert len(mock_context.messages) == 1
+        assert mock_context.messages[0]["role"] == "system"
 
-    async def test_brain_includes_speaker_name_in_conversation_history(
-        self, brain, mock_llm
+    async def test_brain_includes_speaker_name_via_context(
+        self, brain, mock_llm, mock_context
     ):
-        """Brain should include speaker name in conversation history."""
-
-        async def mock_chat_stream(*args, **kwargs):
-            yield ("text", "Hello!", {})
-
-        mock_llm.chat_stream = mock_chat_stream
+        """Brain should pass speaker name to context.prepare_turn."""
         mock_llm.get_openai_tools = MagicMock(return_value=[])
         brain._tool_manager.get_openai_tools.return_value = []
 
@@ -101,19 +98,13 @@ class TestBrain:
 
         await _collect(brain, event)
 
-        assert len(brain._conversation_history) >= 2
-        user_message = brain._conversation_history[1]
-        assert user_message["role"] == "user"
-        assert user_message["name"] == "Jackson"
-        assert user_message["content"] == "What's the weather?"
+        mock_context.prepare_turn.assert_called_once()
+        call_args = mock_context.prepare_turn.call_args
+        assert call_args[0][0] == "Jackson"
+        assert call_args[0][1] == "What's the weather?"
 
-    async def test_brain_handles_unknown_speaker(self, brain, mock_llm):
+    async def test_brain_handles_unknown_speaker(self, brain, mock_llm, mock_context):
         """Brain should handle Unknown speaker gracefully."""
-
-        async def mock_chat_stream(*args, **kwargs):
-            yield ("text", "Hello!", {})
-
-        mock_llm.chat_stream = mock_chat_stream
         brain._tool_manager.get_openai_tools.return_value = []
 
         event = BrainInputEvent(
@@ -126,15 +117,9 @@ class TestBrain:
 
         await _collect(brain, event)
 
-        assert len(brain._conversation_history) >= 2
-        user_message = brain._conversation_history[1]
-        assert user_message["role"] == "user"
-        assert user_message["name"] == "Unknown"
-
-    def test_system_prompt_includes_speaker_awareness(self, brain):
-        """System prompt should mention speaker awareness."""
-        assert "SPEAKER AWARENESS" in brain._system_prompt
-        assert "speaker" in brain._system_prompt.lower()
+        mock_context.prepare_turn.assert_called_once()
+        call_args = mock_context.prepare_turn.call_args
+        assert call_args[0][0] == "Unknown"
 
     async def test_brain_skips_blank_text(self, brain, mock_llm):
         """Brain should skip events with blank text."""

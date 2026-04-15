@@ -264,11 +264,11 @@ skills:
   # "high" = auto-approve everything except critical (dangerous patterns)
   auto_approve_threshold: low
 
-# Conversation persistence — save/restore conversation history across restarts.
-# Disabled by default. Enable and set db_path to activate.
-persistence:
-  enabled: false
-  db_path: ../data/sessions.db
+# Context — session persistence and conversation history management.
+# store_type: "file" (one JSON per session in store_path dir) or "sqlite" (single DB file).
+context:
+  store_type: file
+  store_path: ~/.tank/sessions
 
 # Memory — persistent cross-session memory using mem0.
 # Extracts facts from conversations and recalls them for personalization.

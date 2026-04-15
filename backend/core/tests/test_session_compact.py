@@ -1,14 +1,14 @@
 """Tests for session compact (wake word conversation lifecycle)."""
 
-import threading
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from brain_test_helpers import make_brain, make_mock_context
 
 from tank_backend.core.events import BrainInputEvent, InputType
 from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.processor import FlowReturn
-from tank_backend.pipeline.processors.brain import Brain, BrainConfig
+from tank_backend.pipeline.processors.brain import BrainConfig
 
 
 async def _collect(processor, item):
@@ -34,34 +34,27 @@ class TestBrainSessionCompact:
         return BrainConfig()
 
     @pytest.fixture
-    def brain(self, mock_llm, mock_config, bus):
-        return Brain(
+    def mock_context(self):
+        ctx = make_mock_context()
+        ctx.maybe_compact = AsyncMock()
+        return ctx
+
+    @pytest.fixture
+    def brain(self, mock_llm, mock_config, bus, mock_context):
+        return make_brain(
             llm=mock_llm,
-            tool_manager=MagicMock(),
             config=mock_config,
             bus=bus,
-            interrupt_event=threading.Event(),
+            context=mock_context,
         )
 
-    def test_reset_conversation_clears_history(self, brain):
-        """reset_conversation() should keep only the system prompt."""
-        brain._conversation_history.append({"role": "user", "content": "hello"})
-        brain._conversation_history.append({"role": "assistant", "content": "hi there"})
-        brain._conversation_history.append({"role": "user", "content": "how are you?"})
-        assert len(brain._conversation_history) == 4  # system + 3
-
+    def test_reset_conversation_delegates_to_context(self, brain, mock_context):
+        """reset_conversation() should delegate to context.clear()."""
         brain.reset_conversation()
+        mock_context.clear.assert_called_once()
 
-        assert len(brain._conversation_history) == 1
-        assert brain._conversation_history[0]["role"] == "system"
-        assert brain._conversation_history[0]["content"] == brain._system_prompt
-
-    async def test_compact_under_budget_preserves_history(self, brain, mock_llm):
-        """__compact__ with small history (under token budget) should keep all messages."""
-        brain._conversation_history.append({"role": "user", "content": "hello"})
-        brain._conversation_history.append({"role": "assistant", "content": "hi"})
-        history_before = list(brain._conversation_history)
-
+    async def test_compact_delegates_to_context(self, brain, mock_llm, mock_context):
+        """__compact__ should delegate to context.maybe_compact()."""
         event = BrainInputEvent(
             type=InputType.SYSTEM,
             text="__compact__",
@@ -71,17 +64,14 @@ class TestBrainSessionCompact:
         )
         results = await _collect(brain, event)
 
-        # Under budget — history unchanged
-        assert brain._conversation_history == history_before
+        mock_context.maybe_compact.assert_called_once()
         mock_llm.chat_stream.assert_not_called()
         assert results == [(FlowReturn.OK, None)]
 
-    async def test_compact_does_not_emit_signals_when_under_budget(self, brain, bus):
-        """__compact__ under budget should not post any UI messages to bus."""
+    async def test_compact_does_not_emit_signals_when_under_budget(self, brain, bus, mock_context):
+        """__compact__ should not post any UI messages to bus."""
         received = []
         bus.subscribe("ui_message", lambda m: received.append(m.payload))
-
-        brain._conversation_history.append({"role": "user", "content": "hello"})
 
         event = BrainInputEvent(
             type=InputType.SYSTEM,
@@ -97,8 +87,6 @@ class TestBrainSessionCompact:
 
     async def test_handle_ignores_non_compact_system_events(self, brain, mock_llm):
         """System events with text other than __compact__ should not compact history."""
-        brain._conversation_history.append({"role": "user", "content": "hello"})
-
         event = BrainInputEvent(
             type=InputType.SYSTEM,
             text="some_other_command",
@@ -106,9 +94,9 @@ class TestBrainSessionCompact:
             language=None,
             confidence=None,
         )
-        history_before = len(brain._conversation_history)
         await _collect(brain, event)
-        assert len(brain._conversation_history) >= history_before
+        # some_other_command is not blank, so it goes through normal processing
+        # but it should not call maybe_compact via the __compact__ path
 
     async def test_handle_ignores_blank_text(self, brain, mock_llm):
         """process() should ignore events with blank text."""

@@ -3,11 +3,13 @@
 import threading
 from unittest.mock import MagicMock
 
+from brain_test_helpers import make_brain
+
 from tank_backend.agents.base import Agent, AgentOutput, AgentOutputType
 from tank_backend.agents.graph import AgentGraph
 from tank_backend.core.events import BrainInputEvent, InputType
 from tank_backend.pipeline.bus import Bus
-from tank_backend.pipeline.processors.brain import Brain, BrainConfig
+from tank_backend.pipeline.processors.brain import BrainConfig
 
 
 class _SlowAgent(Agent):
@@ -25,7 +27,7 @@ class _SlowAgent(Agent):
         yield AgentOutput(type=AgentOutputType.DONE)
 
 
-def _make_brain(agent_graph):
+def _make_brain_with_graph(agent_graph):
     """Create a Brain with minimal mocks."""
     llm = MagicMock()
     tool_manager = MagicMock()
@@ -34,7 +36,7 @@ def _make_brain(agent_graph):
     interrupt_event = threading.Event()
     config = BrainConfig(max_history_tokens=8000)
 
-    brain = Brain(
+    brain = make_brain(
         llm=llm,
         tool_manager=tool_manager,
         config=config,
@@ -72,7 +74,7 @@ class TestBrainInterruptResume:
         slow_agent = _SlowAgent(interrupt_event)
         graph = AgentGraph(agents={"slow": slow_agent}, default_agent="slow")
 
-        brain, bus, _ = _make_brain(agent_graph=graph)
+        brain, bus, _ = _make_brain_with_graph(agent_graph=graph)
         brain._interrupt_event = interrupt_event
 
         # First event — will be interrupted
@@ -111,23 +113,19 @@ class TestProcessViaAgentsInterrupt:
     """Tests for _process_via_agents interrupt handling improvements."""
 
     async def test_saves_partial_response_on_interrupt(self):
-        """Partial response text should be saved to conversation history on interrupt."""
+        """Partial response text should be saved via context.finish_turn on interrupt."""
         interrupt_event = threading.Event()
         slow_agent = _SlowAgent(interrupt_event)
         graph = AgentGraph(agents={"slow": slow_agent}, default_agent="slow")
 
-        brain, bus, _ = _make_brain(agent_graph=graph)
+        brain, bus, _ = _make_brain_with_graph(agent_graph=graph)
         brain._interrupt_event = interrupt_event
 
         event = _make_event("hello")
         await _collect(brain, event)
 
-        # The partial text "partial" should be in conversation history
-        assistant_msgs = [
-            m for m in brain._conversation_history if m["role"] == "assistant"
-        ]
-        assert len(assistant_msgs) == 1
-        assert assistant_msgs[0]["content"] == "partial"
+        # The partial text "partial" should have been saved via context.finish_turn
+        brain._context.finish_turn.assert_called_once_with("partial")
 
     async def test_closes_generator_on_interrupt(self):
         """The agent graph generator should be properly closed on interrupt."""
@@ -148,7 +146,7 @@ class TestProcessViaAgentsInterrupt:
         # Monkey-patch the graph's run method to track closure
         graph.run = lambda state: tracking_run(graph, state)
 
-        brain, bus, _ = _make_brain(agent_graph=graph)
+        brain, bus, _ = _make_brain_with_graph(agent_graph=graph)
         brain._interrupt_event = interrupt_event
 
         event = _make_event("hello")
