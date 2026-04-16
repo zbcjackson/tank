@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     import threading
 
     from ...agents.graph import AgentGraph
-    from ...context import ContextManager
     from ...llm.llm import LLM
     from ...tools.manager import ToolManager
 
@@ -57,7 +56,7 @@ class Brain(Processor):
         config: BrainConfig,
         bus: Bus,
         interrupt_event: "threading.Event",
-        context: "ContextManager",
+        app_config: Any = None,
         tts_enabled: bool = True,
         echo_guard_config: EchoGuardConfig | None = None,
         agent_graph: "AgentGraph | None" = None,
@@ -71,7 +70,6 @@ class Brain(Processor):
         self._interrupt_event = interrupt_event
         self._tts_enabled = tts_enabled
         self._approval_manager = approval_manager
-        self._context = context
 
         # Register approval notification callback so sub-agent approvals
         # go through the same Bus path as main agent approvals.
@@ -87,6 +85,21 @@ class Brain(Processor):
         # Echo guard — self-echo text detection (Layer 2)
         self._echo_config = echo_guard_config or EchoGuardConfig()
         self._echo_detector = SelfEchoDetector(self._echo_config)
+
+        # Create ContextManager — owns session lifecycle, memory, prompt assembly
+        from ...context import ContextConfig, ContextManager
+
+        ctx_raw = app_config.get_section("context", {}) if app_config else {}
+        context_config = ContextConfig(
+            max_history_tokens=config.max_history_tokens,
+            store_type=ctx_raw.get("store_type", "file"),
+            store_path=ctx_raw.get("store_path", "~/.tank/sessions"),
+        )
+        self._context = ContextManager(
+            app_config=app_config,
+            bus=bus,
+            config=context_config,
+        )
 
         # Start or resume session
         self._context.resume_or_new()

@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAssistant } from './hooks/useAssistant';
 import { VoiceMode } from './components/Assistant/VoiceMode';
 import { ChatMode } from './components/Assistant/ChatMode';
 import { ModeToggle } from './components/Assistant/ModeToggle';
 import { ConnectionStatusOverlay } from './components/Assistant/ConnectionStatusOverlay';
+import { SessionList } from './components/Assistant/SessionList';
 import { AnimatePresence } from 'framer-motion';
+import { Menu } from 'lucide-react';
 import type { WakeWordDetector } from './services/wakeWordDetector';
 import { createWakeWordDetector, type WakeWordEngine } from './services/wakeWordFactory';
 
@@ -49,6 +51,8 @@ function useWakeWordDetector(): WakeWordDetector | null {
 
 function App() {
   const wakeWordDetector = useWakeWordDetector();
+  const [sessionListOpen, setSessionListOpen] = useState(false);
+  const [activeContextSessionId, setActiveContextSessionId] = useState<string | null>(null);
 
   const {
     steps,
@@ -66,11 +70,28 @@ function App() {
     manualReconnect,
     pauseAudioCapture,
     resumeAudioCapture,
+    resumeSession,
+    newSession,
     capabilities,
     conversationState,
     wakeWordKeyword,
     ttsRms,
   } = useAssistant(SESSION_ID, wakeWordDetector);
+
+  const handleSelectSession = useCallback(
+    async (contextSessionId: string) => {
+      setSessionListOpen(false);
+      setActiveContextSessionId(contextSessionId);
+      await resumeSession(contextSessionId);
+    },
+    [resumeSession],
+  );
+
+  const handleNewSession = useCallback(() => {
+    setSessionListOpen(false);
+    setActiveContextSessionId(null);
+    newSession();
+  }, [newSession]);
 
   const statusText = connectionState === 'connected' ? undefined : `Status: ${connectionState}`;
 
@@ -81,6 +102,24 @@ function App() {
         metadata={connectionMetadata}
         onReconnect={manualReconnect}
       />
+
+      {/* Session list sidebar */}
+      <SessionList
+        open={sessionListOpen}
+        onClose={() => setSessionListOpen(false)}
+        onSelectSession={handleSelectSession}
+        onNewSession={handleNewSession}
+        activeSessionId={activeContextSessionId}
+      />
+
+      {/* Session list toggle button */}
+      <button
+        onClick={() => setSessionListOpen(true)}
+        className="absolute top-3 right-3 z-30 p-2 rounded-lg bg-neutral-800/60 hover:bg-neutral-700/80 text-neutral-400 hover:text-neutral-200 transition-colors backdrop-blur-sm"
+        title="Sessions"
+      >
+        <Menu size={18} />
+      </button>
 
       <main className="flex-1 relative overflow-hidden">
         <AnimatePresence mode="wait">

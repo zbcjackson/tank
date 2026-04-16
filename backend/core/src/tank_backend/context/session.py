@@ -65,6 +65,7 @@ class SessionSummary:
     id: str
     start_time: datetime
     message_count: int
+    preview: str = ""
 
 
 @runtime_checkable

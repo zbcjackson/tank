@@ -290,7 +290,14 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
     ]);
   }, []);
 
+  /**
+   * Load history steps from a resumed session, replacing current steps.
+   */
+  const loadHistory = useCallback((historySteps: Step[]) => {
+    setSteps(historySteps);
+  }, []);
+
   const messages = useMemo(() => groupStepsByMsgId(steps), [steps]);
 
-  return { steps, messages, latestMessage, handleMessage, clearSteps, addLocalUserStep };
+  return { steps, messages, latestMessage, handleMessage, clearSteps, addLocalUserStep, loadHistory };
 }

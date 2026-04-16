@@ -49,7 +49,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     [dispatchStatus],
   );
 
-  const { steps, messages, latestMessage, handleMessage, addLocalUserStep } =
+  const { steps, messages, latestMessage, handleMessage, addLocalUserStep, loadHistory } =
     useMessageReducer(messageCallbacks);
 
   // --- Audio pipeline ---
@@ -184,6 +184,48 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     audioProcessorRef.current?.resume();
   }, [audioProcessorRef]);
 
+  /**
+   * Resume a persisted context session: load history into UI and tell backend to switch.
+   */
+  const resumeSession = useCallback(
+    async (contextSessionId: string) => {
+      const { fetchSessionMessages } = await import('./useSessionList');
+      try {
+        const historyMsgs = await fetchSessionMessages(contextSessionId);
+        // Convert backend messages to Step[]
+        const historySteps: Step[] = historyMsgs.map((m, i) => ({
+          id: `history_${i}`,
+          role: m.role as 'user' | 'assistant',
+          type: 'text' as StepType,
+          content: m.content,
+          msgId: m.msg_id,
+          isFinal: true,
+          speaker: m.name,
+        }));
+        loadHistory(historySteps);
+
+        // Tell backend to switch context session
+        clientRef.current?.sendMessage('signal', 'resume_session', {
+          context_session_id: contextSessionId,
+        });
+
+        // Switch to chat mode to show history
+        setMode('chat');
+      } catch (e) {
+        console.error('Failed to resume session:', e);
+      }
+    },
+    [clientRef, loadHistory],
+  );
+
+  /**
+   * Start a new context session: clear UI and tell backend.
+   */
+  const newSession = useCallback(() => {
+    loadHistory([]);
+    clientRef.current?.sendMessage('signal', 'new_session', {});
+  }, [clientRef, loadHistory]);
+
   return {
     steps,
     messages,
@@ -206,6 +248,8 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     manualReconnect,
     pauseAudioCapture,
     resumeAudioCapture,
+    resumeSession,
+    newSession,
     ttsRms,
   };
 };

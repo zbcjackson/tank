@@ -66,10 +66,11 @@ class TestSessionLifecycle:
         store.find_latest.assert_called_once()
 
     def test_resume_or_new_resumes_same_day_session(self):
-        now = datetime.now(timezone.utc)
+        # Use noon UTC today to avoid midnight boundary issues
+        today_noon = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
         existing = SessionData(
             id="existing-id",
-            start_time=now - timedelta(hours=2),
+            start_time=today_noon - timedelta(hours=1),
             pid=1,
             messages=[
                 {"role": "system", "content": "old prompt"},
@@ -80,7 +81,15 @@ class TestSessionLifecycle:
         store.find_latest.return_value = existing
         mgr = _make_manager(store=store)
 
-        with patch.object(mgr._prompt_assembler, "assemble", return_value="new prompt"):
+        # Patch both the assembler and datetime.now so "today" matches
+        with (
+            patch.object(mgr._prompt_assembler, "assemble", return_value="new prompt"),
+            patch(
+                "tank_backend.context.manager.datetime",
+                wraps=datetime,
+            ) as mock_dt,
+        ):
+            mock_dt.now.return_value = today_noon
             sid = mgr.resume_or_new()
         assert sid == "existing-id"
         assert len(mgr.messages) == 2  # preserved messages

@@ -66,7 +66,6 @@ class Assistant:
         registry = self._init_config_and_llm()
         self._init_bus()
         self._init_tools()
-        self._init_context()
 
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()
@@ -121,23 +120,6 @@ class Assistant:
             bus=self._bus,
         )
 
-    def _init_context(self) -> None:
-        """Create ContextManager — owns session lifecycle, memory, prompt assembly."""
-        from ..context import ContextConfig, ContextManager
-
-        ctx_raw = self._app_config.get_section("context", {})
-        brain_raw = self._app_config.get_section("brain", {"max_history_tokens": 8000})
-        context_config = ContextConfig(
-            max_history_tokens=brain_raw.get("max_history_tokens", 8000),
-            store_type=ctx_raw.get("store_type", "file"),
-            store_path=ctx_raw.get("store_path", "~/.tank/sessions"),
-        )
-        self._context = ContextManager(
-            app_config=self._app_config,
-            bus=self._bus,
-            config=context_config,
-        )
-
     def _init_bus(self) -> None:
         """Create bus, subscribe UI and playback tracking events."""
         self._bus = Bus()
@@ -182,7 +164,7 @@ class Assistant:
             config=self._brain_config,
             bus=self._bus,
             interrupt_event=self.runtime.interrupt_event,
-            context=self._context,
+            app_config=self._app_config,
             tts_enabled=tts_engine is not None,
             echo_guard_config=echo_guard_cfg,
             agent_graph=agent_graph,
@@ -439,7 +421,16 @@ class Assistant:
 
     def set_session_id(self, session_id: str) -> None:
         """Resume a specific session by ID."""
-        self._context.resume_session(session_id)
+        self.brain._context.resume_session(session_id)
+
+    def resume_context_session(self, context_session_id: str) -> bool:
+        """Resume a persisted context session by its UUID. Returns False if not found."""
+        return self.brain._context.resume_session(context_session_id)
+
+    def new_context_session(self) -> str:
+        """Clear context and start a new session. Returns new session ID."""
+        self.brain.reset_conversation()
+        return self.brain.session_id or ""
 
     @property
     def capabilities(self) -> dict[str, bool]:

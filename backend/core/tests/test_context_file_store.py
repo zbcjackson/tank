@@ -105,7 +105,33 @@ class TestFileSessionStore:
 
     def test_file_is_valid_json(self, store, sample_session, tmp_path):
         store.save(sample_session)
-        files = list(tmp_path.glob("*.json"))
+        files = [f for f in tmp_path.glob("*.json") if f.name != "index.json"]
         assert len(files) == 1
         data = json.loads(files[0].read_text())
         assert data["id"] == "abc123"
+
+    def test_index_file_created(self, store, sample_session, tmp_path):
+        store.save(sample_session)
+        index_path = tmp_path / "index.json"
+        assert index_path.exists()
+        index = json.loads(index_path.read_text())
+        assert "abc123" in index
+        assert index["abc123"]["file"] == "20260414_103000.json"
+
+    def test_index_has_preview(self, store, sample_session, tmp_path):
+        store.save(sample_session)
+        index = json.loads((tmp_path / "index.json").read_text())
+        assert index["abc123"]["preview"] == "Hello"
+
+    def test_load_uses_index(self, store, sample_session):
+        store.save(sample_session)
+        loaded = store.load("abc123")
+        assert loaded is not None
+        assert loaded.id == "abc123"
+
+    def test_load_stale_index_entry(self, store, sample_session, tmp_path):
+        store.save(sample_session)
+        # Delete the session file but keep index
+        session_file = tmp_path / "20260414_103000.json"
+        session_file.unlink()
+        assert store.load("abc123") is None

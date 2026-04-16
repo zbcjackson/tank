@@ -17,6 +17,8 @@ from .approvals import set_session_manager as set_approvals_session_manager  # n
 from .metrics import router as metrics_router  # noqa: E402
 from .metrics import set_session_manager as set_metrics_session_manager  # noqa: E402
 from .router import router, session_manager  # noqa: E402
+from .sessions import init_session_store  # noqa: E402
+from .sessions import router as sessions_router  # noqa: E402
 from .speakers import router as speakers_router  # noqa: E402
 from .speakers import set_session_manager  # noqa: E402
 
@@ -43,9 +45,26 @@ app.include_router(router)
 app.include_router(speakers_router)
 app.include_router(metrics_router)
 app.include_router(approvals_router)
+app.include_router(sessions_router)
 set_session_manager(session_manager)
 set_metrics_session_manager(session_manager)
 set_approvals_session_manager(session_manager)
+
+# Initialize session store for the REST sessions API
+try:
+    from ..plugin import AppConfig
+    from ..plugin.manager import PluginManager
+
+    _pm = PluginManager()
+    _reg = _pm.load_all()
+    _cfg = AppConfig(registry=_reg)
+    _ctx_raw = _cfg.get_section("context", {})
+    init_session_store(
+        store_type=_ctx_raw.get("store_type", "file"),
+        store_path=_ctx_raw.get("store_path", "~/.tank/sessions"),
+    )
+except Exception:
+    logger.warning("Failed to init session store for REST API", exc_info=True)
 
 
 @app.get("/health")

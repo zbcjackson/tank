@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.processors.brain import Brain, BrainConfig
@@ -17,7 +17,6 @@ def make_mock_context(system_prompt: str = "You are a helpful assistant.") -> Ma
     ctx.resume_or_new.return_value = "test-session-id"
     ctx.prepare_turn.return_value = [{"role": "system", "content": system_prompt}]
     ctx.count_tokens.return_value = 0
-    # Async methods must be AsyncMock so they can be awaited
     ctx.recall_memory = AsyncMock()
     ctx.maybe_compact = AsyncMock()
     return ctx
@@ -50,15 +49,26 @@ def make_brain(
     if context is None:
         context = make_mock_context()
 
-    return Brain(
-        llm=llm,
-        tool_manager=tool_manager,
-        config=config,
-        bus=bus,
-        interrupt_event=interrupt_event,
-        context=context,
-        tts_enabled=tts_enabled,
-        echo_guard_config=echo_guard_config,
-        agent_graph=agent_graph,
-        approval_manager=approval_manager,
-    )
+    mock_app_config = MagicMock()
+    mock_app_config.get_section.return_value = {}
+
+    # Brain does: from ...context import ContextConfig, ContextManager
+    # which resolves via tank_backend.context.__init__ → .manager.ContextManager
+    # Patch at the __init__ re-export level so the local import picks it up.
+    mock_cm_class = MagicMock(return_value=context)
+    with patch.dict(
+        "tank_backend.context.__dict__",
+        {"ContextManager": mock_cm_class},
+    ):
+        return Brain(
+            llm=llm,
+            tool_manager=tool_manager,
+            config=config,
+            bus=bus,
+            interrupt_event=interrupt_event,
+            app_config=mock_app_config,
+            tts_enabled=tts_enabled,
+            echo_guard_config=echo_guard_config,
+            agent_graph=agent_graph,
+            approval_manager=approval_manager,
+        )

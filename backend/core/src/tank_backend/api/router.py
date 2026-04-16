@@ -183,6 +183,38 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                                 metadata=msg.metadata.copy() if msg.metadata else {},
                             ).model_dump_json()
                         )
+                    elif msg.content == "resume_session":
+                        ctx_sid = (msg.metadata or {}).get("context_session_id", "")
+                        if ctx_sid:
+                            success = assistant.resume_context_session(ctx_sid)
+                            status = "session_resumed" if success else "session_resume_failed"
+                            await websocket.send_text(
+                                WebsocketMessage(
+                                    type=MessageType.SIGNAL,
+                                    content=status,
+                                    session_id=session_id,
+                                    metadata={"context_session_id": ctx_sid},
+                                ).model_dump_json()
+                            )
+                        else:
+                            await websocket.send_text(
+                                WebsocketMessage(
+                                    type=MessageType.SIGNAL,
+                                    content="session_resume_failed",
+                                    session_id=session_id,
+                                    metadata={"error": "missing context_session_id"},
+                                ).model_dump_json()
+                            )
+                    elif msg.content == "new_session":
+                        new_sid = assistant.new_context_session()
+                        await websocket.send_text(
+                            WebsocketMessage(
+                                type=MessageType.SIGNAL,
+                                content="session_created",
+                                session_id=session_id,
+                                metadata={"context_session_id": new_sid},
+                            ).model_dump_json()
+                        )
                 elif msg.type == MessageType.INPUT:
                     assistant.process_input(msg.content)
                 elif msg.type == MessageType.APPROVAL_RESPONSE:
