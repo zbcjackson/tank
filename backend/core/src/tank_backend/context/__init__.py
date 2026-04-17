@@ -1,15 +1,16 @@
-"""Context management — session lifecycle, conversation history, prompt assembly."""
+"""Context management — conversation lifecycle, conversation history, prompt assembly."""
 
 from .config import ContextConfig
+from .conversation import ConversationData, ConversationSummary, Summarizer
 from .manager import ContextManager
-from .session import SessionData, SessionSummary, Summarizer
-from .store import SessionStore
+from .store import ConversationStore, create_store
 
 __all__ = [
     "ContextConfig",
     "ContextManager",
-    "SessionData",
-    "SessionStore",
-    "SessionSummary",
+    "ConversationData",
+    "ConversationStore",
+    "ConversationSummary",
     "Summarizer",
+    "create_store",
 ]

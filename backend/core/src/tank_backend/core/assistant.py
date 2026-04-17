@@ -37,7 +37,6 @@ from ..pipeline.processors import (
     VADProcessor,
 )
 from ..plugin import AppConfig
-from ..plugin.manager import PluginManager
 from ..tools.manager import ToolManager
 from .events import BrainInputEvent, DisplayMessage, InputType, SignalMessage, UIMessage
 from .runtime import RuntimeContext
@@ -58,12 +57,13 @@ class Assistant:
 
     def __init__(
         self,
+        app_config: AppConfig | None = None,
         config_path: Path | None = None,
         on_exit_request: Callable[[], None] | None = None,
         audio_source_factory: AudioSourceFactory | None = None,
         audio_sink_factory: AudioSinkFactory | None = None,
     ) -> None:
-        registry = self._init_config_and_llm()
+        registry = self._init_config_and_llm(app_config)
         self._init_bus()
         self._init_tools()
 
@@ -88,12 +88,16 @@ class Assistant:
     # Initialization helpers (called once from __init__)
     # ------------------------------------------------------------------
 
-    def _init_config_and_llm(self) -> object:
-        """Load plugins, config, LLM, and brain config. Returns registry."""
-        self._plugin_manager = PluginManager()
-        registry = self._plugin_manager.load_all()
+    def _init_config_and_llm(self, app_config: AppConfig | None = None) -> object:
+        """Load config, LLM, and brain config. Returns registry.
 
-        self._app_config = AppConfig(registry=registry)
+        *app_config* is always provided by the caller (server.py or tests).
+        """
+        if app_config is None:
+            msg = "app_config is required — create via PluginManager + AppConfig in the caller"
+            raise ValueError(msg)
+        self._app_config = app_config
+
         profile = self._app_config.get_llm_profile("default")
         self._llm = create_llm_from_profile(profile)
 
@@ -111,7 +115,7 @@ class Assistant:
             "speech_interrupt_enabled", True
         )
 
-        return registry
+        return self._app_config._registry
 
     def _init_tools(self) -> None:
         """Create ToolManager — it owns all tool-domain concerns."""
@@ -420,17 +424,16 @@ class Assistant:
     # ------------------------------------------------------------------
 
     def set_session_id(self, session_id: str) -> None:
-        """Resume a specific session by ID."""
-        self.brain._context.resume_session(session_id)
+        """Resume a specific conversation by ID (legacy compat)."""
+        self.brain.resume_conversation(session_id)
 
-    def resume_context_session(self, context_session_id: str) -> bool:
-        """Resume a persisted context session by its UUID. Returns False if not found."""
-        return self.brain._context.resume_session(context_session_id)
+    def resume_conversation(self, conversation_id: str) -> bool:
+        """Resume a persisted conversation by its UUID. Returns False if not found."""
+        return self.brain.resume_conversation(conversation_id)
 
-    def new_context_session(self) -> str:
-        """Clear context and start a new session. Returns new session ID."""
-        self.brain.reset_conversation()
-        return self.brain.session_id or ""
+    def new_conversation(self) -> str:
+        """Start a new conversation. Returns new conversation ID."""
+        return self.brain.new_conversation()
 
     @property
     def capabilities(self) -> dict[str, bool]:

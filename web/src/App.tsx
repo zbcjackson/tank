@@ -4,7 +4,7 @@ import { VoiceMode } from './components/Assistant/VoiceMode';
 import { ChatMode } from './components/Assistant/ChatMode';
 import { ModeToggle } from './components/Assistant/ModeToggle';
 import { ConnectionStatusOverlay } from './components/Assistant/ConnectionStatusOverlay';
-import { SessionList } from './components/Assistant/SessionList';
+import { ConversationList } from './components/Assistant/ConversationList';
 import { AnimatePresence } from 'framer-motion';
 import { Menu } from 'lucide-react';
 import type { WakeWordDetector } from './services/wakeWordDetector';
@@ -51,8 +51,8 @@ function useWakeWordDetector(): WakeWordDetector | null {
 
 function App() {
   const wakeWordDetector = useWakeWordDetector();
-  const [sessionListOpen, setSessionListOpen] = useState(false);
-  const [activeContextSessionId, setActiveContextSessionId] = useState<string | null>(null);
+  const [conversationListOpen, setConversationListOpen] = useState(false);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
 
   const {
     steps,
@@ -70,28 +70,28 @@ function App() {
     manualReconnect,
     pauseAudioCapture,
     resumeAudioCapture,
-    resumeSession,
-    newSession,
+    resumeConversation,
+    newConversation,
     capabilities,
     conversationState,
     wakeWordKeyword,
     ttsRms,
   } = useAssistant(SESSION_ID, wakeWordDetector);
 
-  const handleSelectSession = useCallback(
-    async (contextSessionId: string) => {
-      setSessionListOpen(false);
-      setActiveContextSessionId(contextSessionId);
-      await resumeSession(contextSessionId);
+  const handleSelectConversation = useCallback(
+    async (conversationId: string) => {
+      setConversationListOpen(false);
+      setActiveConversationId(conversationId);
+      await resumeConversation(conversationId);
     },
-    [resumeSession],
+    [resumeConversation],
   );
 
-  const handleNewSession = useCallback(() => {
-    setSessionListOpen(false);
-    setActiveContextSessionId(null);
-    newSession();
-  }, [newSession]);
+  const handleNewConversation = useCallback(() => {
+    setConversationListOpen(false);
+    setActiveConversationId(null);
+    newConversation();
+  }, [newConversation]);
 
   const statusText = connectionState === 'connected' ? undefined : `Status: ${connectionState}`;
 
@@ -103,20 +103,21 @@ function App() {
         onReconnect={manualReconnect}
       />
 
-      {/* Session list sidebar */}
-      <SessionList
-        open={sessionListOpen}
-        onClose={() => setSessionListOpen(false)}
-        onSelectSession={handleSelectSession}
-        onNewSession={handleNewSession}
-        activeSessionId={activeContextSessionId}
+      {/* Conversation list sidebar */}
+      <ConversationList
+        open={conversationListOpen}
+        onClose={() => setConversationListOpen(false)}
+        onSelectConversation={handleSelectConversation}
+        onNewConversation={handleNewConversation}
+        activeConversationId={activeConversationId}
       />
 
-      {/* Session list toggle button */}
+      {/* Conversation list toggle button */}
       <button
-        onClick={() => setSessionListOpen(true)}
+        onClick={() => setConversationListOpen(true)}
         className="absolute top-3 right-3 z-30 p-2 rounded-lg bg-neutral-800/60 hover:bg-neutral-700/80 text-neutral-400 hover:text-neutral-200 transition-colors backdrop-blur-sm"
-        title="Sessions"
+        title="Conversations"
+        data-testid="conversations-button"
       >
         <Menu size={18} />
       </button>

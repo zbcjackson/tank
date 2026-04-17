@@ -185,14 +185,13 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
   }, [audioProcessorRef]);
 
   /**
-   * Resume a persisted context session: load history into UI and tell backend to switch.
+   * Resume a persisted conversation: load history into UI and tell backend to switch.
    */
-  const resumeSession = useCallback(
-    async (contextSessionId: string) => {
-      const { fetchSessionMessages } = await import('./useSessionList');
+  const resumeConversation = useCallback(
+    async (conversationId: string) => {
+      const { fetchConversationMessages } = await import('./useConversationList');
       try {
-        const historyMsgs = await fetchSessionMessages(contextSessionId);
-        // Convert backend messages to Step[]
+        const historyMsgs = await fetchConversationMessages(conversationId);
         const historySteps: Step[] = historyMsgs.map((m, i) => ({
           id: `history_${i}`,
           role: m.role as 'user' | 'assistant',
@@ -204,26 +203,24 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
         }));
         loadHistory(historySteps);
 
-        // Tell backend to switch context session
-        clientRef.current?.sendMessage('signal', 'resume_session', {
-          context_session_id: contextSessionId,
+        clientRef.current?.sendMessage('signal', 'resume_conversation', {
+          conversation_id: conversationId,
         });
 
-        // Switch to chat mode to show history
         setMode('chat');
       } catch (e) {
-        console.error('Failed to resume session:', e);
+        console.error('Failed to resume conversation:', e);
       }
     },
     [clientRef, loadHistory],
   );
 
   /**
-   * Start a new context session: clear UI and tell backend.
+   * Start a new conversation: clear UI and tell backend.
    */
-  const newSession = useCallback(() => {
+  const newConversation = useCallback(() => {
     loadHistory([]);
-    clientRef.current?.sendMessage('signal', 'new_session', {});
+    clientRef.current?.sendMessage('signal', 'new_conversation', {});
   }, [clientRef, loadHistory]);
 
   return {
@@ -248,8 +245,8 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     manualReconnect,
     pauseAudioCapture,
     resumeAudioCapture,
-    resumeSession,
-    newSession,
+    resumeConversation,
+    newConversation,
     ttsRms,
   };
 };

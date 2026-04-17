@@ -6,8 +6,8 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from tank_backend.context.config import ContextConfig
+from tank_backend.context.conversation import ConversationData
 from tank_backend.context.manager import ContextManager
-from tank_backend.context.session import SessionData
 
 
 def _make_app_config():
@@ -42,33 +42,33 @@ def _make_manager(
         return ContextManager(app_config=app_config, config=config)
 
 
-class TestSessionLifecycle:
-    def test_new_session_creates_with_system_prompt(self):
+class TestConversationLifecycle:
+    def test_new_conversation_creates_with_system_prompt(self):
         store = MagicMock()
         mgr = _make_manager(store=store)
-        sid = mgr.new_session()
-        assert sid is not None
-        assert len(sid) == 32  # UUID hex
+        cid = mgr.new_conversation()
+        assert cid is not None
+        assert len(cid) == 32  # UUID hex
         assert mgr.messages[0]["role"] == "system"
         store.save.assert_called_once()
 
     def test_resume_or_new_creates_new_when_no_store(self):
         mgr = _make_manager(store=None)
-        sid = mgr.resume_or_new()
-        assert sid is not None
+        cid = mgr.resume_or_new()
+        assert cid is not None
 
     def test_resume_or_new_creates_new_when_no_latest(self):
         store = MagicMock()
         store.find_latest.return_value = None
         mgr = _make_manager(store=store)
-        sid = mgr.resume_or_new()
-        assert sid is not None
+        cid = mgr.resume_or_new()
+        assert cid is not None
         store.find_latest.assert_called_once()
 
-    def test_resume_or_new_resumes_same_day_session(self):
+    def test_resume_or_new_resumes_same_day_conversation(self):
         # Use noon UTC today to avoid midnight boundary issues
         today_noon = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
-        existing = SessionData(
+        existing = ConversationData(
             id="existing-id",
             start_time=today_noon - timedelta(hours=1),
             pid=1,
@@ -90,15 +90,15 @@ class TestSessionLifecycle:
             ) as mock_dt,
         ):
             mock_dt.now.return_value = today_noon
-            sid = mgr.resume_or_new()
-        assert sid == "existing-id"
+            cid = mgr.resume_or_new()
+        assert cid == "existing-id"
         assert len(mgr.messages) == 2  # preserved messages
         # System prompt updated to current assembled version
         assert mgr.messages[0]["content"] == "new prompt"
 
     def test_resume_or_new_creates_new_on_different_day(self):
         yesterday = datetime.now(timezone.utc) - timedelta(days=1)
-        existing = SessionData(
+        existing = ConversationData(
             id="old-id",
             start_time=yesterday,
             pid=1,
@@ -108,19 +108,19 @@ class TestSessionLifecycle:
         store.find_latest.return_value = existing
         mgr = _make_manager(store=store)
 
-        sid = mgr.resume_or_new()
-        assert sid != "old-id"  # new session created
+        cid = mgr.resume_or_new()
+        assert cid != "old-id"  # new conversation created
 
-    def test_clear_creates_new_session(self):
+    def test_clear_creates_new_conversation(self):
         store = MagicMock()
         mgr = _make_manager(store=store)
-        sid1 = mgr.new_session()
-        sid2 = mgr.clear()
-        assert sid1 != sid2
-        assert store.save.call_count == 2  # both sessions persisted
+        cid1 = mgr.new_conversation()
+        cid2 = mgr.clear()
+        assert cid1 != cid2
+        assert store.save.call_count == 2  # both conversations persisted
 
-    def test_resume_session_loads_specific(self):
-        existing = SessionData(
+    def test_resume_conversation_loads_specific(self):
+        existing = ConversationData(
             id="target",
             start_time=datetime.now(timezone.utc),
             pid=1,
@@ -130,22 +130,22 @@ class TestSessionLifecycle:
         store.load.return_value = existing
         mgr = _make_manager(store=store)
 
-        assert mgr.resume_session("target")
-        assert mgr.session_id == "target"
+        assert mgr.resume_conversation("target")
+        assert mgr.conversation_id == "target"
 
-    def test_resume_session_returns_false_when_not_found(self):
+    def test_resume_conversation_returns_false_when_not_found(self):
         store = MagicMock()
         store.load.return_value = None
         mgr = _make_manager(store=store)
 
-        assert not mgr.resume_session("nonexistent")
+        assert not mgr.resume_conversation("nonexistent")
 
 
 class TestMessageManagement:
     def test_add_message_appends_and_persists(self):
         store = MagicMock()
         mgr = _make_manager(store=store)
-        mgr.new_session()
+        mgr.new_conversation()
         store.save.reset_mock()
 
         mgr.add_message("user", "hello", name="Jackson")
@@ -153,7 +153,7 @@ class TestMessageManagement:
         assert mgr.messages[1] == {"role": "user", "content": "hello", "name": "Jackson"}
         store.save.assert_called_once()
 
-    def test_messages_empty_when_no_session(self):
+    def test_messages_empty_when_no_conversation(self):
         mgr = _make_manager(store=None)
         assert mgr.messages == []
 
@@ -162,7 +162,7 @@ class TestPrepareTurn:
     def test_returns_augmented_messages(self):
         store = MagicMock()
         mgr = _make_manager(store=store)
-        mgr.new_session()
+        mgr.new_conversation()
 
         messages = mgr.prepare_turn("Jackson", "hello", skill_catalog="SKILLS: tool1")
         # Should contain augmented system prompt + user message
@@ -172,7 +172,7 @@ class TestPrepareTurn:
     def test_does_not_mutate_stored_messages(self):
         store = MagicMock()
         mgr = _make_manager(store=store)
-        mgr.new_session()
+        mgr.new_conversation()
 
         mgr.prepare_turn("Jackson", "hello", skill_catalog="SKILLS: tool1")
         # Stored system prompt should NOT contain skill catalog
@@ -181,7 +181,7 @@ class TestPrepareTurn:
     def test_includes_memory_context(self):
         store = MagicMock()
         mgr = _make_manager(store=store)
-        mgr.new_session()
+        mgr.new_conversation()
         mgr._memory_context = "- likes Python"
 
         messages = mgr.prepare_turn("Jackson", "hello")
@@ -192,7 +192,7 @@ class TestPrepareTurn:
     def test_finish_turn_records_response(self):
         store = MagicMock()
         mgr = _make_manager(store=store)
-        mgr.new_session()
+        mgr.new_conversation()
         store.save.reset_mock()
 
         mgr.finish_turn("Hi there!")
@@ -243,7 +243,7 @@ class TestCompaction:
             store_path="/tmp/test",
         )
         mgr = _make_manager(store=store, config=config)
-        mgr.new_session()
+        mgr.new_conversation()
         mgr.add_message("user", "hello")
         store.save.reset_mock()
 
@@ -260,7 +260,7 @@ class TestCompaction:
             store_path="/tmp/test",
         )
         mgr = _make_manager(store=store, config=config)
-        mgr.new_session()
+        mgr.new_conversation()
         # Add many messages to exceed budget
         for i in range(20):
             mgr.add_message("user", f"message {i} " * 20)
@@ -282,7 +282,7 @@ class TestCompaction:
         mgr = _make_manager(store=store, config=config)
         mgr._summarizer = AsyncMock()
         mgr._summarizer.summarize.return_value = "Summary of conversation"
-        mgr.new_session()
+        mgr.new_conversation()
         for i in range(10):
             mgr.add_message("user", f"message {i} " * 20)
         store.save.reset_mock()
@@ -304,7 +304,7 @@ class TestCompaction:
         mgr = _make_manager(store=store, config=config)
         mgr._summarizer = AsyncMock()
         mgr._summarizer.summarize.side_effect = RuntimeError("LLM error")
-        mgr.new_session()
+        mgr.new_conversation()
         for i in range(10):
             mgr.add_message("user", f"message {i} " * 20)
         store.save.reset_mock()
@@ -318,7 +318,7 @@ class TestCompaction:
 class TestTokenCounting:
     def test_count_tokens_estimates(self):
         mgr = _make_manager(store=None)
-        mgr.new_session()
+        mgr.new_conversation()
         count = mgr.count_tokens()
         assert count > 0  # system prompt has tokens
 
@@ -347,9 +347,9 @@ class TestStoreCreation:
         ):
             mgr = ContextManager(app_config=app_config, config=config)
 
-        from tank_backend.context.file_store import FileSessionStore
+        from tank_backend.context.file_store import FileConversationStore
 
-        assert isinstance(mgr._store, FileSessionStore)
+        assert isinstance(mgr._store, FileConversationStore)
 
     def test_creates_sqlite_store(self, tmp_path):
         app_config = _make_app_config()
@@ -367,21 +367,21 @@ class TestStoreCreation:
         ):
             mgr = ContextManager(app_config=app_config, config=config)
 
-        from tank_backend.context.sqlite_store import SqliteSessionStore
+        from tank_backend.context.sqlite_store import SqliteConversationStore
 
-        assert isinstance(mgr._store, SqliteSessionStore)
+        assert isinstance(mgr._store, SqliteConversationStore)
         mgr.close()
 
 
 class TestProperties:
-    def test_session_id_none_initially(self):
+    def test_conversation_id_none_initially(self):
         mgr = _make_manager(store=None)
-        assert mgr.session_id is None
+        assert mgr.conversation_id is None
 
-    def test_session_id_after_new_session(self):
+    def test_conversation_id_after_new_conversation(self):
         mgr = _make_manager(store=None)
-        sid = mgr.new_session()
-        assert mgr.session_id == sid
+        cid = mgr.new_conversation()
+        assert mgr.conversation_id == cid
 
     def test_prompt_assembler_exposed(self):
         mgr = _make_manager(store=None)

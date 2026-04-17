@@ -1,4 +1,4 @@
-"""SqliteSessionStore — SQLite-based session persistence."""
+"""SqliteConversationStore — SQLite-based conversation persistence."""
 
 from __future__ import annotations
 
@@ -9,19 +9,19 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .session import SessionData, SessionSummary
-from .store import SessionStore
+from .conversation import ConversationData, ConversationSummary
+from .store import ConversationStore
 
 logger = logging.getLogger(__name__)
 
 
-class SqliteSessionStore(SessionStore):
-    """Persist sessions in a SQLite database.
+class SqliteConversationStore(ConversationStore):
+    """Persist conversations in a SQLite database.
 
     Uses WAL mode for concurrent reads and INSERT OR REPLACE for upserts.
     """
 
-    def __init__(self, db_path: str | Path = "~/.tank/sessions.db") -> None:
+    def __init__(self, db_path: str | Path = "~/.tank/conversations.db") -> None:
         resolved = Path(db_path).expanduser().resolve()
         resolved.parent.mkdir(parents=True, exist_ok=True)
         self._db_path = str(resolved)
@@ -29,8 +29,8 @@ class SqliteSessionStore(SessionStore):
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS sessions (
-                session_id TEXT PRIMARY KEY,
+            CREATE TABLE IF NOT EXISTS conversations (
+                conversation_id TEXT PRIMARY KEY,
                 start_time TEXT NOT NULL,
                 pid INTEGER NOT NULL,
                 messages TEXT NOT NULL,
@@ -40,45 +40,48 @@ class SqliteSessionStore(SessionStore):
         )
         self._conn.commit()
 
-    def save(self, session: SessionData) -> None:
+    def save(self, conversation: ConversationData) -> None:
         self._conn.execute(
             """
-            INSERT OR REPLACE INTO sessions (session_id, start_time, pid, messages, updated_at)
+            INSERT OR REPLACE INTO conversations
+                (conversation_id, start_time, pid, messages, updated_at)
             VALUES (?, ?, ?, ?, ?)
             """,
             (
-                session.id,
-                session.start_time.isoformat(),
-                session.pid,
-                json.dumps(session.messages, ensure_ascii=False),
+                conversation.id,
+                conversation.start_time.isoformat(),
+                conversation.pid,
+                json.dumps(conversation.messages, ensure_ascii=False),
                 time.time(),
             ),
         )
         self._conn.commit()
 
-    def load(self, session_id: str) -> SessionData | None:
+    def load(self, conversation_id: str) -> ConversationData | None:
         row = self._conn.execute(
-            "SELECT session_id, start_time, pid, messages FROM sessions WHERE session_id = ?",
-            (session_id,),
+            "SELECT conversation_id, start_time, pid, messages "
+            "FROM conversations WHERE conversation_id = ?",
+            (conversation_id,),
         ).fetchone()
         if row is None:
             return None
-        return SessionData(
+        return ConversationData(
             id=row[0],
             start_time=datetime.fromisoformat(row[1]),
             pid=row[2],
             messages=json.loads(row[3]),
         )
 
-    def list_sessions(self) -> list[SessionSummary]:
+    def list_conversations(self) -> list[ConversationSummary]:
         rows = self._conn.execute(
-            "SELECT session_id, start_time, messages FROM sessions ORDER BY updated_at DESC"
+            "SELECT conversation_id, start_time, messages "
+            "FROM conversations ORDER BY updated_at DESC"
         ).fetchall()
-        results: list[SessionSummary] = []
+        results: list[ConversationSummary] = []
         for row in rows:
             messages = json.loads(row[2])
             results.append(
-                SessionSummary(
+                ConversationSummary(
                     id=row[0],
                     start_time=datetime.fromisoformat(row[1]),
                     message_count=len(messages),
@@ -86,20 +89,21 @@ class SqliteSessionStore(SessionStore):
             )
         return results
 
-    def delete(self, session_id: str) -> None:
+    def delete(self, conversation_id: str) -> None:
         self._conn.execute(
-            "DELETE FROM sessions WHERE session_id = ?", (session_id,)
+            "DELETE FROM conversations WHERE conversation_id = ?",
+            (conversation_id,),
         )
         self._conn.commit()
 
-    def find_latest(self) -> SessionData | None:
+    def find_latest(self) -> ConversationData | None:
         row = self._conn.execute(
-            "SELECT session_id, start_time, pid, messages FROM sessions "
-            "ORDER BY updated_at DESC LIMIT 1"
+            "SELECT conversation_id, start_time, pid, messages "
+            "FROM conversations ORDER BY updated_at DESC LIMIT 1"
         ).fetchone()
         if row is None:
             return None
-        return SessionData(
+        return ConversationData(
             id=row[0],
             start_time=datetime.fromisoformat(row[1]),
             pid=row[2],

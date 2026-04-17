@@ -9,24 +9,24 @@ from tank_backend.api import metrics as metrics_module
 
 
 @pytest.fixture
-def mock_session_manager():
+def mock_connection_manager():
     return MagicMock()
 
 
 @pytest.fixture
-def client(mock_session_manager):
-    """Create a test client with mocked session manager."""
+def client(mock_connection_manager):
+    """Create a test client with mocked connection manager."""
     from tank_backend.api.server import app
 
     # Inject mock into the metrics module directly
-    metrics_module.set_session_manager(mock_session_manager)
+    metrics_module.set_connection_manager(mock_connection_manager)
     yield TestClient(app)
     # Reset
-    metrics_module._session_manager = None
+    metrics_module._connection_manager = None
 
 
 class TestMetricsAPI:
-    def test_get_session_metrics_found(self, client, mock_session_manager) -> None:
+    def test_get_session_metrics_found(self, client, mock_connection_manager) -> None:
         mock_assistant = MagicMock()
         mock_assistant.metrics = {
             "turns": 3,
@@ -40,7 +40,7 @@ class TestMetricsAPI:
             "interrupts": 1,
             "langfuse_trace_ids": ["trace_1"],
         }
-        mock_session_manager.get_assistant.return_value = mock_assistant
+        mock_connection_manager.get_assistant.return_value = mock_assistant
 
         response = client.get("/api/metrics/test-session")
         assert response.status_code == 200
@@ -49,13 +49,13 @@ class TestMetricsAPI:
         assert data["turns"] == 3
         assert data["latencies"]["end_to_end"]["last"] == 2.5
 
-    def test_get_session_metrics_not_found(self, client, mock_session_manager) -> None:
-        mock_session_manager.get_assistant.return_value = None
+    def test_get_session_metrics_not_found(self, client, mock_connection_manager) -> None:
+        mock_connection_manager.get_assistant.return_value = None
 
         response = client.get("/api/metrics/nonexistent")
         assert response.status_code == 404
 
-    def test_get_all_metrics(self, client, mock_session_manager) -> None:
+    def test_get_all_metrics(self, client, mock_connection_manager) -> None:
         mock_assistant_1 = MagicMock()
         mock_assistant_1.metrics = {
             "turns": 2,
@@ -69,7 +69,7 @@ class TestMetricsAPI:
             "interrupts": 0,
             "langfuse_trace_ids": [],
         }
-        mock_session_manager._sessions = {"s1": mock_assistant_1}
+        mock_connection_manager._sessions = {"s1": mock_assistant_1}
 
         response = client.get("/api/metrics")
         assert response.status_code == 200
@@ -77,8 +77,8 @@ class TestMetricsAPI:
         assert data["active_sessions"] == 1
         assert "s1" in data["sessions"]
 
-    def test_get_all_metrics_empty(self, client, mock_session_manager) -> None:
-        mock_session_manager._sessions = {}
+    def test_get_all_metrics_empty(self, client, mock_connection_manager) -> None:
+        mock_connection_manager._sessions = {}
 
         response = client.get("/api/metrics")
         assert response.status_code == 200

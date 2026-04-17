@@ -7,20 +7,20 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from .manager import SessionManager
+from .manager import ConnectionManager
 
 logger = logging.getLogger("ApprovalRoutes")
 
 router = APIRouter(prefix="/api/approvals", tags=["approvals"])
 
 # Will be set by server.py when registering routes
-_session_manager: SessionManager | None = None
+_connection_manager: ConnectionManager | None = None
 
 
-def set_session_manager(manager: SessionManager) -> None:
-    """Set the shared session manager reference."""
-    global _session_manager  # noqa: PLW0603
-    _session_manager = manager
+def set_connection_manager(manager: ConnectionManager) -> None:
+    """Set the shared connection manager reference."""
+    global _connection_manager  # noqa: PLW0603
+    _connection_manager = manager
 
 
 class ApprovalResponse(BaseModel):
@@ -32,11 +32,11 @@ class ApprovalResponse(BaseModel):
 @router.post("/{approval_id}/respond")
 async def respond_to_approval(approval_id: str, body: ApprovalResponse):
     """Approve or reject a pending tool execution request."""
-    if _session_manager is None:
+    if _connection_manager is None:
         raise HTTPException(503, "Service not initialized")
 
     # Search all sessions for the approval manager with this pending approval
-    for _session_id, assistant in _session_manager.iter_sessions():
+    for _session_id, assistant in _connection_manager.iter_sessions():
         mgr = assistant.approval_manager
         if mgr is None:
             continue
@@ -57,11 +57,11 @@ async def respond_to_approval(approval_id: str, body: ApprovalResponse):
 @router.get("")
 async def list_pending_approvals(session_id: str | None = None):
     """List pending approval requests, optionally filtered by session."""
-    if _session_manager is None:
+    if _connection_manager is None:
         raise HTTPException(503, "Service not initialized")
 
     all_pending = []
-    for sid, assistant in _session_manager.iter_sessions():
+    for sid, assistant in _connection_manager.iter_sessions():
         if session_id and sid != session_id:
             continue
         mgr = assistant.approval_manager

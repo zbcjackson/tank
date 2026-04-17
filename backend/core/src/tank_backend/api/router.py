@@ -13,13 +13,22 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from ..audio.input.types import AudioFrame
 from ..audio.output.types import AudioChunk
 from ..core.events import DisplayMessage, SignalMessage, UIMessage, UpdateType
-from .manager import SessionManager
 from .schemas import MessageType, WebsocketMessage
+from .signal_handlers import DisconnectSignal
+from .signal_handlers import dispatch as dispatch_signal
 
 logger = logging.getLogger("ApiRouter")
 
 router = APIRouter()
-session_manager = SessionManager()
+
+# connection_manager is set by server.py after creation
+connection_manager = None
+
+
+def set_connection_manager(mgr):
+    """Called by server.py to inject the shared ConnectionManager."""
+    global connection_manager  # noqa: PLW0603
+    connection_manager = mgr
 
 
 def _ui_msg_to_ws_msg(msg: UIMessage, session_id: str) -> WebsocketMessage | None:
@@ -73,7 +82,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     ws_connected = True
     loop = asyncio.get_running_loop()
 
-    assistant, is_new = await session_manager.get_or_create_assistant(session_id)
+    assistant, is_new = await connection_manager.get_or_create_assistant(session_id)
 
     # Load persisted conversation history for this session
     assistant.set_session_id(session_id)
@@ -123,6 +132,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
     assistant.set_playback_callback(on_playback_chunk)
 
+    # Helper for signal handlers to send messages
+    async def send_ws_msg(msg: WebsocketMessage) -> None:
+        if ws_connected:
+            try:
+                await websocket.send_text(msg.model_dump_json())
+            except Exception as e:
+                logger.debug(f"Send error: {e}")
+
     try:
         # Send 'ready' signal with capabilities
         ready_msg = WebsocketMessage(
@@ -138,8 +155,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             if "bytes" in data:
                 # Binary: push audio into pipeline
-                pcm_data = np.frombuffer(data["bytes"], dtype=np.int16).astype(np.float32) / 32768.0
-                frame = AudioFrame(pcm=pcm_data, sample_rate=16000, timestamp_s=time.time())
+                pcm_data = (
+                    np.frombuffer(data["bytes"], dtype=np.int16).astype(np.float32)
+                    / 32768.0
+                )
+                frame = AudioFrame(
+                    pcm=pcm_data, sample_rate=16000, timestamp_s=time.time()
+                )
                 assistant.push_audio(frame)
 
             elif "text" in data:
@@ -147,74 +169,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 msg = WebsocketMessage(**msg_json)
 
                 if msg.type == MessageType.SIGNAL:
-                    if msg.content == "disconnect":
-                        break
-                    elif msg.content == "wake":
-                        try:
-                            assistant.compact_session()
-                            await websocket.send_text(
-                                WebsocketMessage(
-                                    type=MessageType.SIGNAL,
-                                    content="conversation_ready",
-                                    session_id=session_id,
-                                ).model_dump_json()
-                            )
-                        except Exception as e:
-                            logger.error(f"Session compact failed: {e}", exc_info=True)
-                            await websocket.send_text(
-                                WebsocketMessage(
-                                    type=MessageType.SIGNAL,
-                                    content="session_reset_failed",
-                                    session_id=session_id,
-                                    metadata={"error": str(e)},
-                                ).model_dump_json()
-                            )
-                    elif msg.content == "idle":
-                        logger.info(f"Client idle: {session_id}")
-                    elif msg.content == "interrupt":
-                        logger.info(f"Client interrupt: {session_id}")
-                        assistant.interrupt()
-                    elif msg.content == "ping":
-                        await websocket.send_text(
-                            WebsocketMessage(
-                                type=MessageType.SIGNAL,
-                                content="pong",
-                                session_id=session_id,
-                                metadata=msg.metadata.copy() if msg.metadata else {},
-                            ).model_dump_json()
-                        )
-                    elif msg.content == "resume_session":
-                        ctx_sid = (msg.metadata or {}).get("context_session_id", "")
-                        if ctx_sid:
-                            success = assistant.resume_context_session(ctx_sid)
-                            status = "session_resumed" if success else "session_resume_failed"
-                            await websocket.send_text(
-                                WebsocketMessage(
-                                    type=MessageType.SIGNAL,
-                                    content=status,
-                                    session_id=session_id,
-                                    metadata={"context_session_id": ctx_sid},
-                                ).model_dump_json()
-                            )
-                        else:
-                            await websocket.send_text(
-                                WebsocketMessage(
-                                    type=MessageType.SIGNAL,
-                                    content="session_resume_failed",
-                                    session_id=session_id,
-                                    metadata={"error": "missing context_session_id"},
-                                ).model_dump_json()
-                            )
-                    elif msg.content == "new_session":
-                        new_sid = assistant.new_context_session()
-                        await websocket.send_text(
-                            WebsocketMessage(
-                                type=MessageType.SIGNAL,
-                                content="session_created",
-                                session_id=session_id,
-                                metadata={"context_session_id": new_sid},
-                            ).model_dump_json()
-                        )
+                    handled = await dispatch_signal(
+                        msg.content, assistant, msg, session_id, send_ws_msg,
+                    )
+                    if not handled:
+                        logger.warning("Unknown signal: %s", msg.content)
+
                 elif msg.type == MessageType.INPUT:
                     assistant.process_input(msg.content)
                 elif msg.type == MessageType.APPROVAL_RESPONSE:
@@ -223,14 +183,17 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     reason = msg.metadata.get("reason", "")
                     approval_mgr = assistant.approval_manager
                     if approval_mgr and approval_id:
-                        approval_mgr.resolve(approval_id, approved=approved, reason=reason)
+                        approval_mgr.resolve(
+                            approval_id, approved=approved, reason=reason
+                        )
                     else:
                         logger.warning(
                             "Approval response ignored: mgr=%s id=%s",
-                            approval_mgr is not None, approval_id,
+                            approval_mgr is not None,
+                            approval_id,
                         )
 
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, DisconnectSignal):
         logger.info(f"WebSocket disconnected: {session_id}")
     except RuntimeError as e:
         if "disconnect message has been received" in str(e):
@@ -242,5 +205,5 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     finally:
         ws_connected = False
         # Decrement refcount. Idle timer only starts when no WS remains.
-        session_manager.detach_websocket(session_id)
+        connection_manager.detach_websocket(session_id)
         logger.info(f"WebSocket disconnected: {session_id}")

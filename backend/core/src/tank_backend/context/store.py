@@ -1,37 +1,58 @@
-"""SessionStore — abstract base class for session persistence."""
+"""ConversationStore — abstract base class for conversation persistence."""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from .session import SessionData, SessionSummary
+from .conversation import ConversationData, ConversationSummary
 
 
-class SessionStore(ABC):
-    """Abstract interface for persisting sessions.
+class ConversationStore(ABC):
+    """Abstract interface for persisting conversations.
 
-    Implementations: :class:`FileSessionStore`, :class:`SqliteSessionStore`.
+    Implementations: :class:`FileConversationStore`, :class:`SqliteConversationStore`.
     """
 
     @abstractmethod
-    def save(self, session: SessionData) -> None:
-        """Save (upsert) a session."""
+    def save(self, conversation: ConversationData) -> None:
+        """Save (upsert) a conversation."""
 
     @abstractmethod
-    def load(self, session_id: str) -> SessionData | None:
-        """Load a session by ID, or ``None`` if not found."""
+    def load(self, conversation_id: str) -> ConversationData | None:
+        """Load a conversation by ID, or ``None`` if not found."""
 
     @abstractmethod
-    def list_sessions(self) -> list[SessionSummary]:
-        """List all sessions, most recent first."""
+    def list_conversations(self) -> list[ConversationSummary]:
+        """List all conversations, most recent first."""
 
     @abstractmethod
-    def delete(self, session_id: str) -> None:
-        """Delete a session by ID."""
+    def delete(self, conversation_id: str) -> None:
+        """Delete a conversation by ID."""
 
     @abstractmethod
-    def find_latest(self) -> SessionData | None:
-        """Load the most recent session, or ``None`` if none exist."""
+    def find_latest(self) -> ConversationData | None:
+        """Load the most recent conversation, or ``None`` if none exist."""
 
     def close(self) -> None:  # noqa: B027
         """Optional cleanup (e.g. close DB connection)."""
+
+
+def create_store(store_type: str, store_path: str) -> ConversationStore | None:
+    """Factory: create a ConversationStore from config values.
+
+    Returns ``None`` for unknown or disabled store types.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    if store_type == "sqlite":
+        from .sqlite_store import SqliteConversationStore
+
+        return SqliteConversationStore(store_path)
+    if store_type == "file":
+        from .file_store import FileConversationStore
+
+        return FileConversationStore(store_path)
+    logger.info("Conversation persistence disabled (store_type=%s)", store_type)
+    return None

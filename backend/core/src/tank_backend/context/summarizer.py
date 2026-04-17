@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class LLMSummarizer:
     """Summarize conversation history using an LLM.
 
-    Implements the :class:`~.session.Summarizer` protocol.
+    Implements the :class:`~.conversation.Summarizer` protocol.
     """
 
     def __init__(self, llm: Any, config: ContextConfig) -> None:

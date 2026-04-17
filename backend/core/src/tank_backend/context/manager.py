@@ -1,4 +1,4 @@
-"""ContextManager — owns conversation history, session lifecycle, and prompt assembly."""
+"""ContextManager — owns conversation history, conversation lifecycle, and prompt assembly."""
 
 from __future__ import annotations
 
@@ -10,7 +10,8 @@ from typing import Any
 import tiktoken
 
 from .config import ContextConfig
-from .session import SessionData, Summarizer
+from .conversation import ConversationData, Summarizer
+from .store import create_store
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 class ContextManager:
     """Central owner of conversation context.
 
-    Owns: session lifecycle, message history, prompt assembly,
+    Owns: conversation lifecycle, message history, prompt assembly,
     memory recall/store, token counting, compaction, persistence.
 
     Brain interacts through :meth:`prepare_turn`, :meth:`finish_turn`,
@@ -34,7 +35,7 @@ class ContextManager:
         self._app_config = app_config
         self._config = config or ContextConfig()
         self._bus = bus
-        self._session: SessionData | None = None
+        self._conversation: ConversationData | None = None
         self._memory_context: str = ""
         self._encoder = tiktoken.get_encoding("cl100k_base")
 
@@ -53,17 +54,7 @@ class ContextManager:
     # ------------------------------------------------------------------
 
     def _create_store(self) -> Any:
-        store_type = self._config.store_type
-        if store_type == "sqlite":
-            from .sqlite_store import SqliteSessionStore
-
-            return SqliteSessionStore(self._config.store_path)
-        if store_type == "file":
-            from .file_store import FileSessionStore
-
-            return FileSessionStore(self._config.store_path)
-        logger.info("Session persistence disabled (store_type=%s)", store_type)
-        return None
+        return create_store(self._config.store_type, self._config.store_path)
 
     def _create_memory_service(self) -> Any:
         """Create MemoryService from config, or ``None`` if disabled."""
@@ -107,19 +98,19 @@ class ContextManager:
         return LLMSummarizer(llm, self._config)
 
     # ------------------------------------------------------------------
-    # Session lifecycle
+    # Conversation lifecycle
     # ------------------------------------------------------------------
 
-    def new_session(self) -> str:
-        """Create a fresh session with assembled system prompt. Persists immediately."""
+    def new_conversation(self) -> str:
+        """Create a fresh conversation with assembled system prompt. Persists immediately."""
         system_prompt = self._prompt_assembler.assemble()
-        self._session = SessionData.new(system_prompt)
+        self._conversation = ConversationData.new(system_prompt)
         self._persist()
-        logger.info("New session created: %s", self._session.id)
-        return self._session.id
+        logger.info("New conversation created: %s", self._conversation.id)
+        return self._conversation.id
 
     def resume_or_new(self) -> str:
-        """Resume latest same-day session, or create new.
+        """Resume latest same-day conversation, or create new.
 
         This is the main entry point called from Brain.__init__.
         """
@@ -128,34 +119,34 @@ class ContextManager:
             if latest is not None:
                 today = datetime.now(timezone.utc).date()
                 if latest.start_time.date() == today:
-                    self._session = latest
+                    self._conversation = latest
                     # Update system prompt to current assembled version
                     system_prompt = self._prompt_assembler.assemble()
                     if (
-                        self._session.messages
-                        and self._session.messages[0].get("role") == "system"
+                        self._conversation.messages
+                        and self._conversation.messages[0].get("role") == "system"
                     ):
-                        self._session.messages[0]["content"] = system_prompt
+                        self._conversation.messages[0]["content"] = system_prompt
                     logger.info(
-                        "Resumed session %s (%d messages)",
+                        "Resumed conversation %s (%d messages)",
                         latest.id,
                         len(latest.messages),
                     )
-                    return self._session.id
-        return self.new_session()
+                    return self._conversation.id
+        return self.new_conversation()
 
     def clear(self) -> str:
-        """Clear context — old session stays persisted, creates new session."""
-        return self.new_session()
+        """Clear context — old conversation stays persisted, creates new conversation."""
+        return self.new_conversation()
 
-    def resume_session(self, session_id: str) -> bool:
-        """Resume a specific session by ID. Returns ``False`` if not found."""
+    def resume_conversation(self, conversation_id: str) -> bool:
+        """Resume a specific conversation by ID. Returns ``False`` if not found."""
         if self._store is None:
             return False
-        session = self._store.load(session_id)
-        if session is None:
+        conversation = self._store.load(conversation_id)
+        if conversation is None:
             return False
-        self._session = session
+        self._conversation = conversation
         return True
 
     # ------------------------------------------------------------------
@@ -193,11 +184,11 @@ class ContextManager:
         # Rebuild system prompt if prompt assembler has new discoveries
         if self._prompt_assembler.needs_rebuild():
             new_prompt = self._prompt_assembler.assemble()
-            self._session.messages[0] = {"role": "system", "content": new_prompt}
+            self._conversation.messages[0] = {"role": "system", "content": new_prompt}
             self._persist()
 
         # Build augmented system prompt (temporary, not persisted)
-        base_system = self._session.messages[0]["content"]
+        base_system = self._conversation.messages[0]["content"]
         augmented = base_system
 
         if skill_catalog:
@@ -207,7 +198,7 @@ class ContextManager:
             augmented += f"\n\nKNOWN FACTS ABOUT {user}:\n{self._memory_context}"
 
         # Return copy with augmented prompt
-        messages = list(self._session.messages)
+        messages = list(self._conversation.messages)
         messages[0] = {"role": "system", "content": augmented}
         return messages
 
@@ -256,9 +247,9 @@ class ContextManager:
     @property
     def messages(self) -> list[dict[str, Any]]:
         """Current conversation messages."""
-        if self._session is None:
+        if self._conversation is None:
             return []
-        return self._session.messages
+        return self._conversation.messages
 
     def add_message(
         self, role: str, content: str, *, name: str | None = None
@@ -267,7 +258,7 @@ class ContextManager:
         msg: dict[str, str] = {"role": role, "content": content}
         if name:
             msg["name"] = name
-        self._session.messages.append(msg)
+        self._conversation.messages.append(msg)
         self._persist()
 
     # ------------------------------------------------------------------
@@ -285,8 +276,8 @@ class ContextManager:
         if total <= budget:
             return
 
-        system_msg = self._session.messages[0]
-        rest = self._session.messages[1:]
+        system_msg = self._conversation.messages[0]
+        rest = self._conversation.messages[1:]
         keep_n = self._config.keep_recent_messages
 
         if len(rest) <= keep_n:
@@ -305,7 +296,7 @@ class ContextManager:
                     "role": "system",
                     "content": f"Previous conversation summary: {summary_text}",
                 }
-                self._session.messages = [system_msg, summary_msg] + to_keep
+                self._conversation.messages = [system_msg, summary_msg] + to_keep
                 self._persist()
                 logger.info(
                     "Context summarized: %d messages → summary + %d recent",
@@ -328,8 +319,8 @@ class ContextManager:
         if total_tokens <= budget:
             return
 
-        system_msg = self._session.messages[0]
-        rest = self._session.messages[1:]
+        system_msg = self._conversation.messages[0]
+        rest = self._conversation.messages[1:]
 
         system_tokens = self.count_tokens([system_msg])
         remaining_budget = budget - system_tokens
@@ -342,13 +333,13 @@ class ContextManager:
             running += msg_tokens
             keep_from = i
 
-        self._session.messages = [system_msg] + rest[keep_from:]
+        self._conversation.messages = [system_msg] + rest[keep_from:]
         new_tokens = self.count_tokens()
         logger.info(
             "History truncated: %d → %d tokens (%d messages kept)",
             total_tokens,
             new_tokens,
-            len(self._session.messages),
+            len(self._conversation.messages),
         )
 
     # ------------------------------------------------------------------
@@ -356,7 +347,7 @@ class ContextManager:
     # ------------------------------------------------------------------
 
     def count_tokens(self, messages: list[dict[str, Any]] | None = None) -> int:
-        """Estimate token count for messages (defaults to current session)."""
+        """Estimate token count for messages (defaults to current conversation)."""
         msgs = messages if messages is not None else self.messages
         total = 0
         for msg in msgs:
@@ -371,15 +362,15 @@ class ContextManager:
     # ------------------------------------------------------------------
 
     def _persist(self) -> None:
-        """Save current session to store. Called after every mutation."""
-        if self._store is None or self._session is None:
+        """Save current conversation to store. Called after every mutation."""
+        if self._store is None or self._conversation is None:
             return
         try:
-            self._store.save(self._session)
+            self._store.save(self._conversation)
         except Exception:
             logger.error(
-                "Failed to persist session %s",
-                self._session.id,
+                "Failed to persist conversation %s",
+                self._conversation.id,
                 exc_info=True,
             )
 
@@ -393,9 +384,9 @@ class ContextManager:
     # ------------------------------------------------------------------
 
     @property
-    def session_id(self) -> str | None:
-        """Current session ID, or ``None`` if no session active."""
-        return self._session.id if self._session else None
+    def conversation_id(self) -> str | None:
+        """Current conversation ID, or ``None`` if no conversation active."""
+        return self._conversation.id if self._conversation else None
 
     @property
     def prompt_assembler(self) -> Any:

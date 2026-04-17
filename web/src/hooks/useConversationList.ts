@@ -1,9 +1,9 @@
 /**
- * Hook for fetching and managing the session list from the backend.
+ * Hook for fetching and managing the conversation list from the backend.
  */
 import { useState, useCallback } from 'react';
 
-export interface SessionInfo {
+export interface ConversationInfo {
   id: string;
   start_time: string;
   message_count: number;
@@ -12,8 +12,8 @@ export interface SessionInfo {
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-export function useSessionList() {
-  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+export function useConversationList() {
+  const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,18 +21,18 @@ export function useSessionList() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/sessions`);
+      const res = await fetch(`${API_BASE}/api/conversations`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: SessionInfo[] = await res.json();
-      setSessions(data);
+      const data: ConversationInfo[] = await res.json();
+      setConversations(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load sessions');
+      setError(e instanceof Error ? e.message : 'Failed to load conversations');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  return { sessions, loading, error, refresh };
+  return { conversations, loading, error, refresh };
 }
 
 export interface HistoryMessage {
@@ -42,8 +42,8 @@ export interface HistoryMessage {
   msg_id: string;
 }
 
-export async function fetchSessionMessages(sessionId: string): Promise<HistoryMessage[]> {
-  const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/messages`);
+export async function fetchConversationMessages(conversationId: string): Promise<HistoryMessage[]> {
+  const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/messages`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   return data.messages;

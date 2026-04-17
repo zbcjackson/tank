@@ -1,4 +1,4 @@
-"""FileSessionStore — file-based session persistence with index."""
+"""FileConversationStore — file-based conversation persistence with index."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from .session import SessionData, SessionSummary, session_filename
-from .store import SessionStore
+from .conversation import ConversationData, ConversationSummary, conversation_filename
+from .store import ConversationStore
 
 logger = logging.getLogger(__name__)
 
@@ -22,16 +22,16 @@ def _extract_preview(messages: list[dict]) -> str:
         if msg.get("role") == "user":
             text = msg.get("content", "")
             if len(text) > _PREVIEW_MAX_LEN:
-                return text[:_PREVIEW_MAX_LEN] + "…"
+                return text[:_PREVIEW_MAX_LEN] + "\u2026"
             return text
     return ""
 
 
-class FileSessionStore(SessionStore):
-    """Persist sessions as individual JSON files with an index for O(1) lookup.
+class FileConversationStore(ConversationStore):
+    """Persist conversations as individual JSON files with an index for O(1) lookup.
 
-    Filename convention: ``YYYYMMDD_HHMMSS.json`` (derived from session start time).
-    Index file: ``index.json`` maps session ID → filename + metadata.
+    Filename convention: ``YYYYMMDD_HHMMSS.json`` (derived from conversation start time).
+    Index file: ``index.json`` maps conversation ID → filename + metadata.
     """
 
     def __init__(self, directory: str | Path = "~/.tank/sessions") -> None:
@@ -57,7 +57,7 @@ class FileSessionStore(SessionStore):
         else:
             index = {}
 
-        # Reconcile: detect session files not in the index
+        # Reconcile: detect conversation files not in the index
         indexed_files = {e["file"] for e in index.values()}
         needs_save = False
         for p in self._dir.glob("*.json"):
@@ -73,7 +73,7 @@ class FileSessionStore(SessionStore):
                     "preview": _extract_preview(data.get("messages", [])),
                 }
                 needs_save = True
-                logger.info("Indexed orphan session file: %s (id=%s)", p.name, sid)
+                logger.info("Indexed orphan conversation file: %s (id=%s)", p.name, sid)
             except Exception:
                 logger.warning("Skipping unreadable file %s", p.name)
         if needs_save:
@@ -95,7 +95,7 @@ class FileSessionStore(SessionStore):
             raise
 
     def _rebuild_index(self) -> dict[str, dict]:
-        """Rebuild index by scanning all session files."""
+        """Rebuild index by scanning all conversation files."""
         index: dict[str, dict] = {}
         for path in self._dir.glob("*.json"):
             if path.name == _INDEX_FILENAME:
@@ -116,17 +116,17 @@ class FileSessionStore(SessionStore):
         return index
 
     # ------------------------------------------------------------------
-    # SessionStore interface
+    # ConversationStore interface
     # ------------------------------------------------------------------
 
-    def save(self, session: SessionData) -> None:
-        """Atomic write session file + update index."""
-        fname = session_filename(session.start_time)
+    def save(self, conversation: ConversationData) -> None:
+        """Atomic write conversation file + update index."""
+        fname = conversation_filename(conversation.start_time)
         path = self._dir / fname
         tmp = path.with_suffix(".tmp")
         try:
             tmp.write_text(
-                json.dumps(session.to_dict(), ensure_ascii=False, indent=2),
+                json.dumps(conversation.to_dict(), ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
             tmp.rename(path)
@@ -134,37 +134,37 @@ class FileSessionStore(SessionStore):
             tmp.unlink(missing_ok=True)
             raise
 
-        self._index[session.id] = {
+        self._index[conversation.id] = {
             "file": fname,
-            "start": session.start_time.isoformat(),
-            "n": len(session.messages),
-            "preview": _extract_preview(session.messages),
+            "start": conversation.start_time.isoformat(),
+            "n": len(conversation.messages),
+            "preview": _extract_preview(conversation.messages),
         }
         self._save_index()
 
-    def load(self, session_id: str) -> SessionData | None:
+    def load(self, conversation_id: str) -> ConversationData | None:
         """O(1) lookup via index."""
-        entry = self._index.get(session_id)
+        entry = self._index.get(conversation_id)
         if entry is None:
             return None
         path = self._dir / entry["file"]
         if not path.exists():
-            del self._index[session_id]
+            del self._index[conversation_id]
             self._save_index()
             return None
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            return SessionData.from_dict(data)
+            return ConversationData.from_dict(data)
         except Exception:
-            logger.warning("Failed to read session file %s", path, exc_info=True)
+            logger.warning("Failed to read conversation file %s", path, exc_info=True)
             return None
 
-    def list_sessions(self) -> list[SessionSummary]:
+    def list_conversations(self) -> list[ConversationSummary]:
         """Build from index (no file scanning)."""
-        results: list[SessionSummary] = []
+        results: list[ConversationSummary] = []
         for sid, entry in self._index.items():
             results.append(
-                SessionSummary(
+                ConversationSummary(
                     id=sid,
                     start_time=datetime.fromisoformat(entry["start"]),
                     message_count=entry["n"],
@@ -174,15 +174,15 @@ class FileSessionStore(SessionStore):
         results.sort(key=lambda s: s.start_time, reverse=True)
         return results
 
-    def delete(self, session_id: str) -> None:
-        """Delete session file and remove from index."""
-        entry = self._index.pop(session_id, None)
+    def delete(self, conversation_id: str) -> None:
+        """Delete conversation file and remove from index."""
+        entry = self._index.pop(conversation_id, None)
         if entry:
             (self._dir / entry["file"]).unlink(missing_ok=True)
             self._save_index()
 
-    def find_latest(self) -> SessionData | None:
-        """Load the most recent session via index."""
+    def find_latest(self) -> ConversationData | None:
+        """Load the most recent conversation via index."""
         if not self._index:
             return None
         latest_id = max(self._index, key=lambda k: self._index[k]["start"])

@@ -86,7 +86,7 @@ class Brain(Processor):
         self._echo_config = echo_guard_config or EchoGuardConfig()
         self._echo_detector = SelfEchoDetector(self._echo_config)
 
-        # Create ContextManager — owns session lifecycle, memory, prompt assembly
+        # Create ContextManager — owns conversation lifecycle, memory, prompt assembly
         from ...context import ContextConfig, ContextManager
 
         ctx_raw = app_config.get_section("context", {}) if app_config else {}
@@ -101,7 +101,7 @@ class Brain(Processor):
             config=context_config,
         )
 
-        # Start or resume session
+        # Start or resume conversation
         self._context.resume_or_new()
 
         # Track current msg_id for approval notifications from sub-agents
@@ -125,9 +125,23 @@ class Brain(Processor):
         return AgentGraph(agents={"chat": agent}, default_agent="chat")
 
     def reset_conversation(self) -> None:
-        """Clear context and start a new session."""
+        """Clear context and start a new conversation."""
         self._context.clear()
-        logger.info("Conversation cleared — new session: %s", self._context.session_id)
+        logger.info("Conversation cleared — new: %s", self._context.conversation_id)
+
+    def resume_conversation(self, conversation_id: str) -> bool:
+        """Resume a persisted conversation by ID. Returns False if not found."""
+        return self._context.resume_conversation(conversation_id)
+
+    def new_conversation(self) -> str:
+        """Start a fresh conversation. Returns the new conversation ID."""
+        self._context.clear()
+        return self._context.conversation_id or ""
+
+    @property
+    def conversation_id(self) -> str | None:
+        """Current conversation ID."""
+        return self._context.conversation_id
 
     def close(self) -> None:
         """Cleanup — close context manager."""
@@ -136,7 +150,7 @@ class Brain(Processor):
     @property
     def session_id(self) -> str | None:
         """Current session ID."""
-        return self._context.session_id
+        return self._context.conversation_id
 
     # ------------------------------------------------------------------
     # Pipeline processing
@@ -177,7 +191,7 @@ class Brain(Processor):
             intent = _classify_approval_intent(event.text)
             if intent is not None:
                 pending = self._approval_manager.get_pending(
-                    session_id=self._context.session_id,
+                    session_id=self._context.conversation_id,
                 )
                 if pending:
                     req = pending[0]  # Resolve the oldest pending request
@@ -204,11 +218,11 @@ class Brain(Processor):
         language = "zh"
 
         # Generate trace ID for observability linking
-        trace_id = generate_trace_id(self._context.session_id or "unknown")
+        trace_id = generate_trace_id(self._context.conversation_id or "unknown")
         self._bus.post(BusMessage(
             type="trace_id",
             source=self.name,
-            payload={"trace_id": trace_id, "session_id": self._context.session_id},
+            payload={"trace_id": trace_id, "session_id": self._context.conversation_id},
         ))
 
         # Send processing_started signal

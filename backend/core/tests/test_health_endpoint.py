@@ -23,7 +23,7 @@ class TestHealthEndpoint:
         data = response.json()
         assert "sessions" not in data
 
-    @patch("tank_backend.api.server.session_manager")
+    @patch("tank_backend.api.server.connection_manager")
     def test_health_detail_no_sessions(self, mock_sm):
         """GET /health?detail=true with no sessions returns healthy."""
         mock_sm.iter_sessions.return_value = iter([])
@@ -33,7 +33,7 @@ class TestHealthEndpoint:
         assert data["status"] == "healthy"
         assert data["sessions"] == {}
 
-    @patch("tank_backend.api.server.session_manager")
+    @patch("tank_backend.api.server.connection_manager")
     def test_health_detail_healthy_session(self, mock_sm):
         """GET /health?detail=true with a healthy session returns 200."""
         mock_assistant = MagicMock()
@@ -48,7 +48,7 @@ class TestHealthEndpoint:
         assert data["status"] == "healthy"
         assert "session-1" in data["sessions"]
 
-    @patch("tank_backend.api.server.session_manager")
+    @patch("tank_backend.api.server.connection_manager")
     def test_health_detail_unhealthy_session(self, mock_sm):
         """GET /health?detail=true with an unhealthy session returns 503."""
         mock_assistant = MagicMock()
@@ -75,7 +75,7 @@ class TestHealthEndpoint:
         data = response.json()
         assert data["status"] == "degraded"
 
-    @patch("tank_backend.api.server.session_manager")
+    @patch("tank_backend.api.server.connection_manager")
     def test_health_detail_mixed_sessions(self, mock_sm):
         """Multiple sessions: one healthy + one unhealthy = degraded."""
         healthy_asst = MagicMock()
@@ -96,7 +96,7 @@ class TestHealthEndpoint:
         data = response.json()
         assert data["status"] == "degraded"
 
-    @patch("tank_backend.api.server.session_manager")
+    @patch("tank_backend.api.server.connection_manager")
     def test_health_detail_no_pipeline(self, mock_sm):
         """Session with no pipeline (not started yet) is considered healthy."""
         mock_assistant = MagicMock()

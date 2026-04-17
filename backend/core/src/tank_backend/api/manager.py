@@ -1,60 +1,58 @@
-"""Session management for multiple Assistant instances."""
+"""Connection management for multiple Assistant instances."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..core.assistant import Assistant
 
 if TYPE_CHECKING:
     from ..audio.input.voiceprint import VoiceprintRecognizer
 
-logger = logging.getLogger("SessionManager")
+logger = logging.getLogger("ConnectionManager")
 
 
-class SessionManager:
+class ConnectionManager:
     """
-    Manages active voice assistant sessions.
-    Maps session_id to Assistant instance.
+    Manages active WebSocket connections → Assistant instances.
+    Maps ws session_id to Assistant instance.
     Holds a shared VoiceprintRecognizer for the speakers REST API.
 
-    Sessions survive brief WebSocket disconnects via an idle timeout.
+    Connections survive brief WebSocket disconnects via an idle timeout.
     A new WebSocket with the same session_id reattaches to the existing
     assistant pipeline instead of creating a new one.
     """
 
     SESSION_IDLE_TIMEOUT = 30  # seconds
 
-    def __init__(self, config_path: Path | None = None):
+    def __init__(self, app_config: Any = None):
         self._sessions: dict[str, Assistant] = {}
         self._idle_timers: dict[str, asyncio.TimerHandle] = {}
         self._ws_refcount: dict[str, int] = {}
         self._session_lock = asyncio.Lock()
-        self._config_path = config_path
+        self._app_config = app_config
         self._voiceprint_recognizer: VoiceprintRecognizer | None = None
-        self._init_voiceprint(config_path)
+        self._init_voiceprint()
 
-    def _init_voiceprint(self, config_path: Path | None) -> None:
+    def _init_voiceprint(self) -> None:
         """Initialize shared voiceprint recognizer for the speakers REST API."""
+        if self._app_config is None:
+            return
         try:
             from ..audio.input.voiceprint_factory import (
                 create_disabled_recognizer,
                 create_voiceprint_recognizer,
             )
-            from ..plugin import AppConfig
-            from ..plugin.manager import PluginManager
 
-            registry = PluginManager().load_all()
-            app_config = AppConfig(registry=registry)
-            speaker_cfg = app_config.get_feature_config("speaker")
+            speaker_cfg = self._app_config.get_feature_config("speaker")
 
             if not speaker_cfg.enabled or not speaker_cfg.extension:
                 self._voiceprint_recognizer = create_disabled_recognizer()
                 return
 
+            registry = self._app_config._registry
             extractor = registry.instantiate(
                 speaker_cfg.extension, speaker_cfg.config
             )
@@ -106,7 +104,7 @@ class SessionManager:
             if existing:
                 await self._cleanup_assistant(session_id, existing)
 
-            assistant = Assistant(config_path=self._config_path)
+            assistant = Assistant(app_config=self._app_config)
             self._sessions[session_id] = assistant
             self._ws_refcount[session_id] = 1
             await assistant.start()
