@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 from contextlib import AsyncExitStack
+from pathlib import Path
 from typing import Any, Literal
 
 from mcp import ClientSession, StdioServerParameters
@@ -23,11 +24,15 @@ from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamable_http_client
 from pydantic import BaseModel
 
+from ..plugin.yaml_loader import load_yaml
+
 logger = logging.getLogger(__name__)
+
+_DEFAULT_MCP_CONFIG_PATH = Path("~/.tank/mcp_servers.yaml")
 
 
 class MCPServerConfig(BaseModel):
-    """Parsed from one entry in config.yaml mcp_servers."""
+    """Parsed from one entry in ``~/.tank/mcp_servers.yaml``."""
 
     name: str
     transport: Literal["stdio", "http"] = "stdio"
@@ -41,6 +46,22 @@ class MCPServerConfig(BaseModel):
     # approval
     approval: str = "require_approval"
     tool_overrides: dict[str, str] = {}
+
+
+def load_mcp_configs(
+    path: Path | None = None,
+) -> list[MCPServerConfig]:
+    """Load MCP server configs from ``~/.tank/mcp_servers.yaml``.
+
+    Returns an empty list when the file does not exist.
+    """
+    resolved = (path or _DEFAULT_MCP_CONFIG_PATH).expanduser()
+    raw = load_yaml(resolved)
+    if not raw:
+        return []
+    configs = [MCPServerConfig(name=name, **cfg) for name, cfg in raw.items()]
+    logger.info("Loaded %d MCP server(s) from %s", len(configs), resolved)
+    return configs
 
 
 class MCPClientManager:

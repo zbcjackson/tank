@@ -92,16 +92,12 @@ class ToolManager:
 
         # --- MCP servers (async connection deferred to async_init) ---
         self._mcp_group = None
-        mcp_raw = app_config.get_section("mcp_servers", {})
-        if mcp_raw:
-            from ..mcp.client import MCPServerConfig
-            from ..mcp.tool_group import MCPToolGroup
+        from ..mcp.client import load_mcp_configs
+        from ..mcp.tool_group import MCPToolGroup
 
-            configs = [
-                MCPServerConfig(name=name, **cfg)
-                for name, cfg in mcp_raw.items()
-            ]
-            self._mcp_group = MCPToolGroup(configs)
+        mcp_configs = load_mcp_configs()
+        if mcp_configs:
+            self._mcp_group = MCPToolGroup(mcp_configs)
             self._groups.append(self._mcp_group)
 
         logger.info(

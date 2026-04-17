@@ -1,0 +1,36 @@
+# MCP Server Configuration
+# Copy this file to ~/.tank/mcp_servers.yaml and edit as needed.
+#
+# Each top-level key is a server name. Fields:
+#   transport: "stdio" (default) or "http"
+#   command:   executable name (stdio only)
+#   args:      command arguments (stdio only)
+#   env:       environment variables (stdio only, optional)
+#   url:       endpoint URL (http only)
+#   headers:   HTTP headers (http only, optional)
+#   approval:  "always_approve" | "require_approval" | "require_approval_first_time"
+#   tool_overrides:  per-tool approval overrides (optional)
+#
+# Environment variables can be referenced with ${VAR} or ${VAR:-default}.
+
+time:
+  transport: stdio
+  command: uvx
+  args: ["mcp-server-time"]
+  approval: always_approve
+
+# Example: HTTP transport
+# my-http-server:
+#   transport: http
+#   url: http://localhost:3100/mcp
+#   approval: require_approval_first_time
+
+# Example: per-tool approval overrides
+# code-runner:
+#   transport: stdio
+#   command: uvx
+#   args: ["mcp-code-runner"]
+#   approval: require_approval
+#   tool_overrides:
+#     list_files: always_approve
+#     execute_code: require_approval

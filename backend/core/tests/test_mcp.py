@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from tank_backend.mcp.client import MCPClientManager, MCPServerConfig
+from tank_backend.mcp.client import MCPClientManager, MCPServerConfig, load_mcp_configs
 from tank_backend.mcp.proxy_tool import MCPProxyTool
 from tank_backend.mcp.tool_group import MCPToolGroup
 
@@ -427,36 +427,84 @@ class TestMCPToolGroup:
 
 
 # ------------------------------------------------------------------
+# load_mcp_configs
+# ------------------------------------------------------------------
+
+class TestLoadMCPConfigs:
+    def test_loads_from_yaml(self, tmp_path):
+        yaml_file = tmp_path / "mcp_servers.yaml"
+        yaml_file.write_text(
+            "time:\n"
+            "  transport: stdio\n"
+            "  command: uvx\n"
+            '  args: ["mcp-server-time"]\n'
+            "  approval: always_approve\n"
+        )
+        configs = load_mcp_configs(yaml_file)
+        assert len(configs) == 1
+        assert configs[0].name == "time"
+        assert configs[0].command == "uvx"
+        assert configs[0].approval == "always_approve"
+
+    def test_returns_empty_when_file_missing(self, tmp_path):
+        configs = load_mcp_configs(tmp_path / "nonexistent.yaml")
+        assert configs == []
+
+    def test_returns_empty_for_empty_file(self, tmp_path):
+        yaml_file = tmp_path / "mcp_servers.yaml"
+        yaml_file.write_text("")
+        configs = load_mcp_configs(yaml_file)
+        assert configs == []
+
+    def test_multiple_servers(self, tmp_path):
+        yaml_file = tmp_path / "mcp_servers.yaml"
+        yaml_file.write_text(
+            "time:\n"
+            "  command: uvx\n"
+            '  args: ["mcp-server-time"]\n'
+            "remote:\n"
+            "  transport: http\n"
+            "  url: https://example.com/mcp\n"
+        )
+        configs = load_mcp_configs(yaml_file)
+        assert len(configs) == 2
+        names = {c.name for c in configs}
+        assert names == {"time", "remote"}
+
+
+# ------------------------------------------------------------------
 # ToolManager integration
 # ------------------------------------------------------------------
 
+_LOAD_MCP_PATCH = "tank_backend.mcp.client.load_mcp_configs"
+
+
 class TestToolManagerMCPIntegration:
     def test_no_mcp_servers_no_group(self):
-        cfg = _make_app_config()
-        tm = _make_tool_manager(cfg)
+        with patch(_LOAD_MCP_PATCH, return_value=[]):
+            cfg = _make_app_config()
+            tm = _make_tool_manager(cfg)
         assert tm._mcp_group is None
 
     def test_mcp_group_created_from_config(self):
-        cfg = _make_app_config(mcp_servers={
-            "fs": {
-                "transport": "stdio",
-                "command": "echo",
-                "approval": "always_approve",
-            },
-        })
-        tm = _make_tool_manager(cfg)
+        configs = [MCPServerConfig(
+            name="fs", transport="stdio", command="echo",
+            approval="always_approve",
+        )]
+        with patch(_LOAD_MCP_PATCH, return_value=configs):
+            cfg = _make_app_config()
+            tm = _make_tool_manager(cfg)
         assert tm._mcp_group is not None
 
     @pytest.mark.asyncio
     async def test_connect_servers_registers_mcp_tools(self):
-        cfg = _make_app_config(mcp_servers={
-            "fs": {
-                "transport": "stdio",
-                "command": "echo",
-                "approval": "always_approve",
-            },
-        })
-        tm = _make_tool_manager(cfg)
+        configs = [MCPServerConfig(
+            name="fs", transport="stdio", command="echo",
+            approval="always_approve",
+        )]
+        with patch(_LOAD_MCP_PATCH, return_value=configs):
+            cfg = _make_app_config()
+            tm = _make_tool_manager(cfg)
 
         tool = _make_mcp_tool("read_file", "Read a file")
         with (
@@ -476,15 +524,14 @@ class TestToolManagerMCPIntegration:
 
     @pytest.mark.asyncio
     async def test_connect_servers_merges_approval_overrides(self):
-        cfg = _make_app_config(mcp_servers={
-            "fs": {
-                "transport": "stdio",
-                "command": "echo",
-                "approval": "always_approve",
-                "tool_overrides": {"write_file": "require_approval"},
-            },
-        })
-        tm = _make_tool_manager(cfg)
+        configs = [MCPServerConfig(
+            name="fs", transport="stdio", command="echo",
+            approval="always_approve",
+            tool_overrides={"write_file": "require_approval"},
+        )]
+        with patch(_LOAD_MCP_PATCH, return_value=configs):
+            cfg = _make_app_config()
+            tm = _make_tool_manager(cfg)
 
         read_tool = _make_mcp_tool("read_file")
         write_tool = _make_mcp_tool("write_file")
@@ -507,15 +554,17 @@ class TestToolManagerMCPIntegration:
 
     @pytest.mark.asyncio
     async def test_connect_servers_no_mcp_is_noop(self):
-        cfg = _make_app_config()
-        tm = _make_tool_manager(cfg)
+        with patch(_LOAD_MCP_PATCH, return_value=[]):
+            cfg = _make_app_config()
+            tm = _make_tool_manager(cfg)
         # Should not raise
         await tm.connect_mcp_servers()
 
     def test_get_openai_tools_uses_raw_schema(self):
         """MCP tools with raw schema bypass ToolParameter building."""
-        cfg = _make_app_config()
-        tm = _make_tool_manager(cfg)
+        with patch(_LOAD_MCP_PATCH, return_value=[]):
+            cfg = _make_app_config()
+            tm = _make_tool_manager(cfg)
 
         schema = {
             "type": "object",
@@ -543,8 +592,9 @@ class TestToolManagerMCPIntegration:
 
     def test_get_openai_tools_native_uses_tool_parameter(self):
         """Native tools still build schema from ToolParameter."""
-        cfg = _make_app_config()
-        tm = _make_tool_manager(cfg)
+        with patch(_LOAD_MCP_PATCH, return_value=[]):
+            cfg = _make_app_config()
+            tm = _make_tool_manager(cfg)
 
         openai_tools = tm.get_openai_tools()
         calc = next(

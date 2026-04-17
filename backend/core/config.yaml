@@ -286,9 +286,5 @@ memory:
 #   langfuse:
 #     host: http://localhost:3001
 
-mcp_servers:
-  time:
-    transport: stdio
-    command: uvx
-    args: ["mcp-server-time"]
-    approval: always_approve
+# MCP servers are configured per-user in ~/.tank/mcp_servers.yaml
+# See mcp_servers.yaml.example for the format.
