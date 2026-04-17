@@ -256,8 +256,8 @@ tools:
 skills:
   enabled: true
   dirs:
-    - ../skills              # project-local skills
-    - ~/.tank/skills         # user-global skills
+    - ~/.tank/skills         # user-installed skills (default install target)
+    - ../skills              # built-in skills (shipped with repo)
   # Auto-approve skills at or below this risk level on startup.
   # "low" = prompt-only skills auto-approved (default)
   # "medium" = also auto-approve skills with scripts or network tools
