@@ -22,7 +22,7 @@ class ToolManager:
     ApprovalManager, ToolApprovalPolicy, and all ToolGroups.
     """
 
-    def __init__(self, app_config: Any, bus: Any = None) -> None:
+    def __init__(self, app_config: Any, bus: Any = None, max_history_tokens: int = 8000) -> None:
         self.tools: dict[str, BaseTool] = {}
         self._groups: list[ToolGroup] = []
         self._bus = bus
@@ -87,7 +87,9 @@ class ToolManager:
         )
 
         skills_raw = app_config.get_section("skills", {})
-        self._skill_group = SkillToolGroup(skills_raw, bus, tool_manager=self)
+        self._skill_group = SkillToolGroup(
+            skills_raw, bus, tool_manager=self, max_history_tokens=max_history_tokens,
+        )
         self._register_group(self._skill_group)
 
         # --- MCP servers (async connection deferred to async_init) ---

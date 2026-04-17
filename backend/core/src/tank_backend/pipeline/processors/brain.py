@@ -99,6 +99,7 @@ class Brain(Processor):
             app_config=app_config,
             bus=bus,
             config=context_config,
+            skill_provider=tool_manager.get_skill_catalog,
         )
 
         # Start or resume conversation
@@ -210,8 +211,7 @@ class Brain(Processor):
         await self._context.recall_memory(event.user, event.text)
 
         # --- Prepare messages for LLM ---
-        skill_catalog = self._tool_manager.get_skill_catalog()
-        messages = self._context.prepare_turn(event.user, event.text, skill_catalog)
+        messages = self._context.prepare_turn(event.user, event.text)
 
         # Generate Assistant Message ID
         assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"

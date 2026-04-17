@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import logging
+import os
+import platform
+import shutil
 from pathlib import Path
 
 from .models import SkillDefinition
@@ -10,12 +13,15 @@ from .parser import parse_skill_file
 
 logger = logging.getLogger(__name__)
 
+_PLATFORM_MAP = {"darwin": "macos", "linux": "linux", "windows": "windows"}
+
 
 class SkillRegistry:
     """In-memory index of all discovered skills.
 
     Skills are scanned from multiple directories in priority order.
     The first directory to provide a skill name wins (project > user).
+    Ineligible skills (wrong platform, missing dependencies) are excluded.
     """
 
     def __init__(self, skill_dirs: list[Path] | None = None) -> None:
@@ -48,10 +54,47 @@ class SkillRegistry:
                         skill.metadata.name, child,
                     )
                     continue
+                if not self._is_eligible(skill):
+                    continue
                 self._skills[skill.metadata.name] = skill
                 logger.info("Discovered skill: %s (%s)", skill.metadata.name, child)
             except ValueError as e:
                 logger.warning("Skipping invalid skill in %s: %s", child, e)
+
+    @staticmethod
+    def _is_eligible(skill: SkillDefinition) -> bool:
+        """Check if a skill is eligible for the current environment."""
+        meta = skill.metadata
+
+        # Platform check
+        if meta.platforms:
+            current = _PLATFORM_MAP.get(platform.system().lower(), platform.system().lower())
+            if current not in meta.platforms:
+                logger.debug(
+                    "Skill '%s' skipped: platform '%s' not in %s",
+                    meta.name, current, meta.platforms,
+                )
+                return False
+
+        # Binary dependency check
+        for cmd in meta.requires_commands:
+            if shutil.which(cmd) is None:
+                logger.debug(
+                    "Skill '%s' skipped: required command '%s' not found",
+                    meta.name, cmd,
+                )
+                return False
+
+        # Environment variable check
+        for var in meta.requires_env:
+            if not os.environ.get(var):
+                logger.debug(
+                    "Skill '%s' skipped: required env var '%s' not set",
+                    meta.name, var,
+                )
+                return False
+
+        return True
 
     def get(self, name: str) -> SkillDefinition | None:
         """Get a skill by name, or None if not found."""

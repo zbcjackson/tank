@@ -18,6 +18,12 @@ class SkillMetadata:
     approval: str = "auto"  # "auto" | "always" | "first-time"
     tags: tuple[str, ...] = ()
     context: str = "inline"  # "inline" | "fork"
+    when_to_use: str = ""  # Rich matching context with examples
+    priority: int = 50  # 0-100, higher = shown first in catalog
+    platforms: tuple[str, ...] = ()  # Empty = all platforms
+    requires_commands: tuple[str, ...] = ()  # Binary dependencies
+    requires_env: tuple[str, ...] = ()  # Environment variables
+    min_tank_version: str = ""  # Minimum Tank backend version required
 
 
 @dataclass(frozen=True)
@@ -30,6 +36,9 @@ class SkillDefinition:
     content_hash: str  # SHA-256 of all files in skill directory
     reviewed: bool = False
     review_hash: str = ""  # Hash at time of last review
+    installed_at: str = ""  # ISO timestamp of installation
+    updated_at: str = ""  # ISO timestamp of last update
+    source_url: str = ""  # Where it was installed from (git URL, clawhub slug)
 
 
 @dataclass(frozen=True)

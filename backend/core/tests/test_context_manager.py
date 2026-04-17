@@ -23,6 +23,7 @@ def _make_manager(
     store: object | None = MagicMock(),
     app_config: object | None = None,
     config: ContextConfig | None = None,
+    skill_provider: object | None = None,
 ) -> ContextManager:
     """Create a ContextManager with mocked dependencies."""
     if app_config is None:
@@ -39,7 +40,7 @@ def _make_manager(
             return_value="You are helpful.",
         ),
     ):
-        return ContextManager(app_config=app_config, config=config)
+        return ContextManager(app_config=app_config, config=config, skill_provider=skill_provider)
 
 
 class TestConversationLifecycle:
@@ -161,22 +162,30 @@ class TestMessageManagement:
 class TestPrepareTurn:
     def test_returns_augmented_messages(self):
         store = MagicMock()
-        mgr = _make_manager(store=store)
+
+        def skill_provider():
+            return "SKILLS: tool1"
+
+        mgr = _make_manager(store=store, skill_provider=skill_provider)
         mgr.new_conversation()
 
-        messages = mgr.prepare_turn("Jackson", "hello", skill_catalog="SKILLS: tool1")
-        # Should contain augmented system prompt + user message
+        messages = mgr.prepare_turn("Jackson", "hello")
+        # Should contain skill catalog in system prompt + user message
         assert any("SKILLS: tool1" in m.get("content", "") for m in messages)
         assert any(m.get("content") == "hello" for m in messages)
 
     def test_does_not_mutate_stored_messages(self):
         store = MagicMock()
-        mgr = _make_manager(store=store)
+
+        def skill_provider():
+            return "SKILLS: tool1"
+
+        mgr = _make_manager(store=store, skill_provider=skill_provider)
         mgr.new_conversation()
 
-        mgr.prepare_turn("Jackson", "hello", skill_catalog="SKILLS: tool1")
-        # Stored system prompt should NOT contain skill catalog
-        assert "SKILLS" not in mgr.messages[0]["content"]
+        mgr.prepare_turn("Jackson", "hello")
+        # Stored system prompt SHOULD contain skill catalog (it's in layer 7 now)
+        assert "SKILLS: tool1" in mgr.messages[0]["content"]
 
     def test_includes_memory_context(self):
         store = MagicMock()

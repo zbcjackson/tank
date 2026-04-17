@@ -576,11 +576,15 @@ class TestManager:
         registry = SkillRegistry([tmp_path])
         registry.scan()
 
-        mgr = SkillManager(registry, SecurityReviewer())
+        # Use a very small budget via constructor
+        mgr = SkillManager(
+            registry, SecurityReviewer(),
+            catalog_budget_max_chars=300,
+            catalog_budget_percent=100,  # won't be the limiting factor
+        )
         mgr.startup()
 
-        # Very small budget
-        catalog = mgr.get_skill_catalog(budget_chars=300)
+        catalog = mgr.get_skill_catalog()
         assert "..." in catalog  # Should have truncation indicator
 
 

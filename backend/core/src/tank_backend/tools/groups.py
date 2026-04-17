@@ -196,15 +196,16 @@ class FileToolGroup(ToolGroup):
 
 
 class SkillToolGroup(ToolGroup):
-    """Skills system — single router tool + catalog in system-reminder."""
+    """Skills system — single router tool + catalog in system prompt."""
 
     def __init__(
         self, config: dict | None = None, bus: Any = None,
-        tool_manager: Any = None,
+        tool_manager: Any = None, max_history_tokens: int = 8000,
     ) -> None:
         self._config = config or {}
         self._bus = bus
         self._tool_manager = tool_manager
+        self._max_history_tokens = max_history_tokens
         self._manager: Any = None
         self._use_skill_tool: Any = None  # ref for agent_runner wiring
 
@@ -239,6 +240,9 @@ class SkillToolGroup(ToolGroup):
         self._manager = SkillManager(
             registry, reviewer, self._bus,
             auto_approve_threshold=auto_approve_threshold,
+            catalog_budget_percent=self._config.get("catalog_budget_percent", 2),
+            catalog_budget_max_chars=self._config.get("catalog_budget_max_chars", 12000),
+            max_history_tokens=self._max_history_tokens,
         )
         self._manager.startup()
 
@@ -262,7 +266,7 @@ class SkillToolGroup(ToolGroup):
         ]
 
     def get_skill_catalog(self) -> str:
-        """Return a compact skill catalog for system-reminder injection."""
+        """Return a compact skill catalog for system prompt injection."""
         if self._manager is None:
             return ""
         return self._manager.get_skill_catalog()

@@ -31,6 +31,7 @@ class ContextManager:
         app_config: Any,
         bus: Any = None,
         config: ContextConfig | None = None,
+        skill_provider: Any = None,
     ) -> None:
         self._app_config = app_config
         self._config = config or ContextConfig()
@@ -47,7 +48,7 @@ class ContextManager:
         # PromptAssembler lives here
         from ..prompts.assembler import PromptAssembler
 
-        self._prompt_assembler = PromptAssembler(bus=bus)
+        self._prompt_assembler = PromptAssembler(bus=bus, skill_provider=skill_provider)
 
     # ------------------------------------------------------------------
     # Dependency factories
@@ -169,13 +170,12 @@ class ContextManager:
         self,
         user: str,
         text: str,
-        skill_catalog: str = "",
     ) -> list[dict[str, Any]]:
         """Prepare messages for an LLM call.
 
         1. Add user message to history (persists)
         2. Rebuild system prompt if needed
-        3. Return a **copy** with augmented system prompt (memory + skills)
+        3. Return a **copy** with augmented system prompt (memory)
 
         The augmented prompt is NOT persisted — stored messages keep the base prompt.
         """
@@ -190,9 +190,6 @@ class ContextManager:
         # Build augmented system prompt (temporary, not persisted)
         base_system = self._conversation.messages[0]["content"]
         augmented = base_system
-
-        if skill_catalog:
-            augmented += f"\n\n{skill_catalog}"
 
         if self._memory_context:
             augmented += f"\n\nKNOWN FACTS ABOUT {user}:\n{self._memory_context}"

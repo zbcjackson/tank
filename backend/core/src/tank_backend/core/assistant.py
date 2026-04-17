@@ -122,6 +122,7 @@ class Assistant:
         self._tool_manager = ToolManager(
             app_config=self._app_config,
             bus=self._bus,
+            max_history_tokens=self._brain_config.max_history_tokens,
         )
 
     def _init_bus(self) -> None:

@@ -263,6 +263,10 @@ skills:
   # "medium" = also auto-approve skills with scripts or network tools
   # "high" = auto-approve everything except critical (dangerous patterns)
   auto_approve_threshold: low
+  # Skill catalog budget — controls how much of the system prompt is used for skills.
+  # Effective budget = min(percent-based, max_chars).
+  catalog_budget_percent: 2        # % of max_history_tokens (in chars, ~4 chars/token)
+  catalog_budget_max_chars: 12000  # hard ceiling regardless of context size
 
 # Context — session persistence and conversation history management.
 # store_type: "file" (one JSON per session in store_path dir) or "sqlite" (single DB file).

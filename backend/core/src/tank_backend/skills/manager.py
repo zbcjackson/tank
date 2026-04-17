@@ -3,20 +3,22 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from .models import ReviewResult
+from .models import ReviewResult, SkillDefinition
 from .parser import parse_skill_file
 from .registry import SkillRegistry
 from .reviewer import SecurityReviewer
 
 logger = logging.getLogger(__name__)
 
-# Budget for skill catalog: 1% of context window in chars.
-DEFAULT_CATALOG_BUDGET_CHARS = 8000
+# Default budget: 2% of max_history_tokens (in chars, ~4 chars/token).
+DEFAULT_CATALOG_BUDGET_PERCENT = 2
+DEFAULT_CATALOG_BUDGET_MAX_CHARS = 12000
 MAX_DESCRIPTION_CHARS = 250
 
 
@@ -29,11 +31,17 @@ class SkillManager:
         reviewer: SecurityReviewer,
         bus: Any = None,
         auto_approve_threshold: str = "low",
+        catalog_budget_percent: int = DEFAULT_CATALOG_BUDGET_PERCENT,
+        catalog_budget_max_chars: int = DEFAULT_CATALOG_BUDGET_MAX_CHARS,
+        max_history_tokens: int = 8000,
     ) -> None:
         self._registry = registry
         self._reviewer = reviewer
         self._bus = bus
         self._auto_approve_threshold = auto_approve_threshold
+        # Effective budget: min(percent-based, hard ceiling)
+        percent_chars = int(max_history_tokens * 4 * catalog_budget_percent / 100)
+        self._catalog_budget = min(percent_chars, catalog_budget_max_chars)
 
     @property
     def registry(self) -> SkillRegistry:
@@ -88,13 +96,17 @@ class SkillManager:
     # Skill catalog for system-reminder injection
     # ------------------------------------------------------------------
 
-    def get_skill_catalog(
-        self, budget_chars: int = DEFAULT_CATALOG_BUDGET_CHARS,
-    ) -> str:
-        """Return a compact skill catalog for per-turn system-reminder injection.
+    def get_skill_catalog(self) -> str:
+        """Return a compact skill catalog for system prompt injection.
 
         Returns an empty string if no reviewed skills are available.
-        Budget-constrained: truncates descriptions to fit within *budget_chars*.
+        Uses tiered truncation to fit within the configured budget:
+        Tier 1: name + description + when_to_use (full)
+        Tier 2: name + description only (compact)
+        Tier 3: name only
+        Tier 4: truncate list with "... and N more"
+
+        Skills are sorted by priority (descending), then name.
         """
         skills = [
             s for s in self._registry.list_all()
@@ -103,29 +115,85 @@ class SkillManager:
         if not skills:
             return ""
 
-        lines = [
-            "AVAILABLE SKILLS:",
-            "When a user's request matches a skill, call the use_skill tool "
-            "with the skill name. Prefer skills over handling requests yourself.",
-            "",
-        ]
-        used = sum(len(line) for line in lines)
+        # Sort by priority descending, then name ascending
+        skills.sort(key=lambda s: (-s.metadata.priority, s.metadata.name))
+
+        budget = self._catalog_budget
+
+        # Try Tier 1: full entries
+        result = self._format_catalog(skills, budget, tier=1)
+        if result is not None:
+            return result
+
+        # Try Tier 2: compact (no when_to_use)
+        result = self._format_catalog(skills, budget, tier=2)
+        if result is not None:
+            return result
+
+        # Tier 3: names only
+        result = self._format_catalog(skills, budget, tier=3)
+        if result is not None:
+            return result
+
+        # Shouldn't happen, but return empty if budget is impossibly small
+        return ""
+
+    def _format_catalog(
+        self,
+        skills: list[SkillDefinition],
+        budget: int,
+        tier: int,
+    ) -> str | None:
+        """Format skill catalog at a given tier. Returns None if it doesn't fit."""
+        header = (
+            "AVAILABLE SKILLS:\n"
+            "Before responding, scan the skills below. If a skill matches the "
+            "user's request, call use_skill with the skill name. Prefer skills "
+            "over handling requests yourself.\n"
+        )
+        used = len(header)
+        entries: list[str] = []
 
         for skill in skills:
-            desc = skill.metadata.description
-            if len(desc) > MAX_DESCRIPTION_CHARS:
-                desc = desc[: MAX_DESCRIPTION_CHARS - 3] + "..."
-            entry = f"- {skill.metadata.name}: {desc}"
-            if skill.metadata.tags:
-                entry += f" [tags: {', '.join(skill.metadata.tags)}]"
+            entry = self._format_skill_entry(skill, tier)
+            entry_cost = len(entry) + 1  # +1 for newline
 
-            if used + len(entry) + 1 > budget_chars:
-                lines.append(f"... and {len(skills) - len(lines) + 3} more skills")
+            if used + entry_cost > budget:
+                remaining = len(skills) - len(entries)
+                if remaining > 0:
+                    entries.append(f"... and {remaining} more skills")
                 break
-            lines.append(entry)
-            used += len(entry) + 1
 
-        return "\n".join(lines)
+            entries.append(entry)
+            used += entry_cost
+
+        if not entries:
+            return None
+
+        return header + "\n".join(entries)
+
+    @staticmethod
+    def _format_skill_entry(skill: SkillDefinition, tier: int) -> str:
+        """Format a single skill entry at the given tier level."""
+        meta = skill.metadata
+        version_tag = f" (v{meta.version})" if meta.version != "1.0.0" else ""
+
+        if tier == 3:
+            return f"- {meta.name}{version_tag}"
+
+        desc = meta.description
+        if len(desc) > MAX_DESCRIPTION_CHARS:
+            desc = desc[: MAX_DESCRIPTION_CHARS - 3] + "..."
+
+        entry = f"- {meta.name}{version_tag}: {desc}"
+
+        if tier == 1 and meta.when_to_use:
+            when = meta.when_to_use.replace("\n", " ").strip()
+            entry += f" — {when}"
+        elif tier <= 2 and meta.tags:
+            entry += f" [tags: {', '.join(meta.tags)}]"
+
+        return entry
 
     # ------------------------------------------------------------------
     # Invoke
@@ -217,7 +285,7 @@ class SkillManager:
             return {"error": str(e), "message": f"Failed to create skill: {e}"}
 
         result = self._reviewer.review(skill)
-        self._persist_review(skill_dir, result)
+        self._persist_review(skill_dir, result, source_url="")
 
         skill = parse_skill_file(skill_dir)
         self._registry.register(skill)
@@ -309,9 +377,9 @@ class SkillManager:
                     if dest.exists():
                         shutil.rmtree(dest)
                     shutil.copytree(skill_dir, dest)
-                    r = await self.install_from_path(dest)
+                    r = await self.install_from_path(dest, source_url=source)
                 else:
-                    r = await self.install_from_path(skill_dir)
+                    r = await self.install_from_path(skill_dir, source_url=source)
                 results.append(r)
 
             if len(results) == 1:
@@ -349,6 +417,7 @@ class SkillManager:
         self,
         source_path: Path,
         target_dir: Path | None = None,
+        source_url: str = "",
     ) -> dict[str, Any]:
         """Install a skill from a local directory."""
         try:
@@ -370,7 +439,7 @@ class SkillManager:
                 ),
             }
 
-        self._persist_review(source_path, result)
+        self._persist_review(source_path, result, source_url=source_url)
 
         skill = parse_skill_file(source_path)
         self._registry.register(skill)
@@ -399,15 +468,44 @@ class SkillManager:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _persist_review(self, skill_dir: Path, result: ReviewResult) -> None:
-        """Write .review file to persist review state."""
+    def _persist_review(
+        self,
+        skill_dir: Path,
+        result: ReviewResult,
+        source_url: str = "",
+    ) -> None:
+        """Write .review file to persist review state and version tracking."""
+        now = datetime.now(timezone.utc).isoformat()
+
+        # Preserve existing timestamps if updating
+        review_file = skill_dir / ".review"
+        installed_at = now
+        if review_file.exists():
+            try:
+                existing = yaml.safe_load(review_file.read_text(encoding="utf-8")) or {}
+                installed_at = existing.get("installed_at", now)
+            except Exception:
+                pass
+
         review_data = {
             "hash": result.content_hash,
             "risk_level": result.risk_level,
             "passed": result.passed,
             "findings": list(result.findings),
+            "version": "",  # Filled after re-parse
+            "installed_at": installed_at,
+            "updated_at": now,
+            "source_url": source_url,
         }
-        (skill_dir / ".review").write_text(
+
+        # Read version from the skill metadata
+        try:
+            skill = parse_skill_file(skill_dir)
+            review_data["version"] = skill.metadata.version
+        except ValueError:
+            pass
+
+        review_file.write_text(
             yaml.dump(review_data, default_flow_style=False),
             encoding="utf-8",
         )

@@ -7,6 +7,7 @@ Assembly order:
 4. [GLOBAL RULES]     AGENTS.md (user's ~/.tank/AGENTS.md or default)
 5. [WORKSPACE RULES]  Discovered AGENTS.md chain (root → leaf)
 6. [SCOPE]            Auto-generated active-paths / scope-change notes
+7. [SKILLS]           Available skill catalog from SkillManager
 
 Priority: more-specific (deeper) workspace rules take precedence over general
 ones.  base.md security boundaries are non-negotiable and cannot be overridden.
@@ -17,6 +18,7 @@ from __future__ import annotations
 import logging
 import os
 import platform
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -68,10 +70,12 @@ class PromptAssembler:
         self,
         bus: Any = None,
         config: AssemblerConfig | None = None,
+        skill_provider: Callable[[], str] | None = None,
     ) -> None:
         self._config = config or AssemblerConfig()
         self._cache = FileCache()
         self._resolver = AgentsFileResolver(bus=bus)
+        self._skill_provider = skill_provider
         self._previous_scope = PromptScope()
         self._needs_rebuild = True
         self._cached_prompt: str = ""
@@ -125,6 +129,11 @@ class PromptAssembler:
         scope_section = self._build_scope_section(current_scope)
         if scope_section:
             sections.append(scope_section)
+
+        # 7. SKILLS — available skill catalog
+        skills_section = self._build_skills_section()
+        if skills_section:
+            sections.append(skills_section)
 
         self._previous_scope = current_scope
         self._resolver.reset_discovery_flag()
@@ -271,6 +280,15 @@ class PromptAssembler:
                 )
 
         return "\n".join(lines)
+
+    def _build_skills_section(self) -> str:
+        """Build the skills catalog section from the skill provider."""
+        if self._skill_provider is None:
+            return ""
+        catalog = self._skill_provider()
+        if not catalog:
+            return ""
+        return catalog
 
     # ------------------------------------------------------------------
     # Platform context
