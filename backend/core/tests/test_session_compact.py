@@ -35,9 +35,7 @@ class TestBrainSessionCompact:
 
     @pytest.fixture
     def mock_context(self):
-        ctx = make_mock_context()
-        ctx.maybe_compact = AsyncMock()
-        return ctx
+        return make_mock_context()
 
     @pytest.fixture
     def brain(self, mock_llm, mock_config, bus, mock_context):
@@ -54,7 +52,7 @@ class TestBrainSessionCompact:
         mock_context.clear.assert_called_once()
 
     async def test_compact_delegates_to_context(self, brain, mock_llm, mock_context):
-        """__compact__ should delegate to context.maybe_compact()."""
+        """__compact__ should delegate to context.compact()."""
         event = BrainInputEvent(
             type=InputType.SYSTEM,
             text="__compact__",
@@ -64,11 +62,11 @@ class TestBrainSessionCompact:
         )
         results = await _collect(brain, event)
 
-        mock_context.maybe_compact.assert_called_once()
+        mock_context.compact.assert_called_once()
         mock_llm.chat_stream.assert_not_called()
         assert results == [(FlowReturn.OK, None)]
 
-    async def test_compact_does_not_emit_signals_when_under_budget(self, brain, bus, mock_context):
+    async def test_compact_does_not_emit_signals(self, brain, bus, mock_context):
         """__compact__ should not post any UI messages to bus."""
         received = []
         bus.subscribe("ui_message", lambda m: received.append(m.payload))
@@ -95,8 +93,6 @@ class TestBrainSessionCompact:
             confidence=None,
         )
         await _collect(brain, event)
-        # some_other_command is not blank, so it goes through normal processing
-        # but it should not call maybe_compact via the __compact__ path
 
     async def test_handle_ignores_blank_text(self, brain, mock_llm):
         """process() should ignore events with blank text."""

@@ -161,9 +161,9 @@ class Brain(Processor):
         """Process a BrainInputEvent and yield AudioOutputRequest for TTS."""
         event: BrainInputEvent = item
 
-        # Handle system compact before normal processing
+        # Handle system compact
         if event.type == InputType.SYSTEM and event.text == "__compact__":
-            await self._context.maybe_compact()
+            await self._context.compact()
             yield FlowReturn.OK, None
             return
 
@@ -355,7 +355,7 @@ class Brain(Processor):
 
             if full_response_text:
                 self._context.finish_turn(full_response_text)
-                await self._context.maybe_compact()
+                await self._context.compact()
                 self._context.schedule_memory_store(
                     event.user, event.text, full_response_text,
                 )

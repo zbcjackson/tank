@@ -7,10 +7,9 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-import tiktoken
-
 from .config import ContextConfig
-from .conversation import ConversationData, Summarizer
+from .conversation import ConversationData
+from .llm_context import LLMContext
 from .store import create_store
 
 logger = logging.getLogger(__name__)
@@ -19,11 +18,17 @@ logger = logging.getLogger(__name__)
 class ContextManager:
     """Central owner of conversation context.
 
-    Owns: conversation lifecycle, message history, prompt assembly,
-    memory recall/store, token counting, compaction, persistence.
+    Owns: conversation lifecycle (append-only history), LLM context (windowed view),
+    prompt assembly, memory recall/store, persistence.
+
+    Architecture:
+    - **Conversation** (ConversationData) — immutable append-only history, persisted
+    - **LLMContext** — cached windowed view with compaction, never persisted
+    - **PromptAssembler** — builds system prompts with skill catalog
+    - **MemoryService** — recalls/stores facts about users
 
     Brain interacts through :meth:`prepare_turn`, :meth:`finish_turn`,
-    :meth:`recall_memory`, and :meth:`maybe_compact`.
+    :meth:`recall_memory`, and :meth:`compact`.
     """
 
     def __init__(
@@ -38,12 +43,13 @@ class ContextManager:
         self._bus = bus
         self._conversation: ConversationData | None = None
         self._memory_context: str = ""
-        self._encoder = tiktoken.get_encoding("cl100k_base")
 
         # Create dependencies
         self._store = self._create_store()
         self._memory_service = self._create_memory_service()
-        self._summarizer = self._create_summarizer()
+
+        # LLMContext — windowed view with compaction (owns summarizer)
+        self._llm_context = LLMContext(config=self._config, app_config=app_config)
 
         # PromptAssembler lives here
         from ..prompts.assembler import PromptAssembler
@@ -82,21 +88,6 @@ class ContextManager:
         except Exception:
             logger.warning("Failed to init memory service", exc_info=True)
             return None
-
-    def _create_summarizer(self) -> Summarizer | None:
-        """Create LLMSummarizer using 'summarization' profile, fallback to 'default'."""
-        from ..llm.profile import create_llm_from_profile
-        from .summarizer import LLMSummarizer
-
-        try:
-            profile = self._app_config.get_llm_profile("summarization")
-        except (KeyError, ValueError):
-            try:
-                profile = self._app_config.get_llm_profile("default")
-            except (KeyError, ValueError):
-                return None
-        llm = create_llm_from_profile(profile)
-        return LLMSummarizer(llm, self._config)
 
     # ------------------------------------------------------------------
     # Conversation lifecycle
@@ -173,35 +164,46 @@ class ContextManager:
     ) -> list[dict[str, Any]]:
         """Prepare messages for an LLM call.
 
-        1. Add user message to history (persists)
-        2. Rebuild system prompt if needed
-        3. Return a **copy** with augmented system prompt (memory)
-
-        The augmented prompt is NOT persisted — stored messages keep the base prompt.
+        1. Add user message to conversation (persists)
+        2. Rebuild system prompt in-memory if needed (NOT persisted — derived state)
+        3. Get compacted view from LLMContext (cached, never mutates conversation)
+        4. Augment with memory context (temporary, not persisted)
         """
         self.add_message("user", text, name=user)
 
-        # Rebuild system prompt if prompt assembler has new discoveries
+        # Rebuild system prompt if prompt assembler has new discoveries.
+        # This only updates the in-memory messages[0] — no persist needed
+        # because the system prompt is always reassembled on resume.
         if self._prompt_assembler.needs_rebuild():
             new_prompt = self._prompt_assembler.assemble()
             self._conversation.messages[0] = {"role": "system", "content": new_prompt}
-            self._persist()
+            self._llm_context.invalidate_cache()
 
-        # Build augmented system prompt (temporary, not persisted)
-        base_system = self._conversation.messages[0]["content"]
-        augmented = base_system
+        # Get compacted view from LLMContext (cached, does NOT mutate conversation)
+        messages = self._llm_context.get_messages(self._conversation.messages)
 
+        # Augment system prompt with memory (temporary, not persisted)
         if self._memory_context:
+            messages = list(messages)
+            augmented = messages[0]["content"]
             augmented += f"\n\nKNOWN FACTS ABOUT {user}:\n{self._memory_context}"
+            messages[0] = {"role": "system", "content": augmented}
 
-        # Return copy with augmented prompt
-        messages = list(self._conversation.messages)
-        messages[0] = {"role": "system", "content": augmented}
         return messages
 
     def finish_turn(self, assistant_response: str) -> None:
         """Record assistant response. Persists immediately."""
         self.add_message("assistant", assistant_response)
+
+    async def compact(self) -> None:
+        """Compact the LLM context view.
+
+        Tries summarization first (preserves context), falls back to truncation.
+        Updates the cached view in LLMContext. Never mutates conversation history.
+
+        Called by Brain after each turn completes.
+        """
+        await self._llm_context.get_messages_async(self._conversation.messages)
 
     def schedule_memory_store(
         self, user: str, user_text: str, assistant_response: str
@@ -259,100 +261,13 @@ class ContextManager:
         self._persist()
 
     # ------------------------------------------------------------------
-    # Compaction
-    # ------------------------------------------------------------------
-
-    async def maybe_compact(self) -> None:
-        """Compact if token count exceeds budget.
-
-        Strategy: summarize first (preserves context), fall back to
-        truncation (drops oldest messages) if summarization fails.
-        """
-        total = self.count_tokens()
-        budget = self._config.max_history_tokens
-        if total <= budget:
-            return
-
-        system_msg = self._conversation.messages[0]
-        rest = self._conversation.messages[1:]
-        keep_n = self._config.keep_recent_messages
-
-        if len(rest) <= keep_n:
-            self._truncate(budget)
-            self._persist()
-            return
-
-        to_summarize = rest[:-keep_n]
-        to_keep = rest[-keep_n:]
-
-        # Try summarization first
-        if self._summarizer is not None:
-            try:
-                summary_text = await self._summarizer.summarize(to_summarize)
-                summary_msg: dict[str, str] = {
-                    "role": "system",
-                    "content": f"Previous conversation summary: {summary_text}",
-                }
-                self._conversation.messages = [system_msg, summary_msg] + to_keep
-                self._persist()
-                logger.info(
-                    "Context summarized: %d messages → summary + %d recent",
-                    len(to_summarize),
-                    keep_n,
-                )
-                return
-            except Exception:
-                logger.warning(
-                    "Summarization failed, falling back to truncation",
-                    exc_info=True,
-                )
-
-        self._truncate(budget)
-        self._persist()
-
-    def _truncate(self, budget: int) -> None:
-        """Drop oldest non-system messages to fit within token budget."""
-        total_tokens = self.count_tokens()
-        if total_tokens <= budget:
-            return
-
-        system_msg = self._conversation.messages[0]
-        rest = self._conversation.messages[1:]
-
-        system_tokens = self.count_tokens([system_msg])
-        remaining_budget = budget - system_tokens
-        keep_from = len(rest)
-        running = 0
-        for i in range(len(rest) - 1, -1, -1):
-            msg_tokens = self.count_tokens([rest[i]])
-            if running + msg_tokens > remaining_budget:
-                break
-            running += msg_tokens
-            keep_from = i
-
-        self._conversation.messages = [system_msg] + rest[keep_from:]
-        new_tokens = self.count_tokens()
-        logger.info(
-            "History truncated: %d → %d tokens (%d messages kept)",
-            total_tokens,
-            new_tokens,
-            len(self._conversation.messages),
-        )
-
-    # ------------------------------------------------------------------
-    # Token counting
+    # Token counting (delegates to LLMContext)
     # ------------------------------------------------------------------
 
     def count_tokens(self, messages: list[dict[str, Any]] | None = None) -> int:
         """Estimate token count for messages (defaults to current conversation)."""
         msgs = messages if messages is not None else self.messages
-        total = 0
-        for msg in msgs:
-            total += 4  # ~4 tokens overhead per message
-            content = msg.get("content") or ""
-            if isinstance(content, str):
-                total += len(self._encoder.encode(content))
-        return total
+        return self._llm_context._count_tokens(msgs)
 
     # ------------------------------------------------------------------
     # Persistence

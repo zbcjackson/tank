@@ -18,7 +18,7 @@ def make_mock_context(system_prompt: str = "You are a helpful assistant.") -> Ma
     ctx.prepare_turn.return_value = [{"role": "system", "content": system_prompt}]
     ctx.count_tokens.return_value = 0
     ctx.recall_memory = AsyncMock()
-    ctx.maybe_compact = AsyncMock()
+    ctx.compact = AsyncMock()
     return ctx
 
 

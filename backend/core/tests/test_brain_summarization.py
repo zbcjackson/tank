@@ -1,25 +1,14 @@
-"""Tests for context summarization via Brain._context.maybe_compact()."""
+"""Tests for context compaction via Brain → ContextManager → LLMContext."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 from brain_test_helpers import make_brain, make_mock_context
 
 
-class TestMaybeCompact:
-    async def test_compact_delegates_to_context(self):
-        """Brain should delegate compaction to context manager."""
-        ctx = make_mock_context()
-        ctx.maybe_compact = AsyncMock()
-        brain = make_brain(context=ctx)
-
-        await brain._context.maybe_compact()
-
-        ctx.maybe_compact.assert_called_once()
-
+class TestCompactCalledAfterTurn:
     async def test_compact_called_after_agent_turn(self):
-        """After a successful agent turn, Brain calls context.maybe_compact()."""
+        """After a successful agent turn, Brain calls context.compact()."""
         ctx = make_mock_context()
-        ctx.maybe_compact = AsyncMock()
         ctx.finish_turn = MagicMock()
         ctx.schedule_memory_store = MagicMock()
 
@@ -47,5 +36,5 @@ class TestMaybeCompact:
         async for _ in brain.process(event):
             pass
 
-        ctx.maybe_compact.assert_called_once()
         ctx.finish_turn.assert_called_once_with("Hello")
+        ctx.compact.assert_called_once()

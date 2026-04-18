@@ -70,7 +70,6 @@ class TestBrainMemoryIntegration:
         ctx.recall_memory = AsyncMock()
         ctx.schedule_memory_store = MagicMock()
         ctx.finish_turn = MagicMock()
-        ctx.maybe_compact = AsyncMock()
 
         brain = make_brain(context=ctx, agent_graph=graph)
 

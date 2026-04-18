@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from tank_backend.context.config import ContextConfig
 from tank_backend.context.conversation import ConversationData
+from tank_backend.context.llm_context import LLMContext
 from tank_backend.context.manager import ContextManager
 
 
@@ -34,7 +35,7 @@ def _make_manager(
     with (
         patch.object(ContextManager, "_create_store", return_value=store),
         patch.object(ContextManager, "_create_memory_service", return_value=None),
-        patch.object(ContextManager, "_create_summarizer", return_value=None),
+        patch.object(LLMContext, "_create_summarizer", return_value=None),
         patch(
             "tank_backend.prompts.assembler.PromptAssembler.assemble",
             return_value="You are helpful.",
@@ -244,7 +245,9 @@ class TestMemory:
 
 
 class TestCompaction:
-    async def test_no_compact_under_budget(self):
+    """Compaction returns a read-only view — conversation history is never mutated."""
+
+    def test_no_compact_under_budget(self):
         store = MagicMock()
         config = ContextConfig(
             max_history_tokens=50000,
@@ -254,13 +257,12 @@ class TestCompaction:
         mgr = _make_manager(store=store, config=config)
         mgr.new_conversation()
         mgr.add_message("user", "hello")
-        store.save.reset_mock()
 
-        await mgr.maybe_compact()
-        # No compaction — store.save not called again
-        store.save.assert_not_called()
+        view = mgr._llm_context.get_messages(mgr.messages)
+        # Under budget — view equals full history
+        assert len(view) == len(mgr.messages)
 
-    async def test_truncation_when_over_budget(self):
+    def test_truncation_view_when_over_budget(self):
         store = MagicMock()
         config = ContextConfig(
             max_history_tokens=50,
@@ -270,17 +272,54 @@ class TestCompaction:
         )
         mgr = _make_manager(store=store, config=config)
         mgr.new_conversation()
-        # Add many messages to exceed budget
         for i in range(20):
             mgr.add_message("user", f"message {i} " * 20)
-        store.save.reset_mock()
+        original_count = len(mgr.messages)
 
-        await mgr.maybe_compact()
-        # Should have truncated — fewer messages now
-        assert len(mgr.messages) < 22  # system + 20 user
-        store.save.assert_called()
+        view = mgr._llm_context.get_messages(mgr.messages)
+        # View is truncated
+        assert len(view) < original_count
+        # Original history is unchanged
+        assert len(mgr.messages) == original_count
 
-    async def test_summarization_when_available(self):
+    def test_cached_view_reused_when_conversation_unchanged(self):
+        store = MagicMock()
+        config = ContextConfig(
+            max_history_tokens=50,
+            keep_recent_messages=1,
+            store_type="file",
+            store_path="/tmp/test",
+        )
+        mgr = _make_manager(store=store, config=config)
+        mgr.new_conversation()
+        for i in range(20):
+            mgr.add_message("user", f"message {i} " * 20)
+
+        view1 = mgr._llm_context.get_messages(mgr.messages)
+        view2 = mgr._llm_context.get_messages(mgr.messages)
+        # Same object — cache hit
+        assert view1 is view2
+
+    def test_cache_invalidated_when_conversation_grows(self):
+        store = MagicMock()
+        config = ContextConfig(
+            max_history_tokens=50,
+            keep_recent_messages=1,
+            store_type="file",
+            store_path="/tmp/test",
+        )
+        mgr = _make_manager(store=store, config=config)
+        mgr.new_conversation()
+        for i in range(20):
+            mgr.add_message("user", f"message {i} " * 20)
+
+        view1 = mgr._llm_context.get_messages(mgr.messages)
+        mgr.add_message("user", "new message " * 20)
+        view2 = mgr._llm_context.get_messages(mgr.messages)
+        # Different object — cache miss due to new message
+        assert view1 is not view2
+
+    async def test_summarization_view_when_available(self):
         store = MagicMock()
         config = ContextConfig(
             max_history_tokens=50,
@@ -289,18 +328,20 @@ class TestCompaction:
             store_path="/tmp/test",
         )
         mgr = _make_manager(store=store, config=config)
-        mgr._summarizer = AsyncMock()
-        mgr._summarizer.summarize.return_value = "Summary of conversation"
+        mgr._llm_context._summarizer = AsyncMock()
+        mgr._llm_context._summarizer.summarize.return_value = "Summary of conversation"
         mgr.new_conversation()
         for i in range(10):
             mgr.add_message("user", f"message {i} " * 20)
-        store.save.reset_mock()
+        original_count = len(mgr.messages)
 
-        await mgr.maybe_compact()
-        mgr._summarizer.summarize.assert_called_once()
-        # Should have system + summary + 2 recent
-        assert len(mgr.messages) == 4
-        assert "Summary of conversation" in mgr.messages[1]["content"]
+        view = await mgr._llm_context.get_messages_async(mgr.messages)
+        mgr._llm_context._summarizer.summarize.assert_called_once()
+        # View has system + summary + 2 recent
+        assert len(view) == 4
+        assert "Summary of conversation" in view[1]["content"]
+        # Original history is unchanged
+        assert len(mgr.messages) == original_count
 
     async def test_fallback_to_truncation_on_summarizer_error(self):
         store = MagicMock()
@@ -311,17 +352,36 @@ class TestCompaction:
             store_path="/tmp/test",
         )
         mgr = _make_manager(store=store, config=config)
-        mgr._summarizer = AsyncMock()
-        mgr._summarizer.summarize.side_effect = RuntimeError("LLM error")
+        mgr._llm_context._summarizer = AsyncMock()
+        mgr._llm_context._summarizer.summarize.side_effect = RuntimeError("LLM error")
         mgr.new_conversation()
         for i in range(10):
             mgr.add_message("user", f"message {i} " * 20)
+        original_count = len(mgr.messages)
+
+        view = await mgr._llm_context.get_messages_async(mgr.messages)
+        # View is truncated (fallback)
+        assert len(view) < original_count
+        # Original history is unchanged
+        assert len(mgr.messages) == original_count
+
+    def test_history_never_persisted_after_compaction(self):
+        """Compaction must never call _persist — only add_message does."""
+        store = MagicMock()
+        config = ContextConfig(
+            max_history_tokens=50,
+            keep_recent_messages=1,
+            store_type="file",
+            store_path="/tmp/test",
+        )
+        mgr = _make_manager(store=store, config=config)
+        mgr.new_conversation()
+        for i in range(20):
+            mgr.add_message("user", f"message {i} " * 20)
         store.save.reset_mock()
 
-        await mgr.maybe_compact()
-        # Should have fallen back to truncation
-        assert len(mgr.messages) < 12
-        store.save.assert_called()
+        mgr._llm_context.get_messages(mgr.messages)
+        store.save.assert_not_called()
 
 
 class TestTokenCounting:
@@ -348,7 +408,7 @@ class TestStoreCreation:
 
         with (
             patch.object(ContextManager, "_create_memory_service", return_value=None),
-            patch.object(ContextManager, "_create_summarizer", return_value=None),
+            patch.object(LLMContext, "_create_summarizer", return_value=None),
             patch(
                 "tank_backend.prompts.assembler.PromptAssembler.assemble",
                 return_value="test",
@@ -368,7 +428,7 @@ class TestStoreCreation:
 
         with (
             patch.object(ContextManager, "_create_memory_service", return_value=None),
-            patch.object(ContextManager, "_create_summarizer", return_value=None),
+            patch.object(LLMContext, "_create_summarizer", return_value=None),
             patch(
                 "tank_backend.prompts.assembler.PromptAssembler.assemble",
                 return_value="test",
