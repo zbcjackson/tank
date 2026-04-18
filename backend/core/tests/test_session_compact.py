@@ -1,6 +1,6 @@
 """Tests for session compact (wake word conversation lifecycle)."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from brain_test_helpers import make_brain, make_mock_context

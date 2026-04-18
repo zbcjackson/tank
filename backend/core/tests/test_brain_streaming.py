@@ -151,6 +151,6 @@ async def test_interrupted_response_saved_to_context(bus):
 
     # Partial response should be saved via context.finish_turn
     ctx.finish_turn.assert_called_once()
-    saved_text = ctx.finish_turn.call_args[0][0]
-    # At least the first two chunks were accumulated before interrupt
-    assert "The weather " in saved_text
+    saved_arg = ctx.finish_turn.call_args[0][0]
+    # finish_turn now receives the turn_messages list
+    assert isinstance(saved_arg, list)

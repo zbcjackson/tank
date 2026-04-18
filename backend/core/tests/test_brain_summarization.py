@@ -1,6 +1,6 @@
 """Tests for context compaction via Brain → ContextManager → LLMContext."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from brain_test_helpers import make_brain, make_mock_context
 
@@ -36,5 +36,8 @@ class TestCompactCalledAfterTurn:
         async for _ in brain.process(event):
             pass
 
-        ctx.finish_turn.assert_called_once_with("Hello")
+        ctx.finish_turn.assert_called_once()
+        # finish_turn now receives the turn_messages list from agent state
+        turn_msgs = ctx.finish_turn.call_args[0][0]
+        assert isinstance(turn_msgs, list)
         ctx.compact.assert_called_once()

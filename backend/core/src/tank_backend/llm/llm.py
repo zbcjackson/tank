@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from typing import Any
 
 from openai import (
@@ -105,6 +105,7 @@ class LLM:
         tools: list[dict[str, Any]] | None = None,
         tool_executor: Any = None,
         trace_metadata: dict[str, Any] | None = None,
+        system_prompt_fn: Callable[[], str | None] | None = None,
     ) -> AsyncGenerator[tuple[UpdateType, str, dict[str, Any]], None]:
         """Stream chat completion with automatic tool call handling.
 
@@ -122,6 +123,12 @@ class LLM:
         for _iteration in range(MAX_TOOL_ITERATIONS):
             turn += 1
             logger.debug(f"LLM Stream iteration {turn} with {len(working_messages)} messages")
+
+            # Refresh system prompt if callback provided and rebuild needed
+            if system_prompt_fn is not None:
+                refreshed = system_prompt_fn()
+                if refreshed is not None:
+                    working_messages[0] = {"role": "system", "content": refreshed}
 
             api_kwargs = {
                 "model": self.model,
@@ -237,8 +244,7 @@ class LLM:
                 assistant_msg["tool_calls"] = formatted_tool_calls
 
             working_messages.append(assistant_msg)
-
-            # If there are tool calls, execute them and continue the loop
+            yield (UpdateType.MESSAGE, "", {"message": assistant_msg})
             if tool_calls_data and tool_executor:
                 from openai.types.chat.chat_completion_message_tool_call import (
                     ChatCompletionMessageToolCall,
@@ -312,7 +318,7 @@ class LLM:
                                 "name": tc["name"],
                                 "content": f"Error: {result!s}",
                             })
-                        else:
+                            yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
                             is_error = (
                                 isinstance(result, dict) and "error" in result
                             )
@@ -341,6 +347,7 @@ class LLM:
                                 "role": "tool", "tool_call_id": tc["id"],
                                 "name": tc["name"], "content": result_str,
                             })
+                            yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
 
                 elif len(concurrent_items) == 1:
                     # Single concurrent tool — run sequentially (no gather overhead)
@@ -406,6 +413,7 @@ class LLM:
                             "role": "tool", "tool_call_id": tc["id"],
                             "name": tc["name"], "content": result_str,
                         })
+                        yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
 
                     except Exception as e:
                         yield (
@@ -420,6 +428,7 @@ class LLM:
                             "role": "tool", "tool_call_id": tc["id"],
                             "name": tc["name"], "content": f"Error: {e!s}",
                         })
+                        yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
                 # Continue loop to get next response after tools
                 continue
             else:

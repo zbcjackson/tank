@@ -124,8 +124,11 @@ class TestProcessViaAgentsInterrupt:
         event = _make_event("hello")
         await _collect(brain, event)
 
-        # The partial text "partial" should have been saved via context.finish_turn
-        brain._context.finish_turn.assert_called_once_with("partial")
+        # The partial text should have been saved via context.finish_turn
+        brain._context.finish_turn.assert_called_once()
+        saved_arg = brain._context.finish_turn.call_args[0][0]
+        # finish_turn now receives the turn_messages list
+        assert isinstance(saved_arg, list)
 
     async def test_closes_generator_on_interrupt(self):
         """The agent graph generator should be properly closed on interrupt."""

@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from tank_backend.context.config import ContextConfig
 from tank_backend.context.conversation import ConversationData
-from tank_backend.context.llm_context import LLMContext
 from tank_backend.context.manager import ContextManager
 
 
@@ -35,7 +34,7 @@ def _make_manager(
     with (
         patch.object(ContextManager, "_create_store", return_value=store),
         patch.object(ContextManager, "_create_memory_service", return_value=None),
-        patch.object(LLMContext, "_create_summarizer", return_value=None),
+        patch.object(ContextManager, "_create_summarizer", return_value=None),
         patch(
             "tank_backend.prompts.assembler.PromptAssembler.assemble",
             return_value="You are helpful.",
@@ -117,7 +116,8 @@ class TestConversationLifecycle:
         store = MagicMock()
         mgr = _make_manager(store=store)
         cid1 = mgr.new_conversation()
-        cid2 = mgr.clear()
+        mgr.clear()
+        cid2 = mgr.conversation_id
         assert cid1 != cid2
         assert store.save.call_count == 2  # both conversations persisted
 
@@ -199,14 +199,35 @@ class TestPrepareTurn:
         assert "KNOWN FACTS ABOUT Jackson" in system_content
         assert "likes Python" in system_content
 
-    def test_finish_turn_records_response(self):
+    def test_finish_turn_records_turn_messages(self):
         store = MagicMock()
         mgr = _make_manager(store=store)
         mgr.new_conversation()
         store.save.reset_mock()
 
-        mgr.finish_turn("Hi there!")
+        turn_msgs = [
+            {"role": "assistant", "content": "Hi there!"},
+        ]
+        mgr.finish_turn(turn_msgs)
         assert mgr.messages[-1] == {"role": "assistant", "content": "Hi there!"}
+        store.save.assert_called_once()
+
+    def test_finish_turn_records_tool_calls(self):
+        store = MagicMock()
+        mgr = _make_manager(store=store)
+        mgr.new_conversation()
+        store.save.reset_mock()
+
+        turn_msgs = [
+            {"role": "assistant", "content": None, "tool_calls": [
+                {"id": "tc1", "function": {"name": "get_weather", "arguments": "{}"}}
+            ]},
+            {"role": "tool", "tool_call_id": "tc1", "content": "Sunny"},
+            {"role": "assistant", "content": "The weather is sunny."},
+        ]
+        mgr.finish_turn(turn_msgs)
+        assert len(mgr.messages) == 4  # system + 3 turn messages
+        assert mgr.messages[-1]["content"] == "The weather is sunny."
         store.save.assert_called_once()
 
 
@@ -245,9 +266,9 @@ class TestMemory:
 
 
 class TestCompaction:
-    """Compaction returns a read-only view — conversation history is never mutated."""
+    """Compaction is destructive — modifies conversation.messages in place."""
 
-    def test_no_compact_under_budget(self):
+    async def test_no_compact_under_budget(self):
         store = MagicMock()
         config = ContextConfig(
             max_history_tokens=50000,
@@ -257,12 +278,13 @@ class TestCompaction:
         mgr = _make_manager(store=store, config=config)
         mgr.new_conversation()
         mgr.add_message("user", "hello")
+        original_count = len(mgr.messages)
 
-        view = mgr._llm_context.get_messages(mgr.messages)
-        # Under budget — view equals full history
-        assert len(view) == len(mgr.messages)
+        await mgr.compact()
+        # Under budget — no change
+        assert len(mgr.messages) == original_count
 
-    def test_truncation_view_when_over_budget(self):
+    async def test_truncation_when_over_budget(self):
         store = MagicMock()
         config = ContextConfig(
             max_history_tokens=50,
@@ -276,50 +298,13 @@ class TestCompaction:
             mgr.add_message("user", f"message {i} " * 20)
         original_count = len(mgr.messages)
 
-        view = mgr._llm_context.get_messages(mgr.messages)
-        # View is truncated
-        assert len(view) < original_count
-        # Original history is unchanged
-        assert len(mgr.messages) == original_count
+        await mgr.compact()
+        # Messages truncated in place
+        assert len(mgr.messages) < original_count
+        # System prompt preserved
+        assert mgr.messages[0]["role"] == "system"
 
-    def test_cached_view_reused_when_conversation_unchanged(self):
-        store = MagicMock()
-        config = ContextConfig(
-            max_history_tokens=50,
-            keep_recent_messages=1,
-            store_type="file",
-            store_path="/tmp/test",
-        )
-        mgr = _make_manager(store=store, config=config)
-        mgr.new_conversation()
-        for i in range(20):
-            mgr.add_message("user", f"message {i} " * 20)
-
-        view1 = mgr._llm_context.get_messages(mgr.messages)
-        view2 = mgr._llm_context.get_messages(mgr.messages)
-        # Same object — cache hit
-        assert view1 is view2
-
-    def test_cache_invalidated_when_conversation_grows(self):
-        store = MagicMock()
-        config = ContextConfig(
-            max_history_tokens=50,
-            keep_recent_messages=1,
-            store_type="file",
-            store_path="/tmp/test",
-        )
-        mgr = _make_manager(store=store, config=config)
-        mgr.new_conversation()
-        for i in range(20):
-            mgr.add_message("user", f"message {i} " * 20)
-
-        view1 = mgr._llm_context.get_messages(mgr.messages)
-        mgr.add_message("user", "new message " * 20)
-        view2 = mgr._llm_context.get_messages(mgr.messages)
-        # Different object — cache miss due to new message
-        assert view1 is not view2
-
-    async def test_summarization_view_when_available(self):
+    async def test_summarization_when_available(self):
         store = MagicMock()
         config = ContextConfig(
             max_history_tokens=50,
@@ -328,20 +313,18 @@ class TestCompaction:
             store_path="/tmp/test",
         )
         mgr = _make_manager(store=store, config=config)
-        mgr._llm_context._summarizer = AsyncMock()
-        mgr._llm_context._summarizer.summarize.return_value = "Summary of conversation"
+        mgr._summarizer = AsyncMock()
+        mgr._summarizer.summarize.return_value = "Summary of conversation"
         mgr.new_conversation()
         for i in range(10):
             mgr.add_message("user", f"message {i} " * 20)
-        original_count = len(mgr.messages)
 
-        view = await mgr._llm_context.get_messages_async(mgr.messages)
-        mgr._llm_context._summarizer.summarize.assert_called_once()
-        # View has system + summary + 2 recent
-        assert len(view) == 4
-        assert "Summary of conversation" in view[1]["content"]
-        # Original history is unchanged
-        assert len(mgr.messages) == original_count
+        await mgr.compact()
+        mgr._summarizer.summarize.assert_called_once()
+        # Messages replaced: system + summary + 2 recent
+        assert len(mgr.messages) == 4
+        assert "Summary of conversation" in mgr.messages[1]["content"]
+        assert mgr.messages[1].get("metadata", {}).get("type") == "compaction_summary"
 
     async def test_fallback_to_truncation_on_summarizer_error(self):
         store = MagicMock()
@@ -352,21 +335,21 @@ class TestCompaction:
             store_path="/tmp/test",
         )
         mgr = _make_manager(store=store, config=config)
-        mgr._llm_context._summarizer = AsyncMock()
-        mgr._llm_context._summarizer.summarize.side_effect = RuntimeError("LLM error")
+        mgr._summarizer = AsyncMock()
+        mgr._summarizer.summarize.side_effect = RuntimeError("LLM error")
         mgr.new_conversation()
         for i in range(10):
             mgr.add_message("user", f"message {i} " * 20)
         original_count = len(mgr.messages)
 
-        view = await mgr._llm_context.get_messages_async(mgr.messages)
-        # View is truncated (fallback)
-        assert len(view) < original_count
-        # Original history is unchanged
-        assert len(mgr.messages) == original_count
+        await mgr.compact()
+        # Fell back to truncation
+        assert len(mgr.messages) < original_count
+        # System prompt preserved
+        assert mgr.messages[0]["role"] == "system"
 
-    def test_history_never_persisted_after_compaction(self):
-        """Compaction must never call _persist — only add_message does."""
+    async def test_compact_persists_after_modification(self):
+        """Compaction should persist the modified conversation."""
         store = MagicMock()
         config = ContextConfig(
             max_history_tokens=50,
@@ -380,8 +363,8 @@ class TestCompaction:
             mgr.add_message("user", f"message {i} " * 20)
         store.save.reset_mock()
 
-        mgr._llm_context.get_messages(mgr.messages)
-        store.save.assert_not_called()
+        await mgr.compact()
+        store.save.assert_called()
 
 
 class TestTokenCounting:
@@ -408,7 +391,7 @@ class TestStoreCreation:
 
         with (
             patch.object(ContextManager, "_create_memory_service", return_value=None),
-            patch.object(LLMContext, "_create_summarizer", return_value=None),
+            patch.object(ContextManager, "_create_summarizer", return_value=None),
             patch(
                 "tank_backend.prompts.assembler.PromptAssembler.assemble",
                 return_value="test",
@@ -428,7 +411,7 @@ class TestStoreCreation:
 
         with (
             patch.object(ContextManager, "_create_memory_service", return_value=None),
-            patch.object(LLMContext, "_create_summarizer", return_value=None),
+            patch.object(ContextManager, "_create_summarizer", return_value=None),
             patch(
                 "tank_backend.prompts.assembler.PromptAssembler.assemble",
                 return_value="test",
@@ -455,3 +438,55 @@ class TestProperties:
     def test_prompt_assembler_exposed(self):
         mgr = _make_manager(store=None)
         assert mgr.prompt_assembler is not None
+
+
+class TestSystemPromptRefresher:
+    def test_returns_none_when_no_rebuild(self):
+        mgr = _make_manager(store=None)
+        mgr.new_conversation()
+        callback = mgr.get_system_prompt_refresher(user="Jackson")
+        # Prompt is fresh — no rebuild needed
+        assert callback() is None
+
+    def test_returns_prompt_when_dirty(self):
+        mgr = _make_manager(store=None)
+        mgr.new_conversation()
+        # Force needs_rebuild to return True
+        mgr._prompt_assembler._needs_rebuild = True
+        callback = mgr.get_system_prompt_refresher(user="Jackson")
+        result = callback()
+        assert result is not None
+        assert isinstance(result, str)
+
+    def test_includes_memory_augmentation(self):
+        mgr = _make_manager(store=None)
+        mgr.new_conversation()
+        mgr._memory_context = "- likes Python"
+        mgr._prompt_assembler._needs_rebuild = True
+        callback = mgr.get_system_prompt_refresher(user="Jackson")
+        result = callback()
+        assert "KNOWN FACTS ABOUT Jackson" in result
+        assert "likes Python" in result
+
+    def test_updates_stored_conversation(self):
+        mgr = _make_manager(store=None)
+        mgr.new_conversation()
+        old_prompt = mgr.messages[0]["content"]
+        mgr._prompt_assembler._needs_rebuild = True
+        with patch.object(mgr._prompt_assembler, "assemble", return_value="NEW PROMPT"):
+            callback = mgr.get_system_prompt_refresher(user="Jackson")
+            callback()
+        # Stored conversation updated with base prompt (no memory)
+        assert mgr.messages[0]["content"] == "NEW PROMPT"
+        assert mgr.messages[0]["content"] != old_prompt
+
+    def test_returns_none_on_second_call(self):
+        mgr = _make_manager(store=None)
+        mgr.new_conversation()
+        mgr._prompt_assembler._needs_rebuild = True
+        callback = mgr.get_system_prompt_refresher(user="Jackson")
+        first = callback()
+        assert first is not None
+        # After assemble(), needs_rebuild should be False
+        second = callback()
+        assert second is None

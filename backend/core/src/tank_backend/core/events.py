@@ -27,6 +27,7 @@ class UpdateType(Enum):
     TEXT = auto()  # Final response text
     TOOL = auto()  # Unified tool step: calling → executing → success/error
     APPROVAL = auto()  # Tool approval request pending user response
+    MESSAGE = auto()  # Complete message added to conversation (for persistence)
 
 
 @dataclass(frozen=True)

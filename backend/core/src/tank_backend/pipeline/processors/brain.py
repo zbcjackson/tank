@@ -213,6 +213,9 @@ class Brain(Processor):
         # --- Prepare messages for LLM ---
         messages = self._context.prepare_turn(event.user, event.text)
 
+        # --- System prompt refresher for mid-turn updates ---
+        system_prompt_fn = self._context.get_system_prompt_refresher(user=event.user)
+
         # Generate Assistant Message ID
         assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
         language = "zh"
@@ -235,6 +238,7 @@ class Brain(Processor):
         try:
             audio_request = await self._process_via_agents(
                 messages, assistant_msg_id, language, event,
+                system_prompt_fn=system_prompt_fn,
             )
 
             elapsed = time.time() - started_at
@@ -304,13 +308,14 @@ class Brain(Processor):
         msg_id: str,
         language: str,
         event: BrainInputEvent,
+        system_prompt_fn: Any = None,
     ) -> AudioOutputRequest | None:
         """Process via AgentGraph."""
         from ...agents.base import AgentOutputType, AgentState
 
         state = AgentState(
             messages=messages,
-            metadata={"msg_id": msg_id},
+            metadata={"msg_id": msg_id, "system_prompt_fn": system_prompt_fn},
         )
         self._current_msg_id = msg_id
         full_response_text = ""
@@ -354,7 +359,8 @@ class Brain(Processor):
             ))
 
             if full_response_text:
-                self._context.finish_turn(full_response_text)
+                turn_messages = state.metadata.get("turn_messages", [])
+                self._context.finish_turn(turn_messages)
                 await self._context.compact()
                 self._context.schedule_memory_store(
                     event.user, event.text, full_response_text,
@@ -367,7 +373,8 @@ class Brain(Processor):
         except BrainInterrupted:
             # Save what the assistant already said so the LLM has context
             if full_response_text.strip():
-                self._context.finish_turn(full_response_text)
+                turn_messages = state.metadata.get("turn_messages", [])
+                self._context.finish_turn(turn_messages)
             raise
         except Exception as e:
             logger.error(f"Agent stream processing error: {e}")

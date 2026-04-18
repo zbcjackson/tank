@@ -152,6 +152,10 @@ class LLMAgent(Agent):
         start = time.monotonic()
         full_text = ""
         tool_call_count = 0
+        turn_messages: list[dict[str, Any]] = []
+
+        # Extract system prompt refresher from state metadata
+        system_prompt_fn = state.metadata.get("system_prompt_fn")
 
         gen = self._llm.chat_stream(
             messages=messages,
@@ -161,9 +165,13 @@ class LLMAgent(Agent):
                 "trace_name": f"agent:{self.name}",
                 "metadata": {"agent_name": self.name},
             },
+            system_prompt_fn=system_prompt_fn,
         )
         try:
             async for update_type, content, metadata in gen:
+                if update_type == UpdateType.MESSAGE:
+                    turn_messages.append(metadata["message"])
+                    continue
                 output = _translate(update_type, content, metadata)
                 if output is not None:
                     # Approval gate: intercept "executing" status for tools needing approval
@@ -236,9 +244,8 @@ class LLMAgent(Agent):
 
         elapsed = time.monotonic() - start
 
-        # Append assistant response to shared state so downstream agents see it
-        if full_text:
-            state.messages.append({"role": "assistant", "content": full_text})
+        # Store turn messages for Brain to persist
+        state.metadata["turn_messages"] = turn_messages
 
         logger.info(
             "Agent[%s] finished: %.3fs, %d chars, %d tool events",

@@ -85,9 +85,10 @@ class TestChatAgent:
         assert token_outputs[1].content == " world"
         assert len(done_outputs) == 1
 
-    async def test_appends_to_state_messages(self):
+    async def test_stores_turn_messages_in_metadata(self):
         events = [
             (UpdateType.TEXT, "Hi there!", {"turn": 1}),
+            (UpdateType.MESSAGE, "", {"message": {"role": "assistant", "content": "Hi there!"}}),
         ]
         llm = _make_llm(events)
         agent = ChatAgent(name="chat", llm=llm)
@@ -96,10 +97,12 @@ class TestChatAgent:
         async for _ in agent.run(state):
             pass
 
-        # ChatAgent should append assistant message to state
-        assert len(state.messages) == 2
-        assert state.messages[1]["role"] == "assistant"
-        assert state.messages[1]["content"] == "Hi there!"
+        # Turn messages stored in metadata, not appended to state.messages
+        assert len(state.messages) == 1  # original messages unchanged
+        turn_msgs = state.metadata.get("turn_messages", [])
+        assert len(turn_msgs) == 1
+        assert turn_msgs[0]["role"] == "assistant"
+        assert turn_msgs[0]["content"] == "Hi there!"
 
     async def test_thought_events(self):
         events = [
@@ -274,3 +277,47 @@ class TestChatAgentExcludeTools:
 
         tokens = [o for o in outputs if o.type == AgentOutputType.TOKEN]
         assert len(tokens) == 1
+
+
+class TestSystemPromptCallback:
+    async def test_system_prompt_fn_forwarded_to_chat_stream(self):
+        """system_prompt_fn from state.metadata should be forwarded to chat_stream."""
+        captured_kwargs = {}
+
+        async def chat_stream(messages, **kwargs):
+            captured_kwargs.update(kwargs)
+            yield (UpdateType.TEXT, "ok", {"turn": 1})
+
+        llm = MagicMock()
+        llm.chat_stream = chat_stream
+
+        def my_callback():
+            return None
+
+        agent = ChatAgent(name="chat", llm=llm)
+        state = AgentState(
+            messages=[{"role": "user", "content": "hi"}],
+            metadata={"system_prompt_fn": my_callback},
+        )
+        async for _ in agent.run(state):
+            pass
+
+        assert captured_kwargs.get("system_prompt_fn") is my_callback
+
+    async def test_no_system_prompt_fn_passes_none(self):
+        """Without system_prompt_fn in metadata, None should be passed."""
+        captured_kwargs = {}
+
+        async def chat_stream(messages, **kwargs):
+            captured_kwargs.update(kwargs)
+            yield (UpdateType.TEXT, "ok", {"turn": 1})
+
+        llm = MagicMock()
+        llm.chat_stream = chat_stream
+
+        agent = ChatAgent(name="chat", llm=llm)
+        state = AgentState(messages=[{"role": "user", "content": "hi"}])
+        async for _ in agent.run(state):
+            pass
+
+        assert captured_kwargs.get("system_prompt_fn") is None
