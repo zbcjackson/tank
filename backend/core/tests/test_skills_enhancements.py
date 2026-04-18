@@ -6,10 +6,8 @@ import platform
 import shutil
 import textwrap
 from pathlib import Path
-from typing import Any
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -409,8 +407,6 @@ class TestCatalogEnhancements:
         from tank_backend.skills.reviewer import SecurityReviewer
 
         # Copy both skills to same directory
-        import shutil
-
         dest_dir = tmp_path / "skills"
         dest_dir.mkdir()
         shutil.copytree(high_priority_skill, dest_dir / "high-priority")
