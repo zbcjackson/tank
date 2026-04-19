@@ -135,6 +135,10 @@ class ToolManager:
         """Return a compact skill catalog for system-reminder injection."""
         return self._skill_group.get_skill_catalog()
 
+    def reload_skills(self) -> dict[str, list[str]]:
+        """Rescan skill directories, re-review, return diff of changes."""
+        return self._skill_group.reload_skills()
+
     # ------------------------------------------------------------------
     # Group lifecycle
     # ------------------------------------------------------------------

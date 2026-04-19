@@ -305,6 +305,44 @@ class InstallSkillTool(BaseTool):
         return await self._manager.install(source, skill_name=skill_name)
 
 
+class ReloadSkillsTool(BaseTool):
+    """Reload skills from disk — picks up new, updated, or removed skills."""
+
+    def __init__(self, manager: Any) -> None:
+        self._manager = manager
+
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="reload_skills",
+            description=(
+                "Rescan skill directories to pick up newly installed, "
+                "updated, or removed skills without restarting the server. "
+                "Call this after install_skill or create_skill to ensure "
+                "the skill catalog is up to date."
+            ),
+            parameters=[],
+        )
+
+    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+        diff = self._manager.reload()
+        added = diff["added"]
+        removed = diff["removed"]
+        updated = diff["updated"]
+
+        parts: list[str] = []
+        if added:
+            parts.append(f"Added: {', '.join(added)}")
+        if removed:
+            parts.append(f"Removed: {', '.join(removed)}")
+        if updated:
+            parts.append(f"Updated: {', '.join(updated)}")
+
+        if not parts:
+            return {"diff": diff, "message": "No changes detected."}
+
+        return {"diff": diff, "message": ". ".join(parts) + "."}
+
+
 class SearchSkillsTool(BaseTool):
     """Search the ClawHub registry for skills."""
 

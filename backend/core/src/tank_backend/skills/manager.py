@@ -93,6 +93,49 @@ class SkillManager:
                 )
 
     # ------------------------------------------------------------------
+    # Hot reload — rescan disk, re-review, return diff
+    # ------------------------------------------------------------------
+
+    def reload(self) -> dict[str, list[str]]:
+        """Rescan skill directories and re-review new/changed skills.
+
+        Returns a dict with ``added``, ``removed``, and ``updated`` skill
+        name lists so callers know what changed.
+        """
+        old_names = {s.metadata.name for s in self._registry.list_all()}
+        old_hashes = {
+            s.metadata.name: s.content_hash
+            for s in self._registry.list_all()
+        }
+
+        self._registry.scan()
+        self.startup()
+
+        new_names = {s.metadata.name for s in self._registry.list_all()}
+        new_hashes = {
+            s.metadata.name: s.content_hash
+            for s in self._registry.list_all()
+        }
+
+        added = sorted(new_names - old_names)
+        removed = sorted(old_names - new_names)
+        updated = sorted(
+            name for name in (old_names & new_names)
+            if old_hashes.get(name) != new_hashes.get(name)
+        )
+
+        total = len(added) + len(removed) + len(updated)
+        logger.info(
+            "Skill reload complete: %d added, %d removed, %d updated",
+            len(added), len(removed), len(updated),
+        )
+
+        if total > 0:
+            self._post_bus_event("reloaded", f"+{len(added)}-{len(removed)}~{len(updated)}")
+
+        return {"added": added, "removed": removed, "updated": updated}
+
+    # ------------------------------------------------------------------
     # Skill catalog for system-reminder injection
     # ------------------------------------------------------------------
 

@@ -695,7 +695,7 @@ class TestSkillToolGroup:
         group = SkillToolGroup(config={"enabled": False})
         assert group.create_tools() == []
 
-    def test_enabled_creates_five_tools(self, tmp_path: Path) -> None:
+    def test_enabled_creates_six_tools(self, tmp_path: Path) -> None:
         from tank_backend.tools.groups import SkillToolGroup
 
         skills_dir = tmp_path / "skills"
@@ -709,7 +709,7 @@ class TestSkillToolGroup:
         names = [t.get_info().name for t in tools]
         assert names == [
             "use_skill", "list_skills", "create_skill",
-            "install_skill", "search_skills",
+            "install_skill", "reload_skills", "search_skills",
         ]
 
     def test_auto_review_on_startup(self, tmp_skill_dir: Path) -> None:
@@ -1075,3 +1075,179 @@ class TestSearchSkillsTool:
 
         assert result["results"] == []
         assert "No skills found" in result["message"]
+
+
+# ---------------------------------------------------------------------------
+# Reload tests
+# ---------------------------------------------------------------------------
+
+class TestReload:
+    def test_reload_picks_up_new_skill(self, tmp_path: Path) -> None:
+        from tank_backend.skills.manager import SkillManager
+        from tank_backend.skills.registry import SkillRegistry
+        from tank_backend.skills.reviewer import SecurityReviewer
+
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+
+        registry = SkillRegistry([skills_dir])
+        registry.scan()
+        mgr = SkillManager(registry, SecurityReviewer())
+        mgr.startup()
+
+        assert registry.get("new-skill") is None
+
+        # Drop a new skill on disk
+        new_dir = skills_dir / "new-skill"
+        new_dir.mkdir()
+        (new_dir / "SKILL.md").write_text(
+            "---\nname: new-skill\ndescription: brand new\n---\nBody\n"
+        )
+
+        diff = mgr.reload()
+
+        assert "new-skill" in diff["added"]
+        assert diff["removed"] == []
+        assert diff["updated"] == []
+        assert registry.get("new-skill") is not None
+
+    def test_reload_detects_removed_skill(self, tmp_skill_dir: Path) -> None:
+        import shutil
+
+        from tank_backend.skills.manager import SkillManager
+        from tank_backend.skills.registry import SkillRegistry
+        from tank_backend.skills.reviewer import SecurityReviewer
+
+        registry = SkillRegistry([tmp_skill_dir.parent])
+        registry.scan()
+        mgr = SkillManager(registry, SecurityReviewer())
+        mgr.startup()
+
+        assert registry.get("test-skill") is not None
+
+        shutil.rmtree(tmp_skill_dir)
+
+        diff = mgr.reload()
+
+        assert "test-skill" in diff["removed"]
+        assert diff["added"] == []
+        assert registry.get("test-skill") is None
+
+    def test_reload_detects_updated_skill(self, tmp_skill_dir: Path) -> None:
+        from tank_backend.skills.manager import SkillManager
+        from tank_backend.skills.registry import SkillRegistry
+        from tank_backend.skills.reviewer import SecurityReviewer
+
+        registry = SkillRegistry([tmp_skill_dir.parent])
+        registry.scan()
+        mgr = SkillManager(registry, SecurityReviewer())
+        mgr.startup()
+
+        old_hash = registry.get("test-skill").content_hash
+
+        # Modify the skill
+        skill_file = tmp_skill_dir / "SKILL.md"
+        skill_file.write_text(skill_file.read_text() + "\nUpdated content.\n")
+
+        diff = mgr.reload()
+
+        assert "test-skill" in diff["updated"]
+        assert diff["added"] == []
+        assert diff["removed"] == []
+        new_hash = registry.get("test-skill").content_hash
+        assert new_hash != old_hash
+
+    def test_reload_no_changes(self, tmp_skill_dir: Path) -> None:
+        from tank_backend.skills.manager import SkillManager
+        from tank_backend.skills.registry import SkillRegistry
+        from tank_backend.skills.reviewer import SecurityReviewer
+
+        registry = SkillRegistry([tmp_skill_dir.parent])
+        registry.scan()
+        mgr = SkillManager(registry, SecurityReviewer())
+        mgr.startup()
+
+        diff = mgr.reload()
+
+        assert diff == {"added": [], "removed": [], "updated": []}
+
+    def test_skill_tool_group_reload(self, tmp_path: Path) -> None:
+        from tank_backend.tools.groups import SkillToolGroup
+
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+
+        # Start with one skill
+        s1 = skills_dir / "alpha"
+        s1.mkdir()
+        (s1 / "SKILL.md").write_text(
+            "---\nname: alpha\ndescription: first\n---\nBody\n"
+        )
+
+        group = SkillToolGroup(
+            config={
+                "enabled": True,
+                "dirs": [str(skills_dir)],
+                "auto_approve_threshold": "low",
+            },
+        )
+        group.create_tools()
+
+        assert "alpha" in group.get_skill_catalog()
+
+        # Add a second skill on disk
+        s2 = skills_dir / "beta"
+        s2.mkdir()
+        (s2 / "SKILL.md").write_text(
+            "---\nname: beta\ndescription: second\n---\nBody\n"
+        )
+
+        diff = group.reload_skills()
+
+        assert "beta" in diff["added"]
+        catalog = group.get_skill_catalog()
+        assert "alpha" in catalog
+        assert "beta" in catalog
+
+    @pytest.mark.asyncio()
+    async def test_reload_skills_tool(self, tmp_path: Path) -> None:
+        from tank_backend.skills.manager import SkillManager
+        from tank_backend.skills.registry import SkillRegistry
+        from tank_backend.skills.reviewer import SecurityReviewer
+        from tank_backend.tools.skill_tools import ReloadSkillsTool
+
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+
+        registry = SkillRegistry([skills_dir])
+        registry.scan()
+        mgr = SkillManager(registry, SecurityReviewer())
+        mgr.startup()
+
+        tool = ReloadSkillsTool(mgr)
+        info = tool.get_info()
+        assert info.name == "reload_skills"
+
+        # No changes
+        result = await tool.execute()
+        assert "No changes" in result["message"]
+
+        # Add a skill, then reload
+        new_dir = skills_dir / "fresh"
+        new_dir.mkdir()
+        (new_dir / "SKILL.md").write_text(
+            "---\nname: fresh\ndescription: a fresh skill\n---\nBody\n"
+        )
+
+        result = await tool.execute()
+        assert "fresh" in result["message"]
+        assert "Added" in result["message"]
+
+    def test_reload_disabled_group(self) -> None:
+        from tank_backend.tools.groups import SkillToolGroup
+
+        group = SkillToolGroup(config={"enabled": False})
+        group.create_tools()
+
+        diff = group.reload_skills()
+        assert diff == {"added": [], "removed": [], "updated": []}

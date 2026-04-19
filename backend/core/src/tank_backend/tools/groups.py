@@ -222,6 +222,7 @@ class SkillToolGroup(ToolGroup):
             CreateSkillTool,
             InstallSkillTool,
             ListSkillsTool,
+            ReloadSkillsTool,
             SearchSkillsTool,
             UseSkillTool,
         )
@@ -251,7 +252,7 @@ class SkillToolGroup(ToolGroup):
             if s.reviewed and s.content_hash == s.review_hash
         ]
         logger.info(
-            "SkillToolGroup: %d reviewed skills, 5 management tools",
+            "SkillToolGroup: %d reviewed skills, 6 management tools",
             len(reviewed),
         )
 
@@ -262,6 +263,7 @@ class SkillToolGroup(ToolGroup):
             ListSkillsTool(self._manager),
             CreateSkillTool(self._manager),
             InstallSkillTool(self._manager),
+            ReloadSkillsTool(self._manager),
             SearchSkillsTool(),
         ]
 
@@ -270,6 +272,12 @@ class SkillToolGroup(ToolGroup):
         if self._manager is None:
             return ""
         return self._manager.get_skill_catalog()
+
+    def reload_skills(self) -> dict[str, list[str]]:
+        """Rescan skill directories and return diff of changes."""
+        if self._manager is None:
+            return {"added": [], "removed": [], "updated": []}
+        return self._manager.reload()
 
     def set_agent_runner(self, runner: Any) -> None:
         """Wire AgentRunner into UseSkillTool for fork-mode execution."""

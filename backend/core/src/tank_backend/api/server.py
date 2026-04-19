@@ -24,6 +24,8 @@ from .metrics import router as metrics_router  # noqa: E402
 from .metrics import set_connection_manager as set_metrics_connection_manager  # noqa: E402
 from .router import router  # noqa: E402
 from .router import set_connection_manager as set_router_connection_manager  # noqa: E402
+from .skills import router as skills_router  # noqa: E402
+from .skills import set_connection_manager as set_skills_connection_manager  # noqa: E402
 from .speakers import router as speakers_router  # noqa: E402
 from .speakers import set_connection_manager  # noqa: E402
 
@@ -66,10 +68,12 @@ app.include_router(speakers_router)
 app.include_router(metrics_router)
 app.include_router(approvals_router)
 app.include_router(conversations_router)
+app.include_router(skills_router)
 set_router_connection_manager(connection_manager)
 set_connection_manager(connection_manager)
 set_metrics_connection_manager(connection_manager)
 set_approvals_connection_manager(connection_manager)
+set_skills_connection_manager(connection_manager)
 set_conversations_store(_store)
 
 

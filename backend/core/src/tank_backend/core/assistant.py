@@ -445,6 +445,17 @@ class Assistant:
             "speaker_id": self._app_config.is_feature_enabled("speaker"),
         }
 
+    def reload_skills(self) -> dict[str, list[str]]:
+        """Rescan skill directories and refresh the system prompt.
+
+        Returns a diff with ``added``, ``removed``, and ``updated`` lists.
+        """
+        diff = self._tool_manager.reload_skills()
+        has_changes = any(diff[k] for k in ("added", "removed", "updated"))
+        if has_changes and hasattr(self, "brain"):
+            self.brain._context._prompt_assembler.mark_dirty()
+        return diff
+
     @property
     def approval_manager(self):
         """Return the ApprovalManager instance, or None if not configured."""
