@@ -410,8 +410,8 @@ class Brain(Processor):
                 is_user=False,
                 msg_id=self._current_msg_id,
                 is_final=False,
-                update_type=UpdateType.APPROVAL_REQUEST,
-                metadata={"approval_id": request.id},
+                update_type=UpdateType.APPROVAL,
+                metadata={"approval_id": request.approval_id},
             ),
         ))
 

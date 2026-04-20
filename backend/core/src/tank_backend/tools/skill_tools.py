@@ -245,7 +245,7 @@ class CreateSkillTool(BaseTool):
                     type="string",
                     description=(
                         "Comma-separated list of tools this skill needs "
-                        "(e.g. 'web_search,web_scraper'). Empty if none."
+                        "(e.g. 'web_search,web_fetch'). Empty if none."
                     ),
                     required=False,
                 ),

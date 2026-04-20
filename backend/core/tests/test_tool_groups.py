@@ -162,7 +162,7 @@ def test_web_group_creates_two_tools():
     cred_mgr = MagicMock()
     tools = WebToolGroup(cred_mgr).create_tools()
     names = {t.get_info().name for t in tools}
-    assert names == {"web_search", "web_scraper"}
+    assert names == {"web_search", "web_fetch"}
 
 
 # ------------------------------------------------------------------
@@ -213,7 +213,7 @@ def test_tool_manager_registers_web_tools():
     cfg = _make_app_config()
     tm = ToolManager(app_config=cfg)
     assert "web_search" in tm.tools
-    assert "web_scraper" in tm.tools
+    assert "web_fetch" in tm.tools
 
 
 def test_tool_manager_sandbox_disabled_by_default():

@@ -34,7 +34,7 @@ _SAFE_TOOLS = frozenset({
 })
 
 _NETWORK_TOOLS = frozenset({
-    "web_search", "web_scraper",
+    "web_search", "web_fetch",
 })
 
 _HIGH_RISK_TOOLS = frozenset({

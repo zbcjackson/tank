@@ -116,7 +116,7 @@ approval_policies:
     - manage_process
   require_approval_first_time:
     - web_search
-    - web_scraper
+    - web_fetch
 
 # Conversation persistence — save/restore history across restarts.
 persistence:

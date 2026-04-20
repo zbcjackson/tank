@@ -137,11 +137,11 @@ Claude Code runs compaction in a specific order, where each layer can prevent th
 
 The single highest-value compaction strategy Tank is missing. After 2-3 turns, replace old tool results with a placeholder. No LLM call required.
 
-**Compactable tools in Tank:** `web_search`, `web_scraper`, `run_command`, `persistent_shell`
+**Compactable tools in Tank:** `web_search`, `web_fetch`, `run_command`, `persistent_shell`
 **Non-compactable:** `calculate`, `get_time`, `get_weather` (results are small)
 
 ```python
-COMPACTABLE_TOOLS = {"web_search", "web_scraper", "run_command", "persistent_shell"}
+COMPACTABLE_TOOLS = {"web_search", "web_fetch", "run_command", "persistent_shell"}
 KEEP_RECENT_RESULTS = 2  # keep last N tool results
 
 def microcompact(messages: list[dict], keep_recent: int = KEEP_RECENT_RESULTS) -> list[dict]:
@@ -274,7 +274,7 @@ async def execute_tool_calls(tool_calls: list, tool_manager) -> list:
 
     return results
 
-CONCURRENT_SAFE_TOOLS = {"calculate", "get_time", "get_weather", "web_search", "web_scraper"}
+CONCURRENT_SAFE_TOOLS = {"calculate", "get_time", "get_weather", "web_search", "web_fetch"}
 
 def is_concurrency_safe(tool_name: str) -> bool:
     return tool_name in CONCURRENT_SAFE_TOOLS
@@ -288,7 +288,7 @@ When the tool set grows large, mark some tools as deferred — their schemas are
 
 **Pattern:**
 - Always load: `calculate`, `get_time`, `get_weather` (small, frequently used)
-- Defer: `web_search`, `web_scraper`, `run_command`, `persistent_shell` (large schemas)
+- Defer: `web_search`, `web_fetch`, `run_command`, `persistent_shell` (large schemas)
 - Add a `find_tool` meta-tool that returns matching schemas on demand
 
 ---
@@ -451,7 +451,7 @@ Claude Code's skills are reusable prompt templates stored as markdown files with
 name: summarize
 trigger_keywords: [summarize, summary, tldr, 总结]
 agent: search
-tools: [web_scraper]
+tools: [web_fetch]
 effort: medium
 prompt: |
   Fetch the URL the user mentioned and provide a concise summary
@@ -483,7 +483,7 @@ hooks:
       command: "ruff check {file}"
       on_failure: feed_to_agent  # restart agent with error
   pre_tool_use:
-    - tool: web_scraper
+    - tool: web_fetch
       command: "check_url_allowlist.sh {url}"
       on_failure: block  # prevent tool execution
   stop:

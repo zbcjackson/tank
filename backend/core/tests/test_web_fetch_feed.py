@@ -1,16 +1,16 @@
-"""Test RSS/Atom feed parsing in web_scraper."""
+"""Test RSS/Atom feed parsing in web_fetch."""
 
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from tank_backend.tools.web_scraper import WebScraperTool
+from tank_backend.tools.web_fetch import WebFetchTool
 
 
 @pytest.fixture
 def tool():
-    return WebScraperTool(timeout=10, max_content_length=5000)
+    return WebFetchTool(timeout=10, max_content_length=5000)
 
 
 # Sample RSS 2.0 feed
@@ -70,7 +70,11 @@ async def test_rss_feed_detection_and_parsing(tool):
     mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
     mock_resp.__aexit__ = AsyncMock()
 
-    with patch("aiohttp.ClientSession", return_value=mock_session):
+    # _detect_content_type returns xml, then _try_fetch_feed handles it
+    with patch.object(
+        tool, "_detect_content_type",
+        return_value=("application/rss+xml", None),
+    ), patch("aiohttp.ClientSession", return_value=mock_session):
         result = await tool.execute(url="https://example.com/feed")
 
     assert result.error is False
@@ -107,7 +111,10 @@ async def test_atom_feed_detection_and_parsing(tool):
     mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
     mock_resp.__aexit__ = AsyncMock()
 
-    with patch("aiohttp.ClientSession", return_value=mock_session):
+    with patch.object(
+        tool, "_detect_content_type",
+        return_value=("application/atom+xml", None),
+    ), patch("aiohttp.ClientSession", return_value=mock_session):
         result = await tool.execute(url="https://example.com/atom")
 
     assert result.error is False
@@ -124,19 +131,7 @@ async def test_atom_feed_detection_and_parsing(tool):
 
 
 async def test_html_page_not_detected_as_feed(tool):
-    """HTML pages with text/html content-type fall through to crawl4ai."""
-    mock_resp = MagicMock()
-    mock_resp.headers = {"Content-Type": "text/html; charset=utf-8"}
-
-    mock_session = MagicMock()
-    mock_session.get = MagicMock(return_value=mock_resp)
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock()
-
-    mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-    mock_resp.__aexit__ = AsyncMock()
-
-    # Mock crawl4ai path
+    """HTML pages with text/html content-type go to HTML handler."""
     mock_crawler = MagicMock()
     mock_result = MagicMock()
     mock_result.success = True
@@ -147,28 +142,19 @@ async def test_html_page_not_detected_as_feed(tool):
     mock_crawler.arun = AsyncMock(return_value=mock_result)
     tool._http_crawler = mock_crawler
 
-    with patch("aiohttp.ClientSession", return_value=mock_session):
+    with patch.object(
+        tool, "_detect_content_type",
+        return_value=("text/html", None),
+    ):
         result = await tool.execute(url="https://example.com/page")
 
-    # Should have fallen through to crawl4ai
+    # Should have gone to HTML handler (crawl4ai)
     mock_crawler.arun.assert_awaited_once()
     assert result.error is False
 
 
 async def test_feed_parsing_error_falls_back_to_html(tool):
     """Malformed XML falls back to HTML scraping."""
-    mock_resp = MagicMock()
-    mock_resp.headers = {"Content-Type": "application/rss+xml"}
-    mock_resp.read = AsyncMock(return_value=b"<invalid xml")
-
-    mock_session = MagicMock()
-    mock_session.get = MagicMock(return_value=mock_resp)
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock()
-
-    mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
-    mock_resp.__aexit__ = AsyncMock()
-
     # Mock crawl4ai fallback
     mock_crawler = MagicMock()
     mock_result = MagicMock()
@@ -180,7 +166,11 @@ async def test_feed_parsing_error_falls_back_to_html(tool):
     mock_crawler.arun = AsyncMock(return_value=mock_result)
     tool._http_crawler = mock_crawler
 
-    with patch("aiohttp.ClientSession", return_value=mock_session):
+    # _detect_content_type says XML, but _try_fetch_feed fails → fallback to HTML
+    with patch.object(
+        tool, "_detect_content_type",
+        return_value=("application/rss+xml", None),
+    ), patch.object(tool, "_try_fetch_feed", return_value=None):
         await tool.execute(url="https://example.com/bad-feed")
 
     # Should have fallen back to crawl4ai
@@ -201,7 +191,10 @@ async def test_rss_html_tags_stripped_from_description(tool):
     mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
     mock_resp.__aexit__ = AsyncMock()
 
-    with patch("aiohttp.ClientSession", return_value=mock_session):
+    with patch.object(
+        tool, "_detect_content_type",
+        return_value=("application/rss+xml", None),
+    ), patch("aiohttp.ClientSession", return_value=mock_session):
         result = await tool.execute(url="https://example.com/feed")
 
     data = json.loads(result.content)

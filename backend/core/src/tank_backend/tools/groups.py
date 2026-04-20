@@ -63,7 +63,7 @@ class DefaultToolGroup(ToolGroup):
 
 
 class WebToolGroup(ToolGroup):
-    """Web search and scraping tools — need credentials and network policy."""
+    """Web search and fetch tools — need credentials and network policy."""
 
     def __init__(
         self,
@@ -76,11 +76,11 @@ class WebToolGroup(ToolGroup):
         self._approval_callback = approval_callback
 
     def create_tools(self) -> list[BaseTool]:
-        from .web_scraper import WebScraperTool
+        from .web_fetch import WebFetchTool
         from .web_search import WebSearchTool
 
         return [
-            WebScraperTool(
+            WebFetchTool(
                 network_policy=self._network_policy,
                 approval_callback=self._approval_callback,
             ),

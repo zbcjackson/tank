@@ -73,9 +73,9 @@ Greet the user warmly. If arguments are provided, treat them as the person's nam
 
 `allowed-tools` accepts both YAML list syntax and comma-separated strings:
 ```yaml
-allowed-tools: [web_search, web_scraper]
+allowed-tools: [web_search, web_fetch]
 # or
-allowed-tools: web_search, web_scraper
+allowed-tools: web_search, web_fetch
 ```
 
 ## How Skills Work

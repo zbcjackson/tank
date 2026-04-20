@@ -1,16 +1,16 @@
 import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from tank_backend.tools.web_scraper import WebScraperTool
+from tank_backend.tools.web_fetch import WebFetchTool
 
-MODULE = "tank_backend.tools.web_scraper"
+MODULE = "tank_backend.tools.web_fetch"
 
 
 @pytest.fixture
 def tool():
-    return WebScraperTool(timeout=10, max_content_length=500)
+    return WebFetchTool(timeout=10, max_content_length=500)
 
 
 _SENTINEL = object()
@@ -59,13 +59,21 @@ def _tool_with_crawler(tool, crawl_result=None, **arun_kwargs):
     return mock
 
 
+def _patch_detect_html(tool):
+    """Patch _detect_content_type to return text/html."""
+    return patch.object(
+        tool, "_detect_content_type",
+        return_value=("text/html", None),
+    )
+
+
 # --- get_info ---
 
 
 def test_get_info():
-    tool = WebScraperTool()
+    tool = WebFetchTool()
     info = tool.get_info()
-    assert info.name == "web_scraper"
+    assert info.name == "web_fetch"
     param_names = [p.name for p in info.parameters]
     assert "url" in param_names
     assert "extract_links" in param_names
@@ -105,7 +113,7 @@ async def test_unsupported_scheme(tool):
     assert "仅支持HTTP和HTTPS" in result.display
 
 
-# --- Successful scrape ---
+# --- Successful HTML fetch ---
 
 
 async def test_successful_scrape(tool):
@@ -115,7 +123,8 @@ async def test_successful_scrape(tool):
     )
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com")
 
     assert result.error is False
     data = json.loads(result.content)
@@ -142,7 +151,8 @@ async def test_successful_scrape_with_links(tool):
     )
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com", extract_links=True)
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com", extract_links=True)
 
     assert result.error is False
     data = json.loads(result.content)
@@ -158,7 +168,8 @@ async def test_links_limited_to_20(tool):
     crawl_result = _make_crawl_result(links={"internal": many_links, "external": []})
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com", extract_links=True)
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com", extract_links=True)
 
     data = json.loads(result.content)
     assert len(data["links"]) == 20
@@ -176,7 +187,8 @@ async def test_links_skip_empty_text(tool):
     )
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com", extract_links=True)
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com", extract_links=True)
 
     data = json.loads(result.content)
     assert len(data["links"]) == 1
@@ -191,7 +203,8 @@ async def test_content_truncation(tool):
     crawl_result = _make_crawl_result(markdown_text=long_markdown)
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com")
 
     data = json.loads(result.content)
     assert data["text_content"].endswith("... [Content truncated]")
@@ -206,7 +219,8 @@ async def test_headings_from_markdown(tool):
     crawl_result = _make_crawl_result(markdown_text=md)
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com")
 
     data = json.loads(result.content)
     headings = data["headings"]
@@ -221,7 +235,8 @@ async def test_headings_limited_to_10(tool):
     crawl_result = _make_crawl_result(markdown_text=md)
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com")
 
     data = json.loads(result.content)
     assert len(data["headings"]) == 10
@@ -235,7 +250,8 @@ async def test_empty_markdown(tool):
     crawl_result.markdown = None
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com")
 
     assert result.error is False
     data = json.loads(result.content)
@@ -251,7 +267,8 @@ async def test_redirected_url(tool):
     crawl_result = _make_crawl_result(redirected_url="https://example.com/final")
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com/old")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com/old")
 
     data = json.loads(result.content)
     assert data["url"] == "https://example.com/final"
@@ -264,7 +281,8 @@ async def test_crawl_failure_http_error(tool):
     crawl_result = _make_crawl_result(success=False, status_code=404, error_message="Not Found")
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com/missing")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com/missing")
 
     assert result.error is True
     data = json.loads(result.content)
@@ -278,7 +296,8 @@ async def test_crawl_failure_timeout(tool):
     )
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com")
 
     data = json.loads(result.content)
     assert data["error"] == "Request timeout"
@@ -291,7 +310,8 @@ async def test_crawl_failure_connection(tool):
     )
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com")
 
     data = json.loads(result.content)
     assert data["error"] == "Connection error"
@@ -304,7 +324,8 @@ async def test_crawl_failure_generic(tool):
     )
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com")
 
     assert result.error is True
     data = json.loads(result.content)
@@ -317,7 +338,8 @@ async def test_crawl_failure_generic(tool):
 async def test_timeout_exception(tool):
     _tool_with_crawler(tool, side_effect=TimeoutError("timed out"))
 
-    result = await tool.execute(url="https://example.com")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com")
 
     data = json.loads(result.content)
     assert data["error"] == "Request timeout"
@@ -327,7 +349,8 @@ async def test_timeout_exception(tool):
 async def test_connection_exception(tool):
     _tool_with_crawler(tool, side_effect=ConnectionError("refused"))
 
-    result = await tool.execute(url="https://example.com")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com")
 
     data = json.loads(result.content)
     assert data["error"] == "Connection error"
@@ -336,7 +359,8 @@ async def test_connection_exception(tool):
 async def test_generic_exception(tool):
     _tool_with_crawler(tool, side_effect=Exception("something broke"))
 
-    result = await tool.execute(url="https://example.com")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com")
 
     assert result.error is True
     data = json.loads(result.content)
@@ -350,8 +374,9 @@ async def test_crawler_reused_across_calls(tool):
     crawl_result = _make_crawl_result()
     mock = _tool_with_crawler(tool, crawl_result)
 
-    await tool.execute(url="https://example.com")
-    await tool.execute(url="https://example.com/page2")
+    with _patch_detect_html(tool):
+        await tool.execute(url="https://example.com")
+        await tool.execute(url="https://example.com/page2")
 
     # arun called twice on the same crawler instance
     assert mock.arun.call_count == 2
@@ -367,7 +392,8 @@ async def test_use_browser_uses_browser_crawler(tool):
     tool._http_crawler = http_mock
     tool._browser_crawler = browser_mock
 
-    result = await tool.execute(url="https://example.com", use_browser=True)
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com", use_browser=True)
 
     data = json.loads(result.content)
     assert data["status"] == "success"
@@ -382,7 +408,8 @@ async def test_http_mode_does_not_use_browser(tool):
     tool._http_crawler = http_mock
     tool._browser_crawler = browser_mock
 
-    result = await tool.execute(url="https://example.com", use_browser=False)
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com", use_browser=False)
 
     data = json.loads(result.content)
     assert data["status"] == "success"
@@ -399,7 +426,8 @@ async def test_metadata_og_description_fallback(tool):
     )
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com")
 
     data = json.loads(result.content)
     assert data["meta_description"] == "OG desc"
@@ -409,7 +437,8 @@ async def test_missing_metadata(tool):
     crawl_result = _make_crawl_result(metadata=None)
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com")
 
     data = json.loads(result.content)
     assert data["title"] == ""
@@ -445,7 +474,7 @@ async def test_close_noop_when_no_crawlers(tool):
 async def test_network_policy_deny_blocks_scrape():
     policy = MagicMock()
     policy.evaluate.return_value = MagicMock(level="deny", reason="Anonymous network")
-    tool = WebScraperTool(network_policy=policy)
+    tool = WebFetchTool(network_policy=policy)
 
     result = await tool.execute(url="https://hidden.onion/page")
 
@@ -461,7 +490,7 @@ async def test_network_policy_require_approval_denied():
         level="require_approval", reason="Content sharing",
     )
     cb = AsyncMock(return_value=False)
-    tool = WebScraperTool(network_policy=policy, approval_callback=cb)
+    tool = WebFetchTool(network_policy=policy, approval_callback=cb)
 
     result = await tool.execute(url="https://pastebin.com/raw/abc")
 
@@ -469,7 +498,7 @@ async def test_network_policy_require_approval_denied():
     data = json.loads(result.content)
     assert "Approval denied" in data["error"]
     cb.assert_awaited_once_with(
-        "web_scraper", "pastebin.com", "connect", "Content sharing",
+        "web_fetch", "pastebin.com", "connect", "Content sharing",
     )
 
 
@@ -480,10 +509,11 @@ async def test_network_policy_require_approval_granted():
     )
     cb = AsyncMock(return_value=True)
     crawl_result = _make_crawl_result(url="https://pastebin.com/raw/abc")
-    tool = WebScraperTool(network_policy=policy, approval_callback=cb)
+    tool = WebFetchTool(network_policy=policy, approval_callback=cb)
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://pastebin.com/raw/abc")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://pastebin.com/raw/abc")
 
     assert result.error is False
     data = json.loads(result.content)
@@ -496,7 +526,7 @@ async def test_network_policy_require_approval_no_callback_denies():
     policy.evaluate.return_value = MagicMock(
         level="require_approval", reason="Content sharing",
     )
-    tool = WebScraperTool(network_policy=policy)  # no callback
+    tool = WebFetchTool(network_policy=policy)  # no callback
 
     result = await tool.execute(url="https://pastebin.com/raw/abc")
 
@@ -511,10 +541,11 @@ async def test_network_policy_allow_proceeds():
         level="allow", reason="default policy",
     )
     crawl_result = _make_crawl_result()
-    tool = WebScraperTool(network_policy=policy)
+    tool = WebFetchTool(network_policy=policy)
     _tool_with_crawler(tool, crawl_result)
 
-    result = await tool.execute(url="https://example.com")
+    with _patch_detect_html(tool):
+        result = await tool.execute(url="https://example.com")
 
     assert result.error is False
     data = json.loads(result.content)

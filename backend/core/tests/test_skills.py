@@ -187,14 +187,14 @@ class TestParser:
             description: "A skill with allowed tools"
             allowed-tools:
               - web_search
-              - web_scraper
+              - web_fetch
             ---
 
             Search the web.
         """))
 
         skill = parse_skill_file(skill_dir)
-        assert skill.metadata.allowed_tools == ("web_search", "web_scraper")
+        assert skill.metadata.allowed_tools == ("web_search", "web_fetch")
 
     def test_parse_backward_compat_tools_field(self, tmp_path: Path) -> None:
         """Old 'tools:' field should still work for backward compat."""

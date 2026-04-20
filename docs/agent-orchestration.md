@@ -145,7 +145,7 @@ approval_policies:
     - manage_process
   require_approval_first_time:
     - web_search
-    - web_scraper
+    - web_fetch
 ```
 
 ## Configuration

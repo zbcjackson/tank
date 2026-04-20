@@ -272,7 +272,7 @@ UI gets ui_display (concise summary for tool card)
 - `weather.py` — Weather information (OpenWeatherMap)
 - `time.py` — Current date/time
 - `web_search.py` — Real-time web search (requires SERPER_API_KEY)
-- `web_scraper.py` — Web content extraction (crawl4ai)
+- `web_fetch.py` — Web content extraction with content-type routing (HTML, PDF, JSON, RSS, etc.)
 - `file_read.py`, `file_write.py`, `file_edit.py`, `file_delete.py` — File operations with access policy
 - `file_list.py`, `file_search.py` — Directory listing and content search (ripgrep)
 - `run_command.py` — Run a command in Docker sandbox

@@ -1,9 +1,12 @@
 import json
 import logging
 import re
+import time
 import xml.etree.ElementTree as ET
+from collections import OrderedDict
+from dataclasses import dataclass
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
@@ -18,7 +21,61 @@ _USER_AGENT = (
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
 
-class WebScraperTool(BaseTool):
+@dataclass
+class CacheEntry:
+    content: str
+    content_type: str
+    timestamp: float
+
+
+class ResponseCache:
+    """LRU cache with TTL for web fetch responses."""
+
+    def __init__(self, max_size: int = 50, ttl_seconds: float = 900):  # 15 min
+        self._cache: OrderedDict[str, CacheEntry] = OrderedDict()
+        self._max_size = max_size
+        self._ttl = ttl_seconds
+
+    def _normalize_url(self, url: str) -> str:
+        """Normalize URL for cache key (lowercase, strip fragment)."""
+        parsed = urlparse(url.lower())
+        # Strip fragment (#anchor)
+        return urlunparse(parsed._replace(fragment=""))
+
+    def get(self, url: str) -> CacheEntry | None:
+        """Get cached entry if exists and not expired."""
+        key = self._normalize_url(url)
+        entry = self._cache.get(key)
+
+        if entry is None:
+            return None
+
+        # Check TTL
+        if time.time() - entry.timestamp > self._ttl:
+            del self._cache[key]
+            return None
+
+        # Move to end (LRU)
+        self._cache.move_to_end(key)
+        return entry
+
+    def put(self, url: str, content: str, content_type: str) -> None:
+        """Cache response with current timestamp."""
+        key = self._normalize_url(url)
+
+        # Evict oldest if at capacity
+        if len(self._cache) >= self._max_size and key not in self._cache:
+            self._cache.popitem(last=False)  # Remove oldest
+
+        self._cache[key] = CacheEntry(
+            content=content,
+            content_type=content_type,
+            timestamp=time.time(),
+        )
+        self._cache.move_to_end(key)
+
+
+class WebFetchTool(BaseTool):
     def __init__(
         self,
         timeout: int = 15,
@@ -32,13 +89,15 @@ class WebScraperTool(BaseTool):
         self._browser_crawler: Any = None
         self._network_policy = network_policy
         self._approval_callback = approval_callback
+        self._cache = ResponseCache(max_size=50, ttl_seconds=900)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
-            name="web_scraper",
+            name="web_fetch",
             description=(
-                "Fetch and extract content from web URLs."
-                " Returns clean markdown for LLM consumption."
+                "Fetch and extract content from any web URL."
+                " Handles HTML, PDF, RSS/Atom feeds, JSON, plain text, and more."
+                " Returns clean markdown or structured data for LLM consumption."
                 " Supports JavaScript-rendered pages via use_browser option."
             ),
             parameters=[
@@ -46,15 +105,15 @@ class WebScraperTool(BaseTool):
                     name="url",
                     type="string",
                     description=(
-                        "The URL to scrape and extract content from"
-                        " (must be a valid HTTP/HTTPS URL)"
+                        "The URL to fetch and extract content from"
+                        " (supports HTTP/HTTPS, any content type)"
                     ),
                     required=True,
                 ),
                 ToolParameter(
                     name="extract_links",
                     type="boolean",
-                    description="Whether to extract and return links from the page",
+                    description="Whether to extract and return links from HTML pages",
                     required=False,
                     default=False,
                 ),
@@ -63,7 +122,7 @@ class WebScraperTool(BaseTool):
                     type="boolean",
                     description=(
                         "Set to true for JavaScript-heavy pages that need browser rendering."
-                        " Slower but handles SPAs and dynamic content."
+                        " Slower but handles SPAs and dynamic content. Only applies to HTML."
                     ),
                     required=False,
                     default=False,
@@ -133,6 +192,38 @@ class WebScraperTool(BaseTool):
         if len(text) > self.max_content_length:
             return text[: self.max_content_length] + "... [Content truncated]"
         return text
+
+    async def _detect_content_type(self, url: str) -> tuple[str, bytes | None]:
+        """
+        Fetch URL and detect content type from headers.
+
+        Returns:
+            (content_type, content_bytes_or_none)
+
+        For small responses (<1MB), returns full content.
+        For large responses, returns None (caller must re-fetch).
+        """
+        import aiohttp
+
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(
+                url,
+                headers={"User-Agent": _USER_AGENT},
+                timeout=aiohttp.ClientTimeout(total=self.timeout),
+            ) as resp,
+        ):
+            content_type = resp.headers.get("Content-Type", "").lower()
+            # Strip charset: "text/html; charset=utf-8" → "text/html"
+            content_type = content_type.split(";")[0].strip()
+
+            # For small responses, read content now to avoid double-fetch
+            content_length = resp.headers.get("Content-Length")
+            if content_length and int(content_length) < 1_000_000:  # 1MB
+                content = await resp.read()
+                return content_type, content
+
+            return content_type, None
 
     async def _try_fetch_feed(self, url: str) -> ToolResult | None:
         """Try to fetch and parse as RSS/Atom feed. Returns None if not a feed."""
@@ -293,10 +384,212 @@ class WebScraperTool(BaseTool):
         except ET.ParseError as e:
             raise ValueError(f"XML parsing failed: {e}") from e
 
+    async def _handle_html(
+        self, url: str, extract_links: bool = False, use_browser: bool = False
+    ) -> ToolResult:
+        """Handle HTML content using crawl4ai."""
+        from crawl4ai import CacheMode, CrawlerRunConfig
+
+        crawler = await (
+            self._get_browser_crawler() if use_browser else self._get_http_crawler()
+        )
+
+        run_config = CrawlerRunConfig(
+            cache_mode=CacheMode.BYPASS,
+            page_timeout=self.timeout * 1000,
+            excluded_tags=["nav", "header", "footer", "aside"],
+        )
+
+        result = await crawler.arun(url=url, config=run_config)
+
+        if not result.success:
+            return self._map_error(url, result.status_code, result.error_message)
+
+        # Extract markdown content
+        markdown_text = ""
+        if result.markdown is not None:
+            markdown_text = str(result.markdown)
+
+        # Extract metadata
+        metadata = result.metadata or {}
+        title = metadata.get("title", "")
+        meta_desc = metadata.get("description", "") or metadata.get(
+            "og:description", ""
+        )
+
+        text_content = self._truncate(markdown_text)
+
+        response_dict = {
+            "url": result.redirected_url or url,
+            "content_type": "text/html",
+            "title": title,
+            "meta_description": meta_desc,
+            "text_content": text_content,
+            "headings": self._extract_headings(markdown_text),
+            "status": "success",
+        }
+
+        if extract_links:
+            links = self._extract_links(result.links or {})
+            response_dict["links"] = links
+
+        return ToolResult(
+            content=json.dumps(response_dict, ensure_ascii=False),
+            display=f"Fetched HTML: '{title or url}' ({len(text_content)} chars)",
+        )
+
+    async def _handle_pdf(self, url: str) -> ToolResult:
+        """Extract text from PDF using crawl4ai PDFCrawlerStrategy."""
+        from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
+        from crawl4ai.processors.pdf import (
+            PDFContentScrapingStrategy,
+            PDFCrawlerStrategy,
+        )
+
+        pdf_crawler_strategy = PDFCrawlerStrategy()
+        pdf_scraping_strategy = PDFContentScrapingStrategy()
+
+        crawler = AsyncWebCrawler(crawler_strategy=pdf_crawler_strategy)
+        await crawler.start()
+
+        try:
+            run_config = CrawlerRunConfig(
+                scraping_strategy=pdf_scraping_strategy,
+                cache_mode=CacheMode.BYPASS,
+                page_timeout=self.timeout * 1000,
+            )
+
+            result = await crawler.arun(url=url, config=run_config)
+
+            if not result.success:
+                return self._map_error(url, result.status_code, result.error_message)
+
+            markdown_text = str(result.markdown) if result.markdown else ""
+            metadata = result.metadata or {}
+
+            return ToolResult(
+                content=json.dumps(
+                    {
+                        "url": url,
+                        "content_type": "application/pdf",
+                        "title": metadata.get("title", ""),
+                        "text_content": self._truncate(markdown_text),
+                        "status": "success",
+                    },
+                    ensure_ascii=False,
+                ),
+                display=f"Extracted PDF: {metadata.get('title', url)} ({len(markdown_text)} chars)",
+            )
+        finally:
+            await crawler.close()
+
+    async def _handle_json(self, url: str, content: bytes | None = None) -> ToolResult:
+        """Pretty-print JSON content."""
+        if content is None:
+            import aiohttp
+
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
+                    url,
+                    headers={"User-Agent": _USER_AGENT},
+                    timeout=aiohttp.ClientTimeout(total=self.timeout),
+                ) as resp,
+            ):
+                content = await resp.read()
+
+        try:
+            data = json.loads(content)
+            pretty = json.dumps(data, indent=2, ensure_ascii=False)
+
+            return ToolResult(
+                content=json.dumps(
+                    {
+                        "url": url,
+                        "content_type": "application/json",
+                        "data": data,  # Full structured data for LLM
+                        "text_content": self._truncate(pretty),
+                        "status": "success",
+                    },
+                    ensure_ascii=False,
+                ),
+                display=f"Fetched JSON from {url} ({len(pretty)} chars)",
+            )
+        except json.JSONDecodeError as e:
+            return ToolResult(
+                content=json.dumps(
+                    {
+                        "url": url,
+                        "error": f"Invalid JSON: {e}",
+                    },
+                    ensure_ascii=False,
+                ),
+                display=f"Failed to parse JSON from {url}",
+                error=True,
+            )
+
+    async def _handle_text(self, url: str, content: bytes | None = None) -> ToolResult:
+        """Handle plain text content."""
+        if content is None:
+            import aiohttp
+
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
+                    url,
+                    headers={"User-Agent": _USER_AGENT},
+                    timeout=aiohttp.ClientTimeout(total=self.timeout),
+                ) as resp,
+            ):
+                content = await resp.read()
+
+        text = content.decode("utf-8", errors="replace")
+
+        return ToolResult(
+            content=json.dumps(
+                {
+                    "url": url,
+                    "content_type": "text/plain",
+                    "text_content": self._truncate(text),
+                    "status": "success",
+                },
+                ensure_ascii=False,
+            ),
+            display=f"Fetched text from {url} ({len(text)} chars)",
+        )
+
+    async def _handle_binary(self, url: str, content_type: str) -> ToolResult:
+        """Handle binary content (images, audio, video) — metadata only."""
+        import aiohttp
+
+        async with (
+            aiohttp.ClientSession() as session,
+            session.head(
+                url,
+                headers={"User-Agent": _USER_AGENT},
+                timeout=aiohttp.ClientTimeout(total=self.timeout),
+            ) as resp,
+        ):
+            content_length = resp.headers.get("Content-Length", "unknown")
+
+        return ToolResult(
+            content=json.dumps(
+                {
+                    "url": url,
+                    "content_type": content_type,
+                    "size": content_length,
+                    "note": "Binary content not extracted. URL provided for reference.",
+                    "status": "success",
+                },
+                ensure_ascii=False,
+            ),
+            display=f"Binary content ({content_type}, {content_length} bytes) at {url}",
+        )
+
     async def execute(
         self, url: str, extract_links: bool = False, use_browser: bool = False
     ) -> ToolResult:
-        logger.info(f"Web scraping URL: {url} (browser={use_browser})")
+        logger.info(f"Web fetching URL: {url} (browser={use_browser})")
 
         # Validate URL
         try:
@@ -336,13 +629,13 @@ class WebScraperTool(BaseTool):
         if self._network_policy is not None:
             decision = self._network_policy.evaluate(host)
             if decision.level == "deny":
-                logger.warning("web_scraper denied by network policy: %s", host)
+                logger.warning("web_fetch denied by network policy: %s", host)
                 return ToolResult(
                     content=json.dumps(
                         {"url": url, "error": f"Network access denied: {host} ({decision.reason})"},
                         ensure_ascii=False,
                     ),
-                    display=f"Cannot scrape: network policy blocks {host}.",
+                    display=f"Cannot fetch: network policy blocks {host}.",
                     error=True,
                 )
             if decision.level == "require_approval":
@@ -359,60 +652,65 @@ class WebScraperTool(BaseTool):
                         error=True,
                     )
 
-        try:
-            # Detect RSS/Atom feeds before crawl4ai (which chokes on XML)
-            feed_result = await self._try_fetch_feed(url)
-            if feed_result is not None:
-                return feed_result
-
-            from crawl4ai import CacheMode, CrawlerRunConfig
-
-            crawler = await (
-                self._get_browser_crawler() if use_browser else self._get_http_crawler()
-            )
-
-            run_config = CrawlerRunConfig(
-                cache_mode=CacheMode.BYPASS,
-                page_timeout=self.timeout * 1000,
-                excluded_tags=["nav", "header", "footer", "aside"],
-            )
-
-            result = await crawler.arun(url=url, config=run_config)
-
-            if not result.success:
-                return self._map_error(url, result.status_code, result.error_message)
-
-            # Extract markdown content
-            markdown_text = ""
-            if result.markdown is not None:
-                markdown_text = str(result.markdown)
-
-            # Extract metadata
-            metadata = result.metadata or {}
-            title = metadata.get("title", "")
-            meta_desc = metadata.get("description", "") or metadata.get(
-                "og:description", ""
-            )
-
-            text_content = self._truncate(markdown_text)
-
-            response_dict = {
-                "url": result.redirected_url or url,
-                "title": title,
-                "meta_description": meta_desc,
-                "text_content": text_content,
-                "headings": self._extract_headings(markdown_text),
-                "status": "success",
-            }
-
-            if extract_links:
-                links = self._extract_links(result.links or {})
-                response_dict["links"] = links
-
+        # Check cache first
+        cached = self._cache.get(url)
+        if cached is not None:
+            logger.debug(f"Cache hit for {url}")
+            # Return cached result
             return ToolResult(
-                content=json.dumps(response_dict, ensure_ascii=False),
-                display=f"Scraped '{title or url}' ({len(text_content)} chars)",
+                content=cached.content,
+                display=f"Fetched from cache: {url}",
             )
+
+        try:
+            # Detect content type
+            content_type, prefetched_content = await self._detect_content_type(url)
+
+            # Route to appropriate handler
+            if content_type in ("text/html", "application/xhtml+xml"):
+                result = await self._handle_html(url, extract_links, use_browser)
+
+            elif content_type == "application/pdf":
+                result = await self._handle_pdf(url)
+
+            elif content_type in (
+                "application/rss+xml",
+                "application/atom+xml",
+                "text/xml",
+                "application/xml",
+            ):
+                # Try feed parser first
+                feed_result = await self._try_fetch_feed(url)
+                if feed_result is not None:
+                    result = feed_result
+                else:
+                    # Not a feed, treat as generic XML (fallback to crawl4ai)
+                    result = await self._handle_html(url, extract_links, use_browser)
+
+            elif content_type == "application/json":
+                result = await self._handle_json(url, prefetched_content)
+
+            elif content_type in (
+                "text/plain",
+                "text/csv",
+                "text/css",
+                "application/javascript",
+                "text/javascript",
+            ):
+                result = await self._handle_text(url, prefetched_content)
+
+            elif content_type.startswith(("image/", "audio/", "video/")):
+                result = await self._handle_binary(url, content_type)
+
+            else:
+                # Unknown content type — report metadata
+                result = await self._handle_binary(url, content_type)
+
+            # Cache successful results
+            if not result.error:
+                self._cache.put(url, result.content, content_type)
+
+            return result
 
         except TimeoutError:
             logger.error(f"Timeout while accessing {url}")
@@ -447,24 +745,24 @@ class WebScraperTool(BaseTool):
                     display="浏览器模式不可用，请安装 Playwright。",
                     error=True,
                 )
-            logger.error(f"Runtime error scraping {url}: {e}")
+            logger.error(f"Runtime error fetching {url}: {e}")
             return ToolResult(
                 content=json.dumps(
                     {"url": url, "error": str(e)},
                     ensure_ascii=False,
                 ),
-                display=f"抓取 '{url}' 时出现错误: {e}",
+                display=f"获取 '{url}' 时出现错误: {e}",
                 error=True,
             )
 
         except Exception as e:
-            logger.error(f"Error scraping {url}: {e}")
+            logger.error(f"Error fetching {url}: {e}")
             return ToolResult(
                 content=json.dumps(
                     {"url": url, "error": str(e)},
                     ensure_ascii=False,
                 ),
-                display=f"抓取 '{url}' 时出现错误: {e}",
+                display=f"获取 '{url}' 时出现错误: {e}",
                 error=True,
             )
 
@@ -509,7 +807,7 @@ class WebScraperTool(BaseTool):
                 {"url": url, "error": msg},
                 ensure_ascii=False,
             ),
-            display=f"抓取 '{url}' 时出现错误: {msg}",
+            display=f"获取 '{url}' 时出现错误: {msg}",
             error=True,
         )
 
@@ -527,10 +825,10 @@ class WebScraperTool(BaseTool):
         """Request host-specific approval. Returns False if no callback or denied."""
         if self._approval_callback is None:
             logger.warning(
-                "web_scraper require_approval but no callback — denying: %s",
+                "web_fetch require_approval but no callback — denying: %s",
                 host,
             )
             return False
         return await self._approval_callback(
-            "web_scraper", host, operation, reason,
+            "web_fetch", host, operation, reason,
         )
