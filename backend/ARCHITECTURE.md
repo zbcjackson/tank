@@ -231,21 +231,54 @@ Tools can require human approval before execution. The approval flow:
 
 ### 7. Tool System (`src/tank_backend/tools/`)
 
+**Core Types** (`base.py`):
+
+```python
+@dataclass(frozen=True, slots=True)
+class ToolResult:
+    content: str          # What the LLM sees (full data, json.dumps'd)
+    display: str = ""     # What the UI shows (human-friendly summary)
+    error: bool = False   # Whether this is an error result
+```
+
+- `BaseTool` — Abstract base with `get_info()` → `ToolInfo` and `execute()` → `ToolResult | str`
+- `ToolGroup` — Groups tools that share construction dependencies (e.g. `FileToolGroup`, `WebToolGroup`)
+- `ApprovalCallback` — Protocol for per-path approval in file tools
+
+**Tool Result Flow**:
+
+```
+tool.execute() → ToolResult | str
+    ↓
+llm.py: _tool_result_to_str(result) → (llm_content, ui_display)
+    ↓
+LLM gets llm_content (full data, never truncated)
+UI gets ui_display (concise summary for tool card)
+```
+
+- `ToolResult.content` is always the complete data (typically `json.dumps` of structured result)
+- `ToolResult.display` is a human-friendly summary for the UI (falls back to truncated content)
+- Plain `str` return is for tools that produce text directly (e.g. skill instructions)
+- `_tool_result_to_str()` in `llm.py` handles the conversion — single source of truth
+
 **ToolManager** (`manager.py`):
-- Auto-registers tools on initialization
-- Converts tools to OpenAI function schemas
-- Executes tool calls from LLM
-- Handles conditional tool registration (e.g., web search requires API key)
+- Organizes tools via `ToolGroup` instances (`DefaultToolGroup`, `WebToolGroup`, `FileToolGroup`, `SandboxToolGroup`, `SkillToolGroup`)
+- Converts tools to OpenAI function schemas via `get_openai_tools()`
+- Executes tool calls from LLM via `execute_openai_tool_call()`
+- Integrates `NetworkAccessPolicy`, `ServiceCredentialManager`, `ToolApprovalPolicy`
 
 **Available Tools**:
 - `calculator.py` — Mathematical calculations
-- `weather.py` — Weather information
+- `weather.py` — Weather information (OpenWeatherMap)
 - `time.py` — Current date/time
 - `web_search.py` — Real-time web search (requires SERPER_API_KEY)
-- `web_scraper.py` — Web content extraction
-- `sandbox_exec.py` — Run a command in Docker sandbox
-- `sandbox_bash.py` — Persistent shell session in Docker sandbox
-- `sandbox_process.py` — Process management in sandbox
+- `web_scraper.py` — Web content extraction (crawl4ai)
+- `file_read.py`, `file_write.py`, `file_edit.py`, `file_delete.py` — File operations with access policy
+- `file_list.py`, `file_search.py` — Directory listing and content search (ripgrep)
+- `run_command.py` — Run a command in Docker sandbox
+- `persistent_shell.py` — Persistent shell session in Docker sandbox
+- `manage_process.py` — Process management in sandbox
+- `skill_tools.py` — Skill management (use, list, create, install, reload, search)
 
 ### 8. Plugin System (`src/tank_backend/plugin/`)
 

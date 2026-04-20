@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import fnmatch
+import json
 import logging
 import os
 import re
@@ -16,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from ..policy.file_access import FileAccessPolicy
-from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter
+from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter, ToolResult
 from .ripgrep import DEFAULT_HEAD_LIMIT, find_rg_binary, run_ripgrep
 
 logger = logging.getLogger(__name__)
@@ -203,7 +204,7 @@ class FileSearchTool(BaseTool):
             ],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult:
         path: str = kwargs["path"]
         pattern: str = kwargs["pattern"]
         is_regex: bool = kwargs.get("is_regex", False)
@@ -223,14 +224,17 @@ class FileSearchTool(BaseTool):
 
         # Validate output_mode
         if output_mode not in ("content", "files_with_matches", "count"):
-            return {
-                "error": "Invalid output_mode",
-                "message": (
+            return ToolResult(
+                content=json.dumps(
+                    {"error": "Invalid output_mode"}, ensure_ascii=False,
+                ),
+                display=(
                     f"output_mode must be 'content', "
                     f"'files_with_matches', or 'count', "
                     f"got '{output_mode}'"
                 ),
-            }
+                error=True,
+            )
 
         # 1. Policy check (searching is a read operation)
         decision = self._policy.evaluate(path, "read")
@@ -238,32 +242,37 @@ class FileSearchTool(BaseTool):
             logger.warning(
                 "file_search denied: %s (%s)", path, decision.reason,
             )
-            return {
-                "error": f"Access denied: {path} ({decision.reason})",
-                "denied": True,
-                "message": f"Cannot search {path}: {decision.reason}",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"error": f"Access denied: {path} ({decision.reason})", "denied": True},
+                    ensure_ascii=False,
+                ),
+                display=f"Cannot search {path}: {decision.reason}",
+                error=True,
+            )
         if (
             decision.level == "require_approval"
             and not await self._request_approval(
                 path, "read", decision.reason,
             )
         ):
-            return {
-                "error": f"Approval denied: {path} ({decision.reason})",
-                "denied": True,
-                "message": (
-                    f"User denied searching {path}: {decision.reason}"
+            return ToolResult(
+                content=json.dumps(
+                    {"error": f"Approval denied: {path} ({decision.reason})", "denied": True},
+                    ensure_ascii=False,
                 ),
-            }
+                display=f"User denied searching {path}: {decision.reason}",
+                error=True,
+            )
 
         # 2. Resolve path
         resolved = Path(path).expanduser().resolve()
         if not resolved.exists():
-            return {
-                "error": "Not found",
-                "message": f"File not found: {path}",
-            }
+            return ToolResult(
+                content=json.dumps({"error": "Not found"}, ensure_ascii=False),
+                display=f"File not found: {path}",
+                error=True,
+            )
 
         # 3. Dispatch to ripgrep or Python fallback
         try:
@@ -299,10 +308,11 @@ class FileSearchTool(BaseTool):
             )
         except Exception as e:
             logger.error("file_search failed: %s", e, exc_info=True)
-            return {
-                "error": str(e),
-                "message": f"Error searching {path}: {e}",
-            }
+            return ToolResult(
+                content=json.dumps({"error": str(e)}, ensure_ascii=False),
+                display=f"Error searching {path}: {e}",
+                error=True,
+            )
 
     # ------------------------------------------------------------------
     # Ripgrep path
@@ -323,7 +333,7 @@ class FileSearchTool(BaseTool):
         context_after: int,
         head_limit: int,
         offset: int,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         rg_result = await run_ripgrep(
             self._rg_binary,
             pattern,
@@ -343,10 +353,13 @@ class FileSearchTool(BaseTool):
         )
 
         if rg_result.error:
-            return {
-                "error": rg_result.error,
-                "message": rg_result.error,
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"error": rg_result.error}, ensure_ascii=False,
+                ),
+                display=rg_result.error,
+                error=True,
+            )
 
         return self._format_rg_result(
             rg_result.lines,
@@ -363,8 +376,8 @@ class FileSearchTool(BaseTool):
         pattern: str,
         output_mode: str,
         truncated: bool,
-    ) -> dict[str, Any]:
-        """Format ripgrep output lines into the tool result dict.
+    ) -> ToolResult:
+        """Format ripgrep output lines into a ToolResult.
 
         Uses relative paths and compact formats to minimize token usage.
         """
@@ -379,19 +392,21 @@ class FileSearchTool(BaseTool):
 
         if output_mode == "files_with_matches":
             files = [_rel(ln.strip()) for ln in lines if ln.strip()]
-            content = "\n".join(files) if files else "No files found"
+            content_text = "\n".join(files) if files else "No files found"
             header = f"Found matches in {len(files)} file(s)"
             if truncated:
                 header += " (truncated)"
-            result: dict[str, Any] = {
+            data: dict[str, Any] = {
                 "path": path,
                 "pattern": pattern,
                 "num_files": len(files),
-                "message": f"{header}\n{content}",
             }
             if truncated:
-                result["truncated"] = True
-            return result
+                data["truncated"] = True
+            return ToolResult(
+                content=json.dumps(data, ensure_ascii=False),
+                display=f"{header}\n{content_text}",
+            )
 
         if output_mode == "count":
             total = 0
@@ -405,23 +420,25 @@ class FileSearchTool(BaseTool):
                         total += c
                     except ValueError:
                         pass
-            content = "\n".join(count_lines) if count_lines else "No matches"
+            content_text = "\n".join(count_lines) if count_lines else "No matches"
             header = (
                 f"Found {total} match(es) across "
                 f"{len(count_lines)} file(s)"
             )
             if truncated:
                 header += " (truncated)"
-            result = {
+            data = {
                 "path": path,
                 "pattern": pattern,
                 "num_files": len(count_lines),
                 "num_matches": total,
-                "message": f"{header}\n{content}",
             }
             if truncated:
-                result["truncated"] = True
-            return result
+                data["truncated"] = True
+            return ToolResult(
+                content=json.dumps(data, ensure_ascii=False),
+                display=f"{header}\n{content_text}",
+            )
 
         # content mode — relativize paths, return as joined string
         out_lines: list[str] = []
@@ -434,19 +451,21 @@ class FileSearchTool(BaseTool):
             elif ln.strip():
                 out_lines.append(ln)
 
-        content = "\n".join(out_lines) if out_lines else "No matches found"
+        content_text = "\n".join(out_lines) if out_lines else "No matches found"
         header = f"Found {len(out_lines)} line(s) in {path}"
         if truncated:
             header += " (truncated)"
-        result = {
+        data = {
             "path": path,
             "pattern": pattern,
             "num_lines": len(out_lines),
-            "message": f"{header}\n{content}",
         }
         if truncated:
-            result["truncated"] = True
-        return result
+            data["truncated"] = True
+        return ToolResult(
+            content=json.dumps(data, ensure_ascii=False),
+            display=f"{header}\n{content_text}",
+        )
 
     # ------------------------------------------------------------------
     # Python fallback
@@ -466,7 +485,7 @@ class FileSearchTool(BaseTool):
         context_after: int,
         head_limit: int,
         offset: int,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         flags = re.IGNORECASE if case_insensitive else 0
         try:
             compiled = (
@@ -475,10 +494,13 @@ class FileSearchTool(BaseTool):
                 else re.compile(re.escape(pattern), flags)
             )
         except re.error as e:
-            return {
-                "error": f"Invalid regex: {e}",
-                "message": f"Invalid regex pattern: {e}",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"error": f"Invalid regex: {e}"}, ensure_ascii=False,
+                ),
+                display=f"Invalid regex pattern: {e}",
+                error=True,
+            )
 
         effective_limit = head_limit if head_limit > 0 else 0
         ctx_before = context_before or context_lines
@@ -497,10 +519,13 @@ class FileSearchTool(BaseTool):
                 output_mode, offset, glob_pat, file_type,
             )
         else:
-            return {
-                "error": "Not a file",
-                "message": f"Not a file or directory: {resolved}",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"error": "Not a file"}, ensure_ascii=False,
+                ),
+                display=f"Not a file or directory: {resolved}",
+                error=True,
+            )
 
         return self._build_python_result(
             str(resolved), pattern, output_mode, matches, truncated,
@@ -513,7 +538,7 @@ class FileSearchTool(BaseTool):
         output_mode: str,
         matches: list[dict[str, Any]],
         truncated: bool,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         base = Path(path)
 
         def _rel(abs_path: str) -> str:
@@ -524,34 +549,32 @@ class FileSearchTool(BaseTool):
 
         if output_mode == "files_with_matches":
             files = [_rel(m["file"]) for m in matches]
-            content = "\n".join(files) if files else "No files found"
+            content_text = "\n".join(files) if files else "No files found"
             header = f"Found matches in {len(files)} file(s)"
             if truncated:
                 header += " (truncated)"
-            result: dict[str, Any] = {
+            data: dict[str, Any] = {
                 "path": path,
                 "pattern": pattern,
                 "num_files": len(files),
-                "message": f"{header}\n{content}",
             }
         elif output_mode == "count":
             total = sum(m.get("count", 0) for m in matches)
             count_lines = [
                 f"{_rel(m['file'])}:{m['count']}" for m in matches
             ]
-            content = "\n".join(count_lines) if count_lines else "No matches"
+            content_text = "\n".join(count_lines) if count_lines else "No matches"
             header = (
                 f"Found {total} match(es) across "
                 f"{len(matches)} file(s)"
             )
             if truncated:
                 header += " (truncated)"
-            result = {
+            data = {
                 "path": path,
                 "pattern": pattern,
                 "num_files": len(matches),
                 "num_matches": total,
-                "message": f"{header}\n{content}",
             }
         else:
             # content mode
@@ -564,19 +587,21 @@ class FileSearchTool(BaseTool):
                     out_lines.append(f"{f}:{ln}:{text}")
                 else:
                     out_lines.append(f"{ln}:{text}")
-            content = "\n".join(out_lines) if out_lines else "No matches found"
+            content_text = "\n".join(out_lines) if out_lines else "No matches found"
             header = f"Found {len(out_lines)} line(s) in {path}"
             if truncated:
                 header += " (truncated)"
-            result = {
+            data = {
                 "path": path,
                 "pattern": pattern,
                 "num_lines": len(out_lines),
-                "message": f"{header}\n{content}",
             }
         if truncated:
-            result["truncated"] = True
-        return result
+            data["truncated"] = True
+        return ToolResult(
+            content=json.dumps(data, ensure_ascii=False),
+            display=f"{header}\n{content_text}",
+        )
 
     # ------------------------------------------------------------------
     # Python fallback — single file

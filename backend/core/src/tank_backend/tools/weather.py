@@ -1,10 +1,11 @@
+import json
 import logging
 from datetime import datetime
 from typing import Any
 
 import requests
 
-from .base import BaseTool, ToolInfo, ToolParameter
+from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger("WeatherTool")
 
@@ -84,13 +85,20 @@ class WeatherTool(BaseTool):
 
     async def execute(
         self, location: str, date: str = None
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         logger.info(f"Getting weather for: {location}, date: {date}")
 
         try:
             geocode_result = self._geocode_location(location)
             if "error" in geocode_result:
-                return geocode_result
+                return ToolResult(
+                    content=json.dumps(
+                        {"location": location, "error": geocode_result["error"]},
+                        ensure_ascii=False,
+                    ),
+                    display=geocode_result.get("message", str(geocode_result["error"])),
+                    error=True,
+                )
 
             latitude = geocode_result["latitude"]
             longitude = geocode_result["longitude"]
@@ -100,9 +108,16 @@ class WeatherTool(BaseTool):
                 latitude, longitude, date
             )
             if "error" in weather_result:
-                return weather_result
+                return ToolResult(
+                    content=json.dumps(
+                        {"location": location, "error": weather_result["error"]},
+                        ensure_ascii=False,
+                    ),
+                    display=weather_result.get("message", str(weather_result["error"])),
+                    error=True,
+                )
 
-            return {
+            weather_data = {
                 "location": resolved_location,
                 "coordinates": {
                     "latitude": latitude,
@@ -116,21 +131,26 @@ class WeatherTool(BaseTool):
                 "humidity": weather_result.get("humidity"),
                 "wind_speed": weather_result.get("wind_speed"),
                 "precipitation": weather_result.get("precipitation"),
-                "message": self._format_message(
-                    resolved_location, weather_result
-                ),
             }
+
+            return ToolResult(
+                content=json.dumps(weather_data, ensure_ascii=False),
+                display=self._format_message(resolved_location, weather_result),
+            )
 
         except Exception as e:
             logger.error(f"Error getting weather for '{location}': {e}")
-            return {
-                "location": location,
-                "error": str(e),
-                "message": (
+            return ToolResult(
+                content=json.dumps(
+                    {"location": location, "error": str(e)},
+                    ensure_ascii=False,
+                ),
+                display=(
                     f"Sorry, I couldn't retrieve weather information "
                     f"for '{location}'. Please try again."
                 ),
-            }
+                error=True,
+            )
 
     def _geocode_location(self, location: str) -> dict[str, Any]:
         """Geocode location using Open-Meteo Geocoding API."""

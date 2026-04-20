@@ -1,9 +1,11 @@
+import json
 import logging
 import re
+import xml.etree.ElementTree as ET
 from typing import Any
 from urllib.parse import urlparse
 
-from .base import BaseTool, ToolInfo, ToolParameter
+from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -132,34 +134,202 @@ class WebScraperTool(BaseTool):
             return text[: self.max_content_length] + "... [Content truncated]"
         return text
 
+    async def _try_fetch_feed(self, url: str) -> ToolResult | None:
+        """Try to fetch and parse as RSS/Atom feed. Returns None if not a feed."""
+        try:
+            import aiohttp
+
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
+                    url,
+                    headers={"User-Agent": _USER_AGENT},
+                    timeout=aiohttp.ClientTimeout(total=self.timeout),
+                ) as resp,
+            ):
+                content_type = resp.headers.get("Content-Type", "").lower()
+
+                # Check if it's a feed
+                if not any(
+                    ft in content_type for ft in ("rss", "xml", "atom")
+                ):
+                    return None
+
+                raw_content = await resp.read()
+                feed_data = self._parse_rss_feed(raw_content, url)
+
+                # Format as markdown for LLM
+                lines = [
+                    f"# {feed_data['feed_title']}",
+                    "",
+                    feed_data["feed_description"],
+                    "",
+                    f"## Entries ({len(feed_data['entries'])} items)",
+                    "",
+                ]
+
+                for entry in feed_data["entries"]:
+                    lines.append(f"### {entry['title']}")
+                    lines.append(f"Link: {entry['link']}")
+                    if entry["published"]:
+                        lines.append(f"Published: {entry['published']}")
+                    if entry["description"]:
+                        lines.append(f"\n{entry['description']}")
+                    lines.append("")
+
+                markdown_text = "\n".join(lines)
+
+                feed_type = feed_data["feed_type"].upper()
+                feed_title = feed_data["feed_title"]
+                n_entries = len(feed_data["entries"])
+
+                return ToolResult(
+                    content=json.dumps(
+                        {
+                            "url": url,
+                            "feed_type": feed_data["feed_type"],
+                            "title": feed_title,
+                            "description": feed_data["feed_description"],
+                            "entries": feed_data["entries"],
+                            "text_content": self._truncate(markdown_text),
+                            "status": "success",
+                        },
+                        ensure_ascii=False,
+                    ),
+                    display=(
+                        f"Parsed {feed_type} feed: "
+                        f"{feed_title} ({n_entries} entries)"
+                    ),
+                )
+
+        except Exception as e:
+            logger.debug("Feed detection failed for %s: %s", url, e)
+            return None  # Not a feed, fall back to HTML scraping
+
+    def _parse_rss_feed(self, xml_content: bytes, url: str) -> dict[str, Any]:
+        """Parse RSS/Atom feed and return structured data."""
+        try:
+            root = ET.fromstring(xml_content)
+
+            # Detect feed type
+            if root.tag == "rss":
+                # RSS 2.0
+                channel = root.find("channel")
+                if channel is None:
+                    raise ValueError("Invalid RSS feed: no channel element")
+
+                feed_title = channel.findtext("title", "")
+                feed_desc = channel.findtext("description", "")
+                items = channel.findall("item")
+
+                entries = []
+                for item in items[:20]:  # Limit to 20 items
+                    title = item.findtext("title", "")
+                    link = item.findtext("link", "")
+                    desc = item.findtext("description", "")
+                    pub_date = item.findtext("pubDate", "")
+
+                    # Strip HTML tags from description
+                    if desc:
+                        desc = re.sub(r"<[^>]+>", "", desc).strip()
+
+                    entries.append({
+                        "title": title,
+                        "link": link,
+                        "description": desc[:300] if desc else "",
+                        "published": pub_date,
+                    })
+
+                return {
+                    "feed_type": "rss",
+                    "feed_title": feed_title,
+                    "feed_description": feed_desc,
+                    "entries": entries,
+                }
+
+            elif root.tag.endswith("}feed"):
+                # Atom feed
+                ns = {"atom": "http://www.w3.org/2005/Atom"}
+                feed_title = root.findtext("atom:title", "", ns)
+                feed_subtitle = root.findtext("atom:subtitle", "", ns)
+                entries_elem = root.findall("atom:entry", ns)
+
+                entries = []
+                for entry in entries_elem[:20]:
+                    title = entry.findtext("atom:title", "", ns)
+                    link_elem = entry.find("atom:link[@rel='alternate']", ns)
+                    if link_elem is None:
+                        link_elem = entry.find("atom:link", ns)
+                    link = link_elem.get("href", "") if link_elem is not None else ""
+
+                    summary = entry.findtext("atom:summary", "", ns)
+                    if not summary:
+                        summary = entry.findtext("atom:content", "", ns)
+
+                    if summary:
+                        summary = re.sub(r"<[^>]+>", "", summary).strip()
+
+                    published = entry.findtext("atom:published", "", ns)
+                    if not published:
+                        published = entry.findtext("atom:updated", "", ns)
+
+                    entries.append({
+                        "title": title,
+                        "link": link,
+                        "description": summary[:300] if summary else "",
+                        "published": published,
+                    })
+
+                return {
+                    "feed_type": "atom",
+                    "feed_title": feed_title,
+                    "feed_description": feed_subtitle,
+                    "entries": entries,
+                }
+
+            else:
+                raise ValueError(f"Unknown feed format: {root.tag}")
+
+        except ET.ParseError as e:
+            raise ValueError(f"XML parsing failed: {e}") from e
+
     async def execute(
         self, url: str, extract_links: bool = False, use_browser: bool = False
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         logger.info(f"Web scraping URL: {url} (browser={use_browser})")
 
         # Validate URL
         try:
             parsed_url = urlparse(url)
             if not parsed_url.scheme or not parsed_url.netloc:
-                return {
-                    "url": url,
-                    "error": "Invalid URL format. Please provide a valid HTTP or HTTPS URL.",
-                    "message": f"无法访问URL '{url}'，请检查URL格式是否正确。",
-                }
+                return ToolResult(
+                    content=json.dumps(
+                        {"url": url, "error": "Invalid URL format"},
+                        ensure_ascii=False,
+                    ),
+                    display=f"无法访问URL '{url}'，请检查URL格式是否正确。",
+                    error=True,
+                )
 
             if parsed_url.scheme not in ("http", "https"):
-                return {
-                    "url": url,
-                    "error": "Only HTTP and HTTPS URLs are supported.",
-                    "message": "仅支持HTTP和HTTPS协议的URL。",
-                }
+                return ToolResult(
+                    content=json.dumps(
+                        {"url": url, "error": "Only HTTP and HTTPS URLs are supported."},
+                        ensure_ascii=False,
+                    ),
+                    display="仅支持HTTP和HTTPS协议的URL。",
+                    error=True,
+                )
 
         except Exception as e:
-            return {
-                "url": url,
-                "error": f"URL validation failed: {str(e)}",
-                "message": f"URL格式验证失败: {str(e)}",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"url": url, "error": f"URL validation failed: {e}"},
+                    ensure_ascii=False,
+                ),
+                display=f"URL格式验证失败: {e}",
+                error=True,
+            )
 
         # Network policy check
         host = parsed_url.netloc.lower()
@@ -167,23 +337,34 @@ class WebScraperTool(BaseTool):
             decision = self._network_policy.evaluate(host)
             if decision.level == "deny":
                 logger.warning("web_scraper denied by network policy: %s", host)
-                return {
-                    "url": url,
-                    "error": f"Network access denied: {host} ({decision.reason})",
-                    "message": f"Cannot scrape: network policy blocks {host}.",
-                }
+                return ToolResult(
+                    content=json.dumps(
+                        {"url": url, "error": f"Network access denied: {host} ({decision.reason})"},
+                        ensure_ascii=False,
+                    ),
+                    display=f"Cannot scrape: network policy blocks {host}.",
+                    error=True,
+                )
             if decision.level == "require_approval":
                 approved = await self._request_approval(
                     host, "connect", decision.reason,
                 )
                 if not approved:
-                    return {
-                        "url": url,
-                        "error": f"Approval denied: {host} ({decision.reason})",
-                        "message": f"User denied connecting to {host}.",
-                    }
+                    return ToolResult(
+                        content=json.dumps(
+                            {"url": url, "error": f"Approval denied: {host} ({decision.reason})"},
+                            ensure_ascii=False,
+                        ),
+                        display=f"User denied connecting to {host}.",
+                        error=True,
+                    )
 
         try:
+            # Detect RSS/Atom feeds before crawl4ai (which chokes on XML)
+            feed_result = await self._try_fetch_feed(url)
+            if feed_result is not None:
+                return feed_result
+
             from crawl4ai import CacheMode, CrawlerRunConfig
 
             crawler = await (
@@ -215,82 +396,122 @@ class WebScraperTool(BaseTool):
 
             text_content = self._truncate(markdown_text)
 
-            response = {
+            response_dict = {
                 "url": result.redirected_url or url,
                 "title": title,
                 "meta_description": meta_desc,
                 "text_content": text_content,
                 "headings": self._extract_headings(markdown_text),
                 "status": "success",
-                "message": f"Successfully extracted content from '{title or url}'",
             }
 
             if extract_links:
                 links = self._extract_links(result.links or {})
-                response["links"] = links
-                response["message"] += f" and found {len(links)} links"
+                response_dict["links"] = links
 
-            return response
+            return ToolResult(
+                content=json.dumps(response_dict, ensure_ascii=False),
+                display=f"Scraped '{title or url}' ({len(text_content)} chars)",
+            )
 
         except TimeoutError:
             logger.error(f"Timeout while accessing {url}")
-            return {
-                "url": url,
-                "error": "Request timeout",
-                "message": f"访问 '{url}' 超时，请稍后再试或检查网络连接。",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"url": url, "error": "Request timeout"},
+                    ensure_ascii=False,
+                ),
+                display=f"访问 '{url}' 超时，请稍后再试或检查网络连接。",
+                error=True,
+            )
 
         except ConnectionError:
             logger.error(f"Connection error while accessing {url}")
-            return {
-                "url": url,
-                "error": "Connection error",
-                "message": f"无法连接到 '{url}'，请检查URL是否正确或网络连接。",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"url": url, "error": "Connection error"},
+                    ensure_ascii=False,
+                ),
+                display=f"无法连接到 '{url}'，请检查URL是否正确或网络连接。",
+                error=True,
+            )
 
         except RuntimeError as e:
             if "Playwright" in str(e):
                 logger.error(f"Browser not available: {e}")
-                return {
-                    "url": url,
-                    "error": str(e),
-                    "message": "浏览器模式不可用，请安装 Playwright。",
-                }
+                return ToolResult(
+                    content=json.dumps(
+                        {"url": url, "error": str(e)},
+                        ensure_ascii=False,
+                    ),
+                    display="浏览器模式不可用，请安装 Playwright。",
+                    error=True,
+                )
             logger.error(f"Runtime error scraping {url}: {e}")
-            return {"url": url, "error": str(e), "message": f"抓取 '{url}' 时出现错误: {e}"}
+            return ToolResult(
+                content=json.dumps(
+                    {"url": url, "error": str(e)},
+                    ensure_ascii=False,
+                ),
+                display=f"抓取 '{url}' 时出现错误: {e}",
+                error=True,
+            )
 
         except Exception as e:
             logger.error(f"Error scraping {url}: {e}")
-            return {"url": url, "error": str(e), "message": f"抓取 '{url}' 时出现错误: {e}"}
+            return ToolResult(
+                content=json.dumps(
+                    {"url": url, "error": str(e)},
+                    ensure_ascii=False,
+                ),
+                display=f"抓取 '{url}' 时出现错误: {e}",
+                error=True,
+            )
 
     def _map_error(
         self, url: str, status_code: int | None, error_message: str | None
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         msg = error_message or "Unknown error"
 
         if status_code and 400 <= status_code < 600:
-            return {
-                "url": url,
-                "error": f"HTTP {status_code}",
-                "message": f"访问 '{url}' 时发生HTTP错误 {status_code}。",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"url": url, "error": f"HTTP {status_code}"},
+                    ensure_ascii=False,
+                ),
+                display=f"访问 '{url}' 时发生HTTP错误 {status_code}。",
+                error=True,
+            )
 
         lower_msg = msg.lower()
         if "timeout" in lower_msg:
-            return {
-                "url": url,
-                "error": "Request timeout",
-                "message": f"访问 '{url}' 超时，请稍后再试或检查网络连接。",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"url": url, "error": "Request timeout"},
+                    ensure_ascii=False,
+                ),
+                display=f"访问 '{url}' 超时，请稍后再试或检查网络连接。",
+                error=True,
+            )
 
         if "connect" in lower_msg or "dns" in lower_msg or "resolve" in lower_msg:
-            return {
-                "url": url,
-                "error": "Connection error",
-                "message": f"无法连接到 '{url}'，请检查URL是否正确或网络连接。",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"url": url, "error": "Connection error"},
+                    ensure_ascii=False,
+                ),
+                display=f"无法连接到 '{url}'，请检查URL是否正确或网络连接。",
+                error=True,
+            )
 
-        return {"url": url, "error": msg, "message": f"抓取 '{url}' 时出现错误: {msg}"}
+        return ToolResult(
+            content=json.dumps(
+                {"url": url, "error": msg},
+                ensure_ascii=False,
+            ),
+            display=f"抓取 '{url}' 时出现错误: {msg}",
+            error=True,
+        )
 
     async def close(self) -> None:
         if self._http_crawler:

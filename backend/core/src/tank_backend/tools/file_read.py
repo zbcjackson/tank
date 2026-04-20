@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from pathlib import Path
 from typing import Any
 
 from ..policy.file_access import FileAccessPolicy
-from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter
+from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ class FileReadTool(BaseTool):
             ],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult:
         path: str = kwargs["path"]
         encoding: str = kwargs.get("encoding", "utf-8")
         max_size: int = kwargs.get("max_size", DEFAULT_MAX_SIZE) or DEFAULT_MAX_SIZE
@@ -89,59 +90,85 @@ class FileReadTool(BaseTool):
         decision = self._policy.evaluate(path, "read")
         if decision.level == "deny":
             logger.warning("file_read denied: %s (%s)", path, decision.reason)
-            return {
-                "error": f"Access denied: {path} ({decision.reason})",
-                "denied": True,
-                "message": f"Cannot read {path}: {decision.reason}",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"error": f"Access denied: {path} ({decision.reason})", "denied": True},
+                    ensure_ascii=False,
+                ),
+                display=f"Cannot read {path}: {decision.reason}",
+                error=True,
+            )
         if decision.level == "require_approval" and not await self._request_approval(
             path, "read", decision.reason
         ):
-                return {
-                    "error": f"Approval denied: {path} ({decision.reason})",
-                    "denied": True,
-                    "message": f"User denied reading {path}: {decision.reason}",
-                }
+            return ToolResult(
+                content=json.dumps(
+                    {"error": f"Approval denied: {path} ({decision.reason})", "denied": True},
+                    ensure_ascii=False,
+                ),
+                display=f"User denied reading {path}: {decision.reason}",
+                error=True,
+            )
 
         # 2. Validate path
         resolved = Path(path).expanduser().resolve()
         if not resolved.exists():
-            return {"error": "File not found", "message": f"File not found: {path}"}
+            return ToolResult(
+                content=json.dumps({"error": "File not found"}, ensure_ascii=False),
+                display=f"File not found: {path}",
+                error=True,
+            )
         if not resolved.is_file():
-            return {"error": "Not a file", "message": f"Not a file: {path}"}
+            return ToolResult(
+                content=json.dumps({"error": "Not a file"}, ensure_ascii=False),
+                display=f"Not a file: {path}",
+                error=True,
+            )
 
         # 3. Check file size
         try:
             stat = resolved.stat()
         except OSError as e:
-            return {"error": str(e), "message": f"Cannot stat {path}: {e}"}
+            return ToolResult(
+                content=json.dumps({"error": str(e)}, ensure_ascii=False),
+                display=f"Cannot stat {path}: {e}",
+                error=True,
+            )
 
         has_range = offset > 0 or limit is not None
         if stat.st_size > max_size and not has_range:
-            return {
-                "error": "File too large",
-                "size": stat.st_size,
-                "max_size": max_size,
-                "message": (
+            return ToolResult(
+                content=json.dumps(
+                    {"error": "File too large", "size": stat.st_size, "max_size": max_size},
+                    ensure_ascii=False,
+                ),
+                display=(
                     f"File is {stat.st_size:,} bytes (max {max_size:,}). "
                     f"Use offset/limit to read a portion, or increase max_size."
                 ),
-            }
+                error=True,
+            )
 
         # 4. Binary detection
         try:
             sample = await asyncio.to_thread(self._read_sample, resolved)
             if b"\x00" in sample:
-                return {
-                    "error": "Binary file",
-                    "size": stat.st_size,
-                    "message": (
+                return ToolResult(
+                    content=json.dumps(
+                        {"error": "Binary file", "size": stat.st_size}, ensure_ascii=False,
+                    ),
+                    display=(
                         f"File appears to be binary ({stat.st_size:,} bytes). "
                         f"Cannot read as text."
                     ),
-                }
+                    error=True,
+                )
         except OSError as e:
-            return {"error": str(e), "message": f"Cannot read {path}: {e}"}
+            return ToolResult(
+                content=json.dumps({"error": str(e)}, ensure_ascii=False),
+                display=f"Cannot read {path}: {e}",
+                error=True,
+            )
 
         # 5. Read file
         try:
@@ -150,21 +177,27 @@ class FileReadTool(BaseTool):
             )
         except Exception as e:
             logger.error("file_read failed: %s", e, exc_info=True)
-            return {"error": str(e), "message": f"Error reading {path}: {e}"}
+            return ToolResult(
+                content=json.dumps({"error": str(e)}, ensure_ascii=False),
+                display=f"Error reading {path}: {e}",
+                error=True,
+            )
 
-        result: dict[str, Any] = {
+        payload: dict[str, Any] = {
             "path": str(resolved),
             "content": content,
             "size": len(content),
             "file_size": stat.st_size,
-            "message": f"Read {resolved} ({len(content)} chars)",
         }
         if offset > 0:
-            result["offset"] = offset
+            payload["offset"] = offset
         if limit is not None:
-            result["limit"] = limit
+            payload["limit"] = limit
         logger.info("file_read: %s (%d chars)", resolved, len(content))
-        return result
+        return ToolResult(
+            content=json.dumps(payload, ensure_ascii=False),
+            display=f"Read {resolved} ({len(content)} chars)",
+        )
 
     # ------------------------------------------------------------------
     # Internal helpers

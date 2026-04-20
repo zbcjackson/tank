@@ -1,3 +1,4 @@
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -83,22 +84,25 @@ def test_get_info():
 
 async def test_invalid_url_no_scheme(tool):
     result = await tool.execute(url="not-a-url")
-    assert "error" in result
-    assert "Invalid URL" in result["error"]
-    assert "无法访问URL" in result["message"]
+    assert result.error is True
+    data = json.loads(result.content)
+    assert "Invalid URL" in data["error"]
+    assert "无法访问URL" in result.display
 
 
 async def test_invalid_url_no_netloc(tool):
     result = await tool.execute(url="http://")
-    assert "error" in result
-    assert "Invalid URL" in result["error"]
+    assert result.error is True
+    data = json.loads(result.content)
+    assert "Invalid URL" in data["error"]
 
 
 async def test_unsupported_scheme(tool):
     result = await tool.execute(url="ftp://example.com/file")
-    assert "error" in result
-    assert "Only HTTP and HTTPS" in result["error"]
-    assert "仅支持HTTP和HTTPS" in result["message"]
+    assert result.error is True
+    data = json.loads(result.content)
+    assert "Only HTTP and HTTPS" in data["error"]
+    assert "仅支持HTTP和HTTPS" in result.display
 
 
 # --- Successful scrape ---
@@ -113,13 +117,15 @@ async def test_successful_scrape(tool):
 
     result = await tool.execute(url="https://example.com")
 
-    assert result["status"] == "success"
-    assert result["title"] == "Hello World"
-    assert result["meta_description"] == "A test page"
-    assert "# Hello World" in result["text_content"]
-    assert "This is a test page" in result["text_content"]
-    assert result["headings"] == [{"level": "h1", "text": "Hello World"}]
-    assert "links" not in result
+    assert result.error is False
+    data = json.loads(result.content)
+    assert data["status"] == "success"
+    assert data["title"] == "Hello World"
+    assert data["meta_description"] == "A test page"
+    assert "# Hello World" in data["text_content"]
+    assert "This is a test page" in data["text_content"]
+    assert data["headings"] == [{"level": "h1", "text": "Hello World"}]
+    assert "links" not in data
 
 
 async def test_successful_scrape_with_links(tool):
@@ -138,10 +144,11 @@ async def test_successful_scrape_with_links(tool):
 
     result = await tool.execute(url="https://example.com", extract_links=True)
 
-    assert result["status"] == "success"
-    assert len(result["links"]) == 3
-    assert result["links"][0] == {"url": "https://example.com/about", "text": "About"}
-    assert "found 3 links" in result["message"]
+    assert result.error is False
+    data = json.loads(result.content)
+    assert data["status"] == "success"
+    assert len(data["links"]) == 3
+    assert data["links"][0] == {"url": "https://example.com/about", "text": "About"}
 
 
 async def test_links_limited_to_20(tool):
@@ -153,7 +160,8 @@ async def test_links_limited_to_20(tool):
 
     result = await tool.execute(url="https://example.com", extract_links=True)
 
-    assert len(result["links"]) == 20
+    data = json.loads(result.content)
+    assert len(data["links"]) == 20
 
 
 async def test_links_skip_empty_text(tool):
@@ -170,8 +178,9 @@ async def test_links_skip_empty_text(tool):
 
     result = await tool.execute(url="https://example.com", extract_links=True)
 
-    assert len(result["links"]) == 1
-    assert result["links"][0]["text"] == "Valid"
+    data = json.loads(result.content)
+    assert len(data["links"]) == 1
+    assert data["links"][0]["text"] == "Valid"
 
 
 # --- Content truncation ---
@@ -184,8 +193,9 @@ async def test_content_truncation(tool):
 
     result = await tool.execute(url="https://example.com")
 
-    assert result["text_content"].endswith("... [Content truncated]")
-    assert len(result["text_content"]) <= tool.max_content_length + 30
+    data = json.loads(result.content)
+    assert data["text_content"].endswith("... [Content truncated]")
+    assert len(data["text_content"]) <= tool.max_content_length + 30
 
 
 # --- Headings extraction ---
@@ -198,7 +208,8 @@ async def test_headings_from_markdown(tool):
 
     result = await tool.execute(url="https://example.com")
 
-    headings = result["headings"]
+    data = json.loads(result.content)
+    headings = data["headings"]
     assert len(headings) == 5
     assert headings[0] == {"level": "h1", "text": "Title"}
     assert headings[1] == {"level": "h2", "text": "Section 1"}
@@ -212,7 +223,8 @@ async def test_headings_limited_to_10(tool):
 
     result = await tool.execute(url="https://example.com")
 
-    assert len(result["headings"]) == 10
+    data = json.loads(result.content)
+    assert len(data["headings"]) == 10
 
 
 # --- Empty / None markdown ---
@@ -225,9 +237,11 @@ async def test_empty_markdown(tool):
 
     result = await tool.execute(url="https://example.com")
 
-    assert result["status"] == "success"
-    assert result["text_content"] == ""
-    assert result["headings"] == []
+    assert result.error is False
+    data = json.loads(result.content)
+    assert data["status"] == "success"
+    assert data["text_content"] == ""
+    assert data["headings"] == []
 
 
 # --- Redirected URL ---
@@ -239,7 +253,8 @@ async def test_redirected_url(tool):
 
     result = await tool.execute(url="https://example.com/old")
 
-    assert result["url"] == "https://example.com/final"
+    data = json.loads(result.content)
+    assert data["url"] == "https://example.com/final"
 
 
 # --- Error handling: CrawlResult failures ---
@@ -251,9 +266,10 @@ async def test_crawl_failure_http_error(tool):
 
     result = await tool.execute(url="https://example.com/missing")
 
-    assert "error" in result
-    assert "HTTP 404" in result["error"]
-    assert "HTTP错误 404" in result["message"]
+    assert result.error is True
+    data = json.loads(result.content)
+    assert "HTTP 404" in data["error"]
+    assert "HTTP错误 404" in result.display
 
 
 async def test_crawl_failure_timeout(tool):
@@ -264,8 +280,9 @@ async def test_crawl_failure_timeout(tool):
 
     result = await tool.execute(url="https://example.com")
 
-    assert result["error"] == "Request timeout"
-    assert "超时" in result["message"]
+    data = json.loads(result.content)
+    assert data["error"] == "Request timeout"
+    assert "超时" in result.display
 
 
 async def test_crawl_failure_connection(tool):
@@ -276,8 +293,9 @@ async def test_crawl_failure_connection(tool):
 
     result = await tool.execute(url="https://example.com")
 
-    assert result["error"] == "Connection error"
-    assert "无法连接" in result["message"]
+    data = json.loads(result.content)
+    assert data["error"] == "Connection error"
+    assert "无法连接" in result.display
 
 
 async def test_crawl_failure_generic(tool):
@@ -288,8 +306,9 @@ async def test_crawl_failure_generic(tool):
 
     result = await tool.execute(url="https://example.com")
 
-    assert "error" in result
-    assert "Something unexpected" in result["error"]
+    assert result.error is True
+    data = json.loads(result.content)
+    assert "Something unexpected" in data["error"]
 
 
 # --- Error handling: exceptions ---
@@ -300,8 +319,9 @@ async def test_timeout_exception(tool):
 
     result = await tool.execute(url="https://example.com")
 
-    assert result["error"] == "Request timeout"
-    assert "超时" in result["message"]
+    data = json.loads(result.content)
+    assert data["error"] == "Request timeout"
+    assert "超时" in result.display
 
 
 async def test_connection_exception(tool):
@@ -309,7 +329,8 @@ async def test_connection_exception(tool):
 
     result = await tool.execute(url="https://example.com")
 
-    assert result["error"] == "Connection error"
+    data = json.loads(result.content)
+    assert data["error"] == "Connection error"
 
 
 async def test_generic_exception(tool):
@@ -317,8 +338,9 @@ async def test_generic_exception(tool):
 
     result = await tool.execute(url="https://example.com")
 
-    assert "error" in result
-    assert "something broke" in result["error"]
+    assert result.error is True
+    data = json.loads(result.content)
+    assert "something broke" in data["error"]
 
 
 # --- Crawler reuse ---
@@ -347,7 +369,8 @@ async def test_use_browser_uses_browser_crawler(tool):
 
     result = await tool.execute(url="https://example.com", use_browser=True)
 
-    assert result["status"] == "success"
+    data = json.loads(result.content)
+    assert data["status"] == "success"
     browser_mock.arun.assert_awaited_once()
     http_mock.arun.assert_not_awaited()
 
@@ -361,7 +384,8 @@ async def test_http_mode_does_not_use_browser(tool):
 
     result = await tool.execute(url="https://example.com", use_browser=False)
 
-    assert result["status"] == "success"
+    data = json.loads(result.content)
+    assert data["status"] == "success"
     http_mock.arun.assert_awaited_once()
     browser_mock.arun.assert_not_awaited()
 
@@ -377,7 +401,8 @@ async def test_metadata_og_description_fallback(tool):
 
     result = await tool.execute(url="https://example.com")
 
-    assert result["meta_description"] == "OG desc"
+    data = json.loads(result.content)
+    assert data["meta_description"] == "OG desc"
 
 
 async def test_missing_metadata(tool):
@@ -386,8 +411,9 @@ async def test_missing_metadata(tool):
 
     result = await tool.execute(url="https://example.com")
 
-    assert result["title"] == ""
-    assert result["meta_description"] == ""
+    data = json.loads(result.content)
+    assert data["title"] == ""
+    assert data["meta_description"] == ""
 
 
 # --- close ---
@@ -423,8 +449,9 @@ async def test_network_policy_deny_blocks_scrape():
 
     result = await tool.execute(url="https://hidden.onion/page")
 
-    assert "error" in result
-    assert "Network access denied" in result["error"]
+    assert result.error is True
+    data = json.loads(result.content)
+    assert "Network access denied" in data["error"]
     policy.evaluate.assert_called_once_with("hidden.onion")
 
 
@@ -438,8 +465,9 @@ async def test_network_policy_require_approval_denied():
 
     result = await tool.execute(url="https://pastebin.com/raw/abc")
 
-    assert "error" in result
-    assert "Approval denied" in result["error"]
+    assert result.error is True
+    data = json.loads(result.content)
+    assert "Approval denied" in data["error"]
     cb.assert_awaited_once_with(
         "web_scraper", "pastebin.com", "connect", "Content sharing",
     )
@@ -457,7 +485,9 @@ async def test_network_policy_require_approval_granted():
 
     result = await tool.execute(url="https://pastebin.com/raw/abc")
 
-    assert result.get("status") == "success"
+    assert result.error is False
+    data = json.loads(result.content)
+    assert data["status"] == "success"
     cb.assert_awaited_once()
 
 
@@ -470,8 +500,9 @@ async def test_network_policy_require_approval_no_callback_denies():
 
     result = await tool.execute(url="https://pastebin.com/raw/abc")
 
-    assert "error" in result
-    assert "Approval denied" in result["error"]
+    assert result.error is True
+    data = json.loads(result.content)
+    assert "Approval denied" in data["error"]
 
 
 async def test_network_policy_allow_proceeds():
@@ -485,4 +516,6 @@ async def test_network_policy_allow_proceeds():
 
     result = await tool.execute(url="https://example.com")
 
-    assert result.get("status") == "success"
+    assert result.error is False
+    data = json.loads(result.content)
+    assert data["status"] == "success"

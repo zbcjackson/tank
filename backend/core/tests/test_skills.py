@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import textwrap
 from pathlib import Path
 from typing import Any
@@ -623,11 +624,10 @@ class TestSkillTools:
         tool = UseSkillTool(mgr)
         result = await tool.execute(skill="test-skill", args="hello")
 
-        assert result["status"] == "inline"
-        assert result["skill_name"] == "test-skill"
-        assert "SKILL ACTIVATED" in result["message"]
-        assert "hello" in result["message"]
-        assert "BEGIN SKILL INSTRUCTIONS" in result["message"]
+        assert isinstance(result, str)
+        assert "SKILL ACTIVATED" in result
+        assert "hello" in result
+        assert "BEGIN SKILL INSTRUCTIONS" in result
 
     def test_list_skills_tool_get_info(self) -> None:
         from tank_backend.skills.manager import SkillManager
@@ -665,7 +665,8 @@ class TestSkillTools:
         tool = ListSkillsTool(mgr)
 
         result = await tool.execute()
-        assert result["skills"] == []
+        data = json.loads(result.content)
+        assert data["skills"] == []
 
     @pytest.mark.asyncio()
     async def test_list_skills_with_skills(self, tmp_skill_dir: Path) -> None:
@@ -680,8 +681,9 @@ class TestSkillTools:
         tool = ListSkillsTool(mgr)
 
         result = await tool.execute()
-        assert len(result["skills"]) == 1
-        assert result["skills"][0]["name"] == "test-skill"
+        data = json.loads(result.content)
+        assert len(data["skills"]) == 1
+        assert data["skills"][0]["name"] == "test-skill"
 
 
 # ---------------------------------------------------------------------------
@@ -1055,9 +1057,10 @@ class TestSearchSkillsTool:
             tool = SearchSkillsTool()
             result = await tool.execute(query="gif")
 
-        assert len(result["results"]) == 1
-        assert result["results"][0]["name"] == "GifGrep"
-        assert result["results"][0]["install_id"] == "clawhub:gifgrep"
+        data = json.loads(result.content)
+        assert len(data["results"]) == 1
+        assert data["results"][0]["name"] == "GifGrep"
+        assert data["results"][0]["install_id"] == "clawhub:gifgrep"
 
     @pytest.mark.asyncio()
     async def test_execute_empty(self) -> None:
@@ -1073,8 +1076,9 @@ class TestSearchSkillsTool:
             tool = SearchSkillsTool()
             result = await tool.execute(query="nothing")
 
-        assert result["results"] == []
-        assert "No skills found" in result["message"]
+        data = json.loads(result.content)
+        assert data["results"] == []
+        assert "No skills found" in result.display
 
 
 # ---------------------------------------------------------------------------
@@ -1230,7 +1234,7 @@ class TestReload:
 
         # No changes
         result = await tool.execute()
-        assert "No changes" in result["message"]
+        assert "No changes" in result.display
 
         # Add a skill, then reload
         new_dir = skills_dir / "fresh"
@@ -1240,8 +1244,8 @@ class TestReload:
         )
 
         result = await tool.execute()
-        assert "fresh" in result["message"]
-        assert "Added" in result["message"]
+        assert "fresh" in result.display
+        assert "Added" in result.display
 
     def test_reload_disabled_group(self) -> None:
         from tank_backend.tools.groups import SkillToolGroup

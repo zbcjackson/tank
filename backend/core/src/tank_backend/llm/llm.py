@@ -9,7 +9,6 @@ retry behavior.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
@@ -25,6 +24,7 @@ from openai.types.chat import ChatCompletionMessageParam
 
 from ..core.events import UpdateType
 from ..observability.langfuse_client import initialize_langfuse
+from ..tools.base import ToolResult
 
 logger = logging.getLogger("LLM")
 
@@ -39,6 +39,32 @@ _CONCURRENT_SAFE_TOOLS = frozenset({"agent"})
 def _is_concurrent_safe(name: str) -> bool:
     """Return True if a tool can safely run in parallel with others."""
     return name in _CONCURRENT_SAFE_TOOLS
+
+
+def _tool_result_to_str(result: Any) -> tuple[str, str]:
+    """Convert tool result to (llm_content, ui_display) strings.
+
+    Returns:
+        (llm_content, ui_display) where:
+        - llm_content: Full result sent to LLM (never truncated)
+        - ui_display: Summary shown in UI (may be truncated)
+    """
+    if isinstance(result, ToolResult):
+        display = result.display or (
+            result.content[:200] + "..." if len(result.content) > 200
+            else result.content
+        )
+        return result.content, display
+
+    if isinstance(result, str):
+        display = (result[:200] + "...") if len(result) > 200 else result
+        return result, display
+
+    # Should not happen — tools should return ToolResult or str
+    logger.warning("Tool returned unexpected type %s, converting to string", type(result))
+    content = str(result)
+    display = (content[:200] + "...") if len(content) > 200 else content
+    return content, display
 
 
 class LLM:
@@ -305,6 +331,7 @@ class LLM:
                         concurrent_items, results, strict=True,
                     ):
                         if isinstance(result, Exception):
+                            # Exception during tool execution
                             yield (
                                 UpdateType.TOOL, f"Error: {result!s}",
                                 {
@@ -319,23 +346,18 @@ class LLM:
                                 "content": f"Error: {result!s}",
                             })
                             yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
+                        else:
+                            # Successful concurrent result
                             is_error = (
-                                isinstance(result, dict) and "error" in result
+                                isinstance(result, ToolResult) and result.error
                             )
                             if is_error:
                                 rejected_tools.add(tc["name"])
-                            if isinstance(result, dict) and "message" in result:
-                                result_str = result["message"]
-                            elif isinstance(result, dict):
-                                result_str = json.dumps(result, ensure_ascii=False)
-                            else:
-                                result_str = str(result)
-                            summary = (
-                                (result_str[:200] + "...")
-                                if len(result_str) > 200 else result_str
-                            )
+
+                            llm_content, ui_display = _tool_result_to_str(result)
+
                             yield (
-                                UpdateType.TOOL, summary,
+                                UpdateType.TOOL, ui_display,
                                 {
                                     "index": idx, "name": tc["name"],
                                     "arguments": tc["arguments"],
@@ -345,7 +367,7 @@ class LLM:
                             )
                             working_messages.append({
                                 "role": "tool", "tool_call_id": tc["id"],
-                                "name": tc["name"], "content": result_str,
+                                "name": tc["name"], "content": llm_content,
                             })
                             yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
 
@@ -378,29 +400,15 @@ class LLM:
                         )
 
                         is_error = (
-                            isinstance(result, dict) and "error" in result
+                            isinstance(result, ToolResult) and result.error
                         )
                         if is_error:
                             rejected_tools.add(tc["name"])
 
-                        # Use "message" field for tool result content when
-                        # available — gives tools control over what the LLM
-                        # sees (e.g. skill instructions).  Fall back to
-                        # json for dicts, str() for everything else.
-                        if isinstance(result, dict) and "message" in result:
-                            result_str = result["message"]
-                        elif isinstance(result, dict):
-                            result_str = json.dumps(result, ensure_ascii=False)
-                        else:
-                            result_str = str(result)
-
-                        summary = (
-                            (result_str[:200] + "...")
-                            if len(result_str) > 200 else result_str
-                        )
+                        llm_content, ui_display = _tool_result_to_str(result)
 
                         yield (
-                            UpdateType.TOOL, summary,
+                            UpdateType.TOOL, ui_display,
                             {
                                 "index": idx, "name": tc["name"],
                                 "arguments": tc["arguments"],
@@ -411,7 +419,7 @@ class LLM:
 
                         working_messages.append({
                             "role": "tool", "tool_call_id": tc["id"],
-                            "name": tc["name"], "content": result_str,
+                            "name": tc["name"], "content": llm_content,
                         })
                         yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
 

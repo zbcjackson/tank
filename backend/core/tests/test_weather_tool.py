@@ -1,3 +1,4 @@
+import json
 from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -107,16 +108,17 @@ class TestWeatherTool:
 
             result = await weather_tool.execute(location="New York")
 
-            assert "error" not in result
-            assert result["location"] == "New York"
-            assert result["coordinates"]["latitude"] == 40.7128
-            assert result["coordinates"]["longitude"] == -74.0060
-            assert result["temperature"] == "22.5°C"
-            assert result["condition"] == "Clear sky"
-            assert result["humidity"] == "65%"
-            assert result["wind_speed"] == "12.3 km/h"
-            assert "New York" in result["message"]
-            assert "currently" in result["message"]
+            assert result.error is False
+            data = json.loads(result.content)
+            assert data["location"] == "New York"
+            assert data["coordinates"]["latitude"] == 40.7128
+            assert data["coordinates"]["longitude"] == -74.0060
+            assert data["temperature"] == "22.5°C"
+            assert data["condition"] == "Clear sky"
+            assert data["humidity"] == "65%"
+            assert data["wind_speed"] == "12.3 km/h"
+            assert "New York" in result.display
+            assert "currently" in result.display
 
     @pytest.mark.asyncio
     async def test_forecast_weather_success(
@@ -136,14 +138,15 @@ class TestWeatherTool:
 
             result = await weather_tool.execute(location="New York", date=_DAY_AFTER)
 
-            assert "error" not in result
-            assert result["location"] == "New York"
-            assert result["date"] == _DAY_AFTER
-            assert result["temperature_max"] == "21.0°C"
-            assert result["temperature_min"] == "16.0°C"
-            assert result["condition"] == "Slight rain"
-            assert result["precipitation"] == "5.2 mm"
-            assert _DAY_AFTER in result["message"]
+            assert result.error is False
+            data = json.loads(result.content)
+            assert data["location"] == "New York"
+            assert data["date"] == _DAY_AFTER
+            assert data["temperature_max"] == "21.0°C"
+            assert data["temperature_min"] == "16.0°C"
+            assert data["condition"] == "Slight rain"
+            assert data["precipitation"] == "5.2 mm"
+            assert _DAY_AFTER in result.display
 
     @pytest.mark.asyncio
     async def test_location_not_found(self, weather_tool):
@@ -156,9 +159,10 @@ class TestWeatherTool:
 
             result = await weather_tool.execute(location="NonexistentCity12345")
 
-            assert "error" in result
-            assert result["error"] == "location_not_found"
-            assert "NonexistentCity12345" in result["message"]
+            assert result.error is True
+            data = json.loads(result.content)
+            assert data["error"] == "location_not_found"
+            assert "NonexistentCity12345" in result.display
 
     @pytest.mark.asyncio
     async def test_invalid_date_format(self, weather_tool, mock_geocode_response):
@@ -177,8 +181,8 @@ class TestWeatherTool:
 
             result = await weather_tool.execute(location="New York", date="invalid-date")
 
-            assert "error" in result
-            assert "YYYY-MM-DD" in result["message"]
+            assert result.error is True
+            assert "YYYY-MM-DD" in result.display
 
     @pytest.mark.asyncio
     async def test_geocoding_api_error(self, weather_tool):
@@ -188,8 +192,8 @@ class TestWeatherTool:
 
             result = await weather_tool.execute(location="New York")
 
-            assert "error" in result
-            assert "New York" in result["message"]
+            assert result.error is True
+            assert "New York" in result.display
 
     @pytest.mark.asyncio
     async def test_weather_api_error(self, weather_tool, mock_geocode_response):
@@ -206,7 +210,7 @@ class TestWeatherTool:
 
             result = await weather_tool.execute(location="New York")
 
-            assert "error" in result
+            assert result.error is True
 
     def test_weather_code_to_condition(self, weather_tool):
         """Test weather code conversion"""

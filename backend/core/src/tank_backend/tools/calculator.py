@@ -1,9 +1,9 @@
 import ast
+import json
 import logging
 import operator as op
-from typing import Any
 
-from .base import BaseTool, ToolInfo, ToolParameter
+from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class CalculatorTool(BaseTool):
             ],
         )
 
-    async def execute(self, expression: str) -> dict[str, Any]:
+    async def execute(self, expression: str) -> ToolResult:
         logger.info(f"Calculating: {expression}")
         try:
             # Supported operators
@@ -51,13 +51,16 @@ class CalculatorTool(BaseTool):
                     raise TypeError(node)
 
             result = eval_expr(expression)
-            return {
-                "expression": expression,
-                "result": result,
-                "message": f"{expression} = {result}",
-            }
+            return ToolResult(
+                content=json.dumps({"expression": expression, "result": result}),
+                display=f"{expression} = {result}",
+            )
 
         except Exception as e:
             error_message = f"Error calculating {expression}: {str(e)}"
             logger.error(error_message)
-            return {"expression": expression, "error": str(e), "message": error_message}
+            return ToolResult(
+                content=json.dumps({"expression": expression, "error": str(e)}),
+                display=error_message,
+                error=True,
+            )

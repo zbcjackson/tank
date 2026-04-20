@@ -1,5 +1,6 @@
 """Tests for persistent_shell tool."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -38,8 +39,9 @@ class TestPersistentShellTool:
             output="/workspace\n", session="default", exit_code=0
         )
         result = await tool.execute(command="pwd")
-        assert result["output"] == "/workspace\n"
-        assert result["session"] == "default"
+        data = json.loads(result.content)
+        assert data["output"] == "/workspace\n"
+        assert data["session"] == "default"
         mock_sandbox.bash_command.assert_awaited_once_with(
             command="pwd", session="default", timeout=120
         )
@@ -49,7 +51,8 @@ class TestPersistentShellTool:
             output="ok\n", session="dev", exit_code=0
         )
         result = await tool.execute(command="echo ok", session="dev")
-        assert result["session"] == "dev"
+        data = json.loads(result.content)
+        assert data["session"] == "dev"
         mock_sandbox.bash_command.assert_awaited_once_with(
             command="echo ok", session="dev", timeout=120
         )
@@ -59,43 +62,48 @@ class TestPersistentShellTool:
             output="", session="default", exit_code=0
         )
         result = await tool.execute(command="true")
-        assert result["message"] == "(no output)"
+        assert result.display == "(no output)"
 
     async def test_no_command_or_action_returns_error(self, tool):
         result = await tool.execute()
-        assert "error" in result
+        assert result.error is True
 
     async def test_action_create(self, tool, mock_sandbox):
         mock_sandbox.bash_command.return_value = BashResult(
             output="", session="monitor", exit_code=0
         )
         result = await tool.execute(action="create", session="monitor")
-        assert result["status"] == "created"
-        assert result["session"] == "monitor"
+        data = json.loads(result.content)
+        assert data["status"] == "created"
+        assert data["session"] == "monitor"
 
     async def test_action_write(self, tool, mock_sandbox):
         result = await tool.execute(action="write", session="dev", input="ls\n")
-        assert result["status"] == "written"
+        data = json.loads(result.content)
+        assert data["status"] == "written"
         mock_sandbox.session_write.assert_awaited_once_with("dev", "ls\n")
 
     async def test_action_read(self, tool, mock_sandbox):
         mock_sandbox.session_read.return_value = "file1.py\nfile2.py\n"
         result = await tool.execute(action="read", session="dev")
-        assert "file1.py" in result["output"]
+        data = json.loads(result.content)
+        assert "file1.py" in data["output"]
         mock_sandbox.session_read.assert_awaited_once_with("dev")
 
     async def test_action_read_empty(self, tool, mock_sandbox):
         mock_sandbox.session_read.return_value = ""
         result = await tool.execute(action="read", session="dev")
-        assert result["message"] == "(no new output)"
+        assert result.display == "(no new output)"
 
     async def test_unknown_action(self, tool):
         result = await tool.execute(action="invalid", session="dev")
-        assert "error" in result
-        assert "Unknown action" in result["error"]
+        assert result.error is True
+        data = json.loads(result.content)
+        assert "Unknown action" in data["error"]
 
     async def test_error_handling(self, tool, mock_sandbox):
         mock_sandbox.bash_command.side_effect = RuntimeError("socket closed")
         result = await tool.execute(command="echo hi")
-        assert "error" in result
-        assert "socket closed" in result["error"]
+        assert result.error is True
+        data = json.loads(result.content)
+        assert "socket closed" in data["error"]

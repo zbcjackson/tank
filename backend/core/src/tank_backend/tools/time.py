@@ -1,8 +1,8 @@
 import datetime
+import json
 import logging
-from typing import Any
 
-from .base import BaseTool, ToolInfo
+from .base import BaseTool, ToolInfo, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -11,9 +11,10 @@ class TimeTool(BaseTool):
     def get_info(self) -> ToolInfo:
         return ToolInfo(name="get_time", description="Get current time and date", parameters=[])
 
-    async def execute(self) -> dict[str, Any]:
+    async def execute(self) -> ToolResult:
         now = datetime.datetime.now()
-        return {
-            "current_time": now.strftime("%Y-%m-%d %H:%M:%S"),
-            "message": f"The current time is {now.strftime('%Y-%m-%d %H:%M:%S')}",
-        }
+        formatted = now.strftime("%Y-%m-%d %H:%M:%S")
+        return ToolResult(
+            content=json.dumps({"current_time": formatted}),
+            display=f"The current time is {formatted}",
+        )

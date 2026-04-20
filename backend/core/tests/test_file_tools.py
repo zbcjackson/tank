@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -9,12 +10,18 @@ import pytest
 
 from tank_backend.policy.backup import BackupManager
 from tank_backend.policy.file_access import AccessDecision, FileAccessPolicy
+from tank_backend.tools.base import ToolResult
 from tank_backend.tools.file_delete import FileDeleteTool
 from tank_backend.tools.file_edit import FileEditTool
 from tank_backend.tools.file_list import FileListTool
 from tank_backend.tools.file_read import FileReadTool
 from tank_backend.tools.file_search import FileSearchTool
 from tank_backend.tools.file_write import FileWriteTool
+
+
+def _parse_result(result: ToolResult) -> dict:
+    """Parse a ToolResult's JSON content into a dict for test assertions."""
+    return json.loads(result.content)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -57,17 +64,21 @@ class TestFileReadTool:
         tool = FileReadTool(_make_policy("allow"))
         result = await tool.execute(path=str(f))
 
-        assert "content" in result
-        assert result["content"] == "hello world"
-        assert result["size"] == 11
+        assert isinstance(result, ToolResult)
+        assert not result.error
+        data = _parse_result(result)
+        assert data["content"] == "hello world"
+        assert data["size"] == 11
 
     @pytest.mark.asyncio
     async def test_read_denied(self):
         tool = FileReadTool(_make_policy("deny", "Secrets"))
         result = await tool.execute(path="/fake/.ssh/id_rsa")
 
-        assert result.get("denied") is True
-        assert "Secrets" in result["message"]
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
+        assert "Secrets" in result.display
 
     @pytest.mark.asyncio
     async def test_read_require_approval_granted(self, tmp_path: Path):
@@ -78,8 +89,9 @@ class TestFileReadTool:
         tool = FileReadTool(_make_policy("require_approval", "System config"), approval_callback=cb)
         result = await tool.execute(path=str(f))
 
-        assert "content" in result
-        assert result["content"] == "config data"
+        assert not result.error
+        data = _parse_result(result)
+        assert data["content"] == "config data"
         cb.assert_awaited_once_with("file_read", str(f), "read", "System config")
 
     @pytest.mark.asyncio
@@ -89,8 +101,10 @@ class TestFileReadTool:
         tool = FileReadTool(_make_policy("require_approval", "System config"), approval_callback=cb)
         result = await tool.execute(path="/etc/hosts")
 
-        assert result.get("denied") is True
-        assert "denied" in result["message"].lower()
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
+        assert "denied" in result.display.lower()
 
     @pytest.mark.asyncio
     async def test_read_require_approval_no_callback_denies(self):
@@ -98,23 +112,29 @@ class TestFileReadTool:
         tool = FileReadTool(_make_policy("require_approval", "System config"))
         result = await tool.execute(path="/etc/hosts")
 
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_read_file_not_found(self):
         tool = FileReadTool(_make_policy("allow"))
         result = await tool.execute(path="/nonexistent/file.txt")
 
-        assert "error" in result
-        assert "not found" in result["message"].lower()
+        assert result.error
+        data = _parse_result(result)
+        assert "error" in data
+        assert "not found" in result.display.lower()
 
     @pytest.mark.asyncio
     async def test_read_not_a_file(self, tmp_path: Path):
         tool = FileReadTool(_make_policy("allow"))
         result = await tool.execute(path=str(tmp_path))
 
-        assert "error" in result
-        assert "not a file" in result["message"].lower()
+        assert result.error
+        data = _parse_result(result)
+        assert "error" in data
+        assert "not a file" in result.display.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -136,8 +156,10 @@ class TestFileWriteTool:
         result = await tool.execute(path=str(f), content="new content")
 
         assert f.read_text() == "new content"
-        assert result["size"] == len("new content")
-        assert "backup_path" not in result
+        assert not result.error
+        data = _parse_result(result)
+        assert data["size"] == len("new content")
+        assert "backup_path" not in data
 
     @pytest.mark.asyncio
     async def test_write_with_backup(self, tmp_path: Path):
@@ -149,7 +171,8 @@ class TestFileWriteTool:
         result = await tool.execute(path=str(f), content="new content")
 
         assert f.read_text() == "new content"
-        assert result["backup_path"] == "/backup/existing.txt"
+        data = _parse_result(result)
+        assert data["backup_path"] == "/backup/existing.txt"
         backup.snapshot.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -157,7 +180,9 @@ class TestFileWriteTool:
         tool = FileWriteTool(_make_policy("deny", "Secrets"), _make_backup())
         result = await tool.execute(path="/fake/.ssh/id_rsa", content="hack")
 
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_write_require_approval_granted(self, tmp_path: Path):
@@ -180,14 +205,18 @@ class TestFileWriteTool:
         tool = FileWriteTool(_make_policy("require_approval"), _make_backup(), approval_callback=cb)
         result = await tool.execute(path="/etc/hosts", content="x")
 
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_write_require_approval_no_callback_denies(self):
         tool = FileWriteTool(_make_policy("require_approval"), _make_backup())
         result = await tool.execute(path="/etc/hosts", content="x")
 
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_write_creates_parent_dirs(self, tmp_path: Path):
@@ -219,14 +248,17 @@ class TestFileDeleteTool:
         result = await tool.execute(path=str(f))
 
         assert not f.exists()
-        assert result["backup_path"] == "/backup/doomed.txt"
+        data = _parse_result(result)
+        assert data["backup_path"] == "/backup/doomed.txt"
 
     @pytest.mark.asyncio
     async def test_delete_denied(self):
         tool = FileDeleteTool(_make_policy("deny", "System"), _make_backup())
         result = await tool.execute(path="/etc/passwd")
 
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_delete_require_approval_granted(self, tmp_path: Path):
@@ -252,30 +284,38 @@ class TestFileDeleteTool:
         )
         result = await tool.execute(path="/tmp/file.txt")
 
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_delete_require_approval_no_callback_denies(self):
         tool = FileDeleteTool(_make_policy("require_approval"), _make_backup())
         result = await tool.execute(path="/tmp/file.txt")
 
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_delete_file_not_found(self):
         tool = FileDeleteTool(_make_policy("allow"), _make_backup(None))
         result = await tool.execute(path="/nonexistent/file.txt")
 
-        assert "error" in result
-        assert "not found" in result["message"].lower()
+        assert result.error
+        data = _parse_result(result)
+        assert "error" in data
+        assert "not found" in result.display.lower()
 
     @pytest.mark.asyncio
     async def test_delete_not_a_file(self, tmp_path: Path):
         tool = FileDeleteTool(_make_policy("allow"), _make_backup(None))
         result = await tool.execute(path=str(tmp_path))
 
-        assert "error" in result
-        assert "not a file" in result["message"].lower()
+        assert result.error
+        data = _parse_result(result)
+        assert "error" in data
+        assert "not a file" in result.display.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -297,8 +337,9 @@ class TestFileListTool:
         tool = FileListTool(_make_policy("allow"))
         result = await tool.execute(path=str(tmp_path))
 
-        assert result["count"] == 3
-        names = [e["name"] for e in result["entries"]]
+        data = _parse_result(result)
+        assert data["count"] == 3
+        names = [e["name"] for e in data["entries"]]
         assert "a.txt" in names
         assert "b.txt" in names
         assert "subdir" in names
@@ -311,7 +352,8 @@ class TestFileListTool:
         tool = FileListTool(_make_policy("allow"))
         result = await tool.execute(path=str(tmp_path))
 
-        names = [e["name"] for e in result["entries"]]
+        data = _parse_result(result)
+        names = [e["name"] for e in data["entries"]]
         assert "visible.txt" in names
         assert ".hidden" not in names
 
@@ -323,7 +365,8 @@ class TestFileListTool:
         tool = FileListTool(_make_policy("allow"))
         result = await tool.execute(path=str(tmp_path), show_hidden=True)
 
-        names = [e["name"] for e in result["entries"]]
+        data = _parse_result(result)
+        names = [e["name"] for e in data["entries"]]
         assert ".hidden" in names
 
     @pytest.mark.asyncio
@@ -331,7 +374,9 @@ class TestFileListTool:
         tool = FileListTool(_make_policy("deny", "Secrets"))
         result = await tool.execute(path="/fake/.ssh")
 
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_list_require_approval_granted(self, tmp_path: Path):
@@ -341,7 +386,8 @@ class TestFileListTool:
         tool = FileListTool(_make_policy("require_approval", "Sensitive"), approval_callback=cb)
         result = await tool.execute(path=str(tmp_path))
 
-        assert result["count"] == 1
+        data = _parse_result(result)
+        assert data["count"] == 1
         cb.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -351,14 +397,18 @@ class TestFileListTool:
         tool = FileListTool(_make_policy("require_approval"), approval_callback=cb)
         result = await tool.execute(path="/tmp")
 
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_list_require_approval_no_callback_denies(self):
         tool = FileListTool(_make_policy("require_approval"))
         result = await tool.execute(path="/tmp")
 
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_list_not_a_directory(self, tmp_path: Path):
@@ -368,15 +418,15 @@ class TestFileListTool:
         tool = FileListTool(_make_policy("allow"))
         result = await tool.execute(path=str(f))
 
-        assert "error" in result
-        assert "not a directory" in result["message"].lower()
+        assert result.error
+        assert "not a directory" in result.display.lower()
 
     @pytest.mark.asyncio
     async def test_list_not_found(self):
         tool = FileListTool(_make_policy("allow"))
         result = await tool.execute(path="/nonexistent/dir")
 
-        assert "error" in result
+        assert result.error
 
     @pytest.mark.asyncio
     async def test_list_entry_types(self, tmp_path: Path):
@@ -386,7 +436,8 @@ class TestFileListTool:
         tool = FileListTool(_make_policy("allow"))
         result = await tool.execute(path=str(tmp_path))
 
-        entries = {e["name"]: e for e in result["entries"]}
+        data = _parse_result(result)
+        entries = {e["name"]: e for e in data["entries"]}
         assert entries["file.txt"]["type"] == "file"
         assert entries["file.txt"]["size"] == 7
         assert entries["subdir"]["type"] == "dir"
@@ -407,9 +458,10 @@ class TestFileListGlob:
             path=str(tmp_path), glob="*教材*",
         )
 
-        assert result["count"] == 1
-        assert result["entries"][0]["name"] == "教材"
-        assert result["entries"][0]["type"] == "dir"
+        data = _parse_result(result)
+        assert data["count"] == 1
+        assert data["entries"][0]["name"] == "教材"
+        assert data["entries"][0]["type"] == "dir"
 
     @pytest.mark.asyncio
     async def test_glob_finds_files_by_extension(self, tmp_path: Path):
@@ -422,8 +474,9 @@ class TestFileListGlob:
             path=str(tmp_path), glob="*.py",
         )
 
-        assert result["count"] == 2
-        names = {e["name"] for e in result["entries"]}
+        data = _parse_result(result)
+        assert data["count"] == 2
+        names = {e["name"] for e in data["entries"]}
         assert names == {"a.py", "c.py"}
 
     @pytest.mark.asyncio
@@ -438,8 +491,9 @@ class TestFileListGlob:
             path=str(tmp_path), glob="*.py",
         )
 
-        assert result["count"] == 2
-        names = {e["name"] for e in result["entries"]}
+        data = _parse_result(result)
+        assert data["count"] == 2
+        names = {e["name"] for e in data["entries"]}
         assert names == {"top.py", "nested.py"}
 
     @pytest.mark.asyncio
@@ -454,8 +508,9 @@ class TestFileListGlob:
             path=str(tmp_path), glob="*.py",
         )
 
-        assert result["count"] == 1
-        assert result["entries"][0]["name"] == "visible.py"
+        data = _parse_result(result)
+        assert data["count"] == 1
+        assert data["entries"][0]["name"] == "visible.py"
 
     @pytest.mark.asyncio
     async def test_glob_max_results(self, tmp_path: Path):
@@ -467,8 +522,9 @@ class TestFileListGlob:
             path=str(tmp_path), glob="*.txt", max_results=5,
         )
 
-        assert result["count"] == 5
-        assert result.get("truncated") is True
+        data = _parse_result(result)
+        assert data["count"] == 5
+        assert data.get("truncated") is True
 
     @pytest.mark.asyncio
     async def test_glob_includes_relative_path(self, tmp_path: Path):
@@ -481,8 +537,9 @@ class TestFileListGlob:
             path=str(tmp_path), glob="target.txt",
         )
 
-        assert result["count"] == 1
-        entry = result["entries"][0]
+        data = _parse_result(result)
+        assert data["count"] == 1
+        entry = data["entries"][0]
         assert entry["relative_path"] == "deep/nested/target.txt"
         assert entry["path"] == str(sub / "target.txt")
 
@@ -495,8 +552,9 @@ class TestFileListGlob:
             path=str(tmp_path), glob="*.nonexistent",
         )
 
-        assert result["count"] == 0
-        assert result["entries"] == []
+        data = _parse_result(result)
+        assert data["count"] == 0
+        assert data["entries"] == []
 
     @pytest.mark.asyncio
     async def test_glob_denied(self):
@@ -505,7 +563,9 @@ class TestFileListGlob:
             path="/fake/.ssh", glob="*",
         )
 
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
 
 # ---------------------------------------------------------------------------
@@ -521,9 +581,10 @@ class TestFileReadLargeAndBinary:
         tool = FileReadTool(_make_policy("allow"))
         result = await tool.execute(path=str(f))
 
-        assert "error" in result
-        assert result["error"] == "Binary file"
-        assert "binary" in result["message"].lower()
+        assert result.error
+        data = _parse_result(result)
+        assert data["error"] == "Binary file"
+        assert "binary" in result.display.lower()
 
     @pytest.mark.asyncio
     async def test_large_file_rejected(self, tmp_path: Path):
@@ -533,9 +594,11 @@ class TestFileReadLargeAndBinary:
         tool = FileReadTool(_make_policy("allow"))
         result = await tool.execute(path=str(f), max_size=1_000_000)
 
-        assert result["error"] == "File too large"
-        assert result["size"] == 2_000_000
-        assert result["max_size"] == 1_000_000
+        assert result.error
+        data = _parse_result(result)
+        assert data["error"] == "File too large"
+        assert data["size"] == 2_000_000
+        assert data["max_size"] == 1_000_000
 
     @pytest.mark.asyncio
     async def test_large_file_allowed_with_range(self, tmp_path: Path):
@@ -546,9 +609,11 @@ class TestFileReadLargeAndBinary:
         tool = FileReadTool(_make_policy("allow"))
         result = await tool.execute(path=str(f), max_size=100, offset=0, limit=5)
 
-        assert "content" in result
-        assert result["content"].count("\n") == 5
-        assert result["limit"] == 5
+        assert not result.error
+        data = _parse_result(result)
+        assert "content" in data
+        assert data["content"].count("\n") == 5
+        assert data["limit"] == 5
 
     @pytest.mark.asyncio
     async def test_offset_and_limit(self, tmp_path: Path):
@@ -558,9 +623,10 @@ class TestFileReadLargeAndBinary:
         tool = FileReadTool(_make_policy("allow"))
         result = await tool.execute(path=str(f), offset=2, limit=2)
 
-        assert result["content"] == "line2\nline3\n"
-        assert result["offset"] == 2
-        assert result["limit"] == 2
+        data = _parse_result(result)
+        assert data["content"] == "line2\nline3\n"
+        assert data["offset"] == 2
+        assert data["limit"] == 2
 
     @pytest.mark.asyncio
     async def test_offset_only(self, tmp_path: Path):
@@ -570,7 +636,8 @@ class TestFileReadLargeAndBinary:
         tool = FileReadTool(_make_policy("allow"))
         result = await tool.execute(path=str(f), offset=1)
 
-        assert result["content"] == "line1\nline2\n"
+        data = _parse_result(result)
+        assert data["content"] == "line1\nline2\n"
 
     @pytest.mark.asyncio
     async def test_custom_max_size(self, tmp_path: Path):
@@ -580,7 +647,8 @@ class TestFileReadLargeAndBinary:
         tool = FileReadTool(_make_policy("allow"))
         result = await tool.execute(path=str(f), max_size=10)
 
-        assert result["content"] == "hello"
+        data = _parse_result(result)
+        assert data["content"] == "hello"
 
     @pytest.mark.asyncio
     async def test_file_size_in_result(self, tmp_path: Path):
@@ -590,8 +658,9 @@ class TestFileReadLargeAndBinary:
         tool = FileReadTool(_make_policy("allow"))
         result = await tool.execute(path=str(f))
 
-        assert result["file_size"] == 5
-        assert result["size"] == 5
+        data = _parse_result(result)
+        assert data["file_size"] == 5
+        assert data["size"] == 5
 
 
 # ---------------------------------------------------------------------------
@@ -617,8 +686,9 @@ class TestFileEditTool:
         )
 
         assert f.read_text() == "def hello():\n    return 'universe'\n"
-        assert result["replacements"] == 1
-        assert result["backup_path"] == "/backup/code.py"
+        data = _parse_result(result)
+        assert data["replacements"] == 1
+        assert data["backup_path"] == "/backup/code.py"
 
     @pytest.mark.asyncio
     async def test_edit_denied(self):
@@ -626,8 +696,10 @@ class TestFileEditTool:
         result = await tool.execute(
             path="/fake/.ssh/config", old_string="a", new_string="b",
         )
-        assert result.get("denied") is True
-        assert "Secrets" in result["message"]
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
+        assert "Secrets" in result.display
 
     @pytest.mark.asyncio
     async def test_edit_require_approval_granted(self, tmp_path: Path):
@@ -656,7 +728,9 @@ class TestFileEditTool:
         result = await tool.execute(
             path="/etc/hosts", old_string="a", new_string="b",
         )
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_edit_require_approval_no_callback_denies(self):
@@ -664,7 +738,9 @@ class TestFileEditTool:
         result = await tool.execute(
             path="/etc/hosts", old_string="a", new_string="b",
         )
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_edit_file_not_found(self):
@@ -672,8 +748,8 @@ class TestFileEditTool:
         result = await tool.execute(
             path="/nonexistent/file.txt", old_string="a", new_string="b",
         )
-        assert "error" in result
-        assert "not found" in result["message"].lower()
+        assert result.error
+        assert "not found" in result.display.lower()
 
     @pytest.mark.asyncio
     async def test_edit_not_a_file(self, tmp_path: Path):
@@ -681,8 +757,8 @@ class TestFileEditTool:
         result = await tool.execute(
             path=str(tmp_path), old_string="a", new_string="b",
         )
-        assert "error" in result
-        assert "not a file" in result["message"].lower()
+        assert result.error
+        assert "not a file" in result.display.lower()
 
     @pytest.mark.asyncio
     async def test_edit_old_string_not_found(self, tmp_path: Path):
@@ -693,8 +769,8 @@ class TestFileEditTool:
         result = await tool.execute(
             path=str(f), old_string="nonexistent", new_string="x",
         )
-        assert "error" in result
-        assert "not found" in result["message"].lower()
+        assert result.error
+        assert "not found" in result.display.lower()
 
     @pytest.mark.asyncio
     async def test_edit_ambiguous_match(self, tmp_path: Path):
@@ -705,8 +781,8 @@ class TestFileEditTool:
         result = await tool.execute(
             path=str(f), old_string="foo", new_string="qux",
         )
-        assert "error" in result
-        assert "ambiguous" in result["message"].lower() or "multiple" in result["message"].lower()
+        assert result.error
+        assert "ambiguous" in result.display.lower() or "multiple" in result.display.lower()
 
     @pytest.mark.asyncio
     async def test_edit_same_old_new_rejected(self, tmp_path: Path):
@@ -717,7 +793,7 @@ class TestFileEditTool:
         result = await tool.execute(
             path=str(f), old_string="hello", new_string="hello",
         )
-        assert "error" in result
+        assert result.error
 
     @pytest.mark.asyncio
     async def test_edit_replace_all(self, tmp_path: Path):
@@ -730,7 +806,8 @@ class TestFileEditTool:
         )
 
         assert f.read_text() == "qux bar qux baz qux"
-        assert result["replacements"] == 3
+        data = _parse_result(result)
+        assert data["replacements"] == 3
 
     # --- Insert mode tests ---
 
@@ -746,7 +823,8 @@ class TestFileEditTool:
         )
 
         assert f.read_text() == "line1\nline2\ninserted\nline3\n"
-        assert result["insert_after_line"] == 2
+        data = _parse_result(result)
+        assert data["insert_after_line"] == 2
 
     @pytest.mark.asyncio
     async def test_insert_after_line_zero_prepends(self, tmp_path: Path):
@@ -798,7 +876,7 @@ class TestFileEditTool:
             insert_after_line=-1,
         )
 
-        assert "error" in result
+        assert result.error
 
     @pytest.mark.asyncio
     async def test_insert_empty_new_string_rejected(self, tmp_path: Path):
@@ -811,7 +889,7 @@ class TestFileEditTool:
             insert_after_line=1,
         )
 
-        assert "error" in result
+        assert result.error
 
     @pytest.mark.asyncio
     async def test_insert_denied(self):
@@ -820,7 +898,9 @@ class TestFileEditTool:
             path="/fake/.ssh/config", old_string="", new_string="x",
             insert_after_line=1,
         )
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_insert_with_backup(self, tmp_path: Path):
@@ -834,7 +914,8 @@ class TestFileEditTool:
             insert_after_line=1,
         )
 
-        assert result["backup_path"] == "/backup/file.txt"
+        data = _parse_result(result)
+        assert data["backup_path"] == "/backup/file.txt"
 
     @pytest.mark.asyncio
     async def test_empty_old_string_without_insert_line_rejected(
@@ -849,7 +930,7 @@ class TestFileEditTool:
             path=str(f), old_string="", new_string="x",
         )
 
-        assert "error" in result
+        assert result.error
 
 
 # ---------------------------------------------------------------------------
@@ -888,8 +969,8 @@ class TestFileSearchTool:
             path=str(f), pattern="foo", output_mode="content",
         )
 
-        assert "2:foo bar" in result["message"]
-        assert "4:foo baz" in result["message"]
+        assert "2:foo bar" in result.display
+        assert "4:foo baz" in result.display
 
     @pytest.mark.asyncio
     async def test_search_regex(self, tmp_path: Path):
@@ -902,7 +983,7 @@ class TestFileSearchTool:
             output_mode="content",
         )
 
-        assert "3 line(s)" in result["message"]
+        assert "3 line(s)" in result.display
 
     @pytest.mark.asyncio
     async def test_search_with_context(self, tmp_path: Path):
@@ -916,7 +997,7 @@ class TestFileSearchTool:
             output_mode="content",
         )
 
-        assert "TARGET" in result["message"]
+        assert "TARGET" in result.display
 
     @pytest.mark.asyncio
     async def test_search_max_results(self, tmp_path: Path):
@@ -929,8 +1010,9 @@ class TestFileSearchTool:
             output_mode="content",
         )
 
-        assert "5 line(s)" in result["message"]
-        assert result.get("truncated") is True
+        assert "5 line(s)" in result.display
+        data = _parse_result(result)
+        assert data.get("truncated") is True
 
     @pytest.mark.asyncio
     async def test_search_no_matches(self, tmp_path: Path):
@@ -940,7 +1022,7 @@ class TestFileSearchTool:
         tool = _make_search_tool(_make_policy("allow"))
         result = await tool.execute(path=str(f), pattern="nonexistent")
 
-        assert "0 file(s)" in result["message"]
+        assert "0 file(s)" in result.display
 
     @pytest.mark.asyncio
     async def test_search_denied(self):
@@ -949,8 +1031,10 @@ class TestFileSearchTool:
             path="/fake/.ssh/id_rsa", pattern="key",
         )
 
-        assert result.get("denied") is True
-        assert "Secrets" in result["message"]
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
+        assert "Secrets" in result.display
 
     @pytest.mark.asyncio
     async def test_search_require_approval_granted(self, tmp_path: Path):
@@ -964,7 +1048,7 @@ class TestFileSearchTool:
         )
         result = await tool.execute(path=str(f), pattern="password")
 
-        assert "1 file(s)" in result["message"]
+        assert "1 file(s)" in result.display
         cb.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -978,7 +1062,9 @@ class TestFileSearchTool:
             path="/etc/hosts", pattern="localhost",
         )
 
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_search_require_approval_no_callback_denies(self):
@@ -987,7 +1073,9 @@ class TestFileSearchTool:
             path="/etc/hosts", pattern="localhost",
         )
 
-        assert result.get("denied") is True
+        assert result.error
+        data = _parse_result(result)
+        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_search_file_not_found(self):
@@ -996,8 +1084,8 @@ class TestFileSearchTool:
             path="/nonexistent/file.txt", pattern="x",
         )
 
-        assert "error" in result
-        assert "not found" in result["message"].lower()
+        assert result.error
+        assert "not found" in result.display.lower()
 
     @pytest.mark.asyncio
     async def test_search_directory_is_valid(self, tmp_path: Path):
@@ -1009,8 +1097,8 @@ class TestFileSearchTool:
             path=str(tmp_path), pattern="nonexistent",
         )
 
-        assert "0 file(s)" in result["message"]
-        assert "error" not in result
+        assert "0 file(s)" in result.display
+        assert not result.error
 
     @pytest.mark.asyncio
     async def test_search_invalid_regex(self, tmp_path: Path):
@@ -1022,7 +1110,7 @@ class TestFileSearchTool:
             path=str(f), pattern="[invalid", is_regex=True,
         )
 
-        assert "error" in result
+        assert result.error
 
     @pytest.mark.asyncio
     async def test_search_directory_content(self, tmp_path: Path):
@@ -1036,8 +1124,8 @@ class TestFileSearchTool:
             output_mode="content",
         )
 
-        assert "foo bar" in result["message"]
-        assert "foo again" in result["message"]
+        assert "foo bar" in result.display
+        assert "foo again" in result.display
 
 
 class TestFileSearchNewParams:
@@ -1055,9 +1143,9 @@ class TestFileSearchNewParams:
             path=str(tmp_path), pattern="target",
         )
 
-        assert "2 file(s)" in result["message"]
-        assert "top.txt" in result["message"]
-        assert "nested.txt" in result["message"]
+        assert "2 file(s)" in result.display
+        assert "top.txt" in result.display
+        assert "nested.txt" in result.display
 
     @pytest.mark.asyncio
     async def test_search_glob_filter(self, tmp_path: Path):
@@ -1069,8 +1157,8 @@ class TestFileSearchNewParams:
             path=str(tmp_path), pattern="target", glob="*.py",
         )
 
-        assert "1 file(s)" in result["message"]
-        assert "code.py" in result["message"]
+        assert "1 file(s)" in result.display
+        assert "code.py" in result.display
 
     @pytest.mark.asyncio
     async def test_search_file_type_filter(self, tmp_path: Path):
@@ -1082,8 +1170,8 @@ class TestFileSearchNewParams:
             path=str(tmp_path), pattern="target", file_type="py",
         )
 
-        assert "1 file(s)" in result["message"]
-        assert "app.py" in result["message"]
+        assert "1 file(s)" in result.display
+        assert "app.py" in result.display
 
     @pytest.mark.asyncio
     async def test_search_case_insensitive(self, tmp_path: Path):
@@ -1096,7 +1184,7 @@ class TestFileSearchNewParams:
             output_mode="content",
         )
 
-        assert "3 line(s)" in result["message"]
+        assert "3 line(s)" in result.display
 
     @pytest.mark.asyncio
     async def test_search_output_mode_files(self, tmp_path: Path):
@@ -1110,9 +1198,9 @@ class TestFileSearchNewParams:
             output_mode="files_with_matches",
         )
 
-        assert "2 file(s)" in result["message"]
-        assert "a.txt" in result["message"]
-        assert "c.txt" in result["message"]
+        assert "2 file(s)" in result.display
+        assert "a.txt" in result.display
+        assert "c.txt" in result.display
 
     @pytest.mark.asyncio
     async def test_search_output_mode_count(self, tmp_path: Path):
@@ -1125,8 +1213,9 @@ class TestFileSearchNewParams:
             output_mode="count",
         )
 
-        assert result["num_matches"] == 3
-        assert result["num_files"] == 2
+        data = _parse_result(result)
+        assert data["num_matches"] == 3
+        assert data["num_files"] == 2
 
     @pytest.mark.asyncio
     async def test_search_head_limit_and_offset(self, tmp_path: Path):
@@ -1141,8 +1230,8 @@ class TestFileSearchNewParams:
             head_limit=5, offset=3, output_mode="content",
         )
 
-        assert "5 line(s)" in result["message"]
-        assert "4:match 3" in result["message"]
+        assert "5 line(s)" in result.display
+        assert "4:match 3" in result.display
 
     @pytest.mark.asyncio
     async def test_search_invalid_output_mode(self, tmp_path: Path):
@@ -1154,7 +1243,7 @@ class TestFileSearchNewParams:
             path=str(f), pattern="hello", output_mode="bad",
         )
 
-        assert "error" in result
+        assert result.error
 
     @pytest.mark.asyncio
     async def test_search_skips_hidden_dirs(self, tmp_path: Path):
@@ -1168,8 +1257,8 @@ class TestFileSearchNewParams:
             path=str(tmp_path), pattern="target",
         )
 
-        assert "1 file(s)" in result["message"]
-        assert "visible.txt" in result["message"]
+        assert "1 file(s)" in result.display
+        assert "visible.txt" in result.display
 
 
 class TestFileSearchRipgrepPath:
@@ -1203,7 +1292,7 @@ class TestFileSearchRipgrepPath:
             )
 
             mock_rg.assert_awaited_once()
-            assert "1 file(s)" in result["message"]
+            assert "1 file(s)" in result.display
 
     @pytest.mark.asyncio
     async def test_falls_back_when_rg_missing(self, tmp_path: Path):
@@ -1215,7 +1304,7 @@ class TestFileSearchRipgrepPath:
 
         result = await tool.execute(path=str(f), pattern="hello")
 
-        assert "1 file(s)" in result["message"]
+        assert "1 file(s)" in result.display
 
     @pytest.mark.asyncio
     async def test_ripgrep_error_returned(self, tmp_path: Path):
@@ -1243,4 +1332,4 @@ class TestFileSearchRipgrepPath:
                 path=str(f), pattern="[bad", is_regex=True,
             )
 
-            assert "error" in result
+            assert result.error

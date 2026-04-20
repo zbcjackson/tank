@@ -1,5 +1,6 @@
 """Tests for run_command tool."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -36,8 +37,9 @@ class TestRunCommandTool:
             stdout="hello world\n", stderr="", exit_code=0
         )
         result = await tool.execute(command="echo hello world")
-        assert result["exit_code"] == 0
-        assert "hello world" in result["message"]
+        data = json.loads(result.content)
+        assert data["exit_code"] == 0
+        assert "hello world" in result.display
         # working_dir default is now str(Path.home()), not "/workspace"
         call_args = mock_sandbox.exec_command.call_args
         assert call_args.kwargs["command"] == "echo hello world"
@@ -49,16 +51,18 @@ class TestRunCommandTool:
             stdout="", stderr="not found\n", exit_code=127
         )
         result = await tool.execute(command="bad_cmd")
-        assert result["exit_code"] == 127
-        assert "[stderr]" in result["message"]
+        data = json.loads(result.content)
+        assert data["exit_code"] == 127
+        assert "[stderr]" in result.display
 
     async def test_execute_timeout(self, tool, mock_sandbox):
         mock_sandbox.exec_command.return_value = ExecResult(
             stdout="partial", stderr="", exit_code=124, timed_out=True
         )
         result = await tool.execute(command="sleep 999", timeout=5)
-        assert result["timed_out"] is True
-        assert "timed out" in result["message"]
+        data = json.loads(result.content)
+        assert data["timed_out"] is True
+        assert "timed out" in result.display
 
     async def test_execute_custom_working_dir(self, tool, mock_sandbox):
         mock_sandbox.exec_command.return_value = ExecResult(
@@ -75,21 +79,23 @@ class TestRunCommandTool:
             stdout="", stderr="", exit_code=0
         )
         result = await tool.execute(command="true")
-        assert result["message"] == "(no output)"
+        assert result.display == "(no output)"
 
     async def test_execute_error_handling(self, tool, mock_sandbox):
         mock_sandbox.exec_command.side_effect = RuntimeError("Docker not available")
         result = await tool.execute(command="echo hi")
-        assert "error" in result
-        assert "Docker not available" in result["error"]
+        assert result.error is True
+        data = json.loads(result.content)
+        assert "Docker not available" in data["error"]
 
     async def test_execute_background(self, tool, mock_sandbox):
         mock_sandbox.exec_command.return_value = ExecResult(
             stdout="abc123def456", stderr="", exit_code=0
         )
         result = await tool.execute(command="./build.sh", background=True)
-        assert result["process_id"] == "abc123def456"
-        assert "background" in result["message"].lower()
+        data = json.loads(result.content)
+        assert data["process_id"] == "abc123def456"
+        assert "background" in result.display.lower()
         # working_dir default is now str(Path.home()), not "/workspace"
         call_args = mock_sandbox.exec_command.call_args
         assert call_args.kwargs["command"] == "./build.sh"

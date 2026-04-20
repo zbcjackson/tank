@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import asyncio
 import fnmatch
+import json
 import logging
 import os
 from pathlib import Path
 from typing import Any
 
 from ..policy.file_access import FileAccessPolicy
-from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter
+from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter, ToolResult
 from .ripgrep import find_rg_binary, run_rg_files
 
 logger = logging.getLogger(__name__)
@@ -99,7 +100,7 @@ class FileListTool(BaseTool):
             ],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult:
         path: str = kwargs["path"]
         show_hidden: bool = kwargs.get("show_hidden", False)
         glob_pat: str | None = kwargs.get("glob")
@@ -114,37 +115,43 @@ class FileListTool(BaseTool):
             logger.warning(
                 "file_list denied: %s (%s)", path, decision.reason,
             )
-            return {
-                "error": f"Access denied: {path} ({decision.reason})",
-                "denied": True,
-                "message": f"Cannot list {path}: {decision.reason}",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"error": f"Access denied: {path} ({decision.reason})", "denied": True},
+                    ensure_ascii=False,
+                ),
+                display=f"Cannot list {path}: {decision.reason}",
+                error=True,
+            )
         if (
             decision.level == "require_approval"
             and not await self._request_approval(
                 path, "read", decision.reason,
             )
         ):
-            return {
-                "error": f"Approval denied: {path} ({decision.reason})",
-                "denied": True,
-                "message": (
-                    f"User denied listing {path}: {decision.reason}"
+            return ToolResult(
+                content=json.dumps(
+                    {"error": f"Approval denied: {path} ({decision.reason})", "denied": True},
+                    ensure_ascii=False,
                 ),
-            }
+                display=f"User denied listing {path}: {decision.reason}",
+                error=True,
+            )
 
         resolved = Path(path).expanduser().resolve()
 
         if not resolved.exists():
-            return {
-                "error": "Directory not found",
-                "message": f"Not found: {path}",
-            }
+            return ToolResult(
+                content=json.dumps({"error": "Directory not found"}, ensure_ascii=False),
+                display=f"Not found: {path}",
+                error=True,
+            )
         if not resolved.is_dir():
-            return {
-                "error": "Not a directory",
-                "message": f"Not a directory: {path}",
-            }
+            return ToolResult(
+                content=json.dumps({"error": "Not a directory"}, ensure_ascii=False),
+                display=f"Not a directory: {path}",
+                error=True,
+            )
 
         # 2. Dispatch: glob search vs flat listing
         try:
@@ -161,41 +168,45 @@ class FileListTool(BaseTool):
                     "file_list glob: %s pattern=%r (%d entries)",
                     resolved, glob_pat, len(entries),
                 )
-                result: dict[str, Any] = {
+                data: dict[str, Any] = {
                     "path": str(resolved),
                     "glob": glob_pat,
                     "entries": entries,
                     "count": len(entries),
-                    "message": self._format_entries_message(
+                }
+                if truncated:
+                    data["truncated"] = True
+                return ToolResult(
+                    content=json.dumps(data, ensure_ascii=False),
+                    display=self._format_entries_message(
                         f"Found {len(entries)} match(es) in {resolved}",
                         entries, truncated,
                     ),
-                }
-                if truncated:
-                    result["truncated"] = True
-                return result
+                )
 
             entries = await asyncio.to_thread(
                 self._scan_dir, resolved, show_hidden,
             )
         except Exception as e:
             logger.error("file_list failed: %s", e, exc_info=True)
-            return {
-                "error": str(e),
-                "message": f"Error listing {path}: {e}",
-            }
+            return ToolResult(
+                content=json.dumps({"error": str(e)}, ensure_ascii=False),
+                display=f"Error listing {path}: {e}",
+                error=True,
+            )
 
         logger.info(
             "file_list: %s (%d entries)", resolved, len(entries),
         )
-        return {
-            "path": str(resolved),
-            "entries": entries,
-            "count": len(entries),
-            "message": self._format_entries_message(
+        return ToolResult(
+            content=json.dumps(
+                {"path": str(resolved), "entries": entries, "count": len(entries)},
+                ensure_ascii=False,
+            ),
+            display=self._format_entries_message(
                 f"Listed {resolved} ({len(entries)} entries)", entries,
             ),
-        }
+        )
 
     # ------------------------------------------------------------------
     # Flat directory listing (existing behavior)
@@ -237,7 +248,7 @@ class FileListTool(BaseTool):
         pattern: str,
         show_hidden: bool,
         max_results: int,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         """Use ``rg --files --glob`` for files + dir name scan.
 
         ``rg --files`` only lists files, not directories. We supplement
@@ -307,19 +318,21 @@ class FileListTool(BaseTool):
             "file_list glob (rg): %s pattern=%r (%d entries)",
             resolved, pattern, len(entries),
         )
-        result: dict[str, Any] = {
+        data: dict[str, Any] = {
             "path": str(resolved),
             "glob": pattern,
             "entries": entries,
             "count": len(entries),
-            "message": self._format_entries_message(
+        }
+        if truncated:
+            data["truncated"] = True
+        return ToolResult(
+            content=json.dumps(data, ensure_ascii=False),
+            display=self._format_entries_message(
                 f"Found {len(entries)} match(es) in {resolved}",
                 entries, truncated,
             ),
-        }
-        if truncated:
-            result["truncated"] = True
-        return result
+        )
 
     @staticmethod
     def _find_matching_dirs(
@@ -446,10 +459,10 @@ class FileListTool(BaseTool):
         entries: list[dict[str, Any]],
         truncated: bool = False,
     ) -> str:
-        """Build a message with header + entry list for LLM consumption.
+        """Build a human-friendly listing used as ``ToolResult.display``.
 
-        ``llm.py`` uses ``result["message"]`` as the tool result sent to
-        the LLM, so this must contain the actual data, not just a summary.
+        The full structured data is in ``ToolResult.content`` (JSON);
+        this formatted string is what the UI shows to the user.
         """
         if truncated:
             header += " (truncated)"

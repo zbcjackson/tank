@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from pathlib import Path
 from typing import Any
 
 from ..policy.backup import BackupManager
 from ..policy.file_access import FileAccessPolicy
-from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter
+from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ class FileWriteTool(BaseTool):
             ],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult:
         path: str = kwargs["path"]
         content: str = kwargs["content"]
         encoding: str = kwargs.get("encoding", "utf-8")
@@ -69,19 +70,25 @@ class FileWriteTool(BaseTool):
         decision = self._policy.evaluate(path, "write")
         if decision.level == "deny":
             logger.warning("file_write denied: %s (%s)", path, decision.reason)
-            return {
-                "error": f"Access denied: {path} ({decision.reason})",
-                "denied": True,
-                "message": f"Cannot write {path}: {decision.reason}",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"error": f"Access denied: {path} ({decision.reason})", "denied": True},
+                    ensure_ascii=False,
+                ),
+                display=f"Cannot write {path}: {decision.reason}",
+                error=True,
+            )
         if decision.level == "require_approval" and not await self._request_approval(
             path, "write", decision.reason
         ):
-                return {
-                    "error": f"Approval denied: {path} ({decision.reason})",
-                    "denied": True,
-                    "message": f"User denied writing {path}: {decision.reason}",
-                }
+            return ToolResult(
+                content=json.dumps(
+                    {"error": f"Approval denied: {path} ({decision.reason})", "denied": True},
+                    ensure_ascii=False,
+                ),
+                display=f"User denied writing {path}: {decision.reason}",
+                error=True,
+            )
 
         resolved = Path(path).expanduser().resolve()
 
@@ -93,18 +100,25 @@ class FileWriteTool(BaseTool):
             await asyncio.to_thread(self._do_write, resolved, content, encoding)
         except Exception as e:
             logger.error("file_write failed: %s", e, exc_info=True)
-            return {"error": str(e), "message": f"Error writing {path}: {e}"}
+            return ToolResult(
+                content=json.dumps({"error": str(e)}, ensure_ascii=False),
+                display=f"Error writing {path}: {e}",
+                error=True,
+            )
 
         logger.info("file_write: %s (%d chars)", resolved, len(content))
-        result: dict[str, Any] = {
+        payload: dict[str, Any] = {
             "path": str(resolved),
             "size": len(content),
-            "message": f"Wrote {resolved} ({len(content)} chars)",
         }
+        display = f"Wrote {resolved} ({len(content)} chars)"
         if backup_path:
-            result["backup_path"] = backup_path
-            result["message"] += f" (backup: {backup_path})"
-        return result
+            payload["backup_path"] = backup_path
+            display += f" (backup: {backup_path})"
+        return ToolResult(
+            content=json.dumps(payload, ensure_ascii=False),
+            display=display,
+        )
 
     @staticmethod
     def _do_write(resolved: Path, content: str, encoding: str) -> None:

@@ -362,3 +362,64 @@ async def test_websocket():
 - [ ] Agent tests mock LLM and verify streaming output types
 - [ ] Approval tests verify policy logic and async resolve flow
 - [ ] Observer tests verify Bus message delivery
+- [ ] Tool tests verify `ToolResult` return types and content completeness
+
+## Tool Testing
+
+### Unit Tests
+
+Every tool must verify:
+1. `execute()` returns `ToolResult` (not dict) on success and error paths
+2. `ToolResult.content` contains all data the LLM needs (parse with `json.loads`)
+3. `ToolResult.display` is a concise human-readable summary
+4. `ToolResult.error` is `True` for error paths, `False` for success
+
+```python
+async def test_my_tool_success():
+    tool = MyTool()
+    result = await tool.execute(param="value")
+
+    assert isinstance(result, ToolResult)
+    assert not result.error
+
+    data = json.loads(result.content)
+    assert "expected_key" in data
+    assert data["expected_key"] == "expected_value"
+
+    assert len(result.display) < 300  # Concise summary
+```
+
+### Integration Tests
+
+Test that tool results flow correctly to the LLM via `_tool_result_to_str()`:
+
+```python
+from tank_backend.llm.llm import _tool_result_to_str
+
+def test_tool_result_extraction():
+    result = ToolResult(
+        content='{"key": "value"}',
+        display="Summary",
+    )
+    llm_content, ui_display = _tool_result_to_str(result)
+    assert llm_content == '{"key": "value"}'  # LLM sees full data
+    assert ui_display == "Summary"             # UI sees summary
+```
+
+### Mocking Patterns
+
+```python
+# Mock a tool that returns ToolResult
+tm = MagicMock()
+tm.execute_openai_tool_call = AsyncMock(
+    return_value=ToolResult(
+        content='{"result": 42}',
+        display="Result: 42",
+    )
+)
+
+# Mock a skill tool that returns str
+tm.execute_openai_tool_call = AsyncMock(
+    return_value="SKILL ACTIVATED: test\nInstructions here"
+)
+```

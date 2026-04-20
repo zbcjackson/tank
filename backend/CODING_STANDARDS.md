@@ -368,46 +368,112 @@ class MyObserver:
 
 ### Tool Pattern
 
+**Prefer strong types over dicts:**
+
 - **Inherit from `BaseTool`**
-- Implement `get_parameters()` and `execute()`
-- Use type hints for parameters
-- Return string results
+- Implement `get_info()` → `ToolInfo` and `execute()` → `ToolResult | str`
+- Return `ToolResult` for structured results (recommended)
+- Return `str` for plain text results (e.g. skill instructions)
+- **Never return `dict`** — use `ToolResult` for type safety
 
 ```python
-from .base import BaseTool
+import json
+from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 class MyTool(BaseTool):
     """Tool description."""
 
-    name = "my_tool"
-    description = "What this tool does"
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="my_tool",
+            description="What this tool does",
+            parameters=[
+                ToolParameter(
+                    name="param1",
+                    type="string",
+                    description="Parameter description",
+                    required=True,
+                ),
+            ],
+        )
 
-    def get_parameters(self) -> dict:
-        """Return parameter schema."""
-        return {
-            "param1": {
-                "type": "string",
-                "description": "Parameter description"
-            }
-        }
-
-    def execute(self, param1: str) -> str:
+    async def execute(self, param1: str) -> ToolResult:
         """Execute the tool."""
-        # Implementation
-        return result
+        # Do work
+        result_data = {"input": param1, "output": "processed"}
+
+        # Return ToolResult with full data for LLM, summary for UI
+        return ToolResult(
+            content=json.dumps(result_data, ensure_ascii=False),
+            display=f"Processed '{param1}' successfully",
+        )
 ```
+
+**Error handling:**
+
+```python
+    async def execute(self, param1: str) -> ToolResult:
+        try:
+            result = do_work(param1)
+            return ToolResult(
+                content=json.dumps({"result": result}, ensure_ascii=False),
+                display=f"Success: {result}",
+            )
+        except Exception as e:
+            return ToolResult(
+                content=json.dumps({"error": str(e)}, ensure_ascii=False),
+                display=f"Error: {e}",
+                error=True,
+            )
+```
+
+### Why ToolResult over dict?
+
+**Type safety prevents bugs:**
+
+```python
+# BAD: Weak typing, easy to make mistakes
+def process_data(data: dict) -> dict:
+    return {"result": data["value"] * 2, "status": "ok"}
+
+# GOOD: Strong typing, IDE support, validation
+@dataclass(frozen=True)
+class ProcessResult:
+    result: int
+    status: str
+
+def process_data(data: InputData) -> ProcessResult:
+    return ProcessResult(result=data.value * 2, status="ok")
+```
+
+**Benefits:**
+- Type safety — catch errors at development time
+- IDE autocomplete and refactoring support
+- Self-documenting — the type tells you what fields exist
+- Immutability (frozen=True) — prevents accidental mutation
+- Prevents "magic key" bugs (no implicit behavior based on key names)
+
+**When to use each:**
+- `@dataclass(frozen=True)` — Simple data containers, return types
+- `BaseModel` (Pydantic) — Input validation, API schemas, config
+- `dict` — Only for truly dynamic data (JSON from external APIs)
 
 ### Tool Registration
 
-- **Tools are auto-registered by ToolManager**
-- Use conditional registration for optional tools
-- Validate required configuration
+Tools are organized into `ToolGroup` classes that share construction dependencies:
 
 ```python
-# In ToolManager.__init__
-if config.serper_api_key:
-    self.register_tool(WebSearchTool(config))
+class MyToolGroup(ToolGroup):
+    def __init__(self, config: dict[str, Any]) -> None:
+        self._config = config
+
+    def create_tools(self) -> list[BaseTool]:
+        if not self._config.get("enabled", True):
+            return []
+        return [MyTool(self._config)]
 ```
+
+ToolManager instantiates all groups and collects their tools.
 
 ## Configuration
 

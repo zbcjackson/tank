@@ -6,11 +6,12 @@ commands in a single ``run_command`` call instead.
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
 from ..sandbox.manager import DockerSandbox
-from .base import BaseTool, ToolInfo, ToolParameter
+from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,7 @@ class PersistentShellTool(BaseTool):
             ],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult:
         session: str = kwargs.get("session", "default")
         action: str | None = kwargs.get("action")
         command: str | None = kwargs.get("command")
@@ -93,10 +94,14 @@ class PersistentShellTool(BaseTool):
 
             # Command-and-response mode (default)
             if command is None:
-                return {
-                    "error": "Either 'command' or 'action' must be provided",
-                    "message": "Please provide a command to run or an action (create/write/read).",
-                }
+                return ToolResult(
+                    content=json.dumps(
+                        {"error": "Either 'command' or 'action' must be provided"},
+                        ensure_ascii=False,
+                    ),
+                    display="Please provide a command to run or an action (create/write/read).",
+                    error=True,
+                )
 
             timeout: int = kwargs.get("timeout", 120)
             logger.info("persistent_shell [%s]: %s", session, command)
@@ -107,43 +112,51 @@ class PersistentShellTool(BaseTool):
                 timeout=timeout,
             )
             data = result.to_dict()
-            data["message"] = result.output if result.output else "(no output)"
-            return data
+            display = result.output if result.output else "(no output)"
+            return ToolResult(
+                content=json.dumps(data, ensure_ascii=False),
+                display=display,
+            )
 
         except Exception as e:
             logger.error("persistent_shell failed: %s", e, exc_info=True)
-            return {"error": str(e), "message": f"Sandbox bash error: {e}"}
+            return ToolResult(
+                content=json.dumps({"error": str(e)}, ensure_ascii=False),
+                display=f"Sandbox bash error: {e}",
+                error=True,
+            )
 
     async def _handle_action(
         self, action: str, session: str, kwargs: dict[str, Any]
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         if action == "create":
             await self._sandbox.ensure_container()
             await self._sandbox.bash_command(command="true", session=session, timeout=10)
-            return {
-                "session": session,
-                "status": "created",
-                "message": f"Session '{session}' created.",
-            }
+            data = {"session": session, "status": "created"}
+            return ToolResult(
+                content=json.dumps(data, ensure_ascii=False),
+                display=f"Session '{session}' created.",
+            )
 
         if action == "write":
-            data = kwargs.get("input", "")
-            await self._sandbox.session_write(session, data)
-            return {
-                "session": session,
-                "status": "written",
-                "message": f"Sent {len(data)} bytes to session '{session}'.",
-            }
+            input_data = kwargs.get("input", "")
+            await self._sandbox.session_write(session, input_data)
+            data = {"session": session, "status": "written"}
+            return ToolResult(
+                content=json.dumps(data, ensure_ascii=False),
+                display=f"Sent {len(input_data)} bytes to session '{session}'.",
+            )
 
         if action == "read":
             output = await self._sandbox.session_read(session)
-            return {
-                "session": session,
-                "output": output,
-                "message": output if output else "(no new output)",
-            }
+            data = {"session": session, "output": output}
+            return ToolResult(
+                content=json.dumps(data, ensure_ascii=False),
+                display=output if output else "(no new output)",
+            )
 
-        return {
-            "error": f"Unknown action: {action}",
-            "message": f"Unknown action '{action}'. Use 'create', 'write', or 'read'.",
-        }
+        return ToolResult(
+            content=json.dumps({"error": f"Unknown action: {action}"}, ensure_ascii=False),
+            display=f"Unknown action '{action}'. Use 'create', 'write', or 'read'.",
+            error=True,
+        )

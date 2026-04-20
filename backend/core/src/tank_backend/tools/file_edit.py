@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from pathlib import Path
 from typing import Any
 
 from ..policy.backup import BackupManager
 from ..policy.file_access import FileAccessPolicy
-from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter
+from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,7 @@ class FileEditTool(BaseTool):
             ],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult:
         path: str = kwargs["path"]
         old_string: str = kwargs["old_string"]
         new_string: str = kwargs["new_string"]
@@ -116,65 +117,91 @@ class FileEditTool(BaseTool):
 
         # 1. Validate inputs
         if old_string == "" and insert_after_line is None:
-            return {
-                "error": "Invalid parameters",
-                "message": (
+            return ToolResult(
+                content=json.dumps({"error": "Invalid parameters"}, ensure_ascii=False),
+                display=(
                     "old_string is empty but insert_after_line not provided. "
                     "For insert mode, set insert_after_line. "
                     "For replace mode, provide a non-empty old_string."
                 ),
-            }
+                error=True,
+            )
         if is_insert:
             if insert_after_line < 0:
-                return {
-                    "error": "Invalid line number",
-                    "message": "insert_after_line must be >= 0.",
-                }
+                return ToolResult(
+                    content=json.dumps(
+                        {"error": "Invalid line number"}, ensure_ascii=False,
+                    ),
+                    display="insert_after_line must be >= 0.",
+                    error=True,
+                )
             if new_string == "":
-                return {
-                    "error": "Empty insert",
-                    "message": "new_string must not be empty for insert mode.",
-                }
+                return ToolResult(
+                    content=json.dumps(
+                        {"error": "Empty insert"}, ensure_ascii=False,
+                    ),
+                    display="new_string must not be empty for insert mode.",
+                    error=True,
+                )
         elif old_string == new_string:
-            return {
-                "error": "No-op edit",
-                "message": (
+            return ToolResult(
+                content=json.dumps({"error": "No-op edit"}, ensure_ascii=False),
+                display=(
                     "old_string and new_string are identical "
                     "— nothing to do."
                 ),
-            }
+                error=True,
+            )
 
         # 2. Policy check (editing is a write operation)
         decision = self._policy.evaluate(path, "write")
         if decision.level == "deny":
             logger.warning("file_edit denied: %s (%s)", path, decision.reason)
-            return {
-                "error": f"Access denied: {path} ({decision.reason})",
-                "denied": True,
-                "message": f"Cannot edit {path}: {decision.reason}",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"error": f"Access denied: {path} ({decision.reason})", "denied": True},
+                    ensure_ascii=False,
+                ),
+                display=f"Cannot edit {path}: {decision.reason}",
+                error=True,
+            )
         if decision.level == "require_approval" and not await self._request_approval(
             path, "write", decision.reason
         ):
-            return {
-                "error": f"Approval denied: {path} ({decision.reason})",
-                "denied": True,
-                "message": f"User denied editing {path}: {decision.reason}",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"error": f"Approval denied: {path} ({decision.reason})", "denied": True},
+                    ensure_ascii=False,
+                ),
+                display=f"User denied editing {path}: {decision.reason}",
+                error=True,
+            )
 
         # 3. Validate path
         resolved = Path(path).expanduser().resolve()
         if not resolved.exists():
-            return {"error": "File not found", "message": f"File not found: {path}"}
+            return ToolResult(
+                content=json.dumps({"error": "File not found"}, ensure_ascii=False),
+                display=f"File not found: {path}",
+                error=True,
+            )
         if not resolved.is_file():
-            return {"error": "Not a file", "message": f"Not a file: {path}"}
+            return ToolResult(
+                content=json.dumps({"error": "Not a file"}, ensure_ascii=False),
+                display=f"Not a file: {path}",
+                error=True,
+            )
 
         # 4. Read current content
         try:
             content = await asyncio.to_thread(resolved.read_text, encoding)
         except Exception as e:
             logger.error("file_edit read failed: %s", e, exc_info=True)
-            return {"error": str(e), "message": f"Error reading {path}: {e}"}
+            return ToolResult(
+                content=json.dumps({"error": str(e)}, ensure_ascii=False),
+                display=f"Error reading {path}: {e}",
+                error=True,
+            )
 
         # 5. Backup before edit
         backup_path = await self._backup.snapshot(str(resolved))
@@ -188,19 +215,25 @@ class FileEditTool(BaseTool):
             # Replace mode — check match count
             count = content.count(old_string)
             if count == 0:
-                return {
-                    "error": "String not found",
-                    "message": f"old_string not found in {path}",
-                }
+                return ToolResult(
+                    content=json.dumps(
+                        {"error": "String not found"}, ensure_ascii=False,
+                    ),
+                    display=f"old_string not found in {path}",
+                    error=True,
+                )
             if count > 1 and not replace_all:
-                return {
-                    "error": "Ambiguous match",
-                    "message": (
+                return ToolResult(
+                    content=json.dumps(
+                        {"error": "Ambiguous match"}, ensure_ascii=False,
+                    ),
+                    display=(
                         f"old_string found {count} times in {path} — "
                         f"provide more context to make it unique, "
                         f"or set replace_all=true to replace all."
                     ),
-                }
+                    error=True,
+                )
             if replace_all:
                 new_content = content.replace(old_string, new_string)
             else:
@@ -211,34 +244,41 @@ class FileEditTool(BaseTool):
             await asyncio.to_thread(resolved.write_text, new_content, encoding)
         except Exception as e:
             logger.error("file_edit write failed: %s", e, exc_info=True)
-            return {"error": str(e), "message": f"Error writing {path}: {e}"}
+            return ToolResult(
+                content=json.dumps({"error": str(e)}, ensure_ascii=False),
+                display=f"Error writing {path}: {e}",
+                error=True,
+            )
 
         # 8. Build result
         if is_insert:
             logger.info(
                 "file_edit insert: %s after line %d", resolved, insert_after_line,
             )
-            result: dict[str, Any] = {
+            data: dict[str, Any] = {
                 "path": str(resolved),
                 "insert_after_line": insert_after_line,
-                "message": (
-                    f"Inserted text in {resolved} after line "
-                    f"{insert_after_line}"
-                ),
             }
+            display = (
+                f"Inserted text in {resolved} after line "
+                f"{insert_after_line}"
+            )
         else:
             n = count if replace_all else 1
             logger.info("file_edit: %s (%d replacements)", resolved, n)
-            result = {
+            data = {
                 "path": str(resolved),
                 "replacements": n,
-                "message": f"Edited {resolved} ({n} replacement(s))",
             }
+            display = f"Edited {resolved} ({n} replacement(s))"
 
         if backup_path:
-            result["backup_path"] = backup_path
-            result["message"] += f" (backup: {backup_path})"
-        return result
+            data["backup_path"] = backup_path
+            display += f" (backup: {backup_path})"
+        return ToolResult(
+            content=json.dumps(data, ensure_ascii=False),
+            display=display,
+        )
 
     # ------------------------------------------------------------------
     # Helpers

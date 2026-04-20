@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any
 
-from .base import BaseTool, ToolInfo, ToolParameter
+from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ class RunCommandTool(BaseTool):
             ],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult:
         command: str = kwargs["command"]
         timeout: int = kwargs.get("timeout", 120)
         working_dir: str = kwargs.get("working_dir") or str(Path.home())
@@ -94,7 +95,7 @@ class RunCommandTool(BaseTool):
 
             if background:
                 data["process_id"] = result.stdout
-                data["message"] = (
+                display = (
                     f"Process started in background (id: {result.stdout}). "
                     "Use manage_process to poll output or kill it."
                 )
@@ -104,10 +105,17 @@ class RunCommandTool(BaseTool):
                     f"[stderr] {result.stderr}" if result.stderr else None,
                     "[command timed out]" if result.timed_out else None,
                 ]
-                data["message"] = "\n".join(p for p in parts if p) or "(no output)"
+                display = "\n".join(p for p in parts if p) or "(no output)"
 
-            return data
+            return ToolResult(
+                content=json.dumps(data, ensure_ascii=False),
+                display=display,
+            )
 
         except Exception as e:
             logger.error("run_command failed: %s", e, exc_info=True)
-            return {"error": str(e), "message": f"Sandbox exec error: {e}"}
+            return ToolResult(
+                content=json.dumps({"error": str(e)}, ensure_ascii=False),
+                display=f"Sandbox exec error: {e}",
+                error=True,
+            )

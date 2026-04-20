@@ -5,7 +5,7 @@ from typing import Any
 import requests
 
 from ..policy.credentials import ServiceCredentialManager
-from .base import BaseTool, ToolInfo, ToolParameter
+from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -42,17 +42,20 @@ class WebSearchTool(BaseTool):
             ],
         )
 
-    async def execute(self, query: str) -> dict[str, Any]:
+    async def execute(self, query: str) -> ToolResult:
         logger.info(f"Web searching for: {query}")
 
         # Resolve credential at call time
         api_key = self._credentials.get_credential("serper")
         if not api_key:
-            return {
-                "query": query,
-                "error": "No API key configured for web search",
-                "message": "Web search is not available — no serper credential.",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"query": query, "error": "No API key configured for web search"},
+                    ensure_ascii=False,
+                ),
+                display="Web search is not available — no serper credential.",
+                error=True,
+            )
 
         # Network policy check
         host = "google.serper.dev"
@@ -60,21 +63,33 @@ class WebSearchTool(BaseTool):
             decision = self._network_policy.evaluate(host)
             if decision.level == "deny":
                 logger.warning("web_search denied by network policy: %s", host)
-                return {
-                    "query": query,
-                    "error": f"Network access denied: {host} ({decision.reason})",
-                    "message": f"Cannot search: network policy blocks {host}.",
-                }
+                return ToolResult(
+                    content=json.dumps(
+                        {
+                            "query": query,
+                            "error": f"Network access denied: {host} ({decision.reason})",
+                        },
+                        ensure_ascii=False,
+                    ),
+                    display=f"Cannot search: network policy blocks {host}.",
+                    error=True,
+                )
             if decision.level == "require_approval":
                 approved = await self._request_approval(
                     host, "connect", decision.reason,
                 )
                 if not approved:
-                    return {
-                        "query": query,
-                        "error": f"Approval denied: {host} ({decision.reason})",
-                        "message": f"User denied connecting to {host}.",
-                    }
+                    return ToolResult(
+                        content=json.dumps(
+                            {
+                                "query": query,
+                                "error": f"Approval denied: {host} ({decision.reason})",
+                            },
+                            ensure_ascii=False,
+                        ),
+                        display=f"User denied connecting to {host}.",
+                        error=True,
+                    )
 
         try:
             # Use Serper API for web search
@@ -127,44 +142,59 @@ class WebSearchTool(BaseTool):
 
                 if answer_parts:
                     combined_answer = "\n\n".join(answer_parts[:3])  # Limit to 3 parts
-                    return {
-                        "query": query,
-                        "source": "Serper (Google Search)",
-                        "answer": combined_answer,
-                        "urls": sources[:3],
-                        "message": f"Found information about '{query}': {combined_answer[:200]}...",
-                    }
+                    source = "Serper (Google Search)"
+                    return ToolResult(
+                        content=json.dumps(
+                            {
+                                "query": query,
+                                "source": source,
+                                "answer": combined_answer,
+                                "urls": sources[:3],
+                            },
+                            ensure_ascii=False,
+                        ),
+                        display=f"Found info about '{query}'",
+                    )
 
             # If no organic results, try to provide any available information
             if "answerBox" in data:
                 answer_box = data["answerBox"]
                 answer_text = answer_box.get("answer", "") or answer_box.get("snippet", "")
                 if answer_text:
-                    return {
-                        "query": query,
-                        "source": "Serper (Google Search)",
-                        "answer": answer_text,
-                        "url": answer_box.get("link", ""),
-                        "message": f"Found direct answer for '{query}': {answer_text[:200]}...",
-                    }
+                    source = "Serper (Google Search)"
+                    return ToolResult(
+                        content=json.dumps(
+                            {
+                                "query": query,
+                                "source": source,
+                                "answer": answer_text,
+                                "url": answer_box.get("link", ""),
+                            },
+                            ensure_ascii=False,
+                        ),
+                        display=f"Found direct answer for '{query}'",
+                    )
 
-            return {
-                "query": query,
-                "source": "Serper (Google Search)",
-                "message": (
-                    f"Sorry, no specific information found for '{query}'."
-                    " You may want to try rephrasing your search query."
+            source = "Serper (Google Search)"
+            return ToolResult(
+                content=json.dumps(
+                    {"query": query, "source": source},
+                    ensure_ascii=False,
                 ),
-            }
+                display=f"No results found for '{query}'",
+            )
 
         except Exception as e:
             error_message = f"Error searching for '{query}': {str(e)}"
             logger.error(error_message)
-            return {
-                "query": query,
-                "error": str(e),
-                "message": f"抱歉，搜索'{query}'时出现错误。请稍后再试或重新表述您的问题。",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"query": query, "error": str(e)},
+                    ensure_ascii=False,
+                ),
+                display=f"抱歉，搜索'{query}'时出现错误。请稍后再试或重新表述您的问题。",
+                error=True,
+            )
 
     async def _request_approval(
         self, host: str, operation: str, reason: str,

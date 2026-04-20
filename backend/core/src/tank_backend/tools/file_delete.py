@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from pathlib import Path
 from typing import Any
 
 from ..policy.backup import BackupManager
 from ..policy.file_access import FileAccessPolicy
-from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter
+from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -46,33 +47,47 @@ class FileDeleteTool(BaseTool):
             ],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult:
         path: str = kwargs["path"]
 
         # 1. Policy check
         decision = self._policy.evaluate(path, "delete")
         if decision.level == "deny":
             logger.warning("file_delete denied: %s (%s)", path, decision.reason)
-            return {
-                "error": f"Access denied: {path} ({decision.reason})",
-                "denied": True,
-                "message": f"Cannot delete {path}: {decision.reason}",
-            }
+            return ToolResult(
+                content=json.dumps(
+                    {"error": f"Access denied: {path} ({decision.reason})", "denied": True},
+                    ensure_ascii=False,
+                ),
+                display=f"Cannot delete {path}: {decision.reason}",
+                error=True,
+            )
         if decision.level == "require_approval" and not await self._request_approval(
             path, "delete", decision.reason
         ):
-                return {
-                    "error": f"Approval denied: {path} ({decision.reason})",
-                    "denied": True,
-                    "message": f"User denied deleting {path}: {decision.reason}",
-                }
+            return ToolResult(
+                content=json.dumps(
+                    {"error": f"Approval denied: {path} ({decision.reason})", "denied": True},
+                    ensure_ascii=False,
+                ),
+                display=f"User denied deleting {path}: {decision.reason}",
+                error=True,
+            )
 
         resolved = Path(path).expanduser().resolve()
 
         if not resolved.exists():
-            return {"error": "File not found", "message": f"File not found: {path}"}
+            return ToolResult(
+                content=json.dumps({"error": "File not found"}, ensure_ascii=False),
+                display=f"File not found: {path}",
+                error=True,
+            )
         if not resolved.is_file():
-            return {"error": "Not a file", "message": f"Not a file: {path}"}
+            return ToolResult(
+                content=json.dumps({"error": "Not a file"}, ensure_ascii=False),
+                display=f"Not a file: {path}",
+                error=True,
+            )
 
         # 2. Backup before delete
         backup_path = await self._backup.snapshot(str(resolved))
@@ -82,17 +97,22 @@ class FileDeleteTool(BaseTool):
             await asyncio.to_thread(resolved.unlink)
         except Exception as e:
             logger.error("file_delete failed: %s", e, exc_info=True)
-            return {"error": str(e), "message": f"Error deleting {path}: {e}"}
+            return ToolResult(
+                content=json.dumps({"error": str(e)}, ensure_ascii=False),
+                display=f"Error deleting {path}: {e}",
+                error=True,
+            )
 
         logger.info("file_delete: %s", resolved)
-        result: dict[str, Any] = {
-            "path": str(resolved),
-            "message": f"Deleted {resolved}",
-        }
+        data: dict[str, Any] = {"path": str(resolved)}
+        display = f"Deleted {resolved}"
         if backup_path:
-            result["backup_path"] = backup_path
-            result["message"] += f" (backup: {backup_path})"
-        return result
+            data["backup_path"] = backup_path
+            display += f" (backup: {backup_path})"
+        return ToolResult(
+            content=json.dumps(data, ensure_ascii=False),
+            display=display,
+        )
 
     async def _request_approval(self, path: str, operation: str, reason: str) -> bool:
         if self._approval_callback is None:

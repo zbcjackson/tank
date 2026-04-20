@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
-from .base import BaseTool, ToolInfo, ToolParameter
+from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +54,17 @@ class UseSkillTool(BaseTool):
             ],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult | str:
         skill_name: str = kwargs["skill"]
         args: str = kwargs.get("args", "")
 
         result = await self._manager.invoke(skill_name, args)
         if "error" in result:
-            return result
+            return ToolResult(
+                content=json.dumps(result, ensure_ascii=False),
+                display=result.get("message", str(result.get("error"))),
+                error=True,
+            )
 
         context = result.get("context", "inline")
         allowed_tools = result.get("allowed_tools", [])
@@ -70,26 +75,22 @@ class UseSkillTool(BaseTool):
 
         return self._execute_inline(result)
 
-    def _execute_inline(self, invoke_result: dict[str, Any]) -> dict[str, Any]:
-        """Inline mode: return skill instructions as the tool result."""
+    def _execute_inline(self, invoke_result: dict[str, Any]) -> str:
+        """Inline mode: return skill instructions as plain string for LLM."""
         name = invoke_result["skill_name"]
         instructions = invoke_result["instructions"]
 
-        return {
-            "skill_name": name,
-            "status": "inline",
-            "message": (
-                f"SKILL ACTIVATED: {name}\n"
-                f"You MUST now follow these instructions step by step. "
-                f"Do NOT just describe what you would do — actually do it. "
-                f"Use any tools needed to complete the task.\n\n"
-                f"--- BEGIN SKILL INSTRUCTIONS ---\n"
-                f"{instructions}\n"
-                f"--- END SKILL INSTRUCTIONS ---"
-            ),
-        }
+        return (
+            f"SKILL ACTIVATED: {name}\n"
+            f"You MUST now follow these instructions step by step. "
+            f"Do NOT just describe what you would do — actually do it. "
+            f"Use any tools needed to complete the task.\n\n"
+            f"--- BEGIN SKILL INSTRUCTIONS ---\n"
+            f"{instructions}\n"
+            f"--- END SKILL INSTRUCTIONS ---"
+        )
 
-    async def _execute_fork(self, invoke_result: dict[str, Any]) -> dict[str, Any]:
+    async def _execute_fork(self, invoke_result: dict[str, Any]) -> ToolResult:
         """Fork mode: run skill via AgentRunner as a dynamic sub-agent."""
         name = invoke_result["skill_name"]
         instructions = invoke_result["instructions"]
@@ -146,11 +147,15 @@ class UseSkillTool(BaseTool):
             name, len(full_text), tool_calls,
         )
 
-        return {
-            "skill_name": name,
-            "status": "forked",
-            "message": full_text or f"Skill '{name}' completed (no output).",
-        }
+        return ToolResult(
+            content=json.dumps({
+                "skill_name": name,
+                "status": "forked",
+                "output": full_text,
+                "tool_calls": tool_calls,
+            }, ensure_ascii=False),
+            display=full_text or f"Skill '{name}' completed (no output).",
+        )
 
 
 class ListSkillsTool(BaseTool):
@@ -169,10 +174,13 @@ class ListSkillsTool(BaseTool):
             parameters=[],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult:
         skills = self._manager.registry.list_all()
         if not skills:
-            return {"skills": [], "message": "No skills installed."}
+            return ToolResult(
+                content=json.dumps({"skills": []}, ensure_ascii=False),
+                display="No skills installed.",
+            )
 
         entries = []
         for s in skills:
@@ -187,10 +195,10 @@ class ListSkillsTool(BaseTool):
             })
 
         lines = [f"- {e['name']}: {e['description']}" for e in entries]
-        return {
-            "skills": entries,
-            "message": f"Available skills ({len(entries)}):\n" + "\n".join(lines),
-        }
+        return ToolResult(
+            content=json.dumps({"skills": entries}, ensure_ascii=False),
+            display=f"Available skills ({len(entries)}):\n" + "\n".join(lines),
+        )
 
 
 class CreateSkillTool(BaseTool):
@@ -244,18 +252,24 @@ class CreateSkillTool(BaseTool):
             ],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult:
         name: str = kwargs["name"]
         description: str = kwargs["description"]
         instructions: str = kwargs["instructions"]
         tools_str: str = kwargs.get("allowed_tools", "")
         allowed_tools = [t.strip() for t in tools_str.split(",") if t.strip()] if tools_str else []
 
-        return await self._manager.create(
+        result = await self._manager.create(
             name=name,
             description=description,
             instructions=instructions,
             allowed_tools=allowed_tools,
+        )
+        is_error = "error" in result
+        return ToolResult(
+            content=json.dumps(result, ensure_ascii=False),
+            display=result.get("message", str(result.get("error", ""))),
+            error=is_error,
         )
 
 
@@ -299,10 +313,16 @@ class InstallSkillTool(BaseTool):
             ],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult:
         source: str = kwargs["source"]
         skill_name: str | None = kwargs.get("skill_name") or None
-        return await self._manager.install(source, skill_name=skill_name)
+        result = await self._manager.install(source, skill_name=skill_name)
+        is_error = "error" in result
+        return ToolResult(
+            content=json.dumps(result, ensure_ascii=False),
+            display=result.get("message", str(result.get("error", ""))),
+            error=is_error,
+        )
 
 
 class ReloadSkillsTool(BaseTool):
@@ -323,7 +343,7 @@ class ReloadSkillsTool(BaseTool):
             parameters=[],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult:
         diff = self._manager.reload()
         added = diff["added"]
         removed = diff["removed"]
@@ -337,10 +357,11 @@ class ReloadSkillsTool(BaseTool):
         if updated:
             parts.append(f"Updated: {', '.join(updated)}")
 
-        if not parts:
-            return {"diff": diff, "message": "No changes detected."}
-
-        return {"diff": diff, "message": ". ".join(parts) + "."}
+        display = ". ".join(parts) + "." if parts else "No changes detected."
+        return ToolResult(
+            content=json.dumps({"diff": diff}, ensure_ascii=False),
+            display=display,
+        )
 
 
 class SearchSkillsTool(BaseTool):
@@ -364,7 +385,7 @@ class SearchSkillsTool(BaseTool):
             ],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult:
         from ..skills.source import ClawHubSource
 
         query: str = kwargs["query"]
@@ -372,10 +393,17 @@ class SearchSkillsTool(BaseTool):
             candidates = await ClawHubSource.search(query)
         except Exception as e:
             logger.error("ClawHub search failed: %s", e)
-            return {"error": str(e), "message": f"Search failed: {e}"}
+            return ToolResult(
+                content=json.dumps({"error": str(e)}, ensure_ascii=False),
+                display=f"Search failed: {e}",
+                error=True,
+            )
 
         if not candidates:
-            return {"results": [], "message": f"No skills found for '{query}'."}
+            return ToolResult(
+                content=json.dumps({"results": []}, ensure_ascii=False),
+                display=f"No skills found for '{query}'.",
+            )
 
         entries = [
             {
@@ -389,10 +417,10 @@ class SearchSkillsTool(BaseTool):
             f"- {e['name']}: {e['description']} (install: {e['install_id']})"
             for e in entries
         ]
-        return {
-            "results": entries,
-            "message": (
+        return ToolResult(
+            content=json.dumps({"results": entries}, ensure_ascii=False),
+            display=(
                 f"Found {len(entries)} skill(s) on clawhub.ai:\n"
                 + "\n".join(lines)
             ),
-        }
+        )

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
-from .base import BaseTool, ToolInfo, ToolParameter
+from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ class ManageProcessTool(BaseTool):
             ],
         )
 
-    async def execute(self, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, **kwargs: Any) -> ToolResult:
         action: str = kwargs["action"]
         process_id: str | None = kwargs.get("process_id")
 
@@ -52,10 +53,14 @@ class ManageProcessTool(BaseTool):
                 return self._handle_list()
 
             if process_id is None:
-                return {
-                    "error": "process_id required for this action",
-                    "message": "Please provide a 'process_id'.",
-                }
+                return ToolResult(
+                    content=json.dumps(
+                        {"error": "process_id required for this action"},
+                        ensure_ascii=False,
+                    ),
+                    display="Please provide a 'process_id'.",
+                    error=True,
+                )
 
             handler = {
                 "poll": self._handle_poll,
@@ -64,52 +69,67 @@ class ManageProcessTool(BaseTool):
             }.get(action)
 
             if handler is None:
-                return {
-                    "error": f"Unknown action: {action}",
-                    "message": (
+                return ToolResult(
+                    content=json.dumps(
+                        {"error": f"Unknown action: {action}"},
+                        ensure_ascii=False,
+                    ),
+                    display=(
                         f"Unknown action '{action}'. "
                         "Use: list, poll, log, kill."
                     ),
-                }
+                    error=True,
+                )
 
             return await handler(process_id)
 
         except Exception as e:
             logger.error("manage_process failed: %s", e, exc_info=True)
-            return {"error": str(e), "message": f"Sandbox process error: {e}"}
+            return ToolResult(
+                content=json.dumps({"error": str(e)}, ensure_ascii=False),
+                display=f"Sandbox process error: {e}",
+                error=True,
+            )
 
-    def _handle_list(self) -> dict[str, Any]:
+    def _handle_list(self) -> ToolResult:
         processes = self._sandbox.list_processes()
         if not processes:
-            return {"processes": [], "message": "No background processes."}
+            return ToolResult(
+                content=json.dumps({"processes": []}, ensure_ascii=False),
+                display="No background processes.",
+            )
         lines = [
             f"  {p['process_id']}: {p['status']} — {p['command'][:60]}"
             for p in processes
         ]
-        return {
-            "processes": processes,
-            "message": "Background processes:\n" + "\n".join(lines),
-        }
+        return ToolResult(
+            content=json.dumps({"processes": processes}, ensure_ascii=False),
+            display="Background processes:\n" + "\n".join(lines),
+        )
 
-    async def _handle_poll(self, process_id: str) -> dict[str, Any]:
+    async def _handle_poll(self, process_id: str) -> ToolResult:
         result = await self._sandbox.poll_process(process_id)
         data = result.to_dict()
         data["process_id"] = process_id
-        data["message"] = result.output if result.output else "(no new output)"
-        return data
+        display = result.output if result.output else "(no new output)"
+        return ToolResult(
+            content=json.dumps(data, ensure_ascii=False),
+            display=display,
+        )
 
-    async def _handle_log(self, process_id: str) -> dict[str, Any]:
+    async def _handle_log(self, process_id: str) -> ToolResult:
         output = await self._sandbox.process_log(process_id)
-        return {
-            "process_id": process_id,
-            "output": output,
-            "message": output if output else "(no output history)",
-        }
+        data = {"process_id": process_id, "output": output}
+        display = output if output else "(no output history)"
+        return ToolResult(
+            content=json.dumps(data, ensure_ascii=False),
+            display=display,
+        )
 
-    async def _handle_kill(self, process_id: str) -> dict[str, Any]:
+    async def _handle_kill(self, process_id: str) -> ToolResult:
         await self._sandbox.kill_process(process_id)
-        return {
-            "process_id": process_id,
-            "status": "killed",
-            "message": f"Process '{process_id}' terminated.",
-        }
+        data = {"process_id": process_id, "status": "killed"}
+        return ToolResult(
+            content=json.dumps(data, ensure_ascii=False),
+            display=f"Process '{process_id}' terminated.",
+        )
