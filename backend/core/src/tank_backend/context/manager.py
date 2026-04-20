@@ -74,12 +74,16 @@ class ContextManager:
             return None
 
         profile = self._app_config.get_llm_profile("default")
+        llm_api_key = memory_config.llm_api_key or profile.api_key
         resolved = MemoryConfig(
             enabled=True,
             db_path=memory_config.db_path,
-            llm_api_key=memory_config.llm_api_key or profile.api_key,
+            llm_api_key=llm_api_key,
             llm_base_url=memory_config.llm_base_url or profile.base_url,
             llm_model=memory_config.llm_model or "",
+            embedding_api_key=memory_config.embedding_api_key or "",
+            embedding_base_url=memory_config.embedding_base_url or "",
+            embedding_model=memory_config.embedding_model or "",
             search_limit=memory_config.search_limit,
         )
         try:

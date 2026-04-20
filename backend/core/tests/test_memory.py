@@ -18,6 +18,9 @@ class TestMemoryConfig:
         assert cfg.llm_api_key == ""
         assert cfg.llm_base_url == ""
         assert cfg.llm_model == ""
+        assert cfg.embedding_api_key == ""
+        assert cfg.embedding_base_url == ""
+        assert cfg.embedding_model == ""
         assert cfg.search_limit == 5
 
     def test_from_dict_full(self):
@@ -27,6 +30,9 @@ class TestMemoryConfig:
             "llm_api_key": "sk-test",
             "llm_base_url": "https://example.com/v1",
             "llm_model": "gpt-4.1-nano",
+            "embedding_api_key": "sk-embed",
+            "embedding_base_url": "https://embed.example.com/v1",
+            "embedding_model": "text-embedding-3-large",
             "search_limit": 10,
         }
         cfg = MemoryConfig.from_dict(raw)
@@ -35,6 +41,9 @@ class TestMemoryConfig:
         assert cfg.llm_api_key == "sk-test"
         assert cfg.llm_base_url == "https://example.com/v1"
         assert cfg.llm_model == "gpt-4.1-nano"
+        assert cfg.embedding_api_key == "sk-embed"
+        assert cfg.embedding_base_url == "https://embed.example.com/v1"
+        assert cfg.embedding_model == "text-embedding-3-large"
         assert cfg.search_limit == 10
 
     def test_from_dict_ignores_unknown_keys(self):
@@ -156,3 +165,80 @@ class TestMemoryService:
         mock_mem0.search.side_effect = RuntimeError("search failed")
         with pytest.raises(RuntimeError, match="search failed"):
             await service.recall("jackson", "query")
+
+
+class TestCreateMemoryConfig:
+    """Tests for MemoryService._create_memory mem0 config construction."""
+
+    @pytest.fixture
+    def mock_from_config(self):
+        with patch("mem0.Memory") as mock_cls:
+            mock_cls.from_config.return_value = MagicMock()
+            yield mock_cls.from_config
+
+    def test_embedder_uses_separate_credentials(self, mock_from_config, tmp_path):
+        """Embedding-specific api_key and base_url are passed to mem0."""
+        cfg = MemoryConfig(
+            enabled=True,
+            db_path=str(tmp_path / "mem"),
+            llm_api_key="sk-llm",
+            llm_base_url="https://llm.example.com/v1",
+            embedding_api_key="sk-embed",
+            embedding_base_url="https://embed.example.com/v1",
+            embedding_model="text-embedding-3-large",
+        )
+        MemoryService(cfg)
+
+        mem0_config = mock_from_config.call_args[0][0]
+        embedder = mem0_config["embedder"]["config"]
+        assert embedder["api_key"] == "sk-embed"
+        assert embedder["openai_base_url"] == "https://embed.example.com/v1"
+        assert embedder["model"] == "text-embedding-3-large"
+
+        # LLM should still use its own credentials
+        llm = mem0_config["llm"]["config"]
+        assert llm["api_key"] == "sk-llm"
+        assert llm["openai_base_url"] == "https://llm.example.com/v1"
+
+    def test_embedder_falls_back_to_llm_credentials(self, mock_from_config, tmp_path):
+        """When embedding fields are empty, embedder uses LLM credentials."""
+        cfg = MemoryConfig(
+            enabled=True,
+            db_path=str(tmp_path / "mem"),
+            llm_api_key="sk-llm",
+            llm_base_url="https://llm.example.com/v1",
+        )
+        MemoryService(cfg)
+
+        mem0_config = mock_from_config.call_args[0][0]
+        embedder = mem0_config["embedder"]["config"]
+        assert embedder["api_key"] == "sk-llm"
+        assert embedder["openai_base_url"] == "https://llm.example.com/v1"
+        assert "model" not in embedder
+
+    def test_embedder_omits_base_url_when_empty(self, mock_from_config, tmp_path):
+        """No openai_base_url in embedder when neither embedding nor LLM base_url set."""
+        cfg = MemoryConfig(
+            enabled=True,
+            db_path=str(tmp_path / "mem"),
+            llm_api_key="sk-llm",
+            embedding_model="text-embedding-3-small",
+        )
+        MemoryService(cfg)
+
+        mem0_config = mock_from_config.call_args[0][0]
+        embedder = mem0_config["embedder"]["config"]
+        assert "openai_base_url" not in embedder
+        assert embedder["model"] == "text-embedding-3-small"
+
+    def test_no_embedder_when_no_api_key(self, mock_from_config, tmp_path):
+        """No embedder config when neither embedding nor LLM api_key is set."""
+        cfg = MemoryConfig(
+            enabled=True,
+            db_path=str(tmp_path / "mem"),
+        )
+        MemoryService(cfg)
+
+        mem0_config = mock_from_config.call_args[0][0]
+        assert "embedder" not in mem0_config
+        assert "llm" not in mem0_config

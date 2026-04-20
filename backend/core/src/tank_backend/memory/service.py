@@ -108,15 +108,20 @@ class MemoryService:
                 llm_cfg["config"]["openai_base_url"] = config.llm_base_url
             mem0_config["llm"] = llm_cfg
 
-            # Embedder — same API key, default embedding model
+        # Embedder — may use a different provider/model than the LLM
+        embed_api_key = config.embedding_api_key or config.llm_api_key
+        if embed_api_key:
             embedder_cfg: dict[str, Any] = {
                 "provider": "openai",
                 "config": {
-                    "api_key": config.llm_api_key,
+                    "api_key": embed_api_key,
                 },
             }
-            if config.llm_base_url:
-                embedder_cfg["config"]["openai_base_url"] = config.llm_base_url
+            embed_base_url = config.embedding_base_url or config.llm_base_url
+            if embed_base_url:
+                embedder_cfg["config"]["openai_base_url"] = embed_base_url
+            if config.embedding_model:
+                embedder_cfg["config"]["model"] = config.embedding_model
             mem0_config["embedder"] = embedder_cfg
 
         # History DB alongside the vector store

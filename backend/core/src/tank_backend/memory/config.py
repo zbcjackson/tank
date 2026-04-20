@@ -14,6 +14,9 @@ class MemoryConfig:
     llm_api_key: str = ""
     llm_base_url: str = ""
     llm_model: str = ""
+    embedding_api_key: str = ""
+    embedding_base_url: str = ""
+    embedding_model: str = ""
     search_limit: int = 5
 
     @classmethod
@@ -25,5 +28,8 @@ class MemoryConfig:
             llm_api_key=raw.get("llm_api_key", ""),
             llm_base_url=raw.get("llm_base_url", ""),
             llm_model=raw.get("llm_model", ""),
+            embedding_api_key=raw.get("embedding_api_key", ""),
+            embedding_base_url=raw.get("embedding_base_url", ""),
+            embedding_model=raw.get("embedding_model", ""),
             search_limit=raw.get("search_limit", 5),
         )
