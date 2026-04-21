@@ -588,6 +588,46 @@ class TestManager:
         catalog = mgr.get_skill_catalog()
         assert "..." in catalog  # Should have truncation indicator
 
+    def test_review_modified_skill(self, tmp_skill_dir: Path) -> None:
+        """review() should re-review a skill whose content changed."""
+        from tank_backend.skills.manager import SkillManager
+        from tank_backend.skills.registry import SkillRegistry
+        from tank_backend.skills.reviewer import SecurityReviewer
+
+        registry = SkillRegistry([tmp_skill_dir.parent])
+        registry.scan()
+        mgr = SkillManager(registry, SecurityReviewer())
+        mgr.startup()
+
+        # Skill is reviewed
+        skill = registry.get("test-skill")
+        assert skill is not None
+        assert skill.reviewed is True
+
+        # Modify the skill in place
+        skill_file = tmp_skill_dir / "SKILL.md"
+        skill_file.write_text(skill_file.read_text() + "\nExtra line.\n")
+
+        # Now review() should re-review and pass
+        result = mgr.review("test-skill")
+        assert result["passed"] is True
+        assert result["risk_level"] == "low"
+
+        # Skill should be usable again
+        skill = registry.get("test-skill")
+        assert skill is not None
+        assert skill.reviewed is True
+        assert skill.content_hash == skill.review_hash
+
+    def test_review_not_found(self) -> None:
+        from tank_backend.skills.manager import SkillManager
+        from tank_backend.skills.registry import SkillRegistry
+        from tank_backend.skills.reviewer import SecurityReviewer
+
+        mgr = SkillManager(SkillRegistry([]), SecurityReviewer())
+        result = mgr.review("nonexistent")
+        assert "error" in result
+
 
 # ---------------------------------------------------------------------------
 # Tool wrapper tests
@@ -685,6 +725,44 @@ class TestSkillTools:
         assert len(data["skills"]) == 1
         assert data["skills"][0]["name"] == "test-skill"
 
+    @pytest.mark.asyncio()
+    async def test_review_skill_tool(self, tmp_skill_dir: Path) -> None:
+        from tank_backend.skills.manager import SkillManager
+        from tank_backend.skills.registry import SkillRegistry
+        from tank_backend.skills.reviewer import SecurityReviewer
+        from tank_backend.tools.skill_tools import ReviewSkillTool
+
+        registry = SkillRegistry([tmp_skill_dir.parent])
+        registry.scan()
+        mgr = SkillManager(registry, SecurityReviewer())
+        mgr.startup()
+
+        # Modify skill to invalidate review
+        skill_file = tmp_skill_dir / "SKILL.md"
+        skill_file.write_text(skill_file.read_text() + "\nChanged.\n")
+
+        tool = ReviewSkillTool(mgr)
+        result = await tool.execute(name="test-skill")
+
+        data = json.loads(result.content)
+        assert data["passed"] is True
+        assert result.error is False
+
+    @pytest.mark.asyncio()
+    async def test_review_skill_tool_not_found(self) -> None:
+        from tank_backend.skills.manager import SkillManager
+        from tank_backend.skills.registry import SkillRegistry
+        from tank_backend.skills.reviewer import SecurityReviewer
+        from tank_backend.tools.skill_tools import ReviewSkillTool
+
+        mgr = SkillManager(SkillRegistry([]), SecurityReviewer())
+        tool = ReviewSkillTool(mgr)
+        result = await tool.execute(name="nonexistent")
+
+        assert result.error is True
+        data = json.loads(result.content)
+        assert "error" in data
+
 
 # ---------------------------------------------------------------------------
 # SkillToolGroup tests
@@ -697,7 +775,7 @@ class TestSkillToolGroup:
         group = SkillToolGroup(config={"enabled": False})
         assert group.create_tools() == []
 
-    def test_enabled_creates_six_tools(self, tmp_path: Path) -> None:
+    def test_enabled_creates_seven_tools(self, tmp_path: Path) -> None:
         from tank_backend.tools.groups import SkillToolGroup
 
         skills_dir = tmp_path / "skills"
@@ -711,7 +789,7 @@ class TestSkillToolGroup:
         names = [t.get_info().name for t in tools]
         assert names == [
             "use_skill", "list_skills", "create_skill",
-            "install_skill", "reload_skills", "search_skills",
+            "install_skill", "review_skill", "reload_skills", "search_skills",
         ]
 
     def test_auto_review_on_startup(self, tmp_skill_dir: Path) -> None:

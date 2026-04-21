@@ -364,6 +364,41 @@ class ReloadSkillsTool(BaseTool):
         )
 
 
+class ReviewSkillTool(BaseTool):
+    """Re-review a skill that was modified after its last review."""
+
+    def __init__(self, manager: Any) -> None:
+        self._manager = manager
+
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="review_skill",
+            description=(
+                "Re-run security review on a skill whose content has changed "
+                "since its last review. Use this when a skill reports 'not reviewed' "
+                "or 'content changed since last review'."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="name",
+                    type="string",
+                    description="The skill name to review (e.g. 'summarize-ai-news')",
+                    required=True,
+                ),
+            ],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        name: str = kwargs["name"]
+        result = self._manager.review(name)
+        is_error = "error" in result
+        return ToolResult(
+            content=json.dumps(result, ensure_ascii=False),
+            display=result.get("message", str(result.get("error", ""))),
+            error=is_error,
+        )
+
+
 class SearchSkillsTool(BaseTool):
     """Search the ClawHub registry for skills."""
 

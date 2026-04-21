@@ -93,6 +93,62 @@ class SkillManager:
                 )
 
     # ------------------------------------------------------------------
+    # Explicit review — re-review a single skill by name
+    # ------------------------------------------------------------------
+
+    def review(self, name: str) -> dict[str, Any]:
+        """Re-review a skill and persist the result if it passes.
+
+        Use this when a skill was edited in place and its content hash
+        no longer matches the review hash.
+
+        Returns a dict with review outcome (passed, risk_level, findings).
+        """
+        skill = self._registry.get(name)
+        if skill is None:
+            return {"error": f"Skill '{name}' not found"}
+
+        # Re-parse from disk to pick up any file changes
+        try:
+            skill = parse_skill_file(skill.path)
+        except ValueError as exc:
+            return {"error": f"Failed to parse skill '{name}': {exc}"}
+
+        result = self._reviewer.review(skill)
+
+        if result.passed:
+            self._persist_review(skill.path, result)
+            skill = parse_skill_file(skill.path)
+            self._registry.register(skill)
+            self._post_bus_event("reviewed", name)
+            return {
+                "skill_name": name,
+                "passed": True,
+                "risk_level": result.risk_level,
+                "findings": list(result.findings),
+                "message": (
+                    f"Skill '{name}' passed security review "
+                    f"(risk: {result.risk_level})."
+                ),
+            }
+
+        return {
+            "skill_name": name,
+            "passed": False,
+            "risk_level": result.risk_level,
+            "findings": list(result.findings),
+            "error": (
+                f"Skill '{name}' failed security review "
+                f"(risk: {result.risk_level})"
+            ),
+            "message": (
+                f"Skill '{name}' failed security review "
+                f"(risk: {result.risk_level}): "
+                + "; ".join(result.findings)
+            ),
+        }
+
+    # ------------------------------------------------------------------
     # Hot reload — rescan disk, re-review, return diff
     # ------------------------------------------------------------------
 
@@ -260,7 +316,7 @@ class SkillManager:
                 "error": f"Skill '{name}' has not passed security review",
                 "message": (
                     f"Skill '{name}' is not reviewed. "
-                    "Run security review before using it."
+                    "Use the review_skill tool to run security review."
                 ),
             }
 
@@ -269,7 +325,7 @@ class SkillManager:
                 "error": f"Skill '{name}' content changed since last review",
                 "message": (
                     f"Skill '{name}' was modified after review. "
-                    "It must be re-reviewed before use."
+                    "Use the review_skill tool to re-review it."
                 ),
             }
 
