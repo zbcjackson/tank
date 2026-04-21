@@ -45,6 +45,8 @@ class ContextManager:
         self._bus = bus
         self._conversation: ConversationData | None = None
         self._memory_context: str = ""
+        self._last_user: str = ""
+        self._last_user_text: str = ""
         self._encoder = tiktoken.get_encoding("cl100k_base")
 
         # Create dependencies
@@ -52,6 +54,7 @@ class ContextManager:
         self._memory_service = self._create_memory_service()
         self._summarizer = self._create_summarizer()
         self._preference_store = self._create_preference_store()
+        self._preference_learner = self._create_preference_learner()
 
         # PromptAssembler lives here
         from ..prompts.assembler import PromptAssembler
@@ -125,6 +128,31 @@ class ContextManager:
         store = PreferenceStore(base_dir, prefs_config.max_entries)
         logger.info("Preference store initialised (base_dir=%s)", base_dir)
         return store
+
+    def _create_preference_learner(self) -> Any:
+        """Create PreferenceLearner from config, or ``None`` if disabled."""
+        if self._preference_store is None:
+            return None
+
+        prefs_raw = self._app_config.get_section("preferences", {"enabled": False})
+        if not prefs_raw.get("auto_learn", True):
+            return None
+
+        from ..llm.profile import create_llm_from_profile
+        from ..preferences import PreferenceLearner
+
+        # Try to use "summarization" profile for cheap extraction, fallback to default
+        try:
+            profile = self._app_config.get_llm_profile("summarization")
+        except (KeyError, ValueError):
+            try:
+                profile = self._app_config.get_llm_profile("default")
+            except (KeyError, ValueError):
+                return None
+
+        llm = create_llm_from_profile(profile)
+        logger.info("Preference learner initialised (model=%s)", profile.model)
+        return PreferenceLearner(self._preference_store, llm)
 
     # ------------------------------------------------------------------
     # Conversation lifecycle
@@ -222,6 +250,10 @@ class ContextManager:
         """
         self.add_message("user", text, name=user)
 
+        # Track for preference learning
+        self._last_user = user
+        self._last_user_text = text
+
         # Rebuild system prompt if prompt assembler has new discoveries
         if self._prompt_assembler.needs_rebuild():
             new_prompt = self._prompt_assembler.assemble()
@@ -279,6 +311,22 @@ class ContextManager:
         """Append turn messages (tool calls, results, final response) and persist."""
         self._conversation.messages.extend(turn_messages)
         self._persist()
+
+        # Schedule preference learning (fire-and-forget, like memory)
+        if self._preference_learner and self._last_user and self._last_user_text:
+            assistant_text = ""
+            for msg in reversed(turn_messages):
+                if msg.get("role") == "assistant" and msg.get("content"):
+                    assistant_text = msg["content"]
+                    break
+            if assistant_text:
+                import asyncio
+
+                asyncio.ensure_future(
+                    self._preference_learner.analyze_turn(
+                        self._last_user, self._last_user_text, assistant_text,
+                    )
+                )
 
     async def compact(self) -> None:
         """Compact conversation if over token budget.

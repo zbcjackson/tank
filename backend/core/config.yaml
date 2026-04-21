@@ -299,6 +299,7 @@ memory:
 preferences:
   enabled: true
   max_entries: 20
+  auto_learn: true  # Automatically extract preferences from conversations
   # base_dir: ~/.tank  # optional override
 # Observability — Langfuse LLM tracing (optional).
 # Set LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST in .env to enable.
