@@ -5,6 +5,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ...core.events import (
@@ -76,11 +77,11 @@ class Brain(Processor):
         if approval_manager is not None:
             approval_manager.set_on_request(self._on_approval_request)
 
-        # Auto-create a default AgentGraph wrapping the LLM when none provided
+        # Build AgentGraph — use provided one (tests) or build from config
         if agent_graph is not None:
             self._agent_graph = agent_graph
         else:
-            self._agent_graph = self._create_default_agent_graph()
+            self._agent_graph = self._build_agent_graph(app_config)
 
         # Echo guard — self-echo text detection (Layer 2)
         self._echo_config = echo_guard_config or EchoGuardConfig()
@@ -112,18 +113,110 @@ class Brain(Processor):
         self._qos_skip_tools = False
         self._bus.subscribe("qos", self._on_qos)
 
-    def _create_default_agent_graph(self) -> "AgentGraph":
-        """Create a default AgentGraph with a single ChatAgent wrapping self._llm."""
+    def _build_agent_graph(self, app_config: Any) -> "AgentGraph":
+        """Build AgentGraph with a main ChatAgent that has all tools + agent tool."""
         from ...agents.graph import AgentGraph
         from ...agents.llm_agent import LLMAgent
 
-        agent = LLMAgent(
-            name="chat",
-            llm=self._llm,
+        if app_config is None:
+            # Minimal fallback for tests without app_config
+            agent = LLMAgent(
+                name="chat",
+                llm=self._llm,
+                tool_manager=self._tool_manager,
+                approval_manager=self._approval_manager,
+            )
+            return AgentGraph(agents={"chat": agent}, default_agent="chat")
+
+        from ...agents.definition import load_agent_definitions
+        from ...agents.runner import AgentRunner
+        from ...llm.profile import create_llm_from_profile
+
+        agents_cfg = app_config.get_section("agents") or {}
+        llm_profile_name = agents_cfg.get("llm_profile", "default")
+
+        try:
+            llm_profile = app_config.get_llm_profile(llm_profile_name)
+            agent_llm = create_llm_from_profile(llm_profile)
+        except (KeyError, ValueError):
+            logger.warning(
+                "Agent references unknown LLM profile %r — using Brain's LLM",
+                llm_profile_name,
+            )
+            agent_llm = self._llm
+
+        # Load agent definitions from .tank/agents/ directories
+        raw_dirs = agents_cfg.get("dirs", ["../agents", "~/.tank/agents"])
+        agent_dirs = [Path(d).expanduser().resolve() for d in raw_dirs]
+        definitions = load_agent_definitions(agent_dirs)
+
+        # Create AgentRunner
+        runner = AgentRunner(
+            llm=agent_llm,
             tool_manager=self._tool_manager,
+            bus=self._bus,
             approval_manager=self._approval_manager,
+            approval_policy=self._tool_manager.approval_policy,
+            definitions=definitions,
+            max_depth=agents_cfg.get("max_depth", 3),
+            max_concurrent=agents_cfg.get("max_concurrent", 5),
         )
-        return AgentGraph(agents={"chat": agent}, default_agent="chat")
+
+        # Register agent tool in ToolManager
+        self._tool_manager.set_agent_runner(runner)
+
+        # Build main agent system prompt with available agent types
+        agent_catalog = self._build_agent_catalog(definitions)
+        system_prompt = agents_cfg.get("system_prompt")
+        if system_prompt is None:
+            system_prompt = self._build_main_agent_prompt(agent_catalog)
+
+        # Main agent: ALL tools (including agent tool), no exclusions
+        main_agent = LLMAgent(
+            name="chat",
+            llm=agent_llm,
+            tool_manager=self._tool_manager,
+            system_prompt=system_prompt,
+            approval_manager=self._approval_manager,
+            approval_policy=self._tool_manager.approval_policy,
+        )
+
+        logger.info(
+            "AgentGraph built: agent=chat, %d agent definitions loaded",
+            len(definitions),
+        )
+        return AgentGraph(agents={"chat": main_agent}, default_agent="chat")
+
+    @staticmethod
+    def _build_agent_catalog(definitions: dict[str, object]) -> str:
+        """Build a compact catalog of available agents for the system prompt."""
+        if not definitions:
+            return ""
+        lines = []
+        for defn in definitions.values():
+            entry = f"- {defn.name}: {defn.description}"  # type: ignore[union-attr]
+            lines.append(entry)
+        return "\n".join(lines)
+
+    @staticmethod
+    def _build_main_agent_prompt(agent_catalog: str) -> str:
+        """Build the main agent's system prompt."""
+        prompt = (
+            "You have direct access to all tools including file operations, "
+            "shell commands, web search, and more.\n\n"
+            "For simple tasks, handle them directly — don't spawn agents "
+            "unnecessarily.\n\n"
+            "Use the `agent` tool when:\n"
+            "- The task is complex and benefits from a specialist's "
+            "focused context\n"
+            "- You want to run multiple tasks in parallel (call agent "
+            "multiple times in one response)\n"
+            "- The task needs isolation (experimental changes)\n"
+            "- A specific agent has skills relevant to the task\n"
+        )
+        if agent_catalog:
+            prompt += f"\nAvailable agents:\n{agent_catalog}\n"
+        return prompt
 
     def reset_conversation(self) -> None:
         """Clear context and start a new conversation."""

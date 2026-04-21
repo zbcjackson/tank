@@ -161,8 +161,6 @@ class Assistant:
 
         self._add_input_processors(builder, registry, asr_engine, echo_guard_cfg)
 
-        agent_graph = self._build_agent_graph()
-
         self.brain = Brain(
             llm=self._llm,
             tool_manager=self._tool_manager,
@@ -172,7 +170,6 @@ class Assistant:
             app_config=self._app_config,
             tts_enabled=tts_engine is not None,
             echo_guard_config=echo_guard_cfg,
-            agent_graph=agent_graph,
             approval_manager=self._tool_manager.approval_manager,
         )
         builder.add(self.brain)
@@ -309,100 +306,6 @@ class Assistant:
         except Exception:
             logger.warning("Failed to create voiceprint recognizer", exc_info=True)
             return None
-
-    def _build_agent_graph(self) -> object:
-        """Build AgentGraph with a main ChatAgent that has all tools + agent tool."""
-        from ..agents.definition import load_agent_definitions
-        from ..agents.graph import AgentGraph
-        from ..agents.llm_agent import LLMAgent
-        from ..agents.runner import AgentRunner
-
-        agents_cfg = self._app_config.get_section("agents") or {}
-        llm_profile_name = agents_cfg.get("llm_profile", "default")
-        try:
-            llm_profile = self._app_config.get_llm_profile(llm_profile_name)
-            agent_llm = create_llm_from_profile(llm_profile)
-        except (KeyError, ValueError):
-            logger.warning(
-                "Agent references unknown LLM profile %r — using default",
-                llm_profile_name,
-            )
-            agent_llm = self._llm
-
-        # Load agent definitions from .tank/agents/ directories
-        raw_dirs = agents_cfg.get("dirs", ["../agents", "~/.tank/agents"])
-        agent_dirs = [Path(d).expanduser().resolve() for d in raw_dirs]
-        definitions = load_agent_definitions(agent_dirs)
-
-        # Create AgentRunner
-        runner = AgentRunner(
-            llm=agent_llm,
-            tool_manager=self._tool_manager,
-            bus=self._bus,
-            approval_manager=self._tool_manager.approval_manager,
-            approval_policy=self._tool_manager.approval_policy,
-            definitions=definitions,
-            max_depth=agents_cfg.get("max_depth", 3),
-            max_concurrent=agents_cfg.get("max_concurrent", 5),
-        )
-
-        # Register agent tool in ToolManager
-        self._tool_manager.set_agent_runner(runner)
-
-        # Build main agent system prompt with available agent types
-        agent_catalog = self._build_agent_catalog(definitions)
-        system_prompt = agents_cfg.get("system_prompt")
-        if system_prompt is None:
-            system_prompt = self._build_main_agent_prompt(agent_catalog)
-
-        # Main agent: ALL tools (including agent tool), no exclusions
-        main_agent = LLMAgent(
-            name="chat",
-            llm=agent_llm,
-            tool_manager=self._tool_manager,
-            system_prompt=system_prompt,
-            approval_manager=self._tool_manager.approval_manager,
-            approval_policy=self._tool_manager.approval_policy,
-        )
-
-        logger.info(
-            "AgentGraph built: agent=chat, %d agent definitions loaded",
-            len(definitions),
-        )
-        return AgentGraph(agents={"chat": main_agent}, default_agent="chat")
-
-    @staticmethod
-    def _build_agent_catalog(
-        definitions: dict[str, object],
-    ) -> str:
-        """Build a compact catalog of available agents for the system prompt."""
-        if not definitions:
-            return ""
-        lines = []
-        for defn in definitions.values():
-            entry = f"- {defn.name}: {defn.description}"  # type: ignore[union-attr]
-            lines.append(entry)
-        return "\n".join(lines)
-
-    @staticmethod
-    def _build_main_agent_prompt(agent_catalog: str) -> str:
-        """Build the main agent's system prompt."""
-        prompt = (
-            "You have direct access to all tools including file operations, "
-            "shell commands, web search, and more.\n\n"
-            "For simple tasks, handle them directly — don't spawn agents "
-            "unnecessarily.\n\n"
-            "Use the `agent` tool when:\n"
-            "- The task is complex and benefits from a specialist's "
-            "focused context\n"
-            "- You want to run multiple tasks in parallel (call agent "
-            "multiple times in one response)\n"
-            "- The task needs isolation (experimental changes)\n"
-            "- A specific agent has skills relevant to the task\n"
-        )
-        if agent_catalog:
-            prompt += f"\nAvailable agents:\n{agent_catalog}\n"
-        return prompt
 
     def _build_echo_guard_config(self, raw: dict) -> EchoGuardConfig:
         """Build EchoGuardConfig from config.yaml echo_guard section."""

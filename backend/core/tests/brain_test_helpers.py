@@ -49,6 +49,20 @@ def make_brain(
     if context is None:
         context = make_mock_context()
 
+    # If no agent_graph provided, create a minimal one to avoid _build_agent_graph
+    # being called with a mock app_config (which would fail)
+    if agent_graph is None:
+        from tank_backend.agents.graph import AgentGraph
+        from tank_backend.agents.llm_agent import LLMAgent
+
+        mock_agent = LLMAgent(
+            name="chat",
+            llm=llm,
+            tool_manager=tool_manager,
+            approval_manager=approval_manager,
+        )
+        agent_graph = AgentGraph(agents={"chat": mock_agent}, default_agent="chat")
+
     mock_app_config = MagicMock()
     mock_app_config.get_section.return_value = {}
 
