@@ -399,6 +399,40 @@ class ReviewSkillTool(BaseTool):
         )
 
 
+class UninstallSkillTool(BaseTool):
+    """Uninstall a skill — removes from registry and deletes files from disk."""
+
+    def __init__(self, manager: Any) -> None:
+        self._manager = manager
+
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="uninstall_skill",
+            description=(
+                "Uninstall a skill by name. Removes it from the registry "
+                "and deletes its directory from disk permanently."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="name",
+                    type="string",
+                    description="The skill name to uninstall (e.g. 'skill-vetter')",
+                    required=True,
+                ),
+            ],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        name: str = kwargs["name"]
+        result = self._manager.uninstall(name)
+        is_error = "error" in result
+        return ToolResult(
+            content=json.dumps(result, ensure_ascii=False),
+            display=result.get("message", str(result.get("error", ""))),
+            error=is_error,
+        )
+
+
 class SearchSkillsTool(BaseTool):
     """Search the ClawHub registry for skills."""
 

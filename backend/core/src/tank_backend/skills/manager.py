@@ -553,7 +553,7 @@ class SkillManager:
         }
 
     # ------------------------------------------------------------------
-    # Remove
+    # Remove / Uninstall
     # ------------------------------------------------------------------
 
     def remove(self, name: str) -> dict[str, Any]:
@@ -562,6 +562,36 @@ class SkillManager:
             self._post_bus_event("removed", name)
             return {"message": f"Skill '{name}' removed from registry."}
         return {"error": f"Skill '{name}' not found", "message": f"Skill '{name}' not found."}
+
+    def uninstall(self, name: str) -> dict[str, Any]:
+        """Unregister a skill and delete its directory from disk."""
+        import shutil
+
+        skill = self._registry.get(name)
+        if skill is None:
+            return {"error": f"Skill '{name}' not found", "message": f"Skill '{name}' not found."}
+
+        skill_path = skill.path
+        self._registry.unregister(name)
+
+        try:
+            shutil.rmtree(skill_path)
+        except OSError as exc:
+            logger.warning("Failed to delete skill directory %s: %s", skill_path, exc)
+            return {
+                "skill_name": name,
+                "error": f"Removed from registry but failed to delete files: {exc}",
+                "message": (
+                    f"Skill '{name}' unregistered but directory could not be "
+                    f"deleted: {exc}"
+                ),
+            }
+
+        self._post_bus_event("uninstalled", name)
+        return {
+            "skill_name": name,
+            "message": f"Skill '{name}' uninstalled (directory deleted).",
+        }
 
     # ------------------------------------------------------------------
     # Helpers

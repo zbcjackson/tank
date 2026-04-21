@@ -225,6 +225,7 @@ class SkillToolGroup(ToolGroup):
             ReloadSkillsTool,
             ReviewSkillTool,
             SearchSkillsTool,
+            UninstallSkillTool,
             UseSkillTool,
         )
 
@@ -253,7 +254,7 @@ class SkillToolGroup(ToolGroup):
             if s.reviewed and s.content_hash == s.review_hash
         ]
         logger.info(
-            "SkillToolGroup: %d reviewed skills, 7 management tools",
+            "SkillToolGroup: %d reviewed skills, 8 management tools",
             len(reviewed),
         )
 
@@ -265,6 +266,7 @@ class SkillToolGroup(ToolGroup):
             CreateSkillTool(self._manager),
             InstallSkillTool(self._manager),
             ReviewSkillTool(self._manager),
+            UninstallSkillTool(self._manager),
             ReloadSkillsTool(self._manager),
             SearchSkillsTool(),
         ]
