@@ -287,3 +287,18 @@ class SkillToolGroup(ToolGroup):
         """Wire AgentRunner into UseSkillTool for fork-mode execution."""
         if self._use_skill_tool is not None:
             self._use_skill_tool._agent_runner = runner
+
+
+class PreferencesToolGroup(ToolGroup):
+    """User preference management tools."""
+
+    def __init__(self, store: Any = None) -> None:
+        self._store = store
+
+    def create_tools(self) -> list[BaseTool]:
+        if self._store is None:
+            return []
+
+        from .preference_tool import PreferenceTool
+
+        return [PreferenceTool(self._store)]

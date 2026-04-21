@@ -22,7 +22,12 @@ class ToolManager:
     ApprovalManager, ToolApprovalPolicy, and all ToolGroups.
     """
 
-    def __init__(self, app_config: Any, bus: Any = None, max_history_tokens: int = 8000) -> None:
+    def __init__(
+        self,
+        app_config: Any,
+        bus: Any = None,
+        max_history_tokens: int = 8000,
+    ) -> None:
         self.tools: dict[str, BaseTool] = {}
         self._groups: list[ToolGroup] = []
         self._bus = bus

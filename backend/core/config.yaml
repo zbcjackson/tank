@@ -292,6 +292,14 @@ memory:
   # embedding_model: text-embedding-3-small
   # embedding_api_key: ${OPENAI_API_KEY}
   # embedding_base_url: https://api.openai.com/v1
+
+# Preferences — per-user learned preferences from conversations.
+# Preferences are stored as markdown files in ~/.tank/users/{user}/preferences.md
+# and injected into the system prompt per-turn (like memory).
+preferences:
+  enabled: true
+  max_entries: 20
+  # base_dir: ~/.tank  # optional override
 # Observability — Langfuse LLM tracing (optional).
 # Set LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST in .env to enable.
 # Run `docker compose up -d` from project root to start self-hosted Langfuse.

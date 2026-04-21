@@ -103,6 +103,13 @@ class Brain(Processor):
             skill_provider=tool_manager.get_skill_catalog,
         )
 
+        # Register preference tool if store is available
+        if self._context.preference_store is not None:
+            from ...tools.groups import PreferencesToolGroup
+
+            for tool in PreferencesToolGroup(self._context.preference_store).create_tools():
+                tool_manager.register_tool(tool)
+
         # Start or resume conversation
         self._context.resume_or_new()
 
@@ -408,7 +415,11 @@ class Brain(Processor):
 
         state = AgentState(
             messages=messages,
-            metadata={"msg_id": msg_id, "system_prompt_fn": system_prompt_fn},
+            metadata={
+                "msg_id": msg_id,
+                "system_prompt_fn": system_prompt_fn,
+                "user": event.user,
+            },
         )
         self._current_msg_id = msg_id
         full_response_text = ""

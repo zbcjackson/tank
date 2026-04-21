@@ -51,6 +51,7 @@ class ContextManager:
         self._store = self._create_store()
         self._memory_service = self._create_memory_service()
         self._summarizer = self._create_summarizer()
+        self._preference_store = self._create_preference_store()
 
         # PromptAssembler lives here
         from ..prompts.assembler import PromptAssembler
@@ -108,6 +109,22 @@ class ContextManager:
                 return None
         llm = create_llm_from_profile(profile)
         return LLMSummarizer(llm, self._config)
+
+    def _create_preference_store(self) -> Any:
+        """Create PreferenceStore from config, or ``None`` if disabled."""
+        from pathlib import Path
+
+        from ..preferences import PreferenceConfig, PreferenceStore
+
+        prefs_raw = self._app_config.get_section("preferences", {"enabled": False})
+        prefs_config = PreferenceConfig.from_dict(prefs_raw)
+        if not prefs_config.enabled:
+            return None
+
+        base_dir = Path(prefs_config.base_dir or "~/.tank").expanduser()
+        store = PreferenceStore(base_dir, prefs_config.max_entries)
+        logger.info("Preference store initialised (base_dir=%s)", base_dir)
+        return store
 
     # ------------------------------------------------------------------
     # Conversation lifecycle
@@ -210,11 +227,19 @@ class ContextManager:
             new_prompt = self._prompt_assembler.assemble()
             self._conversation.messages[0] = {"role": "system", "content": new_prompt}
 
-        # Return copy with memory augmentation (temporary, not persisted)
+        # Return copy with memory + preference augmentation (temporary, not persisted)
         messages = list(self._conversation.messages)
+        augmented = messages[0]["content"]
+
         if self._memory_context:
-            augmented = messages[0]["content"]
             augmented += f"\n\nKNOWN FACTS ABOUT {user}:\n{self._memory_context}"
+
+        if self._preference_store:
+            prefs = self._preference_store.render_for_user(user)
+            if prefs:
+                augmented += f"\n\nUSER PREFERENCES ({user}):\n{prefs}"
+
+        if augmented != messages[0]["content"]:
             messages[0] = {"role": "system", "content": augmented}
 
         return messages
@@ -237,11 +262,15 @@ class ContextManager:
                 and self._conversation.messages[0].get("role") == "system"
             ):
                 self._conversation.messages[0]["content"] = new_prompt
-            # Re-apply memory augmentation
+            # Re-apply memory + preference augmentation
             if self._memory_context:
                 new_prompt += (
                     f"\n\nKNOWN FACTS ABOUT {user or 'user'}:\n{self._memory_context}"
                 )
+            if self._preference_store:
+                prefs = self._preference_store.render_for_user(user or "")
+                if prefs:
+                    new_prompt += f"\n\nUSER PREFERENCES ({user or 'user'}):\n{prefs}"
             return new_prompt
 
         return _refresh
@@ -428,3 +457,8 @@ class ContextManager:
     @property
     def prompt_assembler(self) -> Any:
         return self._prompt_assembler
+
+    @property
+    def preference_store(self) -> Any:
+        """PreferenceStore instance, or None if disabled."""
+        return self._preference_store
