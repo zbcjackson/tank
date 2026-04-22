@@ -246,9 +246,10 @@ class SkillManager:
         """Format skill catalog at a given tier. Returns None if it doesn't fit."""
         header = (
             "AVAILABLE SKILLS:\n"
-            "Before responding, scan the skills below. If a skill matches the "
-            "user's request, call use_skill with the skill name. Prefer skills "
-            "over handling requests yourself.\n"
+            "IMPORTANT: Before responding, scan the skills below. If a skill "
+            "matches the user's request, you MUST call use_skill instead of "
+            "handling it yourself. Skills contain curated instructions that "
+            "produce better results than ad-hoc responses.\n"
         )
         used = len(header)
         entries: list[str] = []
@@ -275,16 +276,15 @@ class SkillManager:
     def _format_skill_entry(skill: SkillDefinition, tier: int) -> str:
         """Format a single skill entry at the given tier level."""
         meta = skill.metadata
-        version_tag = f" (v{meta.version})" if meta.version != "1.0.0" else ""
 
         if tier == 3:
-            return f"- {meta.name}{version_tag}"
+            return f"- {meta.name}"
 
         desc = meta.description
         if len(desc) > MAX_DESCRIPTION_CHARS:
             desc = desc[: MAX_DESCRIPTION_CHARS - 3] + "..."
 
-        entry = f"- {meta.name}{version_tag}: {desc}"
+        entry = f"- {meta.name}: {desc}"
 
         if tier == 1 and meta.when_to_use:
             when = meta.when_to_use.replace("\n", " ").strip()

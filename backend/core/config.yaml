@@ -219,7 +219,7 @@ assistant:
 
 # Brain — conversation processing settings
 brain:
-  max_history_tokens: 8000
+  max_history_tokens: 131072
 
 # Agent orchestration — main agent has all tools, delegates via `agent` tool.
 # Agent definitions are loaded from .tank/agents/*.md files.

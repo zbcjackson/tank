@@ -480,8 +480,8 @@ class TestCatalogEnhancements:
         # Should have at least some skill names
         assert "skill-00" in catalog
 
-    def test_catalog_version_display(self, tmp_path: Path) -> None:
-        """Catalog should show version for non-1.0.0 skills."""
+    def test_catalog_version_not_displayed(self, tmp_path: Path) -> None:
+        """Catalog should NOT show version tags — they confuse LLM skill lookup."""
         skill_dir = tmp_path / "versioned"
         skill_dir.mkdir()
         (skill_dir / "SKILL.md").write_text(
@@ -507,7 +507,8 @@ class TestCatalogEnhancements:
         mgr.startup()
 
         catalog = mgr.get_skill_catalog()
-        assert "(v2.5.0)" in catalog
+        assert "versioned" in catalog
+        assert "(v2.5.0)" not in catalog
 
     def test_catalog_percentage_budget(self, tmp_path: Path) -> None:
         """Catalog budget should scale with max_history_tokens."""
