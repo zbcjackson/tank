@@ -1,6 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UserPlus, X, Mic, Check, Loader2 } from 'lucide-react';
+import { UserPlus, X, Mic, Check, Loader2, ChevronRight } from 'lucide-react';
+
+interface UserInfo {
+  user_id: string;
+  name: string;
+  sample_count: number;
+}
 
 const RECORDING_PULSE_ANIMATE = { scale: [1, 1.2, 1] };
 const RECORDING_PULSE_TRANSITION = { repeat: Infinity, duration: 1.5 };
@@ -72,7 +78,14 @@ interface EnrollmentModalProps {
   resumeAudioCapture: () => void;
 }
 
-type RecordingState = 'idle' | 'recording' | 'recorded' | 'submitting' | 'done' | 'error';
+type RecordingState =
+  | 'idle'
+  | 'select_user'
+  | 'recording'
+  | 'recorded'
+  | 'submitting'
+  | 'done'
+  | 'error';
 
 const EnrollmentModal = ({
   onClose,
@@ -85,10 +98,27 @@ const EnrollmentModal = ({
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [error, setError] = useState('');
   const [countdown, setCountdown] = useState(5);
+  const [users, setUsers] = useState<UserInfo[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    // Fetch existing users
+    fetch('/api/users')
+      .then((res) => res.json())
+      .then((data: UserInfo[]) => {
+        setUsers(data);
+        setIsLoadingUsers(false);
+      })
+      .catch((err) => {
+        console.error('Failed to load users:', err);
+        setIsLoadingUsers(false);
+      });
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -179,15 +209,40 @@ const EnrollmentModal = ({
     }
   };
 
+  const selectedUser = users.find((u) => u.user_id === selectedUserId);
+  const isExistingUser = selectedUserId !== null;
+
+  const handleStartEnrollment = () => {
+    if (users.length === 0) {
+      // No existing users — skip selection, go straight to recording
+      startRecording();
+    } else {
+      setState('select_user');
+    }
+  };
+
+  const handleUserSelected = () => {
+    startRecording();
+  };
+
   const submitEnrollment = async () => {
-    if (!audioBlob || !name.trim()) return;
+    if (!audioBlob) return;
+
+    // For new users, name is required
+    if (!isExistingUser && !name.trim()) return;
 
     setState('submitting');
     try {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'enrollment.pcm');
 
-      const res = await fetch(`/api/speakers/enroll?name=${encodeURIComponent(name.trim())}`, {
+      const enrollName = isExistingUser ? selectedUser!.name : name.trim();
+      let url = `/api/speakers/enroll?name=${encodeURIComponent(enrollName)}`;
+      if (isExistingUser) {
+        url += `&user_id=${encodeURIComponent(selectedUserId)}`;
+      }
+
+      const res = await fetch(url, {
         method: 'POST',
         body: formData,
       });
@@ -213,14 +268,14 @@ const EnrollmentModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <motion.div
         initial={MODAL_INITIAL}
         animate={MODAL_ANIMATE}
         transition={MODAL_TRANSITION}
-        className="bg-surface-raised border border-border-subtle rounded-2xl shadow-2xl shadow-black/50 w-full max-w-md mx-4 overflow-hidden"
+        className="bg-surface-raised border border-border-subtle rounded-2xl shadow-2xl shadow-black/50 w-full max-w-md max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden"
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle shrink-0">
           <h3 className="text-sm font-semibold text-text-primary">录制声纹</h3>
           <button
             onClick={handleClose}
@@ -230,20 +285,75 @@ const EnrollmentModal = ({
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="p-6 space-y-5 overflow-y-auto">
           {state === 'idle' && (
             <>
               <p className="text-sm text-text-secondary">
                 点击录制按钮，朗读任意内容 5 秒钟。系统将记录您的声纹特征。
               </p>
               <button
-                onClick={startRecording}
-                className="w-full flex items-center justify-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 py-3 rounded-xl font-medium hover:bg-amber-500/15 transition-colors"
+                onClick={handleStartEnrollment}
+                disabled={isLoadingUsers}
+                className="w-full flex items-center justify-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 py-3 rounded-xl font-medium hover:bg-amber-500/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                <Mic size={18} />
-                开始录制
+                {isLoadingUsers ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    加载中...
+                  </>
+                ) : (
+                  <>
+                    <Mic size={18} />
+                    开始录制
+                  </>
+                )}
               </button>
             </>
+          )}
+
+          {state === 'select_user' && (
+            <div className="space-y-4">
+              <p className="text-sm text-text-secondary">选择用户或创建新用户</p>
+              <div className="space-y-2">
+                <label className="flex items-center gap-3 p-3 rounded-xl border border-border-subtle hover:bg-white/[0.02] cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    name="user-selection"
+                    checked={selectedUserId === null}
+                    onChange={() => setSelectedUserId(null)}
+                    className="w-4 h-4 text-amber-500 focus:ring-amber-500/20"
+                  />
+                  <span className="text-sm text-text-primary font-medium">创建新用户</span>
+                </label>
+                {users.map((user) => (
+                  <label
+                    key={user.user_id}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-border-subtle hover:bg-white/[0.02] cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="radio"
+                      name="user-selection"
+                      checked={selectedUserId === user.user_id}
+                      onChange={() => setSelectedUserId(user.user_id)}
+                      className="w-4 h-4 text-amber-500 focus:ring-amber-500/20"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm text-text-primary font-medium">{user.name}</span>
+                      <span className="ml-2 text-xs text-text-muted">
+                        ({user.sample_count} 个样本)
+                      </span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <button
+                onClick={handleUserSelected}
+                className="w-full flex items-center justify-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 py-3 rounded-xl font-medium hover:bg-amber-500/15 transition-colors"
+              >
+                下一步
+                <ChevronRight size={16} />
+              </button>
+            </div>
           )}
 
           {state === 'recording' && (
@@ -267,26 +377,43 @@ const EnrollmentModal = ({
                 <Check size={18} />
                 <span className="text-sm font-medium">录制完成</span>
               </div>
-              <div>
-                <label className="block text-xs font-mono tracking-wider text-text-muted uppercase mb-2">
-                  您的名字
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="输入您的名字..."
-                  className="w-full bg-surface border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-amber-500/30 transition-colors"
-                  autoFocus
-                />
-              </div>
-              <button
-                onClick={submitEnrollment}
-                disabled={!name.trim()}
-                className="w-full flex items-center justify-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 py-3 rounded-xl font-medium hover:bg-amber-500/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                保存声纹
-              </button>
+              {isExistingUser ? (
+                <>
+                  <p className="text-sm text-text-secondary">
+                    将为 <span className="font-medium text-text-primary">{selectedUser!.name}</span>{' '}
+                    添加新的声纹样本
+                  </p>
+                  <button
+                    onClick={submitEnrollment}
+                    className="w-full flex items-center justify-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 py-3 rounded-xl font-medium hover:bg-amber-500/15 transition-colors"
+                  >
+                    保存声纹
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-mono tracking-wider text-text-muted uppercase mb-2">
+                      您的名字
+                    </label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="输入您的名字..."
+                      className="w-full bg-surface border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-amber-500/30 transition-colors"
+                      autoFocus
+                    />
+                  </div>
+                  <button
+                    onClick={submitEnrollment}
+                    disabled={!name.trim()}
+                    className="w-full flex items-center justify-center gap-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 py-3 rounded-xl font-medium hover:bg-amber-500/15 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    保存声纹
+                  </button>
+                </>
+              )}
             </div>
           )}
 
@@ -302,7 +429,9 @@ const EnrollmentModal = ({
               <div className="w-14 h-14 mx-auto rounded-full flex items-center justify-center bg-emerald-500/10 border border-emerald-500/20">
                 <Check size={24} className="text-emerald-400" />
               </div>
-              <p className="text-sm font-medium text-emerald-400">声纹注册成功</p>
+              <p className="text-sm font-medium text-emerald-400">
+                {isExistingUser ? '声纹样本已添加' : '声纹注册成功'}
+              </p>
             </div>
           )}
 
@@ -314,6 +443,8 @@ const EnrollmentModal = ({
                   setState('idle');
                   setError('');
                   setAudioBlob(null);
+                  setName('');
+                  setSelectedUserId(null);
                 }}
                 className="w-full bg-white/5 border border-border-subtle py-3 rounded-xl font-medium text-sm text-text-secondary hover:bg-white/8 transition-colors"
               >

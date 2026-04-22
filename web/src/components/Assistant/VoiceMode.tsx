@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { motion, AnimatePresence, type TargetAndTransition } from 'framer-motion';
 import { Mic, MicOff, Square } from 'lucide-react';
 import { Waveform } from './Waveform';
 import { WakeWordIndicator } from './WakeWordIndicator';
+import { EnrollmentBanner } from './EnrollmentBanner';
 import type { AssistantStatus, ConversationState } from '../../hooks/useAssistant';
 
 interface VoiceModeProps {
@@ -14,6 +16,9 @@ interface VoiceModeProps {
   conversationState?: ConversationState;
   wakeWordKeyword?: string | null;
   ttsRms?: number;
+  speaker?: string;
+  pauseAudioCapture: () => void;
+  resumeAudioCapture: () => void;
 }
 
 const statusVariants = {
@@ -163,7 +168,11 @@ export const VoiceMode = ({
   conversationState,
   wakeWordKeyword,
   ttsRms,
+  speaker,
+  pauseAudioCapture,
+  resumeAudioCapture,
 }: VoiceModeProps) => {
+  const [enrollmentKey, setEnrollmentKey] = useState(0);
   const isWakeWordIdle = conversationState === 'idle';
   const isGateOpen = conversationState === 'active';
   const micStatus = isMuted ? 'muted' : isGateOpen ? 'active' : 'idle';
@@ -191,6 +200,17 @@ export const VoiceMode = ({
         className="absolute inset-0 pointer-events-none"
         style={AMBIENT_STYLES[orbState] || AMBIENT_STYLES.none}
       />
+
+      {/* Enrollment Banner */}
+      <div className="absolute top-8 left-1/2 -translate-x-1/2 w-full max-w-md px-6 z-20">
+        <EnrollmentBanner
+          key={enrollmentKey}
+          speaker={speaker}
+          onEnrollComplete={() => setEnrollmentKey((k) => k + 1)}
+          pauseAudioCapture={pauseAudioCapture}
+          resumeAudioCapture={resumeAudioCapture}
+        />
+      </div>
 
       {/* Center content */}
       <div className="relative flex flex-col items-center gap-16 z-10">

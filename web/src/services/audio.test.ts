@@ -86,15 +86,24 @@ describe('AudioProcessor', () => {
       expect(received).toHaveLength(0);
     });
 
-    it('closes vadOpen on speech end', async () => {
+    it('closes vadOpen on speech end after trailing silence', async () => {
+      vi.useFakeTimers();
       await simulateBrowserStart(processor);
       vadCallbacks.onSpeechStart();
       pushFrame(processor, new Int16Array([1]));
       expect(received).toHaveLength(1);
 
       vadCallbacks.onSpeechEnd(new Float32Array(0));
+      // Gate stays open during trailing silence period
       pushFrame(processor, new Int16Array([2]));
-      expect(received).toHaveLength(1); // no new frame forwarded
+      expect(received).toHaveLength(2);
+
+      // After 1200ms trailing silence, gate closes
+      vi.advanceTimersByTime(1200);
+      pushFrame(processor, new Int16Array([3]));
+      expect(received).toHaveLength(2); // no new frame forwarded
+
+      vi.useRealTimers();
     });
 
     it('closes vadOpen on misfire', async () => {

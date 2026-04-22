@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAssistant } from './hooks/useAssistant';
 import { VoiceMode } from './components/Assistant/VoiceMode';
 import { ChatMode } from './components/Assistant/ChatMode';
@@ -95,6 +95,13 @@ function App() {
     newConversation();
   }, [newConversation]);
 
+  const lastUserSpeaker = useMemo(() => {
+    for (let i = steps.length - 1; i >= 0; i--) {
+      if (steps[i].role === 'user') return steps[i].speaker;
+    }
+    return undefined;
+  }, [steps]);
+
   const statusText = connectionState === 'connected' ? undefined : `Status: ${connectionState}`;
 
   return (
@@ -137,6 +144,9 @@ function App() {
               conversationState={conversationState}
               wakeWordKeyword={wakeWordKeyword}
               ttsRms={ttsRms}
+              speaker={lastUserSpeaker}
+              pauseAudioCapture={pauseAudioCapture}
+              resumeAudioCapture={resumeAudioCapture}
             />
           ) : (
             <ChatMode

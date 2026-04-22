@@ -128,14 +128,14 @@ describe('VoiceAssistantClient', () => {
       expect(reconnecting!.metadata!.nextRetryIn).toBe(1000);
     });
 
-    it('second retry delay is ~1.5s', () => {
+    it('second retry delay is ~2s', () => {
       latestWs().simulateOpen();
       latestWs().simulateClose(1006);
       vi.advanceTimersByTime(1000);
       latestWs().simulateClose(1006);
 
       const attempts = stateChanges.filter((s) => s.state === 'reconnecting');
-      expect(attempts[1].metadata!.nextRetryIn).toBe(1500);
+      expect(attempts[1].metadata!.nextRetryIn).toBe(2000);
     });
 
     it('delay is capped at 30s', () => {
