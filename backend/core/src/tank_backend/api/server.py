@@ -28,6 +28,8 @@ from .skills import router as skills_router  # noqa: E402
 from .skills import set_connection_manager as set_skills_connection_manager  # noqa: E402
 from .speakers import router as speakers_router  # noqa: E402
 from .speakers import set_connection_manager  # noqa: E402
+from .users import router as users_router  # noqa: E402
+from .users import set_connection_manager as set_users_connection_manager  # noqa: E402
 
 # Configure logging to output to console
 logging.basicConfig(
@@ -65,6 +67,7 @@ app = FastAPI(title="Tank Voice Assistant API", version="0.1.0", lifespan=lifesp
 
 app.include_router(router)
 app.include_router(speakers_router)
+app.include_router(users_router)
 app.include_router(metrics_router)
 app.include_router(approvals_router)
 app.include_router(conversations_router)
@@ -74,6 +77,7 @@ set_connection_manager(connection_manager)
 set_metrics_connection_manager(connection_manager)
 set_approvals_connection_manager(connection_manager)
 set_skills_connection_manager(connection_manager)
+set_users_connection_manager(connection_manager)
 set_conversations_store(_store)
 
 

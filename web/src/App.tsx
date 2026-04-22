@@ -76,6 +76,8 @@ function App() {
     conversationState,
     wakeWordKeyword,
     ttsRms,
+    selectedUserId,
+    setSelectedUserId,
   } = useAssistant(SESSION_ID, wakeWordDetector);
 
   const handleSelectConversation = useCallback(
@@ -145,6 +147,8 @@ function App() {
               onApprovalRespond={respondToApproval}
               pauseAudioCapture={pauseAudioCapture}
               resumeAudioCapture={resumeAudioCapture}
+              selectedUserId={selectedUserId}
+              onSelectUser={setSelectedUserId}
             />
           )}
         </AnimatePresence>

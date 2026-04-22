@@ -10,7 +10,7 @@
 llm:
   default:
     api_key: ${LLM_API_KEY}
-    model: qwen/qwen3-coder-next #openai/gpt-5.4-nano
+    model: openai/gpt-5.4-nano #qwen/qwen3-coder-next
     base_url: https://openrouter.ai/api/v1
 #    model: google/gemma-4-31b
 #    base_url: http://127.0.0.1:1234/v1

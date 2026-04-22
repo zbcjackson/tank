@@ -441,7 +441,7 @@ class Assistant:
         if self._pipeline is not None:
             self._pipeline.push(frame)
 
-    def process_input(self, text: str) -> None:
+    def process_input(self, text: str, user: str = "Guest") -> None:
         """Submit user text input for processing."""
         if not text or not text.strip():
             return
@@ -459,7 +459,7 @@ class Assistant:
                 type="ui_message",
                 source="keyboard",
                 payload=DisplayMessage(
-                    speaker="Keyboard",
+                    speaker=user,
                     text=text,
                     is_user=True,
                     is_final=True,
@@ -474,7 +474,7 @@ class Assistant:
                 BrainInputEvent(
                     type=InputType.TEXT,
                     text=text,
-                    user="Keyboard",
+                    user=user,
                     language=None,
                     confidence=None,
                     metadata={"msg_id": msg_id},

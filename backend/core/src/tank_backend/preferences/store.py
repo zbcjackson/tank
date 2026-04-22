@@ -55,13 +55,37 @@ class PreferenceStore:
         self._base_dir = base_dir
         self._max_entries = max_entries
 
-    def _prefs_path(self, user: str) -> Path:
+    def _resolve_user_dir(self, user: str) -> str:
+        """Resolve user identifier to a directory name.
+
+        Tries in order:
+        1. Direct match (user_id directory exists)
+        2. Legacy slug-based directory (exists or as fallback for name-based callers)
+        3. Falls back to slug for new directories (preserves legacy behavior)
+        """
+        # Direct user_id match (e.g. "a1b2c3d4e5f6")
+        direct = self._base_dir / "users" / user
+        if direct.is_dir():
+            return user
+
+        # Legacy slug-based lookup
         slug = _slugify(user)
-        return self._base_dir / "users" / slug / "preferences.md"
+
+        # If slug differs from user, the caller passed a name, not a user_id.
+        # Use slug for backward compatibility.
+        if slug != user:
+            return slug
+
+        # user looks like a user_id (slug == user), use as-is
+        return user
+
+    def _prefs_path(self, user: str) -> Path:
+        dir_name = self._resolve_user_dir(user)
+        return self._base_dir / "users" / dir_name / "preferences.md"
 
     def _user_override_path(self, user: str) -> Path:
-        slug = _slugify(user)
-        return self._base_dir / "users" / slug / "USER.md"
+        dir_name = self._resolve_user_dir(user)
+        return self._base_dir / "users" / dir_name / "USER.md"
 
     # ------------------------------------------------------------------
     # Public API

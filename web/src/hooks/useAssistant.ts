@@ -25,6 +25,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
   const [mode, setMode] = useState<'voice' | 'chat'>('voice');
   const [isMuted, setIsMuted] = useState(false);
   const [capabilities, setCapabilities] = useState<Capabilities>(DEFAULT_CAPABILITIES);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   const { assistantStatus, dispatchStatus } = useAssistantStatus();
   const conversationStateRef = useRef<ConversationState>('active');
@@ -126,9 +127,11 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
         dispatchStatus({ type: 'INTERRUPT' });
       }
       addLocalUserStep(text);
-      clientRef.current.sendMessage('input', text);
+      clientRef.current.sendMessage('input', text, {
+        ...(selectedUserId ? { user_id: selectedUserId } : {}),
+      });
     },
-    [clientRef, playbackRef, addLocalUserStep, isAssistantTyping, dispatchStatus],
+    [clientRef, playbackRef, addLocalUserStep, isAssistantTyping, dispatchStatus, selectedUserId],
   );
 
   const respondToApproval = useCallback(
@@ -236,6 +239,8 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     capabilities,
     conversationState,
     wakeWordKeyword: wakeWordDetector?.keyword ?? null,
+    selectedUserId,
+    setSelectedUserId,
     sendMessage,
     respondToApproval,
     toggleMode,

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import uuid
 
 import numpy as np
 from fastapi import APIRouter, HTTPException, UploadFile
@@ -75,7 +74,10 @@ async def enroll_speaker(name: str, audio: UploadFile, user_id: str | None = Non
 
     audio_data = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32) / 32768.0
 
+    # Generate user_id if not provided
+    import uuid
     resolved_id = user_id or uuid.uuid4().hex[:12]
+
     try:
         recognizer.enroll(resolved_id, name, audio_data, 16000)
     except RuntimeError as e:

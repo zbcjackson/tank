@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ArrowUp, Square } from 'lucide-react';
 import { MessageStep } from './MessageStep';
 import { EnrollmentBanner } from './EnrollmentBanner';
+import { UserSelector } from './UserSelector';
 import type { Step } from '../../types/message';
 import type { AssistantStatus } from '../../hooks/useAssistant';
 
@@ -35,6 +36,8 @@ interface ChatModeProps {
   onApprovalRespond: (approvalId: string, approved: boolean) => void;
   pauseAudioCapture: () => void;
   resumeAudioCapture: () => void;
+  selectedUserId: string | null;
+  onSelectUser: (userId: string | null) => void;
 }
 
 export const ChatMode = ({
@@ -45,6 +48,8 @@ export const ChatMode = ({
   onApprovalRespond,
   pauseAudioCapture,
   resumeAudioCapture,
+  selectedUserId,
+  onSelectUser,
 }: ChatModeProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -101,11 +106,14 @@ export const ChatMode = ({
     >
       {/* Header */}
       <div className="px-6 pt-6 pb-4 flex items-baseline justify-between">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight text-text-primary">Tank</h2>
-          <p className="text-[11px] font-mono tracking-wider text-text-muted mt-0.5">
-            VOICE ASSISTANT
-          </p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-text-primary">Tank</h2>
+            <p className="text-[11px] font-mono tracking-wider text-text-muted mt-0.5">
+              VOICE ASSISTANT
+            </p>
+          </div>
+          <UserSelector selectedUserId={selectedUserId} onSelectUser={onSelectUser} />
         </div>
         <div className="flex items-center gap-2">
           {STATUS_BADGE[assistantStatus] && (

@@ -31,6 +31,17 @@ def set_connection_manager(mgr):
     connection_manager = mgr
 
 
+def _resolve_user_name(user_id: str | None) -> str:
+    """Resolve a user_id from WebSocket metadata to a display name for Brain."""
+    if not user_id or connection_manager is None:
+        return "Guest"
+    recognizer = connection_manager.get_voiceprint_recognizer()
+    if recognizer is None or not recognizer.enabled:
+        return "Guest"
+    speaker = recognizer.repository.get_speaker(user_id)
+    return speaker.name if speaker else "Guest"
+
+
 def _ui_msg_to_ws_msg(msg: UIMessage, session_id: str) -> WebsocketMessage | None:
     """Convert a UIMessage to a WebsocketMessage."""
     if isinstance(msg, SignalMessage):
@@ -176,7 +187,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         logger.warning("Unknown signal: %s", msg.content)
 
                 elif msg.type == MessageType.INPUT:
-                    assistant.process_input(msg.content)
+                    user_id = msg.metadata.get("user_id")
+                    user_name = _resolve_user_name(user_id)
+                    assistant.process_input(msg.content, user=user_name)
                 elif msg.type == MessageType.APPROVAL_RESPONSE:
                     approval_id = msg.metadata.get("approval_id", "")
                     approved = msg.metadata.get("approved", False)
