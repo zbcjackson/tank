@@ -106,14 +106,11 @@ export const ChatMode = ({
     >
       {/* Header */}
       <div className="px-6 pt-6 pb-4 flex items-baseline justify-between">
-        <div className="flex items-center gap-4">
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight text-text-primary">Tank</h2>
-            <p className="text-[11px] font-mono tracking-wider text-text-muted mt-0.5">
-              VOICE ASSISTANT
-            </p>
-          </div>
-          <UserSelector selectedUserId={selectedUserId} onSelectUser={onSelectUser} />
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-text-primary">Tank</h2>
+          <p className="text-[11px] font-mono tracking-wider text-text-muted mt-0.5">
+            VOICE ASSISTANT
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {STATUS_BADGE[assistantStatus] && (
@@ -222,8 +219,11 @@ export const ChatMode = ({
 
       {/* Input area */}
       <div className="px-6 pb-6 pt-3">
-        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto relative">
-          <div className="relative rounded-2xl bg-surface-raised border border-border-subtle focus-within:border-amber-500/20 transition-colors">
+        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+          <div className="relative rounded-2xl bg-surface-raised border border-border-subtle focus-within:border-amber-500/20 transition-all duration-200">
+            <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10">
+              <UserSelector selectedUserId={selectedUserId} onSelectUser={onSelectUser} />
+            </div>
             <textarea
               ref={inputRef}
               rows={1}
@@ -231,16 +231,16 @@ export const ChatMode = ({
               data-testid="chat-input"
               onKeyDown={handleKeyDown}
               onInput={handleInput}
-              className="w-full bg-transparent px-5 py-3.5 pr-24 text-[14px] text-text-primary placeholder:text-text-muted resize-none focus:outline-none leading-relaxed"
+              className="w-full bg-transparent pl-[120px] pr-14 pt-[18px] pb-[13px] text-[14px] text-text-primary placeholder:text-text-muted resize-none focus:outline-none leading-relaxed"
               style={TEXTAREA_MAX_HEIGHT}
             />
-            <div className="absolute right-2 bottom-2 flex items-center gap-1.5">
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
               {assistantStatus !== 'idle' ? (
                 <button
                   type="button"
                   data-testid="stop-button"
                   onClick={onStopSpeaking}
-                  className="w-9 h-9 rounded-xl flex items-center justify-center bg-red-500/15 text-red-400 border border-red-500/20 hover:bg-red-500/25 transition-colors"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center bg-red-500/10 text-red-400 border border-red-500/15 hover:bg-red-500/15 hover:border-red-500/25 transition-all duration-200"
                 >
                   <Square size={14} fill="currentColor" />
                 </button>
@@ -248,7 +248,7 @@ export const ChatMode = ({
                 <button
                   type="submit"
                   data-testid="send-button"
-                  className="w-9 h-9 rounded-xl flex items-center justify-center bg-amber-500/15 text-amber-400 border border-amber-500/20 hover:bg-amber-500/25 transition-colors"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center bg-amber-500/10 text-amber-400 border border-amber-500/15 hover:bg-amber-500/15 hover:border-amber-500/25 transition-all duration-200"
                 >
                   <ArrowUp size={16} strokeWidth={2.5} />
                 </button>
