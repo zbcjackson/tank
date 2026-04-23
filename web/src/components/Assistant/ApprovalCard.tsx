@@ -1,9 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ShieldCheck, Check, X } from 'lucide-react';
 import type { ApprovalContent } from '../../types/message';
-
-const APPROVAL_TIMEOUT_MS = 120_000;
 
 type LocalStatus = ApprovalContent['status'];
 
@@ -20,26 +18,12 @@ interface ApprovalCardProps {
 }
 
 export const ApprovalCard = ({ content, onRespond }: ApprovalCardProps) => {
-  // localOverride tracks user clicks and timeout; null means "use prop"
+  // localOverride tracks user clicks; null means "use prop"
   const [localOverride, setLocalOverride] = useState<LocalStatus | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Effective status: prop wins if non-pending (external resolution), else local override
   const effectiveStatus: LocalStatus =
     content.status !== 'pending' ? content.status : (localOverride ?? 'pending');
-
-  // Auto-expire after timeout
-  useEffect(() => {
-    if (effectiveStatus !== 'pending') return;
-
-    timerRef.current = setTimeout(() => {
-      setLocalOverride('expired');
-    }, APPROVAL_TIMEOUT_MS);
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [effectiveStatus]);
 
   const handleApprove = () => {
     if (effectiveStatus !== 'pending') return;

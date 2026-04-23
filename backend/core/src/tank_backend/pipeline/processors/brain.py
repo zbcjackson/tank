@@ -70,12 +70,21 @@ class Brain(Processor):
         self._bus = bus
         self._interrupt_event = interrupt_event
         self._tts_enabled = tts_enabled
-        self._approval_manager = approval_manager
 
-        # Register approval notification callback so sub-agent approvals
-        # go through the same Bus path as main agent approvals.
-        if approval_manager is not None:
-            approval_manager.set_on_request(self._on_approval_request)
+        # --- State-machine approval: PendingToolCallStore ---
+        from ...agents.approval import PendingToolCallStore
+
+        self._pending_store = PendingToolCallStore()
+
+        # Register ConfirmActionTool
+        from ...tools.confirm_action import ConfirmActionTool
+
+        confirm_tool = ConfirmActionTool(
+            pending_store=self._pending_store,
+            tool_manager=tool_manager,
+            approval_policy=tool_manager.approval_policy,
+        )
+        tool_manager.register_tool(confirm_tool)
 
         # Build AgentGraph — use provided one (tests) or build from config
         if agent_graph is not None:
@@ -131,7 +140,10 @@ class Brain(Processor):
                 name="chat",
                 llm=self._llm,
                 tool_manager=self._tool_manager,
-                approval_manager=self._approval_manager,
+                approval_policy=self._tool_manager.approval_policy,
+                pending_store=self._pending_store,
+                bus=self._bus,
+                current_msg_id_fn=lambda: self._current_msg_id,
             )
             return AgentGraph(agents={"chat": agent}, default_agent="chat")
 
@@ -162,8 +174,8 @@ class Brain(Processor):
             llm=agent_llm,
             tool_manager=self._tool_manager,
             bus=self._bus,
-            approval_manager=self._approval_manager,
             approval_policy=self._tool_manager.approval_policy,
+            pending_store=self._pending_store,
             definitions=definitions,
             max_depth=agents_cfg.get("max_depth", 3),
             max_concurrent=agents_cfg.get("max_concurrent", 5),
@@ -184,8 +196,10 @@ class Brain(Processor):
             llm=agent_llm,
             tool_manager=self._tool_manager,
             system_prompt=system_prompt,
-            approval_manager=self._approval_manager,
             approval_policy=self._tool_manager.approval_policy,
+            pending_store=self._pending_store,
+            bus=self._bus,
+            current_msg_id_fn=lambda: self._current_msg_id,
         )
 
         logger.info(
@@ -228,6 +242,7 @@ class Brain(Processor):
     def reset_conversation(self) -> None:
         """Clear context and start a new conversation."""
         self._context.clear()
+        self._pending_store.clear_all()
         logger.info("Conversation cleared — new: %s", self._context.conversation_id)
 
     def resume_conversation(self, conversation_id: str) -> bool:
@@ -285,22 +300,78 @@ class Brain(Processor):
             yield FlowReturn.OK, None
             return
 
-        # --- Voice approval intercept ---
-        # When there's a pending approval and user says yes/no, resolve it
-        # directly instead of sending to LLM.
-        if self._approval_manager is not None:
-            intent = _classify_approval_intent(event.text)
-            if intent is not None:
-                pending = self._approval_manager.get_pending(
-                    session_id=self._context.conversation_id,
+        # --- Mode switching: CONFIRMING vs NORMAL ---
+        # If there's a pending tool call, switch to CONFIRMING mode
+        pending = self._pending_store.get_oldest_pending()
+        if pending is not None:
+            logger.info("Brain: CONFIRMING mode — pending tool: %s", pending.description)
+            self._interrupt_event.clear()
+            started_at = time.time()
+
+            # Generate Assistant Message ID
+            assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
+            language = "zh"
+
+            # Send processing_started signal
+            self._bus.post(BusMessage(
+                type="ui_message",
+                source=self.name,
+                payload=SignalMessage(signal_type="processing_started", msg_id=assistant_msg_id),
+            ))
+
+            try:
+                audio_request = await self._process_confirmation_turn(
+                    event, pending, assistant_msg_id, language,
                 )
-                if pending:
-                    req = pending[0]  # Resolve the oldest pending request
-                    self._approval_manager.resolve(req.id, approved=intent)
-                    action = "approved" if intent else "rejected"
-                    logger.info("Voice approval: %s request %s", action, req.id)
+
+                elapsed = time.time() - started_at
+                logger.info("Brain CONFIRMING turn finished: %.3fs", elapsed)
+
+                # Yield AudioOutputRequest for TTS downstream
+                if audio_request is not None:
+                    self._echo_detector.record_tts(audio_request.content)
+                    yield FlowReturn.OK, audio_request
+                else:
                     yield FlowReturn.OK, None
-                    return
+
+            except BrainInterrupted:
+                logger.info("Brain: CONFIRMING turn interrupted")
+                self._bus.post(BusMessage(
+                    type="ui_message",
+                    source=self.name,
+                    payload=DisplayMessage(
+                        speaker="Brain", text="", is_user=False,
+                        msg_id=assistant_msg_id, is_final=True,
+                    ),
+                ))
+                yield FlowReturn.OK, None
+            except Exception as e:
+                logger.error(f"Error in CONFIRMING mode: {e}", exc_info=True)
+                error_msg = self._get_error_message(event.language)
+                self._bus.post(BusMessage(
+                    type="ui_message",
+                    source=self.name,
+                    payload=DisplayMessage(
+                        speaker="Brain",
+                        text=error_msg,
+                        is_user=False,
+                        msg_id=f"brain_err_{uuid.uuid4().hex[:8]}",
+                        is_final=True,
+                    ),
+                ))
+                yield FlowReturn.OK, None
+            finally:
+                # Always send processing_ended signal
+                self._bus.post(BusMessage(
+                    type="ui_message",
+                    source=self.name,
+                    payload=SignalMessage(
+                        signal_type="processing_ended", msg_id=assistant_msg_id,
+                    ),
+                ))
+            return
+
+        # --- NORMAL mode: proceed with standard agent processing ---
 
         self._interrupt_event.clear()
 
@@ -486,6 +557,132 @@ class Brain(Processor):
         finally:
             await gen.aclose()
 
+    async def _process_confirmation_turn(
+        self,
+        event: BrainInputEvent,
+        pending: Any,
+        msg_id: str,
+        language: str,
+    ) -> AudioOutputRequest | None:
+        """Run a CONFIRMING-mode turn with only confirm_action available.
+
+        A lightweight LLMAgent with a focused system prompt classifies the
+        user's intent (approve / reject / unclear) and calls confirm_action
+        accordingly.  The pipeline never pauses — this is a normal
+        Brain.process() → AgentGraph.run() → TTS cycle.
+        """
+        from ...agents.base import AgentOutputType, AgentState
+        from ...agents.graph import AgentGraph
+        from ...agents.llm_agent import LLMAgent
+
+        confirmation_prompt = (
+            f"There is a pending action that requires user confirmation:\n"
+            f"- Tool: {pending.tool_name}\n"
+            f"- Action: {pending.description}\n\n"
+            "Rules:\n"
+            "- If the user clearly approves → call confirm_action(approved=true)\n"
+            "- If the user clearly rejects → call confirm_action(approved=false)\n"
+            "- If unclear → ask again concisely, do NOT call confirm_action\n"
+            "- If user asks about the action → explain briefly, then re-ask\n"
+            "- If user changes topic → redirect: "
+            "'I have a pending action. Approve or reject first.'\n"
+            "- Respond in the user's language\n"
+            "- Be concise (this is a voice conversation)\n"
+        )
+
+        # Use the same LLM as the main agent
+        chat_agent = self._agent_graph._agents.get("chat")
+        agent_llm = chat_agent._llm if chat_agent else self._llm
+
+        confirm_agent = LLMAgent(
+            name="confirm",
+            llm=agent_llm,
+            tool_manager=self._tool_manager,
+            system_prompt=confirmation_prompt,
+            tool_filter=["confirm_action"],
+            approval_policy=self._tool_manager.approval_policy,
+            session_id=self._context.conversation_id or "",
+        )
+
+        confirm_graph = AgentGraph(
+            agents={"confirm": confirm_agent}, default_agent="confirm",
+        )
+
+        messages = self._context.prepare_turn(event.user, event.text)
+        state = AgentState(
+            messages=messages,
+            metadata={"msg_id": msg_id, "user": event.user},
+        )
+        self._current_msg_id = msg_id
+        full_response_text = ""
+
+        gen = confirm_graph.run(state)
+        tool_executed = False
+        try:
+            async for output in gen:
+                # Only allow interrupts BEFORE the tool has executed.
+                # Once confirm_action consumes + executes the pending call,
+                # interrupting would lose the result with no way to recover
+                # (the pending call is already gone from the store).
+                if not tool_executed and self._interrupt_event.is_set():
+                    raise BrainInterrupted()
+
+                # Track when confirm_action finishes executing
+                if output.type == AgentOutputType.TOOL_RESULT:
+                    tool_executed = True
+
+                update_type = _agent_to_update_type(output.type)
+                if update_type is None:
+                    continue
+
+                self._bus.post(BusMessage(
+                    type="ui_message",
+                    source=self.name,
+                    payload=DisplayMessage(
+                        speaker="Brain",
+                        text=output.content,
+                        is_user=False,
+                        msg_id=msg_id,
+                        is_final=False,
+                        update_type=update_type,
+                        metadata=output.metadata,
+                    ),
+                ))
+
+                if output.type == AgentOutputType.TOKEN:
+                    full_response_text += output.content
+
+            # Finalize UI block
+            self._bus.post(BusMessage(
+                type="ui_message",
+                source=self.name,
+                payload=DisplayMessage(
+                    speaker="Brain", text="", is_user=False,
+                    msg_id=msg_id, is_final=True,
+                ),
+            ))
+
+            if full_response_text:
+                turn_messages = state.metadata.get("turn_messages", [])
+                self._context.finish_turn(turn_messages)
+                if self._tts_enabled:
+                    return AudioOutputRequest(
+                        content=full_response_text, language=language,
+                    )
+
+            return None
+
+        except BrainInterrupted:
+            if full_response_text.strip():
+                turn_messages = state.metadata.get("turn_messages", [])
+                self._context.finish_turn(turn_messages)
+            raise
+        except Exception as e:
+            logger.error(f"Confirmation turn error: {e}")
+            raise
+        finally:
+            await gen.aclose()
+
     def handle_event(self, event: PipelineEvent) -> bool:
         """Handle pipeline events (interrupt, flush)."""
         if event.type == "interrupt":
@@ -503,22 +700,6 @@ class Brain(Processor):
             self._qos_skip_tools = True
             logger.info("Brain QoS: skipping tool calls (severity=%.2f)", severity)
 
-    def _on_approval_request(self, request: Any) -> None:
-        """Forward approval request from sub-agent to UI via Bus."""
-        self._bus.post(BusMessage(
-            type="ui_message",
-            source=self.name,
-            payload=DisplayMessage(
-                speaker="Brain",
-                text=request.description,
-                is_user=False,
-                msg_id=self._current_msg_id,
-                is_final=False,
-                update_type=UpdateType.APPROVAL,
-                metadata={"approval_id": request.approval_id},
-            ),
-        ))
-
     @staticmethod
     def _get_error_message(language: str | None) -> str:
         """Get error message in user's language."""
@@ -532,11 +713,6 @@ class Brain(Processor):
 # ---------------------------------------------------------------------------
 
 
-def _classify_approval_intent(text: str) -> bool | None:
-    """Classify user text as approval (True), rejection (False), or neither (None)."""
-    return _classify_approval_intent_local(text)
-
-
 def _agent_to_update_type(agent_output_type: Any) -> UpdateType | None:
     """Map AgentOutputType to UpdateType for UI messages."""
     from ...agents.base import AgentOutputType
@@ -547,58 +723,3 @@ def _agent_to_update_type(agent_output_type: Any) -> UpdateType | None:
         AgentOutputType.TOOL_EXECUTING: UpdateType.TOOL,
         AgentOutputType.TOOL_RESULT: UpdateType.TOOL,
     }.get(agent_output_type)
-
-
-# --- Voice approval intent classification ---
-
-# Keywords that indicate approval (case-insensitive)
-_POSITIVE_KEYWORDS = frozenset({
-    "yes", "yeah", "yep", "sure", "ok", "okay", "go ahead", "proceed",
-    "continue", "approve", "do it", "go for it", "confirmed",
-    "是", "是的", "好", "好的", "行", "可以", "继续", "执行", "没问题", "确认",
-})
-
-# Keywords that indicate rejection
-_NEGATIVE_KEYWORDS = frozenset({
-    "no", "nope", "cancel", "stop", "don't", "deny", "reject",
-    "abort", "never", "negative",
-    "不", "不要", "不行", "取消", "停止", "拒绝", "算了", "别",
-})
-
-
-def _classify_approval_intent_local(text: str) -> bool | None:
-    """Classify user text as approval (True), rejection (False), or ambiguous (None).
-
-    Uses simple keyword matching. Returns None for ambiguous text,
-    which falls through to normal LLM processing.
-    """
-    normalized = text.strip().lower()
-    if not normalized:
-        return None
-
-    # Check exact matches
-    if normalized in _POSITIVE_KEYWORDS:
-        return True
-    if normalized in _NEGATIVE_KEYWORDS:
-        return False
-
-    # Check if the text starts with a keyword (handles "yes, please" etc.)
-    for kw in _POSITIVE_KEYWORDS:
-        if normalized.startswith(kw) and (
-            len(normalized) == len(kw) or not normalized[len(kw)].isalpha()
-        ):
-            return True
-    for kw in _NEGATIVE_KEYWORDS:
-        if normalized.startswith(kw) and (
-            len(normalized) == len(kw) or not normalized[len(kw)].isalpha()
-        ):
-            return False
-
-    return None
-
-
-def _build_approval_prompt(description: str, language: str) -> str:
-    """Build a TTS prompt for approval confirmation."""
-    if language and language.startswith("zh"):
-        return f"我想要{description}。可以继续吗？"
-    return f"I'd like to {description}. Should I proceed?"

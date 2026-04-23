@@ -154,12 +154,14 @@ class TestAgentRunner:
             ),
         }
 
+        from tank_backend.agents.approval import PendingToolCallStore
+
         return AgentRunner(
             llm=_make_llm(),
             tool_manager=_make_tool_manager(),
             bus=MagicMock(),
-            approval_manager=MagicMock(),
             approval_policy=MagicMock(),
+            pending_store=PendingToolCallStore(),
             definitions=defs,
         )
 
@@ -187,6 +189,7 @@ class TestAgentRunner:
 
     @pytest.mark.asyncio()
     async def test_depth_limit_enforced(self) -> None:
+        from tank_backend.agents.approval import PendingToolCallStore
         from tank_backend.agents.definition import AgentDefinition
         from tank_backend.agents.runner import AgentRunner
 
@@ -194,8 +197,8 @@ class TestAgentRunner:
             llm=_make_llm(),
             tool_manager=_make_tool_manager(),
             bus=MagicMock(),
-            approval_manager=MagicMock(),
             approval_policy=MagicMock(),
+            pending_store=PendingToolCallStore(),
             definitions={
                 "coder": AgentDefinition(
                     name="coder",
@@ -243,6 +246,7 @@ class TestAgentRunner:
 class TestAgentTool:
     def test_get_info(self) -> None:
         from tank_backend.agents.agent_tool import AgentTool
+        from tank_backend.agents.approval import PendingToolCallStore
         from tank_backend.agents.definition import AgentDefinition
         from tank_backend.agents.runner import AgentRunner
 
@@ -250,8 +254,8 @@ class TestAgentTool:
             llm=_make_llm(),
             tool_manager=_make_tool_manager(),
             bus=MagicMock(),
-            approval_manager=MagicMock(),
             approval_policy=MagicMock(),
+            pending_store=PendingToolCallStore(),
             definitions={
                 "coder": AgentDefinition(
                     name="coder", description="code", system_prompt="code",
@@ -268,14 +272,15 @@ class TestAgentTool:
     @pytest.mark.asyncio()
     async def test_execute_unknown_type(self) -> None:
         from tank_backend.agents.agent_tool import AgentTool
+        from tank_backend.agents.approval import PendingToolCallStore
         from tank_backend.agents.runner import AgentRunner
 
         runner = AgentRunner(
             llm=_make_llm(),
             tool_manager=_make_tool_manager(),
             bus=MagicMock(),
-            approval_manager=MagicMock(),
             approval_policy=MagicMock(),
+            pending_store=PendingToolCallStore(),
             definitions={},
         )
 
@@ -286,6 +291,7 @@ class TestAgentTool:
     @pytest.mark.asyncio()
     async def test_execute_coder(self) -> None:
         from tank_backend.agents.agent_tool import AgentTool
+        from tank_backend.agents.approval import PendingToolCallStore
         from tank_backend.agents.definition import AgentDefinition
         from tank_backend.agents.runner import AgentRunner
 
@@ -293,8 +299,8 @@ class TestAgentTool:
             llm=_make_llm(),
             tool_manager=_make_tool_manager(),
             bus=MagicMock(),
-            approval_manager=MagicMock(),
             approval_policy=MagicMock(),
+            pending_store=PendingToolCallStore(),
             definitions={
                 "coder": AgentDefinition(
                     name="coder", description="code", system_prompt="code",

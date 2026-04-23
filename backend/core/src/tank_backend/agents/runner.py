@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from ..llm.llm import LLM
     from ..pipeline.bus import Bus
     from ..tools.manager import ToolManager
-    from .approval import ApprovalManager, ToolApprovalPolicy
+    from .approval import PendingToolCallStore, ToolApprovalPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +45,8 @@ class AgentRunner:
         llm: LLM,
         tool_manager: ToolManager,
         bus: Bus,
-        approval_manager: ApprovalManager,
         approval_policy: ToolApprovalPolicy,
+        pending_store: PendingToolCallStore,
         definitions: dict[str, AgentDefinition],
         max_depth: int = MAX_AGENT_DEPTH,
         max_concurrent: int = MAX_CONCURRENT_AGENTS,
@@ -54,8 +54,8 @@ class AgentRunner:
         self._llm = llm
         self._tool_manager = tool_manager
         self._bus = bus
-        self._approval_manager = approval_manager
         self._approval_policy = approval_policy
+        self._pending_store = pending_store
         self._definitions = definitions
         self._max_depth = max_depth
         self._max_concurrent = max_concurrent
@@ -156,9 +156,10 @@ class AgentRunner:
             tool_manager=self._tool_manager,
             system_prompt=system_prompt,
             exclude_tools=exclude_tools,
-            approval_manager=self._approval_manager,
             approval_policy=self._approval_policy,
             session_id=agent_id,
+            pending_store=self._pending_store,
+            bus=self._bus,
         )
 
         state = AgentState(

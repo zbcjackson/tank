@@ -135,13 +135,12 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
   );
 
   const respondToApproval = useCallback(
-    (approvalId: string, approved: boolean) => {
+    (_approvalId: string, approved: boolean) => {
       if (!clientRef.current) return;
-      clientRef.current.sendMessage('approval_response', '', {
-        approval_id: approvalId,
-        approved,
-        reason: '',
-      });
+      // State-machine approval: send as text input so Brain's CONFIRMING
+      // mode handles it via the LLM + confirm_action tool.
+      const text = approved ? 'approved' : 'rejected';
+      clientRef.current.sendMessage('input', text, {});
     },
     [clientRef],
   );

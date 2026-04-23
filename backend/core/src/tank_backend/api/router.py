@@ -191,20 +191,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     user_name = _resolve_user_name(user_id)
                     assistant.process_input(msg.content, user=user_name)
                 elif msg.type == MessageType.APPROVAL_RESPONSE:
-                    approval_id = msg.metadata.get("approval_id", "")
+                    # Legacy: UI button clicks now send text input instead.
+                    # Convert to a text input so the Brain's CONFIRMING mode
+                    # handles it via the LLM + confirm_action tool.
                     approved = msg.metadata.get("approved", False)
-                    reason = msg.metadata.get("reason", "")
-                    approval_mgr = assistant.approval_manager
-                    if approval_mgr and approval_id:
-                        approval_mgr.resolve(
-                            approval_id, approved=approved, reason=reason
-                        )
-                    else:
-                        logger.warning(
-                            "Approval response ignored: mgr=%s id=%s",
-                            approval_mgr is not None,
-                            approval_id,
-                        )
+                    text = "approved" if approved else "rejected"
+                    assistant.process_input(text, user="user")
 
     except (WebSocketDisconnect, DisconnectSignal):
         logger.info(f"WebSocket disconnected: {session_id}")

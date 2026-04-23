@@ -170,7 +170,6 @@ class Assistant:
             app_config=self._app_config,
             tts_enabled=tts_engine is not None,
             echo_guard_config=echo_guard_cfg,
-            approval_manager=self._tool_manager.approval_manager,
         )
         builder.add(self.brain)
 
@@ -361,7 +360,11 @@ class Assistant:
 
     @property
     def approval_manager(self):
-        """Return the ApprovalManager instance, or None if not configured."""
+        """Return the ApprovalManager instance, or None if not configured.
+
+        Kept for backward compatibility (REST approvals endpoint).
+        The state-machine approval flow no longer uses this.
+        """
         return self._tool_manager.approval_manager
 
     @property

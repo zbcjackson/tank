@@ -1,14 +1,18 @@
-"""Integration tests for approval flow in ChatAgent."""
+"""Integration tests for approval flow in ChatAgent (state-machine approach)."""
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-from tank_backend.agents.approval import ApprovalManager, ToolApprovalPolicy
+from tank_backend.agents.approval import (
+    PendingToolCallStore,
+    ToolApprovalPolicy,
+    _build_tool_description,
+)
 from tank_backend.agents.base import AgentOutputType, AgentState
-from tank_backend.agents.llm_agent import ChatAgent, _build_tool_description, _parse_tool_args
+from tank_backend.agents.llm_agent import ChatAgent, _parse_tool_args
 from tank_backend.core.events import UpdateType
+from tank_backend.pipeline.bus import Bus
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -86,90 +90,60 @@ class TestChatAgentWithoutApproval:
         assert AgentOutputType.TOOL_RESULT in types
         assert AgentOutputType.TOKEN in types
         assert AgentOutputType.DONE in types
-        # No APPROVAL_NEEDED
-        assert AgentOutputType.APPROVAL_NEEDED not in types
 
 
-class TestChatAgentApprovalFlow:
-    """Tests for ChatAgent with approval configured."""
+class TestChatAgentGateFlow:
+    """Tests for ChatAgent with the state-machine approval gate."""
 
-    async def test_approval_needed_yielded_for_requiring_tool(self):
-        """When a tool requires approval, APPROVAL_NEEDED is yielded instead of TOOL_EXECUTING."""
+    async def test_restricted_tool_returns_error_via_gate(self):
+        """When a tool requires approval, the gate returns an error dict
+        instead of executing the tool."""
         policy = ToolApprovalPolicy(require_approval={"run_command"})
-        manager = ApprovalManager(timeout=5.0)
+        store = PendingToolCallStore()
+        bus = Bus()
 
-        llm = MagicMock()
-        llm.chat_stream = MagicMock(return_value=_llm_stream_with_tool("run_command"))
+        # Mock the tool manager to track if it was called
         tm = _make_tool_manager_mock()
+        tm.execute_openai_tool_call = AsyncMock(return_value={"result": "42"})
 
-        agent = ChatAgent(
-            name="test", llm=llm, tool_manager=tm,
-            approval_manager=manager, approval_policy=policy,
+        # Create a gate executor directly to test its behavior
+        from tank_backend.agents.approval import ApprovalGateExecutor
+
+        gate = ApprovalGateExecutor(
+            tool_manager=tm,
+            approval_policy=policy,
+            pending_store=store,
             session_id="s1",
+            bus=bus,
+            current_msg_id_fn=lambda: "msg1",
         )
 
-        state = AgentState(messages=[{"role": "user", "content": "run code"}])
+        # Mock tool call
+        tool_call = MagicMock()
+        tool_call.id = "call_123"
+        tool_call.function.name = "run_command"
+        tool_call.function.arguments = '{"command": "ls"}'
 
-        # Auto-approve in background after a short delay
-        async def auto_approve():
-            await asyncio.sleep(0.05)
-            pending = manager.get_pending(session_id="s1")
-            assert len(pending) == 1
-            manager.resolve(pending[0].approval_id, approved=True)
+        result = await gate.execute_openai_tool_call(tool_call)
 
-        asyncio.get_event_loop().create_task(auto_approve())
+        # Should return error dict, not execute
+        assert "error" in result
+        assert "APPROVAL REQUIRED" in result["error"]
+        tm.execute_openai_tool_call.assert_not_called()
 
-        outputs = await _collect_outputs(agent, state)
-        types = [o[0] for o in outputs]
+        # The pending store should have the parked call
+        pending = store.get_oldest_pending()
+        assert pending is not None
+        assert pending.tool_name == "run_command"
 
-        assert AgentOutputType.APPROVAL_NEEDED in types
-        # TOOL_EXECUTING should NOT appear (replaced by APPROVAL_NEEDED)
-        assert AgentOutputType.TOOL_EXECUTING not in types
-        # After approval, TOOL_RESULT should appear
-        assert AgentOutputType.TOOL_RESULT in types
-        assert AgentOutputType.DONE in types
-
-    async def test_rejection_returns_error_in_tool_result(self):
-        """When user rejects, the tool result should contain a rejection message."""
-        policy = ToolApprovalPolicy(require_approval={"run_command"})
-        manager = ApprovalManager(timeout=5.0)
-
-        llm = MagicMock()
-        llm.chat_stream = MagicMock(return_value=_llm_stream_with_tool("run_command"))
-        tm = _make_tool_manager_mock()
-
-        agent = ChatAgent(
-            name="test", llm=llm, tool_manager=tm,
-            approval_manager=manager, approval_policy=policy,
-            session_id="s1",
-        )
-
-        state = AgentState(messages=[{"role": "user", "content": "run code"}])
-
-        async def auto_reject():
-            await asyncio.sleep(0.05)
-            pending = manager.get_pending(session_id="s1")
-            manager.resolve(pending[0].approval_id, approved=False, reason="Not safe")
-
-        asyncio.get_event_loop().create_task(auto_reject())
-
-        outputs = await _collect_outputs(agent, state)
-        types = [o[0] for o in outputs]
-
-        assert AgentOutputType.APPROVAL_NEEDED in types
-        # Tool result should contain rejection
-        tool_results = [o for o in outputs if o[0] == AgentOutputType.TOOL_RESULT]
-        assert len(tool_results) >= 1
-        # The executor should NOT have been called with the real tool
-        # (it returns a rejection error dict instead)
-
-    async def test_always_approve_tool_skips_approval(self):
-        """Tools in always_approve should execute without APPROVAL_NEEDED."""
+    async def test_always_approve_tool_skips_gate(self):
+        """Tools in always_approve should execute without being parked."""
         policy = ToolApprovalPolicy(
             always_approve={"calculate"},
             require_approval={"run_command"},
         )
-        manager = ApprovalManager(timeout=5.0)
+        store = PendingToolCallStore()
+        bus = Bus()
 
         llm = MagicMock()
         llm.chat_stream = MagicMock(
@@ -179,7 +153,9 @@ class TestChatAgentApprovalFlow:
 
         agent = ChatAgent(
             name="test", llm=llm, tool_manager=tm,
-            approval_manager=manager, approval_policy=policy,
+            approval_policy=policy,
+            pending_store=store,
+            bus=bus,
             session_id="s1",
         )
 
@@ -187,83 +163,31 @@ class TestChatAgentApprovalFlow:
         outputs = await _collect_outputs(agent, state)
         types = [o[0] for o in outputs]
 
-        assert AgentOutputType.APPROVAL_NEEDED not in types
         assert AgentOutputType.TOOL_EXECUTING in types
+        assert store.get_oldest_pending() is None
 
-    async def test_first_time_approval_then_auto(self):
-        """first-time tools should ask once, then auto-approve."""
-        policy = ToolApprovalPolicy(require_approval_first_time={"web_search"})
-        manager = ApprovalManager(timeout=5.0)
-
-        llm = MagicMock()
-        tm = _make_tool_manager_mock()
-        tm.get_openai_tools.return_value = [
-            {"type": "function", "function": {"name": "web_search", "parameters": {}}},
-        ]
-
-        # First run: should need approval
-        llm.chat_stream = MagicMock(
-            return_value=_llm_stream_with_tool("web_search", '{"query":"test"}'),
-        )
-
-        agent = ChatAgent(
-            name="test", llm=llm, tool_manager=tm,
-            approval_manager=manager, approval_policy=policy,
-            session_id="s1",
-        )
-
-        state = AgentState(messages=[{"role": "user", "content": "search test"}])
-
-        async def auto_approve():
-            await asyncio.sleep(0.05)
-            pending = manager.get_pending(session_id="s1")
-            if pending:
-                manager.resolve(pending[0].approval_id, approved=True)
-
-        asyncio.get_event_loop().create_task(auto_approve())
-
-        outputs1 = await _collect_outputs(agent, state)
-        types1 = [o[0] for o in outputs1]
-        assert AgentOutputType.APPROVAL_NEEDED in types1
-
-        # In real flow, the ApprovalToolExecutor calls policy.record_approved()
-        # after the Future resolves. With mock LLM streams, the executor isn't
-        # called, so we simulate the record_approved call.
-        policy.record_approved("web_search")
-
-        # Second run: should auto-approve (no APPROVAL_NEEDED)
-        llm.chat_stream = MagicMock(
-            return_value=_llm_stream_with_tool("web_search", '{"query":"test2"}'),
-        )
-        agent2 = ChatAgent(
-            name="test", llm=llm, tool_manager=tm,
-            approval_manager=manager, approval_policy=policy,
-            session_id="s1",
-        )
-        state2 = AgentState(messages=[{"role": "user", "content": "search test2"}])
-        outputs2 = await _collect_outputs(agent2, state2)
-        types2 = [o[0] for o in outputs2]
-        assert AgentOutputType.APPROVAL_NEEDED not in types2
-
-    async def test_no_tools_no_approval(self):
+    async def test_no_tools_no_gate(self):
         """Text-only responses should work with approval configured."""
         policy = ToolApprovalPolicy(require_approval={"run_command"})
-        manager = ApprovalManager(timeout=5.0)
+        store = PendingToolCallStore()
+        bus = Bus()
 
         llm = MagicMock()
         llm.chat_stream = MagicMock(return_value=_llm_stream_text_only())
 
         agent = ChatAgent(
             name="test", llm=llm,
-            approval_manager=manager, approval_policy=policy,
+            approval_policy=policy,
+            pending_store=store,
+            bus=bus,
         )
 
         state = AgentState(messages=[{"role": "user", "content": "hello"}])
         outputs = await _collect_outputs(agent, state)
         types = [o[0] for o in outputs]
 
-        assert AgentOutputType.APPROVAL_NEEDED not in types
         assert AgentOutputType.TOKEN in types
+        assert store.get_oldest_pending() is None
 
 
 # ---------------------------------------------------------------------------

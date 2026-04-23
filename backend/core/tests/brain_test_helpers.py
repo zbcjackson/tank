@@ -33,13 +33,13 @@ def make_brain(
     tts_enabled: bool = True,
     echo_guard_config: object | None = None,
     agent_graph: object | None = None,
-    approval_manager: object | None = None,
 ) -> Brain:
     """Create a Brain with sensible mock defaults for testing."""
     if llm is None:
         llm = MagicMock()
     if tool_manager is None:
         tool_manager = MagicMock()
+        tool_manager.approval_policy = MagicMock()
     if config is None:
         config = BrainConfig()
     if bus is None:
@@ -59,7 +59,6 @@ def make_brain(
             name="chat",
             llm=llm,
             tool_manager=tool_manager,
-            approval_manager=approval_manager,
         )
         agent_graph = AgentGraph(agents={"chat": mock_agent}, default_agent="chat")
 
@@ -84,5 +83,4 @@ def make_brain(
             tts_enabled=tts_enabled,
             echo_guard_config=echo_guard_config,
             agent_graph=agent_graph,
-            approval_manager=approval_manager,
         )

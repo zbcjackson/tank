@@ -1,6 +1,14 @@
 """Agent orchestration layer for the Tank backend."""
 
-from .approval import ApprovalManager, ApprovalRequest, ApprovalResult, ToolApprovalPolicy
+from .approval import (
+    ApprovalGateExecutor,
+    ApprovalManager,
+    ApprovalRequest,
+    ApprovalResult,
+    PendingToolCall,
+    PendingToolCallStore,
+    ToolApprovalPolicy,
+)
 from .base import Agent, AgentOutput, AgentOutputType, AgentState
 from .definition import AgentDefinition
 from .graph import AgentGraph
@@ -15,10 +23,13 @@ __all__ = [
     "AgentOutputType",
     "AgentRunner",
     "AgentState",
+    "ApprovalGateExecutor",
     "ApprovalManager",
     "ApprovalRequest",
     "ApprovalResult",
     "ChatAgent",
     "LLMAgent",
+    "PendingToolCall",
+    "PendingToolCallStore",
     "ToolApprovalPolicy",
 ]
