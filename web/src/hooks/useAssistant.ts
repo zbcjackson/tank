@@ -194,15 +194,68 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
       const { fetchConversationMessages } = await import('./useConversationList');
       try {
         const historyMsgs = await fetchConversationMessages(conversationId);
-        const historySteps: Step[] = historyMsgs.map((m, i) => ({
-          id: `history_${i}`,
-          role: m.role as 'user' | 'assistant',
-          type: 'text' as StepType,
-          content: m.content,
-          msgId: m.msg_id,
-          isFinal: true,
-          speaker: m.name,
-        }));
+        const historySteps: Step[] = [];
+
+        // Build a lookup of tool_call_id → tool result content for pairing
+        const toolResults = new Map<string, string>();
+        for (const m of historyMsgs) {
+          if (m.role === 'tool' && m.tool_call_id) {
+            toolResults.set(m.tool_call_id, m.content);
+          }
+        }
+
+        let stepIdx = 0;
+        for (const m of historyMsgs) {
+          // Skip raw tool-result messages — they're merged into tool steps below
+          if (m.role === 'tool') continue;
+
+          const msgId = m.msg_id;
+
+          // If assistant message has tool_calls, emit tool steps
+          if (m.role === 'assistant' && m.tool_calls?.length) {
+            for (const tc of m.tool_calls) {
+              const result = toolResults.get(tc.id);
+              const toolData: ToolContent = {
+                name: tc.function.name,
+                arguments: tc.function.arguments,
+                status: result !== undefined ? 'success' : 'calling',
+                result: result ?? undefined,
+              };
+              historySteps.push({
+                id: `history_tool_${stepIdx++}`,
+                role: 'assistant',
+                type: 'tool',
+                content: toolData,
+                msgId,
+                isFinal: true,
+              });
+            }
+            // If the assistant message also has text content, emit a text step
+            if (m.content) {
+              historySteps.push({
+                id: `history_text_${stepIdx++}`,
+                role: 'assistant',
+                type: 'text',
+                content: m.content,
+                msgId,
+                isFinal: true,
+                speaker: m.name,
+              });
+            }
+          } else {
+            // Regular user or assistant text message
+            historySteps.push({
+              id: `history_text_${stepIdx++}`,
+              role: m.role as 'user' | 'assistant',
+              type: 'text',
+              content: m.content,
+              msgId,
+              isFinal: true,
+              speaker: m.name,
+            });
+          }
+        }
+
         loadHistory(historySteps);
 
         clientRef.current?.sendMessage('signal', 'resume_conversation', {

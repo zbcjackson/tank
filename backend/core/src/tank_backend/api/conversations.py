@@ -61,19 +61,35 @@ async def get_conversation_messages(conversation_id: str) -> dict[str, Any]:
 def _format_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Convert internal messages to frontend-friendly format.
 
-    Skips system messages. Each message gets a stable ``msg_id``.
+    Skips system messages. Preserves tool_calls and tool results so the
+    frontend can reconstruct tool cards and approval cards on resume.
     """
     result: list[dict[str, Any]] = []
     for i, msg in enumerate(messages):
-        if msg.get("role") == "system":
+        role = msg.get("role")
+        if role == "system":
             continue
+
         entry: dict[str, Any] = {
-            "role": msg["role"],
-            "content": msg.get("content", ""),
+            "role": role,
+            "content": msg.get("content", "") or "",
             "msg_id": f"history_{i}",
         }
+
         name = msg.get("name")
         if name:
             entry["name"] = name
+
+        # Preserve tool_calls on assistant messages so the frontend
+        # can render tool cards for the history.
+        tool_calls = msg.get("tool_calls")
+        if tool_calls:
+            entry["tool_calls"] = tool_calls
+
+        # Mark tool-result messages so the frontend can pair them
+        # with the corresponding tool_call.
+        if role == "tool":
+            entry["tool_call_id"] = msg.get("tool_call_id", "")
+
         result.append(entry)
     return result

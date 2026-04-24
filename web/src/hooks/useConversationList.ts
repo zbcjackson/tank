@@ -36,10 +36,19 @@ export function useConversationList() {
 }
 
 export interface HistoryMessage {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'tool';
   content: string;
   name?: string;
   msg_id: string;
+  tool_calls?: Array<{
+    id: string;
+    type: string;
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }>;
+  tool_call_id?: string;
 }
 
 export async function fetchConversationMessages(conversationId: string): Promise<HistoryMessage[]> {
