@@ -168,8 +168,6 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
             );
             if (approvalIdx > -1) {
               const ac = updated[approvalIdx].content as ApprovalContent;
-              // The UI display string starts with "Rejected:" for rejections
-              // and "Executed:" for approvals. The error status also means rejection.
               const isRejected = status === 'error'
                 || toolData.result?.startsWith('Rejected:');
               updated[approvalIdx] = {
@@ -232,7 +230,9 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
             toolName: (msg.metadata?.tool_name as string) || '',
             toolArgs: (msg.metadata?.tool_args as Record<string, unknown>) || {},
             description: (msg.metadata?.description as string) || msg.content || '',
-            status: 'pending',
+            status: existingIdx > -1
+              ? (updated[existingIdx].content as ApprovalContent).status
+              : 'pending',
           };
 
           if (existingIdx > -1) {

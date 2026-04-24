@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ShieldCheck, Check, X } from 'lucide-react';
 import type { ApprovalContent } from '../../types/message';

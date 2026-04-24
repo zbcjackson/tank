@@ -5,12 +5,8 @@ import { MessageStep } from './MessageStep';
 import { EnrollmentBanner } from './EnrollmentBanner';
 import { UserSelector } from './UserSelector';
 import type { Step } from '../../types/message';
+import { ActivityIndicator } from './ActivityIndicator';
 import type { AssistantStatus } from '../../hooks/useAssistant';
-
-const DOT_ANIMATE = { opacity: [0.2, 0.8, 0.2] };
-const DOT_TRANSITION_0 = { repeat: Infinity, duration: 1.2 };
-const DOT_TRANSITION_1 = { repeat: Infinity, duration: 1.2, delay: 0.15 };
-const DOT_TRANSITION_2 = { repeat: Infinity, duration: 1.2, delay: 0.3 };
 
 const CHAT_BG_STYLE = { background: '#0a0a0a' };
 const EMPTY_STATE_STYLE = {
@@ -190,30 +186,12 @@ export const ChatMode = ({
             );
           })}
 
-          {/* Typing indicator */}
-          {assistantStatus === 'thinking' &&
-            messages.length > 0 &&
-            !messages.some((m) => m.role === 'assistant' && m.type === 'thinking') && (
-              <div data-testid="typing-indicator" className="flex justify-start mt-4">
-                <div className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-surface-raised">
-                  <motion.span
-                    animate={DOT_ANIMATE}
-                    transition={DOT_TRANSITION_0}
-                    className="w-1 h-1 bg-amber-500 rounded-full"
-                  />
-                  <motion.span
-                    animate={DOT_ANIMATE}
-                    transition={DOT_TRANSITION_1}
-                    className="w-1 h-1 bg-amber-500 rounded-full"
-                  />
-                  <motion.span
-                    animate={DOT_ANIMATE}
-                    transition={DOT_TRANSITION_2}
-                    className="w-1 h-1 bg-amber-500 rounded-full"
-                  />
-                </div>
-              </div>
-            )}
+          {/* Activity indicator — covers all active states */}
+          {assistantStatus !== 'idle' && (
+            <div data-testid="activity-indicator" className="flex justify-start mt-4">
+              <ActivityIndicator status={assistantStatus} />
+            </div>
+          )}
         </div>
       </div>
 

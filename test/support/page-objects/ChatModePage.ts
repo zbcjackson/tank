@@ -15,8 +15,8 @@ export class ChatModePage {
     return this.page.locator('[data-testid="empty-state"]');
   }
 
-  typingIndicator(): Locator {
-    return this.page.locator('[data-testid="typing-indicator"]');
+  activityIndicator(): Locator {
+    return this.page.locator('[data-testid="activity-indicator"]');
   }
 
   assistantMessage(): Locator {

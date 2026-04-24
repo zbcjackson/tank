@@ -29,7 +29,7 @@ When('the user types {string} and sends it', async function (this: TankWorld, te
 
 Then('the typing indicator is visible', async function (this: TankWorld) {
   const chatPage = new ChatModePage(this.page);
-  await chatPage.typingIndicator().waitFor({ state: 'visible', timeout: 30000 });
+  await chatPage.activityIndicator().waitFor({ state: 'visible', timeout: 30000 });
 });
 
 Then('eventually an assistant message appears', async function (this: TankWorld) {
@@ -39,7 +39,7 @@ Then('eventually an assistant message appears', async function (this: TankWorld)
 
 Then('the typing indicator disappears', async function (this: TankWorld) {
   const chatPage = new ChatModePage(this.page);
-  await chatPage.typingIndicator().waitFor({ state: 'hidden', timeout: 30000 });
+  await chatPage.activityIndicator().waitFor({ state: 'hidden', timeout: 30000 });
 });
 
 Then('the stop button is visible', async function (this: TankWorld) {
