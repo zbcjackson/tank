@@ -145,6 +145,7 @@ class Brain(Processor):
                 bus=self._bus,
                 current_msg_id_fn=lambda: self._current_msg_id,
             )
+            self._agent_llm = self._llm
             return AgentGraph(agents={"chat": agent}, default_agent="chat")
 
         from ...agents.definition import load_agent_definitions
@@ -206,6 +207,7 @@ class Brain(Processor):
             "AgentGraph built: agent=chat, %d agent definitions loaded",
             len(definitions),
         )
+        self._agent_llm = agent_llm
         return AgentGraph(agents={"chat": main_agent}, default_agent="chat")
 
     @staticmethod
@@ -607,13 +609,9 @@ class Brain(Processor):
             "- Be concise (this is a voice conversation)\n"
         )
 
-        # Use the same LLM as the main agent
-        chat_agent = self._agent_graph._agents.get("chat")
-        agent_llm = chat_agent._llm if chat_agent else self._llm
-
         confirm_agent = LLMAgent(
             name="confirm",
-            llm=agent_llm,
+            llm=self._agent_llm,
             tool_manager=self._tool_manager,
             system_prompt=confirmation_prompt,
             tool_filter=["confirm_action"],
