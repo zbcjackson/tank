@@ -206,6 +206,3 @@ def _parse_tool_args(args_str: str) -> dict[str, Any]:
 
 # Re-export from canonical location for backward compatibility
 from .approval import _build_tool_description  # noqa: E402, F401
-
-# Backward compat alias — old code imports ChatAgent from this module
-ChatAgent = LLMAgent

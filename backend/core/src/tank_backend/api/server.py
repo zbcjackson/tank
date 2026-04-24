@@ -15,8 +15,6 @@ from fastapi.responses import JSONResponse  # noqa: E402
 from ..context import create_store  # noqa: E402
 from ..plugin import AppConfig  # noqa: E402
 from ..plugin.manager import PluginManager  # noqa: E402
-from .approvals import router as approvals_router  # noqa: E402
-from .approvals import set_connection_manager as set_approvals_connection_manager  # noqa: E402
 from .conversations import router as conversations_router  # noqa: E402
 from .conversations import set_store as set_conversations_store  # noqa: E402
 from .manager import ConnectionManager  # noqa: E402
@@ -69,13 +67,11 @@ app.include_router(router)
 app.include_router(speakers_router)
 app.include_router(users_router)
 app.include_router(metrics_router)
-app.include_router(approvals_router)
 app.include_router(conversations_router)
 app.include_router(skills_router)
 set_router_connection_manager(connection_manager)
 set_connection_manager(connection_manager)
 set_metrics_connection_manager(connection_manager)
-set_approvals_connection_manager(connection_manager)
 set_skills_connection_manager(connection_manager)
 set_users_connection_manager(connection_manager)
 set_conversations_store(_store)

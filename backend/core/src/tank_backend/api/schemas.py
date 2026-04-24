@@ -16,7 +16,6 @@ class MessageType(str, Enum):
     TEXT = "text"  # LLM text response deltas
     UPDATE = "update"  # UI/State updates (tool calls, etc.)
     INPUT = "input"  # Client-side text input (keyboard)
-    APPROVAL_RESPONSE = "approval_response"  # User approval/rejection of tool execution
 
 
 class WebsocketMessage(BaseModel):

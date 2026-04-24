@@ -1,4 +1,4 @@
-"""Integration tests for approval flow in ChatAgent (state-machine approach)."""
+"""Integration tests for approval flow in LLMAgent (state-machine approach)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from tank_backend.agents.approval import (
     _build_tool_description,
 )
 from tank_backend.agents.base import AgentOutputType, AgentState
-from tank_backend.agents.llm_agent import ChatAgent, _parse_tool_args
+from tank_backend.agents.llm_agent import LLMAgent, _parse_tool_args
 from tank_backend.core.events import UpdateType
 from tank_backend.pipeline.bus import Bus
 
@@ -57,7 +57,7 @@ async def _llm_stream_text_only():
 
 
 async def _collect_outputs(
-    agent: ChatAgent, state: AgentState,
+    agent: LLMAgent, state: AgentState,
 ) -> list[tuple[AgentOutputType, str, dict]]:
     """Collect all outputs from an agent run."""
     outputs = []
@@ -71,15 +71,15 @@ async def _collect_outputs(
 # ---------------------------------------------------------------------------
 
 
-class TestChatAgentWithoutApproval:
-    """ChatAgent should work normally when no approval is configured."""
+class TestLLMAgentWithoutApproval:
+    """LLMAgent should work normally when no approval is configured."""
 
     async def test_no_approval_passes_tools_directly(self):
         llm = MagicMock()
         llm.chat_stream = MagicMock(return_value=_llm_stream_with_tool("run_command"))
         tm = _make_tool_manager_mock()
 
-        agent = ChatAgent(name="test", llm=llm, tool_manager=tm)
+        agent = LLMAgent(name="test", llm=llm, tool_manager=tm)
         state = AgentState(messages=[{"role": "user", "content": "run code"}])
         outputs = await _collect_outputs(agent, state)
 
@@ -92,8 +92,8 @@ class TestChatAgentWithoutApproval:
         assert AgentOutputType.DONE in types
 
 
-class TestChatAgentGateFlow:
-    """Tests for ChatAgent with the state-machine approval gate."""
+class TestLLMAgentGateFlow:
+    """Tests for LLMAgent with the state-machine approval gate."""
 
     async def test_restricted_tool_returns_error_via_gate(self):
         """When a tool requires approval, the gate returns an error dict
@@ -151,7 +151,7 @@ class TestChatAgentGateFlow:
         )
         tm = _make_tool_manager_mock()
 
-        agent = ChatAgent(
+        agent = LLMAgent(
             name="test", llm=llm, tool_manager=tm,
             approval_policy=policy,
             pending_store=store,
@@ -175,7 +175,7 @@ class TestChatAgentGateFlow:
         llm = MagicMock()
         llm.chat_stream = MagicMock(return_value=_llm_stream_text_only())
 
-        agent = ChatAgent(
+        agent = LLMAgent(
             name="test", llm=llm,
             approval_policy=policy,
             pending_store=store,

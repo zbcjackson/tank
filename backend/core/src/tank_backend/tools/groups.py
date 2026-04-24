@@ -16,38 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------
-
-def make_approval_callback(approval_manager: Any, bus: Any = None) -> Any:
-    """Create an ApprovalCallback that bridges to ApprovalManager + Bus.
-
-    Returns an async callable matching the ``ApprovalCallback`` protocol.
-    """
-
-    async def callback(
-        tool_name: str, path: str, operation: str, reason: str,
-    ) -> bool:
-        from ..agents.approval import (
-            ApprovalRequest,
-            make_approval_id,
-            request_with_notification,
-        )
-
-        request = ApprovalRequest(
-            approval_id=make_approval_id(),
-            tool_name=tool_name,
-            tool_args={"path": path, "operation": operation},
-            description=f"{operation} {path} ({reason})",
-            session_id="file_access",
-        )
-        result = await request_with_notification(approval_manager, request, bus)
-        return result.approved
-
-    return callback
-
-
-# ------------------------------------------------------------------
 # Concrete groups
 # ------------------------------------------------------------------
 

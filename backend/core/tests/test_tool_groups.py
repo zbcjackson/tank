@@ -190,12 +190,6 @@ def test_tool_manager_creates_default_tools():
     assert "get_weather" in tm.tools
 
 
-def test_tool_manager_has_approval_manager():
-    cfg = _make_app_config()
-    tm = ToolManager(app_config=cfg)
-    assert tm.approval_manager is not None
-
-
 def test_tool_manager_has_approval_policy():
     cfg = _make_app_config()
     tm = ToolManager(app_config=cfg)

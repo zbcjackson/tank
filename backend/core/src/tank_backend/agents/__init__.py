@@ -2,9 +2,6 @@
 
 from .approval import (
     ApprovalGateExecutor,
-    ApprovalManager,
-    ApprovalRequest,
-    ApprovalResult,
     PendingToolCall,
     PendingToolCallStore,
     ToolApprovalPolicy,
@@ -12,7 +9,7 @@ from .approval import (
 from .base import Agent, AgentOutput, AgentOutputType, AgentState
 from .definition import AgentDefinition
 from .graph import AgentGraph
-from .llm_agent import ChatAgent, LLMAgent
+from .llm_agent import LLMAgent
 from .runner import AgentRunner
 
 __all__ = [
@@ -24,10 +21,6 @@ __all__ = [
     "AgentRunner",
     "AgentState",
     "ApprovalGateExecutor",
-    "ApprovalManager",
-    "ApprovalRequest",
-    "ApprovalResult",
-    "ChatAgent",
     "LLMAgent",
     "PendingToolCall",
     "PendingToolCallStore",

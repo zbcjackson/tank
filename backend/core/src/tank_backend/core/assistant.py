@@ -359,15 +359,6 @@ class Assistant:
         return diff
 
     @property
-    def approval_manager(self):
-        """Return the ApprovalManager instance, or None if not configured.
-
-        Kept for backward compatibility (REST approvals endpoint).
-        The state-machine approval flow no longer uses this.
-        """
-        return self._tool_manager.approval_manager
-
-    @property
     def metrics(self) -> dict:
         """Return current pipeline metrics snapshot."""
         return self._metrics_collector.snapshot()

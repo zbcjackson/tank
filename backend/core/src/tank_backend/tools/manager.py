@@ -19,7 +19,7 @@ class ToolManager:
     """Registry + domain owner for all tools.
 
     Owns: NetworkAccessPolicy, ServiceCredentialManager, AuditLogger,
-    ApprovalManager, ToolApprovalPolicy, and all ToolGroups.
+    ToolApprovalPolicy, and all ToolGroups.
     """
 
     def __init__(
@@ -51,7 +51,7 @@ class ToolManager:
             self._audit_logger.subscribe(bus)
 
         # --- Approval system ---
-        from ..agents.approval import ApprovalManager, ToolApprovalPolicy
+        from ..agents.approval import ToolApprovalPolicy
 
         approval_raw = app_config.get_section("approval_policies") or {}
         self._approval_policy = ToolApprovalPolicy(
@@ -61,7 +61,6 @@ class ToolManager:
                 approval_raw.get("require_approval_first_time", [])
             ),
         )
-        self._approval_manager = ApprovalManager()
 
         # --- Register tool groups ---
         from .groups import (
@@ -70,7 +69,6 @@ class ToolManager:
             SandboxToolGroup,
             SkillToolGroup,
             WebToolGroup,
-            make_approval_callback,
         )
 
         self._register_group(DefaultToolGroup())
@@ -80,14 +78,12 @@ class ToolManager:
             SandboxToolGroup(sandbox_raw, self._credential_manager)
         )
 
-        approval_cb = make_approval_callback(self._approval_manager, bus)
-
         file_raw = app_config.get_section("file_access", {})
-        self._register_group(FileToolGroup(file_raw, approval_cb, bus))
+        self._register_group(FileToolGroup(file_raw, None, bus))
 
         self._register_group(
             WebToolGroup(
-                self._credential_manager, self._network_policy, approval_cb,
+                self._credential_manager, self._network_policy, None,
             )
         )
 
@@ -115,11 +111,6 @@ class ToolManager:
     # ------------------------------------------------------------------
     # Properties
     # ------------------------------------------------------------------
-
-    @property
-    def approval_manager(self) -> Any:
-        """ApprovalManager for tool execution approval gates."""
-        return self._approval_manager
 
     @property
     def approval_policy(self) -> Any:

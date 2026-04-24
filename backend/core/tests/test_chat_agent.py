@@ -1,9 +1,9 @@
-"""Tests for ChatAgent."""
+"""Tests for LLMAgent."""
 
 from unittest.mock import MagicMock
 
 from tank_backend.agents.base import AgentOutputType, AgentState
-from tank_backend.agents.llm_agent import ChatAgent, _translate
+from tank_backend.agents.llm_agent import LLMAgent, _translate
 from tank_backend.core.events import UpdateType
 
 
@@ -63,14 +63,14 @@ class TestTranslate:
         assert out.type == AgentOutputType.TOOL_RESULT
 
 
-class TestChatAgent:
+class TestLLMAgent:
     async def test_basic_text_stream(self):
         events = [
             (UpdateType.TEXT, "Hello", {"turn": 1}),
             (UpdateType.TEXT, " world", {"turn": 1}),
         ]
         llm = _make_llm(events)
-        agent = ChatAgent(name="chat", llm=llm)
+        agent = LLMAgent(name="chat", llm=llm)
 
         state = AgentState(messages=[{"role": "user", "content": "hi"}])
         outputs = []
@@ -91,7 +91,7 @@ class TestChatAgent:
             (UpdateType.MESSAGE, "", {"message": {"role": "assistant", "content": "Hi there!"}}),
         ]
         llm = _make_llm(events)
-        agent = ChatAgent(name="chat", llm=llm)
+        agent = LLMAgent(name="chat", llm=llm)
 
         state = AgentState(messages=[{"role": "user", "content": "hello"}])
         async for _ in agent.run(state):
@@ -110,7 +110,7 @@ class TestChatAgent:
             (UpdateType.TEXT, "Answer", {"turn": 1}),
         ]
         llm = _make_llm(events)
-        agent = ChatAgent(name="chat", llm=llm)
+        agent = LLMAgent(name="chat", llm=llm)
 
         state = AgentState(messages=[{"role": "user", "content": "why?"}])
         outputs = []
@@ -129,7 +129,7 @@ class TestChatAgent:
             (UpdateType.TEXT, "The answer is 42.", {"turn": 1}),
         ]
         llm = _make_llm(events)
-        agent = ChatAgent(name="chat", llm=llm)
+        agent = LLMAgent(name="chat", llm=llm)
 
         state = AgentState(messages=[{"role": "user", "content": "calc 6*7"}])
         outputs = []
@@ -154,7 +154,7 @@ class TestChatAgent:
         llm = MagicMock()
         llm.chat_stream = chat_stream
 
-        agent = ChatAgent(name="chat", llm=llm, system_prompt="You are a search agent.")
+        agent = LLMAgent(name="chat", llm=llm, system_prompt="You are a search agent.")
         state = AgentState(messages=[{"role": "user", "content": "find stuff"}])
         async for _ in agent.run(state):
             pass
@@ -180,7 +180,7 @@ class TestChatAgent:
             {"type": "function", "function": {"name": "weather", "description": "weather"}},
         ]
 
-        agent = ChatAgent(
+        agent = LLMAgent(
             name="search",
             llm=llm,
             tool_manager=tool_manager,
@@ -197,7 +197,7 @@ class TestChatAgent:
         """If LLM returns no text, don't append empty assistant message."""
         events = []  # No events yielded
         llm = _make_llm(events)
-        agent = ChatAgent(name="chat", llm=llm)
+        agent = LLMAgent(name="chat", llm=llm)
 
         state = AgentState(messages=[{"role": "user", "content": "hi"}])
         async for _ in agent.run(state):
@@ -207,7 +207,7 @@ class TestChatAgent:
         assert len(state.messages) == 1
 
 
-class TestChatAgentExcludeTools:
+class TestLLMAgentExcludeTools:
     """Tests for exclude_tools parameter (ToolManager-based filtering)."""
 
     async def test_exclude_tools_passed_to_tool_manager(self):
@@ -230,7 +230,7 @@ class TestChatAgentExcludeTools:
 
         tool_manager.get_openai_tools = get_openai_tools
 
-        agent = ChatAgent(
+        agent = LLMAgent(
             name="chat", llm=llm,
             tool_manager=tool_manager,
             exclude_tools={"run_command"},
@@ -259,7 +259,7 @@ class TestChatAgentExcludeTools:
 
         tool_manager.get_openai_tools = get_openai_tools
 
-        agent = ChatAgent(name="chat", llm=llm, tool_manager=tool_manager)
+        agent = LLMAgent(name="chat", llm=llm, tool_manager=tool_manager)
         state = AgentState(messages=[{"role": "user", "content": "hi"}])
         async for _ in agent.run(state):
             pass
@@ -267,10 +267,10 @@ class TestChatAgentExcludeTools:
         assert captured_exclude == [None]
 
     async def test_no_tool_manager_returns_empty(self):
-        """ChatAgent without tool_manager should return no tools."""
+        """LLMAgent without tool_manager should return no tools."""
         events = [(UpdateType.TEXT, "ok", {"turn": 1})]
         llm = _make_llm(events)
-        agent = ChatAgent(name="chat", llm=llm)
+        agent = LLMAgent(name="chat", llm=llm)
 
         state = AgentState(messages=[{"role": "user", "content": "hi"}])
         outputs = [o async for o in agent.run(state)]
@@ -294,7 +294,7 @@ class TestSystemPromptCallback:
         def my_callback():
             return None
 
-        agent = ChatAgent(name="chat", llm=llm)
+        agent = LLMAgent(name="chat", llm=llm)
         state = AgentState(
             messages=[{"role": "user", "content": "hi"}],
             metadata={"system_prompt_fn": my_callback},
@@ -315,7 +315,7 @@ class TestSystemPromptCallback:
         llm = MagicMock()
         llm.chat_stream = chat_stream
 
-        agent = ChatAgent(name="chat", llm=llm)
+        agent = LLMAgent(name="chat", llm=llm)
         state = AgentState(messages=[{"role": "user", "content": "hi"}])
         async for _ in agent.run(state):
             pass
