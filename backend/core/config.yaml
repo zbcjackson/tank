@@ -233,8 +233,9 @@ agents:
 
 # Approval policies — optional config for tools that need user confirmation.
 #
-# Sandbox tools (run_command, persistent_shell) always require approval — hardcoded
-# in ApprovalPolicy, no need to list them here.
+# Sandbox tools (run_command, persistent_shell) use command-level security
+# evaluation via CommandSecurityPolicy — safe commands auto-approve, dangerous
+# patterns require approval, unknown commands require approval.
 #
 # File tools (file_read, file_write, file_delete, file_list) handle their own
 # approval via FileAccessPolicy with per-path granularity — no need to list here.
@@ -247,6 +248,30 @@ agents:
 #     - some_future_dangerous_tool
 #   require_approval_first_time:
 #     - some_future_tool
+
+# Command security — per-command evaluation for shell tools (run_command, persistent_shell).
+#
+# Three-layer evaluation:
+# 1. Dangerous patterns (regex) — hard-block destructive constructs
+# 2. Safe command allowlist — auto-approve known-safe commands (~80 built-in)
+# 3. Unknown commands — require approval (or optional LLM evaluation)
+#
+# command_security:
+#   extra_safe_commands:       # merged with built-in safe list
+#     - "docker"
+#     - "kubectl"
+#   extra_dangerous_patterns:  # merged with built-in dangerous patterns
+#     - pattern: '\bdocker\s+rm\b'
+#       description: "docker container removal"
+#   always_require_approval:   # overrides safe list
+#     - "sudo"
+#   llm_evaluation:            # optional LLM for unknown commands
+#     enabled: false
+#     model: "gpt-4o-mini"
+#     provider: "openai"       # "openai" | "anthropic" | any OpenAI-compatible
+#     api_key: ""              # empty = use main LLM api_key
+#     base_url: ""             # empty = use provider default
+#     timeout: 3               # seconds, fail-safe to require_approval
 
 # Tools — optional API keys for tool plugins
 tools:

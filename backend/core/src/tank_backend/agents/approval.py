@@ -30,12 +30,21 @@ HARDCODED_REQUIRE_APPROVAL: frozenset[str] = frozenset({
     "persistent_shell",
 })
 
+# Tools that support command-level security evaluation.
+# When CommandSecurityPolicy is available, these tools delegate to it
+# instead of blanket-requiring approval.
+COMMAND_TOOLS: frozenset[str] = frozenset({
+    "run_command",
+    "persistent_shell",
+})
+
 
 class ToolApprovalPolicy:
     """Config-driven policy determining which tools require approval.
 
-    Sandbox tools (``run_command``, ``persistent_shell``) always require approval
-    — this is hardcoded and cannot be overridden by config.
+    Sandbox tools (``run_command``, ``persistent_shell``) use
+    ``CommandSecurityPolicy`` for per-command evaluation when available,
+    falling back to always-require-approval when not configured.
 
     File tools handle their own approval via ``ApprovalCallback`` inside
     ``execute()`` with per-path granularity, so they don't need tool-level
@@ -53,16 +62,23 @@ class ToolApprovalPolicy:
         always_approve: set[str] | None = None,
         require_approval: set[str] | None = None,
         require_approval_first_time: set[str] | None = None,
+        command_policy: Any | None = None,
     ) -> None:
         self._always_approve = always_approve or set()
         self._require_approval = require_approval or set()
         self._require_approval_first_time = require_approval_first_time or set()
         self._session_approved: set[str] = set()
+        self._command_policy = command_policy
 
-    def needs_approval(self, tool_name: str) -> bool:
+    def needs_approval(self, tool_name: str, tool_args: dict[str, Any] | None = None) -> bool:
         """Return True if the tool requires user approval before execution."""
-        # Hardcoded tools always require approval
-        if tool_name in HARDCODED_REQUIRE_APPROVAL:
+        # Command tools: delegate to CommandSecurityPolicy when available
+        if tool_name in COMMAND_TOOLS:
+            command = (tool_args or {}).get("command", "")
+            if command and self._command_policy is not None:
+                verdict = self._command_policy.evaluate(command)
+                return not verdict.allowed
+            # No command arg or no policy → require approval (safe default)
             return True
         if tool_name in self._require_approval:
             return True
@@ -218,18 +234,17 @@ class ApprovalGateExecutor:
 
     async def execute_openai_tool_call(self, tool_call: Any) -> dict[str, Any]:
         """Execute tool or park it if approval is required."""
-        tool_name = tool_call.function.name
-
-        if not self._policy.needs_approval(tool_name):
-            return await self._tool_manager.execute_openai_tool_call(tool_call)
-
-        # Park the call
         import json
+
+        tool_name = tool_call.function.name
 
         try:
             tool_args = json.loads(tool_call.function.arguments)
         except (json.JSONDecodeError, TypeError):
             tool_args = {}
+
+        if not self._policy.needs_approval(tool_name, tool_args):
+            return await self._tool_manager.execute_openai_tool_call(tool_call)
 
         description = _build_tool_description(tool_name, tool_args)
         pending = PendingToolCall(

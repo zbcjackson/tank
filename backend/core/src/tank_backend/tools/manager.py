@@ -52,14 +52,19 @@ class ToolManager:
 
         # --- Approval system ---
         from ..agents.approval import ToolApprovalPolicy
+        from ..policy.command_security import CommandSecurityPolicy
 
         approval_raw = app_config.get_section("approval_policies") or {}
+        command_security_raw = app_config.get_section("command_security") or {}
+        command_policy = CommandSecurityPolicy.from_dict(command_security_raw)
+
         self._approval_policy = ToolApprovalPolicy(
             always_approve=set(approval_raw.get("always_approve", [])),
             require_approval=set(approval_raw.get("require_approval", [])),
             require_approval_first_time=set(
                 approval_raw.get("require_approval_first_time", [])
             ),
+            command_policy=command_policy,
         )
 
         # --- Register tool groups ---
