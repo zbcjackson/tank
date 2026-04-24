@@ -27,6 +27,7 @@ class ConversationData:
     start_time: datetime
     pid: int
     messages: list[dict[str, Any]]
+    pending_approvals: list[dict[str, Any]] | None = None  # Serialized PendingToolCall list
 
     @staticmethod
     def new(system_prompt: str) -> ConversationData:
@@ -36,16 +37,20 @@ class ConversationData:
             start_time=datetime.now(timezone.utc),
             pid=os.getpid(),
             messages=[{"role": "system", "content": system_prompt}],
+            pending_approvals=None,
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to JSON-compatible dict."""
-        return {
+        result = {
             "id": self.id,
             "start_time": self.start_time.isoformat(),
             "pid": self.pid,
             "messages": self.messages,
         }
+        if self.pending_approvals is not None:
+            result["pending_approvals"] = self.pending_approvals
+        return result
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> ConversationData:
@@ -55,6 +60,7 @@ class ConversationData:
             start_time=datetime.fromisoformat(data["start_time"]),
             pid=data["pid"],
             messages=data["messages"],
+            pending_approvals=data.get("pending_approvals"),
         )
 
 

@@ -510,3 +510,16 @@ class ContextManager:
     def preference_store(self) -> Any:
         """PreferenceStore instance, or None if disabled."""
         return self._preference_store
+
+    @property
+    def pending_approvals(self) -> list[dict[str, Any]] | None:
+        """Return persisted pending approvals from the current conversation."""
+        if self._conversation is None:
+            return None
+        return self._conversation.pending_approvals
+
+    @pending_approvals.setter
+    def pending_approvals(self, value: list[dict[str, Any]] | None) -> None:
+        """Set pending approvals on the current conversation (persisted on next save)."""
+        if self._conversation is not None:
+            self._conversation.pending_approvals = value

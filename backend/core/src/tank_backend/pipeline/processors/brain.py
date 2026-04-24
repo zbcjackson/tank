@@ -247,7 +247,24 @@ class Brain(Processor):
 
     def resume_conversation(self, conversation_id: str) -> bool:
         """Resume a persisted conversation by ID. Returns False if not found."""
-        return self._context.resume_conversation(conversation_id)
+        success = self._context.resume_conversation(conversation_id)
+        if success:
+            # Restore pending approvals from persisted state
+            pending_data = self._context.pending_approvals
+            if pending_data:
+                self._pending_store.restore(pending_data)
+                logger.info(
+                    "Restored %d pending approval(s) from conversation %s",
+                    len(pending_data),
+                    conversation_id,
+                )
+        return success
+
+    def _finish_turn(self, turn_messages: list[dict]) -> None:
+        """Finish turn and persist conversation with pending approvals."""
+        # Sync pending approvals to conversation before persist
+        self._context.pending_approvals = self._pending_store.to_list()
+        self._context.finish_turn(turn_messages)
 
     def new_conversation(self) -> str:
         """Start a fresh conversation. Returns the new conversation ID."""
@@ -535,7 +552,7 @@ class Brain(Processor):
 
             if full_response_text:
                 turn_messages = state.metadata.get("turn_messages", [])
-                self._context.finish_turn(turn_messages)
+                self._finish_turn(turn_messages)
                 await self._context.compact()
                 self._context.schedule_memory_store(
                     event.user, event.text, full_response_text,
@@ -549,7 +566,7 @@ class Brain(Processor):
             # Save what the assistant already said so the LLM has context
             if full_response_text.strip():
                 turn_messages = state.metadata.get("turn_messages", [])
-                self._context.finish_turn(turn_messages)
+                self._finish_turn(turn_messages)
             raise
         except Exception as e:
             logger.error(f"Agent stream processing error: {e}")
@@ -664,7 +681,7 @@ class Brain(Processor):
 
             if full_response_text:
                 turn_messages = state.metadata.get("turn_messages", [])
-                self._context.finish_turn(turn_messages)
+                self._finish_turn(turn_messages)
                 if self._tts_enabled:
                     return AudioOutputRequest(
                         content=full_response_text, language=language,
@@ -675,7 +692,7 @@ class Brain(Processor):
         except BrainInterrupted:
             if full_response_text.strip():
                 turn_messages = state.metadata.get("turn_messages", [])
-                self._context.finish_turn(turn_messages)
+                self._finish_turn(turn_messages)
             raise
         except Exception as e:
             logger.error(f"Confirmation turn error: {e}")

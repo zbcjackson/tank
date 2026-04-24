@@ -103,3 +103,59 @@ class TestPendingToolCallStore:
         t2.join()
 
         assert errors == []
+
+
+class TestPendingToolCallSerialization:
+    def test_roundtrip(self):
+        p = _make_pending("a1", "run_command")
+        d = p.to_dict()
+        restored = PendingToolCall.from_dict(d)
+        assert restored.approval_id == p.approval_id
+        assert restored.tool_name == p.tool_name
+        assert restored.tool_args == p.tool_args
+        assert restored.tool_call_id == p.tool_call_id
+        assert restored.arguments_raw == p.arguments_raw
+        assert restored.description == p.description
+        assert restored.session_id == p.session_id
+        assert restored.created_at == p.created_at
+
+    def test_from_dict_missing_optional_fields(self):
+        """from_dict should handle dicts from older persisted data."""
+        minimal = {"approval_id": "x", "tool_name": "foo"}
+        p = PendingToolCall.from_dict(minimal)
+        assert p.approval_id == "x"
+        assert p.tool_name == "foo"
+        assert p.tool_args == {}
+        assert p.tool_call_id == ""
+
+    def test_store_to_list_and_restore(self):
+        store = PendingToolCallStore()
+        store.park(_make_pending("a1"))
+        store.park(_make_pending("a2"))
+
+        serialized = store.to_list()
+        assert len(serialized) == 2
+        assert serialized[0]["approval_id"] == "a1"
+        assert serialized[1]["approval_id"] == "a2"
+
+        new_store = PendingToolCallStore()
+        new_store.restore(serialized)
+        assert new_store.get_oldest_pending().approval_id == "a1"
+        assert len(new_store.list_pending()) == 2
+
+    def test_restore_replaces_existing(self):
+        store = PendingToolCallStore()
+        store.park(_make_pending("old"))
+        store.restore([_make_pending("new").to_dict()])
+        assert len(store.list_pending()) == 1
+        assert store.get_oldest_pending().approval_id == "new"
+
+    def test_to_list_empty_store(self):
+        store = PendingToolCallStore()
+        assert store.to_list() == []
+
+    def test_restore_empty_list(self):
+        store = PendingToolCallStore()
+        store.park(_make_pending("a1"))
+        store.restore([])
+        assert store.get_oldest_pending() is None

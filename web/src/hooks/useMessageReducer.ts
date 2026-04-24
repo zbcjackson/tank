@@ -156,19 +156,25 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
             result: hasResult ? msg.content : undefined,
           };
 
-          // Auto-resolve matching pending approval when tool starts executing
-          if (status === 'executing' || status === 'success') {
+          // Auto-resolve matching pending approval when confirm_action
+          // reports the outcome. In the state-machine flow, the approval
+          // card status is driven by confirm_action results, not by the
+          // inner tool execution events.
+          if (toolData.name === 'confirm_action' && hasResult) {
             const approvalIdx = updated.findIndex(
               (s) =>
                 s.type === 'approval' &&
-                (s.content as ApprovalContent).toolName === toolData.name &&
                 (s.content as ApprovalContent).status === 'pending',
             );
             if (approvalIdx > -1) {
               const ac = updated[approvalIdx].content as ApprovalContent;
+              // The UI display string starts with "Rejected:" for rejections
+              // and "Executed:" for approvals. The error status also means rejection.
+              const isRejected = status === 'error'
+                || toolData.result?.startsWith('Rejected:');
               updated[approvalIdx] = {
                 ...updated[approvalIdx],
-                content: { ...ac, status: 'approved' },
+                content: { ...ac, status: isRejected ? 'rejected' : 'approved' },
               };
             }
           }

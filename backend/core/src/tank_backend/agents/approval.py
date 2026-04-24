@@ -265,6 +265,33 @@ class PendingToolCall:
     session_id: str
     created_at: float
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to JSON-compatible dict for persistence."""
+        return {
+            "approval_id": self.approval_id,
+            "tool_name": self.tool_name,
+            "tool_args": self.tool_args,
+            "tool_call_id": self.tool_call_id,
+            "arguments_raw": self.arguments_raw,
+            "description": self.description,
+            "session_id": self.session_id,
+            "created_at": self.created_at,
+        }
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> PendingToolCall:
+        """Deserialize from JSON-compatible dict."""
+        return PendingToolCall(
+            approval_id=data["approval_id"],
+            tool_name=data["tool_name"],
+            tool_args=data.get("tool_args", {}),
+            tool_call_id=data.get("tool_call_id", ""),
+            arguments_raw=data.get("arguments_raw", "{}"),
+            description=data.get("description", ""),
+            session_id=data.get("session_id", ""),
+            created_at=data.get("created_at", 0.0),
+        )
+
 
 class PendingToolCallStore:
     """Thread-safe per-Brain store for parked tool calls.
@@ -304,6 +331,16 @@ class PendingToolCallStore:
         """Remove all pending calls (e.g., on conversation reset)."""
         with self._lock:
             self._pending.clear()
+
+    def to_list(self) -> list[dict[str, Any]]:
+        """Serialize all pending calls for persistence."""
+        with self._lock:
+            return [p.to_dict() for p in self._pending]
+
+    def restore(self, items: list[dict[str, Any]]) -> None:
+        """Replace pending calls from persisted data."""
+        with self._lock:
+            self._pending = [PendingToolCall.from_dict(d) for d in items]
 
 
 def _build_tool_description(tool_name: str, tool_args: dict[str, Any]) -> str:
