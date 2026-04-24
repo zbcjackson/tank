@@ -4,7 +4,9 @@ import { Mic, MicOff, Square } from 'lucide-react';
 import { Waveform } from './Waveform';
 import { WakeWordIndicator } from './WakeWordIndicator';
 import { EnrollmentBanner } from './EnrollmentBanner';
+import { VoiceApprovalOverlay } from './VoiceApprovalOverlay';
 import type { AssistantStatus, ConversationState } from '../../hooks/useAssistant';
+import type { ApprovalContent } from '../../types/message';
 
 interface VoiceModeProps {
   assistantStatus: AssistantStatus;
@@ -19,6 +21,8 @@ interface VoiceModeProps {
   speaker?: string;
   pauseAudioCapture: () => void;
   resumeAudioCapture: () => void;
+  pendingApproval: ApprovalContent | null;
+  onApprovalRespond: (approvalId: string, approved: boolean) => void;
 }
 
 const statusVariants = {
@@ -34,6 +38,7 @@ const ORB_COLORS: Record<string, string> = {
   error: 'from-rose-600/25 via-rose-500/10 to-transparent',
   muted: 'from-zinc-600/20 via-zinc-500/5 to-transparent',
   idle: 'from-amber-500/15 via-amber-400/5 to-transparent',
+  approval: 'from-amber-500/50 via-amber-400/25 to-transparent',
 };
 
 const ORB_ANIMATIONS: Record<string, TargetAndTransition> = {
@@ -63,6 +68,11 @@ const ORB_ANIMATIONS: Record<string, TargetAndTransition> = {
   },
   idle: { scale: 1, opacity: 0.6 },
   muted: { scale: 1, opacity: 0.6 },
+  approval: {
+    scale: [1, 1.12, 1],
+    opacity: [0.5, 1, 0.5],
+    transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' },
+  },
 };
 
 const CORE_SPEAKING_ANIMATE = {
@@ -118,7 +128,9 @@ function deriveOrbState(
   assistantStatus: AssistantStatus,
   conversationState: ConversationState | undefined,
   isMuted: boolean,
+  hasPendingApproval: boolean,
 ): string {
+  if (hasPendingApproval) return 'approval';
   if (assistantStatus !== 'idle') {
     return assistantStatus === 'responding' ? 'thinking' : assistantStatus;
   }
@@ -171,6 +183,8 @@ export const VoiceMode = ({
   speaker,
   pauseAudioCapture,
   resumeAudioCapture,
+  pendingApproval,
+  onApprovalRespond,
 }: VoiceModeProps) => {
   const [enrollmentKey, setEnrollmentKey] = useState(0);
   const isWakeWordIdle = conversationState === 'idle';
@@ -181,7 +195,7 @@ export const VoiceMode = ({
   const isActive =
     assistantStatus !== 'idle' && assistantStatus !== 'interrupted' && assistantStatus !== 'error';
 
-  const orbState = deriveOrbState(assistantStatus, conversationState, isMuted);
+  const orbState = deriveOrbState(assistantStatus, conversationState, isMuted, !!pendingApproval);
   const statusLabel = deriveStatusLabel(assistantStatus, conversationState, isMuted, statusText);
 
   return (
@@ -274,6 +288,12 @@ export const VoiceMode = ({
             )}
           </AnimatePresence>
         </div>
+
+        {/* Approval overlay — floats between orb and controls */}
+        <VoiceApprovalOverlay
+          approval={pendingApproval}
+          onRespond={onApprovalRespond}
+        />
 
         {/* Controls — mic always centered, stop button to the right */}
         <div className="relative flex items-center justify-center h-16 w-48">

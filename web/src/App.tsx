@@ -9,6 +9,7 @@ import { AnimatePresence } from 'framer-motion';
 import { Menu } from 'lucide-react';
 import type { WakeWordDetector } from './services/wakeWordDetector';
 import { createWakeWordDetector, type WakeWordEngine } from './services/wakeWordFactory';
+import type { ApprovalContent } from './types/message';
 
 const SESSION_ID = Math.random().toString(36).substring(7);
 const APP_BG_STYLE = { background: '#0a0a0a' };
@@ -102,6 +103,18 @@ function App() {
     return undefined;
   }, [steps]);
 
+  const pendingApproval = useMemo(() => {
+    for (let i = steps.length - 1; i >= 0; i--) {
+      if (steps[i].type === 'approval') {
+        const content = steps[i].content as ApprovalContent;
+        if (content.status === 'pending') {
+          return content;
+        }
+      }
+    }
+    return null;
+  }, [steps]);
+
   const statusText = connectionState === 'connected' ? undefined : `Status: ${connectionState}`;
 
   return (
@@ -147,6 +160,8 @@ function App() {
               speaker={lastUserSpeaker}
               pauseAudioCapture={pauseAudioCapture}
               resumeAudioCapture={resumeAudioCapture}
+              pendingApproval={pendingApproval}
+              onApprovalRespond={respondToApproval}
             />
           ) : (
             <ChatMode
