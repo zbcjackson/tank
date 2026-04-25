@@ -96,9 +96,12 @@ class TestLLMAgentGateFlow:
     """Tests for LLMAgent with the state-machine approval gate."""
 
     async def test_restricted_tool_returns_error_via_gate(self):
-        """When a tool requires approval, the gate returns an error dict
+        """When a command is dangerous, the gate returns an error dict
         instead of executing the tool."""
-        policy = ToolApprovalPolicy(require_approval={"run_command"})
+        from tank_backend.policy.command_security import CommandSecurityPolicy
+
+        cmd_policy = CommandSecurityPolicy.from_dict({})
+        policy = ToolApprovalPolicy(command_policy=cmd_policy)
         store = PendingToolCallStore()
         bus = Bus()
 
@@ -118,11 +121,11 @@ class TestLLMAgentGateFlow:
             current_msg_id_fn=lambda: "msg1",
         )
 
-        # Mock tool call
+        # Mock tool call — dangerous command
         tool_call = MagicMock()
         tool_call.id = "call_123"
         tool_call.function.name = "run_command"
-        tool_call.function.arguments = '{"command": "ls"}'
+        tool_call.function.arguments = '{"command": "rm -rf /"}'
 
         result = await gate.execute_openai_tool_call(tool_call)
 
@@ -137,11 +140,8 @@ class TestLLMAgentGateFlow:
         assert pending.tool_name == "run_command"
 
     async def test_always_approve_tool_skips_gate(self):
-        """Tools in always_approve should execute without being parked."""
-        policy = ToolApprovalPolicy(
-            always_approve={"calculate"},
-            require_approval={"run_command"},
-        )
+        """Non-command tools should execute without being parked."""
+        policy = ToolApprovalPolicy()
         store = PendingToolCallStore()
         bus = Bus()
 
@@ -168,7 +168,7 @@ class TestLLMAgentGateFlow:
 
     async def test_no_tools_no_gate(self):
         """Text-only responses should work with approval configured."""
-        policy = ToolApprovalPolicy(require_approval={"run_command"})
+        policy = ToolApprovalPolicy()
         store = PendingToolCallStore()
         bus = Bus()
 

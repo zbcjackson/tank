@@ -22,7 +22,7 @@ class TestApprovalGateExecutor:
 
     async def test_unrestricted_tool_delegates_to_manager(self):
         """Unrestricted tools should execute immediately via ToolManager."""
-        policy = ToolApprovalPolicy(require_approval={"run_command"})
+        policy = ToolApprovalPolicy()
         store = PendingToolCallStore()
         tool_manager = MagicMock()
         tool_manager.execute_openai_tool_call = AsyncMock(return_value={"result": "42"})
@@ -49,8 +49,11 @@ class TestApprovalGateExecutor:
         assert store.get_oldest_pending() is None
 
     async def test_restricted_tool_parks_call(self):
-        """Restricted tools should be parked in PendingToolCallStore."""
-        policy = ToolApprovalPolicy(require_approval={"run_command"})
+        """Dangerous commands should be parked in PendingToolCallStore."""
+        from tank_backend.policy.command_security import CommandSecurityPolicy
+
+        cmd_policy = CommandSecurityPolicy.from_dict({})
+        policy = ToolApprovalPolicy(command_policy=cmd_policy)
         store = PendingToolCallStore()
         tool_manager = MagicMock()
         bus = Bus()
@@ -67,7 +70,7 @@ class TestApprovalGateExecutor:
         tool_call = MagicMock()
         tool_call.id = "call_123"
         tool_call.function.name = "run_command"
-        tool_call.function.arguments = '{"command": "ls -la"}'
+        tool_call.function.arguments = '{"command": "rm -rf /"}'
 
         result = await gate.execute_openai_tool_call(tool_call)
 
@@ -79,12 +82,15 @@ class TestApprovalGateExecutor:
         pending = store.get_oldest_pending()
         assert pending is not None
         assert pending.tool_name == "run_command"
-        assert pending.tool_args == {"command": "ls -la"}
-        assert pending.description == "ls -la"
+        assert pending.tool_args == {"command": "rm -rf /"}
+        assert pending.description == "rm -rf /"
 
     async def test_restricted_tool_posts_approval_message(self):
-        """Restricted tools should post APPROVAL ui_message to Bus."""
-        policy = ToolApprovalPolicy(require_approval={"run_command"})
+        """Dangerous commands should post APPROVAL ui_message to Bus."""
+        from tank_backend.policy.command_security import CommandSecurityPolicy
+
+        cmd_policy = CommandSecurityPolicy.from_dict({})
+        policy = ToolApprovalPolicy(command_policy=cmd_policy)
         store = PendingToolCallStore()
         tool_manager = MagicMock()
         bus = Bus()
@@ -172,20 +178,19 @@ class TestConfirmActionTool:
         tool_manager.execute_tool.assert_called_once_with("run_command", command="ls")
 
     async def test_approved_records_approval(self):
-        """When approved=True, record approval in policy."""
+        """When approved=True, the tool is executed successfully."""
         store = PendingToolCallStore()
         tool_manager = MagicMock()
         tool_manager.execute_tool = AsyncMock(return_value={"output": "success"})
-        # Use a non-hardcoded tool so first-time tracking works
-        policy = ToolApprovalPolicy(require_approval_first_time={"web_search"})
+        policy = ToolApprovalPolicy()
 
         pending = PendingToolCall(
             approval_id="a1",
-            tool_name="web_search",
-            tool_args={"query": "test"},
+            tool_name="run_command",
+            tool_args={"command": "ls"},
             tool_call_id="call_123",
-            arguments_raw='{"query": "test"}',
-            description="web_search(test)",
+            arguments_raw='{"command": "ls"}',
+            description="ls",
             session_id="s1",
             created_at=time.time(),
         )
@@ -197,13 +202,11 @@ class TestConfirmActionTool:
             approval_policy=policy,
         )
 
-        # First time should need approval
-        assert policy.needs_approval("web_search") is True
+        result = await tool.execute(approved=True)
 
-        await tool.execute(approved=True)
-
-        # After approval, should be recorded — no longer needs approval
-        assert policy.needs_approval("web_search") is False
+        assert isinstance(result, ToolResult)
+        assert result.error is False
+        tool_manager.execute_tool.assert_called_once_with("run_command", command="ls")
 
     async def test_rejected_returns_rejection_result(self):
         """When approved=False, return rejection ToolResult without executing."""

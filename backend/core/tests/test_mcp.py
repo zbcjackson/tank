@@ -524,6 +524,7 @@ class TestToolManagerMCPIntegration:
 
     @pytest.mark.asyncio
     async def test_connect_servers_merges_approval_overrides(self):
+        """MCP approval overrides are logged but no longer applied."""
         configs = [MCPServerConfig(
             name="fs", transport="stdio", command="echo",
             approval="always_approve",
@@ -548,9 +549,13 @@ class TestToolManagerMCPIntegration:
 
             await tm.connect_mcp_servers()
 
+        # MCP tools are registered but approval is handled by CommandSecurityPolicy
+        assert "mcp_fs__read_file" in tm.tools
+        assert "mcp_fs__write_file" in tm.tools
+        # Non-command tools are auto-approved
         policy = tm.approval_policy
-        assert "mcp_fs__read_file" in policy._always_approve
-        assert "mcp_fs__write_file" in policy._require_approval
+        assert not policy.needs_approval("mcp_fs__read_file")
+        assert not policy.needs_approval("mcp_fs__write_file")
 
     @pytest.mark.asyncio
     async def test_connect_servers_no_mcp_is_noop(self):

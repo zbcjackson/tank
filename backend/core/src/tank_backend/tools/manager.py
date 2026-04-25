@@ -54,17 +54,35 @@ class ToolManager:
         from ..agents.approval import ToolApprovalPolicy
         from ..policy.command_security import CommandSecurityPolicy
 
-        approval_raw = app_config.get_section("approval_policies") or {}
         command_security_raw = app_config.get_section("command_security") or {}
         command_policy = CommandSecurityPolicy.from_dict(command_security_raw)
 
+        # Create dedicated LLM for command security evaluation (if configured)
+        command_llm = None
+        llm_cfg = command_security_raw.get("llm_evaluation") or {}
+        if llm_cfg.get("enabled"):
+            try:
+                from ..llm.profile import LLMProfile, create_llm_from_profile
+
+                # Fall back to default LLM profile values when not specified
+                default_profile = app_config.get_llm_profile("default")
+                command_llm = create_llm_from_profile(LLMProfile(
+                    name="command_security",
+                    api_key=llm_cfg.get("api_key") or default_profile.api_key,
+                    model=llm_cfg.get("model") or default_profile.model,
+                    base_url=llm_cfg.get("base_url") or default_profile.base_url,
+                    temperature=0.0,
+                    max_tokens=16,
+                    extra_headers=default_profile.extra_headers,
+                    stream_options=False,
+                ))
+                logger.info("Command security LLM enabled: %s", command_llm.model)
+            except Exception as e:
+                logger.warning("Failed to create command security LLM: %s", e)
+
         self._approval_policy = ToolApprovalPolicy(
-            always_approve=set(approval_raw.get("always_approve", [])),
-            require_approval=set(approval_raw.get("require_approval", [])),
-            require_approval_first_time=set(
-                approval_raw.get("require_approval_first_time", [])
-            ),
             command_policy=command_policy,
+            llm=command_llm,
         )
 
         # --- Register tool groups ---
@@ -164,19 +182,15 @@ class ToolManager:
         errors = await self._mcp_group.connect_servers()
         for tool in self._mcp_group.create_tools():
             self.register_tool(tool)
-        # Merge MCP approval overrides into policy
-        _TIER_TO_ATTR = {
-            "always_approve": "_always_approve",
-            "require_approval": "_require_approval",
-            "require_approval_first_time": "_require_approval_first_time",
-        }
+        # MCP approval overrides are no longer needed — command tools use
+        # CommandSecurityPolicy, and all other tools are auto-approved.
+        # Log any overrides for visibility but don't apply them.
         overrides = self._mcp_group.get_approval_overrides()
-        for tool_name, tier in overrides.items():
-            attr = _TIER_TO_ATTR.get(tier)
-            if attr is not None:
-                getattr(self._approval_policy, attr).add(tool_name)
-            else:
-                logger.warning(f"Unknown approval tier '{tier}' for MCP tool '{tool_name}'")
+        if overrides:
+            logger.info(
+                "MCP approval overrides ignored (command security handles shell tools): %s",
+                overrides,
+            )
         if errors:
             logger.warning(f"MCP servers with errors: {list(errors.keys())}")
 

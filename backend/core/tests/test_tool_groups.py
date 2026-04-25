@@ -233,15 +233,15 @@ async def test_tool_manager_cleanup_delegates():
 
 
 def test_tool_manager_approval_policy_from_config():
-    cfg = _make_app_config(
-        approval_policies={
-            "always_approve": ["calculate"],
-            "require_approval": ["run_command"],
-            "require_approval_first_time": ["web_search"],
-        }
-    )
+    """Command tools require approval by default (no command arg), others auto-approve."""
+    cfg = _make_app_config()
     tm = ToolManager(app_config=cfg)
     policy = tm.approval_policy
-    assert not policy.needs_approval("calculate")
+    # Command tools without command arg → require approval
     assert policy.needs_approval("run_command")
-    assert policy.needs_approval("web_search")
+    assert policy.needs_approval("persistent_shell")
+    # Command tools with safe command → auto-approve
+    assert not policy.needs_approval("run_command", {"command": "ls -la"})
+    # Non-command tools → auto-approve
+    assert not policy.needs_approval("calculate")
+    assert not policy.needs_approval("web_search")

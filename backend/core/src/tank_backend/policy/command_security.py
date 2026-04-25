@@ -253,6 +253,64 @@ class CommandSecurityPolicy:
 
         return CommandVerdict(allowed=True, reason="all segments safe")
 
+    async def evaluate_async(self, command: str, llm: Any = None) -> CommandVerdict:
+        """Evaluate with optional LLM for unknown commands.
+
+        Falls back to sync evaluate() when LLM is disabled or unavailable.
+        Dangerous patterns and safe allowlist are always checked first (sync).
+        LLM is only consulted for unknown commands.
+        """
+        sync_verdict = self.evaluate(command)
+
+        # If already decided (safe, dangerous, or empty), return immediately
+        if sync_verdict.allowed or not sync_verdict.reason.startswith("unknown"):
+            return sync_verdict
+
+        # Unknown command — try LLM if enabled and available
+        if self.llm_enabled and llm is not None:
+            return await self._llm_evaluate(command, llm)
+
+        return sync_verdict
+
+    async def _llm_evaluate(self, command: str, llm: Any) -> CommandVerdict:
+        """Call LLM to assess an unknown command's safety.
+
+        Returns APPROVE on "SAFE", REQUIRE_APPROVAL on "UNSAFE"/"UNCERTAIN"/error.
+        """
+        prompt = (
+            "You are a security reviewer for an AI assistant that runs shell commands. "
+            "Assess whether this command is safe to execute without user confirmation.\n\n"
+            f"Command: {command}\n\n"
+            "Rules:\n"
+            "- SAFE: read-only operations, development tools, package managers, "
+            "build commands, non-destructive docker/kubectl commands\n"
+            "- UNSAFE: anything that deletes data, modifies system config, "
+            "overwrites files, kills processes, or has irreversible side effects\n"
+            "- When uncertain, say UNSAFE\n\n"
+            "Respond with exactly one word: SAFE or UNSAFE"
+        )
+        try:
+            timeout = self._llm_config.get("timeout", 3)
+            import asyncio
+
+            response = await asyncio.wait_for(
+                llm.complete(
+                    [{"role": "user", "content": prompt}],
+                    temperature=0.0,
+                    max_tokens=16,
+                ),
+                timeout=timeout,
+            )
+            answer = response.strip().upper()
+            if "SAFE" in answer and "UNSAFE" not in answer:
+                logger.info("LLM approved command: %s", command)
+                return CommandVerdict(allowed=True, reason=f"LLM approved: {command}")
+            logger.info("LLM denied command: %s (response: %s)", command, answer)
+            return CommandVerdict(allowed=False, reason=f"LLM denied: {command}")
+        except Exception as e:
+            logger.warning("LLM evaluation failed for '%s': %s — requiring approval", command, e)
+            return CommandVerdict(allowed=False, reason=f"LLM error, requiring approval: {e}")
+
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------

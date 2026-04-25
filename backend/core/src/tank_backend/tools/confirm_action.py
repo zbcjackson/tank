@@ -70,10 +70,7 @@ class ConfirmActionTool(BaseTool):
                 display=f"Rejected: {consumed.description}",
             )
 
-        # Approved — record for first-time tracking, then execute
-        self._policy.record_approved(consumed.tool_name)
-
-        # Execute the tool directly via ToolManager
+        # Approved — execute the tool directly via ToolManager
         result = await self._tool_manager.execute_tool(
             consumed.tool_name, **consumed.tool_args,
         )

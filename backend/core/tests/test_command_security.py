@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from tank_backend.policy.command_security import CommandSecurityPolicy, CommandVerdict
@@ -369,3 +371,97 @@ class TestEdgeCases:
         """VAR=val command should evaluate the actual command."""
         verdict = self.policy.evaluate("FOO=bar ls -la")
         assert verdict.allowed is True
+
+
+# ---------------------------------------------------------------------------
+# LLM evaluation (async)
+# ---------------------------------------------------------------------------
+
+class TestLLMEvaluation:
+    """Tests for evaluate_async() with mocked LLM."""
+
+    @pytest.fixture()
+    def policy_with_llm(self):
+        return CommandSecurityPolicy.from_dict({
+            "llm_evaluation": {"enabled": True, "timeout": 3},
+        })
+
+    @pytest.fixture()
+    def policy_without_llm(self):
+        return CommandSecurityPolicy.from_dict({})
+
+    async def test_safe_command_skips_llm(self, policy_with_llm):
+        """Safe commands should not call the LLM."""
+        mock_llm = AsyncMock()
+        verdict = await policy_with_llm.evaluate_async("ls -la", llm=mock_llm)
+        assert verdict.allowed is True
+        mock_llm.complete.assert_not_called()
+
+    async def test_dangerous_command_skips_llm(self, policy_with_llm):
+        """Dangerous commands should not call the LLM."""
+        mock_llm = AsyncMock()
+        verdict = await policy_with_llm.evaluate_async("rm -rf /", llm=mock_llm)
+        assert verdict.allowed is False
+        mock_llm.complete.assert_not_called()
+
+    async def test_unknown_command_calls_llm(self, policy_with_llm):
+        """Unknown commands should call the LLM when enabled."""
+        mock_llm = AsyncMock()
+        mock_llm.complete = AsyncMock(return_value="SAFE")
+        verdict = await policy_with_llm.evaluate_async("docker ps", llm=mock_llm)
+        assert verdict.allowed is True
+        assert "LLM approved" in verdict.reason
+        mock_llm.complete.assert_called_once()
+
+    async def test_llm_returns_unsafe(self, policy_with_llm):
+        """LLM returning UNSAFE should require approval."""
+        mock_llm = AsyncMock()
+        mock_llm.complete = AsyncMock(return_value="UNSAFE")
+        verdict = await policy_with_llm.evaluate_async("docker rm container1", llm=mock_llm)
+        assert verdict.allowed is False
+        assert "LLM denied" in verdict.reason
+
+    async def test_llm_error_fails_safe(self, policy_with_llm):
+        """LLM errors should fail-safe to require approval."""
+        mock_llm = AsyncMock()
+        mock_llm.complete = AsyncMock(side_effect=RuntimeError("API error"))
+        verdict = await policy_with_llm.evaluate_async("docker ps", llm=mock_llm)
+        assert verdict.allowed is False
+        assert "LLM error" in verdict.reason
+
+    async def test_llm_timeout_fails_safe(self, policy_with_llm):
+        """LLM timeout should fail-safe to require approval."""
+        import asyncio
+
+        mock_llm = AsyncMock()
+
+        async def slow_complete(*args, **kwargs):
+            await asyncio.sleep(10)
+            return "SAFE"
+
+        mock_llm.complete = slow_complete
+        # Policy timeout is 3s, but we use a very short one for testing
+        policy_with_llm._llm_config["timeout"] = 0.1
+        verdict = await policy_with_llm.evaluate_async("docker ps", llm=mock_llm)
+        assert verdict.allowed is False
+
+    async def test_llm_disabled_skips_call(self, policy_without_llm):
+        """When LLM is disabled, unknown commands require approval without calling LLM."""
+        mock_llm = AsyncMock()
+        verdict = await policy_without_llm.evaluate_async("docker ps", llm=mock_llm)
+        assert verdict.allowed is False
+        assert "unknown" in verdict.reason.lower()
+        mock_llm.complete.assert_not_called()
+
+    async def test_no_llm_instance_skips_call(self, policy_with_llm):
+        """When no LLM instance is provided, unknown commands require approval."""
+        verdict = await policy_with_llm.evaluate_async("docker ps", llm=None)
+        assert verdict.allowed is False
+        assert "unknown" in verdict.reason.lower()
+
+    async def test_llm_ambiguous_response_fails_safe(self, policy_with_llm):
+        """Ambiguous LLM responses should fail-safe to require approval."""
+        mock_llm = AsyncMock()
+        mock_llm.complete = AsyncMock(return_value="I'm not sure about this command")
+        verdict = await policy_with_llm.evaluate_async("docker ps", llm=mock_llm)
+        assert verdict.allowed is False
