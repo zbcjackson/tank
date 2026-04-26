@@ -62,10 +62,16 @@ class Assistant:
         on_exit_request: Callable[[], None] | None = None,
         audio_source_factory: AudioSourceFactory | None = None,
         audio_sink_factory: AudioSinkFactory | None = None,
+        job_store: Any = None,
+        job_scheduler: Any = None,
     ) -> None:
         registry = self._init_config_and_llm(app_config)
         self._init_bus()
         self._init_tools()
+
+        # Wire job management tool if scheduler is enabled
+        if job_store is not None and job_scheduler is not None:
+            self._tool_manager.set_job_manager(job_store, job_scheduler)
 
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()

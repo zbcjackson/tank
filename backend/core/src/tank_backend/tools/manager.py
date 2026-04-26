@@ -150,6 +150,15 @@ class ToolManager:
         self.register_tool(AgentTool(runner))
         self._skill_group.set_agent_runner(runner)
 
+    def set_job_manager(self, job_store: Any, scheduler: Any) -> None:
+        """Register the job management tool for conversational job setup.
+
+        Called by Assistant when the job scheduler is enabled.
+        """
+        from .job_tools import JobManagementTool
+
+        self.register_tool(JobManagementTool(job_store, scheduler))
+
     def get_skill_catalog(self) -> str:
         """Return a compact skill catalog for system-reminder injection."""
         return self._skill_group.get_skill_catalog()

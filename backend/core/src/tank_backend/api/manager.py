@@ -34,6 +34,8 @@ class ConnectionManager:
         self._session_lock = asyncio.Lock()
         self._app_config = app_config
         self._voiceprint_recognizer: VoiceprintRecognizer | None = None
+        self._job_store: Any = None
+        self._job_scheduler: Any = None
         self._init_voiceprint()
 
     def _init_voiceprint(self) -> None:
@@ -62,6 +64,11 @@ class ConnectionManager:
             logger.info("Shared voiceprint recognizer initialized")
         except Exception as e:
             logger.warning(f"Failed to initialize voiceprint recognizer: {e}")
+
+    def set_job_manager(self, job_store: Any, scheduler: Any) -> None:
+        """Set job store and scheduler for new sessions."""
+        self._job_store = job_store
+        self._job_scheduler = scheduler
 
     def get_voiceprint_recognizer(self) -> VoiceprintRecognizer | None:
         """Get the shared voiceprint recognizer."""
@@ -104,7 +111,11 @@ class ConnectionManager:
             if existing:
                 await self._cleanup_assistant(session_id, existing)
 
-            assistant = Assistant(app_config=self._app_config)
+            assistant = Assistant(
+                app_config=self._app_config,
+                job_store=self._job_store,
+                job_scheduler=self._job_scheduler,
+            )
             self._sessions[session_id] = assistant
             self._ws_refcount[session_id] = 1
             await assistant.start()

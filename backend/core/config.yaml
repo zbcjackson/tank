@@ -311,3 +311,14 @@ preferences:
 
 # MCP servers are configured per-user in ~/.tank/mcp_servers.yaml
 # See mcp_servers.yaml.example for the format.
+
+# Autonomous job scheduler — runs tasks on a cron schedule without user interaction.
+# Job definitions are user data stored in ~/.tank/jobs/jobs.db (managed via voice,
+# REST API, or optional seed file at ~/.tank/jobs/seed.yaml).
+jobs:
+ enabled: true
+ max_parallel: 3           # Max concurrent job executions
+ tick_interval: 60         # Seconds between scheduler ticks
+#   db_path: ~/.tank/jobs/jobs.db
+#   output_dir: ~/.tank/jobs/output
+#   seed_path: ~/.tank/jobs/seed.yaml

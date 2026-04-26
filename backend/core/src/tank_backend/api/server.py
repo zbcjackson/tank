@@ -17,6 +17,9 @@ from ..plugin import AppConfig  # noqa: E402
 from ..plugin.manager import PluginManager  # noqa: E402
 from .conversations import router as conversations_router  # noqa: E402
 from .conversations import set_store as set_conversations_store  # noqa: E402
+from .jobs import router as jobs_router  # noqa: E402
+from .jobs import set_job_store  # noqa: E402
+from .jobs import set_scheduler as set_jobs_scheduler  # noqa: E402
 from .manager import ConnectionManager  # noqa: E402
 from .metrics import router as metrics_router  # noqa: E402
 from .metrics import set_connection_manager as set_metrics_connection_manager  # noqa: E402
@@ -50,14 +53,63 @@ _store = create_store(
     store_path=_ctx_raw.get("store_path", "~/.tank/conversations"),
 )
 
+# --- Job scheduler (opt-in via config.yaml jobs.enabled) ---
+_jobs_raw = app_config.get_section("jobs", {})
+_job_store = None
+_scheduler = None
+
+if _jobs_raw.get("enabled", False):
+    from ..jobs.delivery import DeliveryManager
+    from ..jobs.runner import AutonomousRunner
+    from ..jobs.scheduler import CronScheduler
+    from ..jobs.store import JobStore
+
+    _job_store = JobStore(db_path=_jobs_raw.get("db_path", "~/.tank/jobs/jobs.db"))
+    _job_delivery = DeliveryManager(
+        output_dir=_jobs_raw.get("output_dir", "~/.tank/jobs/output"),
+        app_config=app_config,
+    )
+    _job_runner = AutonomousRunner(
+        app_config=app_config,
+        job_store=_job_store,
+        delivery=_job_delivery,
+    )
+    _scheduler = CronScheduler(
+        job_store=_job_store,
+        runner=_job_runner,
+        max_parallel=_jobs_raw.get("max_parallel", 3),
+        tick_interval=_jobs_raw.get("tick_interval", 60.0),
+    )
+
+    # Load seed file if present
+    seed_path = _jobs_raw.get("seed_path", "~/.tank/jobs/seed.yaml")
+    result = _job_store.load_seed_file(seed_path)
+    if result["created"]:
+        logger.info("Loaded %d seed jobs: %s", len(result["created"]), ", ".join(result["created"]))
+    if result["deleted"]:
+        logger.info(
+            "Removed %d stale seed jobs: %s",
+            len(result["deleted"]), ", ".join(result["deleted"]),
+        )
+
+    logger.info("Job scheduler initialized (max_parallel=%d)", _jobs_raw.get("max_parallel", 3))
+else:
+    logger.info("Job scheduler disabled (jobs.enabled=false)")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("API Server starting up")
+    if _scheduler is not None:
+        await _scheduler.start()
     yield
     # Shutdown
     logger.info("API Server shutting down")
+    if _scheduler is not None:
+        await _scheduler.stop()
+    if _job_store is not None:
+        _job_store.close()
     await connection_manager.close_all()
 
 
@@ -69,12 +121,19 @@ app.include_router(users_router)
 app.include_router(metrics_router)
 app.include_router(conversations_router)
 app.include_router(skills_router)
+app.include_router(jobs_router)
 set_router_connection_manager(connection_manager)
 set_connection_manager(connection_manager)
 set_metrics_connection_manager(connection_manager)
 set_skills_connection_manager(connection_manager)
 set_users_connection_manager(connection_manager)
 set_conversations_store(_store)
+if _job_store is not None:
+    set_job_store(_job_store)
+if _scheduler is not None:
+    set_jobs_scheduler(_scheduler)
+if _job_store is not None and _scheduler is not None:
+    connection_manager.set_job_manager(_job_store, _scheduler)
 
 
 @app.get("/health")
