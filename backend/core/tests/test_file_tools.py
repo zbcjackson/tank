@@ -9,7 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from tank_backend.policy.backup import BackupManager
-from tank_backend.policy.file_access import AccessDecision, FileAccessPolicy
+from tank_backend.policy.file_access import FileAccessPolicy
+from tank_backend.policy.verdict import AccessLevel, PolicyVerdict
 from tank_backend.tools.base import ToolResult
 from tank_backend.tools.file_delete import FileDeleteTool
 from tank_backend.tools.file_edit import FileEditTool
@@ -30,7 +31,9 @@ def _parse_result(result: ToolResult) -> dict:
 def _make_policy(level: str = "allow", reason: str = "test") -> FileAccessPolicy:
     """Return a policy that always returns the given level."""
     policy = MagicMock(spec=FileAccessPolicy)
-    policy.evaluate.return_value = AccessDecision(level=level, reason=reason)
+    policy.evaluate.return_value = PolicyVerdict(
+        level=AccessLevel(level), reason=reason, policy="file",
+    )
     return policy
 
 
@@ -38,11 +41,6 @@ def _make_backup(backup_path: str | None = "/backup/file.txt") -> BackupManager:
     backup = MagicMock(spec=BackupManager)
     backup.snapshot = AsyncMock(return_value=backup_path)
     return backup
-
-
-def _make_approval(approved: bool = True) -> AsyncMock:
-    """Return a mock ApprovalCallback that returns approved/denied."""
-    return AsyncMock(return_value=approved)
 
 
 # ---------------------------------------------------------------------------
@@ -79,42 +77,6 @@ class TestFileReadTool:
         data = _parse_result(result)
         assert data.get("denied") is True
         assert "Secrets" in result.display
-
-    @pytest.mark.asyncio
-    async def test_read_require_approval_granted(self, tmp_path: Path):
-        f = tmp_path / "config.txt"
-        f.write_text("config data")
-        cb = _make_approval(True)
-
-        tool = FileReadTool(_make_policy("require_approval", "System config"), approval_callback=cb)
-        result = await tool.execute(path=str(f))
-
-        assert not result.error
-        data = _parse_result(result)
-        assert data["content"] == "config data"
-        cb.assert_awaited_once_with("file_read", str(f), "read", "System config")
-
-    @pytest.mark.asyncio
-    async def test_read_require_approval_denied(self):
-        cb = _make_approval(False)
-
-        tool = FileReadTool(_make_policy("require_approval", "System config"), approval_callback=cb)
-        result = await tool.execute(path="/etc/hosts")
-
-        assert result.error
-        data = _parse_result(result)
-        assert data.get("denied") is True
-        assert "denied" in result.display.lower()
-
-    @pytest.mark.asyncio
-    async def test_read_require_approval_no_callback_denies(self):
-        """When require_approval but no callback is set, default to deny."""
-        tool = FileReadTool(_make_policy("require_approval", "System config"))
-        result = await tool.execute(path="/etc/hosts")
-
-        assert result.error
-        data = _parse_result(result)
-        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_read_file_not_found(self):
@@ -185,40 +147,6 @@ class TestFileWriteTool:
         assert data.get("denied") is True
 
     @pytest.mark.asyncio
-    async def test_write_require_approval_granted(self, tmp_path: Path):
-        f = tmp_path / "config.txt"
-        cb = _make_approval(True)
-        backup = _make_backup(None)
-
-        tool = FileWriteTool(
-            _make_policy("require_approval", "System"), backup, approval_callback=cb
-        )
-        await tool.execute(path=str(f), content="new config")
-
-        assert f.read_text() == "new config"
-        cb.assert_awaited_once_with("file_write", str(f), "write", "System")
-
-    @pytest.mark.asyncio
-    async def test_write_require_approval_denied(self):
-        cb = _make_approval(False)
-
-        tool = FileWriteTool(_make_policy("require_approval"), _make_backup(), approval_callback=cb)
-        result = await tool.execute(path="/etc/hosts", content="x")
-
-        assert result.error
-        data = _parse_result(result)
-        assert data.get("denied") is True
-
-    @pytest.mark.asyncio
-    async def test_write_require_approval_no_callback_denies(self):
-        tool = FileWriteTool(_make_policy("require_approval"), _make_backup())
-        result = await tool.execute(path="/etc/hosts", content="x")
-
-        assert result.error
-        data = _parse_result(result)
-        assert data.get("denied") is True
-
-    @pytest.mark.asyncio
     async def test_write_creates_parent_dirs(self, tmp_path: Path):
         f = tmp_path / "sub" / "dir" / "file.txt"
 
@@ -255,43 +183,6 @@ class TestFileDeleteTool:
     async def test_delete_denied(self):
         tool = FileDeleteTool(_make_policy("deny", "System"), _make_backup())
         result = await tool.execute(path="/etc/passwd")
-
-        assert result.error
-        data = _parse_result(result)
-        assert data.get("denied") is True
-
-    @pytest.mark.asyncio
-    async def test_delete_require_approval_granted(self, tmp_path: Path):
-        f = tmp_path / "temp.txt"
-        f.write_text("temp")
-        cb = _make_approval(True)
-        backup = _make_backup("/backup/temp.txt")
-
-        tool = FileDeleteTool(
-            _make_policy("require_approval", "Caution"), backup, approval_callback=cb
-        )
-        await tool.execute(path=str(f))
-
-        assert not f.exists()
-        cb.assert_awaited_once_with("file_delete", str(f), "delete", "Caution")
-
-    @pytest.mark.asyncio
-    async def test_delete_require_approval_denied(self):
-        cb = _make_approval(False)
-
-        tool = FileDeleteTool(
-            _make_policy("require_approval"), _make_backup(), approval_callback=cb
-        )
-        result = await tool.execute(path="/tmp/file.txt")
-
-        assert result.error
-        data = _parse_result(result)
-        assert data.get("denied") is True
-
-    @pytest.mark.asyncio
-    async def test_delete_require_approval_no_callback_denies(self):
-        tool = FileDeleteTool(_make_policy("require_approval"), _make_backup())
-        result = await tool.execute(path="/tmp/file.txt")
 
         assert result.error
         data = _parse_result(result)
@@ -373,38 +264,6 @@ class TestFileListTool:
     async def test_list_denied(self):
         tool = FileListTool(_make_policy("deny", "Secrets"))
         result = await tool.execute(path="/fake/.ssh")
-
-        assert result.error
-        data = _parse_result(result)
-        assert data.get("denied") is True
-
-    @pytest.mark.asyncio
-    async def test_list_require_approval_granted(self, tmp_path: Path):
-        (tmp_path / "file.txt").write_text("x")
-        cb = _make_approval(True)
-
-        tool = FileListTool(_make_policy("require_approval", "Sensitive"), approval_callback=cb)
-        result = await tool.execute(path=str(tmp_path))
-
-        data = _parse_result(result)
-        assert data["count"] == 1
-        cb.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_list_require_approval_denied(self):
-        cb = _make_approval(False)
-
-        tool = FileListTool(_make_policy("require_approval"), approval_callback=cb)
-        result = await tool.execute(path="/tmp")
-
-        assert result.error
-        data = _parse_result(result)
-        assert data.get("denied") is True
-
-    @pytest.mark.asyncio
-    async def test_list_require_approval_no_callback_denies(self):
-        tool = FileListTool(_make_policy("require_approval"))
-        result = await tool.execute(path="/tmp")
 
         assert result.error
         data = _parse_result(result)
@@ -702,47 +561,6 @@ class TestFileEditTool:
         assert "Secrets" in result.display
 
     @pytest.mark.asyncio
-    async def test_edit_require_approval_granted(self, tmp_path: Path):
-        f = tmp_path / "config.txt"
-        f.write_text("old_value")
-        cb = _make_approval(True)
-        backup = _make_backup(None)
-
-        tool = FileEditTool(
-            _make_policy("require_approval", "System"), backup, approval_callback=cb,
-        )
-        await tool.execute(
-            path=str(f), old_string="old_value", new_string="new_value",
-        )
-
-        assert f.read_text() == "new_value"
-        cb.assert_awaited_once_with("file_edit", str(f), "write", "System")
-
-    @pytest.mark.asyncio
-    async def test_edit_require_approval_denied(self):
-        cb = _make_approval(False)
-
-        tool = FileEditTool(
-            _make_policy("require_approval"), _make_backup(), approval_callback=cb,
-        )
-        result = await tool.execute(
-            path="/etc/hosts", old_string="a", new_string="b",
-        )
-        assert result.error
-        data = _parse_result(result)
-        assert data.get("denied") is True
-
-    @pytest.mark.asyncio
-    async def test_edit_require_approval_no_callback_denies(self):
-        tool = FileEditTool(_make_policy("require_approval"), _make_backup())
-        result = await tool.execute(
-            path="/etc/hosts", old_string="a", new_string="b",
-        )
-        assert result.error
-        data = _parse_result(result)
-        assert data.get("denied") is True
-
-    @pytest.mark.asyncio
     async def test_edit_file_not_found(self):
         tool = FileEditTool(_make_policy("allow"), _make_backup(None))
         result = await tool.execute(
@@ -937,12 +755,11 @@ class TestFileEditTool:
 # FileSearchTool
 # ---------------------------------------------------------------------------
 
-def _make_search_tool(policy=None, approval_callback=None):
+def _make_search_tool(policy=None):
     """Create a FileSearchTool forced to Python fallback (no rg)."""
     with patch("tank_backend.tools.file_search.find_rg_binary", return_value=None):
         return FileSearchTool(
             policy or _make_policy(),
-            approval_callback=approval_callback,
         )
 
 
@@ -1035,47 +852,6 @@ class TestFileSearchTool:
         data = _parse_result(result)
         assert data.get("denied") is True
         assert "Secrets" in result.display
-
-    @pytest.mark.asyncio
-    async def test_search_require_approval_granted(self, tmp_path: Path):
-        f = tmp_path / "config.txt"
-        f.write_text("password=secret\n")
-        cb = _make_approval(True)
-
-        tool = _make_search_tool(
-            _make_policy("require_approval", "Sensitive"),
-            approval_callback=cb,
-        )
-        result = await tool.execute(path=str(f), pattern="password")
-
-        assert "1 file(s)" in result.display
-        cb.assert_awaited_once()
-
-    @pytest.mark.asyncio
-    async def test_search_require_approval_denied(self):
-        cb = _make_approval(False)
-
-        tool = _make_search_tool(
-            _make_policy("require_approval"), approval_callback=cb,
-        )
-        result = await tool.execute(
-            path="/etc/hosts", pattern="localhost",
-        )
-
-        assert result.error
-        data = _parse_result(result)
-        assert data.get("denied") is True
-
-    @pytest.mark.asyncio
-    async def test_search_require_approval_no_callback_denies(self):
-        tool = _make_search_tool(_make_policy("require_approval"))
-        result = await tool.execute(
-            path="/etc/hosts", pattern="localhost",
-        )
-
-        assert result.error
-        data = _parse_result(result)
-        assert data.get("denied") is True
 
     @pytest.mark.asyncio
     async def test_search_file_not_found(self):

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-from tank_backend.jobs.cron import next_run_time, parse_human_schedule, validate_cron
+from tank_backend.jobs.cron import parse_human_schedule, validate_cron
 
 
 class TestValidateCron:
@@ -18,30 +16,6 @@ class TestValidateCron:
         assert validate_cron("not a cron") is False
         assert validate_cron("") is False
         assert validate_cron("60 * * * *") is False  # minute > 59
-
-
-class TestNextRunTime:
-    def test_basic(self):
-        base = datetime(2026, 4, 25, 8, 0, 0, tzinfo=timezone.utc)
-        nrt = next_run_time("0 9 * * *", base)
-        assert nrt.hour == 9
-        assert nrt.minute == 0
-        assert nrt.day == 25  # same day, 9am is after 8am
-
-    def test_next_day(self):
-        base = datetime(2026, 4, 25, 10, 0, 0, tzinfo=timezone.utc)
-        nrt = next_run_time("0 9 * * *", base)
-        assert nrt.day == 26  # 9am already passed, next day
-
-    def test_every_5_minutes(self):
-        base = datetime(2026, 4, 25, 8, 2, 0, tzinfo=timezone.utc)
-        nrt = next_run_time("*/5 * * * *", base)
-        assert nrt.minute == 5
-        assert nrt.hour == 8
-
-    def test_defaults_to_now(self):
-        nrt = next_run_time("0 0 * * *")
-        assert nrt is not None
 
 
 class TestParseHumanSchedule:

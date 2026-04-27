@@ -5,6 +5,7 @@ from typing import Any
 import requests
 
 from ..policy.credentials import ServiceCredentialManager
+from ..policy.verdict import AccessLevel
 from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
@@ -15,11 +16,9 @@ class WebSearchTool(BaseTool):
         self,
         credential_manager: ServiceCredentialManager,
         network_policy: Any = None,
-        approval_callback: Any = None,
     ):
         self._credentials = credential_manager
         self._network_policy = network_policy
-        self._approval_callback = approval_callback
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -61,7 +60,7 @@ class WebSearchTool(BaseTool):
         host = "google.serper.dev"
         if self._network_policy is not None:
             decision = self._network_policy.evaluate(host)
-            if decision.level == "deny":
+            if decision.level == AccessLevel.DENY:
                 logger.warning("web_search denied by network policy: %s", host)
                 return ToolResult(
                     content=json.dumps(
@@ -74,23 +73,6 @@ class WebSearchTool(BaseTool):
                     display=f"Cannot search: network policy blocks {host}.",
                     error=True,
                 )
-            if decision.level == "require_approval":
-                approved = await self._request_approval(
-                    host, "connect", decision.reason,
-                )
-                if not approved:
-                    return ToolResult(
-                        content=json.dumps(
-                            {
-                                "query": query,
-                                "error": f"Approval denied: {host} ({decision.reason})",
-                            },
-                            ensure_ascii=False,
-                        ),
-                        display=f"User denied connecting to {host}.",
-                        error=True,
-                    )
-
         try:
             # Use Serper API for web search
             url = "https://google.serper.dev/search"
@@ -195,17 +177,3 @@ class WebSearchTool(BaseTool):
                 display=f"抱歉，搜索'{query}'时出现错误。请稍后再试或重新表述您的问题。",
                 error=True,
             )
-
-    async def _request_approval(
-        self, host: str, operation: str, reason: str,
-    ) -> bool:
-        """Request host-specific approval. Returns False if no callback or denied."""
-        if self._approval_callback is None:
-            logger.warning(
-                "web_search require_approval but no callback — denying: %s",
-                host,
-            )
-            return False
-        return await self._approval_callback(
-            "web_search", host, operation, reason,
-        )

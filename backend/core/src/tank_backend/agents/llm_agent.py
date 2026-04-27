@@ -46,6 +46,7 @@ class LLMAgent(Agent):
         system_prompt: str | None = None,
         tool_filter: list[str] | None = None,
         approval_policy: ToolApprovalPolicy | None = None,
+        resolver: Any = None,
         session_id: str = "",
         exclude_tools: set[str] | None = None,
         pending_store: PendingToolCallStore | None = None,
@@ -58,6 +59,7 @@ class LLMAgent(Agent):
         self._system_prompt = system_prompt
         self._tool_filter = tool_filter
         self._approval_policy = approval_policy
+        self._resolver = resolver
         self._session_id = session_id
         self._exclude_tools: set[str] = exclude_tools or set()
         self._pending_store = pending_store
@@ -83,9 +85,19 @@ class LLMAgent(Agent):
             and self._bus is not None
         )
         if has_gate:
+            resolver = self._resolver
+            if resolver is None:
+                from .approval import InteractiveResolver
+                resolver = InteractiveResolver(
+                    pending_store=self._pending_store,
+                    session_id=self._session_id,
+                    bus=self._bus,
+                    current_msg_id_fn=self._current_msg_id_fn,
+                )
             executor = ApprovalGateExecutor(
                 tool_manager=self._tool_manager,
                 approval_policy=self._approval_policy,
+                resolver=resolver,
                 pending_store=self._pending_store,
                 session_id=self._session_id,
                 bus=self._bus,

@@ -234,14 +234,17 @@ async def test_tool_manager_cleanup_delegates():
 
 def test_tool_manager_approval_policy_from_config():
     """Command tools require approval by default (no command arg), others auto-approve."""
+    from tank_backend.policy.verdict import AccessLevel
+
     cfg = _make_app_config()
     tm = ToolManager(app_config=cfg)
     policy = tm.approval_policy
     # Command tools without command arg → require approval
-    assert policy.needs_approval("run_command")
-    assert policy.needs_approval("persistent_shell")
+    assert policy.evaluate("run_command").level == AccessLevel.REQUIRE_APPROVAL
+    assert policy.evaluate("persistent_shell").level == AccessLevel.REQUIRE_APPROVAL
     # Command tools with safe command → auto-approve
-    assert not policy.needs_approval("run_command", {"command": "ls -la"})
+    v = policy.evaluate("run_command", {"command": "ls -la"})
+    assert v.level == AccessLevel.ALLOW
     # Non-command tools → auto-approve
-    assert not policy.needs_approval("calculate")
-    assert not policy.needs_approval("web_search")
+    assert policy.evaluate("calculate").level == AccessLevel.ALLOW
+    assert policy.evaluate("web_search").level == AccessLevel.ALLOW

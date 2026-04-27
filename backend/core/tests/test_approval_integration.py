@@ -5,6 +5,8 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 from tank_backend.agents.approval import (
+    ApprovalGateExecutor,
+    InteractiveResolver,
     PendingToolCallStore,
     ToolApprovalPolicy,
     _build_tool_description,
@@ -96,8 +98,8 @@ class TestLLMAgentGateFlow:
     """Tests for LLMAgent with the state-machine approval gate."""
 
     async def test_restricted_tool_returns_error_via_gate(self):
-        """When a command is dangerous, the gate returns an error dict
-        instead of executing the tool."""
+        """When a command is unknown, the gate returns an error dict
+        instead of executing the tool (REQUIRE_APPROVAL → parked)."""
         from tank_backend.policy.command_security import CommandSecurityPolicy
 
         cmd_policy = CommandSecurityPolicy.from_dict({})
@@ -110,22 +112,24 @@ class TestLLMAgentGateFlow:
         tm.execute_openai_tool_call = AsyncMock(return_value={"result": "42"})
 
         # Create a gate executor directly to test its behavior
-        from tank_backend.agents.approval import ApprovalGateExecutor
-
         gate = ApprovalGateExecutor(
             tool_manager=tm,
             approval_policy=policy,
+            resolver=InteractiveResolver(
+                pending_store=store, session_id="s1", bus=bus,
+                current_msg_id_fn=lambda: "msg1",
+            ),
             pending_store=store,
             session_id="s1",
             bus=bus,
             current_msg_id_fn=lambda: "msg1",
         )
 
-        # Mock tool call — dangerous command
+        # Mock tool call — unknown command (REQUIRE_APPROVAL)
         tool_call = MagicMock()
         tool_call.id = "call_123"
         tool_call.function.name = "run_command"
-        tool_call.function.arguments = '{"command": "rm -rf /"}'
+        tool_call.function.arguments = '{"command": "terraform apply"}'
 
         result = await gate.execute_openai_tool_call(tool_call)
 

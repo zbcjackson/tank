@@ -71,7 +71,7 @@ class CreateJobRequest(BaseModel):
     allowed_tools: list[str] | None = None
     blocked_tools: list[str] | None = None
     delivery: DeliveryRequest = Field(default_factory=DeliveryRequest)
-    approval_mode: str = "deny"
+    approval_mode: str = "always_deny"
 
 
 class UpdateJobRequest(BaseModel):
@@ -118,9 +118,7 @@ async def list_jobs() -> list[dict[str, Any]]:
     jobs = store.list_jobs()
     result = []
     for job in jobs:
-        info = store.get_schedule_info(job.id)
         entry = job.to_dict()
-        entry["schedule_info"] = info
         result.append(entry)
     return result
 
@@ -158,20 +156,17 @@ async def create_job(req: CreateJobRequest) -> dict[str, Any]:
     logger.info("Created job '%s' (schedule=%s)", job.name, schedule)
 
     entry = job.to_dict()
-    entry["schedule_info"] = store.get_schedule_info(job.id)
     return entry
 
 
 @router.get("/{job_id}")
 async def get_job(job_id: str) -> dict[str, Any]:
-    """Get job details with schedule info."""
+    """Get job details."""
     store = _get_store()
     job = store.get_job(job_id)
     if job is None:
         raise HTTPException(404, f"Job '{job_id}' not found")
-    entry = job.to_dict()
-    entry["schedule_info"] = store.get_schedule_info(job.id)
-    return entry
+    return job.to_dict()
 
 
 @router.put("/{job_id}")
@@ -201,7 +196,6 @@ async def update_job(job_id: str, req: UpdateJobRequest) -> dict[str, Any]:
     logger.info("Updated job '%s'", updated.name)
 
     entry = updated.to_dict()
-    entry["schedule_info"] = store.get_schedule_info(updated.id)
     return entry
 
 

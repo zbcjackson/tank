@@ -1,9 +1,9 @@
-"""Command security policy — evaluate allow/require_approval per shell command.
+"""Command security policy — evaluate allow/require_approval/deny per shell command.
 
 Three-layer evaluation:
-1. Dangerous patterns (regex) — hard-block destructive constructs, cannot be overridden
-2. Safe command allowlist — known-safe base commands auto-approve
-3. Unknown commands — require approval (or optional LLM evaluation)
+1. Dangerous patterns (regex) — hard-block destructive constructs (DENY)
+2. Safe command allowlist — known-safe base commands auto-approve (ALLOW)
+3. Unknown commands — require approval or optional LLM evaluation (REQUIRE_APPROVAL)
 """
 
 from __future__ import annotations
@@ -11,22 +11,11 @@ from __future__ import annotations
 import logging
 import os
 import re
-from dataclasses import dataclass
 from typing import Any
 
+from .verdict import AccessLevel, PolicyVerdict
+
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Result type
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class CommandVerdict:
-    """Result of evaluating a command's safety."""
-
-    allowed: bool
-    reason: str
 
 
 # ---------------------------------------------------------------------------
@@ -226,10 +215,12 @@ class CommandSecurityPolicy:
     # Evaluation
     # ------------------------------------------------------------------
 
-    def evaluate(self, command: str) -> CommandVerdict:
-        """Evaluate a command synchronously (no LLM). Unknown → require approval."""
+    def evaluate(self, command: str) -> PolicyVerdict:
+        """Evaluate a command synchronously (no LLM). Unknown → REQUIRE_APPROVAL."""
         if not command or not command.strip():
-            return CommandVerdict(allowed=False, reason="empty command")
+            return PolicyVerdict(
+                level=AccessLevel.DENY, reason="empty command", policy="command",
+            )
 
         # Check the full command against dangerous patterns first
         danger = self._check_dangerous(command)
@@ -239,7 +230,9 @@ class CommandSecurityPolicy:
         # Split compound commands and evaluate each segment
         segments = _split_compound(command)
         if not segments:
-            return CommandVerdict(allowed=False, reason="empty command")
+            return PolicyVerdict(
+                level=AccessLevel.DENY, reason="empty command", policy="command",
+            )
 
         for segment in segments:
             # Per-segment dangerous check (catches patterns within segments)
@@ -248,34 +241,36 @@ class CommandSecurityPolicy:
                 return danger
 
             verdict = self._evaluate_segment(segment)
-            if not verdict.allowed:
+            if verdict.level != AccessLevel.ALLOW:
                 return verdict
 
-        return CommandVerdict(allowed=True, reason="all segments safe")
+        return PolicyVerdict(
+            level=AccessLevel.ALLOW, reason="all segments safe", policy="command",
+        )
 
-    async def evaluate_async(self, command: str, llm: Any = None) -> CommandVerdict:
+    async def evaluate_async(self, command: str, llm: Any = None) -> PolicyVerdict:
         """Evaluate with optional LLM for unknown commands.
 
         Falls back to sync evaluate() when LLM is disabled or unavailable.
         Dangerous patterns and safe allowlist are always checked first (sync).
-        LLM is only consulted for unknown commands.
+        LLM is only consulted for REQUIRE_APPROVAL commands.
         """
         sync_verdict = self.evaluate(command)
 
-        # If already decided (safe, dangerous, or empty), return immediately
-        if sync_verdict.allowed or not sync_verdict.reason.startswith("unknown"):
+        # If already decided (ALLOW or DENY), return immediately
+        if sync_verdict.level != AccessLevel.REQUIRE_APPROVAL:
             return sync_verdict
 
-        # Unknown command — try LLM if enabled and available
+        # REQUIRE_APPROVAL — try LLM if enabled and available
         if self.llm_enabled and llm is not None:
             return await self._llm_evaluate(command, llm)
 
         return sync_verdict
 
-    async def _llm_evaluate(self, command: str, llm: Any) -> CommandVerdict:
+    async def _llm_evaluate(self, command: str, llm: Any) -> PolicyVerdict:
         """Call LLM to assess an unknown command's safety.
 
-        Returns APPROVE on "SAFE", REQUIRE_APPROVAL on "UNSAFE"/"UNCERTAIN"/error.
+        Returns ALLOW on "SAFE", DENY on "UNSAFE", REQUIRE_APPROVAL on error.
         """
         prompt = (
             "You are a security reviewer for an AI assistant that runs shell commands. "
@@ -304,38 +299,56 @@ class CommandSecurityPolicy:
             answer = response.strip().upper()
             if "SAFE" in answer and "UNSAFE" not in answer:
                 logger.info("LLM approved command: %s", command)
-                return CommandVerdict(allowed=True, reason=f"LLM approved: {command}")
+                return PolicyVerdict(
+                    level=AccessLevel.ALLOW,
+                    reason=f"LLM approved: {command}",
+                    policy="command",
+                )
             logger.info("LLM denied command: %s (response: %s)", command, answer)
-            return CommandVerdict(allowed=False, reason=f"LLM denied: {command}")
+            return PolicyVerdict(
+                level=AccessLevel.DENY,
+                reason=f"LLM denied: {command}",
+                policy="command",
+            )
         except Exception as e:
             logger.warning("LLM evaluation failed for '%s': %s — requiring approval", command, e)
-            return CommandVerdict(allowed=False, reason=f"LLM error, requiring approval: {e}")
+            return PolicyVerdict(
+                level=AccessLevel.REQUIRE_APPROVAL,
+                reason=f"LLM error, requiring approval: {e}",
+                policy="command",
+            )
 
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
 
-    def _check_dangerous(self, text: str) -> CommandVerdict | None:
-        """Check text against dangerous patterns. Returns verdict if match."""
+    def _check_dangerous(self, text: str) -> PolicyVerdict | None:
+        """Check text against dangerous patterns. Returns DENY verdict if match."""
         for pattern, description in self._dangerous:
             if pattern.search(text):
-                return CommandVerdict(
-                    allowed=False,
+                return PolicyVerdict(
+                    level=AccessLevel.DENY,
                     reason=f"dangerous pattern: {description}",
+                    policy="command",
                 )
         return None
 
-    def _evaluate_segment(self, segment: str) -> CommandVerdict:
+    def _evaluate_segment(self, segment: str) -> PolicyVerdict:
         """Evaluate a single command segment (no pipes/chains)."""
         base = _extract_base_command(segment)
         if not base:
-            return CommandVerdict(allowed=False, reason="unknown command")
+            return PolicyVerdict(
+                level=AccessLevel.REQUIRE_APPROVAL,
+                reason="unknown command",
+                policy="command",
+            )
 
         # Always-require list (e.g. sudo)
         if base in self._always_require:
-            return CommandVerdict(
-                allowed=False,
+            return PolicyVerdict(
+                level=AccessLevel.REQUIRE_APPROVAL,
                 reason=f"always requires approval: {base}",
+                policy="command",
             )
 
         # Git: check subcommand
@@ -344,25 +357,39 @@ class CommandSecurityPolicy:
 
         # Safe allowlist
         if base in self._safe_commands:
-            return CommandVerdict(allowed=True, reason=f"safe command: {base}")
+            return PolicyVerdict(
+                level=AccessLevel.ALLOW,
+                reason=f"safe command: {base}",
+                policy="command",
+            )
 
         # Unknown
-        return CommandVerdict(
-            allowed=False,
+        return PolicyVerdict(
+            level=AccessLevel.REQUIRE_APPROVAL,
             reason=f"unknown command: {base}",
+            policy="command",
         )
 
-    def _evaluate_git(self, segment: str) -> CommandVerdict:
+    def _evaluate_git(self, segment: str) -> PolicyVerdict:
         """Evaluate a git command by its subcommand."""
         sub = _get_git_subcommand(segment)
         if sub is None:
             # Bare "git" or "git --version"
-            return CommandVerdict(allowed=True, reason="safe command: git")
+            return PolicyVerdict(
+                level=AccessLevel.ALLOW,
+                reason="safe command: git",
+                policy="command",
+            )
         if sub in self._git_safe_subcommands:
-            return CommandVerdict(allowed=True, reason=f"safe git subcommand: {sub}")
-        return CommandVerdict(
-            allowed=False,
+            return PolicyVerdict(
+                level=AccessLevel.ALLOW,
+                reason=f"safe git subcommand: {sub}",
+                policy="command",
+            )
+        return PolicyVerdict(
+            level=AccessLevel.REQUIRE_APPROVAL,
             reason=f"git subcommand requires approval: {sub}",
+            policy="command",
         )
 
     # ------------------------------------------------------------------

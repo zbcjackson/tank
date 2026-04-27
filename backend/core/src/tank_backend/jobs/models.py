@@ -68,7 +68,7 @@ class JobDefinition:
     blocked_tools: tuple[str, ...] | None = None
 
     delivery: DeliveryConfig = field(default_factory=DeliveryConfig)
-    approval_mode: str = "deny"  # "deny" | "auto"
+    approval_mode: str = "always_deny"  # "always_approve" | "always_deny"
 
     created_at: str = ""
     updated_at: str = ""
@@ -114,7 +114,7 @@ class JobDefinition:
             allowed_tools=tuple(allowed) if allowed else None,
             blocked_tools=tuple(blocked) if blocked else None,
             delivery=DeliveryConfig.from_dict(delivery_raw),
-            approval_mode=data.get("approval_mode", "deny"),
+            approval_mode=data.get("approval_mode", "always_deny"),
             created_at=data.get("created_at") or now,
             updated_at=data.get("updated_at") or now,
         )

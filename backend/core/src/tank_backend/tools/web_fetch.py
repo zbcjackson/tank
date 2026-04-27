@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
+from ..policy.verdict import AccessLevel
 from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
@@ -81,14 +82,12 @@ class WebFetchTool(BaseTool):
         timeout: int = 15,
         max_content_length: int = 50000,
         network_policy: Any = None,
-        approval_callback: Any = None,
     ):
         self.timeout = timeout
         self.max_content_length = max_content_length
         self._http_crawler: Any = None
         self._browser_crawler: Any = None
         self._network_policy = network_policy
-        self._approval_callback = approval_callback
         self._cache = ResponseCache(max_size=50, ttl_seconds=900)
 
     def get_info(self) -> ToolInfo:
@@ -628,7 +627,7 @@ class WebFetchTool(BaseTool):
         host = parsed_url.netloc.lower()
         if self._network_policy is not None:
             decision = self._network_policy.evaluate(host)
-            if decision.level == "deny":
+            if decision.level == AccessLevel.DENY:
                 logger.warning("web_fetch denied by network policy: %s", host)
                 return ToolResult(
                     content=json.dumps(
@@ -638,20 +637,6 @@ class WebFetchTool(BaseTool):
                     display=f"Cannot fetch: network policy blocks {host}.",
                     error=True,
                 )
-            if decision.level == "require_approval":
-                approved = await self._request_approval(
-                    host, "connect", decision.reason,
-                )
-                if not approved:
-                    return ToolResult(
-                        content=json.dumps(
-                            {"url": url, "error": f"Approval denied: {host} ({decision.reason})"},
-                            ensure_ascii=False,
-                        ),
-                        display=f"User denied connecting to {host}.",
-                        error=True,
-                    )
-
         # Check cache first
         cached = self._cache.get(url)
         if cached is not None:
@@ -818,17 +803,3 @@ class WebFetchTool(BaseTool):
         if self._browser_crawler:
             await self._browser_crawler.close()
             self._browser_crawler = None
-
-    async def _request_approval(
-        self, host: str, operation: str, reason: str,
-    ) -> bool:
-        """Request host-specific approval. Returns False if no callback or denied."""
-        if self._approval_callback is None:
-            logger.warning(
-                "web_fetch require_approval but no callback — denying: %s",
-                host,
-            )
-            return False
-        return await self._approval_callback(
-            "web_fetch", host, operation, reason,
-        )

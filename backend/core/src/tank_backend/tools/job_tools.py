@@ -67,8 +67,8 @@ class JobManagementTool(BaseTool):
                 ToolParameter(
                     name="approval_mode", type="string", required=False,
                     description=(
-                        "Tool approval policy: 'deny' (default, safe) "
-                        "or 'auto' (for create/update)"
+                        "Tool approval policy: 'always_deny' (default, safe) "
+                        "or 'always_approve' (for create/update)"
                     ),
                 ),
             ],
@@ -151,16 +151,13 @@ class JobManagementTool(BaseTool):
             "prompt": prompt,
             "schedule": schedule,
             "delivery": delivery_dict,
-            "approval_mode": kwargs.get("approval_mode", "deny"),
+            "approval_mode": kwargs.get("approval_mode", "always_deny"),
         })
         self._store.save_job(job)
 
-        info = self._store.get_schedule_info(job.id)
-        next_run = info["next_run_at"] if info else "unknown"
-
         return ToolResult(
-            content=f"Created job '{name}' (schedule: {schedule}, next run: {next_run})",
-            display=f"Scheduled job '{name}' — next run: {next_run}",
+            content=f"Created job '{name}' (schedule: {schedule})",
+            display=f"Scheduled job '{name}'",
         )
 
     async def _list(self, kwargs: dict[str, Any]) -> ToolResult:
@@ -170,10 +167,10 @@ class JobManagementTool(BaseTool):
 
         lines = []
         for job in jobs:
-            info = self._store.get_schedule_info(job.id)
-            next_run = info["next_run_at"][:19] if info and info["next_run_at"] else "—"
             status = "enabled" if job.enabled else "disabled"
-            lines.append(f"- {job.name} [{status}] schedule={job.schedule} next={next_run}")
+            lines.append(
+                f"- {job.name} [{status}] schedule={job.schedule}",
+            )
 
         return ToolResult(content="\n".join(lines))
 

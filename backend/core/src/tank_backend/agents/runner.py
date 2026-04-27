@@ -48,6 +48,7 @@ class AgentRunner:
         approval_policy: ToolApprovalPolicy,
         pending_store: PendingToolCallStore,
         definitions: dict[str, AgentDefinition],
+        resolver: Any = None,
         max_depth: int = MAX_AGENT_DEPTH,
         max_concurrent: int = MAX_CONCURRENT_AGENTS,
     ) -> None:
@@ -57,6 +58,7 @@ class AgentRunner:
         self._approval_policy = approval_policy
         self._pending_store = pending_store
         self._definitions = definitions
+        self._resolver = resolver
         self._max_depth = max_depth
         self._max_concurrent = max_concurrent
         self._active_agents: dict[str, _AgentTracker] = {}
@@ -157,6 +159,7 @@ class AgentRunner:
             system_prompt=system_prompt,
             exclude_tools=exclude_tools,
             approval_policy=self._approval_policy,
+            resolver=self._resolver,
             session_id=agent_id,
             pending_store=self._pending_store,
             bus=self._bus,

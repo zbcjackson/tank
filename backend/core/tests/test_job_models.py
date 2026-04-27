@@ -81,7 +81,7 @@ class TestJobDefinition:
         assert job.agent == "chat"
         assert job.max_iterations == 30
         assert job.timeout_seconds == 300
-        assert job.approval_mode == "deny"
+        assert job.approval_mode == "always_deny"
         assert job.allowed_tools is None
         assert job.blocked_tools is None
 

@@ -37,11 +37,9 @@ class WebToolGroup(ToolGroup):
         self,
         credential_manager: Any,
         network_policy: Any = None,
-        approval_callback: Any = None,
     ) -> None:
         self._credential_manager = credential_manager
         self._network_policy = network_policy
-        self._approval_callback = approval_callback
 
     def create_tools(self) -> list[BaseTool]:
         from .web_fetch import WebFetchTool
@@ -50,12 +48,10 @@ class WebToolGroup(ToolGroup):
         return [
             WebFetchTool(
                 network_policy=self._network_policy,
-                approval_callback=self._approval_callback,
             ),
             WebSearchTool(
                 credential_manager=self._credential_manager,
                 network_policy=self._network_policy,
-                approval_callback=self._approval_callback,
             ),
         ]
 
@@ -134,12 +130,12 @@ class FileToolGroup(ToolGroup):
     def __init__(
         self,
         config: dict | None = None,
-        approval_callback: Any = None,
         bus: Any = None,
+        policy: Any = None,
     ) -> None:
         self._config = config or {}
-        self._approval_callback = approval_callback
         self._bus = bus
+        self._policy = policy
 
     def create_tools(self) -> list[BaseTool]:
         from ..policy import BackupManager, FileAccessPolicy
@@ -150,16 +146,18 @@ class FileToolGroup(ToolGroup):
         from .file_search import FileSearchTool
         from .file_write import FileWriteTool
 
-        policy = FileAccessPolicy.from_dict(self._config, bus=self._bus)
+        policy = self._policy or FileAccessPolicy.from_dict(
+            self._config, bus=self._bus,
+        )
         backup = BackupManager.from_dict(self._config.get("backup", {}))
 
         return [
-            FileReadTool(policy, approval_callback=self._approval_callback),
-            FileWriteTool(policy, backup, approval_callback=self._approval_callback),
-            FileEditTool(policy, backup, approval_callback=self._approval_callback),
-            FileDeleteTool(policy, backup, approval_callback=self._approval_callback),
-            FileListTool(policy, approval_callback=self._approval_callback),
-            FileSearchTool(policy, approval_callback=self._approval_callback),
+            FileReadTool(policy),
+            FileWriteTool(policy, backup),
+            FileEditTool(policy, backup),
+            FileDeleteTool(policy, backup),
+            FileListTool(policy),
+            FileSearchTool(policy),
         ]
 
 

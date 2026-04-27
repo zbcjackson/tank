@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Any
 
 from ..policy.file_access import FileAccessPolicy
-from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter, ToolResult
+from ..policy.verdict import AccessLevel
+from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 from .ripgrep import find_rg_binary, run_rg_files
 
 logger = logging.getLogger(__name__)
@@ -33,10 +34,8 @@ class FileListTool(BaseTool):
     def __init__(
         self,
         policy: FileAccessPolicy,
-        approval_callback: ApprovalCallback | None = None,
     ) -> None:
         self._policy = policy
-        self._approval_callback = approval_callback
         self._rg_binary = find_rg_binary()
         if self._rg_binary:
             logger.info("file_list: using ripgrep at %s", self._rg_binary)
@@ -111,7 +110,7 @@ class FileListTool(BaseTool):
 
         # 1. Policy check (listing uses "read" operation)
         decision = self._policy.evaluate(path, "read")
-        if decision.level == "deny":
+        if decision.level == AccessLevel.DENY:
             logger.warning(
                 "file_list denied: %s (%s)", path, decision.reason,
             )
@@ -123,21 +122,6 @@ class FileListTool(BaseTool):
                 display=f"Cannot list {path}: {decision.reason}",
                 error=True,
             )
-        if (
-            decision.level == "require_approval"
-            and not await self._request_approval(
-                path, "read", decision.reason,
-            )
-        ):
-            return ToolResult(
-                content=json.dumps(
-                    {"error": f"Approval denied: {path} ({decision.reason})", "denied": True},
-                    ensure_ascii=False,
-                ),
-                display=f"User denied listing {path}: {decision.reason}",
-                error=True,
-            )
-
         resolved = Path(path).expanduser().resolve()
 
         if not resolved.exists():
@@ -434,20 +418,6 @@ class FileListTool(BaseTool):
                         return entries, True
 
         return entries, truncated
-
-    async def _request_approval(
-        self, path: str, operation: str, reason: str,
-    ) -> bool:
-        if self._approval_callback is None:
-            logger.warning(
-                "file_list require_approval but no callback "
-                "— denying: %s",
-                path,
-            )
-            return False
-        return await self._approval_callback(
-            "file_list", path, operation, reason,
-        )
 
     # ------------------------------------------------------------------
     # Message formatting

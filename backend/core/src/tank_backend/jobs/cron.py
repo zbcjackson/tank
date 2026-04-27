@@ -1,9 +1,8 @@
-"""Cron expression parsing and next-run calculation."""
+"""Cron expression parsing and human-friendly schedule conversion."""
 
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
 
 from croniter import croniter
 
@@ -30,17 +29,6 @@ _HUMAN_PATTERNS: list[tuple[re.Pattern[str], str | None, str]] = [
 def validate_cron(expression: str) -> bool:
     """Return True if *expression* is a valid 5-field cron expression."""
     return croniter.is_valid(expression)
-
-
-def next_run_time(
-    expression: str,
-    base_time: datetime | None = None,
-) -> datetime:
-    """Calculate the next run time from *base_time* (default: now UTC)."""
-    if base_time is None:
-        base_time = datetime.now(timezone.utc)
-    cron = croniter(expression, base_time)
-    return cron.get_next(datetime)
 
 
 def parse_human_schedule(text: str) -> str | None:

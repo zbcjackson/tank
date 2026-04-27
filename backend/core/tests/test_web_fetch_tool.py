@@ -472,8 +472,10 @@ async def test_close_noop_when_no_crawlers(tool):
 
 
 async def test_network_policy_deny_blocks_scrape():
+    from tank_backend.policy.verdict import AccessLevel
+
     policy = MagicMock()
-    policy.evaluate.return_value = MagicMock(level="deny", reason="Anonymous network")
+    policy.evaluate.return_value = MagicMock(level=AccessLevel.DENY, reason="Anonymous network")
     tool = WebFetchTool(network_policy=policy)
 
     result = await tool.execute(url="https://hidden.onion/page")
@@ -484,61 +486,12 @@ async def test_network_policy_deny_blocks_scrape():
     policy.evaluate.assert_called_once_with("hidden.onion")
 
 
-async def test_network_policy_require_approval_denied():
-    policy = MagicMock()
-    policy.evaluate.return_value = MagicMock(
-        level="require_approval", reason="Content sharing",
-    )
-    cb = AsyncMock(return_value=False)
-    tool = WebFetchTool(network_policy=policy, approval_callback=cb)
-
-    result = await tool.execute(url="https://pastebin.com/raw/abc")
-
-    assert result.error is True
-    data = json.loads(result.content)
-    assert "Approval denied" in data["error"]
-    cb.assert_awaited_once_with(
-        "web_fetch", "pastebin.com", "connect", "Content sharing",
-    )
-
-
-async def test_network_policy_require_approval_granted():
-    policy = MagicMock()
-    policy.evaluate.return_value = MagicMock(
-        level="require_approval", reason="Content sharing",
-    )
-    cb = AsyncMock(return_value=True)
-    crawl_result = _make_crawl_result(url="https://pastebin.com/raw/abc")
-    tool = WebFetchTool(network_policy=policy, approval_callback=cb)
-    _tool_with_crawler(tool, crawl_result)
-
-    with _patch_detect_html(tool):
-        result = await tool.execute(url="https://pastebin.com/raw/abc")
-
-    assert result.error is False
-    data = json.loads(result.content)
-    assert data["status"] == "success"
-    cb.assert_awaited_once()
-
-
-async def test_network_policy_require_approval_no_callback_denies():
-    policy = MagicMock()
-    policy.evaluate.return_value = MagicMock(
-        level="require_approval", reason="Content sharing",
-    )
-    tool = WebFetchTool(network_policy=policy)  # no callback
-
-    result = await tool.execute(url="https://pastebin.com/raw/abc")
-
-    assert result.error is True
-    data = json.loads(result.content)
-    assert "Approval denied" in data["error"]
-
-
 async def test_network_policy_allow_proceeds():
+    from tank_backend.policy.verdict import AccessLevel
+
     policy = MagicMock()
     policy.evaluate.return_value = MagicMock(
-        level="allow", reason="default policy",
+        level=AccessLevel.ALLOW, reason="default policy",
     )
     crawl_result = _make_crawl_result()
     tool = WebFetchTool(network_policy=policy)

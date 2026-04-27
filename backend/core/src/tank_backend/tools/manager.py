@@ -35,6 +35,7 @@ class ToolManager:
         # --- Shared tool infrastructure ---
         from ..policy import (
             AuditLogger,
+            FileAccessPolicy,
             NetworkAccessPolicy,
             ServiceCredentialManager,
         )
@@ -44,6 +45,9 @@ class ToolManager:
         self._credential_manager = ServiceCredentialManager.from_dict(
             net_raw.get("service_credentials", [])
         )
+
+        file_raw = app_config.get_section("file_access", {})
+        self._file_policy = FileAccessPolicy.from_dict(file_raw, bus=bus)
 
         audit_raw = app_config.get_section("audit", {})
         self._audit_logger = AuditLogger.from_dict(audit_raw)
@@ -82,6 +86,8 @@ class ToolManager:
 
         self._approval_policy = ToolApprovalPolicy(
             command_policy=command_policy,
+            file_policy=self._file_policy,
+            network_policy=self._network_policy,
             llm=command_llm,
         )
 
@@ -102,11 +108,11 @@ class ToolManager:
         )
 
         file_raw = app_config.get_section("file_access", {})
-        self._register_group(FileToolGroup(file_raw, None, bus))
+        self._register_group(FileToolGroup(file_raw, bus=bus, policy=self._file_policy))
 
         self._register_group(
             WebToolGroup(
-                self._credential_manager, self._network_policy, None,
+                self._credential_manager, self._network_policy,
             )
         )
 

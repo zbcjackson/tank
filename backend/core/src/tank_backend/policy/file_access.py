@@ -6,14 +6,14 @@ import fnmatch
 import logging
 import os
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
+
+from .verdict import AccessLevel, PolicyVerdict
 
 if TYPE_CHECKING:
     from ..pipeline.bus import Bus
 
 logger = logging.getLogger(__name__)
-
-AccessLevel = Literal["allow", "require_approval", "deny"]
 
 
 @dataclass(frozen=True)
@@ -21,19 +21,11 @@ class FileAccessRule:
     """A single file access rule matching a set of path patterns."""
 
     paths: tuple[str, ...]
-    read: AccessLevel = "allow"
-    write: AccessLevel = "allow"
-    delete: AccessLevel = "allow"
+    read: AccessLevel = AccessLevel.ALLOW
+    write: AccessLevel = AccessLevel.ALLOW
+    delete: AccessLevel = AccessLevel.ALLOW
     reason: str = ""
     priority: int = 0
-
-
-@dataclass(frozen=True)
-class AccessDecision:
-    """Result of evaluating a file access policy."""
-
-    level: AccessLevel
-    reason: str
 
 
 class FileAccessPolicy:
@@ -50,9 +42,9 @@ class FileAccessPolicy:
     def __init__(
         self,
         rules: tuple[FileAccessRule, ...] = (),
-        default_read: AccessLevel = "allow",
-        default_write: AccessLevel = "require_approval",
-        default_delete: AccessLevel = "require_approval",
+        default_read: AccessLevel = AccessLevel.ALLOW,
+        default_write: AccessLevel = AccessLevel.REQUIRE_APPROVAL,
+        default_delete: AccessLevel = AccessLevel.REQUIRE_APPROVAL,
         bus: Bus | None = None,
     ) -> None:
         self._rules = rules
@@ -63,7 +55,7 @@ class FileAccessPolicy:
         }
         self._bus = bus
 
-    def evaluate(self, path: str, operation: str) -> AccessDecision:
+    def evaluate(self, path: str, operation: str) -> PolicyVerdict:
         """Evaluate file access for a path and operation.
 
         Args:
@@ -71,10 +63,14 @@ class FileAccessPolicy:
             operation: ``"read"`` | ``"write"`` | ``"delete"``.
 
         Returns:
-            AccessDecision with level and reason.
+            PolicyVerdict with level and reason.
         """
         if operation not in self._defaults:
-            return AccessDecision(level="deny", reason=f"unknown operation: {operation}")
+            return PolicyVerdict(
+                level=AccessLevel.DENY,
+                reason=f"unknown operation: {operation}",
+                policy="file",
+            )
 
         resolved = os.path.realpath(os.path.expanduser(path))
 
@@ -86,9 +82,10 @@ class FileAccessPolicy:
                 matches.append((rule.priority, best_spec, rule))
 
         if not matches:
-            decision = AccessDecision(
+            decision = PolicyVerdict(
                 level=self._defaults[operation],
                 reason="default policy",
+                policy="file",
             )
             self._publish(operation, path, decision)
             return decision
@@ -106,12 +103,14 @@ class FileAccessPolicy:
                 if level_a != level_b:
                     logger.warning(
                         "Conflicting rules for %s %s: %r (%s) vs %r (%s) — using first",
-                        operation, path, top_rule.reason, level_a, sec_rule.reason, level_b,
+                        operation, path,
+                        top_rule.reason, level_a,
+                        sec_rule.reason, level_b,
                     )
 
         best_rule = matches[0][2]
         level = getattr(best_rule, operation)
-        decision = AccessDecision(level=level, reason=best_rule.reason)
+        decision = PolicyVerdict(level=level, reason=best_rule.reason, policy="file")
         self._publish(operation, path, decision)
         return decision
 
@@ -208,7 +207,7 @@ class FileAccessPolicy:
     # Bus integration
     # ------------------------------------------------------------------
 
-    def _publish(self, operation: str, path: str, decision: AccessDecision) -> None:
+    def _publish(self, operation: str, path: str, decision: PolicyVerdict) -> None:
         """Publish decision to the Bus if connected."""
         if self._bus is None:
             return
@@ -220,7 +219,7 @@ class FileAccessPolicy:
             payload={
                 "operation": operation,
                 "path": path,
-                "level": decision.level,
+                "level": decision.level.value,
                 "reason": decision.reason,
             },
         ))
@@ -241,9 +240,9 @@ class FileAccessPolicy:
             rules.append(
                 FileAccessRule(
                     paths=paths,
-                    read=rule_data.get("read", "allow"),
-                    write=rule_data.get("write", "allow"),
-                    delete=rule_data.get("delete", "allow"),
+                    read=AccessLevel(rule_data.get("read", "allow")),
+                    write=AccessLevel(rule_data.get("write", "allow")),
+                    delete=AccessLevel(rule_data.get("delete", "allow")),
                     reason=rule_data.get("reason", ""),
                     priority=rule_data.get("priority", 0),
                 )
@@ -251,8 +250,12 @@ class FileAccessPolicy:
 
         return FileAccessPolicy(
             rules=tuple(rules),
-            default_read=data.get("default_read", "allow"),
-            default_write=data.get("default_write", "require_approval"),
-            default_delete=data.get("default_delete", "require_approval"),
+            default_read=AccessLevel(data.get("default_read", "allow")),
+            default_write=AccessLevel(
+                data.get("default_write", "require_approval"),
+            ),
+            default_delete=AccessLevel(
+                data.get("default_delete", "require_approval"),
+            ),
             bus=bus,
         )

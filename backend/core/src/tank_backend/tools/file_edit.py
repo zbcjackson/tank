@@ -10,7 +10,8 @@ from typing import Any
 
 from ..policy.backup import BackupManager
 from ..policy.file_access import FileAccessPolicy
-from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter, ToolResult
+from ..policy.verdict import AccessLevel
+from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +30,9 @@ class FileEditTool(BaseTool):
         self,
         policy: FileAccessPolicy,
         backup: BackupManager,
-        approval_callback: ApprovalCallback | None = None,
     ) -> None:
         self._policy = policy
         self._backup = backup
-        self._approval_callback = approval_callback
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -155,7 +154,7 @@ class FileEditTool(BaseTool):
 
         # 2. Policy check (editing is a write operation)
         decision = self._policy.evaluate(path, "write")
-        if decision.level == "deny":
+        if decision.level == AccessLevel.DENY:
             logger.warning("file_edit denied: %s (%s)", path, decision.reason)
             return ToolResult(
                 content=json.dumps(
@@ -165,18 +164,6 @@ class FileEditTool(BaseTool):
                 display=f"Cannot edit {path}: {decision.reason}",
                 error=True,
             )
-        if decision.level == "require_approval" and not await self._request_approval(
-            path, "write", decision.reason
-        ):
-            return ToolResult(
-                content=json.dumps(
-                    {"error": f"Approval denied: {path} ({decision.reason})", "denied": True},
-                    ensure_ascii=False,
-                ),
-                display=f"User denied editing {path}: {decision.reason}",
-                error=True,
-            )
-
         # 3. Validate path
         resolved = Path(path).expanduser().resolve()
         if not resolved.exists():
@@ -292,11 +279,3 @@ class FileEditTool(BaseTool):
         pos = min(after_line, len(lines))
         lines.insert(pos, text)
         return "".join(lines)
-
-    async def _request_approval(self, path: str, operation: str, reason: str) -> bool:
-        if self._approval_callback is None:
-            logger.warning(
-                "file_edit require_approval but no callback — denying: %s", path,
-            )
-            return False
-        return await self._approval_callback("file_edit", path, operation, reason)

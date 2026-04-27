@@ -11,6 +11,7 @@ import pytest
 from tank_backend.mcp.client import MCPClientManager, MCPServerConfig, load_mcp_configs
 from tank_backend.mcp.proxy_tool import MCPProxyTool
 from tank_backend.mcp.tool_group import MCPToolGroup
+from tank_backend.policy.verdict import AccessLevel
 
 # ------------------------------------------------------------------
 # Helpers
@@ -554,8 +555,8 @@ class TestToolManagerMCPIntegration:
         assert "mcp_fs__write_file" in tm.tools
         # Non-command tools are auto-approved
         policy = tm.approval_policy
-        assert not policy.needs_approval("mcp_fs__read_file")
-        assert not policy.needs_approval("mcp_fs__write_file")
+        assert policy.evaluate("mcp_fs__read_file").level == AccessLevel.ALLOW
+        assert policy.evaluate("mcp_fs__write_file").level == AccessLevel.ALLOW
 
     @pytest.mark.asyncio
     async def test_connect_servers_no_mcp_is_noop(self):

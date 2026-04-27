@@ -1,6 +1,8 @@
-"""SQLite-backed job store — definitions, run history, and scheduling state.
+"""SQLite-backed job store — definitions and run history.
 
 All data lives under ``~/.tank/jobs/`` by default.
+Scheduling state is managed by APScheduler — this store only holds
+job definitions, run history, and seed sync metadata.
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .cron import next_run_time, validate_cron
+from .cron import validate_cron
 from .models import JobDefinition, JobRunResult
 
 logger = logging.getLogger(__name__)
@@ -21,7 +23,7 @@ _DEFAULT_DB_PATH = "~/.tank/jobs/jobs.db"
 
 
 class JobStore:
-    """Persistent store for job definitions, scheduling state, and run history."""
+    """Persistent store for job definitions and run history."""
 
     def __init__(self, db_path: str | Path = _DEFAULT_DB_PATH) -> None:
         resolved = Path(db_path).expanduser().resolve()
@@ -61,15 +63,7 @@ class JobStore:
                 stats_json  TEXT
             );
 
-            CREATE TABLE IF NOT EXISTS job_schedule (
-                job_id      TEXT PRIMARY KEY REFERENCES jobs(id) ON DELETE CASCADE,
-                next_run_at TEXT NOT NULL,
-                last_run_at TEXT,
-                last_status TEXT
-            );
-
             CREATE INDEX IF NOT EXISTS idx_job_runs_job_id ON job_runs(job_id);
-            CREATE INDEX IF NOT EXISTS idx_job_schedule_next ON job_schedule(next_run_at);
         """)
         self._conn.commit()
         self._migrate_origin_column()
@@ -79,7 +73,7 @@ class JobStore:
     # ------------------------------------------------------------------
 
     def save_job(self, job: JobDefinition, origin: str = "api") -> None:
-        """Insert or update a job definition and its schedule."""
+        """Insert or update a job definition."""
         now = datetime.now(timezone.utc).isoformat()
         config_json = job.to_json()
 
@@ -98,16 +92,6 @@ class JobStore:
             """,
             (job.id, job.name, job.prompt, job.schedule, int(job.enabled),
              origin, config_json, job.created_at or now, now),
-        )
-
-        # Upsert schedule — compute next_run_at from cron expression
-        nrt = next_run_time(job.schedule).isoformat()
-        self._conn.execute(
-            """INSERT INTO job_schedule (job_id, next_run_at)
-               VALUES (?, ?)
-               ON CONFLICT(job_id) DO UPDATE SET next_run_at=excluded.next_run_at
-            """,
-            (job.id, nrt),
         )
         self._conn.commit()
 
@@ -139,7 +123,7 @@ class JobStore:
         return [JobDefinition.from_json(r[0]) for r in rows]
 
     def delete_job(self, job_id: str) -> bool:
-        """Delete a job and its schedule/run history. Returns True if found."""
+        """Delete a job and its run history. Returns True if found."""
         cursor = self._conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
         self._conn.commit()
         return cursor.rowcount > 0
@@ -169,50 +153,6 @@ class JobStore:
         return False
 
     # ------------------------------------------------------------------
-    # Schedule management
-    # ------------------------------------------------------------------
-
-    def get_due_jobs(self, now: datetime | None = None) -> list[JobDefinition]:
-        """Return enabled jobs whose next_run_at <= now."""
-        if now is None:
-            now = datetime.now(timezone.utc)
-        now_iso = now.isoformat()
-        rows = self._conn.execute(
-            """SELECT j.config_json FROM jobs j
-               JOIN job_schedule s ON j.id = s.job_id
-               WHERE j.enabled = 1 AND s.next_run_at <= ?
-               ORDER BY s.next_run_at
-            """,
-            (now_iso,),
-        ).fetchall()
-        return [JobDefinition.from_json(r[0]) for r in rows]
-
-    def advance_schedule(self, job_id: str) -> None:
-        """Compute and store the next run time after a job completes."""
-        row = self._conn.execute(
-            "SELECT schedule FROM jobs WHERE id = ?", (job_id,)
-        ).fetchone()
-        if row is None:
-            return
-        nrt = next_run_time(row[0]).isoformat()
-        now = datetime.now(timezone.utc).isoformat()
-        self._conn.execute(
-            "UPDATE job_schedule SET next_run_at = ?, last_run_at = ? WHERE job_id = ?",
-            (nrt, now, job_id),
-        )
-        self._conn.commit()
-
-    def get_schedule_info(self, job_id: str) -> dict[str, Any] | None:
-        """Return scheduling state for a job."""
-        row = self._conn.execute(
-            "SELECT next_run_at, last_run_at, last_status FROM job_schedule WHERE job_id = ?",
-            (job_id,),
-        ).fetchone()
-        if row is None:
-            return None
-        return {"next_run_at": row[0], "last_run_at": row[1], "last_status": row[2]}
-
-    # ------------------------------------------------------------------
     # Run history
     # ------------------------------------------------------------------
 
@@ -222,10 +162,6 @@ class JobStore:
         self._conn.execute(
             "INSERT INTO job_runs (id, job_id, status, started_at) VALUES (?, ?, 'running', ?)",
             (run_id, job_id, now),
-        )
-        self._conn.execute(
-            "UPDATE job_schedule SET last_status = 'running' WHERE job_id = ?",
-            (job_id,),
         )
         self._conn.commit()
 
@@ -249,16 +185,13 @@ class JobStore:
             """,
             (status, now, output_path, error, stats_json, run_id),
         )
-        self._conn.execute(
-            "UPDATE job_schedule SET last_status = ? WHERE job_id = ?",
-            (status, job_id),
-        )
         self._conn.commit()
 
     def get_runs(self, job_id: str, limit: int = 20) -> list[JobRunResult]:
         """List recent runs for a job, newest first."""
         rows = self._conn.execute(
-            """SELECT id, job_id, status, started_at, finished_at, output_path, error, stats_json
+            """SELECT id, job_id, status, started_at, finished_at,
+                      output_path, error, stats_json
                FROM job_runs WHERE job_id = ?
                ORDER BY started_at DESC LIMIT ?
             """,
@@ -277,7 +210,8 @@ class JobStore:
     def get_run(self, run_id: str) -> JobRunResult | None:
         """Fetch a single run by ID."""
         row = self._conn.execute(
-            """SELECT id, job_id, status, started_at, finished_at, output_path, error, stats_json
+            """SELECT id, job_id, status, started_at, finished_at,
+                      output_path, error, stats_json
                FROM job_runs WHERE id = ?
             """,
             (run_id,),
@@ -330,12 +264,17 @@ class JobStore:
                 continue
 
             if not raw.get("prompt") or not raw.get("schedule"):
-                logger.warning("Seed job '%s' missing prompt or schedule — skipping", name)
+                logger.warning(
+                    "Seed job '%s' missing prompt or schedule — skipping", name,
+                )
                 continue
 
             schedule = raw["schedule"]
             if not validate_cron(schedule):
-                logger.warning("Seed job '%s' has invalid cron '%s' — skipping", name, schedule)
+                logger.warning(
+                    "Seed job '%s' has invalid cron '%s' — skipping",
+                    name, schedule,
+                )
                 continue
 
             seed_names.add(name)
@@ -391,7 +330,9 @@ class JobStore:
                 "ALTER TABLE jobs ADD COLUMN origin TEXT NOT NULL DEFAULT 'seed'"
             )
             self._conn.commit()
-            logger.info("Migrated jobs table: added origin column (default='seed')")
+            logger.info(
+                "Migrated jobs table: added origin column (default='seed')",
+            )
 
     # ------------------------------------------------------------------
     # Lifecycle

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 import pytest
 
 from tank_backend.jobs.models import JobDefinition
@@ -91,53 +89,6 @@ class TestJobCRUD:
         assert fetched.prompt == "Updated prompt"
 
 
-class TestSchedule:
-    def test_schedule_created_on_save(self, store: JobStore):
-        job = _make_job()
-        store.save_job(job)
-        info = store.get_schedule_info(job.id)
-        assert info is not None
-        assert info["next_run_at"] is not None
-
-    def test_get_due_jobs(self, store: JobStore):
-        job = _make_job(schedule="*/1 * * * *")  # every minute
-        store.save_job(job)
-        # Force next_run_at to the past
-        store._conn.execute(
-            "UPDATE job_schedule SET next_run_at = '2020-01-01T00:00:00' WHERE job_id = ?",
-            (job.id,),
-        )
-        store._conn.commit()
-
-        future = datetime(2026, 12, 31, tzinfo=timezone.utc)
-        due = store.get_due_jobs(now=future)
-        assert len(due) == 1
-        assert due[0].id == job.id
-
-    def test_get_due_jobs_excludes_disabled(self, store: JobStore):
-        job = _make_job(enabled=False)
-        store.save_job(job)
-        store._conn.execute(
-            "UPDATE job_schedule SET next_run_at = '2020-01-01T00:00:00' WHERE job_id = ?",
-            (job.id,),
-        )
-        store._conn.commit()
-
-        future = datetime(2026, 12, 31, tzinfo=timezone.utc)
-        due = store.get_due_jobs(now=future)
-        assert len(due) == 0
-
-    def test_advance_schedule(self, store: JobStore):
-        job = _make_job(schedule="0 9 * * *")
-        store.save_job(job)
-        store.advance_schedule(job.id)
-        info_after = store.get_schedule_info(job.id)
-        assert info_after is not None
-        assert info_after["last_run_at"] is not None
-        # next_run_at should have changed (or be same if within minute)
-        assert info_after["next_run_at"] is not None
-
-
 class TestRunHistory:
     def test_record_and_get_runs(self, store: JobStore):
         job = _make_job()
@@ -161,17 +112,6 @@ class TestRunHistory:
         assert run is not None
         assert run.status == "failed"
         assert run.error == "timeout"
-
-    def test_run_updates_schedule_status(self, store: JobStore):
-        job = _make_job()
-        store.save_job(job)
-        store.record_run_start(job.id, "run1")
-        info = store.get_schedule_info(job.id)
-        assert info["last_status"] == "running"
-
-        store.record_run_end(job.id, "run1", status="succeeded")
-        info = store.get_schedule_info(job.id)
-        assert info["last_status"] == "succeeded"
 
     def test_cascade_delete(self, store: JobStore):
         job = _make_job()

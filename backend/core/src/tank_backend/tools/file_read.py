@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from ..policy.file_access import FileAccessPolicy
-from .base import ApprovalCallback, BaseTool, ToolInfo, ToolParameter, ToolResult
+from ..policy.verdict import AccessLevel
+from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +26,8 @@ class FileReadTool(BaseTool):
     def __init__(
         self,
         policy: FileAccessPolicy,
-        approval_callback: ApprovalCallback | None = None,
     ) -> None:
         self._policy = policy
-        self._approval_callback = approval_callback
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -88,7 +87,7 @@ class FileReadTool(BaseTool):
 
         # 1. Policy check
         decision = self._policy.evaluate(path, "read")
-        if decision.level == "deny":
+        if decision.level == AccessLevel.DENY:
             logger.warning("file_read denied: %s (%s)", path, decision.reason)
             return ToolResult(
                 content=json.dumps(
@@ -98,18 +97,6 @@ class FileReadTool(BaseTool):
                 display=f"Cannot read {path}: {decision.reason}",
                 error=True,
             )
-        if decision.level == "require_approval" and not await self._request_approval(
-            path, "read", decision.reason
-        ):
-            return ToolResult(
-                content=json.dumps(
-                    {"error": f"Approval denied: {path} ({decision.reason})", "denied": True},
-                    ensure_ascii=False,
-                ),
-                display=f"User denied reading {path}: {decision.reason}",
-                error=True,
-            )
-
         # 2. Validate path
         resolved = Path(path).expanduser().resolve()
         if not resolved.exists():
@@ -224,11 +211,3 @@ class FileReadTool(BaseTool):
                     break
             return "".join(lines)
 
-    async def _request_approval(self, path: str, operation: str, reason: str) -> bool:
-        """Request path-specific approval. Returns False if no callback or denied."""
-        if self._approval_callback is None:
-            logger.warning(
-                "file_read require_approval but no callback — denying: %s", path,
-            )
-            return False
-        return await self._approval_callback("file_read", path, operation, reason)

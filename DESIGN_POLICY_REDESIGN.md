@@ -263,22 +263,35 @@ ApprovalGateExecutor
 
 ### New files
 ```
-policy/verdict.py          # PolicyVerdict, AccessLevel enum, ApprovalResolver protocol
+policy/verdict.py          # PolicyVerdict, AccessLevel enum, ApprovalResolver protocol,
+                           # AlwaysApproveResolver, AlwaysDenyResolver
 ```
 
 ### Modified files
 ```
-policy/command_security.py  # Return PolicyVerdict with three-way distinction
-policy/file_access.py       # Return PolicyVerdict, remove AccessDecision
-policy/network_access.py    # Return PolicyVerdict, remove NetworkAccessDecision
+policy/command_security.py  # Return PolicyVerdict with three-way distinction (ALLOW/REQUIRE_APPROVAL/DENY)
+policy/file_access.py       # Return PolicyVerdict, use AccessLevel enum
+policy/network_access.py    # Return PolicyVerdict, use AccessLevel enum
 policy/__init__.py          # Export new types, remove old verdict types
-agents/approval.py          # ApprovalGateExecutor uses resolver pattern
-agents/runner.py            # Pass resolver to ApprovalGateExecutor
-jobs/runner.py              # Use AlwaysApproveResolver / AlwaysDenyResolver, remove _AutonomousApprovalPolicy
-tools/manager.py            # ToolManager stores resolver, passes to agents
-tools/file_tools.py         # Update to use PolicyVerdict instead of AccessDecision
-tools/web_tools.py          # Update to use PolicyVerdict instead of NetworkAccessDecision
+agents/approval.py          # ToolApprovalPolicy evaluates ALL tool types (command, file, network)
+                           # ApprovalGateExecutor uses resolver pattern
+                           # InteractiveResolver always parks for user confirmation
+agents/llm_agent.py         # Pass resolver to ApprovalGateExecutor
+agents/runner.py            # Pass resolver through to LLMAgent
+tools/base.py               # Remove ApprovalCallback protocol (no longer needed)
+tools/manager.py            # Create FileAccessPolicy, pass file_policy + network_policy to ToolApprovalPolicy
+tools/groups.py             # Remove approval_callback from FileToolGroup and WebToolGroup
+tools/file_read.py          # Remove REQUIRE_APPROVAL handling (gate handles it)
+tools/file_write.py         # Remove REQUIRE_APPROVAL handling
+tools/file_edit.py          # Remove REQUIRE_APPROVAL handling
+tools/file_delete.py        # Remove REQUIRE_APPROVAL handling
+tools/file_search.py        # Remove REQUIRE_APPROVAL handling
+tools/file_list.py          # Remove REQUIRE_APPROVAL handling
+tools/web_search.py         # Remove REQUIRE_APPROVAL handling
+tools/web_fetch.py          # Remove REQUIRE_APPROVAL handling
 core/assistant.py           # Pass resolver to ToolManager/AgentRunner
+jobs/runner.py              # Use AlwaysApproveResolver / AlwaysDenyResolver
+jobs/models.py              # Rename approval_mode: "always_approve" / "always_deny"
 ```
 
 ### Removed types
@@ -286,7 +299,9 @@ core/assistant.py           # Pass resolver to ToolManager/AgentRunner
 - `AccessDecision` — replaced by `PolicyVerdict`
 - `NetworkAccessDecision` — replaced by `PolicyVerdict`
 - `AccessLevel` literal type in file_access.py / network_access.py — replaced by `AccessLevel` enum
+- `ApprovalCallback` protocol in tools/base.py — no longer needed
 - `_AutonomousApprovalPolicy` in jobs/runner.py — replaced by resolver pattern
+- `ResolverApprovalCallback` — no longer needed (gate handles all approvals)
 
 ## Implementation Order
 

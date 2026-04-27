@@ -5,14 +5,14 @@ from __future__ import annotations
 import fnmatch
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
+
+from .verdict import AccessLevel, PolicyVerdict
 
 if TYPE_CHECKING:
     from ..pipeline.bus import Bus
 
 logger = logging.getLogger(__name__)
-
-AccessLevel = Literal["allow", "require_approval", "deny"]
 
 
 @dataclass(frozen=True)
@@ -20,16 +20,8 @@ class NetworkAccessRule:
     """A single network access rule matching a set of host patterns."""
 
     hosts: tuple[str, ...]
-    policy: AccessLevel = "allow"
+    policy: AccessLevel = AccessLevel.ALLOW
     reason: str = ""
-
-
-@dataclass(frozen=True)
-class NetworkAccessDecision:
-    """Result of evaluating a network access policy."""
-
-    level: AccessLevel
-    reason: str
 
 
 class NetworkAccessPolicy:
@@ -45,34 +37,29 @@ class NetworkAccessPolicy:
     def __init__(
         self,
         rules: tuple[NetworkAccessRule, ...] = (),
-        default: AccessLevel = "allow",
+        default: AccessLevel = AccessLevel.ALLOW,
         bus: Bus | None = None,
     ) -> None:
         self._rules = rules
         self._default = default
         self._bus = bus
 
-    def evaluate(self, host: str) -> NetworkAccessDecision:
-        """Evaluate network access for a host.
-
-        Args:
-            host: Hostname to check (e.g. ``"pastebin.com"``).
-
-        Returns:
-            NetworkAccessDecision with level and reason.
-        """
+    def evaluate(self, host: str) -> PolicyVerdict:
+        """Evaluate network access for a host."""
         host_lower = host.lower()
 
         for rule in self._rules:
             for pattern in rule.hosts:
                 if fnmatch.fnmatch(host_lower, pattern.lower()):
-                    decision = NetworkAccessDecision(
-                        level=rule.policy, reason=rule.reason,
+                    decision = PolicyVerdict(
+                        level=rule.policy, reason=rule.reason, policy="network",
                     )
                     self._publish(host, decision)
                     return decision
 
-        decision = NetworkAccessDecision(level=self._default, reason="default policy")
+        decision = PolicyVerdict(
+            level=self._default, reason="default policy", policy="network",
+        )
         self._publish(host, decision)
         return decision
 
@@ -80,7 +67,7 @@ class NetworkAccessPolicy:
     # Bus integration
     # ------------------------------------------------------------------
 
-    def _publish(self, host: str, decision: NetworkAccessDecision) -> None:
+    def _publish(self, host: str, decision: PolicyVerdict) -> None:
         """Publish decision to the Bus if connected."""
         if self._bus is None:
             return
@@ -91,7 +78,7 @@ class NetworkAccessPolicy:
             source="network_access_policy",
             payload={
                 "host": host,
-                "level": decision.level,
+                "level": decision.level.value,
                 "reason": decision.reason,
             },
         ))
@@ -112,13 +99,13 @@ class NetworkAccessPolicy:
             rules.append(
                 NetworkAccessRule(
                     hosts=hosts,
-                    policy=rule_data.get("policy", "allow"),
+                    policy=AccessLevel(rule_data.get("policy", "allow")),
                     reason=rule_data.get("reason", ""),
                 )
             )
 
         return NetworkAccessPolicy(
             rules=tuple(rules),
-            default=data.get("default", "allow"),
+            default=AccessLevel(data.get("default", "allow")),
             bus=bus,
         )
