@@ -154,6 +154,7 @@ class JobManagementTool(BaseTool):
             "approval_mode": kwargs.get("approval_mode", "always_deny"),
         })
         self._store.save_job(job)
+        await self._scheduler.sync_schedules()
 
         return ToolResult(
             content=f"Created job '{name}' (schedule: {schedule})",
@@ -212,6 +213,7 @@ class JobManagementTool(BaseTool):
 
         updated = JobDefinition.from_dict(data)
         self._store.save_job(updated)
+        await self._scheduler.sync_schedules()
         return ToolResult(content=f"Updated job '{name}'")
 
     async def _run(self, kwargs: dict[str, Any]) -> ToolResult:
@@ -239,6 +241,7 @@ class JobManagementTool(BaseTool):
         if job is None:
             return ToolResult(content=f"Job '{name}' not found", error=True)
         self._store.set_enabled(job.id, True)
+        await self._scheduler.sync_schedules()
         return ToolResult(content=f"Enabled job '{name}'")
 
     async def _disable(self, kwargs: dict[str, Any]) -> ToolResult:
@@ -249,6 +252,7 @@ class JobManagementTool(BaseTool):
         if job is None:
             return ToolResult(content=f"Job '{name}' not found", error=True)
         self._store.set_enabled(job.id, False)
+        await self._scheduler.sync_schedules()
         return ToolResult(content=f"Disabled job '{name}'")
 
     async def _delete(self, kwargs: dict[str, Any]) -> ToolResult:
@@ -260,6 +264,7 @@ class JobManagementTool(BaseTool):
             return ToolResult(content=f"Job '{name}' not found", error=True)
         await self._scheduler.cancel_job(job.id)
         self._store.delete_job(job.id)
+        await self._scheduler.sync_schedules()
         return ToolResult(content=f"Deleted job '{name}'")
 
     async def _history(self, kwargs: dict[str, Any]) -> ToolResult:

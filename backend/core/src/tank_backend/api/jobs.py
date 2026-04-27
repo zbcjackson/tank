@@ -153,6 +153,8 @@ async def create_job(req: CreateJobRequest) -> dict[str, Any]:
         "updated_at": now,
     })
     store.save_job(job)
+    scheduler = _get_scheduler()
+    await scheduler.sync_schedules()
     logger.info("Created job '%s' (schedule=%s)", job.name, schedule)
 
     entry = job.to_dict()
@@ -193,6 +195,8 @@ async def update_job(job_id: str, req: UpdateJobRequest) -> dict[str, Any]:
 
     updated = JobDefinition.from_dict(data)
     store.save_job(updated)
+    scheduler = _get_scheduler()
+    await scheduler.sync_schedules()
     logger.info("Updated job '%s'", updated.name)
 
     entry = updated.to_dict()
@@ -210,6 +214,7 @@ async def delete_job(job_id: str) -> dict[str, str]:
 
     if not store.delete_job(job_id):
         raise HTTPException(404, f"Job '{job_id}' not found")
+    await scheduler.sync_schedules()
     logger.info("Deleted job '%s'", job_id)
     return {"status": "deleted", "job_id": job_id}
 
@@ -243,6 +248,8 @@ async def enable_job(job_id: str) -> dict[str, Any]:
     store = _get_store()
     if not store.set_enabled(job_id, True):
         raise HTTPException(404, f"Job '{job_id}' not found")
+    scheduler = _get_scheduler()
+    await scheduler.sync_schedules()
     return {"status": "enabled", "job_id": job_id}
 
 
@@ -252,6 +259,8 @@ async def disable_job(job_id: str) -> dict[str, Any]:
     store = _get_store()
     if not store.set_enabled(job_id, False):
         raise HTTPException(404, f"Job '{job_id}' not found")
+    scheduler = _get_scheduler()
+    await scheduler.sync_schedules()
     return {"status": "disabled", "job_id": job_id}
 
 

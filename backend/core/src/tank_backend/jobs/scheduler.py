@@ -107,6 +107,11 @@ class CronScheduler:
             asyncio.create_task(self._sync_schedules())
         return result
 
+    async def sync_schedules(self) -> None:
+        """Re-sync APScheduler schedules with JobStore. Call after job CRUD."""
+        if self._started:
+            await self._sync_schedules()
+
     @property
     def status(self) -> dict[str, Any]:
         """Scheduler status for health/status endpoints."""
