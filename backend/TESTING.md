@@ -423,3 +423,59 @@ tm.execute_openai_tool_call = AsyncMock(
     return_value="SKILL ACTIVATED: test\nInstructions here"
 )
 ```
+
+## Integration Testing Requirements
+
+Every feature must have integration tests that cover the **seams between components** — not just individual units in isolation. Unit tests with mocks can pass while the real system is broken at the integration points.
+
+### What Integration Tests Must Cover
+
+For each feature, test the full flow across component boundaries:
+
+1. **Input → Processing → Output** — verify the end-to-end path produces the expected result
+2. **Error paths** — verify failures are recorded/reported correctly across boundaries
+3. **State synchronization** — verify that state changes in one component are visible to others
+
+### Policy & Approval System (`test_policy_integration.py`)
+
+| Test | What it verifies |
+|------|-----------------|
+| Gate + file tool REQUIRE_APPROVAL | `ToolApprovalPolicy` evaluates file tools, gate parks the call |
+| Gate + file tool DENY | Gate hard-blocks, tool never executes |
+| Gate + network tool | Same three-way flow for web_fetch/web_search |
+| AlwaysApproveResolver + file tool | Autonomous `always_approve` executes file writes |
+| AlwaysDenyResolver + file tool | Autonomous `always_deny` blocks file writes |
+| InteractiveResolver parks all tools | Interactive mode parks command, file, and network tools |
+| DENY ignores resolver | Hard blocks can't be overridden by any resolver |
+| Policy routing per tool type | Command → CommandSecurityPolicy, file → FileAccessPolicy, etc. |
+
+### Cron Job System (`test_jobs_integration.py`)
+
+| Test | What it verifies |
+|------|-----------------|
+| Trigger → execute → deliver → history | Full end-to-end: output file created, run history recorded |
+| Trigger via scheduler | `scheduler.trigger_job()` runs the full flow |
+| Timeout enforcement | `asyncio.TimeoutError` recorded as status="timeout" |
+| Failure recording | Exceptions recorded as status="failed" with error message |
+| Seed sync + APScheduler | Seed file creates job AND registers APScheduler schedule |
+| Seed removal + APScheduler | Removing from seed deletes from DB AND APScheduler |
+| manage_jobs create → sync | Tool creates job AND syncs to APScheduler |
+| manage_jobs delete → sync | Tool deletes job AND removes APScheduler schedule |
+| manage_jobs disable → sync | Tool disables job AND removes APScheduler schedule |
+| Approval mode → resolver | `always_deny` builds AlwaysDenyResolver, `always_approve` builds AlwaysApproveResolver |
+
+### Writing New Integration Tests
+
+When adding a new feature, ask these questions to identify missing integration tests:
+
+1. **Does component A's output feed into component B?** → Test A→B together
+2. **Does a state change in A need to be visible in B?** → Test the sync
+3. **Does the feature have an approval/policy gate?** → Test all three verdicts (ALLOW, REQUIRE_APPROVAL, DENY)
+4. **Does the feature have error/timeout paths?** → Test that errors are recorded across boundaries
+5. **Can the feature be triggered from multiple entry points?** → Test each entry point (REST API, voice tool, seed file)
+
+### Anti-patterns to Avoid
+
+- **Mocking the boundary you're testing** — if you mock `_run_agent` to test timeout, you bypass the `asyncio.timeout()` inside it. Mock at a lower level or raise the expected exception directly.
+- **Testing only the happy path** — DENY and REQUIRE_APPROVAL paths are where bugs hide.
+- **Testing components in isolation when the bug is at the seam** — the `ApprovalCallback` was `None` for years because no integration test verified file tools actually got a working callback.
