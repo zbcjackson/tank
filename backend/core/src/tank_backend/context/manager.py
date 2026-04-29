@@ -10,7 +10,7 @@ from typing import Any
 
 import tiktoken
 
-from .config import ContextConfig
+from ..config.models import ContextConfig
 from .conversation import ConversationData
 from .store import create_store
 

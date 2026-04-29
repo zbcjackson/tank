@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from .config import ContextConfig
+from ..config.models import ContextConfig
 
 logger = logging.getLogger(__name__)
 

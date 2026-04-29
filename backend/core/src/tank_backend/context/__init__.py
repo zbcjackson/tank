@@ -1,6 +1,6 @@
 """Context management — conversation lifecycle, compaction, prompt assembly."""
 
-from .config import ContextConfig
+from ..config.models import ContextConfig
 from .conversation import ConversationData, ConversationSummary, Summarizer
 from .manager import ContextManager
 from .store import ConversationStore, create_store
