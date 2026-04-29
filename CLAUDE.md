@@ -131,10 +131,18 @@ Run ALL of these every time you finish a task. Do not skip any step.
 2. `cd web && npx tsc -b --noEmit` — TypeScript type checking (must use `-b` to follow project references; plain `tsc --noEmit` checks nothing on a references-only tsconfig)
 3. `cd backend && uv run ruff check src/ tests/` — Python lint
 4. `cd backend && uv run pytest` — Backend unit tests (78 tests)
-5. `cd cli && uv run ruff check src/ tests/` — CLI Python lint
-6. `cd test && pnpm test` — E2E cucumber tests (14 scenarios, requires backend + frontend running)
+5. `cd backend && uv run pyright path/to/changed_file1.py path/to/changed_file2.py` — Type check on changed files (catches `.get()` on dataclasses, wrong attribute access, etc.). Run pyright on the files you modified — not the whole codebase (pre-existing errors exist).
+6. `cd cli && uv run ruff check src/ tests/` — CLI Python lint
+7. Check the running dev server for reload errors:
+   ```bash
+   tmux capture-pane -t tank -p -S -50 | grep -i "error\|traceback\|exception"
+   ```
+   The dev server is started via `scripts/dev.sh` (tmux session "tank"). After changes, uvicorn auto-reloads. Empty output means no errors (pass). If the grep returns nothing, that is a pass — do not retry. If it returns errors, fix them.
+8. `cd test && pnpm test` — E2E cucumber tests (14 scenarios, requires backend + frontend running)
 
-All six must pass before considering work complete.
+Steps 7 and 8 are critical. Unit tests mock most dependencies, so they miss runtime errors like calling `.get()` on a dataclass or passing the wrong type to a constructor. The dev server and E2E tests exercise the full stack with real objects. If any step shows errors, fix them before considering the task done.
+
+All eight must pass before considering work complete.
 
 ## Test Failure Policy
 
