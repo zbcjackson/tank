@@ -11,6 +11,7 @@ from typing import Any
 
 from ..audio.input.types import AudioFrame, AudioSourceFactory
 from ..audio.output.types import AudioSinkFactory
+from ..config.models import EchoGuardConfig
 from ..llm.profile import create_llm_from_profile
 from ..pipeline import Bus, BusMessage, Pipeline, PipelineBuilder
 from ..pipeline.event import EventDirection, PipelineEvent
@@ -28,7 +29,6 @@ from ..pipeline.processors import (
     ASRProcessor,
     ASRSpeakerMerger,
     Brain,
-    EchoGuardConfig,
     PlaybackProcessor,
     SpeakerIDProcessor,
     TTSProcessor,
@@ -149,7 +149,7 @@ class Assistant:
         """Assemble the processor pipeline: VAD → ASR → Brain → TTS → Playback."""
         builder = PipelineBuilder(self._bus)
 
-        echo_guard_cfg = EchoGuardConfig.from_typed(self._app_config.echo_guard)
+        echo_guard_cfg = self._app_config.echo_guard
 
         self._add_input_processors(builder, registry, asr_engine, echo_guard_cfg)
 

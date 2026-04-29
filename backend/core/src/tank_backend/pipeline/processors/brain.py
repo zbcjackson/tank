@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ...config.models import BrainConfig
+from ...config.models import BrainConfig, EchoGuardConfig
 from ...core.events import (
     AudioOutputRequest,
     BrainInputEvent,
@@ -21,7 +21,7 @@ from ...observability.trace import generate_trace_id
 from ..bus import Bus, BusMessage
 from ..event import PipelineEvent
 from ..processor import FlowReturn, Processor
-from .echo_guard import EchoGuardConfig, SelfEchoDetector
+from .echo_guard import SelfEchoDetector
 
 if TYPE_CHECKING:
     import threading
