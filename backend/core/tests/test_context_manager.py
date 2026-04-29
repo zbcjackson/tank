@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from tank_backend.context.config import ContextConfig
+from tank_backend.config.models import ContextConfig
 from tank_backend.context.conversation import ConversationData
 from tank_backend.context.manager import ContextManager
 

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tank_backend.memory.config import MemoryConfig
+from tank_backend.config.models import MemoryConfig
 from tank_backend.memory.service import MemoryService
 
 

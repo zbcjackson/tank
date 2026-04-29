@@ -73,6 +73,13 @@ class MemoryConfig:
     embedding_model: str = ""
     search_limit: int = 5
 
+    @classmethod
+    def from_dict(cls, raw: dict) -> MemoryConfig:
+        """Build from a config dict, ignoring unknown keys."""
+        import dataclasses
+        known = {f.name for f in dataclasses.fields(cls)}
+        return cls(**{k: v for k, v in raw.items() if k in known})
+
 
 @dataclass(frozen=True)
 class PreferenceConfig:
@@ -140,6 +147,15 @@ class SandboxConfig:
     max_timeout: int = 600
     network_enabled: bool = True
     docker: dict[str, str] = field(default_factory=dict)
+
+    @staticmethod
+    def from_dict(data: dict) -> SandboxConfig:
+        """Create config from a dict (e.g. parsed YAML section)."""
+        import dataclasses
+        if not data:
+            return SandboxConfig(enabled=False)
+        known_fields = {f.name for f in dataclasses.fields(SandboxConfig)}
+        return SandboxConfig(**{k: v for k, v in data.items() if k in known_fields})
 
 
 # ── Agent orchestration ──────────────────────────────────────────

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tank_backend.sandbox.config import SandboxConfig
+from tank_backend.config.models import SandboxConfig
 from tank_backend.sandbox.manager import DockerSandbox, _strip_command_echo
 from tank_backend.sandbox.types import SessionInfo, SessionStatus
 
