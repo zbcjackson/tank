@@ -9,24 +9,13 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ...config.models import HealthMonitorConfig
 from ..bus import Bus, BusMessage
 
 if TYPE_CHECKING:
     from ..builder import Pipeline
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class HealthMonitorConfig:
-    """Configuration for the HealthMonitor."""
-
-    poll_interval_s: float = 5.0
-    stuck_threshold_s: float = 10.0
-    max_consecutive_failures: int = 3
-    auto_restart_enabled: bool = True
-    restart_backoff_base_s: float = 1.0
-    restart_backoff_max_s: float = 30.0
 
 
 class HealthMonitor:

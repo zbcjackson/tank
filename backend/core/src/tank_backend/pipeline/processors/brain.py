@@ -4,10 +4,10 @@ import logging
 import time
 import uuid
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from ...config.models import BrainConfig
 from ...core.events import (
     AudioOutputRequest,
     BrainInputEvent,
@@ -31,13 +31,6 @@ if TYPE_CHECKING:
     from ...tools.manager import ToolManager
 
 logger = logging.getLogger("Brain")
-
-
-@dataclass(frozen=True)
-class BrainConfig:
-    """Configuration for the Brain processor (sourced from config.yaml ``brain:`` section)."""
-
-    max_history_tokens: int = 8000
 
 
 class Brain(Processor):
@@ -99,11 +92,10 @@ class Brain(Processor):
         # Create ContextManager — owns conversation lifecycle, memory, prompt assembly
         from ...context import ContextConfig, ContextManager
 
-        ctx_raw = app_config.get_section("context", {}) if app_config else {}
         context_config = ContextConfig(
             max_history_tokens=config.max_history_tokens,
-            store_type=ctx_raw.get("store_type", "file"),
-            store_path=ctx_raw.get("store_path", "~/.tank/sessions"),
+            store_type=app_config.context.store_type if app_config else "file",
+            store_path=app_config.context.store_path if app_config else "~/.tank/sessions",
         )
         self._context = ContextManager(
             app_config=app_config,
@@ -152,8 +144,8 @@ class Brain(Processor):
         from ...agents.runner import AgentRunner
         from ...llm.profile import create_llm_from_profile
 
-        agents_cfg = app_config.get_section("agents") or {}
-        llm_profile_name = agents_cfg.get("llm_profile", "default")
+        agents_cfg = app_config.agents
+        llm_profile_name = agents_cfg.llm_profile
 
         try:
             llm_profile = app_config.get_llm_profile(llm_profile_name)
@@ -166,7 +158,7 @@ class Brain(Processor):
             agent_llm = self._llm
 
         # Load agent definitions from .tank/agents/ directories
-        raw_dirs = agents_cfg.get("dirs", ["../agents", "~/.tank/agents"])
+        raw_dirs = agents_cfg.dirs
         agent_dirs = [Path(d).expanduser().resolve() for d in raw_dirs]
         definitions = load_agent_definitions(agent_dirs)
 
@@ -178,8 +170,8 @@ class Brain(Processor):
             approval_policy=self._tool_manager.approval_policy,
             pending_store=self._pending_store,
             definitions=definitions,
-            max_depth=agents_cfg.get("max_depth", 3),
-            max_concurrent=agents_cfg.get("max_concurrent", 5),
+            max_depth=agents_cfg.max_depth,
+            max_concurrent=agents_cfg.max_concurrent,
         )
 
         # Register agent tool in ToolManager
@@ -187,7 +179,7 @@ class Brain(Processor):
 
         # Build main agent system prompt with available agent types
         agent_catalog = self._build_agent_catalog(definitions)
-        system_prompt = agents_cfg.get("system_prompt")
+        system_prompt = agents_cfg.system_prompt or None
         if system_prompt is None:
             system_prompt = self._build_main_agent_prompt(agent_catalog)
 

@@ -44,6 +44,7 @@ dev = [
     "pytest-asyncio>=1.2.0",
     "ruff>=0.11.0",
     "watchfiles>=1.1.1",
+    "pyright>=1.1.400",
 ]
 
 [build-system]
@@ -64,6 +65,11 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["tank_backend"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+reportAttributeAccessIssue = "error"
 
 [tool.uv.sources]
 tank-contracts = { workspace = true }

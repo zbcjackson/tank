@@ -36,6 +36,16 @@ class EchoGuardConfig:
     similarity_threshold: float = 0.6
     window_seconds: float = 10.0
 
+    @classmethod
+    def from_typed(cls, cfg: object) -> EchoGuardConfig:
+        """Build from a config.models.EchoGuardConfig (duck-typed)."""
+        return cls(
+            enabled=getattr(cfg, "enabled", True),
+            vad_threshold_during_playback=getattr(cfg, "vad_threshold_during_playback", 0.85),
+            similarity_threshold=getattr(cfg, "similarity_threshold", 0.6),
+            window_seconds=getattr(cfg, "window_seconds", 10.0),
+        )
+
 
 _PUNCTUATION_RE = re.compile(r"[^\w\s]", re.UNICODE)
 

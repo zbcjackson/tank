@@ -12,6 +12,7 @@ load_dotenv()  # .env → os.environ before any config loading (covers uvicorn r
 from fastapi import FastAPI  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 
+from ..config.context import AppContext  # noqa: E402
 from ..context import create_store  # noqa: E402
 from ..plugin import AppConfig  # noqa: E402
 from ..plugin.manager import PluginManager  # noqa: E402
@@ -43,30 +44,26 @@ _plugin_manager = PluginManager()
 _registry = _plugin_manager.load_all()
 app_config = AppConfig(registry=_registry)
 
-# --- Connection manager (receives app_config, no more PluginManager inside) ---
-connection_manager = ConnectionManager(app_config=app_config)
-
 # --- Conversation store for REST API ---
-_ctx_raw = app_config.get_section("context", {})
 _store = create_store(
-    store_type=_ctx_raw.get("store_type", "file"),
-    store_path=_ctx_raw.get("store_path", "~/.tank/conversations"),
+    store_type=app_config.context.store_type,
+    store_path=app_config.context.store_path,
 )
 
 # --- Job scheduler (opt-in via config.yaml jobs.enabled) ---
-_jobs_raw = app_config.get_section("jobs", {})
 _job_store = None
 _scheduler = None
 
-if _jobs_raw.get("enabled", False):
+if app_config.jobs.enabled:
     from ..jobs.delivery import DeliveryManager
     from ..jobs.runner import AutonomousRunner
     from ..jobs.scheduler import CronScheduler
     from ..jobs.store import JobStore
 
-    _job_store = JobStore(db_path=_jobs_raw.get("db_path", "~/.tank/jobs/jobs.db"))
+    _jobs_cfg = app_config.jobs
+    _job_store = JobStore(db_path=_jobs_cfg.db_path)
     _job_delivery = DeliveryManager(
-        output_dir=_jobs_raw.get("output_dir", "~/.tank/jobs/output"),
+        output_dir=_jobs_cfg.output_dir,
         app_config=app_config,
     )
     _job_runner = AutonomousRunner(
@@ -77,12 +74,12 @@ if _jobs_raw.get("enabled", False):
     _scheduler = CronScheduler(
         job_store=_job_store,
         runner=_job_runner,
-        max_parallel=_jobs_raw.get("max_parallel", 3),
-        tick_interval=_jobs_raw.get("tick_interval", 60.0),
+        max_parallel=_jobs_cfg.max_parallel,
+        tick_interval=_jobs_cfg.tick_interval,
     )
 
     # Load seed file if present
-    seed_path = _jobs_raw.get("seed_path", "~/.tank/jobs/seed.yaml")
+    seed_path = _jobs_cfg.seed_path or "~/.tank/jobs/seed.yaml"
     result = _job_store.load_seed_file(seed_path)
     if result["created"]:
         logger.info("Loaded %d seed jobs: %s", len(result["created"]), ", ".join(result["created"]))
@@ -92,9 +89,20 @@ if _jobs_raw.get("enabled", False):
             len(result["deleted"]), ", ".join(result["deleted"]),
         )
 
-    logger.info("Job scheduler initialized (max_parallel=%d)", _jobs_raw.get("max_parallel", 3))
+    logger.info("Job scheduler initialized (max_parallel=%d)", _jobs_cfg.max_parallel)
 else:
     logger.info("Job scheduler disabled (jobs.enabled=false)")
+
+# --- AppContext: single object holding all app-level singletons ---
+app_context = AppContext(
+    app_config=app_config,
+    job_store=_job_store,
+    scheduler=_scheduler,
+    conversation_store=_store,
+)
+
+# --- Connection manager ---
+connection_manager = ConnectionManager(app_config=app_config, app_context=app_context)
 
 
 @asynccontextmanager

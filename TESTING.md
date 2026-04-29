@@ -6,7 +6,7 @@ For sub-project details, see:
 - [backend/TESTING.md](backend/TESTING.md) — Python/pytest
 - [cli/TESTING.md](cli/TESTING.md) — Python/pytest + Textual pilot
 - [web/TESTING.md](web/TESTING.md) — Vitest + React Testing Library
-- [test/](test/) — E2E tests (Cucumber + Playwright, requires backend + frontend running)
+- [test/TESTING.md](test/TESTING.md) — E2E tests (Cucumber + Playwright, requires backend + frontend running)
 
 ## TDD Workflow
 

@@ -6,6 +6,7 @@ External code only needs ``ToolManager(app_config, bus)`` and the public API.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 from typing import Any
@@ -40,17 +41,18 @@ class ToolManager:
             ServiceCredentialManager,
         )
 
-        net_raw = app_config.get_section("network_access", {})
-        self._network_policy = NetworkAccessPolicy.from_dict(net_raw, bus=bus)
+        # Convert typed config to dicts for policy from_dict() methods
+        net_dict = _cfg_to_dict(app_config, "network_access")
+        self._network_policy = NetworkAccessPolicy.from_dict(net_dict, bus=bus)
         self._credential_manager = ServiceCredentialManager.from_dict(
-            net_raw.get("service_credentials", [])
+            net_dict.get("service_credentials", [])
         )
 
-        file_raw = app_config.get_section("file_access", {})
-        self._file_policy = FileAccessPolicy.from_dict(file_raw, bus=bus)
+        file_dict = _cfg_to_dict(app_config, "file_access")
+        self._file_policy = FileAccessPolicy.from_dict(file_dict, bus=bus)
 
-        audit_raw = app_config.get_section("audit", {})
-        self._audit_logger = AuditLogger.from_dict(audit_raw)
+        audit_dict = _cfg_to_dict(app_config, "audit")
+        self._audit_logger = AuditLogger.from_dict(audit_dict)
         if bus is not None:
             self._audit_logger.subscribe(bus)
 
@@ -58,12 +60,12 @@ class ToolManager:
         from ..agents.approval import ToolApprovalPolicy
         from ..policy.command_security import CommandSecurityPolicy
 
-        command_security_raw = app_config.get_section("command_security") or {}
-        command_policy = CommandSecurityPolicy.from_dict(command_security_raw)
+        cmd_dict = _cfg_to_dict(app_config, "command_security")
+        command_policy = CommandSecurityPolicy.from_dict(cmd_dict)
 
         # Create dedicated LLM for command security evaluation (if configured)
         command_llm = None
-        llm_cfg = command_security_raw.get("llm_evaluation") or {}
+        llm_cfg = cmd_dict.get("llm_evaluation") or {}
         if llm_cfg.get("enabled"):
             try:
                 from ..llm.profile import LLMProfile, create_llm_from_profile
@@ -102,13 +104,15 @@ class ToolManager:
 
         self._register_group(DefaultToolGroup())
 
-        sandbox_raw = app_config.get_section("sandbox", {})
         self._register_group(
-            SandboxToolGroup(sandbox_raw, self._credential_manager)
+            SandboxToolGroup(
+                _cfg_to_dict(app_config, "sandbox"), self._credential_manager,
+            )
         )
 
-        file_raw = app_config.get_section("file_access", {})
-        self._register_group(FileToolGroup(file_raw, bus=bus, policy=self._file_policy))
+        self._register_group(
+            FileToolGroup(file_dict, bus=bus, policy=self._file_policy)
+        )
 
         self._register_group(
             WebToolGroup(
@@ -116,9 +120,9 @@ class ToolManager:
             )
         )
 
-        skills_raw = app_config.get_section("skills", {})
         self._skill_group = SkillToolGroup(
-            skills_raw, bus, tool_manager=self, max_history_tokens=max_history_tokens,
+            _cfg_to_dict(app_config, "skills"),
+            bus, tool_manager=self, max_history_tokens=max_history_tokens,
         )
         self._register_group(self._skill_group)
 
@@ -356,3 +360,18 @@ class ToolManager:
                     )
 
         return None
+
+
+def _cfg_to_dict(app_config: Any, section: str) -> dict[str, Any]:
+    """Convert a typed config attribute to a raw dict for policy from_dict().
+
+    Tries ``dataclasses.asdict()`` on the typed property first.
+    Falls back to ``get_section()`` for legacy mock-based callers.
+    """
+    attr = getattr(app_config, section, None)
+    if attr is not None and dataclasses.is_dataclass(attr) and not isinstance(attr, type):
+        return dataclasses.asdict(attr)
+    # Fallback for mock-based tests or missing attribute
+    if hasattr(app_config, "get_section"):
+        return app_config.get_section(section, {})
+    return {}

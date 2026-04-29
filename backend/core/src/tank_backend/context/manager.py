@@ -72,23 +72,26 @@ class ContextManager:
         """Create MemoryService from config, or ``None`` if disabled."""
         from ..memory import MemoryConfig, MemoryService
 
-        memory_raw = self._app_config.get_section("memory", {"enabled": False})
-        memory_config = MemoryConfig.from_dict(memory_raw)
-        if not memory_config.enabled:
+        mem_cfg = self._app_config.memory
+        if not mem_cfg.enabled:
             return None
 
-        profile = self._app_config.get_llm_profile("default")
-        llm_api_key = memory_config.llm_api_key or profile.api_key
+        try:
+            profile = self._app_config.get_llm_profile("default")
+        except (KeyError, ValueError):
+            logger.warning("No default LLM profile — memory service disabled")
+            return None
+
         resolved = MemoryConfig(
             enabled=True,
-            db_path=memory_config.db_path,
-            llm_api_key=llm_api_key,
-            llm_base_url=memory_config.llm_base_url or profile.base_url,
-            llm_model=memory_config.llm_model or "",
-            embedding_api_key=memory_config.embedding_api_key or "",
-            embedding_base_url=memory_config.embedding_base_url or "",
-            embedding_model=memory_config.embedding_model or "",
-            search_limit=memory_config.search_limit,
+            db_path=mem_cfg.db_path,
+            llm_api_key=mem_cfg.llm_api_key or profile.api_key,
+            llm_base_url=mem_cfg.llm_base_url or profile.base_url,
+            llm_model=mem_cfg.llm_model or "",
+            embedding_api_key=mem_cfg.embedding_api_key or "",
+            embedding_base_url=mem_cfg.embedding_base_url or "",
+            embedding_model=mem_cfg.embedding_model or "",
+            search_limit=mem_cfg.search_limit,
         )
         try:
             svc = MemoryService(resolved)
@@ -117,15 +120,14 @@ class ContextManager:
         """Create PreferenceStore from config, or ``None`` if disabled."""
         from pathlib import Path
 
-        from ..preferences import PreferenceConfig, PreferenceStore
+        from ..preferences import PreferenceStore
 
-        prefs_raw = self._app_config.get_section("preferences", {"enabled": False})
-        prefs_config = PreferenceConfig.from_dict(prefs_raw)
-        if not prefs_config.enabled:
+        prefs_cfg = self._app_config.preferences
+        if not prefs_cfg.enabled:
             return None
 
-        base_dir = Path(prefs_config.base_dir or "~/.tank").expanduser()
-        store = PreferenceStore(base_dir, prefs_config.max_entries)
+        base_dir = Path(prefs_cfg.base_dir or "~/.tank").expanduser()
+        store = PreferenceStore(base_dir, prefs_cfg.max_entries)
         logger.info("Preference store initialised (base_dir=%s)", base_dir)
         return store
 
@@ -134,8 +136,8 @@ class ContextManager:
         if self._preference_store is None:
             return None
 
-        prefs_raw = self._app_config.get_section("preferences", {"enabled": False})
-        if not prefs_raw.get("auto_learn", True):
+        prefs_cfg = self._app_config.preferences
+        if not prefs_cfg.auto_learn:
             return None
 
         from ..llm.profile import create_llm_from_profile

@@ -1,41 +1,44 @@
-"""Application configuration loader (YAML-based)."""
+"""Application configuration loader (YAML-based).
+
+This module now delegates to :mod:`tank_backend.config.app_config` for
+strongly-typed, validated configuration.  The ``AppConfig`` class here
+is kept for backward compatibility — it builds the new typed config
+internally and exposes typed properties alongside the legacy
+``get_section()`` accessor.
+"""
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ..config.app_config import AppConfig as _TypedAppConfig
+from ..config.app_config import FeatureConfig
+from ..config.models import (
+    AgentsConfig,
+    AlertingConfig,
+    AssistantConfig,
+    AuditConfig,
+    BrainConfig,
+    CommandSecurityConfig,
+    ContextConfig,
+    EchoGuardConfig,
+    FileAccessConfig,
+    HealthMonitorConfig,
+    JobsConfig,
+    MemoryConfig,
+    NetworkAccessConfig,
+    PreferenceConfig,
+    SandboxConfig,
+    SkillsConfig,
+)
 from ..llm.profile import LLMProfile, resolve_profile
 from .yaml_loader import load_yaml
 
 logger = logging.getLogger(__name__)
 
-# Sentinel for "no plugin" (disabled feature)
-_DISABLED_PLUGIN = ""
-
-
-@dataclass(frozen=True)
-class FeatureConfig:
-    """Typed configuration for a single feature (e.g. asr, tts, speaker).
-
-    When ``enabled`` is False the feature is inactive — callers should skip
-    loading the plugin entirely.
-
-    ``extension`` holds the ``{plugin}:{ext}`` reference when using the
-    new manifest-aware format.  For legacy configs that only specify
-    ``plugin:``, it is ``None`` and the loader falls back to
-    ``create_engine()``.
-    """
-
-    plugin: str = _DISABLED_PLUGIN
-    config: dict[str, Any] = field(default_factory=dict)
-    enabled: bool = True
-    extension: str | None = None
-
-
-# Backward-compatible alias
+# Re-export for callers that import FeatureConfig from here
 SlotConfig = FeatureConfig
 
 
@@ -62,7 +65,12 @@ def find_config_yaml() -> Path:
 
 
 class AppConfig:
-    """Application configuration loaded from core/config.yaml."""
+    """Application configuration loaded from core/config.yaml.
+
+    Builds a strongly-typed ``_TypedAppConfig`` internally.  Consumers
+    can access typed properties (``self.brain``, ``self.echo_guard``, etc.)
+    or fall back to ``get_section()`` during incremental migration.
+    """
 
     def __init__(
         self,
@@ -75,6 +83,9 @@ class AppConfig:
         self._config: dict[str, Any] = {}
         self._registry = registry
         self._load()
+
+        # Build typed config from the raw dict
+        self._typed = _TypedAppConfig.from_raw_dict(self._config)
 
         if registry is not None:
             self._validate_features()
@@ -89,7 +100,85 @@ class AppConfig:
             logger.error(f"Failed to load config: {e}")
             raise
 
-    # ── Generic section access ─────────────────────────────────────
+    # ── Typed config properties ────────────────────────────────────
+
+    @property
+    def brain(self) -> BrainConfig:
+        return self._typed.brain
+
+    @property
+    def echo_guard(self) -> EchoGuardConfig:
+        return self._typed.echo_guard
+
+    @property
+    def assistant_config(self) -> AssistantConfig:
+        return self._typed.assistant
+
+    @property
+    def context(self) -> ContextConfig:
+        return self._typed.context
+
+    @property
+    def memory(self) -> MemoryConfig:
+        return self._typed.memory
+
+    @property
+    def preferences(self) -> PreferenceConfig:
+        return self._typed.preferences
+
+    @property
+    def sandbox(self) -> SandboxConfig:
+        return self._typed.sandbox
+
+    @property
+    def network_access(self) -> NetworkAccessConfig:
+        return self._typed.network_access
+
+    @property
+    def file_access(self) -> FileAccessConfig:
+        return self._typed.file_access
+
+    @property
+    def command_security(self) -> CommandSecurityConfig:
+        return self._typed.command_security
+
+    @property
+    def audit(self) -> AuditConfig:
+        return self._typed.audit
+
+    @property
+    def agents(self) -> AgentsConfig:
+        return self._typed.agents
+
+    @property
+    def skills(self) -> SkillsConfig:
+        return self._typed.skills
+
+    @property
+    def jobs(self) -> JobsConfig:
+        return self._typed.jobs
+
+    @property
+    def alerting(self) -> AlertingConfig:
+        return self._typed.alerting
+
+    @property
+    def health_monitor(self) -> HealthMonitorConfig:
+        return self._typed.health_monitor
+
+    @property
+    def asr(self) -> FeatureConfig:
+        return self._typed.asr
+
+    @property
+    def tts(self) -> FeatureConfig:
+        return self._typed.tts
+
+    @property
+    def speaker(self) -> FeatureConfig:
+        return self._typed.speaker
+
+    # ── Generic section access (legacy — migrate callers away) ─────
 
     def get_section(self, name: str, defaults: dict[str, Any] | None = None) -> dict[str, Any]:
         """Get a raw config section by name, merged with optional defaults."""
@@ -101,57 +190,22 @@ class AppConfig:
     # ── Feature helpers ───────────────────────────────────────────
 
     def get_feature_config(self, name: str) -> FeatureConfig:
-        """Get configuration for a feature (e.g. ``"tts"``).
-
-        Returns a *disabled* ``FeatureConfig`` when the feature section is
-        absent from the YAML or has ``enabled: false``.  This lets
-        callers skip plugin loading without catching exceptions.
-        """
-        feature_data = self._config.get(name, {})
-        if not feature_data:
-            return FeatureConfig(enabled=False)
-
-        # Explicit ``enabled: false`` in YAML
-        if not feature_data.get("enabled", True):
-            return FeatureConfig(enabled=False)
-
-        # New format: ``extension: plugin:ext``
-        extension_ref = feature_data.get("extension")
-
-        # Legacy format: ``plugin: plugin-name``
-        plugin_name = feature_data.get("plugin", "")
-
-        # Derive plugin name from extension ref if present
-        if extension_ref and not plugin_name:
-            plugin_name = extension_ref.split(":")[0]
-
-        if not plugin_name:
-            return FeatureConfig(enabled=False)
-
-        return FeatureConfig(
-            plugin=plugin_name,
-            config=feature_data.get("config", {}),
-            enabled=True,
-            extension=extension_ref,
-        )
+        """Get configuration for a feature (e.g. ``"tts"``)."""
+        return self._typed.get_feature_config(name)
 
     # Backward-compatible alias
     get_slot_config = get_feature_config
 
     def is_feature_enabled(self, name: str) -> bool:
         """Check whether a feature is enabled."""
-        return self.get_feature_config(name).enabled
+        return self._typed.is_feature_enabled(name)
 
     # Backward-compatible alias
     is_slot_enabled = is_feature_enabled
 
     def get_capabilities(self) -> dict[str, bool]:
         """Return a dict of feature capabilities for the frontend."""
-        return {
-            "asr": self.is_feature_enabled("asr"),
-            "tts": self.is_feature_enabled("tts"),
-            "speaker_id": self.is_feature_enabled("speaker"),
-        }
+        return self._typed.get_capabilities()
 
     # ── LLM profiles ──────────────────────────────────────────────
 
@@ -176,12 +230,7 @@ class AppConfig:
     # ── Feature validation ──────────────────────────────────────────
 
     def _validate_features(self) -> None:
-        """Validate extension refs in config against the registry.
-
-        Raises:
-            ConfigError: If any feature references an unregistered or
-                type-mismatched extension.
-        """
+        """Validate extension refs in config against the registry."""
         from .manager import validate_feature_refs
 
         validate_feature_refs(self, self._registry)  # type: ignore[arg-type]

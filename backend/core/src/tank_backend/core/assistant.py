@@ -19,7 +19,6 @@ from ..pipeline.observers import (
     AlertingObserver,
     AlertThresholds,
     HealthMonitor,
-    HealthMonitorConfig,
     InterruptLatencyObserver,
     LatencyObserver,
     MetricsCollector,
@@ -29,7 +28,6 @@ from ..pipeline.processors import (
     ASRProcessor,
     ASRSpeakerMerger,
     Brain,
-    BrainConfig,
     EchoGuardConfig,
     PlaybackProcessor,
     SpeakerIDProcessor,
@@ -107,19 +105,9 @@ class Assistant:
         profile = self._app_config.get_llm_profile("default")
         self._llm = create_llm_from_profile(profile)
 
-        brain_raw = self._app_config.get_section("brain", {
-            "max_history_tokens": 8000,
-        })
-        self._brain_config = BrainConfig(
-            max_history_tokens=brain_raw.get("max_history_tokens", 8000),
-        )
+        self._brain_config = self._app_config.brain
 
-        assistant_raw = self._app_config.get_section("assistant", {
-            "speech_interrupt_enabled": True,
-        })
-        self._speech_interrupt_enabled = assistant_raw.get(
-            "speech_interrupt_enabled", True
-        )
+        self._speech_interrupt_enabled = self._app_config.assistant_config.speech_interrupt_enabled
 
         return self._app_config._registry
 
@@ -161,9 +149,7 @@ class Assistant:
         """Assemble the processor pipeline: VAD → ASR → Brain → TTS → Playback."""
         builder = PipelineBuilder(self._bus)
 
-        echo_guard_cfg = self._build_echo_guard_config(
-            self._app_config.get_section("echo_guard")
-        )
+        echo_guard_cfg = EchoGuardConfig.from_typed(self._app_config.echo_guard)
 
         self._add_input_processors(builder, registry, asr_engine, echo_guard_cfg)
 
@@ -239,49 +225,29 @@ class Assistant:
 
     def _init_health_monitor(self) -> None:
         """Create HealthMonitor from config."""
-        hm_raw = self._app_config.get_section("health_monitor", {})
-        hm_config = HealthMonitorConfig(
-            poll_interval_s=hm_raw.get("poll_interval_s", 5.0),
-            stuck_threshold_s=hm_raw.get("stuck_threshold_s", 10.0),
-            max_consecutive_failures=hm_raw.get("max_consecutive_failures", 3),
-            auto_restart_enabled=hm_raw.get("auto_restart_enabled", True),
-            restart_backoff_base_s=hm_raw.get("restart_backoff_base_s", 1.0),
-            restart_backoff_max_s=hm_raw.get("restart_backoff_max_s", 30.0),
-        )
         self._health_monitor = HealthMonitor(
-            pipeline=self._pipeline, bus=self._bus, config=hm_config
+            pipeline=self._pipeline, bus=self._bus, config=self._app_config.health_monitor
         )
 
     def _init_alerting(self) -> None:
         """Create AlertingObserver and AlertDispatcher from config."""
-        alerting_raw = self._app_config.get_section("alerting", {})
+        acfg = self._app_config.alerting
         self._alerting_observer = AlertingObserver(
             bus=self._bus,
             thresholds=AlertThresholds(
-                latency_spike_multiplier=alerting_raw.get(
-                    "latency_spike_multiplier", 2.0
-                ),
-                latency_spike_consecutive=alerting_raw.get(
-                    "latency_spike_consecutive", 5
-                ),
-                error_rate_threshold=alerting_raw.get("error_rate_threshold", 0.10),
-                error_rate_window_s=alerting_raw.get("error_rate_window_s", 300.0),
-                queue_saturation_pct=alerting_raw.get("queue_saturation_pct", 0.80),
-                queue_saturation_duration_s=alerting_raw.get(
-                    "queue_saturation_duration_s", 30.0
-                ),
-                stuck_approval_timeout_s=alerting_raw.get(
-                    "stuck_approval_timeout_s", 300.0
-                ),
-                alert_cooldown_s=alerting_raw.get("alert_cooldown_s", 60.0),
-            )
-            if alerting_raw
-            else None,
+                latency_spike_multiplier=acfg.latency_spike_multiplier,
+                latency_spike_consecutive=acfg.latency_spike_consecutive,
+                error_rate_threshold=acfg.error_rate_threshold,
+                error_rate_window_s=acfg.error_rate_window_s,
+                queue_saturation_pct=acfg.queue_saturation_pct,
+                queue_saturation_duration_s=acfg.queue_saturation_duration_s,
+                stuck_approval_timeout_s=acfg.stuck_approval_timeout_s,
+                alert_cooldown_s=acfg.alert_cooldown_s,
+            ),
         )
 
-        webhook_url = alerting_raw.get("webhook_url") if alerting_raw else None
         self._alert_dispatcher = AlertDispatcher(
-            bus=self._bus, webhook_url=webhook_url
+            bus=self._bus, webhook_url=acfg.webhook_url or None
         )
 
     # ------------------------------------------------------------------
@@ -311,22 +277,6 @@ class Assistant:
         except Exception:
             logger.warning("Failed to create voiceprint recognizer", exc_info=True)
             return None
-
-    def _build_echo_guard_config(self, raw: dict) -> EchoGuardConfig:
-        """Build EchoGuardConfig from config.yaml echo_guard section."""
-        if not raw:
-            return EchoGuardConfig()
-
-        echo_cfg = raw.get("self_echo_detection", {})
-
-        return EchoGuardConfig(
-            enabled=raw.get("enabled", True),
-            vad_threshold_during_playback=raw.get(
-                "vad_threshold_during_playback", 0.85
-            ),
-            similarity_threshold=echo_cfg.get("similarity_threshold", 0.6),
-            window_seconds=echo_cfg.get("window_seconds", 10.0),
-        )
 
     # ------------------------------------------------------------------
     # Public API

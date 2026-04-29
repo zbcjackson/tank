@@ -27,13 +27,15 @@ class ConnectionManager:
 
     SESSION_IDLE_TIMEOUT = 30  # seconds
 
-    def __init__(self, app_config: Any = None):
+    def __init__(self, app_config: Any = None, app_context: Any = None):
         self._sessions: dict[str, Assistant] = {}
         self._idle_timers: dict[str, asyncio.TimerHandle] = {}
         self._ws_refcount: dict[str, int] = {}
         self._session_lock = asyncio.Lock()
+        self._app_context = app_context
         self._app_config = app_config
         self._voiceprint_recognizer: VoiceprintRecognizer | None = None
+        # Legacy fields — prefer app_context when available
         self._job_store: Any = None
         self._job_scheduler: Any = None
         self._init_voiceprint()
@@ -111,10 +113,15 @@ class ConnectionManager:
             if existing:
                 await self._cleanup_assistant(session_id, existing)
 
+            # Resolve job deps from AppContext if available, else legacy fields
+            _ctx = self._app_context
+            _job_store = _ctx.job_store if _ctx else self._job_store
+            _job_scheduler = _ctx.scheduler if _ctx else self._job_scheduler
+
             assistant = Assistant(
                 app_config=self._app_config,
-                job_store=self._job_store,
-                job_scheduler=self._job_scheduler,
+                job_store=_job_store,
+                job_scheduler=_job_scheduler,
             )
             self._sessions[session_id] = assistant
             self._ws_refcount[session_id] = 1
