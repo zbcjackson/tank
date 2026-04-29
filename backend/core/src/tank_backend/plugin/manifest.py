@@ -104,7 +104,7 @@ def _find_plugins_dir() -> Path:
     ``config.yaml`` lives at ``backend/core/config.yaml``;
     ``plugins/`` lives at ``backend/plugins/``.
     """
-    from .config import find_config_yaml
+    from ..config.app_config import find_config_yaml
 
     config_yaml = find_config_yaml()
     return config_yaml.parent.parent / "plugins"

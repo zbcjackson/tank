@@ -275,7 +275,7 @@ class PluginManager:
         if self._plugins_yaml_path is not None:
             return self._plugins_yaml_path
 
-        from .config import find_config_yaml
+        from ..config.app_config import find_config_yaml
 
         config_yaml = find_config_yaml()
         return config_yaml.parent / "plugins.yaml"

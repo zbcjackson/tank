@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config.app_config import AppConfig as _TypedAppConfig
-from ..config.app_config import FeatureConfig
+from ..config.app_config import FeatureConfig, find_config_yaml
 from ..config.models import (
     AgentsConfig,
     AlertingConfig,
@@ -41,27 +41,7 @@ logger = logging.getLogger(__name__)
 # Re-export for callers that import FeatureConfig from here
 SlotConfig = FeatureConfig
 
-
-def find_config_yaml() -> Path:
-    """Locate ``core/config.yaml`` by walking up from this file and CWD.
-
-    Search order:
-      1. Ancestors of this source file (works inside the installed package).
-      2. Ancestors of the current working directory (works for scripts).
-
-    Raises:
-        FileNotFoundError: If the file cannot be found.
-    """
-    roots = [Path(__file__).resolve(), Path.cwd().resolve()]
-    for root in roots:
-        for parent in (root, *root.parents):
-            candidate = parent / "core" / "config.yaml"
-            if candidate.exists():
-                return candidate
-    raise FileNotFoundError(
-        "Could not find core/config.yaml. "
-        "Make sure you're running from the project root or backend/ directory."
-    )
+# find_config_yaml is imported from config.app_config and re-exported here for backward compat
 
 
 class AppConfig:
