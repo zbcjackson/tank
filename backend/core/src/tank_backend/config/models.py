@@ -51,6 +51,10 @@ class AssistantConfig:
 class ContextConfig:
     """``context:`` section."""
 
+    max_history_tokens: int = 8000
+    keep_recent_messages: int = 5
+    summary_max_tokens: int = 500
+    summary_temperature: float = 0.3
     store_type: str = "file"
     store_path: str = "~/.tank/sessions"
 
@@ -126,12 +130,15 @@ class SandboxConfig:
 
     enabled: bool = True
     backend: str = "auto"
+    image: str = "tank-sandbox:latest"
+    workspace_host_path: str = "./workspace"
     mounts: list[dict[str, str]] = field(default_factory=list)
     denied_mounts: list[str] = field(default_factory=list)
     memory_limit: str = "1g"
     cpu_count: int = 2
-    timeout: int = 120
+    default_timeout: int = 120
     max_timeout: int = 600
+    network_enabled: bool = True
     docker: dict[str, str] = field(default_factory=dict)
 
 
