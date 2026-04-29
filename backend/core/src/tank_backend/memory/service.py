@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from .config import MemoryConfig
+from ..config.models import MemoryConfig
 
 logger = logging.getLogger(__name__)
 

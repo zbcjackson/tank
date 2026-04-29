@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .config import SandboxConfig
+from ..config.models import SandboxConfig
 from .types import (
     BashResult,
     ExecResult,

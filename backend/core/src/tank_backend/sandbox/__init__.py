@@ -8,7 +8,7 @@ Supports multiple backends:
 Use SandboxFactory.create(policy) to get the best available backend.
 """
 
-from .config import SandboxConfig
+from ..config.models import SandboxConfig
 from .factory import SandboxBackendUnavailable, SandboxFactory
 from .manager import DockerSandbox
 from .policy import DENIED_MOUNTS_HARDCODED, MountSpec, NetworkPolicy, SandboxPolicy

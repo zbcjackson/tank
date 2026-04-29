@@ -132,7 +132,7 @@ class SandboxFactory:
         uses same-path volume mounts (host path == container path) so
         the agent sees the same paths the user talks about.
         """
-        from .config import SandboxConfig
+        from ..config.models import SandboxConfig
         from .manager import DockerSandbox
 
         # Build same-path volume mounts from policy.mounts
