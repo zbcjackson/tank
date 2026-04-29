@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from ..config import AppConfig
     from ..pipeline.bus import Bus
-    from ..plugin import AppConfig
     from .models import JobDefinition
 
 logger = logging.getLogger(__name__)

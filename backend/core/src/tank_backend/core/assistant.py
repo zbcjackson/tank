@@ -11,6 +11,7 @@ from typing import Any
 
 from ..audio.input.types import AudioFrame, AudioSourceFactory
 from ..audio.output.types import AudioSinkFactory
+from ..config import AppConfig
 from ..config.models import EchoGuardConfig
 from ..llm.profile import create_llm_from_profile
 from ..pipeline import Bus, BusMessage, Pipeline, PipelineBuilder
@@ -34,7 +35,6 @@ from ..pipeline.processors import (
     TTSProcessor,
     VADProcessor,
 )
-from ..plugin import AppConfig
 from ..tools.manager import ToolManager
 from .events import BrainInputEvent, DisplayMessage, InputType, SignalMessage, UIMessage
 from .runtime import RuntimeContext
@@ -62,8 +62,9 @@ class Assistant:
         audio_sink_factory: AudioSinkFactory | None = None,
         job_store: Any = None,
         job_scheduler: Any = None,
+        registry: Any = None,
     ) -> None:
-        registry = self._init_config_and_llm(app_config)
+        registry = self._init_config_and_llm(app_config, registry=registry)
         self._init_bus()
         self._init_tools()
 
@@ -92,7 +93,9 @@ class Assistant:
     # Initialization helpers (called once from __init__)
     # ------------------------------------------------------------------
 
-    def _init_config_and_llm(self, app_config: AppConfig | None = None) -> object:
+    def _init_config_and_llm(
+        self, app_config: AppConfig | None = None, registry: Any = None
+    ) -> object:
         """Load config, LLM, and brain config. Returns registry.
 
         *app_config* is always provided by the caller (server.py or tests).
@@ -109,7 +112,7 @@ class Assistant:
 
         self._speech_interrupt_enabled = self._app_config.assistant_config.speech_interrupt_enabled
 
-        return self._app_config._registry
+        return registry
 
     def _init_tools(self) -> None:
         """Create ToolManager — it owns all tool-domain concerns."""

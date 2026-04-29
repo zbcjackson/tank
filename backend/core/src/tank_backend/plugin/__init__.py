@@ -1,6 +1,6 @@
 """Plugin system for Tank backend."""
 
-from .config import AppConfig, FeatureConfig, PluginConfig, SlotConfig, find_config_yaml
+from ..config import AppConfig, FeatureConfig, find_config_yaml
 from .manager import ConfigError, PluginManager
 from .manifest import (
     ExtensionManifest,
@@ -9,6 +9,10 @@ from .manifest import (
     read_plugin_manifest,
 )
 from .registry import ExtensionRegistry
+
+# Backward-compatible aliases
+PluginConfig = AppConfig
+SlotConfig = FeatureConfig
 
 __all__ = [
     "AppConfig",

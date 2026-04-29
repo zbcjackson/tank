@@ -12,10 +12,10 @@ from __future__ import annotations
 import threading
 from unittest.mock import MagicMock, patch
 
+from tank_backend.config import AppConfig
 from tank_backend.config.models import BrainConfig
 from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.processors.brain import Brain
-from tank_backend.plugin.config import AppConfig
 
 
 def _make_real_app_config(tmp_path) -> AppConfig:
@@ -30,7 +30,7 @@ def _make_real_app_config(tmp_path) -> AppConfig:
         "agents:\n"
         "  dirs: []\n"  # no agent dirs — avoids filesystem scanning
     )
-    return AppConfig(yaml)
+    return AppConfig.load(yaml)
 
 
 class TestBrainBuildAgentGraph:

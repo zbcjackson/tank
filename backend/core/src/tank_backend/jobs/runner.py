@@ -13,7 +13,7 @@ from ..agents.definition import AgentDefinition
 from .models import JobDefinition, JobRunResult
 
 if TYPE_CHECKING:
-    from ..plugin import AppConfig
+    from ..config import AppConfig
     from .delivery import DeliveryManager
     from .store import JobStore
 

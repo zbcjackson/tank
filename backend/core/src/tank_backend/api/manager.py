@@ -27,13 +27,14 @@ class ConnectionManager:
 
     SESSION_IDLE_TIMEOUT = 30  # seconds
 
-    def __init__(self, app_config: Any = None, app_context: Any = None):
+    def __init__(self, app_config: Any = None, app_context: Any = None, registry: Any = None):
         self._sessions: dict[str, Assistant] = {}
         self._idle_timers: dict[str, asyncio.TimerHandle] = {}
         self._ws_refcount: dict[str, int] = {}
         self._session_lock = asyncio.Lock()
         self._app_context = app_context
         self._app_config = app_config
+        self._registry = registry
         self._voiceprint_recognizer: VoiceprintRecognizer | None = None
         # Legacy fields — prefer app_context when available
         self._job_store: Any = None
@@ -42,7 +43,7 @@ class ConnectionManager:
 
     def _init_voiceprint(self) -> None:
         """Initialize shared voiceprint recognizer for the speakers REST API."""
-        if self._app_config is None:
+        if self._app_config is None or self._registry is None:
             return
         try:
             from ..audio.input.voiceprint_factory import (
@@ -56,8 +57,7 @@ class ConnectionManager:
                 self._voiceprint_recognizer = create_disabled_recognizer()
                 return
 
-            registry = self._app_config._registry
-            extractor = registry.instantiate(
+            extractor = self._registry.instantiate(
                 speaker_cfg.extension, speaker_cfg.config
             )
             self._voiceprint_recognizer = create_voiceprint_recognizer(
@@ -122,6 +122,7 @@ class ConnectionManager:
                 app_config=self._app_config,
                 job_store=_job_store,
                 job_scheduler=_job_scheduler,
+                registry=self._registry,
             )
             self._sessions[session_id] = assistant
             self._ws_refcount[session_id] = 1

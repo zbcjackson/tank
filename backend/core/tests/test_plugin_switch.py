@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tank_backend.plugin.config import AppConfig
+from tank_backend.config import AppConfig
 from tank_backend.plugin.manifest import ExtensionManifest
 from tank_backend.plugin.registry import ExtensionRegistry
 
@@ -17,7 +17,7 @@ class TestFeatureConfigEnabled:
     def test_feature_disabled_when_absent(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("llm:\n  default:\n    api_key: test\n")
-        config = AppConfig(yaml)
+        config = AppConfig.load(yaml)
 
         cfg = config.get_feature_config("asr")
         assert cfg.enabled is False
@@ -28,7 +28,7 @@ class TestFeatureConfigEnabled:
             "asr:\n  enabled: false\n  extension: asr-sherpa:asr\n"
             "  config:\n    sample_rate: 16000\n"
         )
-        config = AppConfig(yaml)
+        config = AppConfig.load(yaml)
 
         cfg = config.get_feature_config("asr")
         assert cfg.enabled is False
@@ -38,7 +38,7 @@ class TestFeatureConfigEnabled:
         yaml.write_text(
             "tts:\n  enabled: true\n  extension: tts-edge:tts\n  config:\n    voice_en: Jenny\n"
         )
-        config = AppConfig(yaml)
+        config = AppConfig.load(yaml)
 
         cfg = config.get_feature_config("tts")
         assert cfg.enabled is True
@@ -49,7 +49,7 @@ class TestFeatureConfigEnabled:
     def test_feature_enabled_with_legacy_plugin_syntax(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("tts:\n  plugin: tts-edge\n  config:\n    voice: test\n")
-        config = AppConfig(yaml)
+        config = AppConfig.load(yaml)
 
         cfg = config.get_feature_config("tts")
         assert cfg.enabled is True
@@ -59,7 +59,7 @@ class TestFeatureConfigEnabled:
     def test_feature_enabled_defaults_to_true(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("asr:\n  extension: asr-sherpa:asr\n  config: {}\n")
-        config = AppConfig(yaml)
+        config = AppConfig.load(yaml)
 
         cfg = config.get_feature_config("asr")
         assert cfg.enabled is True
@@ -67,7 +67,7 @@ class TestFeatureConfigEnabled:
     def test_plugin_derived_from_extension_ref(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("tts:\n  extension: tts-edge:tts\n  config: {}\n")
-        config = AppConfig(yaml)
+        config = AppConfig.load(yaml)
 
         cfg = config.get_feature_config("tts")
         assert cfg.plugin == "tts-edge"
@@ -79,19 +79,19 @@ class TestIsFeatureEnabled:
     def test_returns_true_for_enabled_feature(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("asr:\n  extension: asr-sherpa:asr\n  config: {}\n")
-        config = AppConfig(yaml)
+        config = AppConfig.load(yaml)
         assert config.is_feature_enabled("asr") is True
 
     def test_returns_false_for_absent_feature(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("llm:\n  default:\n    api_key: x\n")
-        config = AppConfig(yaml)
+        config = AppConfig.load(yaml)
         assert config.is_feature_enabled("asr") is False
 
     def test_returns_false_for_disabled_feature(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("tts:\n  enabled: false\n  extension: tts-edge:tts\n  config: {}\n")
-        config = AppConfig(yaml)
+        config = AppConfig.load(yaml)
         assert config.is_feature_enabled("tts") is False
 
 
@@ -105,14 +105,14 @@ class TestGetCapabilities:
             "tts:\n  extension: tts-edge:tts\n  config: {}\n"
             "speaker:\n  extension: speaker-sherpa:speaker_id\n  config: {}\n"
         )
-        config = AppConfig(yaml)
+        config = AppConfig.load(yaml)
         caps = config.get_capabilities()
         assert caps == {"asr": True, "tts": True, "speaker_id": True}
 
     def test_all_disabled(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text("llm:\n  default:\n    api_key: x\n")
-        config = AppConfig(yaml)
+        config = AppConfig.load(yaml)
         caps = config.get_capabilities()
         assert caps == {"asr": False, "tts": False, "speaker_id": False}
 
@@ -122,7 +122,7 @@ class TestGetCapabilities:
             "asr:\n  extension: asr-sherpa:asr\n  config: {}\n"
             "tts:\n  enabled: false\n  extension: tts-edge:tts\n  config: {}\n"
         )
-        config = AppConfig(yaml)
+        config = AppConfig.load(yaml)
         caps = config.get_capabilities()
         assert caps["asr"] is True
         assert caps["tts"] is False
@@ -231,7 +231,7 @@ class TestAppConfigValidation:
             ("tts-edge", ExtensionManifest(name="tts", type="tts", factory="x:y")),
         ])
         # Should not raise
-        AppConfig(yaml, registry=reg)
+        AppConfig.load(yaml, registry=reg)
 
     def test_missing_extension_raises(self, tmp_path):
         from tank_backend.plugin.manager import ConfigError
@@ -241,7 +241,7 @@ class TestAppConfigValidation:
         reg = self._make_registry()  # empty registry
 
         with pytest.raises(ConfigError, match="not registered"):
-            AppConfig(yaml, registry=reg)
+            AppConfig.load(yaml, registry=reg)
 
     def test_type_mismatch_raises(self, tmp_path):
         from tank_backend.plugin.manager import ConfigError
@@ -254,7 +254,7 @@ class TestAppConfigValidation:
         ])
 
         with pytest.raises(ConfigError, match="expected 'asr'"):
-            AppConfig(yaml, registry=reg)
+            AppConfig.load(yaml, registry=reg)
 
     def test_disabled_slot_skips_validation(self, tmp_path):
         yaml = tmp_path / "config.yaml"
@@ -263,7 +263,7 @@ class TestAppConfigValidation:
         )
         reg = self._make_registry()  # empty
         # Should not raise — feature is disabled
-        AppConfig(yaml, registry=reg)
+        AppConfig.load(yaml, registry=reg)
 
     def test_no_registry_skips_validation(self, tmp_path):
         yaml = tmp_path / "config.yaml"

@@ -18,7 +18,7 @@ tts:
     voice_zh: zh-CN-XiaoxiaoNeural
 """)
 
-    config = PluginConfig(config_file)
+    config = PluginConfig.load(config_file)
     cfg = config.get_feature_config("tts")
 
     assert cfg.plugin == "tts-edge"
@@ -30,7 +30,7 @@ def test_plugin_config_missing_slot_returns_disabled(tmp_path):
     """Test PluginConfig returns disabled FeatureConfig for missing feature."""
     empty_yaml = tmp_path / "config.yaml"
     empty_yaml.write_text("{}")
-    config = PluginConfig(empty_yaml)
+    config = PluginConfig.load(empty_yaml)
 
     cfg = config.get_feature_config("nonexistent")
     assert cfg.enabled is False
@@ -40,7 +40,7 @@ def test_plugin_config_missing_plugin_name_returns_disabled(tmp_path):
     """Test PluginConfig returns disabled FeatureConfig when plugin name not specified."""
     yaml_file = tmp_path / "config.yaml"
     yaml_file.write_text("tts:\n  config:\n    voice: test\n")
-    config = PluginConfig(yaml_file)
+    config = PluginConfig.load(yaml_file)
 
     cfg = config.get_feature_config("tts")
     assert cfg.enabled is False

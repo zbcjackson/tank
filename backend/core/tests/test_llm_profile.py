@@ -110,9 +110,9 @@ llm:
     base_url: https://api.openai.com/v1
     temperature: 0.3
 """)
-        from tank_backend.plugin.config import AppConfig
+        from tank_backend.config import AppConfig
 
-        app = AppConfig(config_file)
+        app = AppConfig.load(config_file)
         profile = app.get_llm_profile("default")
 
         assert profile.name == "default"
@@ -124,10 +124,10 @@ llm:
         config_file = tmp_path / "config.yaml"
         config_file.write_text("llm: {}")
 
-        from tank_backend.plugin.config import AppConfig
+        from tank_backend.config import AppConfig, ConfigError
 
-        app = AppConfig(config_file)
-        with pytest.raises(ValueError, match="not found"):
+        app = AppConfig.load(config_file)
+        with pytest.raises(ConfigError, match="not found"):
             app.get_llm_profile("nonexistent")
 
     def test_list_llm_profiles(self, tmp_path, monkeypatch):
@@ -145,9 +145,9 @@ llm:
     model: m2
     base_url: http://b
 """)
-        from tank_backend.plugin.config import AppConfig
+        from tank_backend.config import AppConfig
 
-        app = AppConfig(config_file)
+        app = AppConfig.load(config_file)
         names = app.list_llm_profiles()
 
         assert set(names) == {"default", "fast"}
@@ -161,20 +161,20 @@ class TestEnvVarInterpolation:
         config_file = tmp_path / "config.yaml"
         config_file.write_text("key: ${MY_SECRET}")
 
-        from tank_backend.plugin.config import AppConfig
+        from tank_backend.config import AppConfig
 
-        app = AppConfig(config_file)
-        assert app._config["key"] == "resolved-value"
+        app = AppConfig.load(config_file)
+        assert app._raw["key"] == "resolved-value"
 
     def test_interpolation_raises_on_missing_env_var(self, tmp_path, monkeypatch):
         monkeypatch.delenv("MISSING_VAR", raising=False)
         config_file = tmp_path / "config.yaml"
         config_file.write_text("key: ${MISSING_VAR}")
 
-        from tank_backend.plugin.config import AppConfig
+        from tank_backend.config import AppConfig
 
         with pytest.raises(ValueError, match="MISSING_VAR.*is not set"):
-            AppConfig(config_file)
+            AppConfig.load(config_file)
 
     def test_interpolation_multiple_vars(self, tmp_path, monkeypatch):
         monkeypatch.setenv("HOST", "example.com")
@@ -182,19 +182,19 @@ class TestEnvVarInterpolation:
         config_file = tmp_path / "config.yaml"
         config_file.write_text("url: http://${HOST}:${PORT}/api")
 
-        from tank_backend.plugin.config import AppConfig
+        from tank_backend.config import AppConfig
 
-        app = AppConfig(config_file)
-        assert app._config["url"] == "http://example.com:8080/api"
+        app = AppConfig.load(config_file)
+        assert app._raw["url"] == "http://example.com:8080/api"
 
     def test_no_interpolation_without_dollar_brace(self, tmp_path):
         config_file = tmp_path / "config.yaml"
         config_file.write_text("key: plain_value")
 
-        from tank_backend.plugin.config import AppConfig
+        from tank_backend.config import AppConfig
 
-        app = AppConfig(config_file)
-        assert app._config["key"] == "plain_value"
+        app = AppConfig.load(config_file)
+        assert app._raw["key"] == "plain_value"
 
     def test_comments_with_dollar_brace_are_skipped(self, tmp_path, monkeypatch):
         monkeypatch.setenv("REAL_KEY", "works")
@@ -204,7 +204,7 @@ class TestEnvVarInterpolation:
             "key: ${REAL_KEY}\n"
         )
 
-        from tank_backend.plugin.config import AppConfig
+        from tank_backend.config import AppConfig
 
-        app = AppConfig(config_file)
-        assert app._config["key"] == "works"
+        app = AppConfig.load(config_file)
+        assert app._raw["key"] == "works"

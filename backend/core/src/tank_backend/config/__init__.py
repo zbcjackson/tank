@@ -6,7 +6,7 @@ Public API::
     from tank_backend.config import AppContext, SessionContext
 """
 
-from .app_config import AppConfig, ConfigError, FeatureConfig
+from .app_config import AppConfig, ConfigError, FeatureConfig, find_config_yaml
 from .context import AppContext, SessionContext
 from .models import (
     AgentsConfig,
@@ -42,6 +42,7 @@ __all__ = [
     "EchoGuardConfig",
     "FeatureConfig",
     "FileAccessConfig",
+    "find_config_yaml",
     "HealthMonitorConfig",
     "JobsConfig",
     "MemoryConfig",

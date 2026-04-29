@@ -12,9 +12,9 @@ load_dotenv()  # .env → os.environ before any config loading (covers uvicorn r
 from fastapi import FastAPI  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
 
+from ..config import AppConfig, find_config_yaml  # noqa: E402
 from ..config.context import AppContext  # noqa: E402
 from ..context import create_store  # noqa: E402
-from ..plugin import AppConfig  # noqa: E402
 from ..plugin.manager import PluginManager  # noqa: E402
 from .conversations import router as conversations_router  # noqa: E402
 from .conversations import set_store as set_conversations_store  # noqa: E402
@@ -42,7 +42,7 @@ logger = logging.getLogger("ApiServer")
 # --- Single plugin load at startup ---
 _plugin_manager = PluginManager()
 _registry = _plugin_manager.load_all()
-app_config = AppConfig(registry=_registry)
+app_config = AppConfig.load(find_config_yaml(), registry=_registry)
 
 # --- Conversation store for REST API ---
 _store = create_store(
@@ -102,7 +102,9 @@ app_context = AppContext(
 )
 
 # --- Connection manager ---
-connection_manager = ConnectionManager(app_config=app_config, app_context=app_context)
+connection_manager = ConnectionManager(
+    app_config=app_config, app_context=app_context, registry=_registry
+)
 
 
 @asynccontextmanager
