@@ -110,7 +110,7 @@ class Assistant:
 
         self._brain_config = self._app_config.brain
 
-        self._speech_interrupt_enabled = self._app_config.assistant_config.speech_interrupt_enabled
+        self._speech_interrupt_enabled = self._app_config.assistant.speech_interrupt_enabled
 
         return registry
 
