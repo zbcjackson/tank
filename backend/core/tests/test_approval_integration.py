@@ -15,6 +15,7 @@ from tank_backend.agents.base import AgentOutputType, AgentState
 from tank_backend.agents.llm_agent import LLMAgent, _parse_tool_args
 from tank_backend.core.events import UpdateType
 from tank_backend.pipeline.bus import Bus
+from tank_backend.tools.base import ToolResult
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -133,9 +134,10 @@ class TestLLMAgentGateFlow:
 
         result = await gate.execute_openai_tool_call(tool_call)
 
-        # Should return error dict, not execute
-        assert "error" in result
-        assert "APPROVAL REQUIRED" in result["error"]
+        # Should return ToolResult with error, not execute
+        assert isinstance(result, ToolResult)
+        assert result.error is True
+        assert "APPROVAL REQUIRED" in result.content
         tm.execute_openai_tool_call.assert_not_called()
 
         # The pending store should have the parked call

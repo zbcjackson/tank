@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from .verdict import AccessLevel, PolicyVerdict
 
 if TYPE_CHECKING:
+    from ..config.models import NetworkAccessConfig
     from ..pipeline.bus import Bus
 
 logger = logging.getLogger(__name__)
@@ -86,6 +87,27 @@ class NetworkAccessPolicy:
     # ------------------------------------------------------------------
     # Factory
     # ------------------------------------------------------------------
+
+    @classmethod
+    def from_config(
+        cls, config: NetworkAccessConfig, bus: Bus | None = None,
+    ) -> NetworkAccessPolicy:
+        """Create from typed NetworkAccessConfig."""
+        rules: list[NetworkAccessRule] = []
+        for rule_data in config.rules:
+            hosts = tuple(rule_data.get("hosts", []))
+            rules.append(
+                NetworkAccessRule(
+                    hosts=hosts,
+                    policy=AccessLevel(rule_data.get("policy", "allow")),
+                    reason=rule_data.get("reason", ""),
+                )
+            )
+        return cls(
+            rules=tuple(rules),
+            default=AccessLevel(config.default),
+            bus=bus,
+        )
 
     @staticmethod
     def from_dict(data: dict, bus: Bus | None = None) -> NetworkAccessPolicy:

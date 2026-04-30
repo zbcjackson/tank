@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from ..config.models import AuditConfig
     from ..pipeline.bus import Bus, BusMessage
 
 logger = logging.getLogger(__name__)
@@ -89,6 +90,11 @@ class AuditLogger:
     # ------------------------------------------------------------------
     # Factory
     # ------------------------------------------------------------------
+
+    @classmethod
+    def from_config(cls, config: AuditConfig) -> AuditLogger:
+        """Create from typed AuditConfig."""
+        return cls(log_path=config.log_path, enabled=config.enabled)
 
     @staticmethod
     def from_dict(data: dict) -> AuditLogger:

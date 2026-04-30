@@ -94,6 +94,11 @@ class BackupManager:
     # Factory
     # ------------------------------------------------------------------
 
+    @classmethod
+    def from_config(cls, backup_dict: dict) -> BackupManager:
+        """Create from FileAccessConfig.backup dict."""
+        return cls.from_dict(backup_dict)
+
     @staticmethod
     def from_dict(data: dict) -> BackupManager:
         """Create from parsed YAML ``backup:`` section."""

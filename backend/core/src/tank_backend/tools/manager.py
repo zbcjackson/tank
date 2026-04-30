@@ -6,12 +6,11 @@ External code only needs ``ToolManager(app_config, bus)`` and the public API.
 
 from __future__ import annotations
 
-import dataclasses
 import json
 import logging
 from typing import Any
 
-from .base import BaseTool, ToolGroup, ToolInfo
+from .base import BaseTool, ToolGroup, ToolInfo, ToolResult
 
 logger = logging.getLogger("ToolManager")
 
@@ -41,18 +40,18 @@ class ToolManager:
             ServiceCredentialManager,
         )
 
-        # Convert typed config to dicts for policy from_dict() methods
-        net_dict = _cfg_to_dict(app_config, "network_access")
-        self._network_policy = NetworkAccessPolicy.from_dict(net_dict, bus=bus)
-        self._credential_manager = ServiceCredentialManager.from_dict(
-            net_dict.get("service_credentials", [])
+        self._network_policy = NetworkAccessPolicy.from_config(
+            app_config.network_access, bus=bus,
+        )
+        self._credential_manager = ServiceCredentialManager.from_config(
+            app_config.network_access.service_credentials,
         )
 
-        file_dict = _cfg_to_dict(app_config, "file_access")
-        self._file_policy = FileAccessPolicy.from_dict(file_dict, bus=bus)
+        self._file_policy = FileAccessPolicy.from_config(
+            app_config.file_access, bus=bus,
+        )
 
-        audit_dict = _cfg_to_dict(app_config, "audit")
-        self._audit_logger = AuditLogger.from_dict(audit_dict)
+        self._audit_logger = AuditLogger.from_config(app_config.audit)
         if bus is not None:
             self._audit_logger.subscribe(bus)
 
@@ -60,12 +59,11 @@ class ToolManager:
         from ..agents.approval import ToolApprovalPolicy
         from ..policy.command_security import CommandSecurityPolicy
 
-        cmd_dict = _cfg_to_dict(app_config, "command_security")
-        command_policy = CommandSecurityPolicy.from_dict(cmd_dict)
+        command_policy = CommandSecurityPolicy.from_config(app_config.command_security)
 
         # Create dedicated LLM for command security evaluation (if configured)
         command_llm = None
-        llm_cfg = cmd_dict.get("llm_evaluation") or {}
+        llm_cfg = app_config.command_security.llm_evaluation or {}
         if llm_cfg.get("enabled"):
             try:
                 from ..llm.profile import LLMProfile, create_llm_from_profile
@@ -106,12 +104,15 @@ class ToolManager:
 
         self._register_group(
             SandboxToolGroup(
-                _cfg_to_dict(app_config, "sandbox"), self._credential_manager,
+                config=app_config.sandbox,
+                credential_manager=self._credential_manager,
             )
         )
 
         self._register_group(
-            FileToolGroup(file_dict, bus=bus, policy=self._file_policy)
+            FileToolGroup(
+                config=app_config.file_access, bus=bus, policy=self._file_policy,
+            )
         )
 
         self._register_group(
@@ -121,8 +122,8 @@ class ToolManager:
         )
 
         self._skill_group = SkillToolGroup(
-            _cfg_to_dict(app_config, "skills"),
-            bus, tool_manager=self, max_history_tokens=max_history_tokens,
+            config=app_config.skills,
+            bus=bus, tool_manager=self, max_history_tokens=max_history_tokens,
         )
         self._register_group(self._skill_group)
 
@@ -249,14 +250,16 @@ class ToolManager:
     # Tool execution
     # ------------------------------------------------------------------
 
-    async def execute_tool(self, tool_name: str, **kwargs) -> dict[str, Any] | str:
+    async def execute_tool(self, tool_name: str, **kwargs) -> ToolResult | str:
         if tool_name not in self.tools:
             error_msg = (
                 f"Tool '{tool_name}' not found. "
                 f"Available tools: {list(self.tools.keys())}"
             )
             logger.error(error_msg)
-            return {"error": error_msg, "available_tools": list(self.tools.keys())}
+            return ToolResult(
+                content=error_msg, display=error_msg, error=True,
+            )
 
         try:
             tool = self.tools[tool_name]
@@ -268,7 +271,7 @@ class ToolManager:
         except Exception as e:
             error_msg = f"Error executing tool '{tool_name}': {str(e)}"
             logger.error(error_msg)
-            return {"error": error_msg, "tool_name": tool_name, "parameters": kwargs}
+            return ToolResult(content=error_msg, display=error_msg, error=True)
 
     def get_openai_tools(
         self, exclude: set[str] | None = None,
@@ -320,16 +323,17 @@ class ToolManager:
 
         return openai_tools
 
-    async def execute_openai_tool_call(self, tool_call) -> dict[str, Any]:
+    async def execute_openai_tool_call(self, tool_call) -> ToolResult | str:
         """Execute tool from OpenAI function call format."""
         function_name = tool_call.function.name
         try:
             arguments = json.loads(tool_call.function.arguments)
         except json.JSONDecodeError:
-            return {
-                "error": f"Could not parse arguments for {function_name}",
-                "arguments": tool_call.function.arguments,
-            }
+            return ToolResult(
+                content=f"Could not parse arguments for {function_name}",
+                display=f"Could not parse arguments for {function_name}",
+                error=True,
+            )
 
         return await self.execute_tool(function_name, **arguments)
 
@@ -360,18 +364,3 @@ class ToolManager:
                     )
 
         return None
-
-
-def _cfg_to_dict(app_config: Any, section: str) -> dict[str, Any]:
-    """Convert a typed config attribute to a raw dict for policy from_dict().
-
-    Tries ``dataclasses.asdict()`` on the typed property first.
-    Falls back to ``get_section()`` for legacy mock-based callers.
-    """
-    attr = getattr(app_config, section, None)
-    if attr is not None and dataclasses.is_dataclass(attr) and not isinstance(attr, type):
-        return dataclasses.asdict(attr)
-    # Fallback for mock-based tests or missing attribute
-    if hasattr(app_config, "get_section"):
-        return app_config.get_section(section, {})
-    return {}

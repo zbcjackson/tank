@@ -83,9 +83,10 @@ class TestApprovalGateExecutor:
 
         result = await gate.execute_openai_tool_call(tool_call)
 
-        # Should return error dict
-        assert "error" in result
-        assert "APPROVAL REQUIRED" in result["error"]
+        # Should return ToolResult with error
+        assert isinstance(result, ToolResult)
+        assert result.error is True
+        assert "APPROVAL REQUIRED" in result.content
 
         # Should park the call
         pending = store.get_oldest_pending()
@@ -125,8 +126,9 @@ class TestApprovalGateExecutor:
         result = await gate.execute_openai_tool_call(tool_call)
 
         # Should return BLOCKED error, not APPROVAL REQUIRED
-        assert "error" in result
-        assert "BLOCKED" in result["error"]
+        assert isinstance(result, ToolResult)
+        assert result.error is True
+        assert "BLOCKED" in result.content
         tool_manager.execute_openai_tool_call.assert_not_called()
 
         # Should NOT park the call

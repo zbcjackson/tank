@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from .verdict import AccessLevel, PolicyVerdict
 
 if TYPE_CHECKING:
+    from ..config.models import FileAccessConfig
     from ..pipeline.bus import Bus
 
 logger = logging.getLogger(__name__)
@@ -227,6 +228,32 @@ class FileAccessPolicy:
     # ------------------------------------------------------------------
     # Factory
     # ------------------------------------------------------------------
+
+    @classmethod
+    def from_config(
+        cls, config: FileAccessConfig, bus: Bus | None = None,
+    ) -> FileAccessPolicy:
+        """Create from typed FileAccessConfig."""
+        rules: list[FileAccessRule] = []
+        for rule_data in config.rules:
+            paths = tuple(rule_data.get("paths", []))
+            rules.append(
+                FileAccessRule(
+                    paths=paths,
+                    read=AccessLevel(rule_data.get("read", "allow")),
+                    write=AccessLevel(rule_data.get("write", "allow")),
+                    delete=AccessLevel(rule_data.get("delete", "allow")),
+                    reason=rule_data.get("reason", ""),
+                    priority=rule_data.get("priority", 0),
+                )
+            )
+        return cls(
+            rules=tuple(rules),
+            default_read=AccessLevel(config.default_read),
+            default_write=AccessLevel(config.default_write),
+            default_delete=AccessLevel(config.default_delete),
+            bus=bus,
+        )
 
     @staticmethod
     def from_dict(data: dict, bus: Bus | None = None) -> FileAccessPolicy:

@@ -83,6 +83,11 @@ class ServiceCredentialManager:
     # Factory
     # ------------------------------------------------------------------
 
+    @classmethod
+    def from_config(cls, credentials: list[dict]) -> ServiceCredentialManager:
+        """Create from typed config's service_credentials list."""
+        return cls.from_dict(credentials)
+
     @staticmethod
     def from_dict(data: list[dict]) -> ServiceCredentialManager:
         """Create from parsed YAML ``service_credentials:`` list."""

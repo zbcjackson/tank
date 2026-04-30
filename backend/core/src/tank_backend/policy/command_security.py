@@ -11,9 +11,12 @@ from __future__ import annotations
 import logging
 import os
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .verdict import AccessLevel, PolicyVerdict
+
+if TYPE_CHECKING:
+    from ..config.models import CommandSecurityConfig
 
 logger = logging.getLogger(__name__)
 
@@ -395,6 +398,32 @@ class CommandSecurityPolicy:
     # ------------------------------------------------------------------
     # Factory
     # ------------------------------------------------------------------
+
+    @classmethod
+    def from_config(cls, config: CommandSecurityConfig) -> CommandSecurityPolicy:
+        """Create from typed CommandSecurityConfig."""
+        extra_safe = config.extra_safe_commands or []
+        safe = SAFE_COMMANDS | frozenset(extra_safe)
+
+        extra_patterns_raw = config.extra_dangerous_patterns or []
+        extra_patterns = tuple(
+            (p["pattern"], p["description"]) for p in extra_patterns_raw
+        )
+        patterns = DANGEROUS_PATTERNS + extra_patterns
+
+        always_raw = config.always_require_approval or []
+        always_require = _ALWAYS_REQUIRE | frozenset(always_raw)
+        safe = safe - always_require
+
+        llm_config = config.llm_evaluation or {}
+
+        return cls(
+            safe_commands=safe,
+            git_safe_subcommands=GIT_SAFE_SUBCOMMANDS,
+            dangerous_patterns=patterns,
+            always_require=always_require,
+            llm_config=llm_config,
+        )
 
     @staticmethod
     def from_dict(data: dict | None) -> CommandSecurityPolicy:

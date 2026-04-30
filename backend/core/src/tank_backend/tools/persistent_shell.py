@@ -10,7 +10,7 @@ import json
 import logging
 from typing import Any
 
-from ..sandbox.manager import DockerSandbox
+from ..sandbox.protocol import Sandbox
 from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
@@ -26,8 +26,8 @@ class PersistentShellTool(BaseTool):
       like top, vim, or long-running servers.
     """
 
-    def __init__(self, sandbox: DockerSandbox) -> None:
-        self._sandbox = sandbox
+    def __init__(self, sandbox: Sandbox) -> None:
+        self._sandbox: Any = sandbox
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(

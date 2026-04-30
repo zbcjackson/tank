@@ -5,7 +5,10 @@ from __future__ import annotations
 import os
 import platform
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from ..config.models import SandboxConfig
 
 
 def _build_denied_mounts_hardcoded() -> tuple[str, ...]:
@@ -89,6 +92,62 @@ class SandboxPolicy:
     docker_image: str = "tank-sandbox:latest"
     docker_workspace: str = "./workspace"
 
+    @classmethod
+    def from_config(cls, config: SandboxConfig) -> SandboxPolicy:
+        """Create from typed SandboxConfig."""
+        if not config.enabled:
+            return cls(enabled=False)
+
+        # Parse mounts
+        mounts = tuple(
+            MountSpec(host=m["host"], mode=m.get("mode", "ro"))  # type: ignore[arg-type]
+            for m in config.mounts
+            if isinstance(m, dict) and "host" in m
+        )
+
+        # Expand mounts to read_only_paths / writable_paths
+        ro_paths: list[str] = []
+        rw_paths: list[str] = ["/tmp"]
+        for m in mounts:
+            expanded = os.path.expanduser(m.host)
+            if m.mode == "rw":
+                rw_paths.append(expanded)
+            else:
+                ro_paths.append(expanded)
+
+        # Merge denied_mounts_hardcoded + user denied_mounts
+        all_denied = [
+            os.path.expanduser(p)
+            for p in (*DENIED_MOUNTS_HARDCODED, *config.denied_mounts)
+        ]
+
+        # Network: convert boolean to NetworkPolicy
+        network = NetworkPolicy(
+            mode="allow_all" if config.network_enabled else "none",
+        )
+
+        # Docker-specific: config.docker dict overrides top-level fields
+        docker_raw = config.docker or {}
+
+        return cls(
+            enabled=True,
+            backend=config.backend,  # type: ignore[arg-type]
+            mounts=mounts,
+            denied_mounts=tuple(config.denied_mounts),
+            read_only_paths=tuple(ro_paths),
+            writable_paths=tuple(rw_paths),
+            denied_paths=tuple(all_denied),
+            network=network,
+            memory_limit=config.memory_limit,
+            cpu_count=config.cpu_count,
+            timeout=config.default_timeout,
+            max_timeout=config.max_timeout,
+            docker_image=docker_raw.get("image", config.image),
+            docker_workspace=docker_raw.get(
+                "workspace_host_path", config.workspace_host_path,
+            ),
+        )
+
     @staticmethod
     def from_dict(data: dict) -> SandboxPolicy:
         """Create policy from a dict (e.g. parsed YAML ``sandbox:`` section)."""
@@ -124,10 +183,14 @@ class SandboxPolicy:
         network = NetworkPolicy()
         net_raw = data.get("network")
         if isinstance(net_raw, dict):
-            network = NetworkPolicy(**{
-                k: (tuple(v) if isinstance(v, list) else v)
-                for k, v in net_raw.items()
-            })
+            mode = net_raw.get("mode", "allow_all")
+            allowed = tuple(net_raw["allowed_hosts"]) if "allowed_hosts" in net_raw else ()
+            blocked = tuple(net_raw["blocked_hosts"]) if "blocked_hosts" in net_raw else ()
+            network = NetworkPolicy(
+                mode=mode,  # type: ignore[arg-type]
+                allowed_hosts=allowed,
+                blocked_hosts=blocked,
+            )
 
         # Docker-specific
         docker_raw = data.get("docker", {})

@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..policy.verdict import AccessLevel, PolicyVerdict
+from ..tools.base import ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -370,7 +371,7 @@ class ApprovalGateExecutor:
         self._bus = bus
         self._current_msg_id_fn = current_msg_id_fn
 
-    async def execute_openai_tool_call(self, tool_call: Any) -> dict[str, Any]:
+    async def execute_openai_tool_call(self, tool_call: Any) -> ToolResult | str:
         """Execute tool, block it, or delegate to resolver."""
         import json
 
@@ -389,12 +390,11 @@ class ApprovalGateExecutor:
 
         # DENY → hard block
         if verdict.level == AccessLevel.DENY:
-            return {
-                "error": (
-                    f"BLOCKED: {verdict.reason}. "
-                    "This operation is not permitted."
-                )
-            }
+            return ToolResult(
+                content=f"BLOCKED: {verdict.reason}. This operation is not permitted.",
+                display=f"BLOCKED: {verdict.reason}",
+                error=True,
+            )
 
         # REQUIRE_APPROVAL → ask resolver
         resolved = await self._resolver.resolve(verdict, tool_name, tool_args)
@@ -403,12 +403,11 @@ class ApprovalGateExecutor:
             return await self._tool_manager.execute_openai_tool_call(tool_call)
 
         if resolved == AccessLevel.DENY:
-            return {
-                "error": (
-                    f"DENIED: {verdict.reason}. "
-                    "This operation was not approved."
-                )
-            }
+            return ToolResult(
+                content=f"DENIED: {verdict.reason}. This operation was not approved.",
+                display=f"DENIED: {verdict.reason}",
+                error=True,
+            )
 
         # REQUIRE_APPROVAL from resolver → park for interactive approval
         description = _build_tool_description(tool_name, tool_args)
@@ -449,12 +448,14 @@ class ApprovalGateExecutor:
             )
         )
 
-        return {
-            "error": (
+        return ToolResult(
+            content=(
                 "APPROVAL REQUIRED: This tool requires user confirmation "
                 "before execution. "
                 f"You MUST ask the user: 'I'd like to {description}. "
                 "Should I go ahead?' "
                 "Do NOT attempt to call this tool again until the user confirms."
-            )
-        }
+            ),
+            display=f"Approval required: {description}",
+            error=True,
+        )

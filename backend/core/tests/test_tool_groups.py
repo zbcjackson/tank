@@ -34,18 +34,27 @@ class _StubTool(BaseTool):
 
 def _make_app_config(**overrides):
     """Build a mock AppConfig with sensible defaults."""
-    sections = {
-        "network_access": {},
-        "audit": {},
-        "approval_policies": {},
-        "sandbox": {},
-        "file_access": {},
-    }
-    sections.update(overrides)
+    from tank_backend.config.models import (
+        AuditConfig,
+        CommandSecurityConfig,
+        FileAccessConfig,
+        NetworkAccessConfig,
+        SandboxConfig,
+        SkillsConfig,
+    )
 
     cfg = MagicMock()
-    cfg.get_section = MagicMock(
-        side_effect=lambda key, default=None: sections.get(key, default or {}),
+    cfg.network_access = overrides.get("network_access", NetworkAccessConfig())
+    cfg.file_access = overrides.get("file_access", FileAccessConfig())
+    cfg.audit = overrides.get("audit", AuditConfig())
+    cfg.command_security = overrides.get("command_security", CommandSecurityConfig())
+    cfg.sandbox = overrides.get("sandbox", SandboxConfig(enabled=False))
+    cfg.skills = overrides.get("skills", SkillsConfig(enabled=False))
+    cfg.get_llm_profile = MagicMock(
+        side_effect=lambda name: MagicMock(
+            api_key="test", model="test", base_url="http://test",
+            extra_headers={}, stream_options=False,
+        ),
     )
     return cfg
 

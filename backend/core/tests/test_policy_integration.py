@@ -103,7 +103,7 @@ class TestGateFileToolIntegration:
         })
         result = await gate.execute_openai_tool_call(tc)
 
-        assert "APPROVAL REQUIRED" in result["error"]
+        assert "APPROVAL REQUIRED" in result.content
         pending = store.get_oldest_pending()
         assert pending is not None
         assert pending.tool_name == "file_write"
@@ -122,7 +122,7 @@ class TestGateFileToolIntegration:
         })
         result = await gate.execute_openai_tool_call(tc)
 
-        assert "BLOCKED" in result["error"]
+        assert "BLOCKED" in result.content
         assert store.get_oldest_pending() is None
 
     async def test_file_write_allow_executes(self):
@@ -154,7 +154,7 @@ class TestGateFileToolIntegration:
         tc = _make_tool_call("file_delete", {"path": "/tmp/test.txt"})
         result = await gate.execute_openai_tool_call(tc)
 
-        assert "APPROVAL REQUIRED" in result["error"]
+        assert "APPROVAL REQUIRED" in result.content
         assert store.get_oldest_pending() is not None
 
 
@@ -180,7 +180,7 @@ class TestGateNetworkToolIntegration:
         })
         result = await gate.execute_openai_tool_call(tc)
 
-        assert "BLOCKED" in result["error"]
+        assert "BLOCKED" in result.content
         assert store.get_oldest_pending() is None
 
     async def test_web_fetch_require_approval_parks(self):
@@ -199,7 +199,7 @@ class TestGateNetworkToolIntegration:
         })
         result = await gate.execute_openai_tool_call(tc)
 
-        assert "APPROVAL REQUIRED" in result["error"]
+        assert "APPROVAL REQUIRED" in result.content
         assert store.get_oldest_pending() is not None
 
     async def test_web_fetch_allow_executes(self):
@@ -250,7 +250,7 @@ class TestResolversWithFileTools:
         })
         result = await gate.execute_openai_tool_call(tc)
 
-        assert "DENIED" in result["error"]
+        assert "DENIED" in result.content
         assert store.get_oldest_pending() is None
 
     async def test_interactive_resolver_parks(self):
@@ -262,7 +262,7 @@ class TestResolversWithFileTools:
         })
         result = await gate.execute_openai_tool_call(tc)
 
-        assert "APPROVAL REQUIRED" in result["error"]
+        assert "APPROVAL REQUIRED" in result.content
         assert store.get_oldest_pending() is not None
 
         messages = []
@@ -289,7 +289,7 @@ class TestResolversWithFileTools:
         })
         result = await gate.execute_openai_tool_call(tc)
 
-        assert "BLOCKED" in result["error"]
+        assert "BLOCKED" in result.content
 
 
 # ---------------------------------------------------------------------------
