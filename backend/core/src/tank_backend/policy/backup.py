@@ -8,6 +8,10 @@ import os
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..config.models import BackupConfig
 
 logger = logging.getLogger(__name__)
 
@@ -19,15 +23,10 @@ class BackupManager:
     ``~/.tank/backups/2026-03-31T14:22:01/Users/alice/projects/app.py``
     """
 
-    def __init__(
-        self,
-        backup_dir: str = "~/.tank/backups",
-        max_age_days: int = 30,
-        enabled: bool = True,
-    ) -> None:
-        self._backup_dir = Path(backup_dir).expanduser()
-        self._max_age_days = max_age_days
-        self._enabled = enabled
+    def __init__(self, config: BackupConfig) -> None:
+        self._backup_dir = Path(config.path).expanduser()
+        self._max_age_days = config.max_age_days
+        self._enabled = config.enabled
 
     async def snapshot(self, path: str) -> str | None:
         """Backup a file before modification.
@@ -89,23 +88,3 @@ class BackupManager:
             except ValueError:
                 # Directory name doesn't match timestamp format — skip
                 pass
-
-    # ------------------------------------------------------------------
-    # Factory
-    # ------------------------------------------------------------------
-
-    @classmethod
-    def from_config(cls, backup_dict: dict) -> BackupManager:
-        """Create from FileAccessConfig.backup dict."""
-        return cls.from_dict(backup_dict)
-
-    @staticmethod
-    def from_dict(data: dict) -> BackupManager:
-        """Create from parsed YAML ``backup:`` section."""
-        if not data:
-            return BackupManager()
-        return BackupManager(
-            backup_dir=data.get("path", "~/.tank/backups"),
-            max_age_days=data.get("max_age_days", 30),
-            enabled=data.get("enabled", True),
-        )

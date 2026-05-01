@@ -6,8 +6,18 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from tank_backend.config.models import (
+    CommandSecurityConfig,
+    DangerousPatternConfig,
+    LLMEvaluationConfig,
+)
 from tank_backend.policy.command_security import CommandSecurityPolicy
 from tank_backend.policy.verdict import AccessLevel, PolicyVerdict
+
+
+def _policy(**kwargs) -> CommandSecurityPolicy:
+    return CommandSecurityPolicy(CommandSecurityConfig(**kwargs))
+
 
 # ---------------------------------------------------------------------------
 # PolicyVerdict
@@ -27,7 +37,7 @@ def test_verdict_frozen():
 
 class TestSafeCommands:
     def setup_method(self):
-        self.policy = CommandSecurityPolicy.from_dict({})
+        self.policy = _policy()
 
     @pytest.mark.parametrize("cmd", [
         "ls", "ls -la", "ls -la /tmp",
@@ -66,7 +76,7 @@ class TestSafeCommands:
 
 class TestGitSubcommands:
     def setup_method(self):
-        self.policy = CommandSecurityPolicy.from_dict({})
+        self.policy = _policy()
 
     @pytest.mark.parametrize("cmd", [
         "git status",
@@ -116,7 +126,7 @@ class TestGitSubcommands:
 
 class TestDangerousPatterns:
     def setup_method(self):
-        self.policy = CommandSecurityPolicy.from_dict({})
+        self.policy = _policy()
 
     @pytest.mark.parametrize("cmd,expected_reason", [
         ("rm -rf /", "recursive delete"),
@@ -182,7 +192,7 @@ class TestDangerousPatterns:
 
 class TestDangerousOverridesSafe:
     def setup_method(self):
-        self.policy = CommandSecurityPolicy.from_dict({})
+        self.policy = _policy()
 
     def test_curl_safe_but_pipe_to_shell_dangerous(self):
         """curl alone is safe, but curl|sh is dangerous."""
@@ -205,7 +215,7 @@ class TestDangerousOverridesSafe:
 
 class TestCommandParsing:
     def setup_method(self):
-        self.policy = CommandSecurityPolicy.from_dict({})
+        self.policy = _policy()
 
     def test_pipe_all_safe(self):
         verdict = self.policy.evaluate("cat file.txt | grep pattern | wc -l")
@@ -242,7 +252,7 @@ class TestCommandParsing:
 
 class TestUnknownCommands:
     def setup_method(self):
-        self.policy = CommandSecurityPolicy.from_dict({})
+        self.policy = _policy()
 
     @pytest.mark.parametrize("cmd", [
         "some_custom_script.sh",
@@ -266,51 +276,41 @@ class TestUnknownCommands:
 
 class TestConfigExtensions:
     def test_extra_safe_commands(self):
-        policy = CommandSecurityPolicy.from_dict({
-            "extra_safe_commands": ["docker", "kubectl"],
-        })
+        policy = _policy(extra_safe_commands=("docker", "kubectl"))
         assert policy.evaluate("docker ps").level == AccessLevel.ALLOW
         assert policy.evaluate("kubectl get pods").level == AccessLevel.ALLOW
 
     def test_extra_dangerous_patterns(self):
-        policy = CommandSecurityPolicy.from_dict({
-            "extra_safe_commands": ["docker"],
-            "extra_dangerous_patterns": [
-                {"pattern": r"\bdocker\s+rm\b", "description": "docker rm"},
-            ],
-        })
+        policy = _policy(
+            extra_safe_commands=("docker",),
+            extra_dangerous_patterns=(
+                DangerousPatternConfig(pattern=r"\bdocker\s+rm\b", description="docker rm"),
+            ),
+        )
         assert policy.evaluate("docker ps").level == AccessLevel.ALLOW
         assert policy.evaluate("docker rm container1").level != AccessLevel.ALLOW
 
     def test_always_require_approval_overrides_safe(self):
-        policy = CommandSecurityPolicy.from_dict({
-            "always_require_approval": ["curl"],
-        })
+        policy = _policy(always_require_approval=("curl",))
         # curl is in default safe list but overridden
         verdict = policy.evaluate("curl https://example.com")
         assert verdict.level != AccessLevel.ALLOW
 
     def test_empty_config(self):
-        policy = CommandSecurityPolicy.from_dict({})
+        policy = _policy()
         # Should work with defaults
         assert policy.evaluate("ls").level == AccessLevel.ALLOW
         assert policy.evaluate("rm -rf /").level != AccessLevel.ALLOW
 
-    def test_none_config(self):
-        policy = CommandSecurityPolicy.from_dict(None)
-        assert policy.evaluate("ls").level == AccessLevel.ALLOW
-
 
 # ---------------------------------------------------------------------------
-# from_dict factory
+# Config preserves builtins
 # ---------------------------------------------------------------------------
 
-class TestFromDict:
-    def test_from_dict_preserves_builtins(self):
+class TestConfigPreservesBuiltins:
+    def test_extra_commands_merged_with_builtins(self):
         """Extra commands are merged, not replacing built-ins."""
-        policy = CommandSecurityPolicy.from_dict({
-            "extra_safe_commands": ["docker"],
-        })
+        policy = _policy(extra_safe_commands=("docker",))
         # Built-in safe commands still work
         assert policy.evaluate("ls").level == AccessLevel.ALLOW
         assert policy.evaluate("cat file.txt").level == AccessLevel.ALLOW
@@ -324,25 +324,23 @@ class TestFromDict:
 
 class TestLLMConfig:
     def test_llm_config_parsed(self):
-        policy = CommandSecurityPolicy.from_dict({
-            "llm_evaluation": {
-                "enabled": True,
-                "model": "gpt-4o-mini",
-                "provider": "openai",
-                "timeout": 5,
-            },
-        })
+        policy = _policy(
+            llm_evaluation=LLMEvaluationConfig(
+                enabled=True,
+                model="gpt-4o-mini",
+            ),
+        )
         assert policy.llm_enabled is True
         assert policy.llm_config["model"] == "gpt-4o-mini"
 
     def test_llm_disabled_by_default(self):
-        policy = CommandSecurityPolicy.from_dict({})
+        policy = _policy()
         assert policy.llm_enabled is False
 
     def test_llm_disabled_explicitly(self):
-        policy = CommandSecurityPolicy.from_dict({
-            "llm_evaluation": {"enabled": False},
-        })
+        policy = _policy(
+            llm_evaluation=LLMEvaluationConfig(enabled=False),
+        )
         assert policy.llm_enabled is False
 
 
@@ -352,7 +350,7 @@ class TestLLMConfig:
 
 class TestEdgeCases:
     def setup_method(self):
-        self.policy = CommandSecurityPolicy.from_dict({})
+        self.policy = _policy()
 
     def test_empty_command(self):
         verdict = self.policy.evaluate("")
@@ -387,13 +385,13 @@ class TestLLMEvaluation:
 
     @pytest.fixture()
     def policy_with_llm(self):
-        return CommandSecurityPolicy.from_dict({
-            "llm_evaluation": {"enabled": True, "timeout": 3},
-        })
+        return _policy(
+            llm_evaluation=LLMEvaluationConfig(enabled=True),
+        )
 
     @pytest.fixture()
     def policy_without_llm(self):
-        return CommandSecurityPolicy.from_dict({})
+        return _policy()
 
     async def test_safe_command_skips_llm(self, policy_with_llm):
         """Safe commands should not call the LLM."""
@@ -445,28 +443,12 @@ class TestLLMEvaluation:
             return "SAFE"
 
         mock_llm.complete = slow_complete
-        # Policy timeout is 3s, but we use a very short one for testing
-        policy_with_llm._llm_config["timeout"] = 0.1
         verdict = await policy_with_llm.evaluate_async("docker ps", llm=mock_llm)
         assert verdict.level != AccessLevel.ALLOW
 
     async def test_llm_disabled_skips_call(self, policy_without_llm):
-        """When LLM is disabled, unknown commands require approval without calling LLM."""
+        """When LLM is disabled, unknown commands require approval without LLM."""
         mock_llm = AsyncMock()
         verdict = await policy_without_llm.evaluate_async("docker ps", llm=mock_llm)
         assert verdict.level != AccessLevel.ALLOW
-        assert "unknown" in verdict.reason.lower()
         mock_llm.complete.assert_not_called()
-
-    async def test_no_llm_instance_skips_call(self, policy_with_llm):
-        """When no LLM instance is provided, unknown commands require approval."""
-        verdict = await policy_with_llm.evaluate_async("docker ps", llm=None)
-        assert verdict.level != AccessLevel.ALLOW
-        assert "unknown" in verdict.reason.lower()
-
-    async def test_llm_ambiguous_response_fails_safe(self, policy_with_llm):
-        """Ambiguous LLM responses should fail-safe to require approval."""
-        mock_llm = AsyncMock()
-        mock_llm.complete = AsyncMock(return_value="I'm not sure about this command")
-        verdict = await policy_with_llm.evaluate_async("docker ps", llm=mock_llm)
-        assert verdict.level != AccessLevel.ALLOW

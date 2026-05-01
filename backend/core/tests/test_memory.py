@@ -24,6 +24,7 @@ class TestMemoryConfig:
         assert cfg.search_limit == 5
 
     def test_from_dict_full(self):
+        from tank_backend.config.parser import parse_section
         raw = {
             "enabled": True,
             "db_path": "/tmp/mem",
@@ -35,7 +36,7 @@ class TestMemoryConfig:
             "embedding_model": "text-embedding-3-large",
             "search_limit": 10,
         }
-        cfg = MemoryConfig.from_dict(raw)
+        cfg = parse_section(MemoryConfig, raw)
         assert cfg.enabled is True
         assert cfg.db_path == "/tmp/mem"
         assert cfg.llm_api_key == "sk-test"
@@ -46,13 +47,15 @@ class TestMemoryConfig:
         assert cfg.embedding_model == "text-embedding-3-large"
         assert cfg.search_limit == 10
 
-    def test_from_dict_ignores_unknown_keys(self):
+    def test_parse_section_ignores_unknown_keys(self):
+        from tank_backend.config.parser import parse_section
         raw = {"enabled": True, "unknown_key": "value"}
-        cfg = MemoryConfig.from_dict(raw)
+        cfg = parse_section(MemoryConfig, raw)
         assert cfg.enabled is True
 
-    def test_from_dict_defaults(self):
-        cfg = MemoryConfig.from_dict({})
+    def test_parse_section_defaults(self):
+        from tank_backend.config.parser import parse_section
+        cfg = parse_section(MemoryConfig, {})
         assert cfg.enabled is False
         assert cfg.search_limit == 5
 

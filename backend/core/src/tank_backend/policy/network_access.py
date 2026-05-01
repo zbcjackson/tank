@@ -37,12 +37,18 @@ class NetworkAccessPolicy:
 
     def __init__(
         self,
-        rules: tuple[NetworkAccessRule, ...] = (),
-        default: AccessLevel = AccessLevel.ALLOW,
+        config: NetworkAccessConfig,
         bus: Bus | None = None,
     ) -> None:
-        self._rules = rules
-        self._default = default
+        self._default = AccessLevel(config.default)
+        self._rules = tuple(
+            NetworkAccessRule(
+                hosts=r.hosts,
+                policy=AccessLevel(r.policy),
+                reason=r.reason,
+            )
+            for r in config.rules
+        )
         self._bus = bus
 
     def evaluate(self, host: str) -> PolicyVerdict:
@@ -83,51 +89,3 @@ class NetworkAccessPolicy:
                 "reason": decision.reason,
             },
         ))
-
-    # ------------------------------------------------------------------
-    # Factory
-    # ------------------------------------------------------------------
-
-    @classmethod
-    def from_config(
-        cls, config: NetworkAccessConfig, bus: Bus | None = None,
-    ) -> NetworkAccessPolicy:
-        """Create from typed NetworkAccessConfig."""
-        rules: list[NetworkAccessRule] = []
-        for rule_data in config.rules:
-            hosts = tuple(rule_data.get("hosts", []))
-            rules.append(
-                NetworkAccessRule(
-                    hosts=hosts,
-                    policy=AccessLevel(rule_data.get("policy", "allow")),
-                    reason=rule_data.get("reason", ""),
-                )
-            )
-        return cls(
-            rules=tuple(rules),
-            default=AccessLevel(config.default),
-            bus=bus,
-        )
-
-    @staticmethod
-    def from_dict(data: dict, bus: Bus | None = None) -> NetworkAccessPolicy:
-        """Create policy from a dict (e.g. parsed YAML ``network_access:`` section)."""
-        if not data:
-            return NetworkAccessPolicy(bus=bus)
-
-        rules: list[NetworkAccessRule] = []
-        for rule_data in data.get("rules", []):
-            hosts = tuple(rule_data.get("hosts", []))
-            rules.append(
-                NetworkAccessRule(
-                    hosts=hosts,
-                    policy=AccessLevel(rule_data.get("policy", "allow")),
-                    reason=rule_data.get("reason", ""),
-                )
-            )
-
-        return NetworkAccessPolicy(
-            rules=tuple(rules),
-            default=AccessLevel(data.get("default", "allow")),
-            bus=bus,
-        )

@@ -27,7 +27,7 @@ class PersistentShellTool(BaseTool):
     """
 
     def __init__(self, sandbox: Sandbox) -> None:
-        self._sandbox: Any = sandbox
+        self._sandbox: Sandbox = sandbox
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(

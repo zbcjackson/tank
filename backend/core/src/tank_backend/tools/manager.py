@@ -40,18 +40,18 @@ class ToolManager:
             ServiceCredentialManager,
         )
 
-        self._network_policy = NetworkAccessPolicy.from_config(
+        self._network_policy = NetworkAccessPolicy(
             app_config.network_access, bus=bus,
         )
-        self._credential_manager = ServiceCredentialManager.from_config(
+        self._credential_manager = ServiceCredentialManager(
             app_config.network_access.service_credentials,
         )
 
-        self._file_policy = FileAccessPolicy.from_config(
+        self._file_policy = FileAccessPolicy(
             app_config.file_access, bus=bus,
         )
 
-        self._audit_logger = AuditLogger.from_config(app_config.audit)
+        self._audit_logger = AuditLogger(app_config.audit)
         if bus is not None:
             self._audit_logger.subscribe(bus)
 
@@ -59,12 +59,12 @@ class ToolManager:
         from ..agents.approval import ToolApprovalPolicy
         from ..policy.command_security import CommandSecurityPolicy
 
-        command_policy = CommandSecurityPolicy.from_config(app_config.command_security)
+        command_policy = CommandSecurityPolicy(app_config.command_security)
 
         # Create dedicated LLM for command security evaluation (if configured)
         command_llm = None
-        llm_cfg = app_config.command_security.llm_evaluation or {}
-        if llm_cfg.get("enabled"):
+        llm_cfg = app_config.command_security.llm_evaluation
+        if llm_cfg.enabled:
             try:
                 from ..llm.profile import LLMProfile, create_llm_from_profile
 
@@ -72,9 +72,9 @@ class ToolManager:
                 default_profile = app_config.get_llm_profile("default")
                 command_llm = create_llm_from_profile(LLMProfile(
                     name="command_security",
-                    api_key=llm_cfg.get("api_key") or default_profile.api_key,
-                    model=llm_cfg.get("model") or default_profile.model,
-                    base_url=llm_cfg.get("base_url") or default_profile.base_url,
+                    api_key=llm_cfg.api_key or default_profile.api_key,
+                    model=llm_cfg.model or default_profile.model,
+                    base_url=llm_cfg.base_url or default_profile.base_url,
                     temperature=0.0,
                     max_tokens=16,
                     extra_headers=default_profile.extra_headers,

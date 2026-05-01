@@ -7,51 +7,66 @@ import os
 
 import pytest
 
+from tank_backend.config.models import FileAccessConfig, FileAccessRuleConfig
 from tank_backend.policy.file_access import (
     FileAccessPolicy,
-    FileAccessRule,
 )
 from tank_backend.policy.verdict import AccessLevel, PolicyVerdict
 
+
+def _policy(
+    default_read: str = "allow",
+    default_write: str = "require_approval",
+    default_delete: str = "require_approval",
+    rules: tuple[FileAccessRuleConfig, ...] = (),
+) -> FileAccessPolicy:
+    return FileAccessPolicy(FileAccessConfig(
+        default_read=default_read,
+        default_write=default_write,
+        default_delete=default_delete,
+        rules=rules,
+    ))
+
+
 # ---------------------------------------------------------------------------
-# from_dict
+# Config construction
 # ---------------------------------------------------------------------------
 
-def test_from_dict_empty():
-    policy = FileAccessPolicy.from_dict({})
+def test_config_empty():
+    policy = _policy()
     decision = policy.evaluate("/tmp/foo.txt", "read")
     assert decision.level == AccessLevel.ALLOW
     assert decision.reason == "default policy"
 
 
-def test_from_dict_full_config():
-    policy = FileAccessPolicy.from_dict({
-        "default_read": "allow",
-        "default_write": "deny",
-        "default_delete": "deny",
-        "rules": [
-            {
-                "paths": ["~/.ssh/**"],
-                "read": "deny",
-                "write": "deny",
-                "delete": "deny",
-                "reason": "Secrets",
-            },
-        ],
-    })
+def test_config_full():
+    policy = _policy(
+        default_read="allow",
+        default_write="deny",
+        default_delete="deny",
+        rules=(
+            FileAccessRuleConfig(
+                paths=("~/.ssh/**",),
+                read="deny",
+                write="deny",
+                delete="deny",
+                reason="Secrets",
+            ),
+        ),
+    )
     # Check defaults changed
     decision = policy.evaluate("/tmp/foo.txt", "write")
     assert decision.level == AccessLevel.DENY
     assert decision.reason == "default policy"
 
 
-def test_from_dict_partial_rule():
+def test_config_partial_rule():
     """Rule with only some operations specified defaults others to 'allow'."""
-    policy = FileAccessPolicy.from_dict({
-        "rules": [
-            {"paths": ["/etc/**"], "write": "deny", "reason": "System"},
-        ],
-    })
+    policy = _policy(
+        rules=(
+            FileAccessRuleConfig(paths=("/etc/**",), write="deny", reason="System"),
+        ),
+    )
     decision = policy.evaluate("/etc/hosts", "read")
     assert decision.level == AccessLevel.ALLOW
     assert decision.reason == "System"
@@ -65,42 +80,42 @@ def test_from_dict_partial_rule():
 # ---------------------------------------------------------------------------
 
 def test_default_read_allow():
-    policy = FileAccessPolicy()
+    policy = _policy()
     decision = policy.evaluate("/tmp/foo.txt", "read")
     assert decision.level == AccessLevel.ALLOW
 
 
 def test_default_write_require_approval():
-    policy = FileAccessPolicy()
+    policy = _policy()
     decision = policy.evaluate("/tmp/foo.txt", "write")
     assert decision.level == AccessLevel.REQUIRE_APPROVAL
 
 
 def test_default_delete_require_approval():
-    policy = FileAccessPolicy()
+    policy = _policy()
     decision = policy.evaluate("/tmp/foo.txt", "delete")
     assert decision.level == AccessLevel.REQUIRE_APPROVAL
 
 
 def test_unknown_operation_denied():
-    policy = FileAccessPolicy()
+    policy = _policy()
     decision = policy.evaluate("/tmp/foo.txt", "execute")
     assert decision.level == AccessLevel.DENY
     assert "unknown operation" in decision.reason
 
 
 # ---------------------------------------------------------------------------
-# First-match-wins ordering
+# First-match-wins ordering (using internal FileAccessRule for direct tests)
 # ---------------------------------------------------------------------------
 
 def test_first_match_wins():
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(paths=("/tmp/special.txt",), read=AccessLevel.DENY, reason="special"),
-            FileAccessRule(paths=("/tmp/**",), read=AccessLevel.ALLOW, reason="tmp"),
+            FileAccessRuleConfig(paths=("/tmp/special.txt",), read="deny", reason="special"),
+            FileAccessRuleConfig(paths=("/tmp/**",), read="allow", reason="tmp"),
         ),
     )
-    # /tmp/special.txt matches first rule
+    # /tmp/special.txt matches first rule (more specific)
     decision = policy.evaluate("/tmp/special.txt", "read")
     assert decision.level == AccessLevel.DENY
     assert decision.reason == "special"
@@ -117,9 +132,9 @@ def test_first_match_wins():
 
 def test_tilde_expansion():
     home = os.path.expanduser("~")
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(paths=("~/.ssh/**",), read=AccessLevel.DENY, reason="SSH keys"),
+            FileAccessRuleConfig(paths=("~/.ssh/**",), read="deny", reason="SSH keys"),
         ),
     )
     decision = policy.evaluate(f"{home}/.ssh/id_rsa", "read")
@@ -128,9 +143,9 @@ def test_tilde_expansion():
 
 
 def test_tilde_in_input_path():
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(paths=("~/.ssh/**",), read=AccessLevel.DENY, reason="SSH keys"),
+            FileAccessRuleConfig(paths=("~/.ssh/**",), read="deny", reason="SSH keys"),
         ),
     )
     decision = policy.evaluate("~/.ssh/id_rsa", "read")
@@ -144,9 +159,9 @@ def test_tilde_in_input_path():
 def test_double_star_prefix():
     """~/.ssh/** matches anything under ~/.ssh/."""
     home = os.path.expanduser("~")
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(paths=("~/.ssh/**",), read=AccessLevel.DENY, reason="SSH"),
+            FileAccessRuleConfig(paths=("~/.ssh/**",), read="deny", reason="SSH"),
         ),
     )
     assert policy.evaluate(f"{home}/.ssh/id_rsa", "read").level == AccessLevel.DENY
@@ -158,9 +173,9 @@ def test_double_star_prefix():
 
 def test_double_star_suffix():
     """**/.env matches .env anywhere in the tree."""
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(paths=("**/.env",), read=AccessLevel.DENY, reason="env file"),
+            FileAccessRuleConfig(paths=("**/.env",), read="deny", reason="env file"),
         ),
     )
     assert policy.evaluate("/home/user/project/.env", "read").level == AccessLevel.DENY
@@ -170,9 +185,9 @@ def test_double_star_suffix():
 
 def test_double_star_with_wildcard_suffix():
     """**/*.pem matches any .pem file anywhere."""
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(paths=("**/*.pem",), read=AccessLevel.DENY, reason="PEM file"),
+            FileAccessRuleConfig(paths=("**/*.pem",), read="deny", reason="PEM file"),
         ),
     )
     assert policy.evaluate("/home/user/cert.pem", "read").level == AccessLevel.DENY
@@ -183,11 +198,11 @@ def test_double_star_with_wildcard_suffix():
 def test_double_star_middle():
     """Pattern with ** in the middle: ~/projects/**/node_modules."""
     home = os.path.expanduser("~")
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(
+            FileAccessRuleConfig(
                 paths=(f"{home}/projects/**/node_modules",),
-                read=AccessLevel.DENY,
+                read="deny",
                 reason="node_modules",
             ),
         ),
@@ -203,9 +218,9 @@ def test_double_star_middle():
 # ---------------------------------------------------------------------------
 
 def test_single_star():
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(paths=("/tmp/*.log",), read=AccessLevel.DENY, reason="logs"),
+            FileAccessRuleConfig(paths=("/tmp/*.log",), read="deny", reason="logs"),
         ),
     )
     assert policy.evaluate("/tmp/app.log", "read").level == AccessLevel.DENY
@@ -219,9 +234,9 @@ def test_single_star():
 # ---------------------------------------------------------------------------
 
 def test_exact_path():
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(paths=("/etc/passwd",), read=AccessLevel.DENY, reason="passwd"),
+            FileAccessRuleConfig(paths=("/etc/passwd",), read="deny", reason="passwd"),
         ),
     )
     assert policy.evaluate("/etc/passwd", "read").level == AccessLevel.DENY
@@ -233,11 +248,11 @@ def test_exact_path():
 # ---------------------------------------------------------------------------
 
 def test_multiple_paths_in_rule():
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(
+            FileAccessRuleConfig(
                 paths=("~/.ssh/**", "~/.gnupg/**"),
-                read=AccessLevel.DENY,
+                read="deny",
                 reason="Secrets",
             ),
         ),
@@ -253,13 +268,13 @@ def test_multiple_paths_in_rule():
 # ---------------------------------------------------------------------------
 
 def test_different_operations():
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(
+            FileAccessRuleConfig(
                 paths=("/etc/**",),
-                read=AccessLevel.ALLOW,
-                write=AccessLevel.REQUIRE_APPROVAL,
-                delete=AccessLevel.DENY,
+                read="allow",
+                write="require_approval",
+                delete="deny",
                 reason="System config",
             ),
         ),
@@ -288,15 +303,15 @@ def test_policy_verdict_frozen():
 def test_priority_overrides_specificity():
     """Higher priority wins even if less specific."""
     home = os.path.expanduser("~")
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(
+            FileAccessRuleConfig(
                 paths=("~/.ssh/id_rsa",),
-                read=AccessLevel.ALLOW, priority=0, reason="exact",
+                read="allow", priority=0, reason="exact",
             ),
-            FileAccessRule(
+            FileAccessRuleConfig(
                 paths=("~/.ssh/**",),
-                read=AccessLevel.DENY, priority=100, reason="high-pri",
+                read="deny", priority=100, reason="high-pri",
             ),
         ),
     )
@@ -308,11 +323,11 @@ def test_priority_overrides_specificity():
 def test_specificity_wins_at_same_priority():
     """Exact path beats glob at same priority."""
     home = os.path.expanduser("~")
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(paths=("~/.ssh/**",), read=AccessLevel.DENY, priority=0, reason="glob"),
-            FileAccessRule(
-                paths=(f"{home}/.ssh/config",), read=AccessLevel.ALLOW, priority=0, reason="exact"
+            FileAccessRuleConfig(paths=("~/.ssh/**",), read="deny", priority=0, reason="glob"),
+            FileAccessRuleConfig(
+                paths=(f"{home}/.ssh/config",), read="allow", priority=0, reason="exact"
             ),
         ),
     )
@@ -329,10 +344,10 @@ def test_specificity_wins_at_same_priority():
 
 def test_single_glob_more_specific_than_double_star():
     """``/tmp/*.log`` is more specific than ``/tmp/**``."""
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(paths=("/tmp/**",), read=AccessLevel.ALLOW, reason="broad"),
-            FileAccessRule(paths=("/tmp/*.log",), read=AccessLevel.DENY, reason="logs"),
+            FileAccessRuleConfig(paths=("/tmp/**",), read="allow", reason="broad"),
+            FileAccessRuleConfig(paths=("/tmp/*.log",), read="deny", reason="logs"),
         ),
     )
     decision = policy.evaluate("/tmp/app.log", "read")
@@ -340,22 +355,22 @@ def test_single_glob_more_specific_than_double_star():
     assert decision.reason == "logs"
 
 
-def test_priority_from_dict():
-    policy = FileAccessPolicy.from_dict({
-        "rules": [
-            {"paths": ["~/.ssh/**"], "read": "deny", "priority": 100, "reason": "SSH"},
-        ],
-    })
+def test_priority_from_config():
+    policy = _policy(
+        rules=(
+            FileAccessRuleConfig(paths=("~/.ssh/**",), read="deny", priority=100, reason="SSH"),
+        ),
+    )
     home = os.path.expanduser("~")
     assert policy.evaluate(f"{home}/.ssh/id_rsa", "read").level == AccessLevel.DENY
 
 
 def test_conflict_warning(caplog):
     """Two rules with same priority and specificity but different levels log a warning."""
-    policy = FileAccessPolicy(
+    policy = _policy(
         rules=(
-            FileAccessRule(paths=("/tmp/**",), read=AccessLevel.DENY, priority=0, reason="rule-a"),
-            FileAccessRule(paths=("/tmp/**",), read=AccessLevel.ALLOW, priority=0, reason="rule-b"),
+            FileAccessRuleConfig(paths=("/tmp/**",), read="deny", priority=0, reason="rule-a"),
+            FileAccessRuleConfig(paths=("/tmp/**",), read="allow", priority=0, reason="rule-b"),
         ),
     )
     with caplog.at_level(logging.WARNING):

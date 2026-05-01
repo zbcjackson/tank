@@ -7,7 +7,7 @@ Each model is a frozen dataclass with sensible defaults.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, ClassVar
+from typing import ClassVar
 
 # ── Pipeline ──────────────────────────────────────────────────────
 
@@ -73,13 +73,6 @@ class MemoryConfig:
     embedding_model: str = ""
     search_limit: int = 5
 
-    @classmethod
-    def from_dict(cls, raw: dict) -> MemoryConfig:
-        """Build from a config dict, ignoring unknown keys."""
-        import dataclasses
-        known = {f.name for f in dataclasses.fields(cls)}
-        return cls(**{k: v for k, v in raw.items() if k in known})
-
 
 @dataclass(frozen=True)
 class PreferenceConfig:
@@ -94,23 +87,62 @@ class PreferenceConfig:
 # ── Tools & policies ─────────────────────────────────────────────
 
 @dataclass(frozen=True)
+class NetworkAccessRuleConfig:
+    """A single network access rule in config."""
+
+    hosts: tuple[str, ...] = ()
+    policy: str = "allow"
+    reason: str = ""
+
+
+@dataclass(frozen=True)
+class ServiceCredentialConfig:
+    """A single service credential binding."""
+
+    name: str = ""
+    env_var: str = ""
+    allowed_hosts: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class NetworkAccessConfig:
-    """``network_access:`` section (raw rules kept as dicts)."""
+    """``network_access:`` section."""
 
     default: str = "allow"
-    rules: list[dict[str, Any]] = field(default_factory=list)
-    service_credentials: list[dict[str, Any]] = field(default_factory=list)
+    rules: tuple[NetworkAccessRuleConfig, ...] = ()
+    service_credentials: tuple[ServiceCredentialConfig, ...] = ()
+
+
+@dataclass(frozen=True)
+class FileAccessRuleConfig:
+    """A single file access rule in config."""
+
+    paths: tuple[str, ...] = ()
+    read: str = "allow"
+    write: str = "require_approval"
+    delete: str = "require_approval"
+    reason: str = ""
+    priority: int = 0
+
+
+@dataclass(frozen=True)
+class BackupConfig:
+    """``backup:`` sub-section of file_access."""
+
+    enabled: bool = True
+    path: str = "~/.tank/backups"
+    max_age_days: int = 30
 
 
 @dataclass(frozen=True)
 class FileAccessConfig:
-    """``file_access:`` section (raw rules kept as dicts)."""
+    """``file_access:`` section."""
 
     default_read: str = "allow"
     default_write: str = "require_approval"
     default_delete: str = "require_approval"
-    rules: list[dict[str, Any]] = field(default_factory=list)
-    backup: dict[str, Any] = field(default_factory=dict)
+    rules: tuple[FileAccessRuleConfig, ...] = ()
+    backup: BackupConfig = field(default_factory=BackupConfig)
 
 
 @dataclass(frozen=True)
@@ -122,40 +154,65 @@ class AuditConfig:
 
 
 @dataclass(frozen=True)
+class DangerousPatternConfig:
+    """A single dangerous command pattern."""
+
+    pattern: str = ""
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class LLMEvaluationConfig:
+    """``llm_evaluation:`` sub-section of command_security."""
+
+    enabled: bool = False
+    api_key: str = ""
+    model: str = ""
+    base_url: str = ""
+
+
+@dataclass(frozen=True)
 class CommandSecurityConfig:
     """``command_security:`` section."""
 
-    extra_safe_commands: list[str] = field(default_factory=list)
-    extra_dangerous_patterns: list[dict[str, str]] = field(default_factory=list)
-    always_require_approval: list[str] = field(default_factory=list)
-    llm_evaluation: dict[str, Any] = field(default_factory=dict)
+    extra_safe_commands: tuple[str, ...] = ()
+    extra_dangerous_patterns: tuple[DangerousPatternConfig, ...] = ()
+    always_require_approval: tuple[str, ...] = ()
+    llm_evaluation: LLMEvaluationConfig = field(default_factory=LLMEvaluationConfig)
+
+
+@dataclass(frozen=True)
+class MountConfig:
+    """A single mount specification in sandbox config."""
+
+    host: str = ""
+    mode: str = "ro"
+
+
+@dataclass(frozen=True)
+class DockerConfig:
+    """``docker:`` sub-section of sandbox."""
+
+    image: str = ""
+    workspace_host_path: str = ""
 
 
 @dataclass(frozen=True)
 class SandboxConfig:
-    """``sandbox:`` section (raw mounts/docker kept as dicts)."""
+    """``sandbox:`` section."""
 
     enabled: bool = True
     backend: str = "auto"
     image: str = "tank-sandbox:latest"
     workspace_host_path: str = "./workspace"
-    mounts: list[dict[str, str]] = field(default_factory=list)
-    denied_mounts: list[str] = field(default_factory=list)
+    mounts: tuple[MountConfig, ...] = ()
+    denied_mounts: tuple[str, ...] = ()
     memory_limit: str = "1g"
     cpu_count: int = 2
     default_timeout: int = 120
     max_timeout: int = 600
     network_enabled: bool = True
-    docker: dict[str, str] = field(default_factory=dict)
-
-    @staticmethod
-    def from_dict(data: dict) -> SandboxConfig:
-        """Create config from a dict (e.g. parsed YAML section)."""
-        import dataclasses
-        if not data:
-            return SandboxConfig(enabled=False)
-        known_fields = {f.name for f in dataclasses.fields(SandboxConfig)}
-        return SandboxConfig(**{k: v for k, v in data.items() if k in known_fields})
+    docker: DockerConfig = field(default_factory=DockerConfig)
 
 
 # ── Agent orchestration ──────────────────────────────────────────

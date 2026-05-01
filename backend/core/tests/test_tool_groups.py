@@ -6,6 +6,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tank_backend.config.models import (
+    FileAccessConfig,
+    SandboxConfig,
+)
 from tank_backend.tools.base import BaseTool, ToolInfo
 from tank_backend.tools.groups import (
     DefaultToolGroup,
@@ -74,7 +78,7 @@ def test_default_group_creates_three_tools():
 # ------------------------------------------------------------------
 
 def test_sandbox_group_disabled():
-    group = SandboxToolGroup(config={"enabled": False})
+    group = SandboxToolGroup(config=SandboxConfig(enabled=False))
     assert group.create_tools() == []
     assert group.sandbox is None
 
@@ -88,7 +92,7 @@ def test_sandbox_group_enabled():
         return_value=mock_sandbox,
     ):
         group = SandboxToolGroup(
-            config={"enabled": True, "backend": "docker"},
+            config=SandboxConfig(enabled=True, backend="docker"),
         )
         tools = group.create_tools()
         names = {t.get_info().name for t in tools}
@@ -107,7 +111,7 @@ def test_sandbox_group_with_persistent_sessions():
         return_value=mock_sandbox,
     ):
         group = SandboxToolGroup(
-            config={"enabled": True, "backend": "docker"},
+            config=SandboxConfig(enabled=True, backend="docker"),
         )
         tools = group.create_tools()
         names = {t.get_info().name for t in tools}
@@ -121,7 +125,7 @@ def test_sandbox_group_creation_failure():
         side_effect=RuntimeError("no backend"),
     ):
         group = SandboxToolGroup(
-            config={"enabled": True, "backend": "docker"},
+            config=SandboxConfig(enabled=True, backend="docker"),
         )
         assert group.create_tools() == []
         assert group.sandbox is None
@@ -139,7 +143,7 @@ async def test_sandbox_group_cleanup():
         return_value=mock_sandbox,
     ):
         group = SandboxToolGroup(
-            config={"enabled": True, "backend": "docker"},
+            config=SandboxConfig(enabled=True, backend="docker"),
         )
         await group.cleanup()
         mock_sandbox.cleanup.assert_awaited_once()
@@ -157,7 +161,7 @@ async def test_sandbox_group_cleanup_not_running():
         return_value=mock_sandbox,
     ):
         group = SandboxToolGroup(
-            config={"enabled": True, "backend": "docker"},
+            config=SandboxConfig(enabled=True, backend="docker"),
         )
         await group.cleanup()
         mock_sandbox.cleanup.assert_not_awaited()
@@ -179,7 +183,7 @@ def test_web_group_creates_two_tools():
 # ------------------------------------------------------------------
 
 def test_file_group_creates_six_tools():
-    tools = FileToolGroup(config={}).create_tools()
+    tools = FileToolGroup(config=FileAccessConfig()).create_tools()
     names = {t.get_info().name for t in tools}
     assert names == {
         "file_read", "file_write", "file_edit",

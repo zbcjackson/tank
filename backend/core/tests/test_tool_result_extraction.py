@@ -78,10 +78,11 @@ class TestToolResultIntegration:
         import os
         import tempfile
 
+        from tank_backend.config.models import FileAccessConfig
         from tank_backend.policy.file_access import FileAccessPolicy
         from tank_backend.tools.file_read import FileReadTool
 
-        policy = FileAccessPolicy()
+        policy = FileAccessPolicy(FileAccessConfig())
         tool = FileReadTool(policy)
 
         # Create a temp file

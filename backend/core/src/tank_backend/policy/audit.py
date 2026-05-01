@@ -33,13 +33,9 @@ class AuditLogger:
     automatically.
     """
 
-    def __init__(
-        self,
-        log_path: str = "~/.tank/audit.jsonl",
-        enabled: bool = True,
-    ) -> None:
-        self._enabled = enabled
-        self._log_path = Path(log_path).expanduser() if enabled else None
+    def __init__(self, config: AuditConfig) -> None:
+        self._enabled = config.enabled
+        self._log_path = Path(config.log_path).expanduser() if config.enabled else None
 
     def subscribe(self, bus: Bus) -> None:
         """Subscribe to policy decision messages on the Bus."""
@@ -86,22 +82,3 @@ class AuditLogger:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
         except Exception:
             logger.debug("Audit log write failed", exc_info=True)
-
-    # ------------------------------------------------------------------
-    # Factory
-    # ------------------------------------------------------------------
-
-    @classmethod
-    def from_config(cls, config: AuditConfig) -> AuditLogger:
-        """Create from typed AuditConfig."""
-        return cls(log_path=config.log_path, enabled=config.enabled)
-
-    @staticmethod
-    def from_dict(data: dict) -> AuditLogger:
-        """Create from parsed YAML ``audit:`` section."""
-        if not data:
-            return AuditLogger(enabled=False)
-        return AuditLogger(
-            log_path=data.get("log_path", "~/.tank/audit.jsonl"),
-            enabled=data.get("enabled", True),
-        )

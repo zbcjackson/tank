@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tank_backend.config.models import DockerConfig, MountConfig, SandboxConfig
 from tank_backend.sandbox.factory import SandboxBackendUnavailable, SandboxFactory
 from tank_backend.sandbox.policy import (
     DENIED_MOUNTS_HARDCODED,
@@ -260,8 +261,8 @@ class TestSandboxPolicy:
         assert policy.network.mode == "allow_all"
         assert policy.enabled is True
 
-    def test_from_dict_empty_returns_disabled(self):
-        policy = SandboxPolicy.from_dict({})
+    def test_disabled_config(self):
+        policy = SandboxPolicy.from_config(SandboxConfig(enabled=False))
         assert policy.enabled is False
 
     def test_immutable(self):
@@ -270,18 +271,18 @@ class TestSandboxPolicy:
             policy.timeout = 999
 
 
-class TestSandboxPolicyNewFormat:
-    """Tests for the new config format with mounts and denied_mounts."""
+class TestSandboxPolicyFromConfig:
+    """Tests for SandboxPolicy.from_config with typed SandboxConfig."""
 
     def test_mounts_parsed(self):
-        data = {
-            "backend": "auto",
-            "mounts": [
-                {"host": "~", "mode": "ro"},
-                {"host": "/tmp", "mode": "rw"},
-            ],
-        }
-        policy = SandboxPolicy.from_dict(data)
+        config = SandboxConfig(
+            backend="auto",
+            mounts=(
+                MountConfig(host="~", mode="ro"),
+                MountConfig(host="/tmp", mode="rw"),
+            ),
+        )
+        policy = SandboxPolicy.from_config(config)
         assert len(policy.mounts) == 2
         assert policy.mounts[0].host == "~"
         assert policy.mounts[0].mode == "ro"
@@ -290,25 +291,25 @@ class TestSandboxPolicyNewFormat:
 
     def test_mounts_expand_to_read_only_paths(self):
         home = str(Path.home())
-        data = {
-            "mounts": [{"host": "~", "mode": "ro"}],
-        }
-        policy = SandboxPolicy.from_dict(data)
+        config = SandboxConfig(
+            mounts=(MountConfig(host="~", mode="ro"),),
+        )
+        policy = SandboxPolicy.from_config(config)
         assert home in policy.read_only_paths
 
     def test_mounts_expand_to_writable_paths(self):
-        data = {
-            "mounts": [{"host": "/tmp", "mode": "rw"}],
-        }
-        policy = SandboxPolicy.from_dict(data)
+        config = SandboxConfig(
+            mounts=(MountConfig(host="/tmp", mode="rw"),),
+        )
+        policy = SandboxPolicy.from_config(config)
         tmp_expanded = os.path.expanduser("/tmp")
         assert tmp_expanded in policy.writable_paths
 
     def test_denied_mounts_merged_with_hardcoded(self):
-        data = {
-            "denied_mounts": ["~/.aws", "~/.azure"],
-        }
-        policy = SandboxPolicy.from_dict(data)
+        config = SandboxConfig(
+            denied_mounts=("~/.aws", "~/.azure"),
+        )
+        policy = SandboxPolicy.from_config(config)
         # Should contain both hardcoded and user-specified
         home = str(Path.home())
         assert os.path.join(home, ".ssh") in policy.denied_paths
@@ -318,52 +319,54 @@ class TestSandboxPolicyNewFormat:
 
     def test_hardcoded_denied_always_present(self):
         """denied_mounts_hardcoded cannot be removed by user config."""
-        data = {"denied_mounts": []}
-        policy = SandboxPolicy.from_dict(data)
+        config = SandboxConfig(denied_mounts=())
+        policy = SandboxPolicy.from_config(config)
         home = str(Path.home())
         assert os.path.join(home, ".ssh") in policy.denied_paths
         assert os.path.join(home, ".gnupg") in policy.denied_paths
 
-    def test_network_from_dict(self):
-        data = {
-            "network": {"mode": "restricted", "allowed_hosts": ["api.example.com"]},
-        }
-        policy = SandboxPolicy.from_dict(data)
-        assert policy.network.mode == "restricted"
-        assert "api.example.com" in policy.network.allowed_hosts
+    def test_network_disabled(self):
+        config = SandboxConfig(network_enabled=False)
+        policy = SandboxPolicy.from_config(config)
+        assert policy.network.mode == "none"
+
+    def test_network_enabled(self):
+        config = SandboxConfig(network_enabled=True)
+        policy = SandboxPolicy.from_config(config)
+        assert policy.network.mode == "allow_all"
 
     def test_docker_settings_parsed(self):
-        data = {
-            "docker": {
-                "image": "my-sandbox:v2",
-                "workspace_host_path": "/data/workspace",
-            },
-        }
-        policy = SandboxPolicy.from_dict(data)
+        config = SandboxConfig(
+            docker=DockerConfig(
+                image="my-sandbox:v2",
+                workspace_host_path="/data/workspace",
+            ),
+        )
+        policy = SandboxPolicy.from_config(config)
         assert policy.docker_image == "my-sandbox:v2"
         assert policy.docker_workspace == "/data/workspace"
 
     def test_resource_limits(self):
-        data = {
-            "memory_limit": "4g",
-            "cpu_count": 8,
-            "timeout": 30,
-            "max_timeout": 120,
-        }
-        policy = SandboxPolicy.from_dict(data)
+        config = SandboxConfig(
+            memory_limit="4g",
+            cpu_count=8,
+            default_timeout=30,
+            max_timeout=120,
+        )
+        policy = SandboxPolicy.from_config(config)
         assert policy.memory_limit == "4g"
         assert policy.cpu_count == 8
         assert policy.timeout == 30
         assert policy.max_timeout == 120
 
     def test_enabled_defaults_true(self):
-        data = {"backend": "auto"}
-        policy = SandboxPolicy.from_dict(data)
+        config = SandboxConfig(backend="auto")
+        policy = SandboxPolicy.from_config(config)
         assert policy.enabled is True
 
     def test_enabled_false(self):
-        data = {"enabled": False}
-        policy = SandboxPolicy.from_dict(data)
+        config = SandboxConfig(enabled=False)
+        policy = SandboxPolicy.from_config(config)
         assert policy.enabled is False
 
 

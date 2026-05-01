@@ -6,6 +6,10 @@ import fnmatch
 import logging
 import os
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..config.models import ServiceCredentialConfig
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +34,17 @@ class ServiceCredentialManager:
     ``allowed_hosts``, preventing accidental leakage to unintended endpoints.
     """
 
-    def __init__(self, credentials: tuple[ServiceCredential, ...] = ()) -> None:
-        self._credentials = credentials
+    def __init__(self, credentials: tuple[ServiceCredentialConfig, ...] = ()) -> None:
+        self._credentials = tuple(
+            ServiceCredential(
+                name=c.name,
+                env_var=c.env_var,
+                allowed_hosts=c.allowed_hosts,
+            )
+            for c in credentials
+        )
         self._by_name: dict[str, ServiceCredential] = {
-            c.name: c for c in credentials
+            c.name: c for c in self._credentials
         }
 
     def get_env_for_sandbox(self) -> dict[str, str]:
@@ -78,30 +89,3 @@ class ServiceCredentialManager:
             c.name for c in self._credentials
             if os.environ.get(c.env_var)
         ]
-
-    # ------------------------------------------------------------------
-    # Factory
-    # ------------------------------------------------------------------
-
-    @classmethod
-    def from_config(cls, credentials: list[dict]) -> ServiceCredentialManager:
-        """Create from typed config's service_credentials list."""
-        return cls.from_dict(credentials)
-
-    @staticmethod
-    def from_dict(data: list[dict]) -> ServiceCredentialManager:
-        """Create from parsed YAML ``service_credentials:`` list."""
-        if not data:
-            return ServiceCredentialManager()
-
-        credentials: list[ServiceCredential] = []
-        for item in data:
-            credentials.append(
-                ServiceCredential(
-                    name=item.get("name", ""),
-                    env_var=item.get("env_var", ""),
-                    allowed_hosts=tuple(item.get("allowed_hosts", [])),
-                )
-            )
-
-        return ServiceCredentialManager(credentials=tuple(credentials))

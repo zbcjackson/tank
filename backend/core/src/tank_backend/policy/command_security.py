@@ -183,23 +183,28 @@ class CommandSecurityPolicy:
     3. Unknown → require approval
     """
 
-    def __init__(
-        self,
-        safe_commands: frozenset[str],
-        git_safe_subcommands: frozenset[str],
-        dangerous_patterns: tuple[tuple[str, str], ...],
-        always_require: frozenset[str],
-        llm_config: dict[str, Any] | None = None,
-    ) -> None:
-        self._safe_commands = safe_commands
-        self._git_safe_subcommands = git_safe_subcommands
+    def __init__(self, config: CommandSecurityConfig) -> None:
+        extra_safe = config.extra_safe_commands or ()
+        safe = SAFE_COMMANDS | frozenset(extra_safe)
+
+        extra_patterns = tuple(
+            (p.pattern, p.description) for p in config.extra_dangerous_patterns
+        )
+        patterns = DANGEROUS_PATTERNS + extra_patterns
+
+        always_raw = config.always_require_approval or ()
+        always_require = _ALWAYS_REQUIRE | frozenset(always_raw)
+        safe = safe - always_require
+
+        self._safe_commands = safe
+        self._git_safe_subcommands = GIT_SAFE_SUBCOMMANDS
         self._always_require = always_require
-        self._llm_config = llm_config or {}
+        self._llm_config = config.llm_evaluation
 
         # Pre-compile dangerous patterns
         self._dangerous: tuple[tuple[re.Pattern[str], str], ...] = tuple(
             (re.compile(pattern, re.IGNORECASE | re.DOTALL), desc)
-            for pattern, desc in dangerous_patterns
+            for pattern, desc in patterns
         )
 
     # ------------------------------------------------------------------
@@ -208,11 +213,17 @@ class CommandSecurityPolicy:
 
     @property
     def llm_enabled(self) -> bool:
-        return bool(self._llm_config.get("enabled", False))
+        return self._llm_config.enabled
 
     @property
     def llm_config(self) -> dict[str, Any]:
-        return dict(self._llm_config)
+        cfg = self._llm_config
+        return {
+            "enabled": cfg.enabled,
+            "api_key": cfg.api_key,
+            "model": cfg.model,
+            "base_url": cfg.base_url,
+        }
 
     # ------------------------------------------------------------------
     # Evaluation
@@ -288,7 +299,6 @@ class CommandSecurityPolicy:
             "Respond with exactly one word: SAFE or UNSAFE"
         )
         try:
-            timeout = self._llm_config.get("timeout", 3)
             import asyncio
 
             response = await asyncio.wait_for(
@@ -297,7 +307,7 @@ class CommandSecurityPolicy:
                     temperature=0.0,
                     max_tokens=16,
                 ),
-                timeout=timeout,
+                timeout=3,
             )
             answer = response.strip().upper()
             if "SAFE" in answer and "UNSAFE" not in answer:
@@ -393,69 +403,4 @@ class CommandSecurityPolicy:
             level=AccessLevel.REQUIRE_APPROVAL,
             reason=f"git subcommand requires approval: {sub}",
             policy="command",
-        )
-
-    # ------------------------------------------------------------------
-    # Factory
-    # ------------------------------------------------------------------
-
-    @classmethod
-    def from_config(cls, config: CommandSecurityConfig) -> CommandSecurityPolicy:
-        """Create from typed CommandSecurityConfig."""
-        extra_safe = config.extra_safe_commands or []
-        safe = SAFE_COMMANDS | frozenset(extra_safe)
-
-        extra_patterns_raw = config.extra_dangerous_patterns or []
-        extra_patterns = tuple(
-            (p["pattern"], p["description"]) for p in extra_patterns_raw
-        )
-        patterns = DANGEROUS_PATTERNS + extra_patterns
-
-        always_raw = config.always_require_approval or []
-        always_require = _ALWAYS_REQUIRE | frozenset(always_raw)
-        safe = safe - always_require
-
-        llm_config = config.llm_evaluation or {}
-
-        return cls(
-            safe_commands=safe,
-            git_safe_subcommands=GIT_SAFE_SUBCOMMANDS,
-            dangerous_patterns=patterns,
-            always_require=always_require,
-            llm_config=llm_config,
-        )
-
-    @staticmethod
-    def from_dict(data: dict | None) -> CommandSecurityPolicy:
-        """Create policy from config dict (e.g. parsed YAML ``command_security:`` section)."""
-        if not data:
-            data = {}
-
-        # Merge extra safe commands with built-ins
-        extra_safe = data.get("extra_safe_commands", []) or []
-        safe = SAFE_COMMANDS | frozenset(extra_safe)
-
-        # Merge extra dangerous patterns with built-ins
-        extra_patterns_raw = data.get("extra_dangerous_patterns", []) or []
-        extra_patterns = tuple(
-            (p["pattern"], p["description"]) for p in extra_patterns_raw
-        )
-        patterns = DANGEROUS_PATTERNS + extra_patterns
-
-        # Always-require list
-        always_raw = data.get("always_require_approval", []) or []
-        always_require = _ALWAYS_REQUIRE | frozenset(always_raw)
-
-        # Remove always-require commands from safe list
-        safe = safe - always_require
-
-        # LLM config
-        llm_config = data.get("llm_evaluation") or {}
-
-        return CommandSecurityPolicy(
-            safe_commands=safe,
-            git_safe_subcommands=GIT_SAFE_SUBCOMMANDS,
-            dangerous_patterns=patterns,
-            always_require=always_require,
-            llm_config=llm_config,
         )

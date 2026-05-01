@@ -919,19 +919,21 @@ class TestSkillTools:
 
 class TestSkillToolGroup:
     def test_disabled_returns_empty(self) -> None:
+        from tank_backend.config.models import SkillsConfig
         from tank_backend.tools.groups import SkillToolGroup
 
-        group = SkillToolGroup(config={"enabled": False})
+        group = SkillToolGroup(config=SkillsConfig(enabled=False))
         assert group.create_tools() == []
 
     def test_enabled_creates_eight_tools(self, tmp_path: Path) -> None:
+        from tank_backend.config.models import SkillsConfig
         from tank_backend.tools.groups import SkillToolGroup
 
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
 
         group = SkillToolGroup(
-            config={"enabled": True, "dirs": [str(skills_dir)]},
+            config=SkillsConfig(enabled=True, dirs=[str(skills_dir)]),
         )
         tools = group.create_tools()
 
@@ -943,17 +945,18 @@ class TestSkillToolGroup:
         ]
 
     def test_auto_review_on_startup(self, tmp_skill_dir: Path) -> None:
+        from tank_backend.config.models import SkillsConfig
         from tank_backend.tools.groups import SkillToolGroup
 
         # No .review file — skill is unreviewed
         assert not (tmp_skill_dir / ".review").exists()
 
         group = SkillToolGroup(
-            config={
-                "enabled": True,
-                "dirs": [str(tmp_skill_dir.parent)],
-                "auto_approve_threshold": "low",
-            },
+            config=SkillsConfig(
+                enabled=True,
+                dirs=[str(tmp_skill_dir.parent)],
+                auto_approve_threshold="low",
+            ),
         )
         group.create_tools()
 
@@ -961,14 +964,15 @@ class TestSkillToolGroup:
         assert (tmp_skill_dir / ".review").exists()
 
     def test_skill_catalog_after_startup(self, tmp_skill_dir: Path) -> None:
+        from tank_backend.config.models import SkillsConfig
         from tank_backend.tools.groups import SkillToolGroup
 
         group = SkillToolGroup(
-            config={
-                "enabled": True,
-                "dirs": [str(tmp_skill_dir.parent)],
-                "auto_approve_threshold": "low",
-            },
+            config=SkillsConfig(
+                enabled=True,
+                dirs=[str(tmp_skill_dir.parent)],
+                auto_approve_threshold="low",
+            ),
         )
         group.create_tools()
 
@@ -979,14 +983,15 @@ class TestSkillToolGroup:
     def test_medium_risk_not_auto_approved_at_low_threshold(
         self, tmp_skill_with_scripts: Path,
     ) -> None:
+        from tank_backend.config.models import SkillsConfig
         from tank_backend.tools.groups import SkillToolGroup
 
         group = SkillToolGroup(
-            config={
-                "enabled": True,
-                "dirs": [str(tmp_skill_with_scripts.parent)],
-                "auto_approve_threshold": "low",
-            },
+            config=SkillsConfig(
+                enabled=True,
+                dirs=[str(tmp_skill_with_scripts.parent)],
+                auto_approve_threshold="low",
+            ),
         )
         group.create_tools()
 
@@ -996,14 +1001,15 @@ class TestSkillToolGroup:
     def test_dangerous_skill_never_auto_approved(
         self, tmp_dangerous_skill: Path,
     ) -> None:
+        from tank_backend.config.models import SkillsConfig
         from tank_backend.tools.groups import SkillToolGroup
 
         group = SkillToolGroup(
-            config={
-                "enabled": True,
-                "dirs": [str(tmp_dangerous_skill.parent)],
-                "auto_approve_threshold": "high",
-            },
+            config=SkillsConfig(
+                enabled=True,
+                dirs=[str(tmp_dangerous_skill.parent)],
+                auto_approve_threshold="high",
+            ),
         )
         group.create_tools()
 
@@ -1404,6 +1410,7 @@ class TestReload:
         assert diff == {"added": [], "removed": [], "updated": []}
 
     def test_skill_tool_group_reload(self, tmp_path: Path) -> None:
+        from tank_backend.config.models import SkillsConfig
         from tank_backend.tools.groups import SkillToolGroup
 
         skills_dir = tmp_path / "skills"
@@ -1417,11 +1424,11 @@ class TestReload:
         )
 
         group = SkillToolGroup(
-            config={
-                "enabled": True,
-                "dirs": [str(skills_dir)],
-                "auto_approve_threshold": "low",
-            },
+            config=SkillsConfig(
+                enabled=True,
+                dirs=[str(skills_dir)],
+                auto_approve_threshold="low",
+            ),
         )
         group.create_tools()
 
@@ -1476,9 +1483,10 @@ class TestReload:
         assert "Added" in result.display
 
     def test_reload_disabled_group(self) -> None:
+        from tank_backend.config.models import SkillsConfig
         from tank_backend.tools.groups import SkillToolGroup
 
-        group = SkillToolGroup(config={"enabled": False})
+        group = SkillToolGroup(config=SkillsConfig(enabled=False))
         group.create_tools()
 
         diff = group.reload_skills()

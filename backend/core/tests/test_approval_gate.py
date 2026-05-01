@@ -12,6 +12,7 @@ from tank_backend.agents.approval import (
     PendingToolCallStore,
     ToolApprovalPolicy,
 )
+from tank_backend.config.models import CommandSecurityConfig
 from tank_backend.core.events import UpdateType
 from tank_backend.pipeline.bus import Bus
 from tank_backend.tools.base import ToolResult
@@ -57,7 +58,7 @@ class TestApprovalGateExecutor:
         """Unknown commands should be parked in PendingToolCallStore."""
         from tank_backend.policy.command_security import CommandSecurityPolicy
 
-        cmd_policy = CommandSecurityPolicy.from_dict({})
+        cmd_policy = CommandSecurityPolicy(CommandSecurityConfig())
         policy = ToolApprovalPolicy(command_policy=cmd_policy)
         store = PendingToolCallStore()
         tool_manager = MagicMock()
@@ -99,7 +100,7 @@ class TestApprovalGateExecutor:
         """Dangerous commands (DENY) should be hard-blocked without parking."""
         from tank_backend.policy.command_security import CommandSecurityPolicy
 
-        cmd_policy = CommandSecurityPolicy.from_dict({})
+        cmd_policy = CommandSecurityPolicy(CommandSecurityConfig())
         policy = ToolApprovalPolicy(command_policy=cmd_policy)
         store = PendingToolCallStore()
         tool_manager = MagicMock()
@@ -138,7 +139,7 @@ class TestApprovalGateExecutor:
         """Unknown commands should post APPROVAL ui_message to Bus."""
         from tank_backend.policy.command_security import CommandSecurityPolicy
 
-        cmd_policy = CommandSecurityPolicy.from_dict({})
+        cmd_policy = CommandSecurityPolicy(CommandSecurityConfig())
         policy = ToolApprovalPolicy(command_policy=cmd_policy)
         store = PendingToolCallStore()
         tool_manager = MagicMock()

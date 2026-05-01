@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from tank_backend.agents.approval import ToolApprovalPolicy, make_approval_id
+from tank_backend.config.models import CommandSecurityConfig
 from tank_backend.policy.command_security import CommandSecurityPolicy
 from tank_backend.policy.verdict import AccessLevel
 
@@ -25,20 +26,20 @@ class TestToolApprovalPolicy:
 
     def test_command_tools_require_approval_without_command_arg(self):
         """Command tools with no 'command' arg require approval."""
-        cmd_policy = CommandSecurityPolicy.from_dict({})
+        cmd_policy = CommandSecurityPolicy(CommandSecurityConfig())
         policy = ToolApprovalPolicy(command_policy=cmd_policy)
         assert policy.evaluate("run_command").level == AccessLevel.REQUIRE_APPROVAL
         assert policy.evaluate("run_command", {}).level == AccessLevel.REQUIRE_APPROVAL
         assert policy.evaluate("run_command", {"timeout": 10}).level == AccessLevel.REQUIRE_APPROVAL
 
     def test_safe_command_auto_approved(self):
-        cmd_policy = CommandSecurityPolicy.from_dict({})
+        cmd_policy = CommandSecurityPolicy(CommandSecurityConfig())
         policy = ToolApprovalPolicy(command_policy=cmd_policy)
         assert policy.evaluate("run_command", {"command": "ls -la"}).level == AccessLevel.ALLOW
         assert policy.evaluate("persistent_shell", {"command": "pwd"}).level == AccessLevel.ALLOW
 
     def test_dangerous_command_requires_approval(self):
-        cmd_policy = CommandSecurityPolicy.from_dict({})
+        cmd_policy = CommandSecurityPolicy(CommandSecurityConfig())
         policy = ToolApprovalPolicy(command_policy=cmd_policy)
         v1 = policy.evaluate("run_command", {"command": "rm -rf /"})
         assert v1.level != AccessLevel.ALLOW
@@ -48,7 +49,7 @@ class TestToolApprovalPolicy:
         assert v2.level != AccessLevel.ALLOW
 
     def test_unknown_command_requires_approval(self):
-        cmd_policy = CommandSecurityPolicy.from_dict({})
+        cmd_policy = CommandSecurityPolicy(CommandSecurityConfig())
         policy = ToolApprovalPolicy(command_policy=cmd_policy)
         v = policy.evaluate(
             "run_command", {"command": "terraform apply"},

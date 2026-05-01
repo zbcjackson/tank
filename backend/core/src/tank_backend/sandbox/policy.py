@@ -59,7 +59,7 @@ class SandboxPolicy:
 
     The ``mounts`` field is the primary way to declare filesystem access.
     ``read_only_paths`` and ``writable_paths`` are computed from ``mounts``
-    at construction time (via ``from_dict``).  ``denied_paths`` merges
+    at construction time.  ``denied_paths`` merges
     ``denied_mounts_hardcoded`` (always present) with user-configurable
     ``denied_mounts``.
     """
@@ -100,9 +100,9 @@ class SandboxPolicy:
 
         # Parse mounts
         mounts = tuple(
-            MountSpec(host=m["host"], mode=m.get("mode", "ro"))  # type: ignore[arg-type]
+            MountSpec(host=m.host, mode=m.mode)  # type: ignore[arg-type]
             for m in config.mounts
-            if isinstance(m, dict) and "host" in m
+            if m.host
         )
 
         # Expand mounts to read_only_paths / writable_paths
@@ -126,8 +126,8 @@ class SandboxPolicy:
             mode="allow_all" if config.network_enabled else "none",
         )
 
-        # Docker-specific: config.docker dict overrides top-level fields
-        docker_raw = config.docker or {}
+        # Docker-specific: config.docker overrides top-level fields
+        docker = config.docker
 
         return cls(
             enabled=True,
@@ -142,74 +142,6 @@ class SandboxPolicy:
             cpu_count=config.cpu_count,
             timeout=config.default_timeout,
             max_timeout=config.max_timeout,
-            docker_image=docker_raw.get("image", config.image),
-            docker_workspace=docker_raw.get(
-                "workspace_host_path", config.workspace_host_path,
-            ),
-        )
-
-    @staticmethod
-    def from_dict(data: dict) -> SandboxPolicy:
-        """Create policy from a dict (e.g. parsed YAML ``sandbox:`` section)."""
-        if not data:
-            return SandboxPolicy(enabled=False)
-
-        # Parse mounts
-        mounts_raw = data.get("mounts", [])
-        mounts = tuple(
-            MountSpec(host=m["host"], mode=m.get("mode", "ro"))
-            for m in mounts_raw
-            if isinstance(m, dict) and "host" in m
-        )
-
-        # Expand mounts to read_only_paths / writable_paths
-        ro_paths: list[str] = []
-        rw_paths: list[str] = ["/tmp"]
-        for m in mounts:
-            expanded = os.path.expanduser(m.host)
-            if m.mode == "rw":
-                rw_paths.append(expanded)
-            else:
-                ro_paths.append(expanded)
-
-        # Merge denied_mounts_hardcoded + user denied_mounts
-        user_denied = data.get("denied_mounts", [])
-        all_denied = [
-            os.path.expanduser(p)
-            for p in (*DENIED_MOUNTS_HARDCODED, *user_denied)
-        ]
-
-        # Parse network
-        network = NetworkPolicy()
-        net_raw = data.get("network")
-        if isinstance(net_raw, dict):
-            mode = net_raw.get("mode", "allow_all")
-            allowed = tuple(net_raw["allowed_hosts"]) if "allowed_hosts" in net_raw else ()
-            blocked = tuple(net_raw["blocked_hosts"]) if "blocked_hosts" in net_raw else ()
-            network = NetworkPolicy(
-                mode=mode,  # type: ignore[arg-type]
-                allowed_hosts=allowed,
-                blocked_hosts=blocked,
-            )
-
-        # Docker-specific
-        docker_raw = data.get("docker", {})
-
-        return SandboxPolicy(
-            enabled=data.get("enabled", True),
-            backend=data.get("backend", "auto"),
-            mounts=mounts,
-            denied_mounts=tuple(data.get("denied_mounts", [])),
-            read_only_paths=tuple(ro_paths),
-            writable_paths=tuple(rw_paths),
-            denied_paths=tuple(all_denied),
-            network=network,
-            memory_limit=data.get("memory_limit", "1g"),
-            cpu_count=data.get("cpu_count", 2),
-            timeout=data.get("timeout", 120),
-            max_timeout=data.get("max_timeout", 600),
-            docker_image=docker_raw.get("image", "tank-sandbox:latest"),
-            docker_workspace=docker_raw.get(
-                "workspace_host_path", "./workspace"
-            ),
+            docker_image=docker.image or config.image,
+            docker_workspace=docker.workspace_host_path or config.workspace_host_path,
         )

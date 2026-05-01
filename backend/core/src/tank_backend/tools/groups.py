@@ -8,9 +8,16 @@ internally — external code only sees ``ToolManager``.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .base import BaseTool, ToolGroup
+
+if TYPE_CHECKING:
+    from ..config.models import FileAccessConfig, SandboxConfig, SkillsConfig
+    from ..pipeline.bus import Bus
+    from ..policy.credentials import ServiceCredentialManager
+    from ..policy.file_access import FileAccessPolicy
+    from ..policy.network_access import NetworkAccessPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +42,8 @@ class WebToolGroup(ToolGroup):
 
     def __init__(
         self,
-        credential_manager: Any,
-        network_policy: Any = None,
+        credential_manager: ServiceCredentialManager,
+        network_policy: NetworkAccessPolicy | None = None,
     ) -> None:
         self._credential_manager = credential_manager
         self._network_policy = network_policy
@@ -61,18 +68,14 @@ class SandboxToolGroup(ToolGroup):
 
     def __init__(
         self,
-        config: Any = None,
-        credential_manager: Any = None,
+        config: SandboxConfig,
+        credential_manager: ServiceCredentialManager | None = None,
     ) -> None:
         self._sandbox = None
 
-        from ..config.models import SandboxConfig
         from ..sandbox.policy import SandboxPolicy
 
-        if isinstance(config, SandboxConfig):
-            policy = SandboxPolicy.from_config(config)
-        else:
-            policy = SandboxPolicy.from_dict(config or {})
+        policy = SandboxPolicy.from_config(config)
 
         if not policy.enabled:
             return
@@ -133,16 +136,15 @@ class FileToolGroup(ToolGroup):
 
     def __init__(
         self,
-        config: Any = None,
-        bus: Any = None,
-        policy: Any = None,
+        config: FileAccessConfig,
+        bus: Bus | None = None,
+        policy: FileAccessPolicy | None = None,
     ) -> None:
         self._config = config
         self._bus = bus
         self._policy = policy
 
     def create_tools(self) -> list[BaseTool]:
-        from ..config.models import FileAccessConfig
         from ..policy import BackupManager, FileAccessPolicy
         from .file_delete import FileDeleteTool
         from .file_edit import FileEditTool
@@ -151,17 +153,9 @@ class FileToolGroup(ToolGroup):
         from .file_search import FileSearchTool
         from .file_write import FileWriteTool
 
-        if self._policy:
-            policy = self._policy
-        elif isinstance(self._config, FileAccessConfig):
-            policy = FileAccessPolicy.from_config(self._config, bus=self._bus)
-        else:
-            policy = FileAccessPolicy.from_dict(self._config or {}, bus=self._bus)
+        policy = self._policy or FileAccessPolicy(self._config, bus=self._bus)
 
-        if isinstance(self._config, FileAccessConfig):
-            backup = BackupManager.from_config(self._config.backup)
-        else:
-            backup = BackupManager.from_dict((self._config or {}).get("backup", {}))
+        backup = BackupManager(self._config.backup)
 
         return [
             FileReadTool(policy),
@@ -177,18 +171,10 @@ class SkillToolGroup(ToolGroup):
     """Skills system — single router tool + catalog in system prompt."""
 
     def __init__(
-        self, config: Any = None, bus: Any = None,
+        self, config: SkillsConfig, bus: Bus | None = None,
         tool_manager: Any = None, max_history_tokens: int = 8000,
     ) -> None:
-        from ..config.models import SkillsConfig
-
-        if isinstance(config, SkillsConfig):
-            self._config_obj: Any = config
-            self._config: dict = {}
-        else:
-            self._config_obj = None
-            self._config = config or {}
-
+        self._config = config
         self._bus = bus
         self._tool_manager = tool_manager
         self._max_history_tokens = max_history_tokens
@@ -196,10 +182,7 @@ class SkillToolGroup(ToolGroup):
         self._use_skill_tool: Any = None  # ref for agent_runner wiring
 
     def create_tools(self) -> list[BaseTool]:
-        if self._config_obj:
-            if not self._config_obj.enabled:
-                return []
-        elif not self._config.get("enabled", False):
+        if not self._config.enabled:
             return []
 
         from pathlib import Path
@@ -218,20 +201,7 @@ class SkillToolGroup(ToolGroup):
             UseSkillTool,
         )
 
-        if self._config_obj:
-            raw_dirs = self._config_obj.dirs
-            auto_approve_threshold = self._config_obj.auto_approve_threshold
-            catalog_budget_percent = self._config_obj.catalog_budget_percent
-            catalog_budget_max_chars = self._config_obj.catalog_budget_max_chars
-        else:
-            raw_dirs = self._config.get("dirs", [])
-            auto_approve_threshold = self._config.get(
-                "auto_approve_threshold", "low",
-            )
-            catalog_budget_percent = self._config.get("catalog_budget_percent", 2)
-            catalog_budget_max_chars = self._config.get("catalog_budget_max_chars", 12000)
-
-        skill_dirs = [Path(d).expanduser().resolve() for d in raw_dirs]
+        skill_dirs = [Path(d).expanduser().resolve() for d in self._config.dirs]
 
         registry = SkillRegistry(skill_dirs)
         registry.scan()
@@ -239,9 +209,9 @@ class SkillToolGroup(ToolGroup):
         reviewer = SecurityReviewer()
         self._manager = SkillManager(
             registry, reviewer, self._bus,
-            auto_approve_threshold=auto_approve_threshold,
-            catalog_budget_percent=catalog_budget_percent,
-            catalog_budget_max_chars=catalog_budget_max_chars,
+            auto_approve_threshold=self._config.auto_approve_threshold,
+            catalog_budget_percent=self._config.catalog_budget_percent,
+            catalog_budget_max_chars=self._config.catalog_budget_max_chars,
             max_history_tokens=self._max_history_tokens,
         )
         self._manager.startup()

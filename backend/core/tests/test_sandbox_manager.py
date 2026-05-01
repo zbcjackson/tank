@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from tank_backend.config.models import SandboxConfig
+from tank_backend.config.parser import parse_section
 from tank_backend.sandbox.manager import DockerSandbox, _strip_command_echo
 from tank_backend.sandbox.types import SessionInfo, SessionStatus
 
@@ -47,12 +48,12 @@ def manager(config, mock_docker_client):
 
 
 class TestSandboxConfig:
-    def test_from_dict_defaults(self):
-        cfg = SandboxConfig.from_dict({})
-        assert cfg.enabled is False
+    def test_parse_defaults(self):
+        cfg = parse_section(SandboxConfig, {})
+        assert cfg.enabled is True  # default is True
 
-    def test_from_dict_custom(self):
-        cfg = SandboxConfig.from_dict({
+    def test_parse_custom(self):
+        cfg = parse_section(SandboxConfig, {
             "enabled": True,
             "image": "custom:v1",
             "memory_limit": "2g",
@@ -63,8 +64,8 @@ class TestSandboxConfig:
         assert cfg.memory_limit == "2g"
         assert cfg.cpu_count == 4
 
-    def test_from_dict_full(self):
-        cfg = SandboxConfig.from_dict({
+    def test_parse_full(self):
+        cfg = parse_section(SandboxConfig, {
             "enabled": True,
             "image": "tank-sandbox:latest",
             "workspace_host_path": "./ws",

@@ -1,4 +1,4 @@
-"""Tests for BackupManager — snapshot, cleanup, from_dict."""
+"""Tests for BackupManager — snapshot, cleanup."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from tank_backend.config.models import BackupConfig
 from tank_backend.policy.backup import BackupManager
 
 
@@ -22,13 +23,17 @@ def sample_file(tmp_path: Path) -> Path:
     return f
 
 
+def _mgr(backup_dir: str, max_age_days: int = 30, enabled: bool = True) -> BackupManager:
+    return BackupManager(BackupConfig(path=backup_dir, max_age_days=max_age_days, enabled=enabled))
+
+
 # ---------------------------------------------------------------------------
 # snapshot
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_snapshot_creates_backup(tmp_backup_dir: Path, sample_file: Path):
-    mgr = BackupManager(backup_dir=str(tmp_backup_dir), max_age_days=30)
+    mgr = _mgr(str(tmp_backup_dir))
     result = await mgr.snapshot(str(sample_file))
 
     assert result is not None
@@ -39,14 +44,14 @@ async def test_snapshot_creates_backup(tmp_backup_dir: Path, sample_file: Path):
 
 @pytest.mark.asyncio
 async def test_snapshot_returns_none_for_nonexistent(tmp_backup_dir: Path):
-    mgr = BackupManager(backup_dir=str(tmp_backup_dir), max_age_days=30)
+    mgr = _mgr(str(tmp_backup_dir))
     result = await mgr.snapshot("/nonexistent/file.txt")
     assert result is None
 
 
 @pytest.mark.asyncio
 async def test_snapshot_returns_none_when_disabled(tmp_backup_dir: Path, sample_file: Path):
-    mgr = BackupManager(backup_dir=str(tmp_backup_dir), max_age_days=30, enabled=False)
+    mgr = _mgr(str(tmp_backup_dir), enabled=False)
     result = await mgr.snapshot(str(sample_file))
     assert result is None
 
@@ -55,7 +60,7 @@ async def test_snapshot_returns_none_when_disabled(tmp_backup_dir: Path, sample_
 async def test_snapshot_preserves_content(tmp_backup_dir: Path, tmp_path: Path):
     f = tmp_path / "data.bin"
     f.write_text("line1\nline2\nline3")
-    mgr = BackupManager(backup_dir=str(tmp_backup_dir), max_age_days=30)
+    mgr = _mgr(str(tmp_backup_dir))
 
     result = await mgr.snapshot(str(f))
     assert result is not None
@@ -78,7 +83,7 @@ def test_cleanup_removes_old_backups(tmp_backup_dir: Path):
     recent_dir.mkdir(parents=True)
     (recent_dir / "file.txt").write_text("recent")
 
-    mgr = BackupManager(backup_dir=str(tmp_backup_dir), max_age_days=30)
+    mgr = _mgr(str(tmp_backup_dir))
     mgr._cleanup_old_backups()
 
     assert not old_dir.exists()
@@ -90,7 +95,7 @@ def test_cleanup_keeps_recent_backups(tmp_backup_dir: Path):
     recent_dir.mkdir(parents=True)
     (recent_dir / "file.txt").write_text("keep me")
 
-    mgr = BackupManager(backup_dir=str(tmp_backup_dir), max_age_days=30)
+    mgr = _mgr(str(tmp_backup_dir))
     mgr._cleanup_old_backups()
 
     assert recent_dir.exists()
@@ -100,33 +105,33 @@ def test_cleanup_ignores_non_timestamp_dirs(tmp_backup_dir: Path):
     weird_dir = tmp_backup_dir / "not-a-timestamp"
     weird_dir.mkdir(parents=True)
 
-    mgr = BackupManager(backup_dir=str(tmp_backup_dir), max_age_days=30)
+    mgr = _mgr(str(tmp_backup_dir))
     mgr._cleanup_old_backups()  # Should not raise
 
     assert weird_dir.exists()
 
 
 # ---------------------------------------------------------------------------
-# from_dict
+# Config construction
 # ---------------------------------------------------------------------------
 
-def test_from_dict_empty():
-    mgr = BackupManager.from_dict({})
+def test_config_defaults():
+    mgr = BackupManager(BackupConfig())
     assert mgr._enabled is True
     assert mgr._max_age_days == 30
 
 
-def test_from_dict_full():
-    mgr = BackupManager.from_dict({
-        "enabled": False,
-        "path": "/custom/backups",
-        "max_age_days": 7,
-    })
+def test_config_full():
+    mgr = BackupManager(BackupConfig(
+        enabled=False,
+        path="/custom/backups",
+        max_age_days=7,
+    ))
     assert mgr._enabled is False
     assert mgr._max_age_days == 7
     assert str(mgr._backup_dir) == "/custom/backups"
 
 
-def test_from_dict_defaults():
-    mgr = BackupManager.from_dict({"enabled": True})
+def test_config_partial():
+    mgr = BackupManager(BackupConfig(enabled=True))
     assert mgr._max_age_days == 30

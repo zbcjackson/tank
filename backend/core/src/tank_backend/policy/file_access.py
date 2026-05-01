@@ -42,17 +42,24 @@ class FileAccessPolicy:
 
     def __init__(
         self,
-        rules: tuple[FileAccessRule, ...] = (),
-        default_read: AccessLevel = AccessLevel.ALLOW,
-        default_write: AccessLevel = AccessLevel.REQUIRE_APPROVAL,
-        default_delete: AccessLevel = AccessLevel.REQUIRE_APPROVAL,
+        config: FileAccessConfig,
         bus: Bus | None = None,
     ) -> None:
-        self._rules = rules
+        self._rules = tuple(
+            FileAccessRule(
+                paths=r.paths,
+                read=AccessLevel(r.read),
+                write=AccessLevel(r.write),
+                delete=AccessLevel(r.delete),
+                reason=r.reason,
+                priority=r.priority,
+            )
+            for r in config.rules
+        )
         self._defaults: dict[str, AccessLevel] = {
-            "read": default_read,
-            "write": default_write,
-            "delete": default_delete,
+            "read": AccessLevel(config.default_read),
+            "write": AccessLevel(config.default_write),
+            "delete": AccessLevel(config.default_delete),
         }
         self._bus = bus
 
@@ -224,65 +231,3 @@ class FileAccessPolicy:
                 "reason": decision.reason,
             },
         ))
-
-    # ------------------------------------------------------------------
-    # Factory
-    # ------------------------------------------------------------------
-
-    @classmethod
-    def from_config(
-        cls, config: FileAccessConfig, bus: Bus | None = None,
-    ) -> FileAccessPolicy:
-        """Create from typed FileAccessConfig."""
-        rules: list[FileAccessRule] = []
-        for rule_data in config.rules:
-            paths = tuple(rule_data.get("paths", []))
-            rules.append(
-                FileAccessRule(
-                    paths=paths,
-                    read=AccessLevel(rule_data.get("read", "allow")),
-                    write=AccessLevel(rule_data.get("write", "allow")),
-                    delete=AccessLevel(rule_data.get("delete", "allow")),
-                    reason=rule_data.get("reason", ""),
-                    priority=rule_data.get("priority", 0),
-                )
-            )
-        return cls(
-            rules=tuple(rules),
-            default_read=AccessLevel(config.default_read),
-            default_write=AccessLevel(config.default_write),
-            default_delete=AccessLevel(config.default_delete),
-            bus=bus,
-        )
-
-    @staticmethod
-    def from_dict(data: dict, bus: Bus | None = None) -> FileAccessPolicy:
-        """Create policy from a dict (e.g. parsed YAML ``file_access:`` section)."""
-        if not data:
-            return FileAccessPolicy(bus=bus)
-
-        rules: list[FileAccessRule] = []
-        for rule_data in data.get("rules", []):
-            paths = tuple(rule_data.get("paths", []))
-            rules.append(
-                FileAccessRule(
-                    paths=paths,
-                    read=AccessLevel(rule_data.get("read", "allow")),
-                    write=AccessLevel(rule_data.get("write", "allow")),
-                    delete=AccessLevel(rule_data.get("delete", "allow")),
-                    reason=rule_data.get("reason", ""),
-                    priority=rule_data.get("priority", 0),
-                )
-            )
-
-        return FileAccessPolicy(
-            rules=tuple(rules),
-            default_read=AccessLevel(data.get("default_read", "allow")),
-            default_write=AccessLevel(
-                data.get("default_write", "require_approval"),
-            ),
-            default_delete=AccessLevel(
-                data.get("default_delete", "require_approval"),
-            ),
-            bus=bus,
-        )

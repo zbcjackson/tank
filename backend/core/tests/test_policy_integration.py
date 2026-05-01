@@ -20,12 +20,18 @@ from tank_backend.agents.approval import (
     PendingToolCallStore,
     ToolApprovalPolicy,
 )
+from tank_backend.config.models import (
+    CommandSecurityConfig,
+    FileAccessConfig,
+    FileAccessRuleConfig,
+    NetworkAccessConfig,
+    NetworkAccessRuleConfig,
+)
 from tank_backend.core.events import UpdateType
 from tank_backend.pipeline.bus import Bus
-from tank_backend.policy.file_access import FileAccessPolicy, FileAccessRule
+from tank_backend.policy.file_access import FileAccessPolicy
 from tank_backend.policy.network_access import (
     NetworkAccessPolicy,
-    NetworkAccessRule,
 )
 from tank_backend.policy.verdict import (
     AccessLevel,
@@ -88,10 +94,10 @@ class TestGateFileToolIntegration:
     def _policy(
         self, default_write: AccessLevel = AccessLevel.REQUIRE_APPROVAL,
     ) -> ToolApprovalPolicy:
-        fp = FileAccessPolicy(
-            default_write=default_write,
-            default_read=AccessLevel.ALLOW,
-        )
+        fp = FileAccessPolicy(FileAccessConfig(
+            default_write=default_write.value,
+            default_read="allow",
+        ))
         return ToolApprovalPolicy(file_policy=fp)
 
     async def test_file_write_require_approval_parks_call(self):
@@ -109,13 +115,13 @@ class TestGateFileToolIntegration:
         assert pending.tool_name == "file_write"
 
     async def test_file_write_deny_blocks(self):
-        fp = FileAccessPolicy(
-            rules=(FileAccessRule(
+        fp = FileAccessPolicy(FileAccessConfig(
+            rules=(FileAccessRuleConfig(
                 paths=("/etc/**",),
-                write=AccessLevel.DENY,
+                write="deny",
                 reason="system files",
             ),),
-        )
+        ))
         gate, store, _bus = _make_gate(ToolApprovalPolicy(file_policy=fp))
         tc = _make_tool_call("file_write", {
             "path": "/etc/passwd", "content": "x",
@@ -145,9 +151,9 @@ class TestGateFileToolIntegration:
         assert result == {"ok": True}
 
     async def test_file_delete_require_approval(self):
-        fp = FileAccessPolicy(
-            default_delete=AccessLevel.REQUIRE_APPROVAL,
-        )
+        fp = FileAccessPolicy(FileAccessConfig(
+            default_delete="require_approval",
+        ))
         gate, store, _bus = _make_gate(
             ToolApprovalPolicy(file_policy=fp),
         )
@@ -165,13 +171,13 @@ class TestGateFileToolIntegration:
 
 class TestGateNetworkToolIntegration:
     async def test_web_fetch_deny_blocks(self):
-        np = NetworkAccessPolicy(
-            rules=(NetworkAccessRule(
+        np = NetworkAccessPolicy(NetworkAccessConfig(
+            rules=(NetworkAccessRuleConfig(
                 hosts=("*.onion",),
-                policy=AccessLevel.DENY,
+                policy="deny",
                 reason="anonymous network",
             ),),
-        )
+        ))
         gate, store, _bus = _make_gate(
             ToolApprovalPolicy(network_policy=np),
         )
@@ -184,13 +190,13 @@ class TestGateNetworkToolIntegration:
         assert store.get_oldest_pending() is None
 
     async def test_web_fetch_require_approval_parks(self):
-        np = NetworkAccessPolicy(
-            rules=(NetworkAccessRule(
+        np = NetworkAccessPolicy(NetworkAccessConfig(
+            rules=(NetworkAccessRuleConfig(
                 hosts=("pastebin.com",),
-                policy=AccessLevel.REQUIRE_APPROVAL,
+                policy="require_approval",
                 reason="content sharing",
             ),),
-        )
+        ))
         gate, store, _bus = _make_gate(
             ToolApprovalPolicy(network_policy=np),
         )
@@ -203,7 +209,7 @@ class TestGateNetworkToolIntegration:
         assert store.get_oldest_pending() is not None
 
     async def test_web_fetch_allow_executes(self):
-        np = NetworkAccessPolicy(default=AccessLevel.ALLOW)
+        np = NetworkAccessPolicy(NetworkAccessConfig(default="allow"))
         gate, store, _bus = _make_gate(
             ToolApprovalPolicy(network_policy=np),
         )
@@ -222,9 +228,9 @@ class TestGateNetworkToolIntegration:
 
 class TestResolversWithFileTools:
     def _require_approval_policy(self) -> ToolApprovalPolicy:
-        fp = FileAccessPolicy(
-            default_write=AccessLevel.REQUIRE_APPROVAL,
-        )
+        fp = FileAccessPolicy(FileAccessConfig(
+            default_write="require_approval",
+        ))
         return ToolApprovalPolicy(file_policy=fp)
 
     async def test_always_approve_executes(self):
@@ -273,13 +279,13 @@ class TestResolversWithFileTools:
 
     async def test_deny_verdict_ignores_resolver(self):
         """DENY should hard-block even with AlwaysApproveResolver."""
-        fp = FileAccessPolicy(
-            rules=(FileAccessRule(
+        fp = FileAccessPolicy(FileAccessConfig(
+            rules=(FileAccessRuleConfig(
                 paths=("/etc/**",),
-                write=AccessLevel.DENY,
+                write="deny",
                 reason="system files",
             ),),
-        )
+        ))
         gate, store, _bus = _make_gate(
             ToolApprovalPolicy(file_policy=fp),
             resolver=AlwaysApproveResolver(),
@@ -430,14 +436,14 @@ class TestToolApprovalPolicyRouting:
             CommandSecurityPolicy,
         )
         return ToolApprovalPolicy(
-            command_policy=CommandSecurityPolicy.from_dict({}),
-            file_policy=FileAccessPolicy(
-                default_write=AccessLevel.REQUIRE_APPROVAL,
-                default_read=AccessLevel.ALLOW,
-            ),
-            network_policy=NetworkAccessPolicy(
-                default=AccessLevel.ALLOW,
-            ),
+            command_policy=CommandSecurityPolicy(CommandSecurityConfig()),
+            file_policy=FileAccessPolicy(FileAccessConfig(
+                default_write="require_approval",
+                default_read="allow",
+            )),
+            network_policy=NetworkAccessPolicy(NetworkAccessConfig(
+                default="allow",
+            )),
         )
 
     def test_command_tool_uses_command_policy(self):

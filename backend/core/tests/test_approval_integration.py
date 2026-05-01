@@ -101,9 +101,10 @@ class TestLLMAgentGateFlow:
     async def test_restricted_tool_returns_error_via_gate(self):
         """When a command is unknown, the gate returns an error dict
         instead of executing the tool (REQUIRE_APPROVAL → parked)."""
+        from tank_backend.config.models import CommandSecurityConfig
         from tank_backend.policy.command_security import CommandSecurityPolicy
 
-        cmd_policy = CommandSecurityPolicy.from_dict({})
+        cmd_policy = CommandSecurityPolicy(CommandSecurityConfig())
         policy = ToolApprovalPolicy(command_policy=cmd_policy)
         store = PendingToolCallStore()
         bus = Bus()
