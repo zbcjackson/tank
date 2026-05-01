@@ -40,11 +40,11 @@ class NetworkAccessPolicy:
         config: NetworkAccessConfig,
         bus: Bus | None = None,
     ) -> None:
-        self._default = AccessLevel(config.default)
+        self._default = config.default
         self._rules = tuple(
             NetworkAccessRule(
                 hosts=r.hosts,
-                policy=AccessLevel(r.policy),
+                policy=r.policy,
                 reason=r.reason,
             )
             for r in config.rules

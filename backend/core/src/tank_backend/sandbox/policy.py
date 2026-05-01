@@ -100,7 +100,7 @@ class SandboxPolicy:
 
         # Parse mounts
         mounts = tuple(
-            MountSpec(host=m.host, mode=m.mode)  # type: ignore[arg-type]
+            MountSpec(host=m.host, mode=m.mode)
             for m in config.mounts
             if m.host
         )
@@ -131,7 +131,7 @@ class SandboxPolicy:
 
         return cls(
             enabled=True,
-            backend=config.backend,  # type: ignore[arg-type]
+            backend=config.backend,
             mounts=mounts,
             denied_mounts=tuple(config.denied_mounts),
             read_only_paths=tuple(ro_paths),

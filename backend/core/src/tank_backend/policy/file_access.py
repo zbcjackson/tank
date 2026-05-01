@@ -48,18 +48,18 @@ class FileAccessPolicy:
         self._rules = tuple(
             FileAccessRule(
                 paths=r.paths,
-                read=AccessLevel(r.read),
-                write=AccessLevel(r.write),
-                delete=AccessLevel(r.delete),
+                read=r.read,
+                write=r.write,
+                delete=r.delete,
                 reason=r.reason,
                 priority=r.priority,
             )
             for r in config.rules
         )
         self._defaults: dict[str, AccessLevel] = {
-            "read": AccessLevel(config.default_read),
-            "write": AccessLevel(config.default_write),
-            "delete": AccessLevel(config.default_delete),
+            "read": config.default_read,
+            "write": config.default_write,
+            "delete": config.default_delete,
         }
         self._bus = bus
 

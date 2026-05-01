@@ -10,7 +10,7 @@ from tank_backend.policy.verdict import AccessLevel
 
 
 def _policy(
-    default: str = "allow",
+    default: AccessLevel = AccessLevel.ALLOW,
     rules: tuple[NetworkAccessRuleConfig, ...] = (),
 ) -> NetworkAccessPolicy:
     return NetworkAccessPolicy(NetworkAccessConfig(default=default, rules=rules))
@@ -24,7 +24,7 @@ class TestNetworkAccessPolicy:
         assert decision.reason == "default policy"
 
     def test_default_deny(self):
-        policy = _policy(default="deny")
+        policy = _policy(default=AccessLevel.DENY)
         decision = policy.evaluate("example.com")
         assert decision.level == AccessLevel.DENY
 
@@ -32,7 +32,7 @@ class TestNetworkAccessPolicy:
         policy = _policy(rules=(
             NetworkAccessRuleConfig(
                 hosts=("pastebin.com",),
-                policy="require_approval",
+                policy=AccessLevel.REQUIRE_APPROVAL,
                 reason="Content sharing",
             ),
         ))
@@ -44,7 +44,7 @@ class TestNetworkAccessPolicy:
         policy = _policy(rules=(
             NetworkAccessRuleConfig(
                 hosts=("pastebin.com",),
-                policy="deny",
+                policy=AccessLevel.DENY,
                 reason="blocked",
             ),
         ))
@@ -55,7 +55,7 @@ class TestNetworkAccessPolicy:
         policy = _policy(rules=(
             NetworkAccessRuleConfig(
                 hosts=("*.onion",),
-                policy="deny",
+                policy=AccessLevel.DENY,
                 reason="Anonymous network",
             ),
         ))
@@ -67,7 +67,7 @@ class TestNetworkAccessPolicy:
         policy = _policy(rules=(
             NetworkAccessRuleConfig(
                 hosts=("*.onion",),
-                policy="deny",
+                policy=AccessLevel.DENY,
                 reason="Anonymous network",
             ),
         ))
@@ -78,12 +78,12 @@ class TestNetworkAccessPolicy:
         policy = _policy(rules=(
             NetworkAccessRuleConfig(
                 hosts=("pastebin.com",),
-                policy="require_approval",
+                policy=AccessLevel.REQUIRE_APPROVAL,
                 reason="Content sharing",
             ),
             NetworkAccessRuleConfig(
                 hosts=("pastebin.com",),
-                policy="deny",
+                policy=AccessLevel.DENY,
                 reason="Also blocked",
             ),
         ))
@@ -95,7 +95,7 @@ class TestNetworkAccessPolicy:
         policy = _policy(rules=(
             NetworkAccessRuleConfig(
                 hosts=("pastebin.com", "hastebin.com", "0x0.st"),
-                policy="require_approval",
+                policy=AccessLevel.REQUIRE_APPROVAL,
                 reason="Content sharing",
             ),
         ))
@@ -107,7 +107,7 @@ class TestNetworkAccessPolicy:
         policy = _policy(rules=(
             NetworkAccessRuleConfig(
                 hosts=("Pastebin.COM",),
-                policy="deny",
+                policy=AccessLevel.DENY,
                 reason="blocked",
             ),
         ))
@@ -120,16 +120,16 @@ class TestNetworkAccessPolicy:
 
     def test_config_full(self):
         policy = _policy(
-            default="require_approval",
+            default=AccessLevel.REQUIRE_APPROVAL,
             rules=(
                 NetworkAccessRuleConfig(
                     hosts=("pastebin.com", "0x0.st"),
-                    policy="deny",
+                    policy=AccessLevel.DENY,
                     reason="Content sharing",
                 ),
                 NetworkAccessRuleConfig(
                     hosts=("*.onion",),
-                    policy="deny",
+                    policy=AccessLevel.DENY,
                     reason="Anonymous",
                 ),
             ),

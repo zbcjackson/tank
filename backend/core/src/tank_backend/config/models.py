@@ -7,7 +7,9 @@ Each model is a frozen dataclass with sensible defaults.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import ClassVar
+from typing import ClassVar, Literal
+
+from ..policy.verdict import AccessLevel
 
 # ── Pipeline ──────────────────────────────────────────────────────
 
@@ -91,7 +93,7 @@ class NetworkAccessRuleConfig:
     """A single network access rule in config."""
 
     hosts: tuple[str, ...] = ()
-    policy: str = "allow"
+    policy: AccessLevel = AccessLevel.ALLOW
     reason: str = ""
 
 
@@ -108,7 +110,7 @@ class ServiceCredentialConfig:
 class NetworkAccessConfig:
     """``network_access:`` section."""
 
-    default: str = "allow"
+    default: AccessLevel = AccessLevel.ALLOW
     rules: tuple[NetworkAccessRuleConfig, ...] = ()
     service_credentials: tuple[ServiceCredentialConfig, ...] = ()
 
@@ -118,9 +120,9 @@ class FileAccessRuleConfig:
     """A single file access rule in config."""
 
     paths: tuple[str, ...] = ()
-    read: str = "allow"
-    write: str = "require_approval"
-    delete: str = "require_approval"
+    read: AccessLevel = AccessLevel.ALLOW
+    write: AccessLevel = AccessLevel.REQUIRE_APPROVAL
+    delete: AccessLevel = AccessLevel.REQUIRE_APPROVAL
     reason: str = ""
     priority: int = 0
 
@@ -138,9 +140,9 @@ class BackupConfig:
 class FileAccessConfig:
     """``file_access:`` section."""
 
-    default_read: str = "allow"
-    default_write: str = "require_approval"
-    default_delete: str = "require_approval"
+    default_read: AccessLevel = AccessLevel.ALLOW
+    default_write: AccessLevel = AccessLevel.REQUIRE_APPROVAL
+    default_delete: AccessLevel = AccessLevel.REQUIRE_APPROVAL
     rules: tuple[FileAccessRuleConfig, ...] = ()
     backup: BackupConfig = field(default_factory=BackupConfig)
 
@@ -186,7 +188,7 @@ class MountConfig:
     """A single mount specification in sandbox config."""
 
     host: str = ""
-    mode: str = "ro"
+    mode: Literal["ro", "rw"] = "ro"
 
 
 @dataclass(frozen=True)
@@ -202,7 +204,7 @@ class SandboxConfig:
     """``sandbox:`` section."""
 
     enabled: bool = True
-    backend: str = "auto"
+    backend: Literal["auto", "seatbelt", "bubblewrap", "docker"] = "auto"
     image: str = "tank-sandbox:latest"
     workspace_host_path: str = "./workspace"
     mounts: tuple[MountConfig, ...] = ()

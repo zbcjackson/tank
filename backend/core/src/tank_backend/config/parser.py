@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import enum
 from typing import Any, TypeVar, get_args, get_origin, get_type_hints
 
 T = TypeVar("T")
@@ -20,6 +21,7 @@ def parse_section(cls: type[T], raw: dict[str, Any] | None) -> T:
     - Type mismatches raise ``ConfigError``
     - Supports ``__config_flatten__`` for hoisting nested sub-dicts
     - Recursively parses nested dataclass fields and tuple[Dataclass, ...] from lists
+    - Converts strings to Enum values when the field type is an Enum subclass
     """
     if not raw:
         return cls()
@@ -70,12 +72,28 @@ def _convert_value(value: Any, expected: Any, cls_name: str, key: str) -> Any:
 
     Returns _SENTINEL if no conversion applies (caller should fall through).
     Handles:
+    - Enum from string (e.g. AccessLevel from "allow")
     - tuple[Dataclass, ...] from list[dict]
     - tuple[str, ...] from list[str]
+    - tuple[Enum, ...] from list[str]
     - Nested dataclass from dict
     """
     origin = get_origin(expected)
     args = get_args(expected)
+
+    # Enum from string — convert "allow" → AccessLevel.ALLOW
+    if isinstance(expected, type) and issubclass(expected, enum.Enum):
+        if isinstance(value, expected):
+            return value  # already an enum instance
+        if isinstance(value, str):
+            try:
+                return expected(value)
+            except ValueError:
+                raise ConfigError(
+                    f"{cls_name}.{key}: invalid value {value!r} for {expected.__name__}, "
+                    f"valid values: {[e.value for e in expected]}"
+                ) from None
+        return _SENTINEL
 
     # tuple[SomeType, ...] — convert from list
     if origin is tuple and len(args) == 2 and args[1] is Ellipsis:
@@ -90,6 +108,9 @@ def _convert_value(value: Any, expected: Any, cls_name: str, key: str) -> Any:
                 parse_section(item_type, item) if isinstance(item, dict) else item
                 for item in value
             )
+        # tuple[Enum, ...] from list[str]
+        if isinstance(item_type, type) and issubclass(item_type, enum.Enum):
+            return tuple(item_type(item) for item in value)
         # tuple[str, ...] or tuple[int, ...] — just convert list to tuple
         return tuple(value)
 
@@ -105,6 +126,10 @@ def _convert_value(value: Any, expected: Any, cls_name: str, key: str) -> Any:
 def _check_type(value: Any, expected: Any) -> bool:
     """Lightweight type check for common config types."""
     origin = get_origin(expected)
+
+    # Enum — accept string (will be converted by _convert_value on retry)
+    if isinstance(expected, type) and issubclass(expected, enum.Enum):
+        return isinstance(value, (str, expected))
 
     # tuple[...] — accept list (will be converted)
     if origin is tuple:

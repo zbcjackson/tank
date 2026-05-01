@@ -95,8 +95,8 @@ class TestGateFileToolIntegration:
         self, default_write: AccessLevel = AccessLevel.REQUIRE_APPROVAL,
     ) -> ToolApprovalPolicy:
         fp = FileAccessPolicy(FileAccessConfig(
-            default_write=default_write.value,
-            default_read="allow",
+            default_write=default_write,
+            default_read=AccessLevel.ALLOW,
         ))
         return ToolApprovalPolicy(file_policy=fp)
 
@@ -118,7 +118,7 @@ class TestGateFileToolIntegration:
         fp = FileAccessPolicy(FileAccessConfig(
             rules=(FileAccessRuleConfig(
                 paths=("/etc/**",),
-                write="deny",
+                write=AccessLevel.DENY,
                 reason="system files",
             ),),
         ))
@@ -152,7 +152,7 @@ class TestGateFileToolIntegration:
 
     async def test_file_delete_require_approval(self):
         fp = FileAccessPolicy(FileAccessConfig(
-            default_delete="require_approval",
+            default_delete=AccessLevel.REQUIRE_APPROVAL,
         ))
         gate, store, _bus = _make_gate(
             ToolApprovalPolicy(file_policy=fp),
@@ -174,7 +174,7 @@ class TestGateNetworkToolIntegration:
         np = NetworkAccessPolicy(NetworkAccessConfig(
             rules=(NetworkAccessRuleConfig(
                 hosts=("*.onion",),
-                policy="deny",
+                policy=AccessLevel.DENY,
                 reason="anonymous network",
             ),),
         ))
@@ -193,7 +193,7 @@ class TestGateNetworkToolIntegration:
         np = NetworkAccessPolicy(NetworkAccessConfig(
             rules=(NetworkAccessRuleConfig(
                 hosts=("pastebin.com",),
-                policy="require_approval",
+                policy=AccessLevel.REQUIRE_APPROVAL,
                 reason="content sharing",
             ),),
         ))
@@ -209,7 +209,7 @@ class TestGateNetworkToolIntegration:
         assert store.get_oldest_pending() is not None
 
     async def test_web_fetch_allow_executes(self):
-        np = NetworkAccessPolicy(NetworkAccessConfig(default="allow"))
+        np = NetworkAccessPolicy(NetworkAccessConfig(default=AccessLevel.ALLOW))
         gate, store, _bus = _make_gate(
             ToolApprovalPolicy(network_policy=np),
         )
@@ -229,7 +229,7 @@ class TestGateNetworkToolIntegration:
 class TestResolversWithFileTools:
     def _require_approval_policy(self) -> ToolApprovalPolicy:
         fp = FileAccessPolicy(FileAccessConfig(
-            default_write="require_approval",
+            default_write=AccessLevel.REQUIRE_APPROVAL,
         ))
         return ToolApprovalPolicy(file_policy=fp)
 
@@ -282,7 +282,7 @@ class TestResolversWithFileTools:
         fp = FileAccessPolicy(FileAccessConfig(
             rules=(FileAccessRuleConfig(
                 paths=("/etc/**",),
-                write="deny",
+                write=AccessLevel.DENY,
                 reason="system files",
             ),),
         ))
@@ -438,11 +438,11 @@ class TestToolApprovalPolicyRouting:
         return ToolApprovalPolicy(
             command_policy=CommandSecurityPolicy(CommandSecurityConfig()),
             file_policy=FileAccessPolicy(FileAccessConfig(
-                default_write="require_approval",
-                default_read="allow",
+                default_write=AccessLevel.REQUIRE_APPROVAL,
+                default_read=AccessLevel.ALLOW,
             )),
             network_policy=NetworkAccessPolicy(NetworkAccessConfig(
-                default="allow",
+                default=AccessLevel.ALLOW,
             )),
         )
 
