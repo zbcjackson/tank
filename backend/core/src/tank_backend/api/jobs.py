@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from ..jobs.cron import parse_human_schedule, validate_cron
+from ..jobs.cron import validate_cron
 from ..jobs.models import JobDefinition
 
 logger = logging.getLogger(__name__)
@@ -94,16 +94,12 @@ class UpdateJobRequest(BaseModel):
 # ------------------------------------------------------------------
 
 def _resolve_schedule(raw: str) -> str:
-    """Resolve a schedule string — try human-friendly first, then raw cron."""
-    human = parse_human_schedule(raw)
-    if human is not None:
-        return human
+    """Validate and return a cron expression."""
     if validate_cron(raw):
         return raw
     raise HTTPException(
         400,
-        f"Invalid schedule: '{raw}'. "
-        "Use cron (e.g. '0 9 * * *') or human-friendly (e.g. 'every day at 9am').",
+        f"Invalid schedule: '{raw}'. Use a cron expression (e.g. '0 9 * * *').",
     )
 
 

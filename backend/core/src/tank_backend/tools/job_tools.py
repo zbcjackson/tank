@@ -103,29 +103,21 @@ class JobManagementTool(BaseTool):
             return ToolResult(content=f"Error: {e}", error=True)
 
     async def _create(self, kwargs: dict[str, Any]) -> ToolResult:
-        from ..jobs.cron import parse_human_schedule, validate_cron
+        from ..jobs.cron import validate_cron
         from ..jobs.models import JobDefinition
 
         name = kwargs.get("name")
         prompt = kwargs.get("prompt")
-        schedule_raw = kwargs.get("schedule")
+        schedule = kwargs.get("schedule")
 
-        if not name or not prompt or not schedule_raw:
+        if not name or not prompt or not schedule:
             return ToolResult(content="Missing required fields: name, prompt, schedule", error=True)
 
-        # Resolve schedule
-        schedule = parse_human_schedule(schedule_raw)
-        if schedule is None:
-            if validate_cron(schedule_raw):
-                schedule = schedule_raw
-            else:
-                return ToolResult(
-                    content=(
-                        f"Invalid schedule: '{schedule_raw}'. "
-                        "Use cron or human-friendly format."
-                    ),
-                    error=True,
-                )
+        if not validate_cron(schedule):
+            return ToolResult(
+                content=f"Invalid schedule: '{schedule}'. Use a cron expression.",
+                error=True,
+            )
 
         # Check for duplicate name
         if self._store.get_job_by_name(name) is not None:
@@ -176,7 +168,7 @@ class JobManagementTool(BaseTool):
         return ToolResult(content="\n".join(lines))
 
     async def _update(self, kwargs: dict[str, Any]) -> ToolResult:
-        from ..jobs.cron import parse_human_schedule, validate_cron
+        from ..jobs.cron import validate_cron
         from ..jobs.models import JobDefinition
 
         name = kwargs.get("name")
@@ -192,16 +184,12 @@ class JobManagementTool(BaseTool):
         if kwargs.get("prompt"):
             data["prompt"] = kwargs["prompt"]
         if kwargs.get("schedule"):
-            schedule = parse_human_schedule(kwargs["schedule"])
-            if schedule is None:
-                if validate_cron(kwargs["schedule"]):
-                    schedule = kwargs["schedule"]
-                else:
-                    return ToolResult(
-                        content=f"Invalid schedule: '{kwargs['schedule']}'",
-                        error=True,
-                    )
-            data["schedule"] = schedule
+            if not validate_cron(kwargs["schedule"]):
+                return ToolResult(
+                    content=f"Invalid schedule: '{kwargs['schedule']}'. Use a cron expression.",
+                    error=True,
+                )
+            data["schedule"] = kwargs["schedule"]
         if kwargs.get("approval_mode"):
             data["approval_mode"] = kwargs["approval_mode"]
         if kwargs.get("delivery"):
