@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 import uuid
@@ -132,6 +133,10 @@ class Assistant:
         self._bus.subscribe("ui_message", self._on_ui_bus_message)
 
         self._brain_active = False
+        self._brain_idle_event = asyncio.Event()
+        self._brain_idle_event.set()  # starts idle
+        self._event_loop: asyncio.AbstractEventLoop | None = None
+
         self._playback_active = False
         self._bus.subscribe("playback_started", self._on_playback_started)
         self._bus.subscribe("playback_ended", self._on_playback_ended)
@@ -357,6 +362,8 @@ class Assistant:
 
     async def start(self) -> None:
         """Start pipeline."""
+        self._event_loop = asyncio.get_running_loop()
+
         await self._tool_manager.connect_mcp_servers()
 
         if self._pipeline is not None:
@@ -371,8 +378,27 @@ class Assistant:
 
         logger.info("Assistant started")
 
+    async def wait_for_idle(self, timeout: float = 600.0) -> bool:
+        """Wait for the brain to finish current work. Returns True if idle."""
+        if not self._brain_active:
+            return True
+        logger.info("Waiting for brain to finish current work (timeout=%.1fs)", timeout)
+        try:
+            await asyncio.wait_for(self._brain_idle_event.wait(), timeout=timeout)
+            logger.info("Brain finished — proceeding with shutdown")
+            return True
+        except asyncio.TimeoutError:
+            logger.warning("Timed out waiting for brain to finish (%.1fs)", timeout)
+            return False
+
     async def stop(self) -> None:
-        """Stop pipeline and cleanup."""
+        """Stop pipeline and cleanup.
+
+        Waits for the brain to finish its current turn before stopping,
+        so in-flight LLM responses and tool executions complete gracefully.
+        """
+        await self.wait_for_idle(timeout=600.0)
+
         self.shutdown_signal.stop()
 
         self._health_monitor.stop()
@@ -386,6 +412,8 @@ class Assistant:
         await self._tool_manager.cleanup()
 
         self.brain.close()
+
+        self._event_loop = None
 
         logger.info("Assistant stopped")
 
@@ -463,8 +491,10 @@ class Assistant:
         if isinstance(ui_msg, SignalMessage):
             if ui_msg.signal_type == "processing_started":
                 self._brain_active = True
+                self._set_brain_idle_event(False)
             elif ui_msg.signal_type == "processing_ended":
                 self._brain_active = False
+                self._set_brain_idle_event(True)
         for cb in self._ui_callbacks:
             try:
                 cb(ui_msg)
@@ -476,6 +506,20 @@ class Assistant:
 
     def _on_playback_ended(self, _message: BusMessage) -> None:
         self._playback_active = False
+
+    def _set_brain_idle_event(self, idle: bool) -> None:
+        """Thread-safe set/clear of the asyncio brain idle event."""
+        loop = self._event_loop
+        if loop is not None and loop.is_running():
+            if idle:
+                loop.call_soon_threadsafe(self._brain_idle_event.set)
+            else:
+                loop.call_soon_threadsafe(self._brain_idle_event.clear)
+        else:
+            if idle:
+                self._brain_idle_event.set()
+            else:
+                self._brain_idle_event.clear()
 
     @property
     def _pipeline_busy(self) -> bool:

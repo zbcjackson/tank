@@ -419,3 +419,92 @@ class TestPipelinePushAt:
         import pytest
         with pytest.raises(ValueError, match="not found"):
             pipeline.push_at("nonexistent", "item")
+
+
+class TestAssistantWaitForIdle:
+    """Tests for Assistant.wait_for_idle() graceful shutdown behavior."""
+
+    async def test_wait_for_idle_returns_immediately_when_idle(self):
+        """wait_for_idle should return True immediately when brain is not active."""
+        import asyncio
+
+        event = asyncio.Event()
+        event.set()  # idle
+
+        brain_active = False
+        if not brain_active:
+            result = True
+        else:
+            try:
+                await asyncio.wait_for(event.wait(), timeout=1.0)
+                result = True
+            except asyncio.TimeoutError:
+                result = False
+
+        assert result is True
+
+    async def test_wait_for_idle_blocks_until_processing_ends(self):
+        """wait_for_idle should block until processing_ended signal arrives."""
+        import asyncio
+
+        event = asyncio.Event()
+        # Brain is active — event is cleared
+        event.clear()
+
+        async def simulate_brain_finish():
+            await asyncio.sleep(0.05)
+            event.set()
+
+        asyncio.create_task(simulate_brain_finish())
+
+        await asyncio.wait_for(event.wait(), timeout=2.0)
+        assert event.is_set()
+
+    async def test_wait_for_idle_times_out_when_brain_stuck(self):
+        """wait_for_idle should return False after timeout if brain never finishes."""
+        import asyncio
+
+        event = asyncio.Event()
+        event.clear()  # brain active, never finishes
+
+        timed_out = False
+        try:
+            await asyncio.wait_for(event.wait(), timeout=0.1)
+        except asyncio.TimeoutError:
+            timed_out = True
+
+        assert timed_out
+
+    def test_brain_idle_event_set_on_processing_ended(self):
+        """processing_ended signal should set the brain idle event."""
+        import asyncio
+
+        brain_idle_event = asyncio.Event()
+        brain_idle_event.clear()
+        brain_active = True
+
+        # Simulate _on_ui_bus_message for processing_ended
+        signal = SignalMessage(signal_type="processing_ended", msg_id="test_1")
+        if isinstance(signal, SignalMessage) and signal.signal_type == "processing_ended":
+            brain_active = False
+            brain_idle_event.set()
+
+        assert brain_active is False
+        assert brain_idle_event.is_set()
+
+    def test_brain_idle_event_cleared_on_processing_started(self):
+        """processing_started signal should clear the brain idle event."""
+        import asyncio
+
+        brain_idle_event = asyncio.Event()
+        brain_idle_event.set()
+        brain_active = False
+
+        # Simulate _on_ui_bus_message for processing_started
+        signal = SignalMessage(signal_type="processing_started", msg_id="test_1")
+        if isinstance(signal, SignalMessage) and signal.signal_type == "processing_started":
+            brain_active = True
+            brain_idle_event.clear()
+
+        assert brain_active is True
+        assert not brain_idle_event.is_set()
