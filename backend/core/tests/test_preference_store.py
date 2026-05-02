@@ -91,12 +91,26 @@ class TestPreferenceStoreAdd:
         assert "Prefers Chinese" in store.list_for_user("Jackson")
         assert "Prefers English" in store.list_for_user("Alice")
 
-    def test_unknown_user_goes_to_default(self, tmp_path: Path):
+    def test_unknown_user_rejected(self, tmp_path: Path):
         store = PreferenceStore(tmp_path, max_entries=20)
-        store.add_if_new("Unknown", "Some pref")
+        added = store.add_if_new("Unknown", "Some pref")
+        assert added is False
 
         prefs_file = tmp_path / "users" / "_default" / "preferences.md"
-        assert prefs_file.exists()
+        assert not prefs_file.exists()
+
+    def test_empty_user_rejected(self, tmp_path: Path):
+        store = PreferenceStore(tmp_path, max_entries=20)
+        assert store.add_if_new("", "Some pref") is False
+
+    def test_unknown_user_render_empty(self, tmp_path: Path):
+        store = PreferenceStore(tmp_path, max_entries=20)
+        assert store.render_for_user("Unknown") == ""
+        assert store.render_for_user("") == ""
+
+    def test_unknown_user_list_empty(self, tmp_path: Path):
+        store = PreferenceStore(tmp_path, max_entries=20)
+        assert store.list_for_user("Unknown") == []
 
 
 class TestPreferenceStoreRemove:

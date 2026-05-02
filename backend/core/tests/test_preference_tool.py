@@ -42,13 +42,15 @@ class TestPreferenceToolSave:
         assert result.error is True
 
     @pytest.mark.asyncio
-    async def test_save_without_user_uses_default(
-        self, tool: PreferenceTool, store: PreferenceStore,
-    ):
+    async def test_save_without_user_errors(self, tool: PreferenceTool):
         result = await tool.execute(action="save", content="Some pref", user="")
-        data = json.loads(result.content)
-        assert data["added"] is True
-        assert store.list_for_user("_default") == ["Some pref"]
+        assert result.error is True
+        assert "guest" in result.display.lower()
+
+    @pytest.mark.asyncio
+    async def test_save_unknown_user_errors(self, tool: PreferenceTool):
+        result = await tool.execute(action="save", content="Some pref", user="Unknown")
+        assert result.error is True
 
 
 class TestPreferenceToolRemove:

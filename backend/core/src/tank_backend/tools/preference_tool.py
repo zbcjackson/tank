@@ -56,7 +56,12 @@ class PreferenceTool(BaseTool):
     async def execute(
         self, action: str = "", content: str = "", user: str = "", **_: object
     ) -> ToolResult:
-        user = user or "_default"
+        if not user or user == "Unknown":
+            return ToolResult(
+                content=json.dumps({"error": "no preferences for guest users"}),
+                display="Preferences are not available for guest users",
+                error=True,
+            )
 
         if action == "save":
             if not content:
