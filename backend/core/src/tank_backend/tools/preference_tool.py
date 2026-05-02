@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
+from ..users import is_guest
 from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
 
 if TYPE_CHECKING:
@@ -56,7 +57,7 @@ class PreferenceTool(BaseTool):
     async def execute(
         self, action: str = "", content: str = "", user: str = "", **_: object
     ) -> ToolResult:
-        if not user or user == "Unknown":
+        if is_guest(user):
             return ToolResult(
                 content=json.dumps({"error": "no preferences for guest users"}),
                 display="Preferences are not available for guest users",

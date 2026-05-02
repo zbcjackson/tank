@@ -12,6 +12,7 @@ import tiktoken
 
 from ..config.models import ContextConfig
 from ..config.parser import ConfigError
+from ..users import is_guest
 from .conversation import ConversationData
 from .store import create_store
 
@@ -230,7 +231,7 @@ class ContextManager:
     async def recall_memory(self, user: str, text: str) -> None:
         """Pre-fetch memory for the upcoming turn."""
         self._memory_context = ""
-        if self._memory_service is None or not user or user == "Unknown":
+        if self._memory_service is None or is_guest(user):
             return
         try:
             memories = await self._memory_service.recall(user, text)
@@ -263,19 +264,22 @@ class ContextManager:
             self._conversation.messages[0] = {"role": "system", "content": new_prompt}
 
         # Return copy with memory + preference augmentation (temporary, not persisted)
+        # Skip all user-specific augmentation for guest users
         messages = list(self._conversation.messages)
-        augmented = messages[0]["content"]
 
-        if self._memory_context:
-            augmented += f"\n\nKNOWN FACTS ABOUT {user}:\n{self._memory_context}"
+        if not is_guest(user):
+            augmented = messages[0]["content"]
 
-        if self._preference_store:
-            prefs = self._preference_store.render_for_user(user)
-            if prefs:
-                augmented += f"\n\nUSER PREFERENCES ({user}):\n{prefs}"
+            if self._memory_context:
+                augmented += f"\n\nKNOWN FACTS ABOUT {user}:\n{self._memory_context}"
 
-        if augmented != messages[0]["content"]:
-            messages[0] = {"role": "system", "content": augmented}
+            if self._preference_store:
+                prefs = self._preference_store.render_for_user(user)
+                if prefs:
+                    augmented += f"\n\nUSER PREFERENCES ({user}):\n{prefs}"
+
+            if augmented != messages[0]["content"]:
+                messages[0] = {"role": "system", "content": augmented}
 
         return messages
 
@@ -297,15 +301,16 @@ class ContextManager:
                 and self._conversation.messages[0].get("role") == "system"
             ):
                 self._conversation.messages[0]["content"] = new_prompt
-            # Re-apply memory + preference augmentation
-            if self._memory_context:
-                new_prompt += (
-                    f"\n\nKNOWN FACTS ABOUT {user or 'user'}:\n{self._memory_context}"
-                )
-            if self._preference_store:
-                prefs = self._preference_store.render_for_user(user or "")
-                if prefs:
-                    new_prompt += f"\n\nUSER PREFERENCES ({user or 'user'}):\n{prefs}"
+            # Re-apply memory + preference augmentation (skip for guests)
+            if not is_guest(user):
+                if self._memory_context:
+                    new_prompt += (
+                        f"\n\nKNOWN FACTS ABOUT {user}:\n{self._memory_context}"
+                    )
+                if self._preference_store:
+                    prefs = self._preference_store.render_for_user(user)
+                    if prefs:
+                        new_prompt += f"\n\nUSER PREFERENCES ({user}):\n{prefs}"
             return new_prompt
 
         return _refresh
@@ -316,7 +321,12 @@ class ContextManager:
         self._persist()
 
         # Schedule preference learning (fire-and-forget, like memory)
-        if self._preference_learner and self._last_user and self._last_user_text:
+        if (
+            self._preference_learner
+            and self._last_user
+            and self._last_user_text
+            and not is_guest(self._last_user)
+        ):
             assistant_text = ""
             for msg in reversed(turn_messages):
                 if msg.get("role") == "assistant" and msg.get("content"):
@@ -388,7 +398,7 @@ class ContextManager:
         self, user: str, user_text: str, assistant_response: str
     ) -> None:
         """Schedule background memory storage (fire-and-forget)."""
-        if self._memory_service is None:
+        if self._memory_service is None or is_guest(user):
             return
         asyncio.ensure_future(
             self._store_memory_with_retry(user, user_text, assistant_response)

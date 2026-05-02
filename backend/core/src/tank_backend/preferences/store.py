@@ -7,19 +7,16 @@ import re
 from datetime import date, timedelta
 from pathlib import Path
 
+from ..users import is_guest
+
 logger = logging.getLogger(__name__)
 
 _STALENESS_DAYS = 90  # Entries older than this are auto-removed
 
 
-def _is_guest(user: str) -> bool:
-    """Return True for unidentified / guest speakers — no preferences stored."""
-    return not user or user == "Unknown"
-
-
 def _slugify(user: str) -> str:
     """Convert user name to filesystem-safe slug."""
-    if _is_guest(user):
+    if is_guest(user):
         return "_default"
     return re.sub(r"[^a-z0-9_]", "_", user.lower()).strip("_") or "_default"
 
@@ -98,7 +95,7 @@ class PreferenceStore:
 
     def add_if_new(self, user: str, text: str, source: str = "inferred") -> bool:
         """Add a preference if not semantically duplicate. Returns True if added."""
-        if _is_guest(user):
+        if is_guest(user):
             return False
         text = text.strip()
         if not text:
@@ -127,7 +124,7 @@ class PreferenceStore:
 
         Returns True if an entry was found and reinforced.
         """
-        if _is_guest(user):
+        if is_guest(user):
             return False
         substring_lower = substring.lower()
         raw_entries = self._load_raw_entries(user)
@@ -141,7 +138,7 @@ class PreferenceStore:
 
     def remove(self, user: str, substring: str) -> bool:
         """Remove the first entry matching substring. Returns True if removed."""
-        if _is_guest(user):
+        if is_guest(user):
             return False
         substring_lower = substring.lower()
         raw_entries = self._load_raw_entries(user)
@@ -155,7 +152,7 @@ class PreferenceStore:
 
     def list_for_user(self, user: str) -> list[str]:
         """Return all preference texts for a user (after staleness filtering)."""
-        if _is_guest(user):
+        if is_guest(user):
             return []
         return [text for text, _source, _date in self._load_raw_entries(user)]
 
@@ -168,7 +165,7 @@ class PreferenceStore:
 
         Returns empty string for guest/unidentified users.
         """
-        if _is_guest(user):
+        if is_guest(user):
             return ""
         parts: list[str] = []
 

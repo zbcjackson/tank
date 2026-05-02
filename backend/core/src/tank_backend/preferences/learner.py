@@ -7,6 +7,8 @@ import json
 import logging
 from typing import TYPE_CHECKING
 
+from ..users import is_guest
+
 if TYPE_CHECKING:
     from ...llm.llm import LLM
     from .store import PreferenceStore
@@ -54,7 +56,7 @@ class PreferenceLearner:
         Skips trivial turns (short text, unknown speaker).
         Retries up to 3 times with exponential backoff.
         """
-        if len(user_text) < 15 or user == "Unknown":
+        if len(user_text) < 15 or is_guest(user):
             return
 
         for attempt in range(1, _MAX_RETRIES + 1):
