@@ -98,8 +98,8 @@ class TestPipelineInterruptFlow:
         assert pipeline._queues[0]._queue.empty()
         assert pipeline._queues[1]._queue.empty()
 
-    def test_speech_start_triggers_interrupt_via_bus(self):
-        """Simulates the full flow: speech_start on bus → interrupt event forward."""
+    def test_speech_detected_triggers_interrupt_via_bus(self):
+        """Simulates the full flow: speech_detected on bus → interrupt event forward."""
         bus = Bus()
         p1 = EventCapturingProcessor("vad")
         p2 = EventCapturingProcessor("brain")
@@ -108,8 +108,8 @@ class TestPipelineInterruptFlow:
 
         pipeline = PipelineBuilder(bus).add(p1).add(p2).add(p3).add(p4).build()
 
-        # Wire up: speech_start → send_event(interrupt) forward
-        def on_speech_start(_msg: BusMessage) -> None:
+        # Wire up: speech_detected → send_event(interrupt) forward
+        def on_speech_detected(_msg: BusMessage) -> None:
             pipeline.send_event(
                 PipelineEvent(
                     type="interrupt",
@@ -118,10 +118,10 @@ class TestPipelineInterruptFlow:
                 )
             )
 
-        bus.subscribe("speech_start", on_speech_start)
+        bus.subscribe("speech_detected", on_speech_detected)
 
-        # Simulate VAD posting speech_start
-        bus.post(BusMessage(type="speech_start", source="vad"))
+        # Simulate ASR posting speech_detected
+        bus.post(BusMessage(type="speech_detected", source="asr"))
         bus.poll()
 
         # Forward: vad→brain→tts→playback, playback consumes

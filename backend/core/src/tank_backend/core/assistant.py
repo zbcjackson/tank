@@ -84,7 +84,7 @@ class Assistant:
         self._init_health_monitor()
         self._init_alerting()
 
-        self._bus.subscribe("speech_start", self._on_speech_start)
+        self._bus.subscribe("speech_detected", self._on_speech_detected)
         self.on_exit_request = on_exit_request
 
         self._has_asr = asr_engine is not None
@@ -526,8 +526,8 @@ class Assistant:
         """True when any downstream processor is actively working."""
         return self._brain_active or self._playback_active
 
-    def _on_speech_start(self, _message: BusMessage) -> None:
-        """Handle speech_start: interrupt pipeline if busy."""
+    def _on_speech_detected(self, _message: BusMessage) -> None:
+        """Handle speech_detected: interrupt pipeline if busy."""
         if not self._speech_interrupt_enabled:
             return
         if not self._pipeline_busy:

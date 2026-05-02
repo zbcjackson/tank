@@ -1,7 +1,5 @@
 """Tests for MetricsCollector observer."""
 
-import time
-
 from tank_backend.pipeline.bus import Bus, BusMessage
 from tank_backend.pipeline.observers.metrics_collector import MetricsCollector
 
@@ -105,9 +103,9 @@ class TestMetricsCollector:
 
     def test_interrupt_counted(self) -> None:
         _post_and_poll(self.bus, BusMessage(
-            type="speech_start",
+            type="speech_detected",
             source="asr",
-            payload={"timestamp_s": time.time()},
+            payload={"text": "hello"},
         ))
 
         snap = self.collector.snapshot()

@@ -8,9 +8,9 @@ logger = logging.getLogger(__name__)
 
 
 class InterruptLatencyObserver:
-    """Measures latency between speech_start and interrupt_ack events.
+    """Measures latency between speech_detected and interrupt_ack events.
 
-    Subscribes to "speech_start" and "interrupt_ack" messages on the bus.
+    Subscribes to "speech_detected" and "interrupt_ack" messages on the bus.
     Records elapsed time between speech detection and processor acknowledgments.
     """
 
@@ -18,11 +18,11 @@ class InterruptLatencyObserver:
         self._bus = bus
         self._speech_start_time: float | None = None
         self._latencies: list[tuple[str, float]] = []
-        bus.subscribe("speech_start", self._on_message)
+        bus.subscribe("speech_detected", self._on_message)
         bus.subscribe("interrupt_ack", self._on_message)
 
     def _on_message(self, message: BusMessage) -> None:
-        if message.type == "speech_start":
+        if message.type == "speech_detected":
             self._speech_start_time = message.timestamp
         elif message.type == "interrupt_ack" and self._speech_start_time is not None:
                 elapsed = message.timestamp - self._speech_start_time

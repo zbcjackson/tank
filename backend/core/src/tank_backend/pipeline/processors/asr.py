@@ -87,6 +87,11 @@ class ASRProcessor(Processor):
                     source=self.name,
                     payload=SignalMessage(signal_type="speech_detected"),
                 ))
+                self._bus.post(BusMessage(
+                    type="speech_detected",
+                    source=self.name,
+                    payload={"text": text},
+                ))
             self._bus.post(BusMessage(
                 type="ui_message",
                 source=self.name,
@@ -104,6 +109,11 @@ class ASRProcessor(Processor):
                     type="ui_message",
                     source=self.name,
                     payload=SignalMessage(signal_type="speech_detected"),
+                ))
+                self._bus.post(BusMessage(
+                    type="speech_detected",
+                    source=self.name,
+                    payload={"text": text},
                 ))
             self._bus.post(BusMessage(
                 type="ui_message",

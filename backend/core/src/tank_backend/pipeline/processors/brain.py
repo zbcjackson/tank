@@ -1,5 +1,6 @@
 """Brain — native pipeline Processor for LLM conversation orchestration."""
 
+import asyncio
 import logging
 import time
 import uuid
@@ -31,6 +32,8 @@ if TYPE_CHECKING:
     from ...tools.manager import ToolManager
 
 logger = logging.getLogger("Brain")
+
+_ACLOSE_TIMEOUT_S = 2.0
 
 
 class Brain(Processor):
@@ -566,7 +569,10 @@ class Brain(Processor):
             logger.error(f"Agent stream processing error: {e}")
             raise
         finally:
-            await gen.aclose()
+            try:
+                await asyncio.wait_for(gen.aclose(), timeout=_ACLOSE_TIMEOUT_S)
+            except asyncio.TimeoutError:
+                logger.warning("gen.aclose() timed out in _process_via_agents")
 
     async def _process_confirmation_turn(
         self,
@@ -688,7 +694,10 @@ class Brain(Processor):
             logger.error(f"Confirmation turn error: {e}")
             raise
         finally:
-            await gen.aclose()
+            try:
+                await asyncio.wait_for(gen.aclose(), timeout=_ACLOSE_TIMEOUT_S)
+            except asyncio.TimeoutError:
+                logger.warning("gen.aclose() timed out in _process_confirmation_turn")
 
     def handle_event(self, event: PipelineEvent) -> bool:
         """Handle pipeline events (interrupt, flush)."""

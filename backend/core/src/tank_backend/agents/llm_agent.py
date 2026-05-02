@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -21,6 +22,8 @@ if TYPE_CHECKING:
     from ..tools.manager import ToolManager
 
 logger = logging.getLogger(__name__)
+
+_ACLOSE_TIMEOUT_S = 2.0
 
 # Maps UpdateType + TOOL status to AgentOutputType
 _TOOL_STATUS_MAP: dict[str, AgentOutputType] = {
@@ -171,7 +174,13 @@ class LLMAgent(Agent):
                 if update_type == UpdateType.TEXT:
                     full_text += content
         finally:
-            await gen.aclose()
+            try:
+                await asyncio.wait_for(gen.aclose(), timeout=_ACLOSE_TIMEOUT_S)
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "LLM stream aclose() timed out in Agent[%s]",
+                    self.name,
+                )
 
         elapsed = time.monotonic() - start
 

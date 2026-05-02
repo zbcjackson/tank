@@ -84,7 +84,7 @@ class MetricsCollector:
         bus.subscribe("tts_finished", self._on_message)
         bus.subscribe("playback_started", self._on_message)
         bus.subscribe("echo_discarded", self._on_message)
-        bus.subscribe("speech_start", self._on_message)
+        bus.subscribe("speech_detected", self._on_message)
         bus.subscribe("trace_id", self._on_message)
 
     def _on_message(self, message: BusMessage) -> None:
@@ -121,7 +121,7 @@ class MetricsCollector:
             elif message.type == "echo_discarded":
                 self._echo_discards += 1
 
-            elif message.type == "speech_start":
+            elif message.type == "speech_detected":
                 self._interrupts += 1
 
             elif message.type == "trace_id":

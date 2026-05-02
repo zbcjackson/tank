@@ -146,19 +146,19 @@ class TestAssistantUICallbacks:
 class TestAssistantSpeechInterrupt:
     """Tests for speech interrupt flow in Assistant."""
 
-    def test_speech_start_triggers_interrupt_event(self):
-        """speech_start on bus should trigger interrupt event through pipeline."""
+    def test_speech_detected_triggers_interrupt_event(self):
+        """speech_detected on bus should trigger interrupt event through pipeline."""
         bus = Bus()
         interrupt_events = []
 
-        def on_speech_start(_msg: BusMessage) -> None:
+        def on_speech_detected(_msg: BusMessage) -> None:
             interrupt_events.append(
                 PipelineEvent(type="interrupt", source="speech_interrupt")
             )
 
-        bus.subscribe("speech_start", on_speech_start)
+        bus.subscribe("speech_detected", on_speech_detected)
 
-        bus.post(BusMessage(type="speech_start", source="vad"))
+        bus.post(BusMessage(type="speech_detected", source="asr"))
         bus.poll()
 
         assert len(interrupt_events) == 1
@@ -237,62 +237,62 @@ class TestAssistantPipelineBusyGuard:
         assert playback_active is False
 
     def test_interrupt_skipped_when_pipeline_idle(self):
-        """speech_start should NOT fire interrupt when pipeline is idle."""
+        """speech_detected should NOT fire interrupt when pipeline is idle."""
         bus = Bus()
         interrupt_fired = []
 
-        # Simulate Assistant._on_speech_start with busy guard
+        # Simulate Assistant._on_speech_detected with busy guard
         brain_active = False
         playback_active = False
 
-        def on_speech_start(_msg: BusMessage) -> None:
+        def on_speech_detected(_msg: BusMessage) -> None:
             if not brain_active and not playback_active:
                 return  # skip — nothing to interrupt
             interrupt_fired.append(True)
 
-        bus.subscribe("speech_start", on_speech_start)
+        bus.subscribe("speech_detected", on_speech_detected)
 
-        bus.post(BusMessage(type="speech_start", source="vad"))
+        bus.post(BusMessage(type="speech_detected", source="asr"))
         bus.poll()
 
         assert len(interrupt_fired) == 0
 
     def test_interrupt_fires_when_brain_active(self):
-        """speech_start should fire interrupt when brain is processing."""
+        """speech_detected should fire interrupt when brain is processing."""
         bus = Bus()
         interrupt_fired = []
 
         brain_active = True
         playback_active = False
 
-        def on_speech_start(_msg: BusMessage) -> None:
+        def on_speech_detected(_msg: BusMessage) -> None:
             if not brain_active and not playback_active:
                 return
             interrupt_fired.append(True)
 
-        bus.subscribe("speech_start", on_speech_start)
+        bus.subscribe("speech_detected", on_speech_detected)
 
-        bus.post(BusMessage(type="speech_start", source="vad"))
+        bus.post(BusMessage(type="speech_detected", source="asr"))
         bus.poll()
 
         assert len(interrupt_fired) == 1
 
     def test_interrupt_fires_when_playback_active(self):
-        """speech_start should fire interrupt when playback is active."""
+        """speech_detected should fire interrupt when playback is active."""
         bus = Bus()
         interrupt_fired = []
 
         brain_active = False
         playback_active = True
 
-        def on_speech_start(_msg: BusMessage) -> None:
+        def on_speech_detected(_msg: BusMessage) -> None:
             if not brain_active and not playback_active:
                 return
             interrupt_fired.append(True)
 
-        bus.subscribe("speech_start", on_speech_start)
+        bus.subscribe("speech_detected", on_speech_detected)
 
-        bus.post(BusMessage(type="speech_start", source="vad"))
+        bus.post(BusMessage(type="speech_detected", source="asr"))
         bus.poll()
 
         assert len(interrupt_fired) == 1
