@@ -9,7 +9,7 @@ def is_guest(user: str) -> bool:
     Guest users should not accumulate preferences, memories, or
     personalised system-prompt sections.
     """
-    return not user or user == "Unknown"
+    return not user or user in ("Unknown", "Guest")
 
 
 __all__ = ["User", "UserManager", "is_guest"]

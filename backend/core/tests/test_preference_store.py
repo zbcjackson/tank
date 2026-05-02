@@ -17,6 +17,9 @@ class TestSlugify:
     def test_unknown_returns_default(self):
         assert _slugify("Unknown") == "_default"
 
+    def test_guest_returns_default(self):
+        assert _slugify("Guest") == "_default"
+
     def test_empty_returns_default(self):
         assert _slugify("") == "_default"
 
@@ -91,26 +94,25 @@ class TestPreferenceStoreAdd:
         assert "Prefers Chinese" in store.list_for_user("Jackson")
         assert "Prefers English" in store.list_for_user("Alice")
 
-    def test_unknown_user_rejected(self, tmp_path: Path):
+    def test_guest_users_rejected(self, tmp_path: Path):
         store = PreferenceStore(tmp_path, max_entries=20)
-        added = store.add_if_new("Unknown", "Some pref")
-        assert added is False
+        assert store.add_if_new("Unknown", "Some pref") is False
+        assert store.add_if_new("Guest", "Some pref") is False
+        assert store.add_if_new("", "Some pref") is False
 
         prefs_file = tmp_path / "users" / "_default" / "preferences.md"
         assert not prefs_file.exists()
 
-    def test_empty_user_rejected(self, tmp_path: Path):
-        store = PreferenceStore(tmp_path, max_entries=20)
-        assert store.add_if_new("", "Some pref") is False
-
-    def test_unknown_user_render_empty(self, tmp_path: Path):
+    def test_guest_users_render_empty(self, tmp_path: Path):
         store = PreferenceStore(tmp_path, max_entries=20)
         assert store.render_for_user("Unknown") == ""
+        assert store.render_for_user("Guest") == ""
         assert store.render_for_user("") == ""
 
-    def test_unknown_user_list_empty(self, tmp_path: Path):
+    def test_guest_users_list_empty(self, tmp_path: Path):
         store = PreferenceStore(tmp_path, max_entries=20)
         assert store.list_for_user("Unknown") == []
+        assert store.list_for_user("Guest") == []
 
 
 class TestPreferenceStoreRemove:

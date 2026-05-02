@@ -52,6 +52,11 @@ class TestPreferenceToolSave:
         result = await tool.execute(action="save", content="Some pref", user="Unknown")
         assert result.error is True
 
+    @pytest.mark.asyncio
+    async def test_save_guest_user_errors(self, tool: PreferenceTool):
+        result = await tool.execute(action="save", content="Some pref", user="Guest")
+        assert result.error is True
+
 
 class TestPreferenceToolRemove:
     @pytest.mark.asyncio
