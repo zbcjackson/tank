@@ -22,6 +22,7 @@ class AppContext:
     """App-level singletons. Shared across all sessions. Immutable."""
 
     app_config: Any  # plugin.config.AppConfig or config.app_config.AppConfig
+    registry: Any = None
     job_store: Any = None
     scheduler: Any = None
     conversation_store: Any = None

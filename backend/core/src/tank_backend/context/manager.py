@@ -11,6 +11,7 @@ from typing import Any
 import tiktoken
 
 from ..config.models import ContextConfig
+from ..config.parser import ConfigError
 from .conversation import ConversationData
 from .store import create_store
 
@@ -78,7 +79,7 @@ class ContextManager:
 
         try:
             profile = self._app_config.get_llm_profile("default")
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, ConfigError):
             logger.warning("No default LLM profile — memory service disabled")
             return None
 
@@ -108,10 +109,10 @@ class ContextManager:
 
         try:
             profile = self._app_config.get_llm_profile("summarization")
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, ConfigError):
             try:
                 profile = self._app_config.get_llm_profile("default")
-            except (KeyError, ValueError):
+            except (KeyError, ValueError, ConfigError):
                 return None
         llm = create_llm_from_profile(profile)
         return LLMSummarizer(llm, self._config)
@@ -146,10 +147,10 @@ class ContextManager:
         # Try to use "summarization" profile for cheap extraction, fallback to default
         try:
             profile = self._app_config.get_llm_profile("summarization")
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, ConfigError):
             try:
                 profile = self._app_config.get_llm_profile("default")
-            except (KeyError, ValueError):
+            except (KeyError, ValueError, ConfigError):
                 return None
 
         llm = create_llm_from_profile(profile)

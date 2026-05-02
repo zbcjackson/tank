@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
+from ..config.context import AppContext
 from ..core.assistant import Assistant
 
 if TYPE_CHECKING:
@@ -18,7 +19,6 @@ class ConnectionManager:
     """
     Manages active WebSocket connections → Assistant instances.
     Maps ws session_id to Assistant instance.
-    Holds a shared VoiceprintRecognizer for the speakers REST API.
 
     Connections survive brief WebSocket disconnects via an idle timeout.
     A new WebSocket with the same session_id reattaches to the existing
@@ -27,54 +27,16 @@ class ConnectionManager:
 
     SESSION_IDLE_TIMEOUT = 30  # seconds
 
-    def __init__(self, app_config: Any = None, app_context: Any = None, registry: Any = None):
+    def __init__(self, app_context: AppContext):
         self._sessions: dict[str, Assistant] = {}
         self._idle_timers: dict[str, asyncio.TimerHandle] = {}
         self._ws_refcount: dict[str, int] = {}
         self._session_lock = asyncio.Lock()
         self._app_context = app_context
-        self._app_config = app_config
-        self._registry = registry
-        self._voiceprint_recognizer: VoiceprintRecognizer | None = None
-        # Legacy fields — prefer app_context when available
-        self._job_store: Any = None
-        self._job_scheduler: Any = None
-        self._init_voiceprint()
-
-    def _init_voiceprint(self) -> None:
-        """Initialize shared voiceprint recognizer for the speakers REST API."""
-        if self._app_config is None or self._registry is None:
-            return
-        try:
-            from ..audio.input.voiceprint_factory import (
-                create_disabled_recognizer,
-                create_voiceprint_recognizer,
-            )
-
-            speaker_cfg = self._app_config.get_feature_config("speaker")
-
-            if not speaker_cfg.enabled or not speaker_cfg.extension:
-                self._voiceprint_recognizer = create_disabled_recognizer()
-                return
-
-            extractor = self._registry.instantiate(
-                speaker_cfg.extension, speaker_cfg.config
-            )
-            self._voiceprint_recognizer = create_voiceprint_recognizer(
-                extractor, speaker_cfg.config
-            )
-            logger.info("Shared voiceprint recognizer initialized")
-        except Exception as e:
-            logger.warning(f"Failed to initialize voiceprint recognizer: {e}")
-
-    def set_job_manager(self, job_store: Any, scheduler: Any) -> None:
-        """Set job store and scheduler for new sessions."""
-        self._job_store = job_store
-        self._job_scheduler = scheduler
 
     def get_voiceprint_recognizer(self) -> VoiceprintRecognizer | None:
         """Get the shared voiceprint recognizer."""
-        return self._voiceprint_recognizer
+        return self._app_context.voiceprint_recognizer
 
     def get_assistant(self, session_id: str) -> Assistant | None:
         """Retrieve assistant instance for a session."""
@@ -113,16 +75,12 @@ class ConnectionManager:
             if existing:
                 await self._cleanup_assistant(session_id, existing)
 
-            # Resolve job deps from AppContext if available, else legacy fields
-            _ctx = self._app_context
-            _job_store = _ctx.job_store if _ctx else self._job_store
-            _job_scheduler = _ctx.scheduler if _ctx else self._job_scheduler
-
+            ctx = self._app_context
             assistant = Assistant(
-                app_config=self._app_config,
-                job_store=_job_store,
-                job_scheduler=_job_scheduler,
-                registry=self._registry,
+                app_config=ctx.app_config,
+                job_store=ctx.job_store,
+                job_scheduler=ctx.scheduler,
+                registry=ctx.registry,
             )
             self._sessions[session_id] = assistant
             self._ws_refcount[session_id] = 1
@@ -184,7 +142,6 @@ class ConnectionManager:
 
     async def close_all(self) -> None:
         """Stop all active assistants and cancel all idle timers."""
-        # Cancel all idle timers first
         for timer in self._idle_timers.values():
             timer.cancel()
         self._idle_timers.clear()
@@ -194,7 +151,7 @@ class ConnectionManager:
         for sid in ids:
             await self.close_session(sid)
 
-        # Close shared voiceprint recognizer
-        if self._voiceprint_recognizer:
-            self._voiceprint_recognizer.close()
+        recognizer = self._app_context.voiceprint_recognizer
+        if recognizer:
+            recognizer.close()
             logger.info("Closed shared voiceprint recognizer")

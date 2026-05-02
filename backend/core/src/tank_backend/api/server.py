@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -16,6 +17,7 @@ from ..config import AppConfig, find_config_yaml  # noqa: E402
 from ..config.context import AppContext  # noqa: E402
 from ..context import create_store  # noqa: E402
 from ..plugin.manager import PluginManager  # noqa: E402
+from ..plugin.registry import ExtensionRegistry  # noqa: E402
 from .conversations import router as conversations_router  # noqa: E402
 from .conversations import set_store as set_conversations_store  # noqa: E402
 from .jobs import router as jobs_router  # noqa: E402
@@ -33,88 +35,146 @@ from .speakers import set_connection_manager  # noqa: E402
 from .users import router as users_router  # noqa: E402
 from .users import set_connection_manager as set_users_connection_manager  # noqa: E402
 
-# Configure logging to output to console
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("ApiServer")
 
-# --- Single plugin load at startup ---
-_plugin_manager = PluginManager()
-_registry = _plugin_manager.load_all()
-app_config = AppConfig.load(find_config_yaml(), registry=_registry)
 
-# --- Conversation store for REST API ---
-_store = create_store(
-    store_type=app_config.context.store_type,
-    store_path=app_config.context.store_path,
-)
+# ---------------------------------------------------------------------------
+# Initialization helpers — each encapsulates one startup concern
+# ---------------------------------------------------------------------------
 
-# --- Job scheduler (opt-in via config.yaml jobs.enabled) ---
-_job_store = None
-_scheduler = None
 
-if app_config.jobs.enabled:
+def _init_plugins() -> tuple[AppConfig, ExtensionRegistry]:
+    plugin_manager = PluginManager()
+    registry = plugin_manager.load_all()
+    config = AppConfig.load(find_config_yaml(), registry=registry)
+    return config, registry
+
+
+def _init_conversation_store(config: AppConfig) -> Any:
+    return create_store(
+        store_type=config.context.store_type,
+        store_path=config.context.store_path,
+    )
+
+
+def _init_job_scheduler(config: AppConfig) -> tuple[Any, Any]:
+    if not config.jobs.enabled:
+        logger.info("Job scheduler disabled (jobs.enabled=false)")
+        return None, None
+
     from ..jobs.delivery import DeliveryManager
     from ..jobs.runner import AutonomousRunner
     from ..jobs.scheduler import CronScheduler
     from ..jobs.store import JobStore
 
-    _jobs_cfg = app_config.jobs
-    _job_store = JobStore(db_path=_jobs_cfg.db_path)
-    _job_delivery = DeliveryManager(
-        output_dir=_jobs_cfg.output_dir,
-        app_config=app_config,
+    jobs_cfg = config.jobs
+    job_store = JobStore(db_path=jobs_cfg.db_path)
+    delivery = DeliveryManager(output_dir=jobs_cfg.output_dir, app_config=config)
+    runner = AutonomousRunner(
+        app_config=config, job_store=job_store, delivery=delivery,
     )
-    _job_runner = AutonomousRunner(
-        app_config=app_config,
-        job_store=_job_store,
-        delivery=_job_delivery,
-    )
-    _scheduler = CronScheduler(
-        job_store=_job_store,
-        runner=_job_runner,
-        max_parallel=_jobs_cfg.max_parallel,
-        tick_interval=_jobs_cfg.tick_interval,
+    scheduler = CronScheduler(
+        job_store=job_store,
+        runner=runner,
+        max_parallel=jobs_cfg.max_parallel,
+        tick_interval=jobs_cfg.tick_interval,
     )
 
-    # Load seed file if present
-    seed_path = _jobs_cfg.seed_path or "~/.tank/jobs/seed.yaml"
-    result = _job_store.load_seed_file(seed_path)
+    seed_path = jobs_cfg.seed_path or "~/.tank/jobs/seed.yaml"
+    result = job_store.load_seed_file(seed_path)
     if result["created"]:
-        logger.info("Loaded %d seed jobs: %s", len(result["created"]), ", ".join(result["created"]))
+        logger.info(
+            "Loaded %d seed jobs: %s",
+            len(result["created"]), ", ".join(result["created"]),
+        )
     if result["deleted"]:
         logger.info(
             "Removed %d stale seed jobs: %s",
             len(result["deleted"]), ", ".join(result["deleted"]),
         )
 
-    logger.info("Job scheduler initialized (max_parallel=%d)", _jobs_cfg.max_parallel)
-else:
-    logger.info("Job scheduler disabled (jobs.enabled=false)")
+    logger.info("Job scheduler initialized (max_parallel=%d)", jobs_cfg.max_parallel)
+    return job_store, scheduler
 
-# --- AppContext: single object holding all app-level singletons ---
+
+def _init_voiceprint_recognizer(
+    config: AppConfig, registry: ExtensionRegistry,
+) -> Any | None:
+    try:
+        from ..audio.input.voiceprint_factory import (
+            create_disabled_recognizer,
+            create_voiceprint_recognizer,
+        )
+
+        speaker_cfg = config.get_feature_config("speaker")
+        if not speaker_cfg.enabled or not speaker_cfg.extension:
+            return create_disabled_recognizer()
+
+        extractor = registry.instantiate(speaker_cfg.extension, speaker_cfg.config)
+        recognizer = create_voiceprint_recognizer(extractor, speaker_cfg.config)
+        logger.info("Shared voiceprint recognizer initialized")
+        return recognizer
+    except Exception as e:
+        logger.warning("Failed to initialize voiceprint recognizer: %s", e)
+        return None
+
+
+def _wire_routers(
+    app: FastAPI,
+    mgr: ConnectionManager,
+    store: Any,
+    job_store: Any | None,
+    scheduler: Any | None,
+) -> None:
+    app.include_router(router)
+    app.include_router(speakers_router)
+    app.include_router(users_router)
+    app.include_router(metrics_router)
+    app.include_router(conversations_router)
+    app.include_router(skills_router)
+    app.include_router(jobs_router)
+
+    set_router_connection_manager(mgr)
+    set_connection_manager(mgr)
+    set_metrics_connection_manager(mgr)
+    set_skills_connection_manager(mgr)
+    set_users_connection_manager(mgr)
+    set_conversations_store(store)
+    if job_store is not None:
+        set_job_store(job_store)
+    if scheduler is not None:
+        set_jobs_scheduler(scheduler)
+
+
+# ---------------------------------------------------------------------------
+# Bootstrap
+# ---------------------------------------------------------------------------
+
+app_config, _registry = _init_plugins()
+_store = _init_conversation_store(app_config)
+_job_store, _scheduler = _init_job_scheduler(app_config)
+_voiceprint_recognizer = _init_voiceprint_recognizer(app_config, _registry)
+
 app_context = AppContext(
     app_config=app_config,
+    registry=_registry,
     job_store=_job_store,
     scheduler=_scheduler,
     conversation_store=_store,
+    voiceprint_recognizer=_voiceprint_recognizer,
 )
-
-# --- Connection manager ---
-connection_manager = ConnectionManager(
-    app_config=app_config, app_context=app_context, registry=_registry
-)
+connection_manager = ConnectionManager(app_context=app_context)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     logger.info("API Server starting up")
     if _scheduler is not None:
         await _scheduler.start()
     yield
-    # Shutdown
     logger.info("API Server shutting down")
     if _scheduler is not None:
         await _scheduler.stop()
@@ -124,26 +184,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Tank Voice Assistant API", version="0.1.0", lifespan=lifespan)
-
-app.include_router(router)
-app.include_router(speakers_router)
-app.include_router(users_router)
-app.include_router(metrics_router)
-app.include_router(conversations_router)
-app.include_router(skills_router)
-app.include_router(jobs_router)
-set_router_connection_manager(connection_manager)
-set_connection_manager(connection_manager)
-set_metrics_connection_manager(connection_manager)
-set_skills_connection_manager(connection_manager)
-set_users_connection_manager(connection_manager)
-set_conversations_store(_store)
-if _job_store is not None:
-    set_job_store(_job_store)
-if _scheduler is not None:
-    set_jobs_scheduler(_scheduler)
-if _job_store is not None and _scheduler is not None:
-    connection_manager.set_job_manager(_job_store, _scheduler)
+_wire_routers(app, connection_manager, _store, _job_store, _scheduler)
 
 
 @app.get("/health")
@@ -152,7 +193,6 @@ async def health_check(detail: bool = False):
     if not detail:
         return {"status": "ok"}
 
-    # Deep health check: aggregate across all active sessions
     components: dict = {}
     overall = "healthy"
 
