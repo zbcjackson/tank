@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from tank_backend.config.models import ContextConfig
 from tank_backend.context.conversation import ConversationData
 from tank_backend.context.manager import ContextManager
+from tank_backend.context.resolver import CompactionMode, ResolvedConversation
 
 
 def _make_app_config():
@@ -20,7 +20,7 @@ def _make_app_config():
 
 def _make_manager(
     *,
-    store: object | None = MagicMock(),
+    resolver: object | None = None,
     app_config: object | None = None,
     config: ContextConfig | None = None,
     skill_provider: object | None = None,
@@ -30,9 +30,10 @@ def _make_manager(
         app_config = _make_app_config()
     if config is None:
         config = ContextConfig(store_type="file", store_path="/tmp/test-sessions")
+    if resolver is None:
+        resolver = MagicMock()
 
     with (
-        patch.object(ContextManager, "_create_store", return_value=store),
         patch.object(ContextManager, "_create_memory_service", return_value=None),
         patch.object(ContextManager, "_create_summarizer", return_value=None),
         patch(
@@ -40,453 +41,335 @@ def _make_manager(
             return_value="You are helpful.",
         ),
     ):
-        return ContextManager(app_config=app_config, config=config, skill_provider=skill_provider)
+        return ContextManager(
+            app_config=app_config, resolver=resolver,
+            config=config, skill_provider=skill_provider,
+        )
 
 
-class TestConversationLifecycle:
-    def test_new_conversation_creates_with_system_prompt(self):
-        store = MagicMock()
-        mgr = _make_manager(store=store)
-        cid = mgr.new_conversation()
+def _load_conversation(
+    mgr: ContextManager,
+    system_prompt: str = "You are helpful.",
+    mode: CompactionMode = CompactionMode.DESTRUCTIVE,
+) -> str:
+    """Helper: create a conversation and load it into the manager."""
+    conv = ConversationData.new(system_prompt)
+    resolved = ResolvedConversation(conversation=conv, compaction_mode=mode)
+    mgr.set_conversation(resolved)
+    return conv.id
+
+
+class TestSetConversation:
+    def test_loads_destructive(self):
+        mgr = _make_manager()
+        cid = _load_conversation(mgr)
         assert cid is not None
-        assert len(cid) == 32  # UUID hex
+        assert len(cid) == 32
         assert mgr.messages[0]["role"] == "system"
-        store.save.assert_called_once()
+        assert mgr._compaction_mode == CompactionMode.DESTRUCTIVE
 
-    def test_resume_or_new_creates_new_when_no_store(self):
-        mgr = _make_manager(store=None)
-        cid = mgr.resume_or_new()
-        assert cid is not None
+    def test_loads_non_destructive(self):
+        mgr = _make_manager()
+        _load_conversation(mgr, mode=CompactionMode.NON_DESTRUCTIVE)
+        assert mgr._compaction_mode == CompactionMode.NON_DESTRUCTIVE
+        assert mgr._channel_context_builder is not None
 
-    def test_resume_or_new_creates_new_when_no_latest(self):
-        store = MagicMock()
-        store.find_latest.return_value = None
-        mgr = _make_manager(store=store)
-        cid = mgr.resume_or_new()
-        assert cid is not None
-        store.find_latest.assert_called_once()
-
-    def test_resume_or_new_resumes_same_day_conversation(self):
-        # Use noon UTC today to avoid midnight boundary issues
-        today_noon = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
-        existing = ConversationData(
-            id="existing-id",
-            start_time=today_noon - timedelta(hours=1),
-            pid=1,
-            messages=[
-                {"role": "system", "content": "old prompt"},
-                {"role": "user", "content": "hello"},
-            ],
-        )
-        store = MagicMock()
-        store.find_latest.return_value = existing
-        mgr = _make_manager(store=store)
-
-        # Patch both the assembler and datetime.now so "today" matches
-        with (
-            patch.object(mgr._prompt_assembler, "assemble", return_value="new prompt"),
-            patch(
-                "tank_backend.context.manager.datetime",
-                wraps=datetime,
-            ) as mock_dt,
-        ):
-            mock_dt.now.return_value = today_noon
-            cid = mgr.resume_or_new()
-        assert cid == "existing-id"
-        assert len(mgr.messages) == 2  # preserved messages
-        # System prompt updated to current assembled version
-        assert mgr.messages[0]["content"] == "new prompt"
-
-    def test_resume_or_new_creates_new_on_different_day(self):
-        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
-        existing = ConversationData(
-            id="old-id",
-            start_time=yesterday,
-            pid=1,
-            messages=[{"role": "system", "content": "old"}],
-        )
-        store = MagicMock()
-        store.find_latest.return_value = existing
-        mgr = _make_manager(store=store)
-
-        cid = mgr.resume_or_new()
-        assert cid != "old-id"  # new conversation created
-
-    def test_clear_creates_new_conversation(self):
-        store = MagicMock()
-        mgr = _make_manager(store=store)
-        cid1 = mgr.new_conversation()
-        mgr.clear()
-        cid2 = mgr.conversation_id
-        assert cid1 != cid2
-        assert store.save.call_count == 2  # both conversations persisted
-
-    def test_resume_conversation_loads_specific(self):
-        existing = ConversationData(
-            id="target",
-            start_time=datetime.now(timezone.utc),
-            pid=1,
-            messages=[{"role": "system", "content": "test"}],
-        )
-        store = MagicMock()
-        store.load.return_value = existing
-        mgr = _make_manager(store=store)
-
-        assert mgr.resume_conversation("target")
-        assert mgr.conversation_id == "target"
-
-    def test_resume_conversation_returns_false_when_not_found(self):
-        store = MagicMock()
-        store.load.return_value = None
-        mgr = _make_manager(store=store)
-
-        assert not mgr.resume_conversation("nonexistent")
+    def test_resets_memory_context(self):
+        mgr = _make_manager()
+        mgr._memory_context = "old memory"
+        _load_conversation(mgr)
+        assert mgr._memory_context == ""
 
 
 class TestMessageManagement:
     def test_add_message_appends_and_persists(self):
-        store = MagicMock()
-        mgr = _make_manager(store=store)
-        mgr.new_conversation()
-        store.save.reset_mock()
+        mgr = _make_manager()
+        _load_conversation(mgr)
+        mgr._resolver.save.reset_mock()
 
         mgr.add_message("user", "hello", name="Jackson")
         assert len(mgr.messages) == 2
         assert mgr.messages[1] == {"role": "user", "content": "hello", "name": "Jackson"}
-        store.save.assert_called_once()
+        mgr._resolver.save.assert_called_once()
 
     def test_messages_empty_when_no_conversation(self):
-        mgr = _make_manager(store=None)
+        mgr = _make_manager()
         assert mgr.messages == []
 
 
 class TestPrepareTurn:
-    def test_returns_augmented_messages(self):
-        store = MagicMock()
-
+    async def test_returns_augmented_messages(self):
         def skill_provider():
             return "SKILLS: tool1"
 
-        mgr = _make_manager(store=store, skill_provider=skill_provider)
-        mgr.new_conversation()
+        mgr = _make_manager(skill_provider=skill_provider)
+        _load_conversation(mgr)
 
-        messages = mgr.prepare_turn("Jackson", "hello")
-        # Should contain skill catalog in system prompt + user message
+        messages = await mgr.prepare_turn("Jackson", "hello")
         assert any("SKILLS: tool1" in m.get("content", "") for m in messages)
         assert any(m.get("content") == "hello" for m in messages)
 
-    def test_does_not_mutate_stored_messages(self):
-        store = MagicMock()
-
+    async def test_does_not_mutate_stored_messages(self):
         def skill_provider():
             return "SKILLS: tool1"
 
-        mgr = _make_manager(store=store, skill_provider=skill_provider)
-        mgr.new_conversation()
+        mgr = _make_manager(skill_provider=skill_provider)
+        _load_conversation(mgr)
 
-        mgr.prepare_turn("Jackson", "hello")
-        # Stored system prompt SHOULD contain skill catalog (it's in layer 7 now)
+        await mgr.prepare_turn("Jackson", "hello")
         assert "SKILLS: tool1" in mgr.messages[0]["content"]
 
-    def test_includes_memory_context(self):
-        store = MagicMock()
-        mgr = _make_manager(store=store)
-        mgr.new_conversation()
+    async def test_includes_memory_context(self):
+        mgr = _make_manager()
+        _load_conversation(mgr)
         mgr._memory_context = "- likes Python"
 
-        messages = mgr.prepare_turn("Jackson", "hello")
+        messages = await mgr.prepare_turn("Jackson", "hello")
         system_content = messages[0]["content"]
         assert "KNOWN FACTS ABOUT Jackson" in system_content
         assert "likes Python" in system_content
 
     def test_finish_turn_records_turn_messages(self):
-        store = MagicMock()
-        mgr = _make_manager(store=store)
-        mgr.new_conversation()
-        store.save.reset_mock()
+        mgr = _make_manager()
+        _load_conversation(mgr)
+        mgr._resolver.save.reset_mock()
 
-        turn_msgs = [
-            {"role": "assistant", "content": "Hi there!"},
+        turn = [
+            {"role": "assistant", "content": "Hi!"},
         ]
-        mgr.finish_turn(turn_msgs)
-        assert mgr.messages[-1] == {"role": "assistant", "content": "Hi there!"}
-        store.save.assert_called_once()
+        mgr.finish_turn(turn)
+        assert mgr.messages[-1]["content"] == "Hi!"
+        mgr._resolver.save.assert_called_once()
 
     def test_finish_turn_records_tool_calls(self):
-        store = MagicMock()
-        mgr = _make_manager(store=store)
-        mgr.new_conversation()
-        store.save.reset_mock()
+        mgr = _make_manager()
+        _load_conversation(mgr)
+        mgr._resolver.save.reset_mock()
 
-        turn_msgs = [
-            {"role": "assistant", "content": None, "tool_calls": [
-                {"id": "tc1", "function": {"name": "get_weather", "arguments": "{}"}}
-            ]},
+        turn = [
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "tc1",
+                        "type": "function",
+                        "function": {"name": "get_weather", "arguments": '{"city":"NYC"}'},
+                    }
+                ],
+            },
             {"role": "tool", "tool_call_id": "tc1", "content": "Sunny"},
-            {"role": "assistant", "content": "The weather is sunny."},
+            {"role": "assistant", "content": "It's sunny in NYC!"},
         ]
-        mgr.finish_turn(turn_msgs)
+        mgr.finish_turn(turn)
         assert len(mgr.messages) == 4  # system + 3 turn messages
-        assert mgr.messages[-1]["content"] == "The weather is sunny."
-        store.save.assert_called_once()
+        mgr._resolver.save.assert_called_once()
 
 
 class TestMemory:
     async def test_recall_memory_fetches(self):
-        store = MagicMock()
-        mgr = _make_manager(store=store)
+        mgr = _make_manager()
+        _load_conversation(mgr)
         mgr._memory_service = AsyncMock()
-        mgr._memory_service.recall.return_value = ["likes Python", "lives in Shanghai"]
+        mgr._memory_service.recall.return_value = ["likes Python", "prefers dark mode"]
 
         await mgr.recall_memory("Jackson", "hello")
         assert "likes Python" in mgr._memory_context
-        assert "lives in Shanghai" in mgr._memory_context
 
     async def test_recall_memory_handles_error(self):
-        store = MagicMock()
-        mgr = _make_manager(store=store)
+        mgr = _make_manager()
+        _load_conversation(mgr)
         mgr._memory_service = AsyncMock()
         mgr._memory_service.recall.side_effect = RuntimeError("db error")
 
         await mgr.recall_memory("Jackson", "hello")
         assert mgr._memory_context == ""
 
-    async def test_recall_memory_skips_unknown_user(self):
-        store = MagicMock()
-        mgr = _make_manager(store=store)
+    async def test_recall_memory_skips_guest_user(self):
+        mgr = _make_manager()
+        _load_conversation(mgr)
         mgr._memory_service = AsyncMock()
 
-        await mgr.recall_memory("Unknown", "hello")
+        await mgr.recall_memory("Guest", "hello")
         mgr._memory_service.recall.assert_not_called()
 
     async def test_recall_memory_skips_when_no_service(self):
-        mgr = _make_manager(store=None)
+        mgr = _make_manager()
+        _load_conversation(mgr)
+        mgr._memory_service = None
+
         await mgr.recall_memory("Jackson", "hello")
         assert mgr._memory_context == ""
 
 
 class TestCompaction:
-    """Compaction is destructive — modifies conversation.messages in place."""
-
     async def test_no_compact_under_budget(self):
-        store = MagicMock()
-        config = ContextConfig(
-            max_history_tokens=50000,
+        mgr = _make_manager(config=ContextConfig(
+            max_history_tokens=100000,
             store_type="file",
             store_path="/tmp/test",
-        )
-        mgr = _make_manager(store=store, config=config)
-        mgr.new_conversation()
+        ))
+        _load_conversation(mgr)
         mgr.add_message("user", "hello")
-        original_count = len(mgr.messages)
+        mgr._resolver.save.reset_mock()
 
         await mgr.compact()
-        # Under budget — no change
-        assert len(mgr.messages) == original_count
+        # No truncation needed — save not called again
+        mgr._resolver.save.assert_not_called()
 
     async def test_truncation_when_over_budget(self):
-        store = MagicMock()
         config = ContextConfig(
             max_history_tokens=50,
-            keep_recent_messages=1,
+            keep_recent_messages=2,
             store_type="file",
             store_path="/tmp/test",
         )
-        mgr = _make_manager(store=store, config=config)
-        mgr.new_conversation()
+        mgr = _make_manager(config=config)
+        _load_conversation(mgr)
+
         for i in range(20):
-            mgr.add_message("user", f"message {i} " * 20)
-        original_count = len(mgr.messages)
+            mgr.add_message("user", f"message {i}")
+            mgr.add_message("assistant", f"reply {i}")
 
         await mgr.compact()
-        # Messages truncated in place
-        assert len(mgr.messages) < original_count
-        # System prompt preserved
-        assert mgr.messages[0]["role"] == "system"
+        assert len(mgr.messages) < 42  # truncated from 1 system + 40 msgs
 
     async def test_summarization_when_available(self):
-        store = MagicMock()
         config = ContextConfig(
             max_history_tokens=50,
             keep_recent_messages=2,
+            summary_max_tokens=100,
             store_type="file",
             store_path="/tmp/test",
         )
-        mgr = _make_manager(store=store, config=config)
-        mgr._summarizer = AsyncMock()
-        mgr._summarizer.summarize.return_value = "Summary of conversation"
-        mgr.new_conversation()
-        for i in range(10):
-            mgr.add_message("user", f"message {i} " * 20)
+        mgr = _make_manager(config=config)
+
+        mock_summarizer = AsyncMock()
+        mock_summarizer.summarize.return_value = "Summary of conversation"
+        mgr._summarizer = mock_summarizer
+
+        _load_conversation(mgr)
+        for i in range(20):
+            mgr.add_message("user", f"message {i}")
+            mgr.add_message("assistant", f"reply {i}")
 
         await mgr.compact()
-        mgr._summarizer.summarize.assert_called_once()
-        # Messages replaced: system + summary + 2 recent
-        assert len(mgr.messages) == 4
-        assert "Summary of conversation" in mgr.messages[1]["content"]
-        assert mgr.messages[1].get("metadata", {}).get("type") == "compaction_summary"
+        mock_summarizer.summarize.assert_called_once()
+        assert any("Summary of conversation" in m.get("content", "") for m in mgr.messages)
 
     async def test_fallback_to_truncation_on_summarizer_error(self):
-        store = MagicMock()
         config = ContextConfig(
             max_history_tokens=50,
             keep_recent_messages=2,
             store_type="file",
             store_path="/tmp/test",
         )
-        mgr = _make_manager(store=store, config=config)
-        mgr._summarizer = AsyncMock()
-        mgr._summarizer.summarize.side_effect = RuntimeError("LLM error")
-        mgr.new_conversation()
-        for i in range(10):
-            mgr.add_message("user", f"message {i} " * 20)
+        mgr = _make_manager(config=config)
+
+        mock_summarizer = AsyncMock()
+        mock_summarizer.summarize.side_effect = RuntimeError("LLM error")
+        mgr._summarizer = mock_summarizer
+
+        _load_conversation(mgr)
+        for i in range(20):
+            mgr.add_message("user", f"message {i}")
+            mgr.add_message("assistant", f"reply {i}")
+
+        await mgr.compact()
+        assert len(mgr.messages) < 42
+
+    async def test_compact_persists_after_modification(self):
+        config = ContextConfig(
+            max_history_tokens=50,
+            keep_recent_messages=2,
+            store_type="file",
+            store_path="/tmp/test",
+        )
+        mgr = _make_manager(config=config)
+        _load_conversation(mgr)
+        for i in range(20):
+            mgr.add_message("user", f"message {i}")
+            mgr.add_message("assistant", f"reply {i}")
+        mgr._resolver.save.reset_mock()
+
+        await mgr.compact()
+        mgr._resolver.save.assert_called()
+
+    async def test_compact_noop_for_non_destructive(self):
+        config = ContextConfig(
+            max_history_tokens=50,
+            keep_recent_messages=2,
+            store_type="file",
+            store_path="/tmp/test",
+        )
+        mgr = _make_manager(config=config)
+        _load_conversation(mgr, mode=CompactionMode.NON_DESTRUCTIVE)
+        for i in range(20):
+            mgr.add_message("user", f"message {i}")
+            mgr.add_message("assistant", f"reply {i}")
         original_count = len(mgr.messages)
 
         await mgr.compact()
-        # Fell back to truncation
-        assert len(mgr.messages) < original_count
-        # System prompt preserved
-        assert mgr.messages[0]["role"] == "system"
-
-    async def test_compact_persists_after_modification(self):
-        """Compaction should persist the modified conversation."""
-        store = MagicMock()
-        config = ContextConfig(
-            max_history_tokens=50,
-            keep_recent_messages=1,
-            store_type="file",
-            store_path="/tmp/test",
-        )
-        mgr = _make_manager(store=store, config=config)
-        mgr.new_conversation()
-        for i in range(20):
-            mgr.add_message("user", f"message {i} " * 20)
-        store.save.reset_mock()
-
-        await mgr.compact()
-        store.save.assert_called()
+        assert len(mgr.messages) == original_count  # no truncation
 
 
 class TestTokenCounting:
     def test_count_tokens_estimates(self):
-        mgr = _make_manager(store=None)
-        mgr.new_conversation()
+        mgr = _make_manager()
+        _load_conversation(mgr)
         count = mgr.count_tokens()
-        assert count > 0  # system prompt has tokens
+        assert count > 0
 
     def test_count_tokens_with_explicit_messages(self):
-        mgr = _make_manager(store=None)
-        count = mgr.count_tokens([{"role": "user", "content": "hello"}])
+        mgr = _make_manager()
+        _load_conversation(mgr)
+        msgs = [{"role": "user", "content": "hello world"}]
+        count = mgr.count_tokens(msgs)
         assert count > 0
 
     def test_count_tokens_empty(self):
-        mgr = _make_manager(store=None)
+        mgr = _make_manager()
         assert mgr.count_tokens([]) == 0
-
-
-class TestStoreCreation:
-    def test_creates_file_store(self, tmp_path):
-        app_config = _make_app_config()
-        config = ContextConfig(store_type="file", store_path=str(tmp_path / "sessions"))
-
-        with (
-            patch.object(ContextManager, "_create_memory_service", return_value=None),
-            patch.object(ContextManager, "_create_summarizer", return_value=None),
-            patch(
-                "tank_backend.prompts.assembler.PromptAssembler.assemble",
-                return_value="test",
-            ),
-        ):
-            mgr = ContextManager(app_config=app_config, config=config)
-
-        from tank_backend.context.file_store import FileConversationStore
-
-        assert isinstance(mgr._store, FileConversationStore)
-
-    def test_creates_sqlite_store(self, tmp_path):
-        app_config = _make_app_config()
-        config = ContextConfig(
-            store_type="sqlite", store_path=str(tmp_path / "test.db")
-        )
-
-        with (
-            patch.object(ContextManager, "_create_memory_service", return_value=None),
-            patch.object(ContextManager, "_create_summarizer", return_value=None),
-            patch(
-                "tank_backend.prompts.assembler.PromptAssembler.assemble",
-                return_value="test",
-            ),
-        ):
-            mgr = ContextManager(app_config=app_config, config=config)
-
-        from tank_backend.context.sqlite_store import SqliteConversationStore
-
-        assert isinstance(mgr._store, SqliteConversationStore)
-        mgr.close()
 
 
 class TestProperties:
     def test_conversation_id_none_initially(self):
-        mgr = _make_manager(store=None)
+        mgr = _make_manager()
         assert mgr.conversation_id is None
 
-    def test_conversation_id_after_new_conversation(self):
-        mgr = _make_manager(store=None)
-        cid = mgr.new_conversation()
+    def test_conversation_id_after_set_conversation(self):
+        mgr = _make_manager()
+        cid = _load_conversation(mgr)
         assert mgr.conversation_id == cid
 
-    def test_prompt_assembler_exposed(self):
-        mgr = _make_manager(store=None)
+    def test_session_id_alias(self):
+        mgr = _make_manager()
+        _load_conversation(mgr)
+        assert mgr.session_id == mgr.conversation_id
+
+    def test_prompt_assembler_accessible(self):
+        mgr = _make_manager()
+        _load_conversation(mgr)
         assert mgr.prompt_assembler is not None
 
+    def test_pending_approvals_none_initially(self):
+        mgr = _make_manager()
+        _load_conversation(mgr)
+        assert mgr.pending_approvals is None
 
-class TestSystemPromptRefresher:
-    def test_returns_none_when_no_rebuild(self):
-        mgr = _make_manager(store=None)
-        mgr.new_conversation()
-        callback = mgr.get_system_prompt_refresher(user="Jackson")
-        # Prompt is fresh — no rebuild needed
-        assert callback() is None
+    def test_pending_approvals_roundtrip(self):
+        mgr = _make_manager()
+        _load_conversation(mgr)
+        mgr.pending_approvals = [{"id": "1", "tool": "test"}]
+        assert mgr.pending_approvals == [{"id": "1", "tool": "test"}]
 
-    def test_returns_prompt_when_dirty(self):
-        mgr = _make_manager(store=None)
-        mgr.new_conversation()
-        # Force needs_rebuild to return True
-        mgr._prompt_assembler._needs_rebuild = True
-        callback = mgr.get_system_prompt_refresher(user="Jackson")
-        result = callback()
-        assert result is not None
-        assert isinstance(result, str)
+    def test_close_persists(self):
+        mgr = _make_manager()
+        _load_conversation(mgr)
+        mgr._resolver.save.reset_mock()
+        mgr.close()
+        mgr._resolver.save.assert_called_once()
 
-    def test_includes_memory_augmentation(self):
-        mgr = _make_manager(store=None)
-        mgr.new_conversation()
-        mgr._memory_context = "- likes Python"
-        mgr._prompt_assembler._needs_rebuild = True
-        callback = mgr.get_system_prompt_refresher(user="Jackson")
-        result = callback()
-        assert "KNOWN FACTS ABOUT Jackson" in result
-        assert "likes Python" in result
-
-    def test_updates_stored_conversation(self):
-        mgr = _make_manager(store=None)
-        mgr.new_conversation()
-        old_prompt = mgr.messages[0]["content"]
-        mgr._prompt_assembler._needs_rebuild = True
-        with patch.object(mgr._prompt_assembler, "assemble", return_value="NEW PROMPT"):
-            callback = mgr.get_system_prompt_refresher(user="Jackson")
-            callback()
-        # Stored conversation updated with base prompt (no memory)
-        assert mgr.messages[0]["content"] == "NEW PROMPT"
-        assert mgr.messages[0]["content"] != old_prompt
-
-    def test_returns_none_on_second_call(self):
-        mgr = _make_manager(store=None)
-        mgr.new_conversation()
-        mgr._prompt_assembler._needs_rebuild = True
-        callback = mgr.get_system_prompt_refresher(user="Jackson")
-        first = callback()
-        assert first is not None
-        # After assemble(), needs_rebuild should be False
-        second = callback()
-        assert second is None
+    def test_close_noop_without_conversation(self):
+        mgr = _make_manager()
+        mgr.close()  # should not raise

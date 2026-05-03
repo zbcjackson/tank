@@ -77,7 +77,7 @@ class TestBrain:
 
     def test_brain_initializes_with_context_messages(self, brain, mock_context):
         """Brain should use context for conversation history."""
-        assert mock_context.resume_or_new.called
+        assert mock_context.set_conversation.called
         assert len(mock_context.messages) == 1
         assert mock_context.messages[0]["role"] == "system"
 

@@ -58,6 +58,8 @@ class Brain(Processor):
         echo_guard_config: EchoGuardConfig | None = None,
         agent_graph: "AgentGraph | None" = None,
         approval_manager: Any = None,
+        channel_store: Any = None,
+        conversation_store: Any = None,
     ):
         super().__init__(name="brain")
         self._llm = llm
@@ -92,7 +94,21 @@ class Brain(Processor):
         self._echo_config = echo_guard_config or EchoGuardConfig()
         self._echo_detector = SelfEchoDetector(self._echo_config)
 
-        # Create ContextManager — owns conversation lifecycle, memory, prompt assembly
+        # Create ConversationResolver — owns conversation lifecycle decisions
+        from ...context.resolver import ConversationResolver
+        from ...context.store import create_store
+
+        if conversation_store is None:
+            store_type = app_config.context.store_type if app_config else "file"
+            store_path = app_config.context.store_path if app_config else "~/.tank/sessions"
+            conversation_store = create_store(store_type, store_path)
+
+        self._resolver = ConversationResolver(
+            conversation_store=conversation_store,
+            channel_store=channel_store,
+        )
+
+        # Create ContextManager — pure context engine, no lifecycle logic
         from ...context import ContextConfig, ContextManager
 
         context_config = ContextConfig(
@@ -102,6 +118,7 @@ class Brain(Processor):
         )
         self._context = ContextManager(
             app_config=app_config,
+            resolver=self._resolver,
             bus=bus,
             config=context_config,
             skill_provider=tool_manager.get_skill_catalog,
@@ -115,7 +132,9 @@ class Brain(Processor):
                 tool_manager.register_tool(tool)
 
         # Start or resume conversation
-        self._context.resume_or_new()
+        system_prompt = self._context.assemble_system_prompt()
+        resolved = self._resolver.resume_or_new(system_prompt)
+        self._context.set_conversation(resolved)
 
         # Track current msg_id for approval notifications from sub-agents
         self._current_msg_id: str = ""
@@ -238,24 +257,29 @@ class Brain(Processor):
 
     def reset_conversation(self) -> None:
         """Clear context and start a new conversation."""
-        self._context.clear()
+        system_prompt = self._context.assemble_system_prompt()
+        resolved = self._resolver.new(system_prompt)
+        self._context.set_conversation(resolved)
         self._pending_store.clear_all()
         logger.info("Conversation cleared — new: %s", self._context.conversation_id)
 
     def resume_conversation(self, conversation_id: str) -> bool:
         """Resume a persisted conversation by ID. Returns False if not found."""
-        success = self._context.resume_conversation(conversation_id)
-        if success:
-            # Restore pending approvals from persisted state
-            pending_data = self._context.pending_approvals
-            if pending_data:
-                self._pending_store.restore(pending_data)
-                logger.info(
-                    "Restored %d pending approval(s) from conversation %s",
-                    len(pending_data),
-                    conversation_id,
-                )
-        return success
+        system_prompt = self._context.assemble_system_prompt()
+        resolved = self._resolver.resume(conversation_id, system_prompt)
+        if resolved is None:
+            return False
+        self._context.set_conversation(resolved)
+        # Restore pending approvals from persisted state
+        pending_data = self._context.pending_approvals
+        if pending_data:
+            self._pending_store.restore(pending_data)
+            logger.info(
+                "Restored %d pending approval(s) from conversation %s",
+                len(pending_data),
+                conversation_id,
+            )
+        return True
 
     def _finish_turn(self, turn_messages: list[dict]) -> None:
         """Finish turn and persist conversation with pending approvals."""
@@ -265,7 +289,7 @@ class Brain(Processor):
 
     def new_conversation(self) -> str:
         """Start a fresh conversation. Returns the new conversation ID."""
-        self._context.clear()
+        self.reset_conversation()
         return self._context.conversation_id or ""
 
     @property
@@ -396,7 +420,7 @@ class Brain(Processor):
         await self._context.recall_memory(event.user, event.text)
 
         # --- Prepare messages for LLM ---
-        messages = self._context.prepare_turn(event.user, event.text)
+        messages = await self._context.prepare_turn(event.user, event.text)
 
         # --- System prompt refresher for mid-turn updates ---
         system_prompt_fn = self._context.get_system_prompt_refresher(user=event.user)
@@ -621,7 +645,7 @@ class Brain(Processor):
             agents={"confirm": confirm_agent}, default_agent="confirm",
         )
 
-        messages = self._context.prepare_turn(event.user, event.text)
+        messages = await self._context.prepare_turn(event.user, event.text)
         state = AgentState(
             messages=messages,
             metadata={"msg_id": msg_id, "user": event.user},

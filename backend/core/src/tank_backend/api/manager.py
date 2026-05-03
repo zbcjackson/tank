@@ -81,6 +81,8 @@ class ConnectionManager:
                 job_store=ctx.job_store,
                 job_scheduler=ctx.scheduler,
                 registry=ctx.registry,
+                channel_store=ctx.channel_store,
+                conversation_store=ctx.conversation_store,
             )
             self._sessions[session_id] = assistant
             self._ws_refcount[session_id] = 1

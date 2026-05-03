@@ -5,6 +5,8 @@ from __future__ import annotations
 import threading
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from tank_backend.context.conversation import ConversationData
+from tank_backend.context.resolver import CompactionMode, ResolvedConversation
 from tank_backend.pipeline.bus import Bus
 from tank_backend.pipeline.processors.brain import Brain, BrainConfig
 
@@ -13,13 +15,29 @@ def make_mock_context(system_prompt: str = "You are a helpful assistant.") -> Ma
     """Create a mock ContextManager for Brain tests."""
     ctx = MagicMock()
     ctx.session_id = "test-session-id"
+    ctx.conversation_id = "test-session-id"
     ctx.messages = [{"role": "system", "content": system_prompt}]
-    ctx.resume_or_new.return_value = "test-session-id"
-    ctx.prepare_turn.return_value = [{"role": "system", "content": system_prompt}]
+    ctx.prepare_turn = AsyncMock(return_value=[{"role": "system", "content": system_prompt}])
     ctx.count_tokens.return_value = 0
     ctx.recall_memory = AsyncMock()
     ctx.compact = AsyncMock()
+    ctx.assemble_system_prompt.return_value = system_prompt
+    ctx.preference_store = None
+    ctx.pending_approvals = None
     return ctx
+
+
+def make_mock_resolver() -> MagicMock:
+    """Create a mock ConversationResolver for Brain tests."""
+    conv = ConversationData.new("You are a helpful assistant.")
+    resolved = ResolvedConversation(
+        conversation=conv, compaction_mode=CompactionMode.DESTRUCTIVE,
+    )
+    resolver = MagicMock()
+    resolver.resume_or_new.return_value = resolved
+    resolver.resume.return_value = resolved
+    resolver.new.return_value = resolved
+    return resolver
 
 
 def make_brain(
@@ -65,13 +83,19 @@ def make_brain(
     mock_app_config = MagicMock()
     mock_app_config.get_section.return_value = {}
 
-    # Brain does: from ...context import ContextConfig, ContextManager
-    # which resolves via tank_backend.context.__init__ → .manager.ContextManager
-    # Patch at the __init__ re-export level so the local import picks it up.
+    # Brain creates ConversationResolver and ContextManager internally.
+    # Patch both at the import level so Brain.__init__ picks up our mocks.
     mock_cm_class = MagicMock(return_value=context)
-    with patch.dict(
-        "tank_backend.context.__dict__",
-        {"ContextManager": mock_cm_class},
+    mock_resolver_class = MagicMock(return_value=make_mock_resolver())
+    with (
+        patch.dict(
+            "tank_backend.context.__dict__",
+            {"ContextManager": mock_cm_class},
+        ),
+        patch(
+            "tank_backend.context.resolver.ConversationResolver",
+            mock_resolver_class,
+        ),
     ):
         return Brain(
             llm=llm,

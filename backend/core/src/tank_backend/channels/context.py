@@ -9,15 +9,13 @@ messages arrive.
 from __future__ import annotations
 
 import logging
-from typing import Any, Protocol
+from typing import Any
 
 import tiktoken
 
+from ..context.conversation import Summarizer
+
 logger = logging.getLogger(__name__)
-
-
-class Summarizer(Protocol):
-    async def summarize(self, messages: list[dict[str, Any]]) -> str: ...
 
 
 class ChannelContextBuilder:

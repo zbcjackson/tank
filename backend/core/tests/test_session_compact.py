@@ -47,9 +47,10 @@ class TestBrainSessionCompact:
         )
 
     def test_reset_conversation_delegates_to_context(self, brain, mock_context):
-        """reset_conversation() should delegate to context.clear()."""
+        """reset_conversation() should create new conversation via resolver."""
         brain.reset_conversation()
-        mock_context.clear.assert_called_once()
+        # Brain now calls resolver.new() then context.set_conversation()
+        mock_context.set_conversation.assert_called()
 
     async def test_compact_delegates_to_context(self, brain, mock_llm, mock_context):
         """__compact__ should delegate to context.compact()."""

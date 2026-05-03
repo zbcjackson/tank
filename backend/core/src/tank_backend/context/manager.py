@@ -1,4 +1,9 @@
-"""ContextManager — owns conversation state, lifecycle, compaction, and prompt assembly."""
+"""ContextManager — owns conversation context, compaction, and prompt assembly.
+
+Receives a :class:`ResolvedConversation` from the caller (Brain) via
+:meth:`set_conversation`. Never queries stores or knows about channels.
+Persistence is delegated to the :class:`ConversationResolver`.
+"""
 
 from __future__ import annotations
 
@@ -14,30 +19,28 @@ from ..config.models import ContextConfig
 from ..config.parser import ConfigError
 from ..users import is_guest
 from .conversation import ConversationData
-from .store import create_store
+from .resolver import CompactionMode, ResolvedConversation
 
 logger = logging.getLogger(__name__)
 
 
 class ContextManager:
-    """Central owner of conversation context.
-
-    Single message list model: conversation and context are the same thing.
-    Compaction is destructive — modifies messages in place.
+    """Pure context engine for a single conversation.
 
     Architecture:
-    - **ConversationData** — single message list, persisted
+    - **ConversationData** — single message list, persisted via resolver
     - **PromptAssembler** — builds system prompts from files (cached)
     - **Summarizer** — summarizes old messages during compaction
     - **MemoryService** — recalls/stores user facts
 
-    Brain interacts through :meth:`prepare_turn`, :meth:`finish_turn`,
-    :meth:`recall_memory`, and :meth:`compact`.
+    Brain interacts through :meth:`set_conversation`, :meth:`prepare_turn`,
+    :meth:`finish_turn`, :meth:`recall_memory`, and :meth:`compact`.
     """
 
     def __init__(
         self,
         app_config: Any,
+        resolver: Any = None,
         bus: Any = None,
         config: ContextConfig | None = None,
         skill_provider: Any = None,
@@ -45,14 +48,16 @@ class ContextManager:
         self._app_config = app_config
         self._config = config or ContextConfig()
         self._bus = bus
+        self._resolver = resolver
         self._conversation: ConversationData | None = None
+        self._compaction_mode: CompactionMode = CompactionMode.DESTRUCTIVE
+        self._channel_context_builder: Any = None
         self._memory_context: str = ""
         self._last_user: str = ""
         self._last_user_text: str = ""
         self._encoder = tiktoken.get_encoding("cl100k_base")
 
         # Create dependencies
-        self._store = self._create_store()
         self._memory_service = self._create_memory_service()
         self._summarizer = self._create_summarizer()
         self._preference_store = self._create_preference_store()
@@ -66,9 +71,6 @@ class ContextManager:
     # ------------------------------------------------------------------
     # Dependency factories
     # ------------------------------------------------------------------
-
-    def _create_store(self) -> Any:
-        return create_store(self._config.store_type, self._config.store_path)
 
     def _create_memory_service(self) -> Any:
         """Create MemoryService from config, or ``None`` if disabled."""
@@ -159,65 +161,32 @@ class ContextManager:
         return PreferenceLearner(self._preference_store, llm)
 
     # ------------------------------------------------------------------
-    # Conversation lifecycle
+    # Conversation loading
     # ------------------------------------------------------------------
 
-    def new_conversation(self) -> str:
-        """Create a fresh conversation with assembled system prompt. Persists immediately."""
-        system_prompt = self._prompt_assembler.assemble()
-        self._conversation = ConversationData.new(system_prompt)
-        self._persist()
-        logger.info("New conversation created: %s", self._conversation.id)
-        return self._conversation.id
+    def set_conversation(self, resolved: ResolvedConversation) -> None:
+        """Load a resolved conversation. Sets compaction strategy.
 
-    def resume_or_new(self) -> str:
-        """Resume latest same-day conversation, or create new.
-
-        This is the main entry point called from Brain.__init__.
+        Called by Brain after ConversationResolver decides which conversation
+        to use and what compaction mode applies.
         """
-        if self._store is not None:
-            latest = self._store.find_latest()
-            if latest is not None:
-                today = datetime.now(timezone.utc).date()
-                if latest.start_time.date() == today:
-                    self._conversation = latest
-                    # Update system prompt to current assembled version
-                    system_prompt = self._prompt_assembler.assemble()
-                    if (
-                        self._conversation.messages
-                        and self._conversation.messages[0].get("role") == "system"
-                    ):
-                        self._conversation.messages[0]["content"] = system_prompt
-                    logger.info(
-                        "Resumed conversation %s (%d messages)",
-                        latest.id,
-                        len(latest.messages),
-                    )
-                    return self._conversation.id
-
-        return self.new_conversation()
-
-    def resume_conversation(self, conversation_id: str) -> bool:
-        """Resume a specific conversation by ID. Returns False if not found."""
-        if self._store is None:
-            return False
-        conv = self._store.load(conversation_id)
-        if conv is None:
-            return False
-        self._conversation = conv
-        # Update system prompt to current assembled version
-        system_prompt = self._prompt_assembler.assemble()
-        if (
-            self._conversation.messages
-            and self._conversation.messages[0].get("role") == "system"
-        ):
-            self._conversation.messages[0]["content"] = system_prompt
-        return True
-
-    def clear(self) -> None:
-        """Clear context and start a new conversation."""
+        self._conversation = resolved.conversation
+        self._compaction_mode = resolved.compaction_mode
+        self._channel_context_builder = None
         self._memory_context = ""
-        self.new_conversation()
+
+        if resolved.compaction_mode == CompactionMode.NON_DESTRUCTIVE:
+            from ..channels.context import ChannelContextBuilder
+
+            self._channel_context_builder = ChannelContextBuilder(
+                max_tokens=self._config.max_history_tokens,
+                keep_recent=self._config.keep_recent_messages,
+                summarizer=self._summarizer,
+            )
+
+    def assemble_system_prompt(self) -> str:
+        """Assemble the current system prompt. Used by resolver for lifecycle."""
+        return self._prompt_assembler.assemble()
 
     def close(self) -> None:
         """Persist and release resources."""
@@ -240,7 +209,7 @@ class ContextManager:
         except Exception:
             logger.warning("Memory recall failed for user %s", user, exc_info=True)
 
-    def prepare_turn(
+    async def prepare_turn(
         self,
         user: str,
         text: str,
@@ -251,6 +220,8 @@ class ContextManager:
         2. Rebuild system prompt in-memory if needed
         3. Augment with memory context (temporary, not persisted)
         4. Return a copy of messages for the LLM
+           - For channel conversations: derived context via ChannelContextBuilder
+           - For regular conversations: raw conversation messages
         """
         self.add_message("user", text, name=user)
 
@@ -263,23 +234,38 @@ class ContextManager:
             new_prompt = self._prompt_assembler.assemble()
             self._conversation.messages[0] = {"role": "system", "content": new_prompt}
 
-        # Return copy with memory + preference augmentation (temporary, not persisted)
-        # Skip all user-specific augmentation for guest users
+        # Build augmented system prompt (memory + preferences)
         messages = list(self._conversation.messages)
+        augmented_system = messages[0]["content"] if messages else ""
 
         if not is_guest(user):
-            augmented = messages[0]["content"]
-
             if self._memory_context:
-                augmented += f"\n\nKNOWN FACTS ABOUT {user}:\n{self._memory_context}"
-
+                augmented_system += (
+                    f"\n\nKNOWN FACTS ABOUT {user}:\n{self._memory_context}"
+                )
             if self._preference_store:
                 prefs = self._preference_store.render_for_user(user)
                 if prefs:
-                    augmented += f"\n\nUSER PREFERENCES ({user}):\n{prefs}"
+                    augmented_system += (
+                        f"\n\nUSER PREFERENCES ({user}):\n{prefs}"
+                    )
 
-            if augmented != messages[0]["content"]:
-                messages[0] = {"role": "system", "content": augmented}
+        # Non-destructive compaction: derive context, preserve full history
+        if (
+            self._compaction_mode == CompactionMode.NON_DESTRUCTIVE
+            and self._channel_context_builder is not None
+        ):
+            conv_messages = self._conversation.messages[1:]
+            derived = await self._channel_context_builder.build(
+                conv_messages,
+                self._conversation.id,
+                augmented_system,
+            )
+            return derived
+
+        # Destructive compaction: return full messages with augmented system prompt
+        if augmented_system != messages[0]["content"]:
+            messages[0] = {"role": "system", "content": augmented_system}
 
         return messages
 
@@ -344,9 +330,13 @@ class ContextManager:
     async def compact(self) -> None:
         """Compact conversation if over token budget.
 
-        Destructive — modifies conversation.messages in place.
+        For channel conversations: no-op (history is preserved, context is derived).
+        For regular conversations: destructive — modifies messages in place.
         Strategy: summarize first (preserves context), fall back to truncation.
         """
+        if self._compaction_mode == CompactionMode.NON_DESTRUCTIVE:
+            return
+
         total = self.count_tokens()
         budget = self._config.max_history_tokens
         if total <= budget:
@@ -498,10 +488,10 @@ class ContextManager:
     # ------------------------------------------------------------------
 
     def _persist(self) -> None:
-        """Save current conversation to store."""
-        if self._store is None or self._conversation is None:
+        """Save current conversation via resolver."""
+        if self._resolver is None or self._conversation is None:
             return
-        self._store.save(self._conversation)
+        self._resolver.save(self._conversation)
 
     # ------------------------------------------------------------------
     # Properties

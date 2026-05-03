@@ -64,7 +64,11 @@ class Assistant:
         job_store: Any = None,
         job_scheduler: Any = None,
         registry: Any = None,
+        channel_store: Any = None,
+        conversation_store: Any = None,
     ) -> None:
+        self._channel_store = channel_store
+        self._conversation_store = conversation_store
         registry = self._init_config_and_llm(app_config, registry=registry)
         self._init_bus()
         self._init_tools()
@@ -170,6 +174,8 @@ class Assistant:
             app_config=self._app_config,
             tts_enabled=tts_engine is not None,
             echo_guard_config=echo_guard_cfg,
+            channel_store=self._channel_store,
+            conversation_store=self._conversation_store,
         )
         builder.add(self.brain)
 

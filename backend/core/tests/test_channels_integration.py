@@ -408,3 +408,142 @@ class TestJobRunnerEndToEnd:
         conv = conversation_store.load(channel.conversation_id)
         assert conv is not None
         assert any(m["content"] == "E2E result" for m in conv.messages)
+
+
+# ---------------------------------------------------------------------------
+# 7. ContextManager channel-aware prepare_turn + no-op compact
+# ---------------------------------------------------------------------------
+
+
+class TestChannelContextManager:
+    """ContextManager uses non-destructive context for channel conversations."""
+
+    @staticmethod
+    def _make_app_config():
+        cfg = MagicMock()
+        cfg.memory.enabled = False
+        cfg.preferences.enabled = False
+        cfg.get_llm_profile.side_effect = KeyError("no profile")
+        return cfg
+
+    async def test_prepare_turn_returns_derived_context(
+        self, channel_store, conversation_store, tmp_path,
+    ):
+        """For channel conversations, prepare_turn returns derived context,
+        not the raw (potentially huge) message list."""
+        from tank_backend.config.models import ContextConfig
+        from tank_backend.context.manager import ContextManager
+        from tank_backend.context.resolver import ConversationResolver
+
+        # Create a channel with many messages
+        channel = channel_store.create(
+            "big-channel", name="Big Channel",
+            conversation_store=conversation_store,
+        )
+        conv = conversation_store.load(channel.conversation_id)
+        for i in range(20):
+            conv.messages.append({"role": "user", "content": f"Message {i}"})
+            conv.messages.append({"role": "assistant", "content": f"Reply {i}"})
+        conversation_store.save(conv)
+
+        resolver = ConversationResolver(
+            conversation_store=conversation_store,
+            channel_store=channel_store,
+        )
+        config = ContextConfig(
+            max_history_tokens=500,
+            keep_recent_messages=4,
+        )
+        ctx = ContextManager(
+            app_config=self._make_app_config(),
+            resolver=resolver,
+            config=config,
+        )
+
+        # Resume the channel conversation via resolver
+        resolved = resolver.resume(channel.conversation_id, "You are helpful.")
+        assert resolved is not None
+        ctx.set_conversation(resolved)
+
+        # prepare_turn should return derived (compacted) context, not all 41+ messages
+        messages = await ctx.prepare_turn("test-user", "New question")
+        assert len(messages) < len(conv.messages)
+
+        # Full history should still be preserved (user message was appended)
+        full = conversation_store.load(channel.conversation_id)
+        assert len(full.messages) > len(messages)
+        assert full.messages[-1]["content"] == "New question"
+
+    async def test_compact_is_noop_for_channels(
+        self, channel_store, conversation_store, tmp_path,
+    ):
+        """compact() should not modify channel conversation history."""
+        from tank_backend.config.models import ContextConfig
+        from tank_backend.context.manager import ContextManager
+        from tank_backend.context.resolver import ConversationResolver
+
+        channel = channel_store.create(
+            "preserved", name="Preserved",
+            conversation_store=conversation_store,
+        )
+        conv = conversation_store.load(channel.conversation_id)
+        for i in range(30):
+            conv.messages.append({"role": "user", "content": f"Msg {i}"})
+            conv.messages.append({"role": "assistant", "content": f"Reply {i}"})
+        conversation_store.save(conv)
+        original_count = len(conv.messages)
+
+        resolver = ConversationResolver(
+            conversation_store=conversation_store,
+            channel_store=channel_store,
+        )
+        config = ContextConfig(
+            max_history_tokens=200,
+            keep_recent_messages=4,
+        )
+        ctx = ContextManager(
+            app_config=self._make_app_config(),
+            resolver=resolver,
+            config=config,
+        )
+        resolved = resolver.resume(channel.conversation_id, "You are helpful.")
+        ctx.set_conversation(resolved)
+
+        # compact should be a no-op
+        await ctx.compact()
+
+        # Messages unchanged
+        reloaded = conversation_store.load(channel.conversation_id)
+        assert len(reloaded.messages) == original_count
+
+    async def test_regular_conversation_unaffected(
+        self, channel_store, conversation_store, tmp_path,
+    ):
+        """Regular (non-channel) conversations still use normal prepare_turn."""
+        from tank_backend.config.models import ContextConfig
+        from tank_backend.context.manager import ContextManager
+        from tank_backend.context.resolver import ConversationResolver
+
+        # Create a regular conversation (not a channel)
+        conv = ConversationData.new(system_prompt="You are helpful.")
+        conv.messages.append({"role": "user", "content": "Hello"})
+        conv.messages.append({"role": "assistant", "content": "Hi!"})
+        conversation_store.save(conv)
+
+        resolver = ConversationResolver(
+            conversation_store=conversation_store,
+            channel_store=channel_store,
+        )
+        config = ContextConfig(max_history_tokens=100000)
+        ctx = ContextManager(
+            app_config=self._make_app_config(),
+            resolver=resolver,
+            config=config,
+        )
+        resolved = resolver.resume(conv.id, "You are helpful.")
+        ctx.set_conversation(resolved)
+
+        messages = await ctx.prepare_turn("test-user", "Question")
+        # Regular: returns all messages (system + user + assistant + new user)
+        assert len(messages) == 4
+        assert messages[-1]["content"] == "Question"

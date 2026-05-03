@@ -90,6 +90,17 @@ class ChannelStore:
             return None
         return self._row_to_channel(row)
 
+    def get_by_conversation_id(self, conversation_id: str) -> ChannelData | None:
+        """Reverse lookup: find the channel that owns a conversation_id, or None."""
+        row = self._conn.execute(
+            "SELECT slug, name, conversation_id, description, auto_created, "
+            "created_at, updated_at FROM channels WHERE conversation_id = ?",
+            (conversation_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return self._row_to_channel(row)
+
     def get_or_create(
         self,
         slug: str,

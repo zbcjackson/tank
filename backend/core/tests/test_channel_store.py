@@ -189,6 +189,20 @@ class TestChannelStoreGet:
         assert channel_store.get("nope") is None
 
 
+class TestChannelStoreGetByConversationId:
+    def test_finds_channel(
+        self, channel_store: ChannelStore, conv_store: _MemoryConvStore,
+    ):
+        created = channel_store.create("my-ch", "My Channel", conv_store)
+        found = channel_store.get_by_conversation_id(created.conversation_id)
+        assert found is not None
+        assert found.slug == "my-ch"
+        assert found.conversation_id == created.conversation_id
+
+    def test_returns_none_for_unknown(self, channel_store: ChannelStore):
+        assert channel_store.get_by_conversation_id("nonexistent-id") is None
+
+
 class TestChannelStoreGetOrCreate:
     def test_returns_existing(
         self, channel_store: ChannelStore, conv_store: _MemoryConvStore,
