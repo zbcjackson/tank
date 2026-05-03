@@ -53,15 +53,16 @@ class JobManagementTool(BaseTool):
                 ToolParameter(
                     name="schedule", type="string", required=False,
                     description=(
-                        "Cron expression or human-friendly schedule like 'every day at 9am', "
-                        "'every 30m', 'weekdays at 14:30' (for create/update)"
+                        "5-field cron expression, e.g. '0 9 * * *' for daily at 9am, "
+                        "'*/30 * * * *' for every 30 minutes, "
+                        "'0 14 * * 1-5' for weekdays at 2pm (for create/update)"
                     ),
                 ),
                 ToolParameter(
                     name="delivery", type="string", required=False,
                     description=(
-                        "JSON delivery config: {\"audio\": true, \"text\": true, "
-                        "\"webhook_url\": \"...\"} (for create/update)"
+                        "JSON delivery config: {\"channels\": [\"daily-report\"], "
+                        "\"log_output\": true} (for create/update)"
                     ),
                 ),
                 ToolParameter(

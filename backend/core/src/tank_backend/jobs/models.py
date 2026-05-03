@@ -13,40 +13,20 @@ from typing import Any
 class DeliveryConfig:
     """How to deliver job results."""
 
-    audio: bool = False
-    audio_voice: str | None = None
-    audio_priority: str = "low"  # "low" | "normal" | "high"
-    audio_idle_threshold: int = 300  # seconds of silence before auto-play
-
-    text: bool = True
-    text_path: str | None = None  # custom output path override
-
-    webhook_url: str | None = None
-    webhook_headers: dict[str, str] = field(default_factory=dict)
+    channels: tuple[str, ...] = ()  # channel slugs to deliver to
+    log_output: bool = True  # write file log as audit trail
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "audio": self.audio,
-            "audio_voice": self.audio_voice,
-            "audio_priority": self.audio_priority,
-            "audio_idle_threshold": self.audio_idle_threshold,
-            "text": self.text,
-            "text_path": self.text_path,
-            "webhook_url": self.webhook_url,
-            "webhook_headers": dict(self.webhook_headers),
+            "channels": list(self.channels),
+            "log_output": self.log_output,
         }
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> DeliveryConfig:
         return DeliveryConfig(
-            audio=data.get("audio", False),
-            audio_voice=data.get("audio_voice"),
-            audio_priority=data.get("audio_priority", "low"),
-            audio_idle_threshold=data.get("audio_idle_threshold", 300),
-            text=data.get("text", True),
-            text_path=data.get("text_path"),
-            webhook_url=data.get("webhook_url"),
-            webhook_headers=data.get("webhook_headers") or {},
+            channels=tuple(data.get("channels", ())),
+            log_output=data.get("log_output", data.get("text", True)),
         )
 
 

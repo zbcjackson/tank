@@ -27,6 +27,7 @@ class AppContext:
     scheduler: Any = None
     conversation_store: Any = None
     voiceprint_recognizer: Any = None
+    channel_store: Any = None
 
 
 @dataclass(frozen=True)

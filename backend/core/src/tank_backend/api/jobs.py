@@ -49,14 +49,8 @@ def _get_scheduler():
 # ------------------------------------------------------------------
 
 class DeliveryRequest(BaseModel):
-    audio: bool = False
-    audio_voice: str | None = None
-    audio_priority: str = "low"
-    audio_idle_threshold: int = 300
-    text: bool = True
-    text_path: str | None = None
-    webhook_url: str | None = None
-    webhook_headers: dict[str, str] = Field(default_factory=dict)
+    channels: list[str] = Field(default_factory=list)
+    log_output: bool = True
 
 
 class CreateJobRequest(BaseModel):

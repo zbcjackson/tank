@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MessageSquare, Plus } from 'lucide-react';
+import { X, MessageSquare, Plus, Hash } from 'lucide-react';
 import { useConversationList, type ConversationInfo } from '../../hooks/useConversationList';
+import { useChannelList } from '../../hooks/useChannelList';
 
 interface ConversationListProps {
   open: boolean;
@@ -9,6 +10,8 @@ interface ConversationListProps {
   onSelectConversation: (conversationId: string) => void;
   onNewConversation: () => void;
   activeConversationId?: string | null;
+  onSelectChannel?: (slug: string) => void;
+  activeChannelSlug?: string | null;
 }
 
 function formatTime(isoString: string): string {
@@ -51,12 +54,18 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   onSelectConversation,
   onNewConversation,
   activeConversationId,
+  onSelectChannel,
+  activeChannelSlug,
 }) => {
   const { conversations, loading, refresh } = useConversationList();
+  const { channels, refresh: refreshChannels } = useChannelList();
 
   useEffect(() => {
-    if (open) refresh();
-  }, [open, refresh]);
+    if (open) {
+      refresh();
+      refreshChannels();
+    }
+  }, [open, refresh, refreshChannels]);
 
   const grouped = groupByDate(conversations);
 
@@ -103,8 +112,42 @@ export const ConversationList: React.FC<ConversationListProps> = ({
               </div>
             </div>
 
-            {/* Conversation list */}
+            {/* Content */}
             <div className="flex-1 overflow-y-auto">
+              {/* Channels section */}
+              {channels.length > 0 && onSelectChannel && (
+                <div>
+                  <div className="px-4 pt-3 pb-1 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                    Channels
+                  </div>
+                  {channels.map((ch) => (
+                    <button
+                      key={ch.slug}
+                      onClick={() => onSelectChannel(ch.slug)}
+                      data-testid="channel-item"
+                      className={`w-full text-left px-4 py-2.5 hover:bg-neutral-800/60 transition-colors ${
+                        activeChannelSlug === ch.slug ? 'bg-neutral-800/80' : ''
+                      }`}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <Hash size={14} className="text-blue-400 mt-0.5 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm text-neutral-200 truncate">{ch.name}</div>
+                          <div className="text-xs text-neutral-500 mt-0.5">
+                            {ch.message_count} messages
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                  <div className="border-b border-neutral-800 my-1" />
+                </div>
+              )}
+
+              {/* History section */}
+              <div className="px-4 pt-3 pb-1 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                History
+              </div>
               {loading && conversations.length === 0 && (
                 <div className="px-4 py-8 text-center text-neutral-500 text-sm">Loading…</div>
               )}

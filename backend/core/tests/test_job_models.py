@@ -10,17 +10,13 @@ from tank_backend.jobs.models import DeliveryConfig, JobDefinition, JobRunResult
 class TestDeliveryConfig:
     def test_defaults(self):
         cfg = DeliveryConfig()
-        assert cfg.audio is False
-        assert cfg.text is True
-        assert cfg.audio_priority == "low"
-        assert cfg.audio_idle_threshold == 300
-        assert cfg.webhook_headers == {}
+        assert cfg.channels == ()
+        assert cfg.log_output is True
 
     def test_roundtrip(self):
         cfg = DeliveryConfig(
-            audio=True, audio_voice="en-US-JennyNeural",
-            audio_priority="high", webhook_url="https://example.com/hook",
-            webhook_headers={"X-Token": "abc"},
+            channels=("morning-briefing", "dev-updates"),
+            log_output=False,
         )
         data = cfg.to_dict()
         restored = DeliveryConfig.from_dict(data)
@@ -28,8 +24,13 @@ class TestDeliveryConfig:
 
     def test_from_dict_missing_keys(self):
         cfg = DeliveryConfig.from_dict({})
-        assert cfg.audio is False
-        assert cfg.text is True
+        assert cfg.channels == ()
+        assert cfg.log_output is True
+
+    def test_from_dict_backward_compat_text_key(self):
+        """Legacy 'text' key is accepted as fallback for log_output."""
+        cfg = DeliveryConfig.from_dict({"text": False})
+        assert cfg.log_output is False
 
 
 class TestJobDefinition:
@@ -39,11 +40,12 @@ class TestJobDefinition:
             "prompt": "Do something",
             "schedule": "0 9 * * *",
             "allowed_tools": ["web_search", "web_fetch"],
-            "delivery": {"audio": True},
+            "delivery": {"channels": ["briefing"], "log_output": False},
         })
         assert job.name == "test_job"
         assert job.allowed_tools == ("web_search", "web_fetch")
-        assert job.delivery.audio is True
+        assert job.delivery.channels == ("briefing",)
+        assert job.delivery.log_output is False
 
         data = job.to_dict()
         restored = JobDefinition.from_dict(data)

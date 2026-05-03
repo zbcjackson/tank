@@ -257,6 +257,16 @@ class JobsConfig:
     seed_path: str = ""
 
 
+# ── Channels ──────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class ChannelsConfig:
+    """``channels:`` section."""
+
+    enabled: bool = True
+    db_path: str = "~/.tank/channels/channels.db"
+
+
 # ── Observability ─────────────────────────────────────────────────
 
 @dataclass(frozen=True)

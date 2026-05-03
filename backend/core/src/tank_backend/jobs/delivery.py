@@ -1,4 +1,4 @@
-"""Delivery manager — routes job results to text files, audio, and webhooks."""
+"""Delivery manager — routes job results to channels and file logs."""
 
 from __future__ import annotations
 
@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from ..channels.store import ChannelStore
     from ..config import AppConfig
+    from ..context.store import ConversationStore
     from ..pipeline.bus import Bus
     from .models import JobDefinition
 
@@ -18,18 +20,21 @@ _DEFAULT_OUTPUT_DIR = "~/.tank/jobs/output"
 
 
 class DeliveryManager:
-    """Deliver job results via configured channels."""
+    """Deliver job results to channels and file logs."""
 
     def __init__(
         self,
         output_dir: str | Path = _DEFAULT_OUTPUT_DIR,
         app_config: AppConfig | None = None,
         bus: Bus | None = None,
+        channel_store: ChannelStore | None = None,
+        conversation_store: ConversationStore | None = None,
     ) -> None:
         self._output_dir = Path(output_dir).expanduser().resolve()
         self._app_config = app_config
         self._bus = bus
-        self._audio_queue: list[tuple[JobDefinition, str]] = []
+        self._channel_store = channel_store
+        self._conversation_store = conversation_store
 
     async def deliver(
         self,
@@ -37,14 +42,15 @@ class DeliveryManager:
         run_id: str,
         text: str,
     ) -> str:
-        """Deliver results via all configured channels. Returns output file path."""
-        output_path = self._save_text(job, run_id, text)
+        """Deliver results via channels and file log. Returns output file path."""
+        # Primary delivery: channels
+        output_path = self._deliver_to_channels(job, run_id, text)
 
-        if job.delivery.audio:
-            await self._deliver_audio(job, text)
-
-        if job.delivery.webhook_url:
-            await self._deliver_webhook(job, run_id, text)
+        # Audit trail: file log
+        if job.delivery.log_output:
+            log_path = self._save_text(job, run_id, text)
+            if not output_path:
+                output_path = log_path
 
         if self._bus is not None:
             from ..pipeline.bus import BusMessage
@@ -56,105 +62,73 @@ class DeliveryManager:
                     "job_id": job.id,
                     "job_name": job.name,
                     "run_id": run_id,
-                    "output_path": str(output_path),
-                    "channels": self._active_channels(job),
+                    "output_path": str(output_path) if output_path else "",
+                    "channels": list(job.delivery.channels),
                 },
             ))
 
-        return str(output_path)
-
-    def drain_audio_queue(self) -> list[tuple[JobDefinition, str]]:
-        """Pop all queued audio deliveries (called when session goes idle)."""
-        items = list(self._audio_queue)
-        self._audio_queue.clear()
-        return items
+        return str(output_path) if output_path else ""
 
     # ------------------------------------------------------------------
-    # Text delivery
+    # Channel delivery
+    # ------------------------------------------------------------------
+
+    def _deliver_to_channels(
+        self, job: JobDefinition, run_id: str, text: str,
+    ) -> str | None:
+        """Deliver job output to configured channel slugs."""
+        if not job.delivery.channels or not self._channel_store or not self._conversation_store:
+            return None
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        last_path: str | None = None
+
+        for slug in job.delivery.channels:
+            try:
+                channel = self._channel_store.get_or_create(
+                    slug, name=job.name,
+                    conversation_store=self._conversation_store,
+                )
+                conversation = self._conversation_store.load(channel.conversation_id)
+                if conversation is None:
+                    logger.warning(
+                        "Conversation %s not found for channel '%s'",
+                        channel.conversation_id, slug,
+                    )
+                    continue
+
+                conversation.messages.append({
+                    "role": "system",
+                    "content": f"[Job: {job.name}] run {run_id} completed at {now_iso}",
+                })
+                conversation.messages.append({"role": "assistant", "content": text})
+                self._conversation_store.save(conversation)
+                logger.info("Delivered job '%s' to channel '%s'", job.name, slug)
+            except Exception:
+                logger.error("Failed to deliver to channel '%s'", slug, exc_info=True)
+
+        return last_path
+
+    # ------------------------------------------------------------------
+    # Text delivery (audit trail)
     # ------------------------------------------------------------------
 
     def _save_text(self, job: JobDefinition, run_id: str, text: str) -> Path:
         """Save output to a markdown file. Returns the file path."""
-        if job.delivery.text_path:
-            path = Path(job.delivery.text_path).expanduser().resolve()
-        else:
-            ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%S")
-            job_dir = self._output_dir / _sanitize_dirname(job.name)
-            job_dir.mkdir(parents=True, exist_ok=True)
-            path = job_dir / f"{ts}.md"
-
-        path.parent.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%S")
+        job_dir = self._output_dir / _sanitize_dirname(job.name)
+        job_dir.mkdir(parents=True, exist_ok=True)
+        path = job_dir / f"{ts}.md"
 
         header = (
             f"# {job.name}\n\n"
             f"Run: {run_id}  \n"
-            f"Time: {datetime.now(timezone.utc).isoformat()}  \n\n---\n\n"
+            f"Time: {datetime.now(timezone.utc).isoformat()}  \n"
+            f"Channels: {', '.join(job.delivery.channels) or 'none'}  \n\n---\n\n"
         )
         path.write_text(header + text, encoding="utf-8")
         logger.info("Saved job output: %s", path)
         return path
-
-    # ------------------------------------------------------------------
-    # Audio delivery
-    # ------------------------------------------------------------------
-
-    async def _deliver_audio(self, job: JobDefinition, text: str) -> None:
-        """Speak the result through TTS + playback, respecting conflict resolution."""
-        # Audio delivery is best-effort — queue if we can't play now
-        # The actual TTS pipeline integration requires the Assistant's audio
-        # infrastructure. For Phase 1, we queue the audio and let the
-        # scheduler/assistant drain it when appropriate.
-        self._audio_queue.append((job, text))
-        logger.info(
-            "Queued audio delivery for job '%s' (priority=%s, queue_size=%d)",
-            job.name, job.delivery.audio_priority, len(self._audio_queue),
-        )
-
-    # ------------------------------------------------------------------
-    # Webhook delivery
-    # ------------------------------------------------------------------
-
-    async def _deliver_webhook(
-        self, job: JobDefinition, run_id: str, text: str,
-    ) -> None:
-        """POST results to the configured webhook URL."""
-        url = job.delivery.webhook_url
-        if not url:
-            return
-
-        import httpx
-
-        payload = {
-            "job_id": job.id,
-            "job_name": job.name,
-            "run_id": run_id,
-            "status": "succeeded",
-            "output": text,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        headers = dict(job.delivery.webhook_headers)
-        headers.setdefault("Content-Type", "application/json")
-
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.post(url, json=payload, headers=headers)
-                resp.raise_for_status()
-                logger.info("Webhook delivered for job '%s': %d", job.name, resp.status_code)
-        except Exception:
-            logger.error("Webhook delivery failed for job '%s'", job.name, exc_info=True)
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _active_channels(job: JobDefinition) -> list[str]:
-        channels = ["text"]
-        if job.delivery.audio:
-            channels.append("audio")
-        if job.delivery.webhook_url:
-            channels.append("webhook")
-        return channels
 
 
 def _sanitize_dirname(name: str) -> str:

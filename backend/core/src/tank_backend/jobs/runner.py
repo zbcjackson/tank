@@ -161,6 +161,9 @@ class AutonomousRunner:
             f"You are executing a scheduled autonomous job: '{job.name}'.\n"
             f"Complete the task described below. You have no interactive "
             f"user — work independently and produce a complete result.\n"
+            f"IMPORTANT: Your output will be read directly by humans. "
+            f"Always write plain markdown (headers, bullets, prose). "
+            f"Never output raw JSON, code blocks, or structured data formats.\n"
         )
 
         return AgentDefinition(

@@ -19,6 +19,7 @@ from .models import (
     AssistantConfig,
     AuditConfig,
     BrainConfig,
+    ChannelsConfig,
     CommandSecurityConfig,
     ContextConfig,
     EchoGuardConfig,
@@ -108,6 +109,9 @@ class AppConfig:
     # Jobs
     jobs: JobsConfig = field(default_factory=JobsConfig)
 
+    # Channels
+    channels: ChannelsConfig = field(default_factory=ChannelsConfig)
+
     # Observability
     alerting: AlertingConfig = field(default_factory=AlertingConfig)
     health_monitor: HealthMonitorConfig = field(default_factory=HealthMonitorConfig)
@@ -159,6 +163,7 @@ class AppConfig:
                 agents=parse_section(AgentsConfig, raw.get("agents")),
                 skills=parse_section(SkillsConfig, raw.get("skills")),
                 jobs=parse_section(JobsConfig, raw.get("jobs")),
+                channels=parse_section(ChannelsConfig, raw.get("channels")),
                 alerting=parse_section(AlertingConfig, raw.get("alerting")),
                 health_monitor=parse_section(HealthMonitorConfig, raw.get("health_monitor")),
                 asr=_parse_feature(raw, "asr"),

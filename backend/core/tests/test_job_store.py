@@ -130,14 +130,15 @@ class TestSeedFile:
             "  prompt: Search for AI news\n"
             "  schedule: '0 9 * * *'\n"
             "  delivery:\n"
-            "    audio: true\n"
+            "    channels:\n"
+            "      - briefing\n"
         )
         result = store.load_seed_file(seed)
         assert result["created"] == ["morning_news"]
         assert result["deleted"] == []
         job = store.get_job_by_name("morning_news")
         assert job is not None
-        assert job.delivery.audio is True
+        assert job.delivery.channels == ("briefing",)
 
     def test_seed_idempotent(self, store: JobStore, tmp_path):
         seed = tmp_path / "seed.yaml"

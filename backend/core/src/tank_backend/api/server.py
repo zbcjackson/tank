@@ -18,6 +18,9 @@ from ..config.context import AppContext  # noqa: E402
 from ..context import create_store  # noqa: E402
 from ..plugin.manager import PluginManager  # noqa: E402
 from ..plugin.registry import ExtensionRegistry  # noqa: E402
+from .channels import router as channels_router  # noqa: E402
+from .channels import set_channel_store  # noqa: E402
+from .channels import set_conversation_store as set_channels_conversation_store  # noqa: E402
 from .conversations import router as conversations_router  # noqa: E402
 from .conversations import set_store as set_conversations_store  # noqa: E402
 from .jobs import router as jobs_router  # noqa: E402
@@ -60,7 +63,11 @@ def _init_conversation_store(config: AppConfig) -> Any:
     )
 
 
-def _init_job_scheduler(config: AppConfig) -> tuple[Any, Any]:
+def _init_job_scheduler(
+    config: AppConfig,
+    channel_store: Any | None = None,
+    conversation_store: Any | None = None,
+) -> tuple[Any, Any]:
     if not config.jobs.enabled:
         logger.info("Job scheduler disabled (jobs.enabled=false)")
         return None, None
@@ -72,7 +79,12 @@ def _init_job_scheduler(config: AppConfig) -> tuple[Any, Any]:
 
     jobs_cfg = config.jobs
     job_store = JobStore(db_path=jobs_cfg.db_path)
-    delivery = DeliveryManager(output_dir=jobs_cfg.output_dir, app_config=config)
+    delivery = DeliveryManager(
+        output_dir=jobs_cfg.output_dir,
+        app_config=config,
+        channel_store=channel_store,
+        conversation_store=conversation_store,
+    )
     runner = AutonomousRunner(
         app_config=config, job_store=job_store, delivery=delivery,
     )
@@ -128,6 +140,7 @@ def _wire_routers(
     store: Any,
     job_store: Any | None,
     scheduler: Any | None,
+    channel_store: Any | None,
 ) -> None:
     app.include_router(router)
     app.include_router(speakers_router)
@@ -136,6 +149,7 @@ def _wire_routers(
     app.include_router(conversations_router)
     app.include_router(skills_router)
     app.include_router(jobs_router)
+    app.include_router(channels_router)
 
     set_router_connection_manager(mgr)
     set_connection_manager(mgr)
@@ -147,6 +161,9 @@ def _wire_routers(
         set_job_store(job_store)
     if scheduler is not None:
         set_jobs_scheduler(scheduler)
+    if channel_store is not None:
+        set_channel_store(channel_store)
+        set_channels_conversation_store(store)
 
 
 # ---------------------------------------------------------------------------
@@ -155,7 +172,21 @@ def _wire_routers(
 
 app_config, _registry = _init_plugins()
 _store = _init_conversation_store(app_config)
-_job_store, _scheduler = _init_job_scheduler(app_config)
+
+# Channel store (before job scheduler, so jobs can deliver to channels)
+from ..channels.store import ChannelStore  # noqa: E402
+
+_channel_store: Any = None
+if app_config.channels.enabled:
+    try:
+        _channel_store = ChannelStore(app_config.channels.db_path)
+        logger.info("Channel store initialized at %s", app_config.channels.db_path)
+    except Exception as e:
+        logger.warning("Failed to initialize channel store: %s", e)
+
+_job_store, _scheduler = _init_job_scheduler(
+    app_config, channel_store=_channel_store, conversation_store=_store,
+)
 _voiceprint_recognizer = _init_voiceprint_recognizer(app_config, _registry)
 
 app_context = AppContext(
@@ -165,6 +196,7 @@ app_context = AppContext(
     scheduler=_scheduler,
     conversation_store=_store,
     voiceprint_recognizer=_voiceprint_recognizer,
+    channel_store=_channel_store,
 )
 connection_manager = ConnectionManager(app_context=app_context)
 
@@ -184,7 +216,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Tank Voice Assistant API", version="0.1.0", lifespan=lifespan)
-_wire_routers(app, connection_manager, _store, _job_store, _scheduler)
+_wire_routers(app, connection_manager, _store, _job_store, _scheduler, _channel_store)
 
 
 @app.get("/health")

@@ -54,6 +54,7 @@ function App() {
   const wakeWordDetector = useWakeWordDetector();
   const [conversationListOpen, setConversationListOpen] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [activeChannelSlug, setActiveChannelSlug] = useState<string | null>(null);
 
   const {
     steps,
@@ -93,8 +94,28 @@ function App() {
   const handleNewConversation = useCallback(() => {
     setConversationListOpen(false);
     setActiveConversationId(null);
+    setActiveChannelSlug(null);
     newConversation();
   }, [newConversation]);
+
+  const handleSelectChannel = useCallback(
+    async (slug: string) => {
+      setConversationListOpen(false);
+      setActiveChannelSlug(slug);
+      setActiveConversationId(null);
+      try {
+        const resp = await fetch(`/api/channels/${slug}`);
+        if (!resp.ok) return;
+        const channel = await resp.json();
+        if (channel.conversation_id) {
+          await resumeConversation(channel.conversation_id);
+        }
+      } catch {
+        // Channel not found or fetch failed — ignore silently
+      }
+    },
+    [resumeConversation],
+  );
 
   const lastUserSpeaker = useMemo(() => {
     for (let i = steps.length - 1; i >= 0; i--) {
@@ -132,6 +153,8 @@ function App() {
         onSelectConversation={handleSelectConversation}
         onNewConversation={handleNewConversation}
         activeConversationId={activeConversationId}
+        onSelectChannel={handleSelectChannel}
+        activeChannelSlug={activeChannelSlug}
       />
 
       {/* Conversation list toggle button */}
