@@ -88,5 +88,6 @@ class ToolGroup(ABC):
         """Return the tools this group provides."""
         ...
 
-    async def cleanup(self) -> None:  # noqa: B027
+    async def cleanup(self) -> None:
         """Override for groups that own resources needing cleanup."""
+        return

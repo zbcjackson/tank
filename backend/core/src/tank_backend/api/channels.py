@@ -18,29 +18,29 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/channels", tags=["channels"], redirect_slashes=False)
 
-# Injected from server.py
-_channel_store: ChannelStore | None = None
-_conversation_store: ConversationStore | None = None
+_deps: dict[str, ChannelStore | ConversationStore | None] = {
+    "channel_store": None,
+    "conversation_store": None,
+}
 
 
 def set_channel_store(store: ChannelStore) -> None:
-    global _channel_store  # noqa: PLW0603
-    _channel_store = store
+    _deps["channel_store"] = store
 
 
 def set_conversation_store(store: ConversationStore | None) -> None:
-    global _conversation_store  # noqa: PLW0603
-    _conversation_store = store
+    _deps["conversation_store"] = store
 
 
 def _get_channel_store() -> ChannelStore:
-    if _channel_store is None:
+    store = _deps["channel_store"]
+    if store is None:
         raise HTTPException(503, "Channel store not initialized")
-    return _channel_store
+    return store  # type: ignore[return-value]
 
 
 def _get_conversation_store() -> ConversationStore | None:
-    return _conversation_store
+    return _deps["conversation_store"]  # type: ignore[return-value]
 
 
 # ------------------------------------------------------------------

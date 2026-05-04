@@ -33,8 +33,9 @@ class ConversationStore(ABC):
     def find_latest(self) -> ConversationData | None:
         """Load the most recent conversation, or ``None`` if none exist."""
 
-    def close(self) -> None:  # noqa: B027
+    def close(self) -> None:
         """Optional cleanup (e.g. close DB connection)."""
+        return
 
 
 def create_store(store_type: str, store_path: str) -> ConversationStore | None:

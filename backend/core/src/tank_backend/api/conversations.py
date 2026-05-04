@@ -13,19 +13,19 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"], redirect_slashes=False)
 
-_store: ConversationStore | None = None
+_deps: dict[str, ConversationStore | None] = {"store": None}
 
 
 def set_store(store: ConversationStore | None) -> None:
     """Set the conversation store for the REST API (called from server.py)."""
-    global _store  # noqa: PLW0603
-    _store = store
+    _deps["store"] = store
 
 
 def _get_store() -> ConversationStore:
-    if _store is None:
+    store = _deps["store"]
+    if store is None:
         raise HTTPException(503, "Conversation store not initialized")
-    return _store
+    return store
 
 
 @router.get("")

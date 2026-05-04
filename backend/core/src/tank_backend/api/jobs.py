@@ -18,30 +18,29 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/jobs", tags=["jobs"], redirect_slashes=False)
 
 # Injected from server.py
-_job_store = None
-_scheduler = None
+_deps: dict[str, Any] = {"job_store": None, "scheduler": None}
 
 
 def set_job_store(store: Any) -> None:
-    global _job_store  # noqa: PLW0603
-    _job_store = store
+    _deps["job_store"] = store
 
 
 def set_scheduler(scheduler: Any) -> None:
-    global _scheduler  # noqa: PLW0603
-    _scheduler = scheduler
+    _deps["scheduler"] = scheduler
 
 
 def _get_store():
-    if _job_store is None:
+    store = _deps["job_store"]
+    if store is None:
         raise HTTPException(503, "Job store not initialized")
-    return _job_store
+    return store
 
 
 def _get_scheduler():
-    if _scheduler is None:
+    scheduler = _deps["scheduler"]
+    if scheduler is None:
         raise HTTPException(503, "Scheduler not initialized")
-    return _scheduler
+    return scheduler
 
 
 # ------------------------------------------------------------------

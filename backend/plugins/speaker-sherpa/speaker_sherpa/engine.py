@@ -12,8 +12,11 @@ from tank_contracts import SpeakerEmbeddingExtractor
 
 logger = logging.getLogger("SherpaEmbedding")
 
-# --- macOS Library Path Patch ---
-if sys.platform == "darwin":
+
+def _patch_macos_onnxruntime() -> None:
+    """Pre-load onnxruntime dylib on macOS to avoid sherpa-onnx load failures."""
+    if sys.platform != "darwin":
+        return
     try:
         import onnxruntime
 
@@ -31,10 +34,14 @@ if sys.platform == "darwin":
         logger.debug(f"macOS dylib patch failed: {e}")
 
 
-from sherpa_onnx.lib._sherpa_onnx import (  # noqa: E402, I001
-    SpeakerEmbeddingExtractor as _SherpaExtractor,
-    SpeakerEmbeddingExtractorConfig,
-)
+def _load_sherpa():
+    """Load sherpa-onnx symbols after applying macOS compatibility patch."""
+    _patch_macos_onnxruntime()
+    from sherpa_onnx.lib._sherpa_onnx import (
+        SpeakerEmbeddingExtractor as _SherpaExtractor,
+        SpeakerEmbeddingExtractorConfig,
+    )
+    return _SherpaExtractor, SpeakerEmbeddingExtractorConfig
 
 
 class SherpaEmbeddingExtractor(SpeakerEmbeddingExtractor):
@@ -44,6 +51,8 @@ class SherpaEmbeddingExtractor(SpeakerEmbeddingExtractor):
     """
 
     def __init__(self, model_path: str, num_threads: int = 1, provider: str = "cpu"):
+        _SherpaExtractor, SpeakerEmbeddingExtractorConfig = _load_sherpa()
+
         model_file = Path(model_path)
         if not model_file.exists():
             raise FileNotFoundError(f"Speaker model not found: {model_path}")

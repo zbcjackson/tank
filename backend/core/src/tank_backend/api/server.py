@@ -7,45 +7,42 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
-load_dotenv()  # .env → os.environ before any config loading (covers uvicorn reload path)
-
-from fastapi import FastAPI  # noqa: E402
-from fastapi.responses import JSONResponse  # noqa: E402
-
-from ..config import AppConfig, find_config_yaml  # noqa: E402
-from ..config.context import AppContext  # noqa: E402
-from ..context import create_store  # noqa: E402
-from ..plugin.manager import PluginManager  # noqa: E402
-from ..plugin.registry import ExtensionRegistry  # noqa: E402
+from ..channels.store import ChannelStore
+from ..config import AppConfig, find_config_yaml
+from ..config.context import AppContext
+from ..context import create_store
+from ..plugin.manager import PluginManager
+from ..plugin.registry import ExtensionRegistry
 
 if TYPE_CHECKING:
     from ..audio.input.voiceprint import VoiceprintRecognizer
-    from ..channels.store import ChannelStore
     from ..context.store import ConversationStore
     from ..jobs.delivery import DeliveryManager
     from ..jobs.scheduler import CronScheduler
     from ..jobs.store import JobStore
 
-from .channels import router as channels_router  # noqa: E402
-from .channels import set_channel_store  # noqa: E402
-from .channels import set_conversation_store as set_channels_conversation_store  # noqa: E402
-from .conversations import router as conversations_router  # noqa: E402
-from .conversations import set_store as set_conversations_store  # noqa: E402
-from .jobs import router as jobs_router  # noqa: E402
-from .jobs import set_job_store  # noqa: E402
-from .jobs import set_scheduler as set_jobs_scheduler  # noqa: E402
-from .manager import ConnectionManager  # noqa: E402
-from .metrics import router as metrics_router  # noqa: E402
-from .metrics import set_connection_manager as set_metrics_connection_manager  # noqa: E402
-from .router import router  # noqa: E402
-from .router import set_connection_manager as set_router_connection_manager  # noqa: E402
-from .skills import router as skills_router  # noqa: E402
-from .skills import set_connection_manager as set_skills_connection_manager  # noqa: E402
-from .speakers import router as speakers_router  # noqa: E402
-from .speakers import set_connection_manager  # noqa: E402
-from .users import router as users_router  # noqa: E402
-from .users import set_connection_manager as set_users_connection_manager  # noqa: E402
+from .channels import router as channels_router
+from .channels import set_channel_store
+from .channels import set_conversation_store as set_channels_conversation_store
+from .conversations import router as conversations_router
+from .conversations import set_store as set_conversations_store
+from .jobs import router as jobs_router
+from .jobs import set_job_store
+from .jobs import set_scheduler as set_jobs_scheduler
+from .manager import ConnectionManager
+from .metrics import router as metrics_router
+from .metrics import set_connection_manager as set_metrics_connection_manager
+from .router import router
+from .router import set_connection_manager as set_router_connection_manager
+from .skills import router as skills_router
+from .skills import set_connection_manager as set_skills_connection_manager
+from .speakers import router as speakers_router
+from .speakers import set_connection_manager
+from .users import router as users_router
+from .users import set_connection_manager as set_users_connection_manager
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -179,12 +176,12 @@ def _wire_routers(
 # Bootstrap
 # ---------------------------------------------------------------------------
 
+load_dotenv()  # .env → os.environ before any config loading (covers uvicorn reload path)
+
 app_config, _registry = _init_plugins()
 _store = _init_conversation_store(app_config)
 
 # Channel store (before job scheduler, so jobs can deliver to channels)
-from ..channels.store import ChannelStore  # noqa: E402
-
 _channel_store: ChannelStore | None = None
 if app_config.channels.enabled:
     try:

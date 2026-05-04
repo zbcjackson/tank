@@ -223,7 +223,3 @@ def _parse_tool_args(args_str: str) -> dict[str, Any]:
         return json.loads(args_str)
     except (json.JSONDecodeError, TypeError):
         return {}
-
-
-# Re-export from canonical location for backward compatibility
-from .approval import _build_tool_description  # noqa: E402, F401

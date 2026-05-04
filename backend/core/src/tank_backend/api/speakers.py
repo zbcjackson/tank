@@ -14,29 +14,29 @@ logger = logging.getLogger("SpeakerRoutes")
 
 router = APIRouter(prefix="/api/speakers", tags=["speakers"])
 
-# Will be set by server.py when registering routes
-_connection_manager: ConnectionManager | None = None
+_deps: dict[str, ConnectionManager | None] = {"mgr": None}
 
 
 def set_connection_manager(manager: ConnectionManager) -> None:
     """Set the shared connection manager reference."""
-    global _connection_manager  # noqa: PLW0603
-    _connection_manager = manager
+    _deps["mgr"] = manager
 
 
 def _get_recognizer():
-    if _connection_manager is None:
+    mgr = _deps["mgr"]
+    if mgr is None:
         raise HTTPException(503, "Speaker service not initialized")
-    recognizer = _connection_manager.get_voiceprint_recognizer()
+    recognizer = mgr.get_voiceprint_recognizer()
     if recognizer is None:
         raise HTTPException(503, "Speaker identification is disabled")
     return recognizer
 
 
 def _get_repository():
-    if _connection_manager is None:
+    mgr = _deps["mgr"]
+    if mgr is None:
         raise HTTPException(503, "Speaker service not initialized")
-    recognizer = _connection_manager.get_voiceprint_recognizer()
+    recognizer = mgr.get_voiceprint_recognizer()
     if recognizer is None or not recognizer.enabled:
         raise HTTPException(503, "Speaker identification is disabled")
     return recognizer.repository

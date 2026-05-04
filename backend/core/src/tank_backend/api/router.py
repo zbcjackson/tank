@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import time
+from typing import Any
 
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -21,21 +22,27 @@ logger = logging.getLogger("ApiRouter")
 
 router = APIRouter()
 
-# connection_manager is set by server.py after creation
-connection_manager = None
+_deps: dict[str, Any] = {"mgr": None}
 
 
 def set_connection_manager(mgr):
     """Called by server.py to inject the shared ConnectionManager."""
-    global connection_manager  # noqa: PLW0603
-    connection_manager = mgr
+    _deps["mgr"] = mgr
+
+
+def _get_connection_manager():
+    mgr = _deps["mgr"]
+    if mgr is None:
+        raise RuntimeError("ConnectionManager not initialized")
+    return mgr
 
 
 def _resolve_user_name(user_id: str | None) -> str:
     """Resolve a user_id from WebSocket metadata to a display name for Brain."""
-    if not user_id or connection_manager is None:
+    mgr = _deps["mgr"]
+    if not user_id or mgr is None:
         return "Guest"
-    recognizer = connection_manager.get_voiceprint_recognizer()
+    recognizer = mgr.get_voiceprint_recognizer()
     if recognizer is None or not recognizer.enabled:
         return "Guest"
     speaker = recognizer.repository.get_speaker(user_id)
@@ -93,7 +100,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     ws_connected = True
     loop = asyncio.get_running_loop()
 
-    assistant, is_new = await connection_manager.get_or_create_assistant(session_id)
+    assistant, is_new = await _get_connection_manager().get_or_create_assistant(session_id)
 
     # Load persisted conversation history for this session
     assistant.set_session_id(session_id)
@@ -166,7 +173,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             if ws_connected:
                 await websocket.send_text(json_str)
 
-        connection_manager.register_sender(session_id, _broadcast_send)
+        _get_connection_manager().register_sender(session_id, _broadcast_send)
 
         while True:
             data = await websocket.receive()
@@ -209,6 +216,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         logger.error(f"WebSocket error in {session_id}: {e}", exc_info=True)
     finally:
         ws_connected = False
-        connection_manager.unregister_sender(session_id)
-        connection_manager.detach_websocket(session_id)
+        mgr = _get_connection_manager()
+        mgr.unregister_sender(session_id)
+        mgr.detach_websocket(session_id)
         logger.info(f"WebSocket disconnected: {session_id}")

@@ -15,21 +15,20 @@ logger = logging.getLogger("UserRoutes")
 
 router = APIRouter(prefix="/api/users", tags=["users"], redirect_slashes=False)
 
-# Follows the same DI pattern as speakers.py, approvals.py, etc.
-_connection_manager: ConnectionManager | None = None
+_deps: dict[str, ConnectionManager | None] = {"mgr": None}
 
 
 def set_connection_manager(manager: ConnectionManager) -> None:
     """Set the shared connection manager reference."""
-    global _connection_manager  # noqa: PLW0603
-    _connection_manager = manager
+    _deps["mgr"] = manager
 
 
 def _get_user_manager() -> UserManager:
     """Build a UserManager from the shared ConnectionManager."""
-    if _connection_manager is None:
+    mgr = _deps["mgr"]
+    if mgr is None:
         raise HTTPException(503, "User service not initialized")
-    recognizer = _connection_manager.get_voiceprint_recognizer()
+    recognizer = mgr.get_voiceprint_recognizer()
     repo = recognizer.repository if recognizer and recognizer.enabled else None
     return UserManager(repo, Path.home() / ".tank" / "users")
 

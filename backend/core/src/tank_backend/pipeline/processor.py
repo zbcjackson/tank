@@ -44,8 +44,10 @@ class Processor(ABC):
         """Handle a pipeline event. Return True to stop propagation."""
         return False
 
-    async def start(self) -> None:  # noqa: B027
+    async def start(self) -> None:
         """Called when the pipeline starts. Override for setup."""
+        return
 
-    async def stop(self) -> None:  # noqa: B027
+    async def stop(self) -> None:
         """Called when the pipeline stops. Override for teardown."""
+        return

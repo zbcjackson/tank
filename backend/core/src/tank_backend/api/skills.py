@@ -12,13 +12,12 @@ logger = logging.getLogger("SkillRoutes")
 
 router = APIRouter(prefix="/api/skills", tags=["skills"])
 
-_connection_manager: ConnectionManager | None = None
+_deps: dict[str, ConnectionManager | None] = {"mgr": None}
 
 
 def set_connection_manager(manager: ConnectionManager) -> None:
     """Set the shared connection manager reference."""
-    global _connection_manager  # noqa: PLW0603
-    _connection_manager = manager
+    _deps["mgr"] = manager
 
 
 @router.post("/reload")
@@ -27,11 +26,12 @@ async def reload_skills():
 
     Returns a per-session diff of added/removed/updated skills.
     """
-    if _connection_manager is None:
+    mgr = _deps["mgr"]
+    if mgr is None:
         raise HTTPException(503, "Service not initialized")
 
     results: dict[str, dict[str, list[str]]] = {}
-    for session_id, assistant in _connection_manager.iter_sessions():
+    for session_id, assistant in mgr.iter_sessions():
         results[session_id] = assistant.reload_skills()
 
     # Aggregate across sessions (all sessions share the same skill dirs,

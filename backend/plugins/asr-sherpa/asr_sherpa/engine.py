@@ -12,8 +12,11 @@ from tank_contracts import StreamingASREngine
 
 logger = logging.getLogger("SherpaASREngine")
 
-# --- macOS Library Path Patch ---
-if sys.platform == "darwin":
+
+def _patch_macos_onnxruntime() -> None:
+    """Pre-load onnxruntime dylib on macOS to avoid sherpa-onnx load failures."""
+    if sys.platform != "darwin":
+        return
     try:
         import onnxruntime
 
@@ -31,17 +34,25 @@ if sys.platform == "darwin":
         logger.debug(f"macOS dylib patch failed: {e}")
 
 
-from sherpa_onnx.lib._sherpa_onnx import (  # noqa: E402
-    EndpointConfig,
-    EndpointRule,
-    FeatureExtractorConfig,
-    OnlineCtcFstDecoderConfig,
-    OnlineLMConfig,
-    OnlineModelConfig,
-    OnlineRecognizer,
-    OnlineRecognizerConfig,
-    OnlineTransducerModelConfig,
-)
+def _load_sherpa():
+    """Load sherpa-onnx symbols after applying macOS compatibility patch."""
+    _patch_macos_onnxruntime()
+    from sherpa_onnx.lib._sherpa_onnx import (
+        EndpointConfig,
+        EndpointRule,
+        FeatureExtractorConfig,
+        OnlineCtcFstDecoderConfig,
+        OnlineLMConfig,
+        OnlineModelConfig,
+        OnlineRecognizer,
+        OnlineRecognizerConfig,
+        OnlineTransducerModelConfig,
+    )
+    return (
+        EndpointConfig, EndpointRule, FeatureExtractorConfig,
+        OnlineCtcFstDecoderConfig, OnlineLMConfig, OnlineModelConfig,
+        OnlineRecognizer, OnlineRecognizerConfig, OnlineTransducerModelConfig,
+    )
 
 
 class SherpaASREngine(StreamingASREngine):
@@ -60,6 +71,12 @@ class SherpaASREngine(StreamingASREngine):
         num_threads: int = 4,
         sample_rate: int = 16000,
     ):
+        (
+            EndpointConfig, EndpointRule, FeatureExtractorConfig,
+            OnlineCtcFstDecoderConfig, OnlineLMConfig, OnlineModelConfig,
+            OnlineRecognizer, OnlineRecognizerConfig, OnlineTransducerModelConfig,
+        ) = _load_sherpa()
+
         model_path = Path(model_dir)
         if not model_path.exists():
             raise FileNotFoundError(f"Sherpa-ONNX model directory not found: {model_dir}")

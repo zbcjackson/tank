@@ -68,6 +68,4 @@ class Agent(ABC):
         Must yield at least one ``DONE`` output when finished, or a
         ``HANDOFF`` output to transfer control to another agent.
         """
-        ...  # pragma: no cover
-        # Make this an async generator by yielding nothing in the base
-        yield  # type: ignore[misc]  # noqa: E701
+        yield  # type: ignore[misc]  # pragma: no cover
