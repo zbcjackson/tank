@@ -7,12 +7,11 @@ import logging
 import threading
 import uuid
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
-from ..audio.input.types import AudioFrame, AudioSourceFactory
-from ..audio.output.types import AudioSinkFactory
+from ..audio.input.types import AudioFrame
 from ..config import AppConfig
+from ..config.context import AppContext
 from ..config.models import EchoGuardConfig
 from ..llm.profile import create_llm_from_profile
 from ..pipeline import Bus, BusMessage, Pipeline, PipelineBuilder
@@ -56,29 +55,20 @@ class Assistant:
 
     def __init__(
         self,
-        app_context: Any | None = None,
+        app_context: AppContext,
         *,
-        config_path: Path | None = None,
         on_exit_request: Callable[[], None] | None = None,
-        audio_source_factory: AudioSourceFactory | None = None,
-        audio_sink_factory: AudioSinkFactory | None = None,
     ) -> None:
-        from ..config.context import AppContext
 
-        ctx: AppContext | None = app_context
-        if ctx is None:
-            msg = "app_context is required"
-            raise ValueError(msg)
-
-        self._channel_store = ctx.channel_store
-        self._conversation_store = ctx.conversation_store
-        registry = self._init_config_and_llm(ctx.app_config, registry=ctx.registry)
+        self._channel_store = app_context.channel_store
+        self._conversation_store = app_context.conversation_store
+        registry = self._init_config_and_llm(app_context.app_config, registry=app_context.registry)
         self._init_bus()
         self._init_tools()
 
         # Wire job management tool if scheduler is enabled
-        if ctx.job_store is not None and ctx.scheduler is not None:
-            self._tool_manager.set_job_manager(ctx.job_store, ctx.scheduler)
+        if app_context.job_store is not None and app_context.scheduler is not None:
+            self._tool_manager.set_job_manager(app_context.job_store, app_context.scheduler)
 
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()

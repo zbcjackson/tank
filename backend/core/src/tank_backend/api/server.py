@@ -53,17 +53,27 @@ def _init_plugins() -> tuple[AppConfig, ExtensionRegistry]:
     return config, registry
 
 
-def _init_conversation_store(config: AppConfig) -> ConversationStore | None:
-    return create_store(
+def _init_stores(
+    config: AppConfig,
+) -> tuple[ConversationStore | None, ChannelStore | None]:
+    """Create conversation and channel stores."""
+    conversation = create_store(
         store_type=config.context.store_type,
         store_path=config.context.store_path,
     )
+    channel: ChannelStore | None = None
+    if config.channels.enabled:
+        try:
+            channel = ChannelStore(config.channels.db_path)
+            logger.info("Channel store initialized at %s", config.channels.db_path)
+        except Exception as e:
+            logger.warning("Failed to initialize channel store: %s", e)
+    return conversation, channel
 
 
 def _init_job_scheduler(
     config: AppConfig,
-    channel_store: ChannelStore | None = None,
-    conversation_store: ConversationStore | None = None,
+    stores: tuple[ConversationStore | None, ChannelStore | None],
 ) -> tuple[JobStore | None, CronScheduler | None, DeliveryManager | None]:
     if not config.jobs.enabled:
         logger.info("Job scheduler disabled (jobs.enabled=false)")
@@ -74,6 +84,7 @@ def _init_job_scheduler(
     from ..jobs.scheduler import CronScheduler
     from ..jobs.store import JobStore
 
+    conversation_store, channel_store = stores
     jobs_cfg = config.jobs
     job_store = JobStore(db_path=jobs_cfg.db_path)
     delivery = DeliveryManager(
@@ -149,20 +160,9 @@ def _wire_routers(app: FastAPI) -> None:
 load_dotenv()  # .env → os.environ before any config loading (covers uvicorn reload path)
 
 app_config, _registry = _init_plugins()
-_store = _init_conversation_store(app_config)
+_store, _channel_store = _init_stores(app_config)
 
-# Channel store (before job scheduler, so jobs can deliver to channels)
-_channel_store: ChannelStore | None = None
-if app_config.channels.enabled:
-    try:
-        _channel_store = ChannelStore(app_config.channels.db_path)
-        logger.info("Channel store initialized at %s", app_config.channels.db_path)
-    except Exception as e:
-        logger.warning("Failed to initialize channel store: %s", e)
-
-_job_store, _scheduler, _delivery = _init_job_scheduler(
-    app_config, channel_store=_channel_store, conversation_store=_store,
-)
+_job_store, _scheduler, _delivery = _init_job_scheduler(app_config, (_store, _channel_store))
 _voiceprint_recognizer = _init_voiceprint_recognizer(app_config, _registry)
 
 app_context = AppContext(
