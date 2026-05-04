@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from ..api.manager import ConnectionManager
     from ..channels.store import ChannelStore
     from ..config import AppConfig
     from ..context.store import ConversationStore
@@ -17,6 +19,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _DEFAULT_OUTPUT_DIR = "~/.tank/jobs/output"
+
+# Type alias for the messages appended to a channel conversation.
+ChannelMessage = dict[str, str]  # {"role": "...", "content": "..."}
+
+
+@dataclass
+class _DeliveryResult:
+    """Internal result from channel delivery."""
+
+    output_path: str | None = None
+    channel_messages: dict[str, list[ChannelMessage]] = field(
+        default_factory=dict,
+    )
 
 
 class DeliveryManager:
@@ -35,9 +50,9 @@ class DeliveryManager:
         self._bus = bus
         self._channel_store = channel_store
         self._conversation_store = conversation_store
-        self._connection_manager: Any | None = None
+        self._connection_manager: ConnectionManager | None = None
 
-    def set_connection_manager(self, mgr: Any) -> None:
+    def set_connection_manager(self, mgr: ConnectionManager) -> None:
         """Set the ConnectionManager for broadcast (called after server init)."""
         self._connection_manager = mgr
 
@@ -49,8 +64,8 @@ class DeliveryManager:
     ) -> str:
         """Deliver results via channels and file log. Returns output file path."""
         # Primary delivery: channels
-        delivered_messages = self._deliver_to_channels(job, run_id, text)
-        output_path = delivered_messages.get("output_path")
+        result = self._deliver_to_channels(job, run_id, text)
+        output_path = result.output_path
 
         # Audit trail: file log
         if job.delivery.log_output:
@@ -74,7 +89,7 @@ class DeliveryManager:
             ))
 
         # Broadcast channel notifications to all connected WebSocket sessions
-        await self._notify_channels(job, run_id, delivered_messages.get("channel_messages", {}))
+        await self._notify_channels(job, run_id, result.channel_messages)
 
         return str(output_path) if output_path else ""
 
@@ -84,12 +99,9 @@ class DeliveryManager:
 
     def _deliver_to_channels(
         self, job: JobDefinition, run_id: str, text: str,
-    ) -> dict[str, Any]:
-        """Deliver job output to configured channel slugs.
-
-        Returns a dict with 'output_path' and 'channel_messages' (slug -> message list).
-        """
-        result: dict[str, Any] = {"output_path": None, "channel_messages": {}}
+    ) -> _DeliveryResult:
+        """Deliver job output to configured channel slugs."""
+        result = _DeliveryResult()
         if not job.delivery.channels or not self._channel_store or not self._conversation_store:
             return result
 
@@ -117,7 +129,7 @@ class DeliveryManager:
                 conversation.messages.append(sys_msg)
                 conversation.messages.append(asst_msg)
                 self._conversation_store.save(conversation)
-                result["channel_messages"][slug] = [sys_msg, asst_msg]
+                result.channel_messages[slug] = [sys_msg, asst_msg]
                 logger.info("Delivered job '%s' to channel '%s'", job.name, slug)
             except Exception:
                 logger.error("Failed to deliver to channel '%s'", slug, exc_info=True)

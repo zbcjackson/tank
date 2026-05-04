@@ -7,12 +7,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..agents.approval import PendingToolCallStore, ToolApprovalPolicy
+    from ..audio.input.voiceprint import VoiceprintRecognizer
+    from ..channels.store import ChannelStore
+    from ..config import AppConfig
+    from ..context.store import ConversationStore
+    from ..jobs.scheduler import CronScheduler
+    from ..jobs.store import JobStore
     from ..llm.llm import LLM
     from ..pipeline.bus import Bus
+    from ..plugin.registry import ExtensionRegistry
     from ..tools.manager import ToolManager
 
 
@@ -21,13 +28,13 @@ if TYPE_CHECKING:
 class AppContext:
     """App-level singletons. Shared across all sessions. Immutable."""
 
-    app_config: Any  # plugin.config.AppConfig or config.app_config.AppConfig
-    registry: Any = None
-    job_store: Any = None
-    scheduler: Any = None
-    conversation_store: Any = None
-    voiceprint_recognizer: Any = None
-    channel_store: Any = None
+    app_config: AppConfig
+    registry: ExtensionRegistry | None = None
+    job_store: JobStore | None = None
+    scheduler: CronScheduler | None = None
+    conversation_store: ConversationStore | None = None
+    voiceprint_recognizer: VoiceprintRecognizer | None = None
+    channel_store: ChannelStore | None = None
 
 
 @dataclass(frozen=True)

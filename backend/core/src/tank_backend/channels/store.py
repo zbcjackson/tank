@@ -181,7 +181,7 @@ class ChannelStore:
             )
         return summaries
 
-    def update(self, slug: str, **kwargs: Any) -> ChannelData | None:
+    def update(self, slug: str, **kwargs: str) -> ChannelData | None:
         """Update channel name and/or description. Returns updated channel or None."""
         channel = self.get(slug)
         if channel is None:

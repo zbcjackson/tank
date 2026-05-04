@@ -3,39 +3,43 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..channels.models import slugify
 
+if TYPE_CHECKING:
+    from ..channels.store import ChannelStore
+    from ..context.store import ConversationStore
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/channels", tags=["channels"], redirect_slashes=False)
 
 # Injected from server.py
-_channel_store = None
-_conversation_store = None
+_channel_store: ChannelStore | None = None
+_conversation_store: ConversationStore | None = None
 
 
-def set_channel_store(store: Any) -> None:
+def set_channel_store(store: ChannelStore) -> None:
     global _channel_store  # noqa: PLW0603
     _channel_store = store
 
 
-def set_conversation_store(store: Any) -> None:
+def set_conversation_store(store: ConversationStore | None) -> None:
     global _conversation_store  # noqa: PLW0603
     _conversation_store = store
 
 
-def _get_channel_store():
+def _get_channel_store() -> ChannelStore:
     if _channel_store is None:
         raise HTTPException(503, "Channel store not initialized")
     return _channel_store
 
 
-def _get_conversation_store():
+def _get_conversation_store() -> ConversationStore | None:
     return _conversation_store
 
 

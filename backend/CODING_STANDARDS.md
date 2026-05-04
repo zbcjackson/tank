@@ -41,16 +41,26 @@ async def fetch_data():
 - Annotate function parameters and return types
 - Use `Optional`, `List`, `Dict`, `Tuple` as needed
 - Use `Protocol` for structural typing
+- **Avoid `Any`** — use the specific type whenever it is known. `Any` disables type checking and hides bugs. If the type is truly dynamic, prefer `object` (which still requires explicit narrowing) or a `Protocol`. Reserve `Any` only for genuinely untyped third-party boundaries.
 
 ```python
-from typing import Optional, List, Dict, Any
+# ✅ Good: Specific types
+from tank_backend.channels.store import ChannelStore
+from tank_backend.context.store import ConversationStore
 
-async def process_message(
-    message: str,
-    language: Optional[str] = None,
-    metadata: Dict[str, Any] = None
-) -> List[str]:
-    """Process a message and return responses."""
+def _init_stores(config: AppConfig) -> tuple[ChannelStore, ConversationStore]:
+    ...
+
+# ✅ Good: Protocol for structural typing
+from typing import Protocol
+
+class HasSlug(Protocol):
+    slug: str
+
+# ❌ Bad: Any erases type safety
+from typing import Any
+
+def _init_stores(config: AppConfig) -> tuple[Any, Any]:
     ...
 ```
 

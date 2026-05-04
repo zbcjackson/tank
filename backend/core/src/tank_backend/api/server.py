@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
 
@@ -18,6 +18,15 @@ from ..config.context import AppContext  # noqa: E402
 from ..context import create_store  # noqa: E402
 from ..plugin.manager import PluginManager  # noqa: E402
 from ..plugin.registry import ExtensionRegistry  # noqa: E402
+
+if TYPE_CHECKING:
+    from ..audio.input.voiceprint import VoiceprintRecognizer
+    from ..channels.store import ChannelStore
+    from ..context.store import ConversationStore
+    from ..jobs.delivery import DeliveryManager
+    from ..jobs.scheduler import CronScheduler
+    from ..jobs.store import JobStore
+
 from .channels import router as channels_router  # noqa: E402
 from .channels import set_channel_store  # noqa: E402
 from .channels import set_conversation_store as set_channels_conversation_store  # noqa: E402
@@ -56,7 +65,7 @@ def _init_plugins() -> tuple[AppConfig, ExtensionRegistry]:
     return config, registry
 
 
-def _init_conversation_store(config: AppConfig) -> Any:
+def _init_conversation_store(config: AppConfig) -> ConversationStore | None:
     return create_store(
         store_type=config.context.store_type,
         store_path=config.context.store_path,
@@ -65,9 +74,9 @@ def _init_conversation_store(config: AppConfig) -> Any:
 
 def _init_job_scheduler(
     config: AppConfig,
-    channel_store: Any | None = None,
-    conversation_store: Any | None = None,
-) -> tuple[Any, Any, Any]:
+    channel_store: ChannelStore | None = None,
+    conversation_store: ConversationStore | None = None,
+) -> tuple[JobStore | None, CronScheduler | None, DeliveryManager | None]:
     if not config.jobs.enabled:
         logger.info("Job scheduler disabled (jobs.enabled=false)")
         return None, None, None
@@ -114,7 +123,7 @@ def _init_job_scheduler(
 
 def _init_voiceprint_recognizer(
     config: AppConfig, registry: ExtensionRegistry,
-) -> Any | None:
+) -> VoiceprintRecognizer | None:
     try:
         from ..audio.input.voiceprint_factory import (
             create_disabled_recognizer,
@@ -137,10 +146,10 @@ def _init_voiceprint_recognizer(
 def _wire_routers(
     app: FastAPI,
     mgr: ConnectionManager,
-    store: Any,
-    job_store: Any | None,
-    scheduler: Any | None,
-    channel_store: Any | None,
+    store: ConversationStore | None,
+    job_store: JobStore | None,
+    scheduler: CronScheduler | None,
+    channel_store: ChannelStore | None,
 ) -> None:
     app.include_router(router)
     app.include_router(speakers_router)
@@ -176,7 +185,7 @@ _store = _init_conversation_store(app_config)
 # Channel store (before job scheduler, so jobs can deliver to channels)
 from ..channels.store import ChannelStore  # noqa: E402
 
-_channel_store: Any = None
+_channel_store: ChannelStore | None = None
 if app_config.channels.enabled:
     try:
         _channel_store = ChannelStore(app_config.channels.db_path)
