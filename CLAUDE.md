@@ -131,7 +131,7 @@ Run ALL of these every time you finish a task. Do not skip any step.
 2. `cd web && npx tsc -b --noEmit` — TypeScript type checking (must use `-b` to follow project references; plain `tsc --noEmit` checks nothing on a references-only tsconfig)
 3. `cd backend && uv run ruff check src/ tests/` — Python lint
 4. `cd backend && uv run pytest` — Backend unit tests (78 tests)
-5. `cd backend && uv run pyright path/to/changed_file1.py path/to/changed_file2.py` — Type check on changed files (catches `.get()` on dataclasses, wrong attribute access, etc.). Run pyright on the files you modified — not the whole codebase (pre-existing errors exist).
+5. `cd backend && uv run pyright path/to/changed_file1.py path/to/changed_file2.py` — Type check on changed files (catches `.get()` on dataclasses, wrong attribute access, etc.). Run pyright on the files you modified — not the whole codebase (pre-existing errors exist). **Never suppress type errors with `# type: ignore` comments** — fix the underlying type issue instead (use proper annotations, `isinstance` checks, `Protocol`, or `cast`). The only exceptions are: (a) frozen dataclass mutation tests inside `pytest.raises`, (b) abstract class instantiation tests inside `pytest.raises`, and (c) third-party library signature mismatches that cannot be resolved.
 6. `cd cli && uv run ruff check src/ tests/` — CLI Python lint
 7. Check the running dev server for reload errors:
    ```bash

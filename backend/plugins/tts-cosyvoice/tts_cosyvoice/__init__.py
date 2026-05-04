@@ -52,7 +52,7 @@ def create_engine(config: dict) -> CosyVoiceTTSEngine:
     engine = CosyVoiceTTSEngine(config)
     # Keep a reference so the server isn't GC'd (its atexit hook needs self).
     if config.get("provider", "local") == "local" and config.get("docker", False):
-        engine._server = server  # type: ignore[assignment]
+        engine._server = server
     return engine
 
 

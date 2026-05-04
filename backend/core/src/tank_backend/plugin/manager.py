@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -16,6 +16,9 @@ from .manifest import (
     read_plugin_manifest,
 )
 from .registry import ExtensionRegistry
+
+if TYPE_CHECKING:
+    from ..config.app_config import AppConfig
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +60,7 @@ class PluginEntry:
     extensions: dict[str, ExtensionEntry] = field(default_factory=dict)
 
 
-def validate_feature_refs(app_config: object, registry: ExtensionRegistry) -> None:
+def validate_feature_refs(app_config: AppConfig, registry: ExtensionRegistry) -> None:
     """Validate config.yaml extension refs against a registry.
 
     Checks:
@@ -69,7 +72,7 @@ def validate_feature_refs(app_config: object, registry: ExtensionRegistry) -> No
     """
     errors: list[str] = []
     for feature_name, expected_type in FEATURE_TYPE_MAP.items():
-        feature_cfg = app_config.get_feature_config(feature_name)  # type: ignore[attr-defined]
+        feature_cfg = app_config.get_feature_config(feature_name)
         if not feature_cfg.enabled or not feature_cfg.extension:
             continue
 
@@ -256,7 +259,7 @@ class PluginManager:
 
     # ── Validation ─────────────────────────────────────────────
 
-    def validate_config(self, app_config: object) -> None:
+    def validate_config(self, app_config: AppConfig) -> None:
         """Validate config.yaml extension refs against the registry.
 
         Checks:

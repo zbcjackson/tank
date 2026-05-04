@@ -10,9 +10,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..llm.profile import LLMProfile, resolve_profile
+
+if TYPE_CHECKING:
+    from ..plugin.registry import ExtensionRegistry
 from .models import (
     AgentsConfig,
     AlertingConfig,
@@ -127,7 +130,7 @@ class AppConfig:
     # ── Factories ─────────────────────────────────────────────────
 
     @classmethod
-    def load(cls, config_path: Path | str, registry: object | None = None) -> AppConfig:
+    def load(cls, config_path: Path | str, registry: ExtensionRegistry | None = None) -> AppConfig:
         """Load from a YAML file with env-var interpolation."""
         from ..plugin.yaml_loader import load_yaml
 
@@ -222,11 +225,10 @@ class AppConfig:
     # ── Private ───────────────────────────────────────────────────
 
     @staticmethod
-    def _validate_features(cfg: AppConfig, registry: object) -> None:
+    def _validate_features(cfg: AppConfig, registry: ExtensionRegistry) -> None:
         from ..plugin.manager import validate_feature_refs
 
-        # Build a thin adapter that the existing validator expects
-        validate_feature_refs(cfg, registry)  # type: ignore[arg-type]
+        validate_feature_refs(cfg, registry)
 
 
 def _parse_llm_profiles(llm_raw: dict[str, Any]) -> dict[str, LLMProfile]:

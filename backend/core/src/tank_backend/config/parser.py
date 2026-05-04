@@ -35,7 +35,8 @@ def parse_section(cls: type[T], raw: dict[str, Any] | None) -> T:
             if isinstance(nested, dict):
                 raw.update(nested)
 
-    fields = {f.name: f for f in dataclasses.fields(cls)}  # type: ignore[arg-type]
+    assert dataclasses.is_dataclass(cls)
+    fields = {f.name: f for f in dataclasses.fields(cls)}
     hints = get_type_hints(cls, include_extras=False)
     filtered: dict[str, Any] = {}
 

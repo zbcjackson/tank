@@ -27,6 +27,7 @@ from .echo_guard import SelfEchoDetector
 if TYPE_CHECKING:
     import threading
 
+    from ...agents.definition import AgentDefinition
     from ...agents.graph import AgentGraph
     from ...llm.llm import LLM
     from ...tools.manager import ToolManager
@@ -225,13 +226,13 @@ class Brain(Processor):
         return AgentGraph(agents={"chat": main_agent}, default_agent="chat")
 
     @staticmethod
-    def _build_agent_catalog(definitions: dict[str, object]) -> str:
+    def _build_agent_catalog(definitions: "dict[str, AgentDefinition]") -> str:
         """Build a compact catalog of available agents for the system prompt."""
         if not definitions:
             return ""
         lines = []
         for defn in definitions.values():
-            entry = f"- {defn.name}: {defn.description}"  # type: ignore[union-attr]
+            entry = f"- {defn.name}: {defn.description}"
             lines.append(entry)
         return "\n".join(lines)
 
@@ -533,7 +534,8 @@ class Brain(Processor):
         self._current_msg_id = msg_id
         full_response_text = ""
 
-        gen = self._agent_graph.run(state)  # type: ignore[union-attr]
+        assert self._agent_graph is not None
+        gen = self._agent_graph.run(state)
         try:
             async for output in gen:
                 # Check for interruption

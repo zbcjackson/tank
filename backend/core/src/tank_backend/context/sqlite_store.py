@@ -25,7 +25,7 @@ class SqliteConversationStore(ConversationStore):
         resolved = Path(db_path).expanduser().resolve()
         resolved.parent.mkdir(parents=True, exist_ok=True)
         self._db_path = str(resolved)
-        self._conn = sqlite3.connect(self._db_path)
+        self._conn: sqlite3.Connection | None = sqlite3.connect(self._db_path)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(
             """
@@ -41,6 +41,7 @@ class SqliteConversationStore(ConversationStore):
         self._conn.commit()
 
     def save(self, conversation: ConversationData) -> None:
+        assert self._conn is not None
         self._conn.execute(
             """
             INSERT OR REPLACE INTO conversations
@@ -58,6 +59,7 @@ class SqliteConversationStore(ConversationStore):
         self._conn.commit()
 
     def load(self, conversation_id: str) -> ConversationData | None:
+        assert self._conn is not None
         row = self._conn.execute(
             "SELECT conversation_id, start_time, pid, messages "
             "FROM conversations WHERE conversation_id = ?",
@@ -73,6 +75,7 @@ class SqliteConversationStore(ConversationStore):
         )
 
     def list_conversations(self) -> list[ConversationSummary]:
+        assert self._conn is not None
         rows = self._conn.execute(
             "SELECT conversation_id, start_time, messages "
             "FROM conversations ORDER BY updated_at DESC"
@@ -90,6 +93,7 @@ class SqliteConversationStore(ConversationStore):
         return results
 
     def delete(self, conversation_id: str) -> None:
+        assert self._conn is not None
         self._conn.execute(
             "DELETE FROM conversations WHERE conversation_id = ?",
             (conversation_id,),
@@ -97,6 +101,7 @@ class SqliteConversationStore(ConversationStore):
         self._conn.commit()
 
     def find_latest(self) -> ConversationData | None:
+        assert self._conn is not None
         row = self._conn.execute(
             "SELECT conversation_id, start_time, pid, messages "
             "FROM conversations ORDER BY updated_at DESC LIMIT 1"
@@ -113,4 +118,4 @@ class SqliteConversationStore(ConversationStore):
     def close(self) -> None:
         if self._conn is not None:
             self._conn.close()
-            self._conn = None  # type: ignore[assignment]
+            self._conn = None

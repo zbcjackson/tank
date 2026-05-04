@@ -42,6 +42,7 @@ async def fetch_data():
 - Use `Optional`, `List`, `Dict`, `Tuple` as needed
 - Use `Protocol` for structural typing
 - **Avoid `Any`** — use the specific type whenever it is known. `Any` disables type checking and hides bugs. If the type is truly dynamic, prefer `object` (which still requires explicit narrowing) or a `Protocol`. Reserve `Any` only for genuinely untyped third-party boundaries.
+- **Never use `# type: ignore`** — fix the underlying type issue instead. Use proper annotations, `isinstance` checks, `Protocol` definitions, or `typing.cast`. The only acceptable exceptions are: (a) frozen dataclass mutation tests inside `pytest.raises(AttributeError)`, (b) abstract class instantiation tests inside `pytest.raises(TypeError)`, and (c) third-party library signature mismatches that cannot be resolved by the user.
 
 ```python
 # ✅ Good: Specific types

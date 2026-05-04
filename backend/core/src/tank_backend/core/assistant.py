@@ -35,6 +35,7 @@ from ..pipeline.processors import (
     TTSProcessor,
     VADProcessor,
 )
+from ..plugin.registry import ExtensionRegistry
 from ..tools.manager import ToolManager
 from .events import BrainInputEvent, DisplayMessage, InputType, SignalMessage, UIMessage
 from .runtime import RuntimeContext
@@ -92,8 +93,8 @@ class Assistant:
     # ------------------------------------------------------------------
 
     def _init_config_and_llm(
-        self, app_config: AppConfig | None = None, registry: Any = None
-    ) -> object:
+        self, app_config: AppConfig | None = None, registry: ExtensionRegistry | None = None
+    ) -> ExtensionRegistry:
         """Load config, LLM, and brain config. Returns registry.
 
         *app_config* is always provided by the caller (server.py or tests).
@@ -110,6 +111,7 @@ class Assistant:
 
         self._speech_interrupt_enabled = self._app_config.assistant.speech_interrupt_enabled
 
+        assert registry is not None
         return registry
 
     def _init_tools(self) -> None:
@@ -147,7 +149,7 @@ class Assistant:
 
     def _build_pipeline(
         self,
-        registry: object,
+        registry: ExtensionRegistry,
         asr_engine: object | None,
         tts_engine: object | None,
     ) -> Pipeline:
@@ -179,7 +181,7 @@ class Assistant:
     def _add_input_processors(
         self,
         builder: PipelineBuilder,
-        registry: object,
+        registry: ExtensionRegistry,
         asr_engine: object | None,
         echo_guard_cfg: EchoGuardConfig,
     ) -> None:
@@ -261,21 +263,21 @@ class Assistant:
     # Engine / factory helpers
     # ------------------------------------------------------------------
 
-    def _create_engine(self, registry: object, name: str) -> object | None:
+    def _create_engine(self, registry: ExtensionRegistry, name: str) -> object | None:
         """Create an engine for the given config section, or None if disabled."""
         cfg = self._app_config.get_feature_config(name)
         if not cfg.enabled or not cfg.extension:
             return None
-        return registry.instantiate(cfg.extension, cfg.config)  # type: ignore[union-attr]
+        return registry.instantiate(cfg.extension, cfg.config)
 
-    def _create_voiceprint_recognizer(self, registry: object) -> object | None:
+    def _create_voiceprint_recognizer(self, registry: ExtensionRegistry) -> object | None:
         """Create VoiceprintRecognizer if speaker ID is enabled, else None."""
         try:
             speaker_cfg = self._app_config.get_feature_config("speaker")
             if not speaker_cfg.enabled or not speaker_cfg.extension:
                 return None
 
-            extractor = registry.instantiate(  # type: ignore[union-attr]
+            extractor = registry.instantiate(
                 speaker_cfg.extension, speaker_cfg.config
             )
             from ..audio.input.voiceprint_factory import create_voiceprint_recognizer

@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator, Callable
+from typing import TYPE_CHECKING
 
 import httpx
 from tank_contracts.tts import AudioChunk, TTSEngine
+
+if TYPE_CHECKING:
+    from .server import CosyVoiceServer
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +45,7 @@ class CosyVoiceTTSEngine(TTSEngine):
     def __init__(self, config: dict) -> None:
         self._provider = config.get("provider", "local")
         self._sample_rate = int(config.get("sample_rate", COSYVOICE_SAMPLE_RATE))
+        self._server: CosyVoiceServer | None = None
 
         if self._provider == "dashscope":
             from .dashscope_client import DashScopeClient

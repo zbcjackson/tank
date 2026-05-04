@@ -34,6 +34,13 @@ class _MemoryConvStore(ConversationStore):
         return None
 
 
+class _TestClientWithStores(TestClient):
+    """TestClient with injected store attributes for testing."""
+
+    _channel_store: ChannelStore
+    _conv_store: _MemoryConvStore
+
+
 @pytest.fixture()
 def client(tmp_path: Path):
     """Create a test client with injected channel and conversation stores."""
@@ -51,20 +58,20 @@ def client(tmp_path: Path):
     )
     deps.init(ctx, deps.connection_manager())
 
-    tc = TestClient(app, raise_server_exceptions=False)
-    tc._channel_store = channel_store  # type: ignore[attr-defined]
-    tc._conv_store = conv_store  # type: ignore[attr-defined]
+    tc = _TestClientWithStores(app, raise_server_exceptions=False)
+    tc._channel_store = channel_store
+    tc._conv_store = conv_store
     yield tc
     channel_store.close()
 
 
 class TestChannelListAPI:
-    def test_list_empty(self, client: TestClient):
+    def test_list_empty(self, client: _TestClientWithStores):
         resp = client.get("/api/channels")
         assert resp.status_code == 200
         assert resp.json() == []
 
-    def test_list_after_create(self, client: TestClient):
+    def test_list_after_create(self, client: _TestClientWithStores):
         client.post("/api/channels", json={"name": "Test Channel", "slug": "test"})
         resp = client.get("/api/channels")
         assert resp.status_code == 200
@@ -74,7 +81,7 @@ class TestChannelListAPI:
 
 
 class TestChannelCreateAPI:
-    def test_create_with_slug(self, client: TestClient):
+    def test_create_with_slug(self, client: _TestClientWithStores):
         resp = client.post(
             "/api/channels",
             json={"name": "Daily Report", "slug": "daily-report"},
@@ -85,7 +92,7 @@ class TestChannelCreateAPI:
         assert data["name"] == "Daily Report"
         assert data["conversation_id"] != ""
 
-    def test_create_without_slug_auto_generates(self, client: TestClient):
+    def test_create_without_slug_auto_generates(self, client: _TestClientWithStores):
         resp = client.post(
             "/api/channels",
             json={"name": "My Channel"},
@@ -94,12 +101,12 @@ class TestChannelCreateAPI:
         data = resp.json()
         assert data["slug"] == "my-channel"
 
-    def test_create_duplicate_slug_returns_409(self, client: TestClient):
+    def test_create_duplicate_slug_returns_409(self, client: _TestClientWithStores):
         client.post("/api/channels", json={"name": "First", "slug": "test"})
         resp = client.post("/api/channels", json={"name": "Second", "slug": "test"})
         assert resp.status_code == 409
 
-    def test_create_with_description(self, client: TestClient):
+    def test_create_with_description(self, client: _TestClientWithStores):
         resp = client.post(
             "/api/channels",
             json={"name": "Test", "slug": "test", "description": "A test"},
@@ -109,56 +116,56 @@ class TestChannelCreateAPI:
 
 
 class TestChannelGetAPI:
-    def test_get_existing(self, client: TestClient):
+    def test_get_existing(self, client: _TestClientWithStores):
         client.post("/api/channels", json={"name": "Test", "slug": "test"})
         resp = client.get("/api/channels/test")
         assert resp.status_code == 200
         assert resp.json()["slug"] == "test"
 
-    def test_get_nonexistent_returns_404(self, client: TestClient):
+    def test_get_nonexistent_returns_404(self, client: _TestClientWithStores):
         resp = client.get("/api/channels/nope")
         assert resp.status_code == 404
 
 
 class TestChannelUpdateAPI:
-    def test_update_name(self, client: TestClient):
+    def test_update_name(self, client: _TestClientWithStores):
         client.post("/api/channels", json={"name": "Old", "slug": "test"})
         resp = client.put("/api/channels/test", json={"name": "New"})
         assert resp.status_code == 200
         assert resp.json()["name"] == "New"
 
-    def test_update_description(self, client: TestClient):
+    def test_update_description(self, client: _TestClientWithStores):
         client.post("/api/channels", json={"name": "Test", "slug": "test"})
         resp = client.put("/api/channels/test", json={"description": "Updated"})
         assert resp.status_code == 200
         assert resp.json()["description"] == "Updated"
 
-    def test_update_nonexistent_returns_404(self, client: TestClient):
+    def test_update_nonexistent_returns_404(self, client: _TestClientWithStores):
         resp = client.put("/api/channels/nope", json={"name": "X"})
         assert resp.status_code == 404
 
-    def test_update_no_fields_returns_400(self, client: TestClient):
+    def test_update_no_fields_returns_400(self, client: _TestClientWithStores):
         client.post("/api/channels", json={"name": "Test", "slug": "test"})
         resp = client.put("/api/channels/test", json={})
         assert resp.status_code == 400
 
 
 class TestChannelDeleteAPI:
-    def test_delete_existing(self, client: TestClient):
+    def test_delete_existing(self, client: _TestClientWithStores):
         client.post("/api/channels", json={"name": "Test", "slug": "test"})
         resp = client.delete("/api/channels/test")
         assert resp.status_code == 204
         # Verify it's gone
         assert client.get("/api/channels/test").status_code == 404
 
-    def test_delete_nonexistent_returns_404(self, client: TestClient):
+    def test_delete_nonexistent_returns_404(self, client: _TestClientWithStores):
         resp = client.delete("/api/channels/nope")
         assert resp.status_code == 404
 
 
 class TestChannelPromoteAPI:
-    def test_promote_conversation(self, client: TestClient):
-        conv_store: _MemoryConvStore = client._conv_store  # type: ignore[attr-defined]
+    def test_promote_conversation(self, client: _TestClientWithStores):
+        conv_store: _MemoryConvStore = client._conv_store
         conv = ConversationData.new("system prompt")
         conv_store.save(conv)
 
@@ -175,8 +182,8 @@ class TestChannelPromoteAPI:
         assert data["slug"] == "promoted"
         assert data["conversation_id"] == conv.id
 
-    def test_promote_auto_generates_slug(self, client: TestClient):
-        conv_store: _MemoryConvStore = client._conv_store  # type: ignore[attr-defined]
+    def test_promote_auto_generates_slug(self, client: _TestClientWithStores):
+        conv_store: _MemoryConvStore = client._conv_store
         conv = ConversationData.new("system")
         conv_store.save(conv)
 
@@ -187,8 +194,8 @@ class TestChannelPromoteAPI:
         assert resp.status_code == 201
         assert resp.json()["slug"] == "my-channel"
 
-    def test_promote_duplicate_slug_returns_409(self, client: TestClient):
-        conv_store: _MemoryConvStore = client._conv_store  # type: ignore[attr-defined]
+    def test_promote_duplicate_slug_returns_409(self, client: _TestClientWithStores):
+        conv_store: _MemoryConvStore = client._conv_store
         # Create channel first
         client.post("/api/channels", json={"name": "Existing", "slug": "existing"})
         # Try to promote with same slug
@@ -200,7 +207,7 @@ class TestChannelPromoteAPI:
         )
         assert resp.status_code == 409
 
-    def test_promote_nonexistent_conversation_returns_404(self, client: TestClient):
+    def test_promote_nonexistent_conversation_returns_404(self, client: _TestClientWithStores):
         resp = client.post(
             "/api/channels/promote",
             json={"conversation_id": "fake-id", "slug": "test", "name": "Test"},
