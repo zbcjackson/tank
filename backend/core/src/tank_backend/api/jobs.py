@@ -12,35 +12,19 @@ from pydantic import BaseModel, Field
 
 from ..jobs.cron import validate_cron
 from ..jobs.models import JobDefinition
+from . import deps
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"], redirect_slashes=False)
 
-# Injected from server.py
-_deps: dict[str, Any] = {"job_store": None, "scheduler": None}
-
-
-def set_job_store(store: Any) -> None:
-    _deps["job_store"] = store
-
-
-def set_scheduler(scheduler: Any) -> None:
-    _deps["scheduler"] = scheduler
-
 
 def _get_store():
-    store = _deps["job_store"]
-    if store is None:
-        raise HTTPException(503, "Job store not initialized")
-    return store
+    return deps.job_store()
 
 
 def _get_scheduler():
-    scheduler = _deps["scheduler"]
-    if scheduler is None:
-        raise HTTPException(503, "Scheduler not initialized")
-    return scheduler
+    return deps.scheduler()
 
 
 # ------------------------------------------------------------------

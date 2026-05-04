@@ -5,33 +5,19 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
-from ..context.store import ConversationStore
+from . import deps
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"], redirect_slashes=False)
 
-_deps: dict[str, ConversationStore | None] = {"store": None}
-
-
-def set_store(store: ConversationStore | None) -> None:
-    """Set the conversation store for the REST API (called from server.py)."""
-    _deps["store"] = store
-
-
-def _get_store() -> ConversationStore:
-    store = _deps["store"]
-    if store is None:
-        raise HTTPException(503, "Conversation store not initialized")
-    return store
-
 
 @router.get("")
 async def list_conversations() -> list[dict[str, Any]]:
     """List all conversations, most recent first."""
-    store = _get_store()
+    store = deps.conversation_store()
     conversations = store.list_conversations()
     return [
         {
@@ -47,9 +33,10 @@ async def list_conversations() -> list[dict[str, Any]]:
 @router.get("/{conversation_id}/messages")
 async def get_conversation_messages(conversation_id: str) -> dict[str, Any]:
     """Get full conversation with messages (excluding system messages)."""
-    store = _get_store()
+    store = deps.conversation_store()
     conversation = store.load(conversation_id)
     if conversation is None:
+        from fastapi import HTTPException
         raise HTTPException(404, "Conversation not found")
     return {
         "id": conversation.id,

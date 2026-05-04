@@ -37,17 +37,19 @@ class _MemoryConvStore(ConversationStore):
 @pytest.fixture()
 def client(tmp_path: Path):
     """Create a test client with injected channel and conversation stores."""
-    from tank_backend.api.channels import (
-        set_channel_store,
-        set_conversation_store,
-    )
+    from tank_backend.api import deps
     from tank_backend.api.server import app
+    from tank_backend.config.context import AppContext
 
     channel_store = ChannelStore(tmp_path / "test_channels.db")
     conv_store = _MemoryConvStore()
 
-    set_channel_store(channel_store)
-    set_conversation_store(conv_store)
+    ctx = AppContext(
+        app_config=deps.app_context().app_config,
+        channel_store=channel_store,
+        conversation_store=conv_store,
+    )
+    deps.init(ctx, deps.connection_manager())
 
     tc = TestClient(app, raise_server_exceptions=False)
     tc._channel_store = channel_store  # type: ignore[attr-defined]

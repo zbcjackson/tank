@@ -9,38 +9,22 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..channels.models import slugify
+from . import deps
 
 if TYPE_CHECKING:
-    from ..channels.store import ChannelStore
     from ..context.store import ConversationStore
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/channels", tags=["channels"], redirect_slashes=False)
 
-_deps: dict[str, ChannelStore | ConversationStore | None] = {
-    "channel_store": None,
-    "conversation_store": None,
-}
 
-
-def set_channel_store(store: ChannelStore) -> None:
-    _deps["channel_store"] = store
-
-
-def set_conversation_store(store: ConversationStore | None) -> None:
-    _deps["conversation_store"] = store
-
-
-def _get_channel_store() -> ChannelStore:
-    store = _deps["channel_store"]
-    if store is None:
-        raise HTTPException(503, "Channel store not initialized")
-    return store  # type: ignore[return-value]
+def _get_channel_store():
+    return deps.channel_store()
 
 
 def _get_conversation_store() -> ConversationStore | None:
-    return _deps["conversation_store"]  # type: ignore[return-value]
+    return deps.app_context().conversation_store
 
 
 # ------------------------------------------------------------------

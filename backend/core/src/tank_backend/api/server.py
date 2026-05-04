@@ -24,25 +24,16 @@ if TYPE_CHECKING:
     from ..jobs.scheduler import CronScheduler
     from ..jobs.store import JobStore
 
+from . import deps
 from .channels import router as channels_router
-from .channels import set_channel_store
-from .channels import set_conversation_store as set_channels_conversation_store
 from .conversations import router as conversations_router
-from .conversations import set_store as set_conversations_store
 from .jobs import router as jobs_router
-from .jobs import set_job_store
-from .jobs import set_scheduler as set_jobs_scheduler
 from .manager import ConnectionManager
 from .metrics import router as metrics_router
-from .metrics import set_connection_manager as set_metrics_connection_manager
 from .router import router
-from .router import set_connection_manager as set_router_connection_manager
 from .skills import router as skills_router
-from .skills import set_connection_manager as set_skills_connection_manager
 from .speakers import router as speakers_router
-from .speakers import set_connection_manager
 from .users import router as users_router
-from .users import set_connection_manager as set_users_connection_manager
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -140,14 +131,7 @@ def _init_voiceprint_recognizer(
         return None
 
 
-def _wire_routers(
-    app: FastAPI,
-    mgr: ConnectionManager,
-    store: ConversationStore | None,
-    job_store: JobStore | None,
-    scheduler: CronScheduler | None,
-    channel_store: ChannelStore | None,
-) -> None:
+def _wire_routers(app: FastAPI) -> None:
     app.include_router(router)
     app.include_router(speakers_router)
     app.include_router(users_router)
@@ -156,20 +140,6 @@ def _wire_routers(
     app.include_router(skills_router)
     app.include_router(jobs_router)
     app.include_router(channels_router)
-
-    set_router_connection_manager(mgr)
-    set_connection_manager(mgr)
-    set_metrics_connection_manager(mgr)
-    set_skills_connection_manager(mgr)
-    set_users_connection_manager(mgr)
-    set_conversations_store(store)
-    if job_store is not None:
-        set_job_store(job_store)
-    if scheduler is not None:
-        set_jobs_scheduler(scheduler)
-    if channel_store is not None:
-        set_channel_store(channel_store)
-        set_channels_conversation_store(store)
 
 
 # ---------------------------------------------------------------------------
@@ -206,6 +176,9 @@ app_context = AppContext(
 )
 connection_manager = ConnectionManager(app_context=app_context)
 
+# Initialise the composition root — all API modules use deps.* from here on
+deps.init(app_context, connection_manager)
+
 # Wire broadcast into delivery manager (created before ConnectionManager)
 if _delivery is not None:
     _delivery.set_connection_manager(connection_manager)
@@ -226,7 +199,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Tank Voice Assistant API", version="0.1.0", lifespan=lifespan)
-_wire_routers(app, connection_manager, _store, _job_store, _scheduler, _channel_store)
+_wire_routers(app)
 
 
 @app.get("/health")

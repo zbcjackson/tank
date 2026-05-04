@@ -8,38 +8,28 @@ import numpy as np
 from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from .manager import ConnectionManager
+from . import deps
 
 logger = logging.getLogger("SpeakerRoutes")
 
 router = APIRouter(prefix="/api/speakers", tags=["speakers"])
 
-_deps: dict[str, ConnectionManager | None] = {"mgr": None}
-
-
-def set_connection_manager(manager: ConnectionManager) -> None:
-    """Set the shared connection manager reference."""
-    _deps["mgr"] = manager
-
 
 def _get_recognizer():
-    mgr = _deps["mgr"]
-    if mgr is None:
-        raise HTTPException(503, "Speaker service not initialized")
-    recognizer = mgr.get_voiceprint_recognizer()
+    recognizer = deps.app_context().voiceprint_recognizer
     if recognizer is None:
         raise HTTPException(503, "Speaker identification is disabled")
     return recognizer
 
 
 def _get_repository():
-    mgr = _deps["mgr"]
-    if mgr is None:
-        raise HTTPException(503, "Speaker service not initialized")
-    recognizer = mgr.get_voiceprint_recognizer()
+    recognizer = deps.app_context().voiceprint_recognizer
     if recognizer is None or not recognizer.enabled:
         raise HTTPException(503, "Speaker identification is disabled")
-    return recognizer.repository
+    repo = recognizer.repository
+    if repo is None:
+        raise HTTPException(503, "Speaker repository not available")
+    return repo
 
 
 class SpeakerInfo(BaseModel):

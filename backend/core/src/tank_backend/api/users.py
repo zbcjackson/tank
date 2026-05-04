@@ -9,26 +9,16 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..users import UserManager
-from .manager import ConnectionManager
+from . import deps
 
 logger = logging.getLogger("UserRoutes")
 
 router = APIRouter(prefix="/api/users", tags=["users"], redirect_slashes=False)
 
-_deps: dict[str, ConnectionManager | None] = {"mgr": None}
-
-
-def set_connection_manager(manager: ConnectionManager) -> None:
-    """Set the shared connection manager reference."""
-    _deps["mgr"] = manager
-
 
 def _get_user_manager() -> UserManager:
-    """Build a UserManager from the shared ConnectionManager."""
-    mgr = _deps["mgr"]
-    if mgr is None:
-        raise HTTPException(503, "User service not initialized")
-    recognizer = mgr.get_voiceprint_recognizer()
+    """Build a UserManager from AppContext's voiceprint recognizer."""
+    recognizer = deps.app_context().voiceprint_recognizer
     repo = recognizer.repository if recognizer and recognizer.enabled else None
     return UserManager(repo, Path.home() / ".tank" / "users")
 

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from tank_backend.api import metrics as metrics_module
+from tank_backend.api import deps
 
 
 @pytest.fixture
@@ -18,11 +18,11 @@ def client(mock_connection_manager):
     """Create a test client with mocked connection manager."""
     from tank_backend.api.server import app
 
-    # Inject mock into the metrics module directly
-    metrics_module.set_connection_manager(mock_connection_manager)
+    # Inject mock via the composition root
+    deps._mgr["v"] = mock_connection_manager
     yield TestClient(app)
     # Reset
-    metrics_module._connection_manager = None
+    deps._mgr["v"] = None
 
 
 class TestMetricsAPI:
@@ -69,7 +69,7 @@ class TestMetricsAPI:
             "interrupts": 0,
             "langfuse_trace_ids": [],
         }
-        mock_connection_manager._sessions = {"s1": mock_assistant_1}
+        mock_connection_manager.iter_sessions.return_value = [("s1", mock_assistant_1)]
 
         response = client.get("/api/metrics")
         assert response.status_code == 200
@@ -78,7 +78,7 @@ class TestMetricsAPI:
         assert "s1" in data["sessions"]
 
     def test_get_all_metrics_empty(self, client, mock_connection_manager) -> None:
-        mock_connection_manager._sessions = {}
+        mock_connection_manager.iter_sessions.return_value = []
 
         response = client.get("/api/metrics")
         assert response.status_code == 200

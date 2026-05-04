@@ -56,26 +56,29 @@ class Assistant:
 
     def __init__(
         self,
-        app_config: AppConfig | None = None,
+        app_context: Any | None = None,
+        *,
         config_path: Path | None = None,
         on_exit_request: Callable[[], None] | None = None,
         audio_source_factory: AudioSourceFactory | None = None,
         audio_sink_factory: AudioSinkFactory | None = None,
-        job_store: Any = None,
-        job_scheduler: Any = None,
-        registry: Any = None,
-        channel_store: Any = None,
-        conversation_store: Any = None,
     ) -> None:
-        self._channel_store = channel_store
-        self._conversation_store = conversation_store
-        registry = self._init_config_and_llm(app_config, registry=registry)
+        from ..config.context import AppContext
+
+        ctx: AppContext | None = app_context
+        if ctx is None:
+            msg = "app_context is required"
+            raise ValueError(msg)
+
+        self._channel_store = ctx.channel_store
+        self._conversation_store = ctx.conversation_store
+        registry = self._init_config_and_llm(ctx.app_config, registry=ctx.registry)
         self._init_bus()
         self._init_tools()
 
         # Wire job management tool if scheduler is enabled
-        if job_store is not None and job_scheduler is not None:
-            self._tool_manager.set_job_manager(job_store, job_scheduler)
+        if ctx.job_store is not None and ctx.scheduler is not None:
+            self._tool_manager.set_job_manager(ctx.job_store, ctx.scheduler)
 
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()

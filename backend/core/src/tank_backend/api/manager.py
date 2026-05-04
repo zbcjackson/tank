@@ -104,15 +104,7 @@ class ConnectionManager:
             if existing:
                 await self._cleanup_assistant(session_id, existing)
 
-            ctx = self._app_context
-            assistant = Assistant(
-                app_config=ctx.app_config,
-                job_store=ctx.job_store,
-                job_scheduler=ctx.scheduler,
-                registry=ctx.registry,
-                channel_store=ctx.channel_store,
-                conversation_store=ctx.conversation_store,
-            )
+            assistant = Assistant(app_context=self._app_context)
             self._sessions[session_id] = assistant
             self._ws_refcount[session_id] = 1
             await assistant.start()

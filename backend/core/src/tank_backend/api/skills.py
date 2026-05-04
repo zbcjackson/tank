@@ -4,20 +4,13 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
-from .manager import ConnectionManager
+from . import deps
 
 logger = logging.getLogger("SkillRoutes")
 
 router = APIRouter(prefix="/api/skills", tags=["skills"])
-
-_deps: dict[str, ConnectionManager | None] = {"mgr": None}
-
-
-def set_connection_manager(manager: ConnectionManager) -> None:
-    """Set the shared connection manager reference."""
-    _deps["mgr"] = manager
 
 
 @router.post("/reload")
@@ -26,9 +19,7 @@ async def reload_skills():
 
     Returns a per-session diff of added/removed/updated skills.
     """
-    mgr = _deps["mgr"]
-    if mgr is None:
-        raise HTTPException(503, "Service not initialized")
+    mgr = deps.connection_manager()
 
     results: dict[str, dict[str, list[str]]] = {}
     for session_id, assistant in mgr.iter_sessions():
