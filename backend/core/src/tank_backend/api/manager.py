@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from ..config.context import AppContext
@@ -33,6 +34,7 @@ class ConnectionManager:
         self._ws_refcount: dict[str, int] = {}
         self._session_lock = asyncio.Lock()
         self._app_context = app_context
+        self._senders: dict[str, Callable[[str], Awaitable[None]]] = {}
 
     def get_voiceprint_recognizer(self) -> VoiceprintRecognizer | None:
         """Get the shared voiceprint recognizer."""
@@ -45,6 +47,33 @@ class ConnectionManager:
     def iter_sessions(self):
         """Iterate over all active (session_id, assistant) pairs."""
         yield from self._sessions.items()
+
+    # ── Broadcast ─────────────────────────────────────────────────
+
+    def register_sender(
+        self, session_id: str, send_fn: Callable[[str], Awaitable[None]],
+    ) -> None:
+        """Register a WebSocket send function for broadcast."""
+        self._senders[session_id] = send_fn
+
+    def unregister_sender(self, session_id: str) -> None:
+        """Remove a WebSocket send function."""
+        self._senders.pop(session_id, None)
+
+    async def broadcast(self, message_json: str) -> int:
+        """Send a JSON string to all connected WebSocket sessions."""
+        sent = 0
+        dead: list[str] = []
+        for sid, send_fn in list(self._senders.items()):
+            try:
+                await send_fn(message_json)
+                sent += 1
+            except Exception:
+                logger.debug("Broadcast send failed for session %s", sid)
+                dead.append(sid)
+        for sid in dead:
+            self._senders.pop(sid, None)
+        return sent
 
     async def get_or_create_assistant(
         self, session_id: str,

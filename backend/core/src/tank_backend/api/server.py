@@ -67,10 +67,10 @@ def _init_job_scheduler(
     config: AppConfig,
     channel_store: Any | None = None,
     conversation_store: Any | None = None,
-) -> tuple[Any, Any]:
+) -> tuple[Any, Any, Any]:
     if not config.jobs.enabled:
         logger.info("Job scheduler disabled (jobs.enabled=false)")
-        return None, None
+        return None, None, None
 
     from ..jobs.delivery import DeliveryManager
     from ..jobs.runner import AutonomousRunner
@@ -109,7 +109,7 @@ def _init_job_scheduler(
         )
 
     logger.info("Job scheduler initialized (max_parallel=%d)", jobs_cfg.max_parallel)
-    return job_store, scheduler
+    return job_store, scheduler, delivery
 
 
 def _init_voiceprint_recognizer(
@@ -184,7 +184,7 @@ if app_config.channels.enabled:
     except Exception as e:
         logger.warning("Failed to initialize channel store: %s", e)
 
-_job_store, _scheduler = _init_job_scheduler(
+_job_store, _scheduler, _delivery = _init_job_scheduler(
     app_config, channel_store=_channel_store, conversation_store=_store,
 )
 _voiceprint_recognizer = _init_voiceprint_recognizer(app_config, _registry)
@@ -199,6 +199,10 @@ app_context = AppContext(
     channel_store=_channel_store,
 )
 connection_manager = ConnectionManager(app_context=app_context)
+
+# Wire broadcast into delivery manager (created before ConnectionManager)
+if _delivery is not None:
+    _delivery.set_connection_manager(connection_manager)
 
 
 @asynccontextmanager

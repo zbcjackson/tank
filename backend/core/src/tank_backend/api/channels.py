@@ -114,6 +114,17 @@ def update_channel(slug: str, req: UpdateChannelRequest):
     return channel.to_dict()
 
 
+@router.put("/{slug}/read", status_code=204)
+def mark_channel_read(slug: str):
+    """Mark a channel as read (clears unread indicator)."""
+    store = _get_channel_store()
+    channel = store.get(slug)
+    if channel is None:
+        raise HTTPException(404, f"Channel '{slug}' not found")
+    conv_store = _get_conversation_store()
+    store.mark_read(slug, conv_store)
+
+
 @router.delete("/{slug}", status_code=204)
 def delete_channel(slug: str):
     """Delete a channel and its underlying conversation."""

@@ -161,6 +161,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         )
         await websocket.send_text(ready_msg.model_dump_json())
 
+        # Register sender for cross-session broadcast (channel notifications)
+        async def _broadcast_send(json_str: str) -> None:
+            if ws_connected:
+                await websocket.send_text(json_str)
+
+        connection_manager.register_sender(session_id, _broadcast_send)
+
         while True:
             data = await websocket.receive()
 
@@ -202,6 +209,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         logger.error(f"WebSocket error in {session_id}: {e}", exc_info=True)
     finally:
         ws_connected = False
-        # Decrement refcount. Idle timer only starts when no WS remains.
+        connection_manager.unregister_sender(session_id)
         connection_manager.detach_websocket(session_id)
         logger.info(f"WebSocket disconnected: {session_id}")

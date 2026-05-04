@@ -27,6 +27,13 @@ CREATE TABLE IF NOT EXISTS channels (
 );
 """
 
+_CREATE_READ_STATE_TABLE = """
+CREATE TABLE IF NOT EXISTS channel_read_state (
+    slug                    TEXT PRIMARY KEY REFERENCES channels(slug) ON DELETE CASCADE,
+    last_read_message_count INTEGER NOT NULL DEFAULT 0
+);
+"""
+
 
 class ChannelStore:
     """SQLite-backed store for channel metadata.
@@ -42,6 +49,7 @@ class ChannelStore:
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.execute(_CREATE_TABLE)
+        self._conn.execute(_CREATE_READ_STATE_TABLE)
         self._conn.commit()
 
     # ── CRUD ──────────────────────────────────────────────────────────
@@ -148,6 +156,8 @@ class ChannelStore:
             "FROM channels ORDER BY updated_at DESC"
         ).fetchall()
 
+        read_state = self._get_read_state()
+
         summaries: list[ChannelSummary] = []
         for slug, name, description, conv_id, updated_at in rows:
             msg_count = 0
@@ -156,8 +166,9 @@ class ChannelStore:
                 conv = conversation_store.load(conv_id)
                 if conv is not None:
                     msg_count = len(conv.messages)
-                    # Best-effort last message timestamp from conversation start_time
                     last_msg_at = conv.start_time.isoformat()
+            last_read = read_state.get(slug, 0)
+            unread = max(0, msg_count - last_read)
             summaries.append(
                 ChannelSummary(
                     slug=slug,
@@ -165,6 +176,7 @@ class ChannelStore:
                     description=description,
                     message_count=msg_count,
                     last_message_at=last_msg_at,
+                    unread_count=unread,
                 )
             )
         return summaries
@@ -242,6 +254,38 @@ class ChannelStore:
             "Promoted conversation '%s' to channel '%s'", conversation_id, slug,
         )
         return channel
+
+    # ── Read tracking ───────────────────────────────────────────────
+
+    def mark_read(
+        self, slug: str, conversation_store: ConversationStore | None = None,
+    ) -> None:
+        """Mark a channel as read by recording the current message count."""
+        channel = self.get(slug)
+        if channel is None:
+            return
+
+        msg_count = 0
+        if conversation_store is not None:
+            conv = conversation_store.load(channel.conversation_id)
+            if conv is not None:
+                msg_count = len(conv.messages)
+
+        self._conn.execute(
+            "INSERT INTO channel_read_state (slug, last_read_message_count) "
+            "VALUES (?, ?) "
+            "ON CONFLICT(slug) DO UPDATE SET "
+            "last_read_message_count = excluded.last_read_message_count",
+            (slug, msg_count),
+        )
+        self._conn.commit()
+
+    def _get_read_state(self) -> dict[str, int]:
+        """Return {slug: last_read_message_count} for all channels."""
+        rows = self._conn.execute(
+            "SELECT slug, last_read_message_count FROM channel_read_state"
+        ).fetchall()
+        return {slug: count for slug, count in rows}
 
     def close(self) -> None:
         """Close the database connection."""

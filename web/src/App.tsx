@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAssistant } from './hooks/useAssistant';
+import { useChannelNotifications } from './hooks/useChannelNotifications';
 import { VoiceMode } from './components/Assistant/VoiceMode';
 import { ChatMode } from './components/Assistant/ChatMode';
 import { ModeToggle } from './components/Assistant/ModeToggle';
@@ -56,6 +57,10 @@ function App() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [activeChannelSlug, setActiveChannelSlug] = useState<string | null>(null);
 
+  // Ref to break circular dependency: useAssistant needs the handler,
+  // but useChannelNotifications needs appendSteps from useAssistant.
+  const channelNotificationHandlerRef = useRef<((msg: import('./services/websocket').WebsocketMessage) => void) | null>(null);
+
   const {
     steps,
     mode,
@@ -74,13 +79,33 @@ function App() {
     resumeAudioCapture,
     resumeConversation,
     newConversation,
+    appendSteps,
     capabilities,
     conversationState,
     wakeWordKeyword,
     ttsRms,
     selectedUserId,
     setSelectedUserId,
-  } = useAssistant(SESSION_ID, wakeWordDetector);
+  } = useAssistant(SESSION_ID, wakeWordDetector, (msg) => {
+    channelNotificationHandlerRef.current?.(msg);
+  });
+
+  const channelNotifications = useChannelNotifications({
+    activeChannelSlug,
+    onActiveChannelMessages: appendSteps,
+  });
+
+  useEffect(() => {
+    channelNotificationHandlerRef.current = channelNotifications.handleNotification;
+  }, [channelNotifications.handleNotification]);
+
+  // Seed unread counts from API on mount
+  useEffect(() => {
+    fetch('/api/channels')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((channels) => channelNotifications.initFromChannels(channels))
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelectConversation = useCallback(
     async (conversationId: string) => {
@@ -110,11 +135,12 @@ function App() {
         if (channel.conversation_id) {
           await resumeConversation(channel.conversation_id);
         }
+        channelNotifications.markRead(slug);
       } catch {
         // Channel not found or fetch failed — ignore silently
       }
     },
-    [resumeConversation],
+    [resumeConversation, channelNotifications],
   );
 
   const lastUserSpeaker = useMemo(() => {
@@ -155,6 +181,7 @@ function App() {
         activeConversationId={activeConversationId}
         onSelectChannel={handleSelectChannel}
         activeChannelSlug={activeChannelSlug}
+        unreadCounts={channelNotifications.unreadCounts}
       />
 
       {/* Conversation list toggle button */}

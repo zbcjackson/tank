@@ -303,7 +303,14 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
     setSteps(historySteps);
   }, []);
 
+  /**
+   * Append steps to the current conversation (used for live channel injection).
+   */
+  const appendSteps = useCallback((newSteps: Step[]) => {
+    setSteps((prev) => [...prev, ...newSteps]);
+  }, []);
+
   const messages = useMemo(() => groupStepsByMsgId(steps), [steps]);
 
-  return { steps, messages, latestMessage, handleMessage, clearSteps, addLocalUserStep, loadHistory };
+  return { steps, messages, latestMessage, handleMessage, clearSteps, addLocalUserStep, loadHistory, appendSteps };
 }

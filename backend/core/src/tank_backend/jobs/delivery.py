@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..channels.store import ChannelStore
@@ -35,6 +35,11 @@ class DeliveryManager:
         self._bus = bus
         self._channel_store = channel_store
         self._conversation_store = conversation_store
+        self._connection_manager: Any | None = None
+
+    def set_connection_manager(self, mgr: Any) -> None:
+        """Set the ConnectionManager for broadcast (called after server init)."""
+        self._connection_manager = mgr
 
     async def deliver(
         self,
@@ -44,13 +49,14 @@ class DeliveryManager:
     ) -> str:
         """Deliver results via channels and file log. Returns output file path."""
         # Primary delivery: channels
-        output_path = self._deliver_to_channels(job, run_id, text)
+        delivered_messages = self._deliver_to_channels(job, run_id, text)
+        output_path = delivered_messages.get("output_path")
 
         # Audit trail: file log
         if job.delivery.log_output:
             log_path = self._save_text(job, run_id, text)
             if not output_path:
-                output_path = log_path
+                output_path = str(log_path)
 
         if self._bus is not None:
             from ..pipeline.bus import BusMessage
@@ -67,6 +73,9 @@ class DeliveryManager:
                 },
             ))
 
+        # Broadcast channel notifications to all connected WebSocket sessions
+        await self._notify_channels(job, run_id, delivered_messages.get("channel_messages", {}))
+
         return str(output_path) if output_path else ""
 
     # ------------------------------------------------------------------
@@ -75,13 +84,16 @@ class DeliveryManager:
 
     def _deliver_to_channels(
         self, job: JobDefinition, run_id: str, text: str,
-    ) -> str | None:
-        """Deliver job output to configured channel slugs."""
+    ) -> dict[str, Any]:
+        """Deliver job output to configured channel slugs.
+
+        Returns a dict with 'output_path' and 'channel_messages' (slug -> message list).
+        """
+        result: dict[str, Any] = {"output_path": None, "channel_messages": {}}
         if not job.delivery.channels or not self._channel_store or not self._conversation_store:
-            return None
+            return result
 
         now_iso = datetime.now(timezone.utc).isoformat()
-        last_path: str | None = None
 
         for slug in job.delivery.channels:
             try:
@@ -97,17 +109,59 @@ class DeliveryManager:
                     )
                     continue
 
-                conversation.messages.append({
+                sys_msg = {
                     "role": "system",
                     "content": f"[Job: {job.name}] run {run_id} completed at {now_iso}",
-                })
-                conversation.messages.append({"role": "assistant", "content": text})
+                }
+                asst_msg = {"role": "assistant", "content": text}
+                conversation.messages.append(sys_msg)
+                conversation.messages.append(asst_msg)
                 self._conversation_store.save(conversation)
+                result["channel_messages"][slug] = [sys_msg, asst_msg]
                 logger.info("Delivered job '%s' to channel '%s'", job.name, slug)
             except Exception:
                 logger.error("Failed to deliver to channel '%s'", slug, exc_info=True)
 
-        return last_path
+        return result
+
+    async def _notify_channels(
+        self,
+        job: JobDefinition,
+        run_id: str,
+        channel_messages: dict[str, list[dict[str, str]]],
+    ) -> None:
+        """Broadcast channel_notification to all connected WebSocket sessions."""
+        if self._connection_manager is None or not channel_messages:
+            return
+
+        from ..api.schemas import MessageType, WebsocketMessage
+
+        for slug, messages in channel_messages.items():
+            channel = self._channel_store.get(slug) if self._channel_store else None
+            preview = ""
+            for m in messages:
+                if m["role"] == "assistant":
+                    content = m["content"]
+                    preview = content[:200] + "..." if len(content) > 200 else content
+                    break
+
+            msg = WebsocketMessage(
+                type=MessageType.CHANNEL_NOTIFICATION,
+                content="",
+                metadata={
+                    "channel_slug": slug,
+                    "channel_name": channel.name if channel else slug,
+                    "event_type": "job_delivery",
+                    "job_name": job.name,
+                    "run_id": run_id,
+                    "messages": messages,
+                    "message_preview": preview,
+                },
+            )
+            try:
+                await self._connection_manager.broadcast(msg.model_dump_json())
+            except Exception:
+                logger.debug("Failed to broadcast channel notification for '%s'", slug)
 
     # ------------------------------------------------------------------
     # Text delivery (audit trail)

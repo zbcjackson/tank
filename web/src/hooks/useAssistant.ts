@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
-import type { Capabilities } from '../services/websocket';
+import type { Capabilities, WebsocketMessage } from '../services/websocket';
 import type { WakeWordDetector } from '../services/wakeWordDetector';
 import {
   useConversationSession,
@@ -21,7 +21,11 @@ const WAKE_WORD_SILENCE_TIMEOUT_MS = Number(
   import.meta.env.VITE_WAKE_WORD_SILENCE_TIMEOUT_MS || '5000',
 );
 
-export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetector | null) => {
+export const useAssistant = (
+  sessionId: string,
+  wakeWordDetector?: WakeWordDetector | null,
+  onChannelNotification?: (msg: WebsocketMessage) => void,
+) => {
   const [mode, setMode] = useState<'voice' | 'chat'>('voice');
   const [isMuted, setIsMuted] = useState(false);
   const [capabilities, setCapabilities] = useState<Capabilities>(DEFAULT_CAPABILITIES);
@@ -50,8 +54,23 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     [dispatchStatus],
   );
 
-  const { steps, messages, latestMessage, handleMessage, addLocalUserStep, loadHistory } =
+  const { steps, messages, latestMessage, handleMessage, addLocalUserStep, loadHistory, appendSteps } =
     useMessageReducer(messageCallbacks);
+
+  // Wrap handleMessage to intercept channel notifications before the reducer
+  const channelNotificationRef = useRef(onChannelNotification);
+  channelNotificationRef.current = onChannelNotification;
+
+  const wrappedHandleMessage = useCallback(
+    (msg: WebsocketMessage) => {
+      if (msg.type === 'channel_notification') {
+        channelNotificationRef.current?.(msg);
+        return;
+      }
+      handleMessage(msg);
+    },
+    [handleMessage],
+  );
 
   // --- Audio pipeline ---
   const {
@@ -66,7 +85,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     sessionId,
     capabilities,
     conversationStateRef,
-    onMessage: handleMessage,
+    onMessage: wrappedHandleMessage,
     dispatchStatus,
   });
 
@@ -304,6 +323,7 @@ export const useAssistant = (sessionId: string, wakeWordDetector?: WakeWordDetec
     resumeAudioCapture,
     resumeConversation,
     newConversation,
+    appendSteps,
     ttsRms,
   };
 };

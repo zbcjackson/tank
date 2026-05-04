@@ -100,3 +100,4 @@ class ChannelSummary:
     description: str
     message_count: int
     last_message_at: str
+    unread_count: int = 0
