@@ -134,20 +134,15 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                         }`}
                       >
                         <div className="flex items-start gap-2.5">
-                          <Hash size={14} className="text-blue-400 mt-0.5 shrink-0" />
+                          <Hash size={14} className={`mt-0.5 shrink-0 ${unread > 0 ? 'text-blue-300' : 'text-blue-400'}`} />
                           <div className="min-w-0 flex-1">
-                            <div className={`text-sm truncate ${unread > 0 ? 'text-white font-medium' : 'text-neutral-200'}`}>
+                            <div className={`text-sm truncate ${unread > 0 ? 'text-white font-semibold' : 'text-neutral-400'}`}>
                               {ch.name}
                             </div>
                             <div className="text-xs text-neutral-500 mt-0.5">
                               {ch.message_count} messages
                             </div>
                           </div>
-                          {unread > 0 && (
-                            <span className="shrink-0 mt-0.5 min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-blue-500 text-white text-xs font-medium">
-                              {unread}
-                            </span>
-                          )}
                         </div>
                       </button>
                     );
