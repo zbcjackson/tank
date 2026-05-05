@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MessageSquare, Plus, Hash } from 'lucide-react';
+import { X, MessageSquare, Plus, Hash, ChevronDown, ChevronUp } from 'lucide-react';
 import { useConversationList, type ConversationInfo } from '../../hooks/useConversationList';
 import { useChannelList } from '../../hooks/useChannelList';
 
@@ -61,6 +61,8 @@ export const ConversationList: React.FC<ConversationListProps> = ({
 }) => {
   const { conversations, loading, refresh } = useConversationList();
   const { channels, refresh: refreshChannels } = useChannelList();
+  const [channelsExpanded, setChannelsExpanded] = useState(true);
+  const [historyExpanded, setHistoryExpanded] = useState(true);
 
   useEffect(() => {
     if (open) {
@@ -119,77 +121,102 @@ export const ConversationList: React.FC<ConversationListProps> = ({
               {/* Channels section */}
               {channels.length > 0 && onSelectChannel && (
                 <div>
-                  <div className="px-4 pt-3 pb-1 text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                    Channels
-                  </div>
-                  {channels.map((ch) => {
-                    const unread = unreadCounts[ch.slug] || ch.unread_count || 0;
-                    return (
-                      <button
-                        key={ch.slug}
-                        onClick={() => onSelectChannel(ch.slug)}
-                        data-testid="channel-item"
-                        className={`w-full text-left px-4 py-2.5 hover:bg-neutral-800/60 transition-colors ${
-                          activeChannelSlug === ch.slug ? 'bg-neutral-800/80' : ''
-                        }`}
-                      >
-                        <div className="flex items-start gap-2.5">
-                          <Hash size={14} className={`mt-0.5 shrink-0 ${unread > 0 ? 'text-blue-300' : 'text-blue-400'}`} />
-                          <div className="min-w-0 flex-1">
-                            <div className={`text-sm truncate ${unread > 0 ? 'text-white font-semibold' : 'text-neutral-400'}`}>
-                              {ch.name}
-                            </div>
-                            <div className="text-xs text-neutral-500 mt-0.5">
-                              {ch.message_count} messages
+                  <button
+                    onClick={() => setChannelsExpanded((prev) => !prev)}
+                    className="w-full flex items-center justify-between px-4 pt-3 pb-1 hover:bg-neutral-800/40 transition-colors rounded cursor-pointer"
+                  >
+                    <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                      Channels
+                    </span>
+                    {channelsExpanded ? (
+                      <ChevronUp size={12} className="text-neutral-500" />
+                    ) : (
+                      <ChevronDown size={12} className="text-neutral-500" />
+                    )}
+                  </button>
+                  {channelsExpanded &&
+                    channels.map((ch) => {
+                      const unread = unreadCounts[ch.slug] || ch.unread_count || 0;
+                      return (
+                        <button
+                          key={ch.slug}
+                          onClick={() => onSelectChannel(ch.slug)}
+                          data-testid="channel-item"
+                          className={`w-full text-left px-4 py-2.5 hover:bg-neutral-800/60 transition-colors ${
+                            activeChannelSlug === ch.slug ? 'bg-neutral-800/80' : ''
+                          }`}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <Hash size={14} className={`mt-0.5 shrink-0 ${unread > 0 ? 'text-blue-300' : 'text-blue-400'}`} />
+                            <div className="min-w-0 flex-1">
+                              <div className={`text-sm truncate ${unread > 0 ? 'text-white font-semibold' : 'text-neutral-400'}`}>
+                                {ch.name}
+                              </div>
+                              <div className="text-xs text-neutral-500 mt-0.5">
+                                {ch.message_count} messages
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+                        </button>
+                      );
+                    })}
                   <div className="border-b border-neutral-800 my-1" />
                 </div>
               )}
 
               {/* History section */}
-              <div className="px-4 pt-3 pb-1 text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                History
-              </div>
-              {loading && conversations.length === 0 && (
-                <div className="px-4 py-8 text-center text-neutral-500 text-sm">Loading…</div>
-              )}
-              {!loading && conversations.length === 0 && (
-                <div className="px-4 py-8 text-center text-neutral-500 text-sm">No conversations yet</div>
-              )}
-              {Array.from(grouped.entries()).map(([label, items]) => (
-                <div key={label}>
-                  <div className="px-4 pt-3 pb-1 text-xs font-medium text-neutral-500 uppercase tracking-wider">
-                    {label}
-                  </div>
-                  {items.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => onSelectConversation(c.id)}
-                      data-testid="conversation-item"
-                      className={`w-full text-left px-4 py-2.5 hover:bg-neutral-800/60 transition-colors ${
-                        activeConversationId === c.id ? 'bg-neutral-800/80' : ''
-                      }`}
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <MessageSquare size={14} className="text-neutral-500 mt-0.5 shrink-0" />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm text-neutral-200 truncate">
-                            {c.preview || 'Empty conversation'}
-                          </div>
-                          <div className="text-xs text-neutral-500 mt-0.5">
-                            {c.message_count} messages · {formatTime(c.start_time)}
-                          </div>
-                        </div>
+              <button
+                onClick={() => setHistoryExpanded((prev) => !prev)}
+                className="w-full flex items-center justify-between px-4 pt-3 pb-1 hover:bg-neutral-800/40 transition-colors rounded cursor-pointer"
+              >
+                <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                  History
+                </span>
+                {historyExpanded ? (
+                  <ChevronUp size={12} className="text-neutral-500" />
+                ) : (
+                  <ChevronDown size={12} className="text-neutral-500" />
+                )}
+              </button>
+              {historyExpanded && (
+                <>
+                  {loading && conversations.length === 0 && (
+                    <div className="px-4 py-8 text-center text-neutral-500 text-sm">Loading…</div>
+                  )}
+                  {!loading && conversations.length === 0 && (
+                    <div className="px-4 py-8 text-center text-neutral-500 text-sm">No conversations yet</div>
+                  )}
+                  {Array.from(grouped.entries()).map(([label, items]) => (
+                    <div key={label}>
+                      <div className="px-4 pt-3 pb-1 text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                        {label}
                       </div>
-                    </button>
+                      {items.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => onSelectConversation(c.id)}
+                          data-testid="conversation-item"
+                          className={`w-full text-left px-4 py-2.5 hover:bg-neutral-800/60 transition-colors ${
+                            activeConversationId === c.id ? 'bg-neutral-800/80' : ''
+                          }`}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <MessageSquare size={14} className="text-neutral-500 mt-0.5 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm text-neutral-200 truncate">
+                                {c.preview || 'Empty conversation'}
+                              </div>
+                              <div className="text-xs text-neutral-500 mt-0.5">
+                                {c.message_count} messages · {formatTime(c.start_time)}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   ))}
-                </div>
-              ))}
+                </>
+              )}
             </div>
           </motion.div>
         </>
