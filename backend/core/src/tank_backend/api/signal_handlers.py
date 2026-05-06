@@ -154,6 +154,18 @@ async def handle_resume_conversation(
         return
     success = assistant.resume_conversation(cid)
     status = "conversation_resumed" if success else "conversation_resume_failed"
+
+    # Track channel context for audio fan-out
+    from . import deps
+    channel_slug: str | None = None
+    if success:
+        ch_store = deps.app_context().channel_store
+        if ch_store is not None:
+            channel = ch_store.get_by_conversation_id(cid)
+            if channel is not None:
+                channel_slug = channel.slug
+    deps.connection_manager().set_session_channel(session_id, channel_slug)
+
     await send_fn(
         WebsocketMessage(
             type=MessageType.SIGNAL,
@@ -172,6 +184,8 @@ async def handle_new_conversation(
     send_fn: SendFn,
 ) -> None:
     new_cid = assistant.new_conversation()
+    from . import deps
+    deps.connection_manager().set_session_channel(session_id, None)
     await send_fn(
         WebsocketMessage(
             type=MessageType.SIGNAL,
@@ -180,3 +194,73 @@ async def handle_new_conversation(
             metadata={"conversation_id": new_cid},
         )
     )
+
+
+@register("subscribe_channels")
+async def handle_subscribe_channels(
+    assistant: Assistant,
+    msg: WebsocketMessage,
+    session_id: str,
+    send_fn: SendFn,
+) -> None:
+    slugs = (msg.metadata or {}).get("channels", [])
+    if not slugs or not isinstance(slugs, list):
+        return
+    from . import deps
+    deps.subscription_manager().subscribe(session_id, slugs)
+    await send_fn(
+        WebsocketMessage(
+            type=MessageType.SIGNAL,
+            content="channels_subscribed",
+            session_id=session_id,
+            metadata={"channels": slugs},
+        )
+    )
+
+
+@register("unsubscribe_channels")
+async def handle_unsubscribe_channels(
+    assistant: Assistant,
+    msg: WebsocketMessage,
+    session_id: str,
+    send_fn: SendFn,
+) -> None:
+    slugs = (msg.metadata or {}).get("channels", [])
+    if not slugs or not isinstance(slugs, list):
+        return
+    from . import deps
+    deps.subscription_manager().unsubscribe(session_id, slugs)
+    await send_fn(
+        WebsocketMessage(
+            type=MessageType.SIGNAL,
+            content="channels_unsubscribed",
+            session_id=session_id,
+            metadata={"channels": slugs},
+        )
+    )
+
+
+@register("stop_channel_audio")
+async def handle_stop_channel_audio(
+    assistant: Assistant,
+    msg: WebsocketMessage,
+    session_id: str,
+    send_fn: SendFn,
+) -> None:
+    """Interrupt in-progress channel audio.
+
+    If `channel_slug` is provided in metadata, only that channel is stopped.
+    Otherwise all channels this session is subscribed to are stopped.
+    """
+    from . import deps
+    service = deps.channel_audio_service()
+    if service is None:
+        return
+    meta = msg.metadata or {}
+    slug = meta.get("channel_slug")
+    if isinstance(slug, str) and slug:
+        service.interrupt(slug)
+    else:
+        # Stop every channel this session is currently subscribed to
+        for s in deps.subscription_manager().get_subscriptions(session_id):
+            service.interrupt(s)

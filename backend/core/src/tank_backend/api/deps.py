@@ -15,7 +15,9 @@ from typing import TYPE_CHECKING
 from fastapi import HTTPException
 
 if TYPE_CHECKING:
+    from ..channels.audio_service import ChannelAudioService
     from ..channels.store import ChannelStore
+    from ..channels.subscription import ChannelSubscriptionManager
     from ..config.context import AppContext
     from ..context.store import ConversationStore
     from ..jobs.scheduler import CronScheduler
@@ -28,16 +30,25 @@ if TYPE_CHECKING:
 
 _deps: dict[str, AppContext | None] = {"ctx": None}
 _mgr: dict[str, ConnectionManager | None] = {"v": None}
+_sub_mgr: dict[str, ChannelSubscriptionManager | None] = {"v": None}
+_channel_audio: dict[str, ChannelAudioService | None] = {"v": None}
 
 
 # ---------------------------------------------------------------------------
 # Initialisation — called once from server.py at startup
 # ---------------------------------------------------------------------------
 
-def init(ctx: AppContext, mgr: ConnectionManager) -> None:
+def init(
+    ctx: AppContext,
+    mgr: ConnectionManager,
+    subscription_mgr: ChannelSubscriptionManager | None = None,
+    channel_audio: ChannelAudioService | None = None,
+) -> None:
     """Wire the composition root.  Called once during server bootstrap."""
     _deps["ctx"] = ctx
     _mgr["v"] = mgr
+    _sub_mgr["v"] = subscription_mgr
+    _channel_audio["v"] = channel_audio
 
 
 # ---------------------------------------------------------------------------
@@ -92,3 +103,16 @@ def scheduler() -> CronScheduler:
     if s is None:
         raise HTTPException(503, "Scheduler not initialised")
     return s
+
+
+def subscription_manager() -> ChannelSubscriptionManager:
+    """Return the channel subscription manager."""
+    mgr = _sub_mgr["v"]
+    if mgr is None:
+        raise RuntimeError("ChannelSubscriptionManager not initialised — call deps.init() first")
+    return mgr
+
+
+def channel_audio_service() -> ChannelAudioService | None:
+    """Return the channel audio service, or None if TTS is disabled."""
+    return _channel_audio["v"]

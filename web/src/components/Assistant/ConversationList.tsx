@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MessageSquare, Plus, Hash, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, MessageSquare, Plus, Hash, ChevronDown, ChevronUp, Bell, BellOff } from 'lucide-react';
 import { useConversationList, type ConversationInfo } from '../../hooks/useConversationList';
 import { useChannelList } from '../../hooks/useChannelList';
 
@@ -13,6 +13,8 @@ interface ConversationListProps {
   onSelectChannel?: (slug: string) => void;
   activeChannelSlug?: string | null;
   unreadCounts?: Record<string, number>;
+  subscribedChannels?: Set<string>;
+  onToggleChannelSubscription?: (slug: string) => void;
 }
 
 function formatTime(isoString: string): string {
@@ -58,6 +60,8 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   onSelectChannel,
   activeChannelSlug,
   unreadCounts = {},
+  subscribedChannels,
+  onToggleChannelSubscription,
 }) => {
   const { conversations, loading, refresh } = useConversationList();
   const { channels, refresh: refreshChannels } = useChannelList();
@@ -137,27 +141,64 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                   {channelsExpanded &&
                     channels.map((ch) => {
                       const unread = unreadCounts[ch.slug] || ch.unread_count || 0;
+                      const isSubscribed = subscribedChannels?.has(ch.slug) ?? false;
                       return (
-                        <button
+                        <div
                           key={ch.slug}
-                          onClick={() => onSelectChannel(ch.slug)}
                           data-testid="channel-item"
-                          className={`w-full text-left px-4 py-2.5 hover:bg-neutral-800/60 transition-colors ${
+                          className={`w-full flex items-center hover:bg-neutral-800/60 transition-colors ${
                             activeChannelSlug === ch.slug ? 'bg-neutral-800/80' : ''
                           }`}
                         >
-                          <div className="flex items-start gap-2.5">
-                            <Hash size={14} className={`mt-0.5 shrink-0 ${unread > 0 ? 'text-blue-300' : 'text-blue-400'}`} />
-                            <div className="min-w-0 flex-1">
-                              <div className={`text-sm truncate ${unread > 0 ? 'text-white font-semibold' : 'text-neutral-400'}`}>
-                                {ch.name}
-                              </div>
-                              <div className="text-xs text-neutral-500 mt-0.5">
-                                {ch.message_count} messages
+                          <button
+                            onClick={() => onSelectChannel(ch.slug)}
+                            className="flex-1 text-left px-4 py-2.5"
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <Hash
+                                size={14}
+                                className={`mt-0.5 shrink-0 ${unread > 0 ? 'text-blue-300' : 'text-blue-400'}`}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div
+                                  className={`text-sm truncate ${unread > 0 ? 'text-white font-semibold' : 'text-neutral-400'}`}
+                                >
+                                  {ch.name}
+                                </div>
+                                <div className="text-xs text-neutral-500 mt-0.5">
+                                  {ch.message_count} messages
+                                  {unread > 0 && (
+                                    <span className="ml-1.5 text-blue-300">
+                                      · {unread} unread
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </button>
+                          </button>
+                          {onToggleChannelSubscription && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleChannelSubscription(ch.slug);
+                              }}
+                              className={`shrink-0 p-2 mr-2 rounded-md transition-colors ${
+                                isSubscribed
+                                  ? 'text-blue-400 hover:text-blue-300 hover:bg-neutral-700/60'
+                                  : 'text-neutral-500 hover:text-neutral-300 hover:bg-neutral-700/60'
+                              }`}
+                              title={
+                                isSubscribed
+                                  ? 'Subscribed — audio plays in background. Click to unsubscribe.'
+                                  : 'Click to subscribe and hear audio in background.'
+                              }
+                              aria-pressed={isSubscribed}
+                              data-testid={`channel-subscribe-${ch.slug}`}
+                            >
+                              {isSubscribed ? <Bell size={14} /> : <BellOff size={14} />}
+                            </button>
+                          )}
+                        </div>
                       );
                     })}
                   <div className="border-b border-neutral-800 my-1" />

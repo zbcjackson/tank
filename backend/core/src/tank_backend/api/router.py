@@ -120,6 +120,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         assistant.set_ui_callback(on_ui_message)
 
     # Playback callback: send audio chunks over WebSocket
+    # Also fans out to other subscribers if this session is on a channel.
     def on_playback_chunk(chunk: AudioChunk) -> None:
         if not ws_connected:
             return
@@ -131,6 +132,24 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 await websocket.send_bytes(chunk.data)
             except Exception as e:
                 logger.debug(f"Audio send error: {e}")
+
+            # Fan out to other subscribers of the same channel
+            mgr = deps.connection_manager()
+            channel_slug = mgr.get_session_channel(session_id)
+            if channel_slug is None:
+                return
+            sub_mgr = deps.subscription_manager()
+            subscribers = sub_mgr.get_subscribers(channel_slug)
+            subscribers.discard(session_id)  # don't double-send to self
+            if not subscribers:
+                return
+            for sid in subscribers:
+                send_fn = mgr.get_binary_sender(sid)
+                if send_fn is not None:
+                    try:
+                        await send_fn(chunk.data)
+                    except Exception:
+                        logger.debug("Fan-out audio send failed for %s", sid)
 
         asyncio.run_coroutine_threadsafe(_send_chunk(), loop)
 
@@ -159,7 +178,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             if ws_connected:
                 await websocket.send_text(json_str)
 
+        async def _binary_send(data: bytes) -> None:
+            if ws_connected:
+                await websocket.send_bytes(data)
+
         deps.connection_manager().register_sender(session_id, _broadcast_send)
+        deps.connection_manager().register_binary_sender(session_id, _binary_send)
 
         while True:
             data = await websocket.receive()
@@ -204,5 +228,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         ws_connected = False
         mgr = deps.connection_manager()
         mgr.unregister_sender(session_id)
+        mgr.unregister_binary_sender(session_id)
+        deps.subscription_manager().remove_session(session_id)
         mgr.detach_websocket(session_id)
         logger.info(f"WebSocket disconnected: {session_id}")

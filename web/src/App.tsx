@@ -6,6 +6,7 @@ import { ChatMode } from './components/Assistant/ChatMode';
 import { ModeToggle } from './components/Assistant/ModeToggle';
 import { ConnectionStatusOverlay } from './components/Assistant/ConnectionStatusOverlay';
 import { ConversationList } from './components/Assistant/ConversationList';
+import { ChannelAudioIndicator } from './components/Assistant/ChannelAudioIndicator';
 import { AnimatePresence } from 'framer-motion';
 import { Menu } from 'lucide-react';
 import type { WakeWordDetector } from './services/wakeWordDetector';
@@ -86,6 +87,7 @@ function App() {
     ttsRms,
     selectedUserId,
     setSelectedUserId,
+    channelAudio,
   } = useAssistant(SESSION_ID, wakeWordDetector, (msg) => {
     channelNotificationHandlerRef.current?.(msg);
   });
@@ -182,6 +184,8 @@ function App() {
         onSelectChannel={handleSelectChannel}
         activeChannelSlug={activeChannelSlug}
         unreadCounts={channelNotifications.unreadCounts}
+        subscribedChannels={channelAudio.subscribedChannels}
+        onToggleChannelSubscription={channelAudio.toggleSubscription}
       />
 
       {/* Conversation list toggle button */}
@@ -193,6 +197,12 @@ function App() {
       >
         <Menu size={18} />
       </button>
+
+      {/* Channel audio playback indicator + stop button */}
+      <ChannelAudioIndicator
+        slug={channelAudio.channelAudioSlug}
+        onStop={channelAudio.stopChannelAudio}
+      />
 
       <main className="flex-1 relative overflow-hidden">
         <AnimatePresence mode="wait">

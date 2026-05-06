@@ -35,6 +35,8 @@ class ConnectionManager:
         self._session_lock = asyncio.Lock()
         self._app_context = app_context
         self._senders: dict[str, Callable[[str], Awaitable[None]]] = {}
+        self._binary_senders: dict[str, Callable[[bytes], Awaitable[None]]] = {}
+        self._session_meta: dict[str, dict[str, str]] = {}
 
     def get_voiceprint_recognizer(self) -> VoiceprintRecognizer | None:
         """Get the shared voiceprint recognizer."""
@@ -59,6 +61,44 @@ class ConnectionManager:
     def unregister_sender(self, session_id: str) -> None:
         """Remove a WebSocket send function."""
         self._senders.pop(session_id, None)
+
+    # ── Binary senders (audio) ────────────────────────────────────
+
+    def register_binary_sender(
+        self, session_id: str, send_fn: Callable[[bytes], Awaitable[None]],
+    ) -> None:
+        """Register a binary (audio) send function for targeted delivery."""
+        self._binary_senders[session_id] = send_fn
+
+    def unregister_binary_sender(self, session_id: str) -> None:
+        """Remove a binary send function."""
+        self._binary_senders.pop(session_id, None)
+
+    def get_binary_sender(
+        self, session_id: str,
+    ) -> Callable[[bytes], Awaitable[None]] | None:
+        """Get the binary sender for a specific session, or None."""
+        return self._binary_senders.get(session_id)
+
+    def get_text_sender(
+        self, session_id: str,
+    ) -> Callable[[str], Awaitable[None]] | None:
+        """Get the JSON text sender for a specific session, or None."""
+        return self._senders.get(session_id)
+
+    # ── Session metadata ──────────────────────────────────────────
+
+    def set_session_channel(self, session_id: str, slug: str | None) -> None:
+        """Track which channel a session is currently on."""
+        meta = self._session_meta.setdefault(session_id, {})
+        if slug is None:
+            meta.pop("channel_slug", None)
+        else:
+            meta["channel_slug"] = slug
+
+    def get_session_channel(self, session_id: str) -> str | None:
+        """Get the channel slug a session is currently on, or None."""
+        return self._session_meta.get(session_id, {}).get("channel_slug")
 
     async def broadcast(self, message_json: str) -> int:
         """Send a JSON string to all connected WebSocket sessions."""
@@ -157,6 +197,7 @@ class ConnectionManager:
         """Stop and remove assistant instance, cancel any idle timer."""
         self._cancel_idle_timer(session_id)
         self._ws_refcount.pop(session_id, None)
+        self._session_meta.pop(session_id, None)
         assistant = self._sessions.pop(session_id, None)
         if assistant is None:
             return

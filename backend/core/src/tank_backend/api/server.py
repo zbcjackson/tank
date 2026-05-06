@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from ..channels.store import ChannelStore
+from ..channels.subscription import ChannelSubscriptionManager
 from ..config import AppConfig, find_config_yaml
 from ..config.context import AppContext
 from ..context import create_store
@@ -176,12 +177,48 @@ app_context = AppContext(
 )
 connection_manager = ConnectionManager(app_context=app_context)
 
+_subscription_manager = ChannelSubscriptionManager()
+
 # Initialise the composition root — all API modules use deps.* from here on
-deps.init(app_context, connection_manager)
+# (channel audio service is wired below after being constructed)
+deps.init(app_context, connection_manager, _subscription_manager)
 
 # Wire broadcast into delivery manager (created before ConnectionManager)
 if _delivery is not None:
     _delivery.set_connection_manager(connection_manager)
+
+# Wire channel audio service into delivery manager (TTS for subscribed clients)
+_channel_audio_service: ChannelAudioService | None = None
+if _delivery is not None:
+    _tts_slot = app_config.tts
+    if _tts_slot.enabled and _tts_slot.extension is not None:
+        try:
+            from tank_contracts.tts import TTSEngine as _TTSEngineType
+
+            _tts_engine_obj = _registry.instantiate(
+                _tts_slot.extension, _tts_slot.config,
+            )
+            if isinstance(_tts_engine_obj, _TTSEngineType):
+                from ..channels.audio_service import ChannelAudioService
+
+                _channel_audio_service = ChannelAudioService(
+                    tts_engine=_tts_engine_obj,
+                    subscription_manager=_subscription_manager,
+                    connection_manager=connection_manager,
+                )
+                _delivery.set_channel_audio_service(_channel_audio_service)
+                # Re-init deps now that the channel audio service is available
+                deps.init(
+                    app_context,
+                    connection_manager,
+                    _subscription_manager,
+                    _channel_audio_service,
+                )
+                logger.info("Channel audio service initialized")
+            else:
+                logger.warning("TTS extension did not produce a TTSEngine instance")
+        except Exception:
+            logger.warning("Failed to create channel audio service", exc_info=True)
 
 
 @asynccontextmanager
@@ -191,6 +228,8 @@ async def lifespan(app: FastAPI):
         await _scheduler.start()
     yield
     logger.info("API Server shutting down")
+    if _channel_audio_service is not None:
+        await _channel_audio_service.stop()
     if _scheduler is not None:
         await _scheduler.stop()
     if _job_store is not None:

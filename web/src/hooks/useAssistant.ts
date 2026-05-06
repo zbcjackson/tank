@@ -10,6 +10,7 @@ import {
 import { useAssistantStatus, type AssistantStatus } from './useAssistantStatus';
 import { useMessageReducer } from './useMessageReducer';
 import { useAudioPipeline } from './useAudioPipeline';
+import { useChannelAudio } from './useChannelAudio';
 import type { Step, StepType, ToolContent, ApprovalContent, Message } from '../types/message';
 
 export type { Step, StepType, ToolContent, ApprovalContent, Message, ConversationState, AssistantStatus };
@@ -61,15 +62,42 @@ export const useAssistant = (
   const channelNotificationRef = useRef(onChannelNotification);
   channelNotificationRef.current = onChannelNotification;
 
+  // --- Channel audio (second playback track) ---
+  const channelAudioClientRef = useRef<import('../services/websocket').VoiceAssistantClient | null>(null);
+  const channelAudio = useChannelAudio({
+    clientRef: channelAudioClientRef,
+  });
+  const channelAudioRef = useRef(channelAudio);
+  channelAudioRef.current = channelAudio;
+
+  // Ref for playback (populated by useAudioPipeline below, used in binary router)
+  const localPlaybackRef = useRef<import('../services/audioPlayback').AudioPlayback | null>(null);
+
   const wrappedHandleMessage = useCallback(
     (msg: WebsocketMessage) => {
       if (msg.type === 'channel_notification') {
         channelNotificationRef.current?.(msg);
         return;
       }
+      // Let channel audio hook handle its signals first
+      if (channelAudioRef.current?.handleSignal(msg)) {
+        return;
+      }
       handleMessage(msg);
     },
     [handleMessage],
+  );
+
+  // Binary frame router: channel audio track or interactive playback
+  const handleBinaryMessage = useCallback(
+    (data: ArrayBuffer) => {
+      if (channelAudioRef.current?.isChannelAudioActive()) {
+        channelAudioRef.current.playChannelChunk(data);
+      } else {
+        localPlaybackRef.current?.play(data);
+      }
+    },
+    [],
   );
 
   // --- Audio pipeline ---
@@ -86,8 +114,22 @@ export const useAssistant = (
     capabilities,
     conversationStateRef,
     onMessage: wrappedHandleMessage,
+    onBinaryMessage: handleBinaryMessage,
     dispatchStatus,
   });
+
+  // Keep local ref in sync with pipeline's playbackRef
+  useEffect(() => {
+    localPlaybackRef.current = playbackRef.current;
+  });
+
+  // Wire channel audio clientRef + re-subscribe after pipeline is connected
+  useEffect(() => {
+    if (connectionState === 'connected' && clientRef.current) {
+      channelAudioClientRef.current = clientRef.current;
+      channelAudio.resubscribeAll();
+    }
+  }, [connectionState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Wake word / conversation session ---
   const wakeWordConfig: ConversationSessionConfig = useMemo(
@@ -325,5 +367,6 @@ export const useAssistant = (
     newConversation,
     appendSteps,
     ttsRms,
+    channelAudio,
   };
 };

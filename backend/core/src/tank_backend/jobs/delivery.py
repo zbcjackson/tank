@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..api.manager import ConnectionManager
+    from ..channels.audio_service import ChannelAudioService
     from ..channels.store import ChannelStore
     from ..config import AppConfig
     from ..context.store import ConversationStore
@@ -51,10 +52,15 @@ class DeliveryManager:
         self._channel_store = channel_store
         self._conversation_store = conversation_store
         self._connection_manager: ConnectionManager | None = None
+        self._channel_audio_service: ChannelAudioService | None = None
 
     def set_connection_manager(self, mgr: ConnectionManager) -> None:
         """Set the ConnectionManager for broadcast (called after server init)."""
         self._connection_manager = mgr
+
+    def set_channel_audio_service(self, service: ChannelAudioService) -> None:
+        """Set the ChannelAudioService for TTS delivery to subscribers."""
+        self._channel_audio_service = service
 
     async def deliver(
         self,
@@ -90,6 +96,9 @@ class DeliveryManager:
 
         # Broadcast channel notifications to all connected WebSocket sessions
         await self._notify_channels(job, run_id, result.channel_messages)
+
+        # Generate TTS audio for subscribed clients
+        await self._speak_to_subscribers(job, run_id, text)
 
         return str(output_path) if output_path else ""
 
@@ -174,6 +183,30 @@ class DeliveryManager:
                 await self._connection_manager.broadcast(msg.model_dump_json())
             except Exception:
                 logger.debug("Failed to broadcast channel notification for '%s'", slug)
+
+    # ------------------------------------------------------------------
+    # Audio delivery (TTS to subscribers)
+    # ------------------------------------------------------------------
+
+    async def _speak_to_subscribers(
+        self, job: JobDefinition, run_id: str, text: str,
+    ) -> None:
+        """Generate TTS audio for clients subscribed to delivery channels."""
+        if self._channel_audio_service is None:
+            return
+        for slug in job.delivery.channels:
+            try:
+                await self._channel_audio_service.speak(
+                    channel_slug=slug,
+                    text=text,
+                    metadata={
+                        "source": "job_delivery",
+                        "job_name": job.name,
+                        "run_id": run_id,
+                    },
+                )
+            except Exception:
+                logger.debug("Channel audio failed for '%s'", slug, exc_info=True)
 
     # ------------------------------------------------------------------
     # Text delivery (audit trail)

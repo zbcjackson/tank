@@ -18,6 +18,7 @@ interface UseAudioPipelineArgs {
   capabilities: Capabilities;
   conversationStateRef: React.RefObject<ConversationState>;
   onMessage: (msg: WebsocketMessage) => void;
+  onBinaryMessage?: (data: ArrayBuffer) => void;
   dispatchStatus: (event: StatusEvent) => void;
 }
 
@@ -33,6 +34,7 @@ export function useAudioPipeline({
   capabilities,
   conversationStateRef,
   onMessage,
+  onBinaryMessage,
   dispatchStatus,
 }: UseAudioPipelineArgs) {
   const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
@@ -75,7 +77,14 @@ export function useAudioPipeline({
         }
         onMessage(msg);
       },
-      (data) => playback.play(data), // Binary frames → playback
+      (data) => {
+        // Route binary frames: channel audio track or interactive playback
+        if (onBinaryMessage) {
+          onBinaryMessage(data);
+        } else {
+          playback.play(data);
+        }
+      }, // Binary frames → playback or channel audio
       () => {}, // onOpen - handled by onConnectionStateChange
       (state, metadata) => {
         setConnectionState(state);
@@ -125,7 +134,7 @@ export function useAudioPipeline({
       audioProcessorRef.current = null;
       playbackRef.current = null;
     };
-  }, [sessionId, onMessage, dispatchStatus, conversationStateRef]);
+  }, [sessionId, onMessage, onBinaryMessage, dispatchStatus, conversationStateRef]);
 
   // Start AudioProcessor only after capabilities confirm ASR is enabled
   useEffect(() => {
