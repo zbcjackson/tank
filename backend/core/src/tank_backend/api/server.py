@@ -15,6 +15,7 @@ from ..channels.subscription import ChannelSubscriptionManager
 from ..config import AppConfig, find_config_yaml
 from ..config.context import AppContext
 from ..context import create_store
+from ..persistence import Database, bootstrap_legacy_data, run_migrations
 from ..plugin.manager import PluginManager
 from ..plugin.registry import ExtensionRegistry
 
@@ -56,17 +57,15 @@ def _init_plugins() -> tuple[AppConfig, ExtensionRegistry]:
 
 def _init_stores(
     config: AppConfig,
+    db: Database,
 ) -> tuple[ConversationStore | None, ChannelStore | None]:
     """Create conversation and channel stores."""
-    conversation = create_store(
-        store_type=config.context.store_type,
-        store_path=config.context.store_path,
-    )
+    conversation = create_store(enabled=config.context.persist, db=db)
     channel: ChannelStore | None = None
     if config.channels.enabled:
         try:
-            channel = ChannelStore(config.channels.db_path)
-            logger.info("Channel store initialized at %s", config.channels.db_path)
+            channel = ChannelStore(db)
+            logger.info("Channel store initialized on unified DB")
         except Exception as e:
             logger.warning("Failed to initialize channel store: %s", e)
     return conversation, channel
@@ -75,6 +74,7 @@ def _init_stores(
 def _init_job_scheduler(
     config: AppConfig,
     stores: tuple[ConversationStore | None, ChannelStore | None],
+    db: Database,
 ) -> tuple[JobStore | None, CronScheduler | None, DeliveryManager | None]:
     if not config.jobs.enabled:
         logger.info("Job scheduler disabled (jobs.enabled=false)")
@@ -87,7 +87,7 @@ def _init_job_scheduler(
 
     conversation_store, channel_store = stores
     jobs_cfg = config.jobs
-    job_store = JobStore(db_path=jobs_cfg.db_path)
+    job_store = JobStore(db)
     delivery = DeliveryManager(
         output_dir=jobs_cfg.output_dir,
         app_config=config,
@@ -122,7 +122,7 @@ def _init_job_scheduler(
 
 
 def _init_voiceprint_recognizer(
-    config: AppConfig, registry: ExtensionRegistry,
+    config: AppConfig, registry: ExtensionRegistry, db: Database,
 ) -> VoiceprintRecognizer | None:
     try:
         from ..audio.input.voiceprint_factory import (
@@ -135,7 +135,7 @@ def _init_voiceprint_recognizer(
             return create_disabled_recognizer()
 
         extractor = registry.instantiate(speaker_cfg.extension, speaker_cfg.config)
-        recognizer = create_voiceprint_recognizer(extractor, speaker_cfg.config)
+        recognizer = create_voiceprint_recognizer(extractor, speaker_cfg.config, db)
         logger.info("Shared voiceprint recognizer initialized")
         return recognizer
     except Exception as e:
@@ -161,10 +161,20 @@ def _wire_routers(app: FastAPI) -> None:
 load_dotenv()  # .env → os.environ before any config loading (covers uvicorn reload path)
 
 app_config, _registry = _init_plugins()
-_store, _channel_store = _init_stores(app_config)
 
-_job_store, _scheduler, _delivery = _init_job_scheduler(app_config, (_store, _channel_store))
-_voiceprint_recognizer = _init_voiceprint_recognizer(app_config, _registry)
+# Unified persistence. Alembic brings the schema to head, then the
+# first-run bootstrap copies data from any legacy per-module DBs and
+# renames them to .bak. Both are idempotent and safe on every startup.
+run_migrations(app_config.database.url)
+_database = Database(app_config.database.url, echo=app_config.database.echo)
+bootstrap_legacy_data(_database)
+
+_store, _channel_store = _init_stores(app_config, _database)
+
+_job_store, _scheduler, _delivery = _init_job_scheduler(
+    app_config, (_store, _channel_store), _database,
+)
+_voiceprint_recognizer = _init_voiceprint_recognizer(app_config, _registry, _database)
 
 app_context = AppContext(
     app_config=app_config,

@@ -165,7 +165,12 @@ src/tank_backend/
 │   ├── langfuse_client.py   # Langfuse init
 │   └── trace.py             # Trace ID generation
 ├── persistence/
-│   └── checkpointer.py      # SQLite checkpointer
+│   ├── database.py         # Database (engine + sessions)
+│   ├── base.py             # Shared DeclarativeBase
+│   ├── models/             # ORM row types (internal)
+│   ├── bootstrap.py        # Legacy DB lift-and-shift
+│   ├── migrate.py          # run_migrations()
+│   └── migrations/         # Alembic env + versions
 ├── core/
 │   ├── __init__.py
 │   ├── brain.py             # Brain class (legacy)

@@ -307,9 +307,13 @@ class TestSchedulerSync:
     @pytest.fixture()
     def job_store(self, tmp_path):
         from tank_backend.jobs.store import JobStore
-        store = JobStore(db_path=tmp_path / "jobs.db")
+        from tank_backend.persistence import Base, Database
+        db = Database(f"sqlite+pysqlite:///{tmp_path}/tank.db")
+        Base.metadata.create_all(db.engine)
+        store = JobStore(db)
         yield store
         store.close()
+        db.dispose()
 
     @pytest.fixture()
     def mock_runner(self):

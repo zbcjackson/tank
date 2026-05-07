@@ -41,7 +41,10 @@ def conv_store() -> _MemoryConvStore:
 
 @pytest.fixture()
 def channel_store(tmp_path: Path) -> ChannelStore:
-    return ChannelStore(tmp_path / "test_channels.db")
+    from tank_backend.persistence import Base, Database
+    db = Database(f"sqlite+pysqlite:///{tmp_path}/tank.db")
+    Base.metadata.create_all(db.engine)
+    return ChannelStore(db)
 
 
 class TestMarkRead:
@@ -205,7 +208,10 @@ class TestDeliveryNotification:
         from tank_backend.jobs.models import DeliveryConfig, JobDefinition
 
         conv_store = _MemoryConvStore()
-        tmp_store = ChannelStore(tmp_path / "broadcast.db")
+        from tank_backend.persistence import Base, Database
+        db = Database(f"sqlite+pysqlite:///{tmp_path}/broadcast.db")
+        Base.metadata.create_all(db.engine)
+        tmp_store = ChannelStore(db)
         tmp_store.create("news", "News", conv_store)
 
         mgr = AsyncMock()
@@ -246,7 +252,10 @@ class TestDeliveryNotification:
         from tank_backend.jobs.models import DeliveryConfig, JobDefinition
 
         conv_store = _MemoryConvStore()
-        tmp_store = ChannelStore(tmp_path / "no_mgr.db")
+        from tank_backend.persistence import Base, Database
+        db = Database(f"sqlite+pysqlite:///{tmp_path}/no_mgr.db")
+        Base.metadata.create_all(db.engine)
+        tmp_store = ChannelStore(db)
         tmp_store.create("news", "News", conv_store)
 
         delivery = DeliveryManager(

@@ -6,14 +6,18 @@ import numpy as np
 import pytest
 
 from tank_backend.audio.input.repository_sqlite import SQLiteSpeakerRepository
+from tank_backend.persistence import Base, Database
 
 
 @pytest.fixture
 def repository():
-    """Create in-memory SQLite repository for testing."""
-    repo = SQLiteSpeakerRepository(db_path=":memory:")
+    """Create an in-memory unified DB and a speaker repository bound to it."""
+    db = Database("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(db.engine)
+    repo = SQLiteSpeakerRepository(db)
     yield repo
     repo.close()
+    db.dispose()
 
 
 @pytest.fixture
@@ -23,12 +27,16 @@ def sample_embedding():
 
 
 def test_repository_init(tmp_path):
-    """Test repository initialization."""
-    db_path = tmp_path / "test.db"
-    repo = SQLiteSpeakerRepository(str(db_path))
+    """Test repository initialization against a file-backed unified DB."""
+    db_path = tmp_path / "tank.db"
+    db = Database(f"sqlite+pysqlite:///{db_path}")
+    Base.metadata.create_all(db.engine)
+
+    repo = SQLiteSpeakerRepository(db)
 
     assert db_path.exists()
     repo.close()
+    db.dispose()
 
 
 def test_add_speaker(repository, sample_embedding):

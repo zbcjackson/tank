@@ -47,8 +47,11 @@ def client(tmp_path: Path):
     from tank_backend.api import deps
     from tank_backend.api.server import app
     from tank_backend.config.context import AppContext
+    from tank_backend.persistence import Base, Database
 
-    channel_store = ChannelStore(tmp_path / "test_channels.db")
+    db = Database(f"sqlite+pysqlite:///{tmp_path}/tank.db")
+    Base.metadata.create_all(db.engine)
+    channel_store = ChannelStore(db)
     conv_store = _MemoryConvStore()
 
     ctx = AppContext(

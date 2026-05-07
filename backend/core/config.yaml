@@ -88,7 +88,6 @@ speaker:
     model_path: ../models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx
     num_threads: 1
     provider: cpu
-    db_path: ../data/speakers.db
     threshold: 0.6
     default_user: Unknown
 
@@ -271,11 +270,18 @@ skills:
   catalog_budget_percent: 2        # % of max_history_tokens (in chars, ~4 chars/token)
   catalog_budget_max_chars: 12000  # hard ceiling regardless of context size
 
-# Context — session persistence and conversation history management.
-# store_type: "file" (one JSON per session in store_path dir) or "sqlite" (single DB file).
+# Persistence — unified ORM-backed database for conversations, channels,
+# jobs, and speakers. SQLite by default; swap to Postgres by changing ``url``.
+# Alembic runs on startup and brings the schema to head idempotently.
+# Legacy per-module ``*.db`` files are lifted-and-shifted into this DB on
+# first boot, then renamed to ``*.bak``.
+database:
+  url: sqlite+pysqlite:///~/.tank/tank.db
+  echo: false
+
+# Context — conversation history compaction (messages persist to the unified DB above).
 context:
-  store_type: file
-  store_path: ~/.tank/sessions
+  persist: true
 
 # Memory — persistent cross-session memory using mem0.
 # Extracts facts from conversations and recalls them for personalization.
@@ -313,12 +319,11 @@ preferences:
 # See mcp_servers.yaml.example for the format.
 
 # Autonomous job scheduler — runs tasks on a cron schedule without user interaction.
-# Job definitions are user data stored in ~/.tank/jobs/jobs.db (managed via voice,
-# REST API, or optional seed file at ~/.tank/jobs/seed.yaml).
+# Job definitions live in the unified Tank database (see ``database:`` above),
+# managed via voice, REST API, or an optional seed file at ~/.tank/jobs/seed.yaml.
 jobs:
  enabled: true
  max_parallel: 3           # Max concurrent job executions
  tick_interval: 60         # Seconds between scheduler ticks
-#   db_path: ~/.tank/jobs/jobs.db
 #   output_dir: ~/.tank/jobs/output
 #   seed_path: ~/.tank/jobs/seed.yaml

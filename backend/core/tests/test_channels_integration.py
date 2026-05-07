@@ -17,6 +17,7 @@ from tank_backend.context.conversation import ConversationData
 from tank_backend.context.store import ConversationStore
 from tank_backend.jobs.delivery import DeliveryManager
 from tank_backend.jobs.models import JobDefinition
+from tank_backend.persistence import Base, Database
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -65,9 +66,12 @@ def _make_job(**overrides) -> JobDefinition:
 
 @pytest.fixture()
 def channel_store(tmp_path):
-    store = ChannelStore(db_path=tmp_path / "channels.db")
+    db = Database(f"sqlite+pysqlite:///{tmp_path}/tank.db")
+    Base.metadata.create_all(db.engine)
+    store = ChannelStore(db)
     yield store
     store.close()
+    db.dispose()
 
 
 @pytest.fixture()

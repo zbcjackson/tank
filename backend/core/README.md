@@ -104,7 +104,6 @@ tts:
 speaker:
   extension: speaker-sherpa:speaker_id
   config:
-    db_path: ../data/speakers.db
     threshold: 0.6
 ```
 

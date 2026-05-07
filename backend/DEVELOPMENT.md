@@ -118,10 +118,17 @@ approval_policies:
     - web_search
     - web_fetch
 
-# Conversation persistence — save/restore history across restarts.
-persistence:
-  enabled: false
-  db_path: ../data/sessions.db
+# Unified database — one SQLAlchemy/ORM-backed DB for conversations,
+# channels, jobs, and speakers. Alembic auto-migrates at startup.
+# Swap to Postgres by changing ``url`` to a postgresql+psycopg DSN.
+database:
+  url: sqlite+pysqlite:///~/.tank/tank.db
+  echo: false
+
+# Context — conversation history compaction. Turn persistence uses the
+# unified database above.
+context:
+  persist: true
 
 # Sandbox — Docker container for code execution tools
 sandbox:
@@ -404,7 +411,6 @@ speaker:
     model_path: ../models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx
     num_threads: 1
     provider: cpu
-    db_path: ../data/speakers.db
     threshold: 0.6
     default_user: Unknown
 ```

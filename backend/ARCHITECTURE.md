@@ -217,17 +217,52 @@ Tools can require human approval before execution. The approval flow:
 
 ### 6. Persistence (`src/tank_backend/persistence/`)
 
-**Checkpointer** (`checkpointer.py`):
-- SQLite with WAL mode for concurrent reads
-- `save(session_id, history)` — upserts conversation state
-- `load(session_id)` — restores conversation on reconnect
-- `list_sessions()` — all saved sessions with timestamps
-- `delete(session_id)` — cleanup
+Unified SQLAlchemy 2.0 ORM layer. One database (SQLite by default at
+``~/.tank/tank.db``; swap to Postgres by changing ``database.url``)
+backs four domain stores:
 
-**Brain Integration**:
-- On WebSocket connect: loads checkpoint for `session_id` if persistence is enabled
-- After each turn: auto-checkpoints conversation history
-- Configurable via `config.yaml` (`persistence.enabled`, `persistence.db_path`)
+- ``SqliteConversationStore`` — conversation history (``context/``)
+- ``ChannelStore`` — channel metadata + read state (``channels/``)
+- ``JobStore`` — scheduled job definitions + run history (``jobs/``)
+- ``SQLiteSpeakerRepository`` — voiceprints + embeddings (``audio/input/``)
+
+**Core pieces:**
+
+- ``Database`` — owns the SQLAlchemy engine + session factory. WAL mode
+  and foreign keys are applied per connection via a ``connect`` listener.
+- ``Base`` — shared ``DeclarativeBase``; every ORM row class registers
+  against ``Base.metadata`` so Alembic can autogenerate migrations.
+- ``models/`` — internal ORM row types (``ConversationRow``, ``ChannelRow``,
+  ``JobRow``, etc.). Stores translate between rows and the frozen domain
+  dataclasses callers use (``ChannelData``, ``JobDefinition``, ...).
+- ``migrations/`` — Alembic environment. ``env.py`` reads the URL from
+  ``AppConfig.database.url``, not ``alembic.ini``, so there is a single
+  source of truth.
+- ``run_migrations(url)`` — brings schema to head on every startup. If
+  a pre-migration install already contains all Tank tables without an
+  ``alembic_version`` table, it ``stamp``s instead of trying to re-create.
+- ``bootstrap_legacy_data(db)`` — first-run copy from legacy per-module
+  DBs (``~/.tank/conversations.db``, ``~/.tank/channels/channels.db``,
+  ``~/.tank/jobs/jobs.db``, ``../data/speakers.db``). Idempotent: skips
+  any destination table that already has rows, renames each source to
+  ``.bak`` on success.
+
+**Startup sequence (``api/server.py``):**
+
+```python
+run_migrations(app_config.database.url)
+db = Database(app_config.database.url)
+bootstrap_legacy_data(db)
+# stores receive ``db`` via constructor injection
+```
+
+**Boundary preservation:**
+
+Stores keep their existing public APIs and return frozen dataclasses.
+The ORM is an implementation detail — callers never see ``Mapped[...]``
+columns or ``Session`` objects. This is what lets the Postgres swap
+reduce to a URL change: ``sqlite+pysqlite:///~/.tank/tank.db`` →
+``postgresql+psycopg://user:pass@host/tank``.
 
 ### 7. Tool System (`src/tank_backend/tools/`)
 
@@ -317,7 +352,8 @@ All runtime configuration lives in `backend/core/config.yaml`. Secrets stay in `
 - `agents` — Agent definitions (type, llm_profile)
 - `approval_policies` — Tool approval tiers
 - `brain` — Conversation processing (max_history_tokens)
-- `persistence` — Session checkpointing (enabled, db_path)
+- `database` — Unified ORM DB (`url`, `echo`). Backs conversations, channels, jobs, speakers.
+- `context` — Conversation history compaction (`persist` toggles whether turns are saved)
 - `observability` — Langfuse host configuration
 
 ## System Characteristics
@@ -392,8 +428,13 @@ src/tank_backend/
 ├── observability/                # LLM tracing
 │   ├── langfuse_client.py        # Langfuse initialization
 │   └── trace.py                  # Trace ID generation
-├── persistence/                  # Conversation persistence
-│   └── checkpointer.py           # SQLite checkpointer
+├── persistence/                  # Unified ORM persistence (SQLAlchemy 2.0)
+│   ├── database.py               # Database class (engine + session factory)
+│   ├── base.py                   # Shared DeclarativeBase
+│   ├── models/                   # ORM row types for all domains
+│   ├── migrate.py                # run_migrations() — programmatic Alembic
+│   ├── bootstrap.py              # First-run legacy-DB lift-and-shift
+│   └── migrations/               # Alembic env + versions
 ├── tools/                        # Tool system
 ├── plugin/                       # Plugin system
 ├── config/                       # Settings

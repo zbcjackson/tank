@@ -1,72 +1,32 @@
 """SQLite-backed job store — definitions and run history.
 
-All data lives under ``~/.tank/jobs/`` by default.
-Scheduling state is managed by APScheduler — this store only holds
-job definitions, run history, and seed sync metadata.
+Persists to the unified Tank database via the shared ORM layer. All
+data lives in the ``jobs`` and ``job_runs`` tables managed by Alembic.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import delete, select, update
+
+from ..persistence import Database
+from ..persistence.models import JobRow, JobRunRow
 from .cron import validate_cron
 from .models import JobDefinition, JobRunResult
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_DB_PATH = "~/.tank/jobs/jobs.db"
-
 
 class JobStore:
     """Persistent store for job definitions and run history."""
 
-    def __init__(self, db_path: str | Path = _DEFAULT_DB_PATH) -> None:
-        resolved = Path(db_path).expanduser().resolve()
-        resolved.parent.mkdir(parents=True, exist_ok=True)
-        self._db_path = str(resolved)
-        self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA foreign_keys=ON")
-        self._create_tables()
-
-    # ------------------------------------------------------------------
-    # Schema
-    # ------------------------------------------------------------------
-
-    def _create_tables(self) -> None:
-        self._conn.executescript("""
-            CREATE TABLE IF NOT EXISTS jobs (
-                id          TEXT PRIMARY KEY,
-                name        TEXT NOT NULL UNIQUE,
-                prompt      TEXT NOT NULL,
-                schedule    TEXT NOT NULL,
-                enabled     INTEGER DEFAULT 1,
-                origin      TEXT NOT NULL DEFAULT 'api',
-                config_json TEXT NOT NULL,
-                created_at  TEXT NOT NULL,
-                updated_at  TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS job_runs (
-                id          TEXT PRIMARY KEY,
-                job_id      TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
-                status      TEXT NOT NULL,
-                started_at  TEXT,
-                finished_at TEXT,
-                output_path TEXT,
-                error       TEXT,
-                stats_json  TEXT
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_job_runs_job_id ON job_runs(job_id);
-        """)
-        self._conn.commit()
-        self._migrate_origin_column()
+    def __init__(self, db: Database) -> None:
+        self._db = db
 
     # ------------------------------------------------------------------
     # Job CRUD
@@ -76,81 +36,80 @@ class JobStore:
         """Insert or update a job definition."""
         now = datetime.now(timezone.utc).isoformat()
         config_json = job.to_json()
-
-        self._conn.execute(
-            """INSERT INTO jobs
-               (id, name, prompt, schedule, enabled, origin,
-                config_json, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(id) DO UPDATE SET
-                   name=excluded.name,
-                   prompt=excluded.prompt,
-                   schedule=excluded.schedule,
-                   enabled=excluded.enabled,
-                   config_json=excluded.config_json,
-                   updated_at=excluded.updated_at
-            """,
-            (job.id, job.name, job.prompt, job.schedule, int(job.enabled),
-             origin, config_json, job.created_at or now, now),
-        )
-        self._conn.commit()
+        with self._db.session() as s:
+            existing = s.get(JobRow, job.id)
+            if existing is None:
+                s.add(JobRow(
+                    id=job.id,
+                    name=job.name,
+                    prompt=job.prompt,
+                    schedule=job.schedule,
+                    enabled=int(job.enabled),
+                    origin=origin,
+                    config_json=config_json,
+                    created_at=job.created_at or now,
+                    updated_at=now,
+                ))
+            else:
+                existing.name = job.name
+                existing.prompt = job.prompt
+                existing.schedule = job.schedule
+                existing.enabled = int(job.enabled)
+                existing.config_json = config_json
+                existing.updated_at = now
 
     def get_job(self, job_id: str) -> JobDefinition | None:
         """Fetch a job by ID."""
-        row = self._conn.execute(
-            "SELECT config_json FROM jobs WHERE id = ?", (job_id,)
-        ).fetchone()
-        if row is None:
-            return None
-        return JobDefinition.from_json(row[0])
+        with self._db.session() as s:
+            row = s.get(JobRow, job_id)
+            if row is None:
+                return None
+            return JobDefinition.from_json(row.config_json)
 
     def get_job_by_name(self, name: str) -> JobDefinition | None:
         """Fetch a job by its human-readable name."""
-        row = self._conn.execute(
-            "SELECT config_json FROM jobs WHERE name = ?", (name,)
-        ).fetchone()
-        if row is None:
-            return None
-        return JobDefinition.from_json(row[0])
+        with self._db.session() as s:
+            row = s.execute(
+                select(JobRow).where(JobRow.name == name)
+            ).scalar_one_or_none()
+            if row is None:
+                return None
+            return JobDefinition.from_json(row.config_json)
 
     def list_jobs(self, enabled_only: bool = False) -> list[JobDefinition]:
         """List all jobs, optionally filtering to enabled only."""
-        query = "SELECT config_json FROM jobs"
-        if enabled_only:
-            query += " WHERE enabled = 1"
-        query += " ORDER BY name"
-        rows = self._conn.execute(query).fetchall()
-        return [JobDefinition.from_json(r[0]) for r in rows]
+        with self._db.session() as s:
+            stmt = select(JobRow)
+            if enabled_only:
+                stmt = stmt.where(JobRow.enabled == 1)
+            stmt = stmt.order_by(JobRow.name)
+            rows = s.execute(stmt).scalars().all()
+            return [JobDefinition.from_json(r.config_json) for r in rows]
 
     def delete_job(self, job_id: str) -> bool:
         """Delete a job and its run history. Returns True if found."""
-        cursor = self._conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
-        self._conn.commit()
-        return cursor.rowcount > 0
+        with self._db.session() as s:
+            existing = s.get(JobRow, job_id)
+            if existing is None:
+                return False
+            s.delete(existing)
+        return True
 
     def set_enabled(self, job_id: str, enabled: bool) -> bool:
         """Enable or disable a job. Returns True if found."""
         now = datetime.now(timezone.utc).isoformat()
-        cursor = self._conn.execute(
-            "UPDATE jobs SET enabled = ?, updated_at = ? WHERE id = ?",
-            (int(enabled), now, job_id),
-        )
-        if cursor.rowcount > 0:
-            # Update config_json to keep it in sync
-            row = self._conn.execute(
-                "SELECT config_json FROM jobs WHERE id = ?", (job_id,)
-            ).fetchone()
-            if row:
-                data = json.loads(row[0])
-                data["enabled"] = enabled
-                data["updated_at"] = now
-                self._conn.execute(
-                    "UPDATE jobs SET config_json = ? WHERE id = ?",
-                    (json.dumps(data), job_id),
-                )
-            self._conn.commit()
+        with self._db.session() as s:
+            row = s.get(JobRow, job_id)
+            if row is None:
+                return False
+            row.enabled = int(enabled)
+            row.updated_at = now
+            # Keep config_json in sync so JobDefinition round-trips.
+            data = json.loads(row.config_json)
+            data["enabled"] = enabled
+            data["updated_at"] = now
+            row.config_json = json.dumps(data)
             return True
-        return False
 
     # ------------------------------------------------------------------
     # Run history
@@ -159,11 +118,13 @@ class JobStore:
     def record_run_start(self, job_id: str, run_id: str) -> None:
         """Record that a job run has started."""
         now = datetime.now(timezone.utc).isoformat()
-        self._conn.execute(
-            "INSERT INTO job_runs (id, job_id, status, started_at) VALUES (?, ?, 'running', ?)",
-            (run_id, job_id, now),
-        )
-        self._conn.commit()
+        with self._db.session() as s:
+            s.add(JobRunRow(
+                id=run_id,
+                job_id=job_id,
+                status="running",
+                started_at=now,
+            ))
 
     def record_run_end(
         self,
@@ -178,52 +139,37 @@ class JobStore:
         """Record that a job run has finished."""
         now = datetime.now(timezone.utc).isoformat()
         stats_json = json.dumps(stats) if stats else None
-        self._conn.execute(
-            """UPDATE job_runs
-               SET status = ?, finished_at = ?, output_path = ?, error = ?, stats_json = ?
-               WHERE id = ?
-            """,
-            (status, now, output_path, error, stats_json, run_id),
-        )
-        self._conn.commit()
+        with self._db.session() as s:
+            s.execute(
+                update(JobRunRow)
+                .where(JobRunRow.id == run_id)
+                .values(
+                    status=status,
+                    finished_at=now,
+                    output_path=output_path,
+                    error=error,
+                    stats_json=stats_json,
+                )
+            )
 
     def get_runs(self, job_id: str, limit: int = 20) -> list[JobRunResult]:
         """List recent runs for a job, newest first."""
-        rows = self._conn.execute(
-            """SELECT id, job_id, status, started_at, finished_at,
-                      output_path, error, stats_json
-               FROM job_runs WHERE job_id = ?
-               ORDER BY started_at DESC LIMIT ?
-            """,
-            (job_id, limit),
-        ).fetchall()
-        return [
-            JobRunResult(
-                run_id=r[0], job_id=r[1], status=r[2],
-                started_at=r[3] or "", finished_at=r[4] or "",
-                output_path=r[5], error=r[6],
-                stats=json.loads(r[7]) if r[7] else {},
-            )
-            for r in rows
-        ]
+        with self._db.session() as s:
+            rows = s.execute(
+                select(JobRunRow)
+                .where(JobRunRow.job_id == job_id)
+                .order_by(JobRunRow.started_at.desc())
+                .limit(limit)
+            ).scalars().all()
+            return [_row_to_result(r) for r in rows]
 
     def get_run(self, run_id: str) -> JobRunResult | None:
         """Fetch a single run by ID."""
-        row = self._conn.execute(
-            """SELECT id, job_id, status, started_at, finished_at,
-                      output_path, error, stats_json
-               FROM job_runs WHERE id = ?
-            """,
-            (run_id,),
-        ).fetchone()
-        if row is None:
-            return None
-        return JobRunResult(
-            run_id=row[0], job_id=row[1], status=row[2],
-            started_at=row[3] or "", finished_at=row[4] or "",
-            output_path=row[5], error=row[6],
-            stats=json.loads(row[7]) if row[7] else {},
-        )
+        with self._db.session() as s:
+            row = s.get(JobRunRow, run_id)
+            if row is None:
+                return None
+            return _row_to_result(row)
 
     # ------------------------------------------------------------------
     # Seed file loading
@@ -242,7 +188,6 @@ class JobStore:
 
         path = Path(seed_path).expanduser().resolve()
         if not path.exists():
-            # No seed file — delete all seed-origin jobs (file was removed)
             removed = self._delete_seed_jobs_not_in(set())
             return {"created": [], "deleted": removed}
 
@@ -250,25 +195,21 @@ class JobStore:
             definitions = yaml.safe_load(f)
 
         if definitions is None:
-            # Empty file — treat as "no seed jobs desired"
             definitions = {}
         elif not isinstance(definitions, dict):
             logger.warning("Seed file %s is not a YAML mapping — skipping", path)
             return {"created": [], "deleted": []}
 
-        # Pass 1: upsert jobs from the file
         seed_names: set[str] = set()
         created: list[str] = []
         for name, raw in definitions.items():
             if not isinstance(raw, dict):
                 continue
-
             if not raw.get("prompt") or not raw.get("schedule"):
                 logger.warning(
                     "Seed job '%s' missing prompt or schedule — skipping", name,
                 )
                 continue
-
             schedule = raw["schedule"]
             if not validate_cron(schedule):
                 logger.warning(
@@ -281,7 +222,6 @@ class JobStore:
 
             existing = self.get_job_by_name(name)
             if existing is not None:
-                # Adopt: if this job exists but isn't tagged as seed, tag it now
                 self._ensure_seed_origin(existing.id)
                 continue  # Don't overwrite content
 
@@ -291,47 +231,35 @@ class JobStore:
             created.append(name)
             logger.info("Loaded seed job: %s (schedule=%s)", name, schedule)
 
-        # Pass 2: delete seed-origin jobs not in the file
         deleted = self._delete_seed_jobs_not_in(seed_names)
-
         return {"created": created, "deleted": deleted}
 
+    # ------------------------------------------------------------------
+    # Helpers used by seed sync
+    # ------------------------------------------------------------------
+
     def _delete_seed_jobs_not_in(self, keep_names: set[str]) -> list[str]:
-        """Delete jobs with origin='seed' whose name is not in *keep_names*."""
-        rows = self._conn.execute(
-            "SELECT id, name FROM jobs WHERE origin = 'seed'"
-        ).fetchall()
-        deleted: list[str] = []
-        for job_id, name in rows:
-            if name not in keep_names:
-                self.delete_job(job_id)
-                deleted.append(name)
-                logger.info("Removed seed job no longer in file: %s", name)
-        return deleted
+        """Delete jobs with origin='seed' whose name is not in ``keep_names``."""
+        with self._db.session() as s:
+            rows = s.execute(
+                select(JobRow.id, JobRow.name).where(JobRow.origin == "seed")
+            ).all()
+            to_delete = [(jid, name) for jid, name in rows if name not in keep_names]
+            if to_delete:
+                s.execute(
+                    delete(JobRow).where(JobRow.id.in_([jid for jid, _ in to_delete]))
+                )
+        for _, name in to_delete:
+            logger.info("Removed seed job no longer in file: %s", name)
+        return [name for _, name in to_delete]
 
     def _ensure_seed_origin(self, job_id: str) -> None:
         """Tag a job as seed-origin if it isn't already."""
-        self._conn.execute(
-            "UPDATE jobs SET origin = 'seed' WHERE id = ? AND origin != 'seed'",
-            (job_id,),
-        )
-        self._conn.commit()
-
-    def _migrate_origin_column(self) -> None:
-        """Add origin column if missing (upgrade from pre-origin schema).
-
-        Pre-existing jobs were all created from the seed file (the API/voice
-        path didn't exist before this feature), so default to 'seed'.
-        """
-        cursor = self._conn.execute("PRAGMA table_info(jobs)")
-        columns = {row[1] for row in cursor.fetchall()}
-        if "origin" not in columns:
-            self._conn.execute(
-                "ALTER TABLE jobs ADD COLUMN origin TEXT NOT NULL DEFAULT 'seed'"
-            )
-            self._conn.commit()
-            logger.info(
-                "Migrated jobs table: added origin column (default='seed')",
+        with self._db.session() as s:
+            s.execute(
+                update(JobRow)
+                .where((JobRow.id == job_id) & (JobRow.origin != "seed"))
+                .values(origin="seed")
             )
 
     # ------------------------------------------------------------------
@@ -339,5 +267,18 @@ class JobStore:
     # ------------------------------------------------------------------
 
     def close(self) -> None:
-        """Close the database connection."""
-        self._conn.close()
+        """No-op: the Database owns the engine lifecycle."""
+        return
+
+
+def _row_to_result(row: JobRunRow) -> JobRunResult:
+    return JobRunResult(
+        run_id=row.id,
+        job_id=row.job_id,
+        status=row.status,
+        started_at=row.started_at or "",
+        finished_at=row.finished_at or "",
+        output_path=row.output_path,
+        error=row.error,
+        stats=json.loads(row.stats_json) if row.stats_json else {},
+    )

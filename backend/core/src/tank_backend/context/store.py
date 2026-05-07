@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 from .conversation import ConversationData, ConversationSummary
+
+if TYPE_CHECKING:
+    from ..persistence import Database
 
 
 class ConversationStore(ABC):
     """Abstract interface for persisting conversations.
 
-    Implementations: :class:`FileConversationStore`, :class:`SqliteConversationStore`.
+    Only implementation: :class:`SqliteConversationStore`. The ABC is
+    kept because test doubles (e.g. in-memory stores) implement it for
+    integration tests.
     """
 
     @abstractmethod
@@ -38,22 +44,18 @@ class ConversationStore(ABC):
         return
 
 
-def create_store(store_type: str, store_path: str) -> ConversationStore | None:
-    """Factory: create a ConversationStore from config values.
-
-    Returns ``None`` for unknown or disabled store types.
-    """
+def create_store(
+    enabled: bool,
+    db: Database,
+) -> ConversationStore | None:
+    """Create a SqliteConversationStore, or ``None`` if persistence is off."""
     import logging
 
     logger = logging.getLogger(__name__)
 
-    if store_type == "sqlite":
-        from .sqlite_store import SqliteConversationStore
+    if not enabled:
+        logger.info("Conversation persistence disabled")
+        return None
 
-        return SqliteConversationStore(store_path)
-    if store_type == "file":
-        from .file_store import FileConversationStore
-
-        return FileConversationStore(store_path)
-    logger.info("Conversation persistence disabled (store_type=%s)", store_type)
-    return None
+    from .sqlite_store import SqliteConversationStore
+    return SqliteConversationStore(db)

@@ -29,7 +29,7 @@ def _make_manager(
     if app_config is None:
         app_config = _make_app_config()
     if config is None:
-        config = ContextConfig(store_type="file", store_path="/tmp/test-sessions")
+        config = ContextConfig()
     if resolver is None:
         resolver = MagicMock()
 
@@ -206,8 +206,6 @@ class TestCompaction:
     async def test_no_compact_under_budget(self):
         mgr = _make_manager(config=ContextConfig(
             max_history_tokens=100000,
-            store_type="file",
-            store_path="/tmp/test",
         ))
         _load_conversation(mgr)
         mgr.add_message("user", "hello")
@@ -221,8 +219,6 @@ class TestCompaction:
         config = ContextConfig(
             max_history_tokens=50,
             keep_recent_messages=2,
-            store_type="file",
-            store_path="/tmp/test",
         )
         mgr = _make_manager(config=config)
         _load_conversation(mgr)
@@ -239,8 +235,6 @@ class TestCompaction:
             max_history_tokens=50,
             keep_recent_messages=2,
             summary_max_tokens=100,
-            store_type="file",
-            store_path="/tmp/test",
         )
         mgr = _make_manager(config=config)
 
@@ -261,8 +255,6 @@ class TestCompaction:
         config = ContextConfig(
             max_history_tokens=50,
             keep_recent_messages=2,
-            store_type="file",
-            store_path="/tmp/test",
         )
         mgr = _make_manager(config=config)
 
@@ -282,8 +274,6 @@ class TestCompaction:
         config = ContextConfig(
             max_history_tokens=50,
             keep_recent_messages=2,
-            store_type="file",
-            store_path="/tmp/test",
         )
         mgr = _make_manager(config=config)
         _load_conversation(mgr)
@@ -299,8 +289,6 @@ class TestCompaction:
         config = ContextConfig(
             max_history_tokens=50,
             keep_recent_messages=2,
-            store_type="file",
-            store_path="/tmp/test",
         )
         mgr = _make_manager(config=config)
         _load_conversation(mgr, mode=CompactionMode.NON_DESTRUCTIVE)

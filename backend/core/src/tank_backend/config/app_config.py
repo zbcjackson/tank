@@ -25,6 +25,7 @@ from .models import (
     ChannelsConfig,
     CommandSecurityConfig,
     ContextConfig,
+    DatabaseConfig,
     EchoGuardConfig,
     FileAccessConfig,
     HealthMonitorConfig,
@@ -96,6 +97,9 @@ class AppConfig:
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     preferences: PreferenceConfig = field(default_factory=PreferenceConfig)
 
+    # Persistence
+    database: DatabaseConfig = field(default_factory=DatabaseConfig)
+
     # Tools & policies
     sandbox: SandboxConfig = field(default_factory=SandboxConfig)
     network_access: NetworkAccessConfig = field(default_factory=NetworkAccessConfig)
@@ -158,6 +162,7 @@ class AppConfig:
                 context=parse_section(ContextConfig, raw.get("context")),
                 memory=parse_section(MemoryConfig, raw.get("memory")),
                 preferences=parse_section(PreferenceConfig, raw.get("preferences")),
+                database=parse_section(DatabaseConfig, raw.get("database")),
                 sandbox=parse_section(SandboxConfig, raw.get("sandbox")),
                 network_access=parse_section(NetworkAccessConfig, raw.get("network_access")),
                 file_access=parse_section(FileAccessConfig, raw.get("file_access")),

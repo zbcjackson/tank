@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from ...persistence import Database
 from .voiceprint import VoiceprintRecognizer
 
 logger = logging.getLogger("VoiceprintFactory")
@@ -12,20 +13,18 @@ logger = logging.getLogger("VoiceprintFactory")
 def create_voiceprint_recognizer(
     extractor: object,
     config: dict,
+    db: Database,
 ) -> VoiceprintRecognizer:
     """Create a VoiceprintRecognizer from a pre-built extractor.
 
     Args:
         extractor: Speaker embedding extractor instance (from plugin).
-        config: Slot config dict (db_path, threshold, default_user).
-
-    Returns:
-        VoiceprintRecognizer instance.
+        config: Slot config dict (threshold, default_user).
+        db: Shared unified database for speaker storage.
     """
     from .repository_sqlite import SQLiteSpeakerRepository
 
-    db_path = config.get("db_path", "../data/speakers.db")
-    repository = SQLiteSpeakerRepository(db_path=db_path)
+    repository = SQLiteSpeakerRepository(db)
     threshold = config.get("threshold", 0.6)
     default_user = config.get("default_user", "Unknown")
 

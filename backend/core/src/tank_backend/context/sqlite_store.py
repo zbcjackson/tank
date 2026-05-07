@@ -1,14 +1,16 @@
-"""SqliteConversationStore — SQLite-based conversation persistence."""
+"""SqliteConversationStore — ORM-backed conversation persistence."""
 
 from __future__ import annotations
 
 import json
 import logging
-import sqlite3
 import time
 from datetime import datetime
-from pathlib import Path
 
+from sqlalchemy import delete, select
+
+from ..persistence import Database
+from ..persistence.models import ConversationRow
 from .conversation import ConversationData, ConversationSummary
 from .store import ConversationStore
 
@@ -16,106 +18,82 @@ logger = logging.getLogger(__name__)
 
 
 class SqliteConversationStore(ConversationStore):
-    """Persist conversations in a SQLite database.
+    """Persist conversations in the unified Tank database."""
 
-    Uses WAL mode for concurrent reads and INSERT OR REPLACE for upserts.
-    """
-
-    def __init__(self, db_path: str | Path = "~/.tank/conversations.db") -> None:
-        resolved = Path(db_path).expanduser().resolve()
-        resolved.parent.mkdir(parents=True, exist_ok=True)
-        self._db_path = str(resolved)
-        self._conn: sqlite3.Connection | None = sqlite3.connect(self._db_path)
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS conversations (
-                conversation_id TEXT PRIMARY KEY,
-                start_time TEXT NOT NULL,
-                pid INTEGER NOT NULL,
-                messages TEXT NOT NULL,
-                updated_at REAL NOT NULL
-            )
-            """
-        )
-        self._conn.commit()
+    def __init__(self, db: Database) -> None:
+        self._db = db
 
     def save(self, conversation: ConversationData) -> None:
-        assert self._conn is not None
-        self._conn.execute(
-            """
-            INSERT OR REPLACE INTO conversations
-                (conversation_id, start_time, pid, messages, updated_at)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (
-                conversation.id,
-                conversation.start_time.isoformat(),
-                conversation.pid,
-                json.dumps(conversation.messages, ensure_ascii=False),
-                time.time(),
-            ),
-        )
-        self._conn.commit()
+        now = time.time()
+        payload = json.dumps(conversation.messages, ensure_ascii=False)
+        with self._db.session() as s:
+            row = s.get(ConversationRow, conversation.id)
+            if row is None:
+                s.add(ConversationRow(
+                    conversation_id=conversation.id,
+                    start_time=conversation.start_time.isoformat(),
+                    pid=conversation.pid,
+                    messages=payload,
+                    updated_at=now,
+                ))
+            else:
+                row.start_time = conversation.start_time.isoformat()
+                row.pid = conversation.pid
+                row.messages = payload
+                row.updated_at = now
 
     def load(self, conversation_id: str) -> ConversationData | None:
-        assert self._conn is not None
-        row = self._conn.execute(
-            "SELECT conversation_id, start_time, pid, messages "
-            "FROM conversations WHERE conversation_id = ?",
-            (conversation_id,),
-        ).fetchone()
-        if row is None:
-            return None
-        return ConversationData(
-            id=row[0],
-            start_time=datetime.fromisoformat(row[1]),
-            pid=row[2],
-            messages=json.loads(row[3]),
-        )
+        with self._db.session() as s:
+            row = s.get(ConversationRow, conversation_id)
+            if row is None:
+                return None
+            return ConversationData(
+                id=row.conversation_id,
+                start_time=datetime.fromisoformat(row.start_time),
+                pid=row.pid,
+                messages=json.loads(row.messages),
+            )
 
     def list_conversations(self) -> list[ConversationSummary]:
-        assert self._conn is not None
-        rows = self._conn.execute(
-            "SELECT conversation_id, start_time, messages "
-            "FROM conversations ORDER BY updated_at DESC"
-        ).fetchall()
-        results: list[ConversationSummary] = []
-        for row in rows:
-            messages = json.loads(row[2])
-            results.append(
-                ConversationSummary(
-                    id=row[0],
-                    start_time=datetime.fromisoformat(row[1]),
-                    message_count=len(messages),
-                )
+        with self._db.session() as s:
+            rows = s.execute(
+                select(
+                    ConversationRow.conversation_id,
+                    ConversationRow.start_time,
+                    ConversationRow.messages,
+                ).order_by(ConversationRow.updated_at.desc())
+            ).all()
+        return [
+            ConversationSummary(
+                id=row[0],
+                start_time=datetime.fromisoformat(row[1]),
+                message_count=len(json.loads(row[2])),
             )
-        return results
+            for row in rows
+        ]
 
     def delete(self, conversation_id: str) -> None:
-        assert self._conn is not None
-        self._conn.execute(
-            "DELETE FROM conversations WHERE conversation_id = ?",
-            (conversation_id,),
-        )
-        self._conn.commit()
+        with self._db.session() as s:
+            s.execute(
+                delete(ConversationRow).where(
+                    ConversationRow.conversation_id == conversation_id
+                )
+            )
 
     def find_latest(self) -> ConversationData | None:
-        assert self._conn is not None
-        row = self._conn.execute(
-            "SELECT conversation_id, start_time, pid, messages "
-            "FROM conversations ORDER BY updated_at DESC LIMIT 1"
-        ).fetchone()
-        if row is None:
-            return None
-        return ConversationData(
-            id=row[0],
-            start_time=datetime.fromisoformat(row[1]),
-            pid=row[2],
-            messages=json.loads(row[3]),
-        )
+        with self._db.session() as s:
+            row = s.execute(
+                select(ConversationRow).order_by(ConversationRow.updated_at.desc()).limit(1)
+            ).scalar_one_or_none()
+            if row is None:
+                return None
+            return ConversationData(
+                id=row.conversation_id,
+                start_time=datetime.fromisoformat(row.start_time),
+                pid=row.pid,
+                messages=json.loads(row.messages),
+            )
 
     def close(self) -> None:
-        if self._conn is not None:
-            self._conn.close()
-            self._conn = None
+        """No-op: the Database owns the engine lifecycle."""
+        return

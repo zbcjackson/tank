@@ -47,6 +47,20 @@ class AssistantConfig:
     speech_interrupt_enabled: bool = True
 
 
+# ── Persistence ──────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class DatabaseConfig:
+    """``database:`` section — unified ORM-backed persistence.
+
+    One database file (SQLite) or URL (Postgres) backs conversations,
+    channels, jobs, and speakers. Swap to Postgres by changing ``url``.
+    """
+
+    url: str = "sqlite+pysqlite:///~/.tank/tank.db"
+    echo: bool = False
+
+
 # ── Context & memory ─────────────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -57,8 +71,7 @@ class ContextConfig:
     keep_recent_messages: int = 5
     summary_max_tokens: int = 500
     summary_temperature: float = 0.3
-    store_type: str = "file"
-    store_path: str = "~/.tank/sessions"
+    persist: bool = True
 
 
 @dataclass(frozen=True)
@@ -252,7 +265,6 @@ class JobsConfig:
     enabled: bool = False
     max_parallel: int = 3
     tick_interval: int = 60
-    db_path: str = "~/.tank/jobs/jobs.db"
     output_dir: str = "~/.tank/jobs/output"
     seed_path: str = ""
 
@@ -264,7 +276,6 @@ class ChannelsConfig:
     """``channels:`` section."""
 
     enabled: bool = True
-    db_path: str = "~/.tank/channels/channels.db"
 
 
 # ── Observability ─────────────────────────────────────────────────

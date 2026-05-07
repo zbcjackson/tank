@@ -97,12 +97,13 @@ class Brain(Processor):
 
         # Create ConversationResolver — owns conversation lifecycle decisions
         from ...context.resolver import ConversationResolver
-        from ...context.store import create_store
 
         if conversation_store is None:
-            store_type = app_config.context.store_type if app_config else "file"
-            store_path = app_config.context.store_path if app_config else "~/.tank/sessions"
-            conversation_store = create_store(store_type, store_path)
+            # No DB injected (unit tests, stand-alone Brain). Use an
+            # in-memory store so the resolver contract holds. Production
+            # always injects the unified SqliteConversationStore from
+            # api/server.py.
+            conversation_store = _InMemoryConversationStore()
 
         self._resolver = ConversationResolver(
             conversation_store=conversation_store,
@@ -114,8 +115,6 @@ class Brain(Processor):
 
         context_config = ContextConfig(
             max_history_tokens=config.max_history_tokens,
-            store_type=app_config.context.store_type if app_config else "file",
-            store_path=app_config.context.store_path if app_config else "~/.tank/sessions",
         )
         self._context = ContextManager(
             app_config=app_config,
@@ -765,3 +764,40 @@ def _agent_to_update_type(agent_output_type: Any) -> UpdateType | None:
         AgentOutputType.TOOL_EXECUTING: UpdateType.TOOL,
         AgentOutputType.TOOL_RESULT: UpdateType.TOOL,
     }.get(agent_output_type)
+
+
+class _InMemoryConversationStore:
+    """Ephemeral ConversationStore used when Brain is built without a DB.
+
+    Production paths inject :class:`SqliteConversationStore` via
+    ``api/server.py``. This stand-in only exists so unit tests that
+    construct Brain directly still have a functioning resolver.
+    """
+
+    def __init__(self) -> None:
+        self._data: dict[str, Any] = {}
+        self._order: list[str] = []
+
+    def save(self, conversation: Any) -> None:
+        if conversation.id not in self._data:
+            self._order.append(conversation.id)
+        self._data[conversation.id] = conversation
+
+    def load(self, conversation_id: str) -> Any:
+        return self._data.get(conversation_id)
+
+    def list_conversations(self) -> list:
+        return []
+
+    def delete(self, conversation_id: str) -> None:
+        self._data.pop(conversation_id, None)
+        if conversation_id in self._order:
+            self._order.remove(conversation_id)
+
+    def find_latest(self) -> Any:
+        if not self._order:
+            return None
+        return self._data[self._order[-1]]
+
+    def close(self) -> None:
+        return

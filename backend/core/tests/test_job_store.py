@@ -3,17 +3,22 @@
 from __future__ import annotations
 
 import pytest
+from sqlalchemy import select
 
 from tank_backend.jobs.models import JobDefinition
 from tank_backend.jobs.store import JobStore
+from tank_backend.persistence import Base, Database
+from tank_backend.persistence.models import JobRow
 
 
 @pytest.fixture()
 def store(tmp_path):
-    db_path = tmp_path / "jobs.db"
-    s = JobStore(db_path=db_path)
+    db = Database(f"sqlite+pysqlite:///{tmp_path}/tank.db")
+    Base.metadata.create_all(db.engine)
+    s = JobStore(db)
     yield s
     s.close()
+    db.dispose()
 
 
 def _make_job(
@@ -250,11 +255,12 @@ class TestSeedFile:
         result = store.load_seed_file(seed)
         assert result["created"] == []  # not re-created, just adopted
 
-        # Verify origin was updated to 'seed'
-        row = store._conn.execute(
-            "SELECT origin FROM jobs WHERE name = 'legacy_job'"
-        ).fetchone()
-        assert row[0] == "seed"
+        # Verify origin was updated to 'seed' via the ORM layer
+        with store._db.session() as s:
+            origin = s.execute(
+                select(JobRow.origin).where(JobRow.name == "legacy_job")
+            ).scalar_one()
+        assert origin == "seed"
 
         # Now remove from seed — should be deleted
         seed.write_text("")

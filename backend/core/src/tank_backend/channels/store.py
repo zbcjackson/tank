@@ -1,13 +1,20 @@
-"""ChannelStore — SQLite-backed persistence for channel metadata."""
+"""ChannelStore — ORM-backed persistence for channel metadata.
+
+Messages are stored via the :class:`ConversationStore` (channel →
+conversation_id). This store only manages the slug → conversation_id
+mapping, metadata, and per-channel read state.
+"""
 
 from __future__ import annotations
 
 import logging
-import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
+from sqlalchemy import delete, select
+
+from ..persistence import Database
+from ..persistence.models import ChannelReadStateRow, ChannelRow
 from .models import ChannelData, ChannelSummary, _humanize_slug, validate_slug
 
 if TYPE_CHECKING:
@@ -15,42 +22,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_CREATE_TABLE = """
-CREATE TABLE IF NOT EXISTS channels (
-    slug            TEXT PRIMARY KEY,
-    name            TEXT NOT NULL,
-    conversation_id TEXT NOT NULL,
-    description     TEXT NOT NULL DEFAULT '',
-    auto_created    INTEGER NOT NULL DEFAULT 0,
-    created_at      TEXT NOT NULL,
-    updated_at      TEXT NOT NULL
-);
-"""
-
-_CREATE_READ_STATE_TABLE = """
-CREATE TABLE IF NOT EXISTS channel_read_state (
-    slug                    TEXT PRIMARY KEY REFERENCES channels(slug) ON DELETE CASCADE,
-    last_read_message_count INTEGER NOT NULL DEFAULT 0
-);
-"""
-
 
 class ChannelStore:
-    """SQLite-backed store for channel metadata.
+    """ORM-backed store for channel metadata."""
 
-    Messages are stored via the ConversationStore (channel -> conversation_id).
-    This store only manages the channel -> conversation_id mapping and metadata.
-    """
-
-    def __init__(self, db_path: str | Path) -> None:
-        path = Path(db_path).expanduser().resolve()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(path), check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA foreign_keys=ON")
-        self._conn.execute(_CREATE_TABLE)
-        self._conn.execute(_CREATE_READ_STATE_TABLE)
-        self._conn.commit()
+    def __init__(self, db: Database) -> None:
+        self._db = db
 
     # ── CRUD ──────────────────────────────────────────────────────────
 
@@ -89,25 +66,17 @@ class ChannelStore:
 
     def get(self, slug: str) -> ChannelData | None:
         """Get a channel by slug, or None if not found."""
-        row = self._conn.execute(
-            "SELECT slug, name, conversation_id, description, auto_created, "
-            "created_at, updated_at FROM channels WHERE slug = ?",
-            (slug,),
-        ).fetchone()
-        if row is None:
-            return None
-        return self._row_to_channel(row)
+        with self._db.session() as s:
+            row = s.get(ChannelRow, slug)
+            return None if row is None else _row_to_channel(row)
 
     def get_by_conversation_id(self, conversation_id: str) -> ChannelData | None:
         """Reverse lookup: find the channel that owns a conversation_id, or None."""
-        row = self._conn.execute(
-            "SELECT slug, name, conversation_id, description, auto_created, "
-            "created_at, updated_at FROM channels WHERE conversation_id = ?",
-            (conversation_id,),
-        ).fetchone()
-        if row is None:
-            return None
-        return self._row_to_channel(row)
+        with self._db.session() as s:
+            row = s.execute(
+                select(ChannelRow).where(ChannelRow.conversation_id == conversation_id)
+            ).scalar_one_or_none()
+            return None if row is None else _row_to_channel(row)
 
     def get_or_create(
         self,
@@ -151,12 +120,17 @@ class ChannelStore:
         self, conversation_store: ConversationStore | None = None,
     ) -> list[ChannelSummary]:
         """List all channels, most recently updated first."""
-        rows = self._conn.execute(
-            "SELECT slug, name, description, conversation_id, updated_at "
-            "FROM channels ORDER BY updated_at DESC"
-        ).fetchall()
-
-        read_state = self._get_read_state()
+        with self._db.session() as s:
+            rows = s.execute(
+                select(
+                    ChannelRow.slug,
+                    ChannelRow.name,
+                    ChannelRow.description,
+                    ChannelRow.conversation_id,
+                    ChannelRow.updated_at,
+                ).order_by(ChannelRow.updated_at.desc())
+            ).all()
+            read_state = self._get_read_state(s)
 
         summaries: list[ChannelSummary] = []
         for slug, name, description, conv_id, updated_at in rows:
@@ -183,28 +157,17 @@ class ChannelStore:
 
     def update(self, slug: str, **kwargs: str) -> ChannelData | None:
         """Update channel name and/or description. Returns updated channel or None."""
-        channel = self.get(slug)
-        if channel is None:
-            return None
-
-        name = kwargs.get("name", channel.name)
-        description = kwargs.get("description", channel.description)
         now = datetime.now(timezone.utc).isoformat()
-
-        self._conn.execute(
-            "UPDATE channels SET name = ?, description = ?, updated_at = ? WHERE slug = ?",
-            (name, description, now, slug),
-        )
-        self._conn.commit()
-        return ChannelData(
-            slug=channel.slug,
-            name=name,
-            conversation_id=channel.conversation_id,
-            description=description,
-            auto_created=channel.auto_created,
-            created_at=channel.created_at,
-            updated_at=now,
-        )
+        with self._db.session() as s:
+            row = s.get(ChannelRow, slug)
+            if row is None:
+                return None
+            if "name" in kwargs:
+                row.name = kwargs["name"]
+            if "description" in kwargs:
+                row.description = kwargs["description"]
+            row.updated_at = now
+            return _row_to_channel(row)
 
     def delete(
         self, slug: str, conversation_store: ConversationStore | None = None,
@@ -217,8 +180,8 @@ class ChannelStore:
         if conversation_store is not None:
             conversation_store.delete(channel.conversation_id)
 
-        self._conn.execute("DELETE FROM channels WHERE slug = ?", (slug,))
-        self._conn.commit()
+        with self._db.session() as s:
+            s.execute(delete(ChannelRow).where(ChannelRow.slug == slug))
         logger.info("Deleted channel '%s'", slug)
         return True
 
@@ -234,7 +197,6 @@ class ChannelStore:
         if self.get(slug) is not None:
             raise ValueError(f"Channel '{slug}' already exists")
 
-        # Verify the conversation exists
         if conversation_store is not None:
             conv = conversation_store.load(conversation_id)
             if conv is None:
@@ -271,53 +233,50 @@ class ChannelStore:
             if conv is not None:
                 msg_count = len(conv.messages)
 
-        self._conn.execute(
-            "INSERT INTO channel_read_state (slug, last_read_message_count) "
-            "VALUES (?, ?) "
-            "ON CONFLICT(slug) DO UPDATE SET "
-            "last_read_message_count = excluded.last_read_message_count",
-            (slug, msg_count),
-        )
-        self._conn.commit()
+        with self._db.session() as s:
+            existing = s.get(ChannelReadStateRow, slug)
+            if existing is None:
+                s.add(ChannelReadStateRow(
+                    slug=slug, last_read_message_count=msg_count,
+                ))
+            else:
+                existing.last_read_message_count = msg_count
 
-    def _get_read_state(self) -> dict[str, int]:
-        """Return {slug: last_read_message_count} for all channels."""
-        rows = self._conn.execute(
-            "SELECT slug, last_read_message_count FROM channel_read_state"
-        ).fetchall()
-        return {slug: count for slug, count in rows}
+    # ── Lifecycle ──────────────────────────────────────────────────
 
     def close(self) -> None:
-        """Close the database connection."""
-        self._conn.close()
+        """No-op: the Database owns the engine lifecycle."""
+        return
 
     # ── Internal ──────────────────────────────────────────────────────
 
     def _insert(self, channel: ChannelData) -> None:
-        self._conn.execute(
-            "INSERT INTO channels (slug, name, conversation_id, description, "
-            "auto_created, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                channel.slug,
-                channel.name,
-                channel.conversation_id,
-                channel.description,
-                int(channel.auto_created),
-                channel.created_at,
-                channel.updated_at,
-            ),
-        )
-        self._conn.commit()
+        with self._db.session() as s:
+            s.add(ChannelRow(
+                slug=channel.slug,
+                name=channel.name,
+                conversation_id=channel.conversation_id,
+                description=channel.description,
+                auto_created=int(channel.auto_created),
+                created_at=channel.created_at,
+                updated_at=channel.updated_at,
+            ))
 
     @staticmethod
-    def _row_to_channel(row: tuple[Any, ...]) -> ChannelData:
-        slug, name, conv_id, description, auto_created, created_at, updated_at = row
-        return ChannelData(
-            slug=slug,
-            name=name,
-            conversation_id=conv_id,
-            description=description,
-            auto_created=bool(auto_created),
-            created_at=created_at,
-            updated_at=updated_at,
-        )
+    def _get_read_state(session) -> dict[str, int]:
+        rows = session.execute(
+            select(ChannelReadStateRow.slug, ChannelReadStateRow.last_read_message_count)
+        ).all()
+        return dict(rows)
+
+
+def _row_to_channel(row: ChannelRow) -> ChannelData:
+    return ChannelData(
+        slug=row.slug,
+        name=row.name,
+        conversation_id=row.conversation_id,
+        description=row.description,
+        auto_created=bool(row.auto_created),
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )

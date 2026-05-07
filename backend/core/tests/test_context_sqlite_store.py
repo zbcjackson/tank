@@ -6,13 +6,17 @@ import pytest
 
 from tank_backend.context.conversation import ConversationData
 from tank_backend.context.sqlite_store import SqliteConversationStore
+from tank_backend.persistence import Base, Database
 
 
 @pytest.fixture
 def store(tmp_path):
-    s = SqliteConversationStore(tmp_path / "test.db")
+    db = Database(f"sqlite+pysqlite:///{tmp_path}/tank.db")
+    Base.metadata.create_all(db.engine)
+    s = SqliteConversationStore(db)
     yield s
     s.close()
+    db.dispose()
 
 
 @pytest.fixture

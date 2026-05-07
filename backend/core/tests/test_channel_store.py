@@ -48,7 +48,10 @@ def conv_store() -> _MemoryConvStore:
 
 @pytest.fixture()
 def channel_store(tmp_path: Path) -> ChannelStore:
-    return ChannelStore(tmp_path / "test_channels.db")
+    from tank_backend.persistence import Base, Database
+    db = Database(f"sqlite+pysqlite:///{tmp_path}/tank.db")
+    Base.metadata.create_all(db.engine)
+    return ChannelStore(db)
 
 
 # ── Slug validation ───────────────────────────────────────────────────

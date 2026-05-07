@@ -22,6 +22,7 @@ from tank_backend.jobs.models import JobDefinition
 from tank_backend.jobs.runner import AutonomousRunner
 from tank_backend.jobs.scheduler import CronScheduler
 from tank_backend.jobs.store import JobStore
+from tank_backend.persistence import Base, Database
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -30,9 +31,12 @@ from tank_backend.jobs.store import JobStore
 
 @pytest.fixture()
 def job_store(tmp_path):
-    store = JobStore(db_path=tmp_path / "jobs.db")
+    db = Database(f"sqlite+pysqlite:///{tmp_path}/tank.db")
+    Base.metadata.create_all(db.engine)
+    store = JobStore(db)
     yield store
     store.close()
+    db.dispose()
 
 
 @pytest.fixture()
