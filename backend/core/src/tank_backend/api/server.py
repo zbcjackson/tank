@@ -21,6 +21,7 @@ from ..plugin.registry import ExtensionRegistry
 
 if TYPE_CHECKING:
     from ..audio.input.voiceprint import VoiceprintRecognizer
+    from ..channels.audio_service import ChannelAudioService
     from ..context.store import ConversationStore
     from ..jobs.delivery import DeliveryManager
     from ..jobs.scheduler import CronScheduler
@@ -143,6 +144,39 @@ def _init_voiceprint_recognizer(
         return None
 
 
+def _init_channel_audio_service(
+    config: AppConfig,
+    registry: ExtensionRegistry,
+    subscription_manager: ChannelSubscriptionManager,
+    connection_manager: ConnectionManager,
+) -> ChannelAudioService | None:
+    """Build the channel audio service if TTS is enabled and wired correctly."""
+    tts_slot = config.tts
+    if not tts_slot.enabled or tts_slot.extension is None:
+        return None
+
+    try:
+        from tank_contracts.tts import TTSEngine
+
+        from ..channels.audio_service import ChannelAudioService
+
+        engine = registry.instantiate(tts_slot.extension, tts_slot.config)
+        if not isinstance(engine, TTSEngine):
+            logger.warning("TTS extension did not produce a TTSEngine instance")
+            return None
+
+        service = ChannelAudioService(
+            tts_engine=engine,
+            subscription_manager=subscription_manager,
+            connection_manager=connection_manager,
+        )
+        logger.info("Channel audio service initialized")
+        return service
+    except Exception:
+        logger.warning("Failed to create channel audio service", exc_info=True)
+        return None
+
+
 def _wire_routers(app: FastAPI) -> None:
     app.include_router(router)
     app.include_router(speakers_router)
@@ -189,46 +223,23 @@ connection_manager = ConnectionManager(app_context=app_context)
 
 _subscription_manager = ChannelSubscriptionManager()
 
-# Initialise the composition root — all API modules use deps.* from here on
-# (channel audio service is wired below after being constructed)
-deps.init(app_context, connection_manager, _subscription_manager)
+# Build the channel audio service before wiring deps so the composition root
+# is initialised exactly once.
+_channel_audio_service = _init_channel_audio_service(
+    app_config, _registry, _subscription_manager, connection_manager,
+)
 
-# Wire broadcast into delivery manager (created before ConnectionManager)
 if _delivery is not None:
     _delivery.set_connection_manager(connection_manager)
+    if _channel_audio_service is not None:
+        _delivery.set_channel_audio_service(_channel_audio_service)
 
-# Wire channel audio service into delivery manager (TTS for subscribed clients)
-_channel_audio_service: ChannelAudioService | None = None
-if _delivery is not None:
-    _tts_slot = app_config.tts
-    if _tts_slot.enabled and _tts_slot.extension is not None:
-        try:
-            from tank_contracts.tts import TTSEngine as _TTSEngineType
-
-            _tts_engine_obj = _registry.instantiate(
-                _tts_slot.extension, _tts_slot.config,
-            )
-            if isinstance(_tts_engine_obj, _TTSEngineType):
-                from ..channels.audio_service import ChannelAudioService
-
-                _channel_audio_service = ChannelAudioService(
-                    tts_engine=_tts_engine_obj,
-                    subscription_manager=_subscription_manager,
-                    connection_manager=connection_manager,
-                )
-                _delivery.set_channel_audio_service(_channel_audio_service)
-                # Re-init deps now that the channel audio service is available
-                deps.init(
-                    app_context,
-                    connection_manager,
-                    _subscription_manager,
-                    _channel_audio_service,
-                )
-                logger.info("Channel audio service initialized")
-            else:
-                logger.warning("TTS extension did not produce a TTSEngine instance")
-        except Exception:
-            logger.warning("Failed to create channel audio service", exc_info=True)
+deps.init(
+    app_context,
+    connection_manager,
+    _subscription_manager,
+    _channel_audio_service,
+)
 
 
 @asynccontextmanager
