@@ -74,6 +74,8 @@ class Assistant:
         self.shutdown_signal = GracefulShutdown()
         self.runtime = RuntimeContext.create()
 
+        self._voiceprint_recognizer = app_context.voiceprint_recognizer
+
         asr_engine = self._create_engine(registry, "asr")
         tts_engine = self._create_engine(registry, "tts")
 
@@ -205,7 +207,7 @@ class Assistant:
         )
         asr_proc = ASRProcessor(asr=asr_engine, bus=self._bus)
 
-        voiceprint_recognizer = self._create_voiceprint_recognizer(registry)
+        voiceprint_recognizer = self._voiceprint_recognizer
         if voiceprint_recognizer is not None:
             speaker_id_proc = SpeakerIDProcessor(
                 recognizer=voiceprint_recognizer, bus=self._bus
@@ -269,23 +271,6 @@ class Assistant:
         if not cfg.enabled or not cfg.extension:
             return None
         return registry.instantiate(cfg.extension, cfg.config)
-
-    def _create_voiceprint_recognizer(self, registry: ExtensionRegistry) -> object | None:
-        """Create VoiceprintRecognizer if speaker ID is enabled, else None."""
-        try:
-            speaker_cfg = self._app_config.get_feature_config("speaker")
-            if not speaker_cfg.enabled or not speaker_cfg.extension:
-                return None
-
-            extractor = registry.instantiate(
-                speaker_cfg.extension, speaker_cfg.config
-            )
-            from ..audio.input.voiceprint_factory import create_voiceprint_recognizer
-
-            return create_voiceprint_recognizer(extractor, speaker_cfg.config)
-        except Exception:
-            logger.warning("Failed to create voiceprint recognizer", exc_info=True)
-            return None
 
     # ------------------------------------------------------------------
     # Public API

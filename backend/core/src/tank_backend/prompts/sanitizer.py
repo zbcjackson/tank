@@ -44,7 +44,7 @@ _INVISIBLE_CHARS: frozenset[str] = frozenset(
 _INJECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"ignore\s+(all\s+)?previous\s+instructions", re.IGNORECASE),
     re.compile(r"you\s+are\s+now\s+(?:a|an)\s+", re.IGNORECASE),
-    re.compile(r"system\s*:\s*", re.IGNORECASE),
+    re.compile(r"(?:^|\n)\s*system\s*:\s*", re.IGNORECASE),
     re.compile(r"<\|(?:im_start|im_end|system|endoftext)\|>", re.IGNORECASE),
     re.compile(r"\[INST\]", re.IGNORECASE),
     re.compile(r"disregard\s+(all|previous|above)", re.IGNORECASE),
