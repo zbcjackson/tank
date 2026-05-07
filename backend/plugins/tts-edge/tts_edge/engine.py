@@ -23,6 +23,21 @@ EDGE_TTS_CHANNELS = 1
 FFMPEG_READ_CHUNK = 4096
 
 
+def _align_int16(data: bytes, leftover: bytes) -> tuple[bytes, bytes]:
+    """Align PCM bytes to Int16 (2-byte) boundaries.
+
+    ffmpeg writes s16le to a pipe; ``read(n)`` may return any byte count,
+    including odd ones. An odd-length chunk makes ``new Int16Array(buf)``
+    throw in browsers (dropping the chunk = audible click). Carry the
+    trailing odd byte over to the next read so every emitted chunk is
+    sample-aligned.
+    """
+    buf = leftover + data
+    if len(buf) % 2 == 1:
+        return buf[:-1], buf[-1:]
+    return buf, b""
+
+
 class EdgeTTSEngine(TTSEngine):
     """TTS engine using Microsoft Edge TTS. Decodes MP3 stream to PCM."""
 
@@ -80,6 +95,7 @@ class EdgeTTSEngine(TTSEngine):
                 proc.stdin.close()
 
         write_task = asyncio.create_task(write_mp3())
+        leftover = b""
         try:
             while True:
                 if is_interrupted and is_interrupted():
@@ -87,8 +103,11 @@ class EdgeTTSEngine(TTSEngine):
                 data = await proc.stdout.read(FFMPEG_READ_CHUNK)
                 if not data:
                     break
+                aligned, leftover = _align_int16(data, leftover)
+                if not aligned:
+                    continue
                 yield AudioChunk(
-                    data=data,
+                    data=aligned,
                     sample_rate=EDGE_TTS_SAMPLE_RATE,
                     channels=EDGE_TTS_CHANNELS,
                 )

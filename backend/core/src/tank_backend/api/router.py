@@ -9,6 +9,7 @@ import time
 
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from tank_contracts import encode_audio_frame
 
 from ..audio.input.types import AudioFrame
 from ..audio.output.types import AudioChunk
@@ -125,11 +126,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         if not ws_connected:
             return
 
+        frame = encode_audio_frame(chunk.data, chunk.sample_rate, chunk.channels)
+
         async def _send_chunk() -> None:
             if not ws_connected:
                 return
             try:
-                await websocket.send_bytes(chunk.data)
+                await websocket.send_bytes(frame)
             except Exception as e:
                 logger.debug(f"Audio send error: {e}")
 
@@ -147,7 +150,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 send_fn = mgr.get_binary_sender(sid)
                 if send_fn is not None:
                     try:
-                        await send_fn(chunk.data)
+                        await send_fn(frame)
                     except Exception:
                         logger.debug("Fan-out audio send failed for %s", sid)
 

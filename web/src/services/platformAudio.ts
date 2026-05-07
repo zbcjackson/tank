@@ -20,8 +20,8 @@ export interface PlatformAudioAdapter {
   /** Start capture. Returns a handle whose stop() ends capture. */
   startCapture(onAudio: (samples: Int16Array) => void): Promise<CaptureHandle>;
 
-  /** Play Int16 PCM chunk at 24 kHz. Returns estimated duration in ms. */
-  playChunk(data: ArrayBuffer): Promise<PlayChunkResult>;
+  /** Play a PCM chunk. Sample rate comes from the wire frame header. */
+  playChunk(data: ArrayBuffer, sampleRate: number, channels: number): Promise<PlayChunkResult>;
 
   /** Stop playback immediately (interruption). Rejects further playChunk calls until reset. */
   stopPlayback(): Promise<void>;

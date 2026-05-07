@@ -6,6 +6,7 @@
  * via play() and manages playback lifecycle independently.
  */
 
+import { decodeAudioFrame } from './audioFrame';
 import type { PlatformAudioAdapter } from './platformAudio';
 
 export class AudioPlayback {
@@ -30,7 +31,8 @@ export class AudioPlayback {
     if (!this.platformAdapter || this.stopped) return;
 
     try {
-      const { durationMs } = await this.platformAdapter.playChunk(data);
+      const { pcm, sampleRate, channels } = decodeAudioFrame(data);
+      const { durationMs } = await this.platformAdapter.playChunk(pcm, sampleRate, channels);
 
       if (this.onSpeakingChange) {
         this.onSpeakingChange(true);

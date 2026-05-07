@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
+from tank_cli.audio.frame import encode_audio_frame
 from tank_cli.audio.output.types import AudioChunk
 from tank_cli.cli.audio_playback import ClientAudioPlayback
 from tank_cli.core.shutdown import GracefulShutdown
@@ -22,28 +23,36 @@ def playback(shutdown):
         return ClientAudioPlayback(shutdown=shutdown)
 
 
-def test_on_audio_chunk_enqueues(playback):
-    """on_audio_chunk should wrap bytes in AudioChunk and enqueue."""
-    data = b"\x00\x01\x02\x03"
-    playback.on_audio_chunk(data)
+def test_on_audio_chunk_decodes_frame(playback):
+    """on_audio_chunk should strip the header and use the announced rate."""
+    pcm = b"\x00\x01\x02\x03"
+    frame = encode_audio_frame(pcm, sample_rate=22050, channels=1)
+
+    playback.on_audio_chunk(frame)
 
     chunk = playback._chunk_queue.get_nowait()
     assert isinstance(chunk, AudioChunk)
-    assert chunk.data == data
-    assert chunk.sample_rate == 24000
+    assert chunk.data == pcm
+    assert chunk.sample_rate == 22050
     assert chunk.channels == 1
+
+
+def test_on_audio_chunk_drops_malformed_frame(playback):
+    """A frame without the magic header should be dropped, not raised."""
+    playback.on_audio_chunk(b"\xde\xad\xbe\xef\x00\x00\x00\x00\x01\x02")
+    assert playback._chunk_queue.empty()
 
 
 def test_on_audio_chunk_drops_when_full(shutdown):
     """When queue is full, on_audio_chunk should drop without raising."""
     with patch(f"{MODULE}.PlaybackWorker"):
         playback = ClientAudioPlayback(shutdown=shutdown)
-        # Fill the queue
+        frame = encode_audio_frame(b"\x00", sample_rate=24000, channels=1)
         for _ in range(50):
-            playback.on_audio_chunk(b"\x00")
+            playback.on_audio_chunk(frame)
 
         # This should not raise
-        playback.on_audio_chunk(b"\xff")
+        playback.on_audio_chunk(frame)
 
         # Queue size should still be 50 (maxsize)
         assert playback._chunk_queue.qsize() == 50
@@ -59,8 +68,9 @@ def test_end_stream_pushes_none(playback):
 
 def test_interrupt_sets_event_and_clears_queue(playback):
     """interrupt should set the event and clear pending chunks."""
-    playback.on_audio_chunk(b"\x00\x01")
-    playback.on_audio_chunk(b"\x02\x03")
+    frame = encode_audio_frame(b"\x00\x01", sample_rate=24000, channels=1)
+    playback.on_audio_chunk(frame)
+    playback.on_audio_chunk(frame)
     assert playback._chunk_queue.qsize() == 2
 
     playback.interrupt()

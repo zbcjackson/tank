@@ -52,10 +52,14 @@ export class TauriAudioAdapter implements PlatformAudioAdapter {
     return { stop: () => this.stopCapture() };
   }
 
-  async playChunk(data: ArrayBuffer): Promise<PlayChunkResult> {
+  async playChunk(
+    data: ArrayBuffer,
+    sampleRate: number,
+    channels: number,
+  ): Promise<PlayChunkResult> {
     const { invoke } = await import('@tauri-apps/api/core');
     const bytes = Array.from(new Uint8Array(data));
-    await invoke('play_audio', { samples: bytes });
+    await invoke('play_audio', { samples: bytes, sampleRate, channels });
 
     // Compute RMS for waveform visualization
     if (this.onRmsChange) {
@@ -68,8 +72,8 @@ export class TauriAudioAdapter implements PlatformAudioAdapter {
       this.onRmsChange(Math.sqrt(sumSq / int16.length));
     }
 
-    // Estimate duration from chunk size (Int16 at 24 kHz)
-    const durationMs = (data.byteLength / 2 / 24000) * 1000;
+    // Estimate duration from chunk size
+    const durationMs = (data.byteLength / 2 / channels / sampleRate) * 1000;
     return { durationMs };
   }
 

@@ -161,9 +161,16 @@ async fn capture_loop(
 }
 
 /// Play TTS audio through the native playback stream (for AEC reference).
-/// Expects raw Int16 PCM bytes at 24kHz.
+/// Expects raw Int16 PCM bytes. The header-announced sample rate is validated
+/// against the native playback rate; mismatches are logged but still played
+/// (audible pitch shift is preferable to dropped audio).
 #[tauri::command]
-pub async fn play_audio(app: AppHandle, samples: Vec<u8>) -> Result<(), String> {
+pub async fn play_audio(
+    app: AppHandle,
+    samples: Vec<u8>,
+    sample_rate: u32,
+    channels: u16,
+) -> Result<(), String> {
     let state = app.state::<AudioState>();
     let guard = state.inner.lock().await;
 
@@ -172,6 +179,15 @@ pub async fn play_audio(app: AppHandle, samples: Vec<u8>) -> Result<(), String> 
         .playback_handle
         .as_ref()
         .ok_or("Playback stream not available")?;
+
+    if sample_rate != PLAYBACK_SAMPLE_RATE {
+        log::warn!(
+            "play_audio: sample_rate {sample_rate} != native {PLAYBACK_SAMPLE_RATE}, audio may sound off-pitch"
+        );
+    }
+    if channels != 1 {
+        log::warn!("play_audio: channels={channels}, only mono is supported — audio will be wrong");
+    }
 
     if !samples.len().is_multiple_of(2) {
         return Err("Invalid audio data length".into());

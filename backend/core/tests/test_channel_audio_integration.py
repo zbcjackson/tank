@@ -8,6 +8,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
+from tank_contracts import decode_audio_frame
 
 from tank_backend.channels.audio_service import ChannelAudioService
 from tank_backend.channels.subscription import ChannelSubscriptionManager
@@ -129,10 +130,14 @@ class TestDeliveryToSubscriber:
         assert "job_delivery" in start_json
         assert "channel_audio_end" in end_json
 
-        # Audio chunks delivered
+        # Audio chunks delivered (framed on the wire: header + pcm)
         assert binary_fn.call_count == 2
-        assert binary_fn.call_args_list[0][0][0] == b"audio1"
-        assert binary_fn.call_args_list[1][0][0] == b"audio2"
+        pcm1, sr1, ch1 = decode_audio_frame(binary_fn.call_args_list[0][0][0])
+        pcm2, sr2, ch2 = decode_audio_frame(binary_fn.call_args_list[1][0][0])
+        assert pcm1 == b"audio1"
+        assert pcm2 == b"audio2"
+        assert sr1 == sr2 == 24000
+        assert ch1 == ch2 == 1
 
 
 class TestNoSubscriberSkip:

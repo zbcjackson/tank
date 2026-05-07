@@ -7,6 +7,7 @@ import logging
 import queue
 import threading
 
+from ..audio.frame import decode_audio_frame
 from ..audio.output.playback_worker import PlaybackWorker
 from ..audio.output.types import AudioChunk
 from ..core.shutdown import GracefulShutdown
@@ -37,12 +38,18 @@ class ClientAudioPlayback:
         self._playback.start()
 
     def on_audio_chunk(self, data: bytes) -> None:
-        """
-        Callback for TankClient — called when binary audio arrives from WS.
+        """Callback for TankClient — called when binary audio arrives from WS.
 
-        Data is Int16 PCM at 24kHz (from EdgeTTS via CallbackAudioSink).
+        Data is a framed audio buffer (header + Int16 PCM). The header carries
+        the sample rate and channels chosen by the current TTS engine.
         """
-        chunk = AudioChunk(data=data, sample_rate=24000, channels=1)
+        try:
+            pcm, sample_rate, channels = decode_audio_frame(data)
+        except ValueError as e:
+            logger.warning("Dropping malformed audio frame: %s", e)
+            return
+
+        chunk = AudioChunk(data=pcm, sample_rate=sample_rate, channels=channels)
         try:
             self._chunk_queue.put_nowait(chunk)
         except queue.Full:

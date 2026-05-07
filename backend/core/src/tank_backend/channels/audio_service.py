@@ -6,6 +6,8 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
+from tank_contracts import encode_audio_frame
+
 from ..pipeline.processors.tts_normalizer import normalize_for_tts
 
 if TYPE_CHECKING:
@@ -137,7 +139,8 @@ class ChannelAudioService:
             async for chunk in chunk_stream:
                 if is_interrupted():
                     break
-                await self._send_binary_to_sessions(subscribers, chunk.data)
+                frame = encode_audio_frame(chunk.data, chunk.sample_rate, chunk.channels)
+                await self._send_binary_to_sessions(subscribers, frame)
         except Exception:
             logger.error(
                 "TTS generation failed for channel '%s'", channel_slug, exc_info=True,

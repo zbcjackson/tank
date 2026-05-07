@@ -3,6 +3,29 @@
 import pytest
 from tank_contracts.tts import AudioChunk, TTSEngine
 from tts_edge import create_engine
+from tts_edge.engine import _align_int16
+
+
+class TestAlignInt16:
+    def test_even_chunk_passes_through_unchanged(self):
+        aligned, leftover = _align_int16(b"\x01\x02\x03\x04", b"")
+        assert aligned == b"\x01\x02\x03\x04"
+        assert leftover == b""
+
+    def test_odd_chunk_defers_last_byte(self):
+        aligned, leftover = _align_int16(b"\x01\x02\x03", b"")
+        assert aligned == b"\x01\x02"
+        assert leftover == b"\x03"
+
+    def test_leftover_joins_next_chunk(self):
+        aligned, leftover = _align_int16(b"\x04\x05", b"\x03")
+        assert aligned == b"\x03\x04"
+        assert leftover == b"\x05"
+
+    def test_empty_chunk_with_odd_leftover_is_empty(self):
+        aligned, leftover = _align_int16(b"", b"\x03")
+        assert aligned == b""
+        assert leftover == b"\x03"
 
 
 def test_create_engine():

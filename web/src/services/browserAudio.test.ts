@@ -26,7 +26,7 @@ let mockAnalyserNode: {
   connect: ReturnType<typeof vi.fn>;
 };
 
-function setupMockAudioContext() {
+function setupMockAudioContext(sampleRate: number = 24000) {
   mockSourceNode = {
     buffer: null,
     connect: vi.fn(),
@@ -42,7 +42,7 @@ function setupMockAudioContext() {
   };
 
   const mockBuffer = {
-    duration: 0.5, // 500ms
+    duration: 0.5,
     getChannelData: vi.fn().mockReturnValue(new Float32Array(12000)),
   };
 
@@ -53,7 +53,7 @@ function setupMockAudioContext() {
     createAnalyser: vi.fn().mockReturnValue(mockAnalyserNode),
     destination: {},
     close: vi.fn().mockResolvedValue(undefined),
-    sampleRate: 24000,
+    sampleRate,
   };
 
   vi.stubGlobal(
@@ -76,15 +76,22 @@ describe('BrowserAudioAdapter', () => {
 
   it('playChunk creates AudioContext lazily and schedules audio', async () => {
     const data = new Int16Array([100, 200, -100]).buffer;
-    const result = await adapter.playChunk(data);
+    const result = await adapter.playChunk(data, 24000, 1);
 
     expect(mockContextInstance.createBufferSource).toHaveBeenCalled();
     expect(mockSourceNode.start).toHaveBeenCalled();
     expect(result.durationMs).toBeGreaterThan(0);
   });
 
+  it('playChunk honors the rate from the frame header', async () => {
+    const data = new Int16Array(1000).buffer;
+    await adapter.playChunk(data, 22050, 1);
+
+    expect(mockContextInstance.createBuffer).toHaveBeenCalledWith(1, 1000, 22050);
+  });
+
   it('stopPlayback closes AudioContext', async () => {
-    await adapter.playChunk(new Int16Array([1]).buffer);
+    await adapter.playChunk(new Int16Array([1]).buffer, 24000, 1);
     await adapter.stopPlayback();
 
     expect(mockContextInstance.close).toHaveBeenCalled();
@@ -92,27 +99,24 @@ describe('BrowserAudioAdapter', () => {
   });
 
   it('stopPlayback sets stopped flag — subsequent playChunk is rejected', async () => {
-    await adapter.playChunk(new Int16Array([1]).buffer);
+    await adapter.playChunk(new Int16Array([1]).buffer, 24000, 1);
     await adapter.stopPlayback();
 
-    // Reset mock to track new calls
     vi.mocked(AudioContext).mockClear();
 
-    const result = await adapter.playChunk(new Int16Array([2]).buffer);
-    // Should return 0 duration and NOT create a new AudioContext
+    const result = await adapter.playChunk(new Int16Array([2]).buffer, 24000, 1);
     expect(result.durationMs).toBe(0);
     expect(AudioContext).not.toHaveBeenCalled();
   });
 
   it('resetPlayback clears stopped flag — playChunk works again', async () => {
-    await adapter.playChunk(new Int16Array([1]).buffer);
+    await adapter.playChunk(new Int16Array([1]).buffer, 24000, 1);
     await adapter.stopPlayback();
     adapter.resetPlayback();
 
-    // Need fresh mock since old context was closed
     setupMockAudioContext();
 
-    const result = await adapter.playChunk(new Int16Array([3]).buffer);
+    const result = await adapter.playChunk(new Int16Array([3]).buffer, 24000, 1);
     expect(result.durationMs).toBeGreaterThan(0);
     expect(mockSourceNode.start).toHaveBeenCalled();
   });
