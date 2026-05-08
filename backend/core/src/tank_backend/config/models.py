@@ -67,11 +67,23 @@ class DatabaseConfig:
 class ContextConfig:
     """``context:`` section."""
 
-    max_history_tokens: int = 8000
+    # Dynamic sizing
+    context_window: int | None = None      # explicit override, None = auto-detect
+    history_share: float = 0.50            # fraction of window for history
+    output_reserve: int = 4096             # tokens reserved for LLM output
+    headroom: int = 2000                   # safety buffer
+
+    # Backward compat: 0 = use dynamic budget; >0 = hard cap
+    max_history_tokens: int = 0
     keep_recent_messages: int = 5
     summary_max_tokens: int = 500
     summary_temperature: float = 0.3
     persist: bool = True
+
+    # Compaction controls
+    pre_turn_compact: bool = True
+    max_compaction_passes: int = 3
+    tool_result_max_share: float = 0.30
 
 
 @dataclass(frozen=True)

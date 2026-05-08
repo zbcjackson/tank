@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from tank_backend.config.models import ContextConfig
+from tank_backend.context.budget import ContextBudget
 from tank_backend.context.conversation import ConversationData
 from tank_backend.context.manager import ContextManager
 from tank_backend.context.resolver import CompactionMode, ResolvedConversation
@@ -15,6 +16,8 @@ def _make_app_config():
     cfg = MagicMock()
     cfg.get_section.return_value = {}
     cfg.get_llm_profile.side_effect = KeyError("no profile")
+    cfg.memory = MagicMock(enabled=False)
+    cfg.preferences = MagicMock(enabled=False)
     return cfg
 
 
@@ -24,6 +27,7 @@ def _make_manager(
     app_config: object | None = None,
     config: ContextConfig | None = None,
     skill_provider: object | None = None,
+    budget: ContextBudget | None = None,
 ) -> ContextManager:
     """Create a ContextManager with mocked dependencies."""
     if app_config is None:
@@ -32,10 +36,20 @@ def _make_manager(
         config = ContextConfig()
     if resolver is None:
         resolver = MagicMock()
+    if budget is None:
+        budget = ContextBudget(
+            context_window=config.context_window or 32_000,
+            history_share=config.history_share,
+            output_reserve=config.output_reserve,
+            headroom=config.headroom,
+        ).with_history_cap(
+            config.max_history_tokens if config.max_history_tokens > 0 else None
+        )
 
     with (
         patch.object(ContextManager, "_create_memory_service", return_value=None),
         patch.object(ContextManager, "_create_summarizer", return_value=None),
+        patch.object(ContextManager, "_resolve_budget", return_value=budget),
         patch(
             "tank_backend.prompts.assembler.PromptAssembler.assemble",
             return_value="You are helpful.",
@@ -206,6 +220,7 @@ class TestCompaction:
     async def test_no_compact_under_budget(self):
         mgr = _make_manager(config=ContextConfig(
             max_history_tokens=100000,
+            context_window=200000,
         ))
         _load_conversation(mgr)
         mgr.add_message("user", "hello")
@@ -227,6 +242,7 @@ class TestCompaction:
             mgr.add_message("user", f"message {i}")
             mgr.add_message("assistant", f"reply {i}")
 
+        assert mgr.count_tokens() > mgr._budget.effective_history_tokens
         await mgr.compact()
         assert len(mgr.messages) < 42  # truncated from 1 system + 40 msgs
 

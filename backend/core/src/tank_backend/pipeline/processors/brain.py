@@ -114,7 +114,7 @@ class Brain(Processor):
         from ...context import ContextConfig, ContextManager
 
         context_config = ContextConfig(
-            max_history_tokens=config.max_history_tokens,
+            max_history_tokens=config.max_history_tokens if config.max_history_tokens > 0 else 0,
         )
         self._context = ContextManager(
             app_config=app_config,
