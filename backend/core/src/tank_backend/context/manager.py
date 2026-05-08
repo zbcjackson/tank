@@ -46,11 +46,13 @@ class ContextManager:
         bus: Any = None,
         config: ContextConfig | None = None,
         skill_provider: Any = None,
+        media_store: Any = None,
     ) -> None:
         self._app_config = app_config
         self._config = config or ContextConfig()
         self._bus = bus
         self._resolver = resolver
+        self._media_store = media_store
         self._conversation: ConversationData | None = None
         self._compaction_mode: CompactionMode = CompactionMode.DESTRUCTIVE
         self._channel_context_builder: Any = None
@@ -310,6 +312,8 @@ class ContextManager:
         self,
         user: str,
         text: str,
+        *,
+        attachments: list[Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Prepare messages for an LLM call.
 
@@ -320,8 +324,14 @@ class ContextManager:
         5. Return a copy of messages for the LLM
            - For channel conversations: derived context via ChannelContextBuilder
            - For regular conversations: raw conversation messages
+
+        When ``attachments`` is provided, the returned user message
+        carries them as OpenAI content parts alongside the text. The
+        persisted message stores only the text — the media URIs are
+        reachable via the session's MediaStore, so we don't duplicate
+        them into the conversation JSON.
         """
-        self.add_message("user", text, name=user)
+        self.add_message("user", text, name=user, attachments=attachments)
 
         # Track for preference learning
         self._last_user = user
@@ -388,7 +398,68 @@ class ContextManager:
         if augmented_system != messages[0]["content"]:
             messages[0] = {"role": "system", "content": augmented_system}
 
+        if attachments:
+            messages = await self._materialize_last_user_attachments(
+                messages, text, attachments,
+            )
+
         return messages
+
+    async def _materialize_last_user_attachments(
+        self,
+        messages: list[dict[str, Any]],
+        text: str,
+        attachments: list[Any],
+    ) -> list[dict[str, Any]]:
+        """Replace the last user message's string content with OpenAI
+        content parts that include the resolved attachment blocks.
+
+        The persisted message in ``self._conversation.messages`` keeps
+        its plain-text ``content`` and ``attachments`` metadata — only
+        the list returned to the LLM gets the expanded shape. This way,
+        token counting, compaction, and replay all continue to see
+        string content, while the wire gets the multi-modal form.
+        """
+        from ..core.content import (
+            TextBlock,
+            block_from_dict,
+            blocks_to_openai_parts,
+        )
+
+        # Normalise: attachments may arrive as dicts (persisted path) or
+        # ContentBlocks (live path from router).
+        blocks: list = []
+        for a in attachments:
+            if isinstance(a, dict):
+                blocks.append(block_from_dict(a))
+            else:
+                blocks.append(a)
+
+        # Materialize media:// URIs against the MediaStore so the wire
+        # carries bytes the LLM can actually consume. Non-media sources
+        # (data URLs, absolute paths) pass through.
+        if self._media_store is not None:
+            materialized: list = []
+            for b in blocks:
+                materialized.append(
+                    await self._media_store.materialize_for_llm(b)
+                )
+            blocks = materialized
+
+        # Compose the new user content: the user's text prefix, then
+        # the attachment blocks in order.
+        full_blocks = [TextBlock(text=text), *blocks]
+        parts = blocks_to_openai_parts(full_blocks)
+
+        # Walk backwards to find the last user message (the one we just
+        # appended in prepare_turn) and swap its content.
+        out = list(messages)
+        for i in range(len(out) - 1, -1, -1):
+            if out[i].get("role") == "user":
+                new_msg = {**out[i], "content": parts}
+                out[i] = new_msg
+                break
+        return out
 
     def get_system_prompt_refresher(self, user: str = "") -> Callable[[], str | None]:
         """Return a callback that refreshes the system prompt during LLM tool loops.
@@ -612,12 +683,28 @@ class ContextManager:
         return self._conversation.messages
 
     def add_message(
-        self, role: str, content: str, *, name: str | None = None
+        self,
+        role: str,
+        content: str,
+        *,
+        name: str | None = None,
+        attachments: list[Any] | None = None,
     ) -> None:
-        """Append a message and persist immediately."""
-        msg: dict[str, str] = {"role": role, "content": content}
+        """Append a message and persist immediately.
+
+        ``attachments`` (list of ContentBlock) is persisted on the message
+        under the ``attachments`` key so replay can re-materialize the
+        same multi-modal context. The ``content`` field stays as the text
+        summary for token-counting and compaction — the expansion to
+        OpenAI content-parts happens at wire time in
+        :meth:`_apply_attachments_to_last_user`.
+        """
+        msg: dict[str, Any] = {"role": role, "content": content}
         if name:
             msg["name"] = name
+        if attachments:
+            from ..core.content import block_to_dict
+            msg["attachments"] = [block_to_dict(b) for b in attachments]
         self._conversation.messages.append(msg)
         self._persist()
 

@@ -61,6 +61,7 @@ class Brain(Processor):
         approval_manager: Any = None,
         channel_store: Any = None,
         conversation_store: Any = None,
+        media_store: Any = None,
     ):
         super().__init__(name="brain")
         self._llm = llm
@@ -122,6 +123,7 @@ class Brain(Processor):
             bus=bus,
             config=context_config,
             skill_provider=tool_manager.get_skill_catalog,
+            media_store=media_store,
         )
 
         # Register preference tool if store is available
@@ -420,7 +422,12 @@ class Brain(Processor):
         await self._context.recall_memory(event.user, event.text)
 
         # --- Prepare messages for LLM ---
-        messages = await self._context.prepare_turn(event.user, event.text)
+        # Multi-modal attachments (images, docs) ride on event metadata;
+        # ContextManager handles materialization + OpenAI content-parts.
+        attachments = event.metadata.get("attachments") if event.metadata else None
+        messages = await self._context.prepare_turn(
+            event.user, event.text, attachments=attachments,
+        )
 
         # --- System prompt refresher for mid-turn updates ---
         system_prompt_fn = self._context.get_system_prompt_refresher(user=event.user)

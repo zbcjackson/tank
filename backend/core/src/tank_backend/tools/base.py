@@ -4,6 +4,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from ..core.content import ContentBlocks, normalize_content
+
 
 @dataclass(frozen=True, slots=True)
 class ToolResult:
@@ -15,22 +17,45 @@ class ToolResult:
     - Clear error signaling
 
     Attributes:
-        content: What the LLM sees — full data, never truncated.
+        content: What the LLM sees. Either a plain ``str`` (backward-
+                 compatible with pre-multimodal tools) or a list of
+                 ``ContentBlock`` for multi-modal results (images, PDFs,
+                 audio). String content is semantically equivalent to a
+                 single ``TextBlock``.
         display: What the UI shows — human-friendly summary.
-                 Falls back to truncated ``content`` when empty.
+                 Falls back to a truncated text view of ``content`` when
+                 empty.
         error:   Whether this is an error result.
 
-    Example::
+    Example (text-only, unchanged from prior versions)::
 
         return ToolResult(
             content=json.dumps({"path": p, "data": text}),
             display=f"Read {p} ({len(text)} chars)",
         )
+
+    Example (multi-modal — file_read returning an image)::
+
+        return ToolResult(
+            content=[
+                TextBlock(text=f"Image at {p}"),
+                ImageBlock(source=p, mime_type="image/png"),
+            ],
+            display=f"Read image {p}",
+        )
     """
 
-    content: str
+    content: str | ContentBlocks
     display: str = ""
     error: bool = False
+
+    def to_blocks(self) -> ContentBlocks:
+        """Return ``content`` as a block list.
+
+        Wraps a plain ``str`` in a single ``TextBlock`` so callers can
+        work with one shape regardless of how the tool chose to return.
+        """
+        return normalize_content(self.content)
 
 
 class ToolParameter(BaseModel):

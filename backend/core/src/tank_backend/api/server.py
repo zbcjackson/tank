@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from ..channels.store import ChannelStore
@@ -15,6 +16,7 @@ from ..channels.subscription import ChannelSubscriptionManager
 from ..config import AppConfig, find_config_yaml
 from ..config.context import AppContext
 from ..context import create_store
+from ..media import MediaStore
 from ..persistence import Database, bootstrap_legacy_data, run_migrations
 from ..plugin.manager import PluginManager
 from ..plugin.registry import ExtensionRegistry
@@ -210,6 +212,8 @@ _job_store, _scheduler, _delivery = _init_job_scheduler(
 )
 _voiceprint_recognizer = _init_voiceprint_recognizer(app_config, _registry, _database)
 
+_media_store = MediaStore(Path("~/.tank/media").expanduser())
+
 app_context = AppContext(
     app_config=app_config,
     registry=_registry,
@@ -218,6 +222,7 @@ app_context = AppContext(
     conversation_store=_store,
     voiceprint_recognizer=_voiceprint_recognizer,
     channel_store=_channel_store,
+    media_store=_media_store,
 )
 connection_manager = ConnectionManager(app_context=app_context)
 
@@ -283,3 +288,88 @@ async def health_check(detail: bool = False):
         content={"status": overall, "sessions": components},
         status_code=status_code,
     )
+
+
+@app.get("/api/capabilities")
+async def llm_capabilities() -> dict:
+    """Return input modalities the configured LLM can consume.
+
+    Clients (web upload, CLI file-send) call this once on connect to
+    gate file uploads at the boundary rather than bouncing a request
+    through the LLM only to find it can't see the attachment.
+
+    Capability is fixed at server startup — LLM profile is immutable
+    until restart — so a cached response per session is fine.
+    """
+    from ..llm.capabilities import resolve_capabilities_sync
+
+    profile = app_config.get_llm_profile("default")
+    caps = resolve_capabilities_sync(profile)
+    return {
+        "model_id": caps.model_id,
+        "input_modalities": sorted(caps.input_modalities),
+        "source": caps.source.value,
+    }
+
+
+# Upload size cap. Images/PDFs over this are rejected at the boundary
+# rather than paid for through the LLM. Tune from config if needed.
+_UPLOAD_MAX_BYTES = 25 * 1024 * 1024
+
+
+@app.post("/api/upload")
+async def upload_media(
+    file: UploadFile,
+    session_id: str,
+) -> dict:
+    """Store an uploaded file and return its ``media://`` URI.
+
+    Capability-gated: the current LLM must accept the file's modality
+    (image/file/audio/video). Unsupported MIME types are rejected with
+    HTTP 415 so the client can show a clear error before the bytes
+    leave the browser.
+
+    Session-scoped: media is written under ``~/.tank/media/<session>/``
+    and references can only be resolved back for the same session.
+    """
+    from ..core.content import modality_for_mime
+    from ..llm.capabilities import resolve_capabilities_sync
+
+    mime_type = file.content_type or "application/octet-stream"
+    modality = modality_for_mime(mime_type)
+    if modality is None:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported MIME type: {mime_type}",
+        )
+
+    profile = app_config.get_llm_profile("default")
+    caps = resolve_capabilities_sync(profile)
+    if modality not in caps.input_modalities:
+        raise HTTPException(
+            status_code=415,
+            detail=(
+                f"Current model ({caps.model_id}) cannot accept {modality} "
+                f"input. Supported: {sorted(caps.input_modalities)}."
+            ),
+        )
+
+    data = await file.read()
+    if len(data) > _UPLOAD_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"File too large: {len(data)} bytes > "
+                f"{_UPLOAD_MAX_BYTES} bytes limit."
+            ),
+        )
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty upload.")
+
+    stored = await _media_store.put(data, mime_type, session_id=session_id)
+    return {
+        "media_uri": stored.media_uri,
+        "mime_type": stored.mime_type,
+        "size": stored.size,
+        "modality": modality,
+    }

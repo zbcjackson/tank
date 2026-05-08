@@ -22,6 +22,12 @@ from openai import (
 )
 from openai.types.chat import ChatCompletionMessageParam
 
+from ..core.content import (
+    ContentBlock,
+    ContentBlocks,
+    TextBlock,
+    blocks_to_text,
+)
 from ..core.events import UpdateType
 from ..observability.langfuse_client import initialize_langfuse
 from ..tools.base import ToolResult
@@ -35,36 +41,139 @@ RETRY_MAX_DELAY = 8.0
 
 _CONCURRENT_SAFE_TOOLS = frozenset({"agent"})
 
+# Stub inserted into the ``tool`` role message when the tool returned
+# non-text blocks. OpenAI's tool role requires string content, so the
+# actual image/document data rides in an immediately-following user
+# message (see _build_follow_up_user_message).
+_TOOL_FOLLOW_UP_STUB = "[See attached content in the next message.]"
+
 
 def _is_concurrent_safe(name: str) -> bool:
     """Return True if a tool can safely run in parallel with others."""
     return name in _CONCURRENT_SAFE_TOOLS
 
 
-def _tool_result_to_str(result: Any) -> tuple[str, str]:
-    """Convert tool result to (llm_content, ui_display) strings.
+def _block_to_openai_part(block: ContentBlock) -> dict[str, Any] | None:
+    """Convert a ContentBlock to an OpenAI content part.
+
+    Returns ``None`` when the block type has no direct OpenAI wire
+    representation and must be described textually instead
+    (documents without extracted text, audio without transcript, etc.).
+    Only ``text`` and ``image`` have lossless wire forms today.
+    """
+    if block.type == "text":
+        return {"type": "text", "text": block.text}
+    if block.type == "image":
+        return {
+            "type": "image_url",
+            "image_url": {"url": block.source, "detail": block.detail},
+        }
+    return None
+
+
+def _blocks_to_openai_parts(blocks: ContentBlocks) -> list[dict[str, Any]]:
+    """Convert a block list to OpenAI content parts.
+
+    Blocks without a direct wire form (DocumentBlock, AudioBlock) are
+    flattened to TextBlock via :func:`blocks_to_text` first so no
+    information is silently dropped.
+    """
+    parts: list[dict[str, Any]] = []
+    textual_pending: list[TextBlock] = []
+
+    def _flush_textual() -> None:
+        if not textual_pending:
+            return
+        merged = "\n".join(tb.text for tb in textual_pending)
+        parts.append({"type": "text", "text": merged})
+        textual_pending.clear()
+
+    for block in blocks:
+        part = _block_to_openai_part(block)
+        if part is not None and block.type == "image":
+            _flush_textual()
+            parts.append(part)
+        elif part is not None and block.type == "text":
+            textual_pending.append(block)  # type: ignore[arg-type]
+        else:
+            # Document/audio without a lossless wire form: fall back to
+            # a textual description so the LLM still sees something.
+            textual_pending.append(TextBlock(text=blocks_to_text([block])))
+
+    _flush_textual()
+    return parts
+
+
+def _tool_result_to_llm(
+    result: Any,
+) -> tuple[str, str, ContentBlocks]:
+    """Convert a tool return value into LLM transport pieces.
 
     Returns:
-        (llm_content, ui_display) where:
-        - llm_content: Full result sent to LLM (never truncated)
-        - ui_display: Summary shown in UI (may be truncated)
+        (tool_role_content, ui_display, follow_up_blocks)
+
+        - ``tool_role_content``: string to place in the ``tool`` role
+          message (OpenAI spec requires string). When the tool returned
+          non-text blocks, this is a stub that points to the follow-up.
+        - ``ui_display``: human-friendly summary for the UI layer.
+        - ``follow_up_blocks``: non-empty when the tool returned
+          non-text content. Caller must append a follow-up ``user``
+          role message carrying the rendered OpenAI parts.
     """
     if isinstance(result, ToolResult):
-        display = result.display or (
-            result.content[:200] + "..." if len(result.content) > 200
-            else result.content
-        )
-        return result.content, display
+        blocks = result.to_blocks()
+        text_only = all(b.type == "text" for b in blocks)
+
+        if text_only:
+            llm_content = blocks_to_text(blocks)
+            display = result.display or (
+                llm_content[:200] + "..." if len(llm_content) > 200 else llm_content
+            )
+            return llm_content, display, []
+
+        # Multi-modal: emit stub in tool message, carry blocks in follow-up.
+        # ui_display falls back to a short description of what came back.
+        display = result.display or blocks_to_text(blocks)[:200]
+        if len(display) > 200:
+            display = display[:200] + "..."
+        return _TOOL_FOLLOW_UP_STUB, display, list(blocks)
 
     if isinstance(result, str):
         display = (result[:200] + "...") if len(result) > 200 else result
-        return result, display
+        return result, display, []
 
     # Should not happen — tools should return ToolResult or str
     logger.warning("Tool returned unexpected type %s, converting to string", type(result))
     content = str(result)
     display = (content[:200] + "...") if len(content) > 200 else content
-    return content, display
+    return content, display, []
+
+
+def _build_follow_up_user_message(
+    tool_call_id: str,
+    tool_name: str,
+    blocks: ContentBlocks,
+) -> dict[str, Any]:
+    """Build the user-role message that carries a tool's non-text blocks.
+
+    OpenAI's ``tool`` role message must be a string. When a tool
+    returns images or other rich content, we emit the tool message as
+    a short stub and place the actual blocks in a user message that
+    immediately follows, tagged so the frontend can group them with
+    their originating tool call.
+    """
+    parts = _blocks_to_openai_parts(blocks)
+    return {
+        "role": "user",
+        "content": parts,
+        # Frontend grouping: these are internal hints, not part of the
+        # OpenAI spec. Retained when persisted as JSON.
+        "metadata": {
+            "tool_follow_up": True,
+            "tool_call_id": tool_call_id,
+            "tool_name": tool_name,
+        },
+    }
 
 
 class LLM:
@@ -142,7 +251,10 @@ class LLM:
                 ``trace_name``, ``metadata`` are passed as top-level
                 kwargs for per-call tracing.
         """
-        working_messages = messages.copy()
+        # Typed as list[Any] because we build message dicts inline for the
+        # tool/assistant/user roles with shapes the OpenAI SDK TypedDicts
+        # can't cleanly narrow. The dicts are still valid at the wire.
+        working_messages: list[Any] = list(messages)
         turn = 0
         rejected_tools: set[str] = set()
 
@@ -354,7 +466,9 @@ class LLM:
                             if is_error:
                                 rejected_tools.add(tc["name"])
 
-                            llm_content, ui_display = _tool_result_to_str(result)
+                            llm_content, ui_display, follow_up_blocks = (
+                                _tool_result_to_llm(result)
+                            )
 
                             yield (
                                 UpdateType.TOOL, ui_display,
@@ -370,6 +484,14 @@ class LLM:
                                 "name": tc["name"], "content": llm_content,
                             })
                             yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
+                            if follow_up_blocks:
+                                follow_up = _build_follow_up_user_message(
+                                    tool_call_id=tc["id"],
+                                    tool_name=tc["name"],
+                                    blocks=follow_up_blocks,
+                                )
+                                working_messages.append(follow_up)
+                                yield (UpdateType.MESSAGE, "", {"message": follow_up})
 
                 elif len(concurrent_items) == 1:
                     # Single concurrent tool — run sequentially (no gather overhead)
@@ -405,7 +527,9 @@ class LLM:
                         if is_error:
                             rejected_tools.add(tc["name"])
 
-                        llm_content, ui_display = _tool_result_to_str(result)
+                        llm_content, ui_display, follow_up_blocks = (
+                            _tool_result_to_llm(result)
+                        )
 
                         yield (
                             UpdateType.TOOL, ui_display,
@@ -422,6 +546,14 @@ class LLM:
                             "name": tc["name"], "content": llm_content,
                         })
                         yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
+                        if follow_up_blocks:
+                            follow_up = _build_follow_up_user_message(
+                                tool_call_id=tc["id"],
+                                tool_name=tc["name"],
+                                blocks=follow_up_blocks,
+                            )
+                            working_messages.append(follow_up)
+                            yield (UpdateType.MESSAGE, "", {"message": follow_up})
 
                     except Exception as e:
                         yield (

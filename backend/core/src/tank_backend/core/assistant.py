@@ -13,6 +13,7 @@ from ..audio.input.types import AudioFrame
 from ..config import AppConfig
 from ..config.context import AppContext
 from ..config.models import EchoGuardConfig
+from ..llm.capabilities import resolve_capabilities_sync
 from ..llm.profile import create_llm_from_profile
 from ..pipeline import Bus, BusMessage, Pipeline, PipelineBuilder
 from ..pipeline.event import EventDirection, PipelineEvent
@@ -37,6 +38,7 @@ from ..pipeline.processors import (
 )
 from ..plugin.registry import ExtensionRegistry
 from ..tools.manager import ToolManager
+from .content import ContentBlocks
 from .events import BrainInputEvent, DisplayMessage, InputType, SignalMessage, UIMessage
 from .runtime import RuntimeContext
 from .shutdown import GracefulShutdown
@@ -63,6 +65,7 @@ class Assistant:
 
         self._channel_store = app_context.channel_store
         self._conversation_store = app_context.conversation_store
+        self._media_store = app_context.media_store
         registry = self._init_config_and_llm(app_context.app_config, registry=app_context.registry)
         self._init_bus()
         self._init_tools()
@@ -108,6 +111,13 @@ class Assistant:
 
         profile = self._app_config.get_llm_profile("default")
         self._llm = create_llm_from_profile(profile)
+        self._llm_capabilities = resolve_capabilities_sync(profile)
+        logger.info(
+            "Resolved LLM capabilities for %s: modalities=%s source=%s",
+            self._llm_capabilities.model_id,
+            sorted(self._llm_capabilities.input_modalities),
+            self._llm_capabilities.source.value,
+        )
 
         self._brain_config = self._app_config.brain
 
@@ -173,6 +183,7 @@ class Assistant:
             echo_guard_config=echo_guard_cfg,
             channel_store=self._channel_store,
             conversation_store=self._conversation_store,
+            media_store=self._media_store,
         )
         builder.add(self.brain)
 
@@ -297,6 +308,20 @@ class Assistant:
             "speaker_id": self._app_config.is_feature_enabled("speaker"),
         }
 
+    @property
+    def llm_capabilities(self) -> dict[str, Any]:
+        """Input modalities accepted by the configured LLM.
+
+        Resolved once at startup from :mod:`tank_backend.llm.capabilities`.
+        Consumers (HTTP upload, web UI) use this to fail fast when the
+        user tries to send an unsupported file type.
+        """
+        return {
+            "model_id": self._llm_capabilities.model_id,
+            "input_modalities": sorted(self._llm_capabilities.input_modalities),
+            "source": self._llm_capabilities.source.value,
+        }
+
     def reload_skills(self) -> dict[str, list[str]]:
         """Rescan skill directories and refresh the system prompt.
 
@@ -408,8 +433,20 @@ class Assistant:
         if self._pipeline is not None:
             self._pipeline.push(frame)
 
-    def process_input(self, text: str, user: str = "Guest") -> None:
-        """Submit user text input for processing."""
+    def process_input(
+        self,
+        text: str,
+        user: str = "Guest",
+        *,
+        attachments: ContentBlocks | None = None,
+    ) -> None:
+        """Submit user text input for processing.
+
+        ``attachments`` carries multi-modal blocks (images, documents)
+        uploaded via ``POST /api/upload``. They ride on the brain input
+        event's metadata so Brain can merge them into the outgoing user
+        message as OpenAI content parts alongside the text.
+        """
         if not text or not text.strip():
             return
 
@@ -435,6 +472,10 @@ class Assistant:
             )
         )
 
+        event_metadata: dict[str, Any] = {"msg_id": msg_id}
+        if attachments:
+            event_metadata["attachments"] = list(attachments)
+
         if self._pipeline is not None:
             self._pipeline.push_at(
                 "brain",
@@ -444,7 +485,7 @@ class Assistant:
                     user=user,
                     language=None,
                     confidence=None,
-                    metadata={"msg_id": msg_id},
+                    metadata=event_metadata,
                 ),
             )
 

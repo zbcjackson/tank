@@ -65,6 +65,39 @@ class TestResolveProfile:
         with pytest.raises(AttributeError):
             profile.model = "changed"
 
+    def test_capabilities_parsed(self):
+        profile = resolve_profile("x", {
+            "api_key": "k",
+            "model": "m",
+            "base_url": "http://x",
+            "capabilities": ["text", "image"],
+        })
+        assert profile.capabilities == frozenset({"text", "image"})
+
+    def test_capabilities_default_is_empty(self):
+        profile = resolve_profile(
+            "x", {"api_key": "k", "model": "m", "base_url": "http://x"}
+        )
+        assert profile.capabilities == frozenset()
+
+    def test_capabilities_invalid_entry_raises(self):
+        with pytest.raises(ValueError, match="unknown capabilities"):
+            resolve_profile("x", {
+                "api_key": "k",
+                "model": "m",
+                "base_url": "http://x",
+                "capabilities": ["text", "telepathy"],
+            })
+
+    def test_capabilities_wrong_shape_raises(self):
+        with pytest.raises(ValueError, match="must be a list of strings"):
+            resolve_profile("x", {
+                "api_key": "k",
+                "model": "m",
+                "base_url": "http://x",
+                "capabilities": "text,image",  # string not list
+            })
+
 
 class TestCreateLlmFromProfile:
     """Tests for create_llm_from_profile()."""

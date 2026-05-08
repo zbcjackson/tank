@@ -21,6 +21,13 @@ class LLMProfile:
     extra_headers: dict[str, str] = field(default_factory=dict)
     stream_options: bool = True
     extra_body: dict[str, Any] = field(default_factory=dict)
+    capabilities: frozenset[str] = field(default_factory=frozenset)
+    """Optional user-declared input modalities, e.g. ``{"text", "image"}``.
+
+    When set, this overrides automatic capability detection. Use for
+    custom/local endpoints the detector can't recognise. Valid values:
+    ``text``, ``image``, ``file``, ``audio``, ``video``.
+    """
 
 
 def resolve_profile(name: str, raw: dict[str, Any]) -> LLMProfile:
@@ -59,6 +66,20 @@ def resolve_profile(name: str, raw: dict[str, Any]) -> LLMProfile:
         optional["stream_options"] = bool(raw["stream_options"])
     if "extra_body" in raw and raw["extra_body"]:
         optional["extra_body"] = dict(raw["extra_body"])
+    if "capabilities" in raw and raw["capabilities"]:
+        caps = raw["capabilities"]
+        if not isinstance(caps, list) or not all(isinstance(c, str) for c in caps):
+            raise ValueError(
+                f"LLM profile '{name}': 'capabilities' must be a list of strings"
+            )
+        valid = {"text", "image", "file", "audio", "video"}
+        unknown = [c for c in caps if c not in valid]
+        if unknown:
+            raise ValueError(
+                f"LLM profile '{name}': unknown capabilities {unknown}; "
+                f"valid values are {sorted(valid)}"
+            )
+        optional["capabilities"] = frozenset(caps)
 
     return LLMProfile(
         name=name,

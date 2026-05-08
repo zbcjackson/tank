@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import time
+from typing import Any
 
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -13,6 +14,7 @@ from tank_contracts import encode_audio_frame
 
 from ..audio.input.types import AudioFrame
 from ..audio.output.types import AudioChunk
+from ..core.content import ContentBlocks, DocumentBlock, ImageBlock, modality_for_mime
 from ..core.events import DisplayMessage, SignalMessage, UIMessage, UpdateType
 from . import deps
 from .schemas import MessageType, WebsocketMessage
@@ -22,6 +24,50 @@ from .signal_handlers import dispatch as dispatch_signal
 logger = logging.getLogger("ApiRouter")
 
 router = APIRouter()
+
+
+def _parse_attachments(
+    raw: list[Any],
+    session_id: str,
+) -> ContentBlocks:
+    """Turn client-sent attachment dicts into typed ContentBlocks.
+
+    Each entry is ``{media_uri, mime_type}``. Non-dict entries and
+    attachments with foreign session ids are dropped with a warning —
+    this is defence-in-depth; the upload endpoint is the primary gate.
+    Modality is inferred from MIME to pick the right block type.
+    """
+    blocks: list = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            logger.warning("Dropping non-dict attachment: %r", entry)
+            continue
+        media_uri = entry.get("media_uri")
+        mime_type = entry.get("mime_type")
+        if not media_uri or not mime_type:
+            logger.warning("Dropping attachment missing media_uri/mime_type")
+            continue
+        if not media_uri.startswith(f"media://{session_id}/"):
+            logger.warning(
+                "Dropping cross-session attachment: uri=%s session=%s",
+                media_uri, session_id,
+            )
+            continue
+        modality = modality_for_mime(mime_type)
+        if modality == "image":
+            blocks.append(ImageBlock(source=media_uri, mime_type=mime_type))
+        elif modality == "file":
+            blocks.append(
+                DocumentBlock(source=media_uri, mime_type=mime_type)
+            )
+        else:
+            # Audio/video not yet in Phase 2 scope; ignore quietly.
+            logger.info(
+                "Attachment modality %s not yet carried on user input; "
+                "dropping %s",
+                modality, media_uri,
+            )
+    return blocks
 
 
 def _resolve_user_name(user_id: str | None) -> str:
@@ -216,7 +262,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 elif msg.type == MessageType.INPUT:
                     user_id = msg.metadata.get("user_id")
                     user_name = _resolve_user_name(user_id)
-                    assistant.process_input(msg.content, user=user_name)
+                    raw_attachments = msg.metadata.get("attachments") or []
+                    attachments = _parse_attachments(raw_attachments, session_id)
+                    assistant.process_input(
+                        msg.content, user=user_name, attachments=attachments,
+                    )
 
     except (WebSocketDisconnect, DisconnectSignal):
         logger.info(f"WebSocket disconnected: {session_id}")

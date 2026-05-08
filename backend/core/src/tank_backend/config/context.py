@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from ..jobs.scheduler import CronScheduler
     from ..jobs.store import JobStore
     from ..llm.llm import LLM
+    from ..media import MediaStore
     from ..pipeline.bus import Bus
     from ..plugin.registry import ExtensionRegistry
     from ..tools.manager import ToolManager
@@ -35,6 +36,7 @@ class AppContext:
     conversation_store: ConversationStore | None = None
     voiceprint_recognizer: VoiceprintRecognizer | None = None
     channel_store: ChannelStore | None = None
+    media_store: MediaStore | None = None
 
 
 @dataclass(frozen=True)
