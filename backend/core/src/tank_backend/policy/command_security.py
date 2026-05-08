@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import shlex
 from typing import TYPE_CHECKING, Any
 
 from .verdict import AccessLevel, PolicyVerdict
@@ -109,8 +110,23 @@ DANGEROUS_PATTERNS: tuple[tuple[str, str], ...] = (
 # Commands that always require approval regardless of safe list
 _ALWAYS_REQUIRE: frozenset[str] = frozenset({"sudo"})
 
-# Separators for splitting compound commands
-_COMPOUND_RE = re.compile(r"\s*(?:&&|\|\||[;|])\s*")
+# Separators for splitting compound commands.
+# A bare `;` is a shell separator; a `\;` is `find`'s -exec clause terminator
+# and must NOT be treated as a compound split — the negative lookbehind keeps
+# escaped semicolons intact so `_extract_find_inner_commands` can see them.
+_COMPOUND_RE = re.compile(r"\s*(?:&&|\|\||(?<!\\);|\|)\s*")
+
+# `find` action predicates that execute a nested command per match.
+# `-exec` / `-execdir` run unattended; `-ok` / `-okdir` prompt interactively —
+# all four still spawn the inner command, so the policy must inspect it.
+_FIND_ACTION_PREDICATES: frozenset[str] = frozenset({
+    "-exec", "-execdir", "-ok", "-okdir",
+})
+
+# Shells whose `-c "..."` payload is itself a full command line.
+_SHELLS_WITH_DASH_C: frozenset[str] = frozenset({
+    "sh", "bash", "zsh", "ksh", "dash", "ash",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +183,63 @@ def _get_git_subcommand(segment: str) -> str | None:
             if not sub.startswith("-"):
                 return sub
     return None
+
+
+def _extract_find_inner_commands(segment: str) -> list[str]:
+    """Extract inner commands from `find ... -exec CMD [ARGS] {\\; | +}` clauses.
+
+    Returns the command strings that would actually execute per match. Handles
+    all four action predicates (-exec, -execdir, -ok, -okdir), both terminators
+    (\\; for per-match, + for batched), and multiple clauses on one line.
+
+    Special case: when the inner command is a shell invoked with -c, the real
+    payload lives inside the quoted string — that string is returned directly
+    so it can be re-parsed.
+
+    Returns an empty list if the segment isn't a `find` invocation with any
+    action predicate, or if the tokens can't be parsed as a shell word list.
+    """
+    try:
+        tokens = shlex.split(segment, posix=True)
+    except ValueError:
+        # Unbalanced quotes etc. — let the outer evaluation decide.
+        return []
+
+    if not tokens:
+        return []
+    if os.path.basename(tokens[0]) != "find":
+        return []
+
+    inner: list[str] = []
+    i = 0
+    while i < len(tokens):
+        if tokens[i] not in _FIND_ACTION_PREDICATES:
+            i += 1
+            continue
+
+        # Collect tokens until the clause terminator `;` or `+`.
+        start = i + 1
+        end = start
+        while end < len(tokens) and tokens[end] not in (";", "+"):
+            end += 1
+
+        clause = tokens[start:end]
+        if clause:
+            # `sh -c "<payload>"` / `bash -c "<payload>"` — the payload is
+            # itself a command line and must be re-evaluated as such.
+            if (
+                len(clause) >= 3
+                and os.path.basename(clause[0]) in _SHELLS_WITH_DASH_C
+                and clause[1] == "-c"
+            ):
+                inner.append(clause[2])
+            else:
+                inner.append(shlex.join(clause))
+
+        # Advance past the terminator (or end of tokens).
+        i = end + 1
+
+    return inner
 
 
 # ---------------------------------------------------------------------------
@@ -368,6 +441,14 @@ class CommandSecurityPolicy:
         if base == "git":
             return self._evaluate_git(segment)
 
+        # `find` is safe itself, but `-exec CMD \;` (and -execdir/-ok/-okdir)
+        # runs CMD per match. Re-evaluate each inner command through the full
+        # policy so dangerous inner commands can't smuggle past find's ALLOW.
+        if base == "find":
+            inner_verdict = self._evaluate_find_inner(segment)
+            if inner_verdict is not None:
+                return inner_verdict
+
         # Safe allowlist
         if base in self._safe_commands:
             return PolicyVerdict(
@@ -382,6 +463,28 @@ class CommandSecurityPolicy:
             reason=f"unknown command: {base}",
             policy="command",
         )
+
+    def _evaluate_find_inner(self, segment: str) -> PolicyVerdict | None:
+        """Evaluate any inner commands inside `find -exec ...` clauses.
+
+        Returns the first non-ALLOW verdict, or ``None`` if there are no inner
+        commands (so the caller falls through to the regular `find` allow).
+        """
+        inner_commands = _extract_find_inner_commands(segment)
+        if not inner_commands:
+            return None
+
+        for inner in inner_commands:
+            # Reuse the full public entry point so the inner command goes
+            # through dangerous-pattern + compound + segment evaluation.
+            verdict = self.evaluate(inner)
+            if verdict.level != AccessLevel.ALLOW:
+                return PolicyVerdict(
+                    level=verdict.level,
+                    reason=f"find -exec inner command: {verdict.reason}",
+                    policy="command",
+                )
+        return None
 
     def _evaluate_git(self, segment: str) -> PolicyVerdict:
         """Evaluate a git command by its subcommand."""
