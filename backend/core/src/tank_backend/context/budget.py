@@ -32,6 +32,11 @@ DEFAULT_CONTEXT_WINDOW = 32_000
 # are stripped before matching.
 MODEL_CONTEXT_DEFAULTS: dict[str, int] = {
     # ── OpenAI ────────────────────────────────────────────────────────────
+    # GPT-5 series: 400K total (272K input + 128K output) per OpenAI API docs.
+    # The number here is the full context window (what the API accepts).
+    "gpt-5.5": 400_000,
+    "gpt-5.1": 400_000,
+    "gpt-5": 400_000,
     "gpt-4.1": 1_047_576,
     "gpt-4.5": 128_000,
     "gpt-4o": 128_000,
@@ -45,13 +50,16 @@ MODEL_CONTEXT_DEFAULTS: dict[str, int] = {
     "o1": 200_000,
     "gpt-3.5-turbo": 16_385,
     # ── Anthropic ─────────────────────────────────────────────────────────
+    # Opus 4.x defaults to 200K (1M is an opt-in beta tier).
+    # Sonnet 4.5/4.6 officially expanded to 1M.
+    "claude-sonnet-4": 1_000_000,
     "claude-opus-4": 200_000,
-    "claude-sonnet-4": 200_000,
     "claude-haiku-4": 200_000,
     "claude-3.5-sonnet": 200_000,
     "claude-3-opus": 200_000,
     "claude-3-haiku": 200_000,
     # ── Google ─────────────────────────────────────────────────────────────
+    "gemini-3": 1_048_576,
     "gemini-2.5": 1_048_576,
     "gemini-2.0": 1_048_576,
     "gemini-1.5": 1_048_576,
@@ -70,6 +78,8 @@ MODEL_CONTEXT_DEFAULTS: dict[str, int] = {
     "mixtral-8x22b": 65_536,
     "mixtral-8x7b": 32_000,
     # ── DeepSeek ───────────────────────────────────────────────────────────
+    # V4 series jumped to 1M (V3 and earlier stayed at 128K).
+    "deepseek-v4": 1_000_000,
     "deepseek-r1": 128_000,
     "deepseek-v3": 128_000,
     "deepseek-chat": 128_000,
@@ -84,6 +94,21 @@ MODEL_CONTEXT_DEFAULTS: dict[str, int] = {
     "qwen3": 128_000,
     "qwen2.5": 128_000,
     "qwen2": 32_000,
+    # ── Zhipu / Z.AI (GLM series) ──────────────────────────────────────────
+    # GLM-4.6/4.7 and GLM-5/5.1 are 200K; GLM-4.5 remains 128K.
+    "glm-5.1": 200_000,
+    "glm-5": 200_000,
+    "glm-4.7": 200_000,
+    "glm-4.6": 200_000,
+    "glm-4.5": 128_000,
+    "glm-4": 128_000,
+    # ── MiniMax ────────────────────────────────────────────────────────────
+    # M1 is the 1M-token lightning-attention model.
+    # M2/M2.1/M2.7 are ~200K (204,800 per Vercel/OpenRouter specs).
+    # abab6.5 is the older 200K series.
+    "minimax-m1": 1_000_000,
+    "minimax-m2": 204_800,
+    "abab6.5": 200_000,
     # ── Other providers (common on OpenRouter) ─────────────────────────────
     "yi-large": 32_000,
     "yi-lightning": 16_000,

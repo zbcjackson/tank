@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from tank_backend.context.budget import (
     MIN_HISTORY_TOKENS,
@@ -35,7 +35,8 @@ class TestResolveContextWindow:
         assert resolve_context_window("gpt-4") == 8_192
 
     def test_claude_sonnet(self):
-        assert resolve_context_window("anthropic/claude-sonnet-4-6") == 200_000
+        # Sonnet 4.x officially expanded to 1M by Anthropic
+        assert resolve_context_window("anthropic/claude-sonnet-4-6") == 1_000_000
 
     def test_gemini(self):
         assert resolve_context_window("google/gemini-2.5-pro") == 1_048_576
@@ -99,6 +100,94 @@ class TestResolveContextWindow:
     # Longest-match: llama-3.3 beats llama-3
     def test_llama33_beats_llama3(self):
         assert resolve_context_window("meta-llama/llama-3.3-70b-instruct") == 128_000
+
+    # ── GPT-5 series (400K: 272K input + 128K output) ─────────────────────
+    def test_gpt5(self):
+        assert resolve_context_window("openai/gpt-5") == 400_000
+
+    def test_gpt5_dated(self):
+        assert resolve_context_window("gpt-5-2025-08-01") == 400_000
+
+    def test_gpt5_1(self):
+        assert resolve_context_window("openai/gpt-5.1") == 400_000
+
+    def test_gpt5_5(self):
+        assert resolve_context_window("openai/gpt-5.5-codex") == 400_000
+
+    # Longest-match: gpt-5.5 must beat gpt-5
+    def test_gpt5_5_beats_gpt5(self):
+        assert resolve_context_window("gpt-5.5") == 400_000
+
+    # ── Claude Opus 4.x (200K default) ────────────────────────────────────
+    def test_claude_opus_4_5(self):
+        assert resolve_context_window("anthropic/claude-opus-4-5") == 200_000
+
+    def test_claude_opus_4_6(self):
+        assert resolve_context_window("claude-opus-4-6-20260205") == 200_000
+
+    def test_claude_opus_4_7(self):
+        assert resolve_context_window("anthropic/claude-opus-4-7") == 200_000
+
+    # Sonnet 4.x officially expanded to 1M
+    def test_claude_sonnet_4_is_1m(self):
+        assert resolve_context_window("anthropic/claude-sonnet-4-5") == 1_000_000
+
+    def test_claude_sonnet_4_6(self):
+        assert resolve_context_window("claude-sonnet-4-6") == 1_000_000
+
+    # ── Gemini 3 series ──────────────────────────────────────────────────
+    def test_gemini3_pro(self):
+        assert resolve_context_window("google/gemini-3-pro") == 1_048_576
+
+    def test_gemini3_1_pro(self):
+        assert resolve_context_window("google/gemini-3.1-pro") == 1_048_576
+
+    # ── DeepSeek V4 (1M) ──────────────────────────────────────────────────
+    def test_deepseek_v4_pro(self):
+        assert resolve_context_window("deepseek/deepseek-v4-pro") == 1_000_000
+
+    def test_deepseek_v4_flash(self):
+        assert resolve_context_window("deepseek-v4-flash") == 1_000_000
+
+    # V3 must still resolve to 128K (longest-match: deepseek-v4 != deepseek-v3)
+    def test_deepseek_v3_still_128k(self):
+        assert resolve_context_window("deepseek/deepseek-v3") == 128_000
+
+    # ── GLM series (Zhipu / Z.AI) ─────────────────────────────────────────
+    def test_glm_4_5(self):
+        assert resolve_context_window("zai/glm-4.5") == 128_000
+
+    def test_glm_4_6(self):
+        assert resolve_context_window("z-ai/glm-4.6") == 200_000
+
+    def test_glm_4_7(self):
+        assert resolve_context_window("glm-4.7") == 200_000
+
+    def test_glm_5(self):
+        assert resolve_context_window("zai-org/glm-5") == 200_000
+
+    def test_glm_5_1(self):
+        assert resolve_context_window("glm-5.1-turbo") == 200_000
+
+    # Longest-match: glm-4.6 must beat glm-4.5 and glm-4
+    def test_glm_4_6_beats_glm_4_5(self):
+        assert resolve_context_window("glm-4.6") == 200_000
+
+    # ── MiniMax ──────────────────────────────────────────────────────────
+    def test_minimax_m1(self):
+        assert resolve_context_window("minimax/minimax-m1") == 1_000_000
+
+    def test_minimax_m2(self):
+        assert resolve_context_window("minimax/minimax-m2") == 204_800
+
+    def test_minimax_m2_1(self):
+        assert resolve_context_window("minimax-m2.1") == 204_800
+
+    def test_minimax_m2_7(self):
+        assert resolve_context_window("minimax/minimax-m2.7") == 204_800
+
+    def test_abab65(self):
+        assert resolve_context_window("minimax/abab6.5-chat") == 200_000
 
 
 class TestContextBudget:
