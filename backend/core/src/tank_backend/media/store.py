@@ -9,15 +9,14 @@ At LLM-send time, :meth:`MediaStore.materialize_for_llm` turns those
 URIs into data the provider can actually consume:
 
 - Images become base64 data URLs.
-- PDFs pick one of three paths based on the LLM's declared
-  ``capabilities``:
-    1. ``"file"`` in caps → native base64 PDF (Claude, Gemini, gpt-4o).
-    2. ``"image"`` in caps → pypdf text + rendered page images.
-    3. neither → pypdf text only.
+- Documents dispatch to a :class:`DocumentHandler` keyed by MIME type.
+  The handler owns the format-specific strategy (native vs image vs
+  text) — this module is intentionally ignorant of PDF, DOCX, or any
+  other format's internals.
 
-Each PDF path caches its output as sidecar files alongside the
-original so repeated questions about the same document don't
-re-extract or re-render.
+Adding support for a new document type is "implement a handler and
+register it" — no changes here. See
+:mod:`tank_backend.media.handlers` for the default registry.
 
 Not thread-safe but asyncio-safe: each operation is a single atomic
 write/read, and the hash-named files never collide under concurrent
@@ -29,7 +28,6 @@ from __future__ import annotations
 import base64
 import contextlib
 import hashlib
-import io
 import logging
 import mimetypes
 import re
@@ -37,13 +35,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..core.content import (
-    MODALITY_FILE,
-    MODALITY_IMAGE,
     AudioBlock,
     ContentBlock,
     DocumentBlock,
     ImageBlock,
 )
+from .handlers import DocumentHandlerRegistry, default_registry
 
 logger = logging.getLogger(__name__)
 
@@ -52,16 +49,6 @@ logger = logging.getLogger(__name__)
 _MEDIA_URI_PATTERN = re.compile(
     r"^media://(?P<session>[A-Za-z0-9_.\-]+)/(?P<filename>[A-Za-z0-9_.\-]+)$"
 )
-
-# Max pages we render when falling back from native PDF to page-image
-# rendering. Bounds cost: 20 pages × ~1500px PNG ≈ 30K image tokens —
-# enough for a typical uploaded doc without eating the whole context.
-_MAX_RENDERED_PAGES = 20
-
-# Long-edge target for rendered pages. 1500px matches OpenAI and
-# Anthropic's "high detail" sweet spot; finer renders get downsampled
-# server-side anyway.
-_TARGET_PIXELS = 1500
 
 # Fallback extension map for MIME types missing from `mimetypes`.
 # Keep this small; add entries only when a real upload hits the warning.
@@ -137,9 +124,18 @@ class MediaStore:
         # materialized.source is now "data:image/png;base64,..."
     """
 
-    def __init__(self, root: Path) -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        handlers: DocumentHandlerRegistry | None = None,
+    ) -> None:
         self._root = root
         self._root.mkdir(parents=True, exist_ok=True)
+        # Injectable registry so tests can register stub handlers without
+        # mutating the process-wide default. Falls back to the default
+        # registry wired at import in ``.handlers``.
+        self._handlers = handlers or default_registry
 
     @property
     def root(self) -> Path:
@@ -271,26 +267,19 @@ class MediaStore:
         session_id: str | None,
         capabilities: frozenset[str],
     ) -> DocumentBlock:
-        """Pick the best wire representation for the configured LLM.
+        """Dispatch to the registered :class:`DocumentHandler` for the MIME.
 
-        Waterfall by capability:
+        Blocks that already carry text, page images, or a native-file
+        marker pass through — they came from persisted history or an
+        upstream producer that already did the work. Unknown MIMEs
+        (no registered handler) get a descriptive placeholder so the
+        LLM isn't handed an opaque ``media://`` URL it can't open.
 
-        1. ``"file"`` in caps → native PDF: base64 data URL on ``source``,
-           ``send_native=True``. Provider does rendering + extraction.
-        2. ``"image"`` in caps → pypdf text plus rendered page images
-           (up to :data:`_MAX_RENDERED_PAGES` at 1500px). LLM gets both.
-        3. otherwise → pypdf text only.
-
-        Blocks that already carry text or page images pass through
-        without re-work (covers replay from persisted history). Non-PDF
-        documents get a descriptive placeholder so the LLM isn't handed
-        an opaque ``media://`` URL.
-
-        Extraction and rendering are both cached as sidecar files so
-        repeated questions about the same PDF don't re-compute.
+        The handler does all the format-specific work; this method
+        only owns dispatch + the "already materialized" shortcut.
         """
-        # Step 1 — already materialized upstream. Respect it and only
-        # re-resolve any media:// URIs on the page images.
+        # Shortcut 1 — already materialized upstream. Respect it and
+        # only re-resolve any media:// URIs on the page images.
         if block.extracted_text or block.page_images or block.send_native:
             if block.page_images:
                 new_pages: list[ImageBlock] = []
@@ -305,38 +294,8 @@ class MediaStore:
                 )
             return block
 
-        # Step 2 — Office documents (DOCX/XLSX/PPTX) dispatch to
-        # format-specific text extractors. Results are cached as
-        # sidecar .txt files so repeated questions don't re-parse.
-        from .office import OFFICE_MIME_TYPES, extract_office_document
-
-        if block.mime_type in OFFICE_MIME_TYPES:
-            if not block.source.startswith("media://"):
-                return block
-            try:
-                text = await self._extract_office_text(
-                    block.source,
-                    mime_type=block.mime_type,
-                    session_id=session_id,
-                    extractor=extract_office_document,
-                )
-            except (UnknownMediaURIError, CrossSessionAccessError):
-                raise
-            except Exception as exc:  # pragma: no cover — defensive
-                logger.warning(
-                    "Office extraction failed for %s: %s", block.source, exc,
-                )
-                text = f"[Office extraction failed: {exc}]"
-            return DocumentBlock(
-                source=block.source,
-                mime_type=block.mime_type,
-                extracted_text=text or (
-                    "[Document contained no extractable text.]"
-                ),
-            )
-
-        # Step 3 — other non-PDF documents have no handler today.
-        if block.mime_type != "application/pdf":
+        handler = self._handlers.lookup(block.mime_type)
+        if handler is None:
             return DocumentBlock(
                 source=block.source,
                 mime_type=block.mime_type,
@@ -347,201 +306,29 @@ class MediaStore:
             )
 
         if not block.source.startswith("media://"):
+            # Handlers work on files; without a media:// URI we can't
+            # resolve the bytes. This path covers data-URL or
+            # absolute-path sources from tool outputs — leave as-is.
             return block
 
-        # Step 4 — PDF waterfall: native → image+text → text only.
-        if MODALITY_FILE in capabilities:
-            # Native PDF: the provider renders + extracts server-side.
-            # We just hand over the bytes as a data URL.
-            try:
-                data_url = await self._data_url(block.source, session_id)
-            except (UnknownMediaURIError, CrossSessionAccessError):
-                raise
-            except Exception as exc:  # pragma: no cover — defensive
-                logger.warning("PDF native-load failed for %s: %s", block.source, exc)
-                return DocumentBlock(
-                    source=block.source,
-                    mime_type=block.mime_type,
-                    extracted_text=f"[PDF could not be loaded: {exc}]",
-                )
-            return DocumentBlock(
-                source=data_url,
-                mime_type=block.mime_type,
-                send_native=True,
-            )
-
-        # Steps 4/5 — local extraction/rendering. Both failures turn
-        # into a text diagnostic so a malformed PDF can't kill the turn.
-        extracted: str | None = None
-        try:
-            extracted = await self._extract_pdf_text(
-                block.source, session_id=session_id,
-            )
-        except (UnknownMediaURIError, CrossSessionAccessError):
-            raise
-        except Exception as exc:  # pragma: no cover — defensive
-            logger.warning("PDF extraction failed for %s: %s", block.source, exc)
-            extracted = f"[PDF extraction failed: {exc}]"
-
-        page_images: tuple[ImageBlock, ...] = ()
-        if MODALITY_IMAGE in capabilities:
-            try:
-                page_images = await self._render_pdf_pages(
-                    block.source, session_id=session_id,
-                )
-            except (UnknownMediaURIError, CrossSessionAccessError):
-                raise
-            except Exception as exc:  # pragma: no cover — defensive
-                logger.warning("PDF render failed for %s: %s", block.source, exc)
-
-        if not extracted and not page_images:
-            extracted = (
-                "[PDF contained no extractable text — likely a scanned "
-                "document. Consider re-uploading as images.]"
-            )
-
-        return DocumentBlock(
-            source=block.source,
-            mime_type=block.mime_type,
-            extracted_text=extracted,
-            page_images=page_images,
-        )
-
-    async def _render_pdf_pages(
-        self,
-        media_uri: str,
-        *,
-        session_id: str | None,
-    ) -> tuple[ImageBlock, ...]:
-        """Render up to :data:`_MAX_RENDERED_PAGES` of a PDF to PNG blocks.
-
-        Each page is written as a sidecar ``<hash>.pdf.page<N>.png`` so
-        follow-up questions skip the render cost. Returned blocks carry
-        data URLs ready for the OpenAI ``image_url`` wire format.
-        """
-        session, filename = self._parse_uri(media_uri)
-        if session_id is not None and session != session_id:
-            raise CrossSessionAccessError(
-                f"Session {session_id!r} may not read media from {session!r}"
-            )
-        pdf_path = self._root / session / filename
-        if not pdf_path.exists():
-            raise UnknownMediaURIError(f"No file for {media_uri}")
-
-        # pymupdf is imported lazily; it's a ~20MB dep we don't need
-        # until the first PDF arrives at a vision-but-not-PDF-native
-        # model. Keeps import-time surface area small.
-        import pymupdf  # type: ignore[import-not-found]
-
-        out: list[ImageBlock] = []
-        with pymupdf.open(str(pdf_path)) as doc:  # type: ignore[attr-defined]
-            total = min(len(doc), _MAX_RENDERED_PAGES)
-            for i in range(total):
-                sidecar = pdf_path.with_name(
-                    f"{pdf_path.name}.page{i + 1}.png",
-                )
-                if sidecar.exists():
-                    png_bytes = sidecar.read_bytes()
-                else:
-                    page = doc[i]
-                    # Scale so the long edge is _TARGET_PIXELS pixels.
-                    rect = page.rect
-                    long_edge = max(rect.width, rect.height)
-                    zoom = _TARGET_PIXELS / long_edge if long_edge else 1.0
-                    matrix = pymupdf.Matrix(zoom, zoom)
-                    pix = page.get_pixmap(matrix=matrix, alpha=False)
-                    png_bytes = pix.tobytes("png")
-                    with contextlib.suppress(OSError):
-                        sidecar.write_bytes(png_bytes)
-
-                b64 = base64.b64encode(png_bytes).decode("ascii")
-                out.append(ImageBlock(
-                    source=f"data:image/png;base64,{b64}",
-                    mime_type="image/png",
-                    detail="high",
-                ))
-        # Silence lint: io is imported for future use and by the caching
-        # write path elsewhere in this module.
-        _ = io
-        return tuple(out)
-
-    async def _extract_office_text(
-        self,
-        media_uri: str,
-        *,
-        mime_type: str,
-        session_id: str | None,
-        extractor,
-    ) -> str:
-        """Run a format-specific extractor with a sidecar cache.
-
-        The sidecar is ``<hash>.<ext>.txt`` — same pattern as the PDF
-        extractor. ``extractor`` is a callable ``(Path, mime) -> str | None``
-        so we can swap implementations without threading a dispatch
-        table through every call.
-        """
-        session, filename = self._parse_uri(media_uri)
+        # Resolve the media URI to a filesystem path. Session scoping
+        # lives here (one place), so handlers stay storage-agnostic.
+        session, filename = self._parse_uri(block.source)
         if session_id is not None and session != session_id:
             raise CrossSessionAccessError(
                 f"Session {session_id!r} may not read media from {session!r}"
             )
         path = self._root / session / filename
         if not path.exists():
-            raise UnknownMediaURIError(f"No file for {media_uri}")
+            raise UnknownMediaURIError(f"No file for {block.source}")
 
-        sidecar = path.with_suffix(path.suffix + ".txt")
-        if sidecar.exists():
-            return sidecar.read_text(encoding="utf-8")
-
-        result = extractor(path, mime_type)
-        text = result or ""
-
-        # Write-through cache, best-effort.
-        with contextlib.suppress(OSError):
-            sidecar.write_text(text, encoding="utf-8")
-        return text
-
-    async def _extract_pdf_text(
-        self,
-        media_uri: str,
-        *,
-        session_id: str | None,
-    ) -> str:
-        """Extract text from a stored PDF, with a sidecar cache.
-
-        The cache lives next to the PDF at ``<hash>.pdf.txt`` — same
-        directory, same cleanup path, no separate lifecycle to manage.
-        """
-        session, filename = self._parse_uri(media_uri)
-        if session_id is not None and session != session_id:
-            raise CrossSessionAccessError(
-                f"Session {session_id!r} may not read media from {session!r}"
-            )
-        pdf_path = self._root / session / filename
-        if not pdf_path.exists():
-            raise UnknownMediaURIError(f"No file for {media_uri}")
-
-        sidecar = pdf_path.with_suffix(pdf_path.suffix + ".txt")
-        if sidecar.exists():
-            return sidecar.read_text(encoding="utf-8")
-
-        # pypdf is imported lazily so the media module stays importable
-        # without the optional dependency at module-load time.
-        from pypdf import PdfReader
-
-        reader = PdfReader(str(pdf_path))
-        pages: list[str] = []
-        for i, page in enumerate(reader.pages, 1):
-            page_text = page.extract_text() or ""
-            if page_text.strip():
-                pages.append(f"--- Page {i} ---\n{page_text.strip()}")
-        text = "\n\n".join(pages).strip()
-
-        # Write-through cache. Best-effort — an error writing the
-        # sidecar shouldn't stop us returning the extracted text.
-        with contextlib.suppress(OSError):
-            sidecar.write_text(text, encoding="utf-8")
-        return text
+        return await handler.materialize(
+            path,
+            capabilities=capabilities,
+            sidecar_dir=path.parent,
+            source_uri=block.source,
+            mime_type=block.mime_type,
+        )
 
     async def _materialize_audio(
         self,
