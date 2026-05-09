@@ -62,6 +62,7 @@ class Brain(Processor):
         channel_store: Any = None,
         conversation_store: Any = None,
         media_store: Any = None,
+        llm_capabilities: frozenset[str] | None = None,
     ):
         super().__init__(name="brain")
         self._llm = llm
@@ -124,6 +125,7 @@ class Brain(Processor):
             config=context_config,
             skill_provider=tool_manager.get_skill_catalog,
             media_store=media_store,
+            llm_capabilities=llm_capabilities,
         )
 
         # Register preference tool if store is available

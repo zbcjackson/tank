@@ -133,6 +133,27 @@ class TestSerialization:
         restored = block_from_dict(block_to_dict(b))
         assert restored == b
 
+    def test_document_send_native_roundtrip(self):
+        """send_native flag survives JSON round-trip for persistence."""
+        b = DocumentBlock(
+            source="data:application/pdf;base64,JVBERi0xLjQ=",
+            mime_type="application/pdf",
+            send_native=True,
+        )
+        restored = block_from_dict(block_to_dict(b))
+        assert restored == b
+        assert restored.send_native is True
+
+    def test_document_default_send_native_false(self):
+        """Blocks loaded from older persisted data default to send_native=False."""
+        b = block_from_dict({
+            "type": "document",
+            "source": "/doc.pdf",
+            "mime_type": "application/pdf",
+        })
+        assert isinstance(b, DocumentBlock)
+        assert b.send_native is False
+
     def test_audio_roundtrip(self):
         b = AudioBlock(
             source="/x.wav",

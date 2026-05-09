@@ -155,6 +155,74 @@ class TestBlocksToOpenAIParts:
         assert parts[1]["type"] == "image_url"
         assert parts[2]["type"] == "text"
 
+    def test_document_native_emits_file_part(self):
+        """DocumentBlock(send_native=True) emits OpenAI file wire form."""
+        from tank_backend.core.content import DocumentBlock, blocks_to_openai_parts
+
+        blocks = [
+            TextBlock(text="Summarise this:"),
+            DocumentBlock(
+                source="data:application/pdf;base64,JVBERi0xLjQ=",
+                mime_type="application/pdf",
+                send_native=True,
+            ),
+        ]
+        parts = blocks_to_openai_parts(blocks)
+        assert len(parts) == 2
+        assert parts[0] == {"type": "text", "text": "Summarise this:"}
+        assert parts[1]["type"] == "file"
+        assert parts[1]["file"]["file_data"] == (
+            "data:application/pdf;base64,JVBERi0xLjQ="
+        )
+        # Filename is derived best-effort; for a data URL we fall back
+        # to a MIME-extension default.
+        assert parts[1]["file"]["filename"].endswith(".pdf")
+
+    def test_document_native_filename_from_media_uri(self):
+        """media:// URIs contribute the filename to the file part."""
+        from tank_backend.core.content import DocumentBlock, blocks_to_openai_parts
+
+        parts = blocks_to_openai_parts([
+            DocumentBlock(
+                source="media://sess/abc123.pdf",
+                mime_type="application/pdf",
+                send_native=True,
+            ),
+        ])
+        # Note: in real use, MediaStore.materialize_for_llm replaces
+        # the media:// URI with a data URL before wire rendering. This
+        # test exercises the filename derivation on the pre-materialized
+        # shape because the filename field is the wire requirement.
+        assert parts[0]["file"]["filename"] == "abc123.pdf"
+
+    def test_document_with_extracted_text_and_pages(self):
+        """Non-native doc: text prefix + one image_url part per page."""
+        from tank_backend.core.content import DocumentBlock, blocks_to_openai_parts
+
+        parts = blocks_to_openai_parts([
+            DocumentBlock(
+                source="media://sess/x.pdf",
+                mime_type="application/pdf",
+                extracted_text="Page 1 text\nPage 2 text",
+                page_images=(
+                    ImageBlock(
+                        source="data:image/png;base64,AAA",
+                        mime_type="image/png",
+                    ),
+                    ImageBlock(
+                        source="data:image/png;base64,BBB",
+                        mime_type="image/png",
+                    ),
+                ),
+            ),
+        ])
+        # Expect: text part, image part, image part
+        assert len(parts) == 3
+        assert parts[0]["type"] == "text"
+        assert "Page 1 text" in parts[0]["text"]
+        assert parts[1]["type"] == "image_url"
+        assert parts[2]["type"] == "image_url"
+
 
 class TestFollowUpMessage:
     """Test the follow-up user message builder."""

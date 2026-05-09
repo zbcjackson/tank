@@ -184,6 +184,7 @@ class Assistant:
             channel_store=self._channel_store,
             conversation_store=self._conversation_store,
             media_store=self._media_store,
+            llm_capabilities=self._llm_capabilities.input_modalities,
         )
         builder.add(self.brain)
 

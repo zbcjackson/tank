@@ -45,16 +45,30 @@ class ImageBlock:
 class DocumentBlock:
     """A document (PDF, DOCX, etc.).
 
-    When the document has extractable text, ``extracted_text`` is populated
-    so providers that can't take the raw file still get useful input.
-    When the document is primarily visual (scanned PDF), ``page_images``
-    carries rendered pages as images.
+    Three wire-format paths, selected at materialization time by the
+    MediaStore based on the configured LLM's capabilities:
+
+    - ``send_native=True`` with a data-URL ``source`` → the provider
+      receives the raw PDF bytes via an OpenAI ``file`` content part.
+      Used for models that accept PDFs natively (Claude, Gemini,
+      gpt-4o family). Best fidelity: provider renders pages + extracts
+      text server-side.
+    - ``page_images`` populated → each page as an ``image_url`` part.
+      Used for vision-capable models that can't take PDFs directly.
+      We pair this with ``extracted_text`` so the LLM gets both.
+    - ``extracted_text`` only → pypdf text in a ``text`` part. The
+      fallback for text-only models.
+
+    The three fields are not mutually exclusive; the MediaStore picks
+    which to populate and ``blocks_to_openai_parts`` renders whatever's
+    present.
     """
 
     source: str
     mime_type: str
     extracted_text: str | None = None
     page_images: tuple[ImageBlock, ...] = ()
+    send_native: bool = False
     type: Literal["document"] = "document"
 
 
@@ -172,6 +186,7 @@ def block_to_dict(block: ContentBlock) -> dict:
             "mime_type": block.mime_type,
             "extracted_text": block.extracted_text,
             "page_images": [block_to_dict(img) for img in block.page_images],
+            "send_native": block.send_native,
         }
     if block.type == "audio":
         return {
@@ -209,6 +224,7 @@ def block_from_dict(data: dict) -> ContentBlock:
             mime_type=data["mime_type"],
             extracted_text=data.get("extracted_text"),
             page_images=pages,
+            send_native=bool(data.get("send_native", False)),
         )
     if kind == "audio":
         return AudioBlock(
@@ -264,17 +280,42 @@ def blocks_to_text(blocks: ContentBlocks) -> str:
     return "\n".join(parts)
 
 
+def _filename_for_document(block: DocumentBlock) -> str:
+    """Best-effort filename for a native-file wire part.
+
+    OpenAI's ``file`` part requires a ``filename``. We derive it from
+    the ``media://.../hash.pdf`` source; when that's not a media URI
+    (e.g. data URL with no path), fall back to a MIME-derived name.
+    """
+    if block.source.startswith("media://"):
+        tail = block.source.rsplit("/", 1)[-1]
+        if tail:
+            return tail
+    ext = {
+        "application/pdf": "pdf",
+    }.get(block.mime_type, "bin")
+    return f"attachment.{ext}"
+
+
 def blocks_to_openai_parts(blocks: ContentBlocks) -> list[dict]:
     """Convert a block list to OpenAI ``content`` parts.
 
     Text blocks collapse into ``{"type": "text", "text": ...}``. Images
     render as ``{"type": "image_url", "image_url": {"url", "detail"}}``.
-    Documents with extracted text emit a text part; their page images
-    emit image parts. Audio without native wire support falls back to
-    its transcript as text.
+    Documents render in one of three ways depending on what the
+    :class:`DocumentBlock` carries:
 
-    Consecutive text blocks are merged into a single text part so the
-    LLM sees one contiguous prefix rather than fragmented snippets.
+    - ``send_native=True`` → ``{"type": "file", "file": {"filename",
+      "file_data"}}`` carrying the data URL. The LLM provider decodes
+      the PDF itself.
+    - ``page_images`` → one ``image_url`` part per page, optionally
+      prefixed by ``extracted_text`` as a text part.
+    - otherwise → ``extracted_text`` as a text part.
+
+    Audio without native wire support falls back to its transcript as
+    text. Consecutive text blocks are merged into a single text part
+    so the LLM sees one contiguous prefix rather than fragmented
+    snippets.
     """
     parts: list[dict] = []
     pending_text: list[str] = []
@@ -296,6 +337,19 @@ def blocks_to_openai_parts(blocks: ContentBlocks) -> list[dict]:
                 "image_url": {"url": block.source, "detail": block.detail},
             })
         elif block.type == "document":
+            if block.send_native:
+                # Native PDF path — provider renders pages + extracts
+                # text server-side. Schema mirrors OpenAI's file part.
+                _flush()
+                filename = _filename_for_document(block)
+                parts.append({
+                    "type": "file",
+                    "file": {
+                        "filename": filename,
+                        "file_data": block.source,
+                    },
+                })
+                continue
             if block.extracted_text:
                 pending_text.append(block.extracted_text)
             for img in block.page_images:

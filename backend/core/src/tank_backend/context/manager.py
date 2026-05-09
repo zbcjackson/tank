@@ -47,12 +47,14 @@ class ContextManager:
         config: ContextConfig | None = None,
         skill_provider: Any = None,
         media_store: Any = None,
+        llm_capabilities: frozenset[str] | None = None,
     ) -> None:
         self._app_config = app_config
         self._config = config or ContextConfig()
         self._bus = bus
         self._resolver = resolver
         self._media_store = media_store
+        self._llm_capabilities = llm_capabilities or frozenset()
         self._conversation: ConversationData | None = None
         self._compaction_mode: CompactionMode = CompactionMode.DESTRUCTIVE
         self._channel_context_builder: Any = None
@@ -437,12 +439,15 @@ class ContextManager:
 
         # Materialize media:// URIs against the MediaStore so the wire
         # carries bytes the LLM can actually consume. Non-media sources
-        # (data URLs, absolute paths) pass through.
+        # (data URLs, absolute paths) pass through. Capabilities drive
+        # the waterfall for documents (native PDF vs page images vs text).
         if self._media_store is not None:
             materialized: list = []
             for b in blocks:
                 materialized.append(
-                    await self._media_store.materialize_for_llm(b)
+                    await self._media_store.materialize_for_llm(
+                        b, capabilities=self._llm_capabilities,
+                    )
                 )
             blocks = materialized
 

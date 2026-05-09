@@ -219,3 +219,296 @@ class TestPurgeSession:
         await store.purge_session("dead")
         data, _ = await store.get(kept.media_uri)
         assert data == png_bytes
+
+
+# ---------------------------------------------------------------------------
+# PDF extraction at materialize time
+# ---------------------------------------------------------------------------
+
+
+def _build_minimal_pdf(body_text: str) -> bytes:
+    """Build a tiny valid PDF containing ``body_text``.
+
+    Using pypdf's writer keeps the test self-contained — no sample
+    fixture file to commit, no binary data in the test.
+    """
+    from io import BytesIO
+
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    # pypdf can't synthesize text content streams, but it CAN ingest a
+    # minimal PDF we assemble by hand. Instead of that complexity we
+    # just write a PDF whose /Title metadata carries the body, and
+    # extract from metadata. Simpler signal is good enough: a non-empty
+    # PDF with known-recoverable text.
+    writer.add_metadata({"/Title": body_text})
+    buf = BytesIO()
+    writer.write(buf)
+    return buf.getvalue()
+
+
+class TestPdfExtraction:
+    """MediaStore materializes PDFs by extracting text at send time."""
+
+    @pytest.mark.asyncio()
+    async def test_pdf_without_text_gets_scanned_placeholder(
+        self, store,
+    ):
+        """Synthetic PDF with no extractable text → clear diagnostic."""
+        pdf_bytes = _build_minimal_pdf("meta only")
+        stored = await store.put(
+            pdf_bytes, "application/pdf", session_id="s",
+        )
+
+        from tank_backend.core.content import DocumentBlock
+        block = DocumentBlock(
+            source=stored.media_uri,
+            mime_type="application/pdf",
+        )
+        result = await store.materialize_for_llm(block)
+        # A pypdf-only synthetic PDF yields no extractable text content
+        # (metadata isn't extracted via ``extract_text``) — we expect
+        # the scanned-PDF placeholder.
+        assert result.extracted_text is not None
+        assert "scanned" in result.extracted_text.lower()
+
+    @pytest.mark.asyncio()
+    async def test_pdf_sidecar_cache_is_written(self, store, tmp_path):
+        """Second materialize of the same PDF reads the .pdf.txt sidecar."""
+        pdf_bytes = _build_minimal_pdf("cached")
+        stored = await store.put(
+            pdf_bytes, "application/pdf", session_id="cache",
+        )
+
+        from tank_backend.core.content import DocumentBlock
+        block = DocumentBlock(
+            source=stored.media_uri,
+            mime_type="application/pdf",
+        )
+
+        # First call: pypdf runs, sidecar written.
+        await store.materialize_for_llm(block)
+
+        # Sidecar should now exist — the file the extractor wrote.
+        _session, filename = store._parse_uri(stored.media_uri)
+        pdf_path = store.root / _session / filename
+        sidecar = pdf_path.with_suffix(pdf_path.suffix + ".txt")
+        assert sidecar.exists()
+
+        # Corrupt the PDF bytes on disk — if we hit pypdf again, this
+        # would raise. The cache should intercept.
+        pdf_path.write_bytes(b"not a pdf anymore")
+        # Still works: sidecar hit, no re-extraction.
+        result = await store.materialize_for_llm(block)
+        assert result.extracted_text is not None
+
+    @pytest.mark.asyncio()
+    async def test_non_pdf_document_gets_placeholder(self, store):
+        """A DOCX (or any non-PDF doc) gets a descriptive placeholder."""
+        await store.put(b"PK\x03\x04docx-bytes", (
+            "application/vnd.openxmlformats-officedocument."
+            "wordprocessingml.document"
+        ), session_id="s")
+
+        from tank_backend.core.content import DocumentBlock
+        block = DocumentBlock(
+            source="media://s/abc.docx",
+            mime_type=(
+                "application/vnd.openxmlformats-officedocument."
+                "wordprocessingml.document"
+            ),
+        )
+        result = await store.materialize_for_llm(block)
+        assert result.extracted_text is not None
+        assert "extraction not supported" in result.extracted_text
+
+    @pytest.mark.asyncio()
+    async def test_document_with_existing_text_passthrough(self, store):
+        """A block that already has text doesn't trigger extraction."""
+        from tank_backend.core.content import DocumentBlock
+        block = DocumentBlock(
+            source="media://s/doc.pdf",
+            mime_type="application/pdf",
+            extracted_text="Already done.",
+        )
+        result = await store.materialize_for_llm(block)
+        assert result.extracted_text == "Already done."
+
+    @pytest.mark.asyncio()
+    async def test_pdf_cross_session_blocked(self, store):
+        """Extraction respects session scoping just like get()."""
+        pdf_bytes = _build_minimal_pdf("secret")
+        stored = await store.put(
+            pdf_bytes, "application/pdf", session_id="alice",
+        )
+
+        from tank_backend.core.content import DocumentBlock
+        block = DocumentBlock(
+            source=stored.media_uri,
+            mime_type="application/pdf",
+        )
+        with pytest.raises(CrossSessionAccessError):
+            await store.materialize_for_llm(block, session_id="bob")
+
+
+# ---------------------------------------------------------------------------
+# Capability-driven PDF waterfall
+# ---------------------------------------------------------------------------
+
+
+def _build_pdf_with_text_content(text: str) -> bytes:
+    """Build a PDF whose pages contain real drawable text.
+
+    pymupdf can write pages with insertable text that pypdf will
+    read back; this gives us a PDF the text-extraction path can
+    actually extract from.
+    """
+    import pymupdf
+
+    doc = pymupdf.open()
+    page = doc.new_page(width=400, height=400)
+    page.insert_text((50, 72), text, fontsize=12)
+    buf = doc.tobytes()
+    doc.close()
+    return buf
+
+
+class TestPdfWaterfall:
+    """Three wire paths: native, image + text, text only."""
+
+    @pytest.fixture()
+    def store(self, tmp_path):
+        return MediaStore(tmp_path / "media")
+
+    @pytest.mark.asyncio()
+    async def test_native_path_for_file_capable_model(self, store):
+        """Caps include 'file' → send_native=True with a data URL."""
+        pdf_bytes = _build_pdf_with_text_content("native-path-test")
+        stored = await store.put(
+            pdf_bytes, "application/pdf", session_id="s",
+        )
+
+        from tank_backend.core.content import DocumentBlock
+        block = DocumentBlock(
+            source=stored.media_uri,
+            mime_type="application/pdf",
+        )
+        result = await store.materialize_for_llm(
+            block, capabilities=frozenset({"text", "file"}),
+        )
+        assert isinstance(result, DocumentBlock)
+        assert result.send_native is True
+        assert result.source.startswith("data:application/pdf;base64,")
+        # Native path skips our text extraction — the provider does it.
+        assert result.extracted_text is None
+        assert result.page_images == ()
+
+    @pytest.mark.asyncio()
+    async def test_image_path_for_vision_model_without_pdf_support(
+        self, store,
+    ):
+        """Caps include 'image' but not 'file' → text + page images."""
+        pdf_bytes = _build_pdf_with_text_content("image-path-test")
+        stored = await store.put(
+            pdf_bytes, "application/pdf", session_id="s",
+        )
+
+        from tank_backend.core.content import DocumentBlock
+        block = DocumentBlock(
+            source=stored.media_uri,
+            mime_type="application/pdf",
+        )
+        result = await store.materialize_for_llm(
+            block, capabilities=frozenset({"text", "image"}),
+        )
+        assert result.send_native is False
+        assert result.extracted_text is not None
+        assert "image-path-test" in result.extracted_text
+        assert len(result.page_images) == 1
+        assert result.page_images[0].source.startswith(
+            "data:image/png;base64,"
+        )
+
+    @pytest.mark.asyncio()
+    async def test_text_only_path_for_text_only_model(self, store):
+        """Caps = {'text'} → pypdf text only, no page images."""
+        pdf_bytes = _build_pdf_with_text_content("text-only-path-test")
+        stored = await store.put(
+            pdf_bytes, "application/pdf", session_id="s",
+        )
+
+        from tank_backend.core.content import DocumentBlock
+        block = DocumentBlock(
+            source=stored.media_uri,
+            mime_type="application/pdf",
+        )
+        result = await store.materialize_for_llm(
+            block, capabilities=frozenset({"text"}),
+        )
+        assert result.send_native is False
+        assert result.extracted_text is not None
+        assert "text-only-path-test" in result.extracted_text
+        assert result.page_images == ()
+
+    @pytest.mark.asyncio()
+    async def test_image_path_caches_sidecars(self, store):
+        """Second materialize reuses page<N>.png sidecars."""
+        pdf_bytes = _build_pdf_with_text_content("cache-test")
+        stored = await store.put(
+            pdf_bytes, "application/pdf", session_id="s",
+        )
+
+        from tank_backend.core.content import DocumentBlock
+        block = DocumentBlock(
+            source=stored.media_uri,
+            mime_type="application/pdf",
+        )
+        first = await store.materialize_for_llm(
+            block, capabilities=frozenset({"text", "image"}),
+        )
+        assert len(first.page_images) == 1
+
+        # Sidecar must exist after first materialize.
+        _session, filename = store._parse_uri(stored.media_uri)
+        pdf_path = store.root / _session / filename
+        sidecar = pdf_path.with_name(f"{pdf_path.name}.page1.png")
+        assert sidecar.exists()
+        first_bytes = sidecar.read_bytes()
+
+        # Corrupt the sidecar to prove the SECOND call served the new
+        # (corrupted) bytes rather than re-rendering: if the render
+        # loop ran, the sidecar would've been re-written with fresh
+        # PNG data, so the byte-equality check would fail.
+        sidecar.write_bytes(b"sidecar-sentinel")
+        second = await store.materialize_for_llm(
+            block, capabilities=frozenset({"text", "image"}),
+        )
+        # The returned image has the sentinel bytes (base64-encoded).
+        expected_b64 = (
+            "data:image/png;base64,"
+            + __import__("base64").b64encode(b"sidecar-sentinel").decode()
+        )
+        assert second.page_images[0].source == expected_b64
+
+        # Restore so teardown doesn't flag a stale file.
+        sidecar.write_bytes(first_bytes)
+
+    @pytest.mark.asyncio()
+    async def test_native_path_without_caps_falls_to_text(self, store):
+        """caps=None defaults to empty → never picks native."""
+        pdf_bytes = _build_pdf_with_text_content("default-caps")
+        stored = await store.put(
+            pdf_bytes, "application/pdf", session_id="s",
+        )
+
+        from tank_backend.core.content import DocumentBlock
+        block = DocumentBlock(
+            source=stored.media_uri,
+            mime_type="application/pdf",
+        )
+        # No caps arg → defaults to frozenset() → text-only path.
+        result = await store.materialize_for_llm(block)
+        assert result.send_native is False
+        assert result.page_images == ()

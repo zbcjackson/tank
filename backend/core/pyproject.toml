@@ -35,6 +35,8 @@ dependencies = [
     "apscheduler>=4.0.0a5",
     "sqlalchemy>=2.0.0",
     "alembic>=1.13.0",
+    "pypdf>=6.10.2",
+    "pymupdf>=1.27.2.3",
 ]
 
 [project.scripts]
