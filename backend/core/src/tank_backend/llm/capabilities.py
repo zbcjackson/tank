@@ -39,6 +39,7 @@ from ..core.content import (
     MODALITY_TEXT,
     MODALITY_VIDEO,
 )
+from .model_table import registry
 
 if TYPE_CHECKING:
     from .profile import LLMProfile
@@ -51,6 +52,7 @@ class CapabilitySource(str, Enum):
 
     CONFIG_OVERRIDE = "config_override"
     PROVIDER_API = "provider_api"
+    MODEL_REGISTRY = "model_registry"
     PATTERN_MATCH = "pattern_match"
     FALLBACK_TEXT = "fallback_text"
 
@@ -156,6 +158,26 @@ def _pattern_match(model_id: str) -> ModelCapabilities:
     )
 
 
+def _registry_lookup(model_id: str) -> ModelCapabilities | None:
+    """Consult the bundled LiteLLM snapshot.
+
+    Returns ``None`` when the model isn't in the table — caller falls
+    through to pattern matching. Modalities from the registry are
+    authoritative: they come from LiteLLM's hand-curated per-model
+    flags, not from our regex guesses.
+    """
+    record = registry().lookup(model_id)
+    if record is None:
+        return None
+    if not record.modalities:
+        return None
+    return ModelCapabilities(
+        model_id=model_id,
+        input_modalities=record.modalities,
+        source=CapabilitySource.MODEL_REGISTRY,
+    )
+
+
 # ---------------------------------------------------------------------------
 # OpenRouter probe
 # ---------------------------------------------------------------------------
@@ -230,8 +252,9 @@ async def _probe_openrouter(profile: LLMProfile) -> ModelCapabilities | None:
 async def resolve_capabilities(profile: LLMProfile) -> ModelCapabilities:
     """Resolve a model's input modalities (async; may probe the network).
 
-    Authority order: config override → provider API probe → pattern
-    match → text-only fallback. Always returns a value; never raises.
+    Authority order: config override → provider API probe → bundled
+    registry → pattern match → text-only fallback. Always returns a
+    value; never raises.
     """
     if profile.capabilities:
         return ModelCapabilities(
@@ -245,6 +268,10 @@ async def resolve_capabilities(profile: LLMProfile) -> ModelCapabilities:
         if probed is not None:
             return probed
 
+    registry_hit = _registry_lookup(profile.model)
+    if registry_hit is not None:
+        return registry_hit
+
     return _pattern_match(profile.model)
 
 
@@ -252,9 +279,9 @@ def resolve_capabilities_sync(profile: LLMProfile) -> ModelCapabilities:
     """Resolve capabilities without any network call.
 
     Used during synchronous startup (``Assistant.__init__``). Skips the
-    OpenRouter probe; config override and pattern match still run.
-    Callers that want the API-backed result should switch to
-    :func:`resolve_capabilities` from an async context.
+    OpenRouter probe; config override, bundled registry, and pattern
+    match still run. Callers that want the API-backed result should
+    switch to :func:`resolve_capabilities` from an async context.
     """
     if profile.capabilities:
         return ModelCapabilities(
@@ -262,4 +289,7 @@ def resolve_capabilities_sync(profile: LLMProfile) -> ModelCapabilities:
             input_modalities=frozenset(profile.capabilities),
             source=CapabilitySource.CONFIG_OVERRIDE,
         )
+    registry_hit = _registry_lookup(profile.model)
+    if registry_hit is not None:
+        return registry_hit
     return _pattern_match(profile.model)

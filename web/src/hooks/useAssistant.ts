@@ -179,7 +179,7 @@ export const useAssistant = (
 
   // --- Actions ---
   const sendMessage = useCallback(
-    (text: string) => {
+    (text: string, attachments?: Array<{ media_uri: string; mime_type: string }>) => {
       if (!clientRef.current) return;
       // Auto-interrupt if assistant is still speaking/responding
       if (isAssistantTyping) {
@@ -190,6 +190,7 @@ export const useAssistant = (
       addLocalUserStep(text);
       clientRef.current.sendMessage('input', text, {
         ...(selectedUserId ? { user_id: selectedUserId } : {}),
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
       });
     },
     [clientRef, playbackRef, addLocalUserStep, isAssistantTyping, dispatchStatus, selectedUserId],

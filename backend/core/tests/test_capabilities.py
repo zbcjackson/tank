@@ -140,14 +140,23 @@ class TestConfigOverride:
 class TestSyncResolver:
     """resolve_capabilities_sync runs no network IO."""
 
-    def test_no_override_falls_to_pattern(self):
+    def test_known_model_hits_registry(self):
+        """A model present in the bundled registry uses that source."""
         profile = _profile("gpt-4o")
         caps = resolve_capabilities_sync(profile)
-        assert caps.source == CapabilitySource.PATTERN_MATCH
+        assert caps.source == CapabilitySource.MODEL_REGISTRY
+        assert MODALITY_IMAGE in caps.input_modalities
+
+    def test_provider_prefixed_model_hits_registry(self):
+        """openai/gpt-4o resolves via suffix match to the gpt-4o row."""
+        profile = _profile("openai/gpt-4o")
+        caps = resolve_capabilities_sync(profile)
+        assert caps.source == CapabilitySource.MODEL_REGISTRY
         assert MODALITY_IMAGE in caps.input_modalities
 
     def test_unknown_model_text_only(self):
-        profile = _profile("fictional-model-99")
+        """Model absent from registry AND patterns — fallback to text."""
+        profile = _profile("fictional-model-99-nobody-has-heard-of")
         caps = resolve_capabilities_sync(profile)
         assert caps.source == CapabilitySource.FALLBACK_TEXT
         assert caps.input_modalities == frozenset({MODALITY_TEXT})
@@ -253,7 +262,8 @@ class TestOpenRouterProbe:
         with patch("tank_backend.llm.capabilities._probe_openrouter") as probe:
             caps = await resolve_capabilities(profile)
         probe.assert_not_called()
-        assert caps.source == CapabilitySource.PATTERN_MATCH
+        # gpt-4o is in the bundled registry → registry wins over patterns.
+        assert caps.source == CapabilitySource.MODEL_REGISTRY
 
 
 class TestModelCapabilitiesAPI:

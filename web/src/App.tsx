@@ -234,6 +234,7 @@ function App() {
               resumeAudioCapture={resumeAudioCapture}
               selectedUserId={selectedUserId}
               onSelectUser={setSelectedUserId}
+              sessionId={SESSION_ID}
             />
           )}
         </AnimatePresence>

@@ -1,12 +1,14 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowUp, Square } from 'lucide-react';
+import { ArrowUp, Square, Paperclip, Upload } from 'lucide-react';
 import { MessageStep } from './MessageStep';
 import { EnrollmentBanner } from './EnrollmentBanner';
 import { UserSelector } from './UserSelector';
+import { AttachmentChips } from './AttachmentChips';
 import type { Step } from '../../types/message';
 import { ActivityIndicator } from './ActivityIndicator';
 import type { AssistantStatus } from '../../hooks/useAssistant';
+import { useUpload } from '../../hooks/useUpload';
 
 const CHAT_BG_STYLE = { background: '#0a0a0a' };
 const EMPTY_STATE_STYLE = {
@@ -27,13 +29,17 @@ const STATUS_BADGE: Partial<Record<AssistantStatus, string>> = {
 interface ChatModeProps {
   messages: Step[];
   assistantStatus: AssistantStatus;
-  onSendMessage: (text: string) => void;
+  onSendMessage: (
+    text: string,
+    attachments?: Array<{ media_uri: string; mime_type: string }>,
+  ) => void;
   onStopSpeaking: () => void;
   onApprovalRespond: (approvalId: string, approved: boolean) => void;
   pauseAudioCapture: () => void;
   resumeAudioCapture: () => void;
   selectedUserId: string | null;
   onSelectUser: (userId: string | null) => void;
+  sessionId: string;
 }
 
 export const ChatMode = ({
@@ -46,10 +52,14 @@ export const ChatMode = ({
   resumeAudioCapture,
   selectedUserId,
   onSelectUser,
+  sessionId,
 }: ChatModeProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [enrollmentKey, setEnrollmentKey] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const { attachments, upload, remove, clear } = useUpload(sessionId);
 
   const lastUserSpeaker = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -69,11 +79,25 @@ export const ChatMode = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputRef.current && inputRef.current.value.trim()) {
-      onSendMessage(inputRef.current.value);
-      inputRef.current.value = '';
-      inputRef.current.style.height = 'auto';
-    }
+    if (!inputRef.current) return;
+    const text = inputRef.current.value.trim();
+    // Don't send while uploads are still in flight — would arrive at
+    // the LLM without the media attached.
+    const hasUploading = attachments.some((a) => a.status === 'uploading');
+    if (hasUploading) return;
+    // Collect only successfully-uploaded attachments; errored ones stay
+    // visible but are excluded from the send.
+    const uploaded = attachments.filter((a) => a.status === 'uploaded');
+    const media = uploaded.map((a) => ({
+      media_uri: a.mediaUri!,
+      mime_type: a.mimeType!,
+    }));
+    // Require either text OR at least one uploaded attachment.
+    if (!text && media.length === 0) return;
+    onSendMessage(text, media.length > 0 ? media : undefined);
+    inputRef.current.value = '';
+    inputRef.current.style.height = 'auto';
+    clear();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -88,6 +112,45 @@ export const ChatMode = ({
       inputRef.current.style.height = 'auto';
       inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 120) + 'px';
     }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    // Clipboard can carry a file (screenshot) alongside text. We only
+    // intercept when there's a file; otherwise fall through to the
+    // default text-paste behavior.
+    const files = Array.from(e.clipboardData.files);
+    if (files.length === 0) return;
+    e.preventDefault();
+    upload(files);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    // Only treat as a file drag when the dataTransfer actually advertises
+    // files — dragging text selection within the textarea shouldn't flip
+    // the overlay on.
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    // Only react when leaving the form container, not when the pointer
+    // moves between child elements (dragleave bubbles from children).
+    if (e.currentTarget === e.target) setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) upload(files);
+  };
+
+  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) upload(files);
+    // Reset so selecting the same file twice still triggers onChange.
+    e.target.value = '';
   };
 
   return (
@@ -197,10 +260,49 @@ export const ChatMode = ({
 
       {/* Input area */}
       <div className="px-6 pb-6 pt-3">
-        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
+        <form
+          onSubmit={handleSubmit}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className="max-w-3xl mx-auto relative"
+        >
+          {/* Drag-drop overlay — covers the form when files are dragged over */}
+          {isDragging && (
+            <div
+              className="absolute inset-0 z-20 rounded-2xl border-2 border-dashed border-amber-500/50 bg-amber-500/8 flex items-center justify-center pointer-events-none"
+              data-testid="drop-overlay"
+            >
+              <div className="flex items-center gap-2 text-amber-400 text-sm font-mono">
+                <Upload size={16} />
+                <span>DROP TO ATTACH</span>
+              </div>
+            </div>
+          )}
+
+          <AttachmentChips attachments={attachments} onRemove={remove} />
+
           <div className="relative rounded-2xl bg-surface-raised border border-border-subtle focus-within:border-amber-500/20 transition-all duration-200">
-            <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10">
+            <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1">
               <UserSelector selectedUserId={selectedUserId} onSelectUser={onSelectUser} />
+              {/* Attach-file button. Hidden file input triggered via ref. */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Attach file"
+                data-testid="attach-button"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+              >
+                <Paperclip size={14} />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFilePick}
+                data-testid="file-input"
+              />
             </div>
             <textarea
               ref={inputRef}
@@ -209,7 +311,8 @@ export const ChatMode = ({
               data-testid="chat-input"
               onKeyDown={handleKeyDown}
               onInput={handleInput}
-              className="w-full bg-transparent pl-[120px] pr-14 pt-[18px] pb-[13px] text-[14px] text-text-primary placeholder:text-text-muted resize-none focus:outline-none leading-relaxed"
+              onPaste={handlePaste}
+              className="w-full bg-transparent pl-[150px] pr-14 pt-[18px] pb-[13px] text-[14px] text-text-primary placeholder:text-text-muted resize-none focus:outline-none leading-relaxed"
               style={TEXTAREA_MAX_HEIGHT}
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
