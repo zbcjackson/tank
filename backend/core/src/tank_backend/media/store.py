@@ -305,7 +305,37 @@ class MediaStore:
                 )
             return block
 
-        # Step 2 — non-PDF documents have no handler today.
+        # Step 2 — Office documents (DOCX/XLSX/PPTX) dispatch to
+        # format-specific text extractors. Results are cached as
+        # sidecar .txt files so repeated questions don't re-parse.
+        from .office import OFFICE_MIME_TYPES, extract_office_document
+
+        if block.mime_type in OFFICE_MIME_TYPES:
+            if not block.source.startswith("media://"):
+                return block
+            try:
+                text = await self._extract_office_text(
+                    block.source,
+                    mime_type=block.mime_type,
+                    session_id=session_id,
+                    extractor=extract_office_document,
+                )
+            except (UnknownMediaURIError, CrossSessionAccessError):
+                raise
+            except Exception as exc:  # pragma: no cover — defensive
+                logger.warning(
+                    "Office extraction failed for %s: %s", block.source, exc,
+                )
+                text = f"[Office extraction failed: {exc}]"
+            return DocumentBlock(
+                source=block.source,
+                mime_type=block.mime_type,
+                extracted_text=text or (
+                    "[Document contained no extractable text.]"
+                ),
+            )
+
+        # Step 3 — other non-PDF documents have no handler today.
         if block.mime_type != "application/pdf":
             return DocumentBlock(
                 source=block.source,
@@ -319,7 +349,7 @@ class MediaStore:
         if not block.source.startswith("media://"):
             return block
 
-        # Step 3 — pick the wire path.
+        # Step 4 — PDF waterfall: native → image+text → text only.
         if MODALITY_FILE in capabilities:
             # Native PDF: the provider renders + extracts server-side.
             # We just hand over the bytes as a data URL.
@@ -434,6 +464,42 @@ class MediaStore:
         # write path elsewhere in this module.
         _ = io
         return tuple(out)
+
+    async def _extract_office_text(
+        self,
+        media_uri: str,
+        *,
+        mime_type: str,
+        session_id: str | None,
+        extractor,
+    ) -> str:
+        """Run a format-specific extractor with a sidecar cache.
+
+        The sidecar is ``<hash>.<ext>.txt`` — same pattern as the PDF
+        extractor. ``extractor`` is a callable ``(Path, mime) -> str | None``
+        so we can swap implementations without threading a dispatch
+        table through every call.
+        """
+        session, filename = self._parse_uri(media_uri)
+        if session_id is not None and session != session_id:
+            raise CrossSessionAccessError(
+                f"Session {session_id!r} may not read media from {session!r}"
+            )
+        path = self._root / session / filename
+        if not path.exists():
+            raise UnknownMediaURIError(f"No file for {media_uri}")
+
+        sidecar = path.with_suffix(path.suffix + ".txt")
+        if sidecar.exists():
+            return sidecar.read_text(encoding="utf-8")
+
+        result = extractor(path, mime_type)
+        text = result or ""
+
+        # Write-through cache, best-effort.
+        with contextlib.suppress(OSError):
+            sidecar.write_text(text, encoding="utf-8")
+        return text
 
     async def _extract_pdf_text(
         self,

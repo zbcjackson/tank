@@ -306,19 +306,22 @@ class TestPdfExtraction:
 
     @pytest.mark.asyncio()
     async def test_non_pdf_document_gets_placeholder(self, store):
-        """A DOCX (or any non-PDF doc) gets a descriptive placeholder."""
-        await store.put(b"PK\x03\x04docx-bytes", (
-            "application/vnd.openxmlformats-officedocument."
-            "wordprocessingml.document"
-        ), session_id="s")
+        """An unsupported document MIME gets a descriptive placeholder.
+
+        DOCX/XLSX/PPTX now route to the Office extractors, so pick a
+        format we don't handle (OpenDocument) to exercise the
+        fallback branch.
+        """
+        await store.put(
+            b"PK\x03\x04odt-bytes",
+            "application/vnd.oasis.opendocument.text",
+            session_id="s",
+        )
 
         from tank_backend.core.content import DocumentBlock
         block = DocumentBlock(
-            source="media://s/abc.docx",
-            mime_type=(
-                "application/vnd.openxmlformats-officedocument."
-                "wordprocessingml.document"
-            ),
+            source="media://s/abc.odt",
+            mime_type="application/vnd.oasis.opendocument.text",
         )
         result = await store.materialize_for_llm(block)
         assert result.extracted_text is not None

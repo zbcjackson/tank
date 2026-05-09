@@ -334,8 +334,22 @@ async def upload_media(
     """
     from ..core.content import modality_for_mime
     from ..llm.capabilities import resolve_capabilities_sync
+    from ..media.office import IWORK_MIME_TYPES
 
     mime_type = file.content_type or "application/octet-stream"
+
+    # iWork formats: helpful hint rather than a generic 415. Users
+    # AirDropping from a Mac often end up here without realising
+    # Pages/Numbers/Keynote aren't a common interchange format.
+    if mime_type in IWORK_MIME_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=(
+                f"{mime_type} isn't supported. Export to PDF "
+                "(File → Export To → PDF…) and try again."
+            ),
+        )
+
     modality = modality_for_mime(mime_type)
     if modality is None:
         raise HTTPException(
