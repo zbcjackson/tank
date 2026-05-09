@@ -19,12 +19,14 @@ from __future__ import annotations
 from .base import DocumentHandler, DocumentHandlerRegistry
 from .office import OfficeHandler
 from .pdf import PdfHandler
+from .text import TextHandler
 
 # Instantiated once at import. Tests that need to swap handlers build
 # their own :class:`DocumentHandlerRegistry`.
 _DEFAULTS: tuple[DocumentHandler, ...] = (
     PdfHandler(),
     OfficeHandler(),
+    TextHandler(),
 )
 
 
@@ -43,5 +45,6 @@ __all__ = [
     "DocumentHandlerRegistry",
     "OfficeHandler",
     "PdfHandler",
+    "TextHandler",
     "default_registry",
 ]

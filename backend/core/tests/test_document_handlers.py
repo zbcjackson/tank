@@ -212,22 +212,25 @@ class TestOpenClosedPrinciple:
 
     @pytest.mark.asyncio()
     async def test_default_store_rejects_unknown_mime(self, tmp_path):
-        """Default registry doesn't know markdown → placeholder."""
+        """Default registry doesn't know ODT → placeholder.
+
+        Uses an OpenDocument MIME — genuinely outside the default
+        registry's coverage — rather than anything in text/*
+        (handled by TextHandler) or the Office set (handled by
+        OfficeHandler).
+        """
         store = MediaStore(tmp_path / "media")  # default_registry
-        await store.put(b"# hi", "text/markdown", session_id="s")
+        await store.put(
+            b"PK\x03\x04odt-bytes",
+            "application/vnd.oasis.opendocument.text",
+            session_id="s",
+        )
 
         block = DocumentBlock(
-            source="media://s/ignored.md",  # path doesn't matter here
-            mime_type="text/markdown",
+            source="media://s/ignored.odt",
+            mime_type="application/vnd.oasis.opendocument.text",
         )
-        # Force the lookup miss path by using a block whose source
-        # happens to match a real stored file in a different dir.
-        result = await store.materialize_for_llm(
-            DocumentBlock(
-                source=block.source,
-                mime_type="text/markdown",
-            ),
-        )
+        result = await store.materialize_for_llm(block)
         assert result.extracted_text is not None
         assert "extraction not supported" in result.extracted_text
 

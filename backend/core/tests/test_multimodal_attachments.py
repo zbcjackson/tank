@@ -39,8 +39,11 @@ class TestModalityForMime:
             ("audio/ogg", "audio"),
             ("video/mp4", "video"),
             ("video/webm", "video"),
-            ("text/plain", "text"),
-            ("text/markdown", "text"),
+            # text/* are uploads-as-documents, not user-typed text.
+            ("text/plain", "file"),
+            ("text/markdown", "file"),
+            ("text/csv", "file"),
+            ("text/html", "file"),
             ("application/pdf", "file"),
             (
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # noqa: E501
@@ -56,7 +59,7 @@ class TestModalityForMime:
         assert modality_for_mime("") is None
 
     def test_charset_param_stripped(self):
-        assert modality_for_mime("text/plain; charset=utf-8") == "text"
+        assert modality_for_mime("text/plain; charset=utf-8") == "file"
 
 
 # ---------------------------------------------------------------------------

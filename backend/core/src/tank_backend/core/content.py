@@ -122,9 +122,10 @@ def modality_for_mime(mime_type: str) -> str | None:
 
     The canonical classification is by MIME top-level type:
     ``image/*`` → image, ``audio/*`` → audio, ``video/*`` → video.
-    Specific application types (PDF, common office docs) are routed to
-    ``file``. Everything else is unknown to us at the ingestion boundary
-    — the upload endpoint rejects them by returning HTTP 415.
+    ``text/*`` and specific application document types (PDF, Office)
+    all route to ``file`` — they all arrive as attachments the user
+    wants the model to read. The upload endpoint rejects anything
+    else with HTTP 415.
     """
     if not mime_type:
         return None
@@ -135,8 +136,12 @@ def modality_for_mime(mime_type: str) -> str | None:
         return MODALITY_AUDIO
     if lower.startswith("video/"):
         return MODALITY_VIDEO
+    # Plain-text variants (txt, markdown, csv, html, source code) are
+    # uploads the user wants the model to read, not the user's own
+    # typed text. Route to ``file`` so the router builds a
+    # DocumentBlock and the TextHandler runs.
     if lower.startswith("text/"):
-        return MODALITY_TEXT
+        return MODALITY_FILE
     if lower in _DOCUMENT_MIME_TYPES:
         return MODALITY_FILE
     return None
@@ -152,6 +157,13 @@ _DOCUMENT_MIME_TYPES: frozenset[str] = frozenset({
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/vnd.ms-powerpoint",
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    # Text-ish application/* MIMEs the TextHandler accepts. Keep in
+    # sync with TextHandler.mime_types — the
+    # TestClaimConsistency test guards the invariant.
+    "application/json",
+    "application/xml",
+    "application/x-yaml",
+    "application/toml",
 })
 
 
