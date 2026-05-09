@@ -60,7 +60,7 @@ class TestRegistry:
         reg.register(first)
 
         # A stub that also claims application/pdf.
-        class StubPdfHandler:
+        class StubPdfHandler(DocumentHandler):
             mime_types = frozenset({"application/pdf"})
 
             def supports_native(self) -> bool:
@@ -139,7 +139,7 @@ class TestShippedHandlers:
 # ---------------------------------------------------------------------------
 
 
-class _MarkdownHandler:
+class _MarkdownHandler(DocumentHandler):
     """Toy handler for ``text/markdown``.
 
     Exists only for this test suite. Demonstrates that adding a new
@@ -236,7 +236,7 @@ class TestOpenClosedPrinciple:
         """The handler gets the LLM caps so format-specific waterfalls work."""
         seen: dict[str, frozenset[str]] = {}
 
-        class RecordingHandler:
+        class RecordingHandler(DocumentHandler):
             mime_types = frozenset({"application/x-test"})
 
             def supports_native(self) -> bool:
@@ -281,7 +281,7 @@ class TestOpenClosedPrinciple:
         MediaStore.
         """
 
-        class AuditingPdfHandler:
+        class AuditingPdfHandler(DocumentHandler):
             mime_types = frozenset({"application/pdf"})
 
             def supports_native(self) -> bool:
@@ -329,7 +329,7 @@ class TestPassthroughBypassesHandlers:
         """A DocumentBlock with extracted_text comes back unchanged."""
         calls: list[str] = []
 
-        class ForbiddenHandler:
+        class ForbiddenHandler(DocumentHandler):
             mime_types = frozenset({"application/pdf"})
 
             def supports_native(self) -> bool:

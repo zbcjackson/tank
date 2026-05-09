@@ -19,11 +19,12 @@ from pathlib import Path
 
 from ...core.content import DocumentBlock
 from ..office import OFFICE_MIME_TYPES, extract_office_document
+from .base import DocumentHandler
 
 logger = logging.getLogger(__name__)
 
 
-class OfficeHandler:
+class OfficeHandler(DocumentHandler):
     """Handler for DOCX / XLSX / PPTX."""
 
     mime_types: frozenset[str] = OFFICE_MIME_TYPES

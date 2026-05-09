@@ -34,6 +34,7 @@ from ...core.content import (
     DocumentBlock,
     ImageBlock,
 )
+from .base import DocumentHandler
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ _MAX_RENDERED_PAGES = 20
 _TARGET_PIXELS = 1500
 
 
-class PdfHandler:
+class PdfHandler(DocumentHandler):
     """Handler for ``application/pdf``."""
 
     mime_types: frozenset[str] = frozenset({"application/pdf"})
