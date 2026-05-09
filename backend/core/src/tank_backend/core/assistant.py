@@ -7,7 +7,7 @@ import logging
 import threading
 import uuid
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..audio.input.types import AudioFrame
 from ..config import AppConfig
@@ -43,6 +43,9 @@ from .events import BrainInputEvent, DisplayMessage, InputType, SignalMessage, U
 from .runtime import RuntimeContext
 from .shutdown import GracefulShutdown
 
+if TYPE_CHECKING:
+    from tank_contracts import ASREngine, TTSEngine
+
 logger = logging.getLogger("Assistant")
 
 
@@ -63,6 +66,7 @@ class Assistant:
         on_exit_request: Callable[[], None] | None = None,
     ) -> None:
 
+        self._app_context = app_context
         self._channel_store = app_context.channel_store
         self._conversation_store = app_context.conversation_store
         self._media_store = app_context.media_store
@@ -79,8 +83,8 @@ class Assistant:
 
         self._voiceprint_recognizer = app_context.voiceprint_recognizer
 
-        asr_engine = self._create_engine(registry, "asr")
-        tts_engine = self._create_engine(registry, "tts")
+        asr_engine = app_context.asr_engine
+        tts_engine = app_context.tts_engine
 
         self._init_observers()
         self._pipeline = self._build_pipeline(registry, asr_engine, tts_engine)
@@ -162,8 +166,8 @@ class Assistant:
     def _build_pipeline(
         self,
         registry: ExtensionRegistry,
-        asr_engine: object | None,
-        tts_engine: object | None,
+        asr_engine: ASREngine | None,
+        tts_engine: TTSEngine | None,
     ) -> Pipeline:
         """Assemble the processor pipeline: VAD → ASR → Brain → TTS → Playback."""
         builder = PipelineBuilder(self._bus)
@@ -196,7 +200,7 @@ class Assistant:
         self,
         builder: PipelineBuilder,
         registry: ExtensionRegistry,
-        asr_engine: object | None,
+        asr_engine: ASREngine | None,
         echo_guard_cfg: EchoGuardConfig,
     ) -> None:
         """Add VAD → ASR (with optional speaker ID fan-out) to the pipeline."""
@@ -205,11 +209,14 @@ class Assistant:
             return
 
         from ..audio.input.types import SegmenterConfig
-        from ..audio.input.vad import SileroVAD
+        from ..audio.input.vad import VADEngine
 
-        vad = SileroVAD(cfg=SegmenterConfig(), sample_rate=16000)
+        vad_engine = self._app_context.vad_engine or VADEngine()
+        vad_stream = vad_engine.create_stream(cfg=SegmenterConfig(), sample_rate=16000)
+        asr_stream = asr_engine.create_stream()
+
         self._vad_processor = VADProcessor(
-            vad=vad,
+            vad_stream=vad_stream,
             bus=self._bus,
             playback_threshold=(
                 echo_guard_cfg.vad_threshold_during_playback
@@ -217,7 +224,7 @@ class Assistant:
                 else None
             ),
         )
-        asr_proc = ASRProcessor(asr=asr_engine, bus=self._bus)
+        asr_proc = ASRProcessor(asr_stream=asr_stream, bus=self._bus)
 
         voiceprint_recognizer = self._voiceprint_recognizer
         if voiceprint_recognizer is not None:
@@ -235,7 +242,7 @@ class Assistant:
     def _add_output_processors(
         self,
         builder: PipelineBuilder,
-        tts_engine: object | None,
+        tts_engine: TTSEngine | None,
     ) -> None:
         """Add TTS → Playback processors to the pipeline."""
         self._tts_processor: TTSProcessor | None = None
@@ -272,17 +279,6 @@ class Assistant:
         self._alert_dispatcher = AlertDispatcher(
             bus=self._bus, webhook_url=acfg.webhook_url or None
         )
-
-    # ------------------------------------------------------------------
-    # Engine / factory helpers
-    # ------------------------------------------------------------------
-
-    def _create_engine(self, registry: ExtensionRegistry, name: str) -> object | None:
-        """Create an engine for the given config section, or None if disabled."""
-        cfg = self._app_config.get_feature_config(name)
-        if not cfg.enabled or not cfg.extension:
-            return None
-        return registry.instantiate(cfg.extension, cfg.config)
 
     # ------------------------------------------------------------------
     # Public API

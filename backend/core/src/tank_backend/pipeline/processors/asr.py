@@ -15,14 +15,14 @@ from ..processor import FlowReturn, Processor
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from tank_contracts import StreamingASREngine
+    from tank_contracts import ASRStream
 
 
 logger = logging.getLogger(__name__)
 
 
 class ASRProcessor(Processor):
-    """Wraps a StreamingASREngine as a pipeline Processor.
+    """Wraps a per-utterance ``ASRStream`` as a pipeline Processor.
 
     Input:
       - VADResult(START_SPEECH) — start ASR session
@@ -37,19 +37,19 @@ class ASRProcessor(Processor):
       - ui_message — partial and final transcripts for UI
       - asr_result — transcription metrics
 
-    For non-streaming engines (supports_streaming=False):
+    For non-streaming streams (supports_streaming=False):
       - AudioFrame → ignored
       - VADResult END_SPEECH → batch transcribe full utterance PCM
     """
 
     def __init__(
         self,
-        asr: StreamingASREngine,
+        asr_stream: ASRStream,
         bus: Bus | None = None,
         user: str = "User",
     ) -> None:
         super().__init__(name="asr")
-        self._asr = asr
+        self._asr = asr_stream
         self._bus = bus
         self._user = user
 

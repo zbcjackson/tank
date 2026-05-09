@@ -44,4 +44,4 @@ def create_engine(config: dict) -> FunASREngine:
     )
 
 
-__all__ = ["create_engine", "FunASREngine"]
+__all__ = ["FunASREngine", "create_engine"]

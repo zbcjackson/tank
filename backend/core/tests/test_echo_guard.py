@@ -149,7 +149,7 @@ class TestVADProcessorThresholdSwitching:
         if bus is None:
             bus = Bus()
 
-        proc = VADProcessor(vad=vad, bus=bus, playback_threshold=playback_threshold)
+        proc = VADProcessor(vad_stream=vad, bus=bus, playback_threshold=playback_threshold)
         return proc, vad, bus
 
     def test_raises_threshold_on_playback_started(self):
@@ -174,7 +174,7 @@ class TestVADProcessorThresholdSwitching:
 
         bus = Bus()
         vad = MagicMock()
-        VADProcessor(vad=vad, bus=bus, playback_threshold=None)
+        VADProcessor(vad_stream=vad, bus=bus, playback_threshold=None)
 
         bus.post(BusMessage(type="playback_started", source="playback", payload=None))
         bus.poll()

@@ -66,7 +66,7 @@ class TestVADProcessor:
         vad = MagicMock()
         vad.process_frame = MagicMock(return_value=vad_result)
         vad.flush = MagicMock()
-        proc = VADProcessor(vad=vad, bus=bus)
+        proc = VADProcessor(vad_stream=vad, bus=bus)
         return proc, vad
 
     async def test_end_speech_yields_result(self):
@@ -133,7 +133,7 @@ class TestVADProcessor:
         from tank_backend.pipeline.processors.vad import VADProcessor
 
         vad = MagicMock()
-        proc = VADProcessor(vad=vad)
+        proc = VADProcessor(vad_stream=vad)
         assert proc.input_caps is not None
         assert proc.input_caps.sample_rate == 16000
 
@@ -156,7 +156,7 @@ class TestASRProcessor:
         from tank_backend.pipeline.processors.asr import ASRProcessor
 
         asr = _make_streaming_asr(text, supports_streaming)
-        proc = ASRProcessor(asr=asr, bus=bus, user="TestUser")
+        proc = ASRProcessor(asr_stream=asr, bus=bus, user="TestUser")
         return proc, asr
 
     # ── Batch mode (VADResult only) ──────────────────────────────────────
@@ -370,7 +370,7 @@ class TestASRProcessor:
         asr.process_pcm = MagicMock(return_value="你好世界")
         asr.stop = MagicMock(return_value="你好世界，今天天气很好")
 
-        proc = ASRProcessor(asr=asr, user="TestUser")
+        proc = ASRProcessor(asr_stream=asr, user="TestUser")
 
         # START_SPEECH
         start_speech = VADResult(status=VADStatus.START_SPEECH, started_at_s=BASE_TIME)

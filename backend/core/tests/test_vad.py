@@ -257,7 +257,7 @@ class TestVADForwardsAudioFrame:
 
         mock_vad = MagicMock()
         bus = Bus()
-        proc = VADProcessor(vad=mock_vad, bus=bus)
+        proc = VADProcessor(vad_stream=mock_vad, bus=bus)
         return proc, bus, mock_vad
 
     @staticmethod

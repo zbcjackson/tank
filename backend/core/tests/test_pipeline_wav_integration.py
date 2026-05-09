@@ -117,11 +117,15 @@ class TestPipelineWithRealAudio:
         return SherpaASREngine(model_dir=str(MODEL_DIR))
 
     @pytest.fixture()
+    def asr_stream(self, asr_engine):
+        return asr_engine.create_stream()
+
+    @pytest.fixture()
     def wav_frames(self):
         return _load_wav_frames(WAV_PATH)
 
     async def test_full_pipeline_vad_to_playback(
-        self, vad, asr_engine, wav_frames,
+        self, vad, asr_stream, wav_frames,
     ):
         """Real audio → VAD → ASR → Brain → TTS → Playback."""
         bus = Bus()
@@ -141,8 +145,8 @@ class TestPipelineWithRealAudio:
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(VADProcessor(vad=vad, bus=bus))
-            .add(ASRProcessor(asr=asr_engine, bus=bus))
+            .add(VADProcessor(vad_stream=vad, bus=bus))
+            .add(ASRProcessor(asr_stream=asr_stream, bus=bus))
             .add(brain)
             .add(TTSProcessor(tts_engine=tts_mock, bus=bus))
             .add(PlaybackProcessor(
@@ -173,7 +177,7 @@ class TestPipelineWithRealAudio:
             await pipeline.stop()
 
     async def test_bus_events_with_real_audio(
-        self, vad, asr_engine, wav_frames,
+        self, vad, asr_stream, wav_frames,
     ):
         """Real audio should trigger speech_start, speech_end, asr_result
         bus events."""
@@ -194,8 +198,8 @@ class TestPipelineWithRealAudio:
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(VADProcessor(vad=vad, bus=bus))
-            .add(ASRProcessor(asr=asr_engine, bus=bus))
+            .add(VADProcessor(vad_stream=vad, bus=bus))
+            .add(ASRProcessor(asr_stream=asr_stream, bus=bus))
             .add(brain)
             .build()
         )

@@ -140,8 +140,8 @@ class TestTwoProcessorChaining:
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(VADProcessor(vad=vad_mock, bus=bus))
-            .add(ASRProcessor(asr=asr_mock, bus=bus))
+            .add(VADProcessor(vad_stream=vad_mock, bus=bus))
+            .add(ASRProcessor(asr_stream=asr_mock, bus=bus))
             .build()
         )
 
@@ -175,8 +175,8 @@ class TestTwoProcessorChaining:
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(VADProcessor(vad=vad_mock, bus=bus))
-            .add(ASRProcessor(asr=asr_mock, bus=bus))
+            .add(VADProcessor(vad_stream=vad_mock, bus=bus))
+            .add(ASRProcessor(asr_stream=asr_mock, bus=bus))
             .add(brain)
             .build()
         )
@@ -248,8 +248,8 @@ class TestMultiProcessorFlow:
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(VADProcessor(vad=vad_mock, bus=bus))
-            .add(ASRProcessor(asr=asr_mock, bus=bus))
+            .add(VADProcessor(vad_stream=vad_mock, bus=bus))
+            .add(ASRProcessor(asr_stream=asr_mock, bus=bus))
             .add(brain)
             .build()
         )
@@ -350,8 +350,8 @@ class TestFullPipelineEndToEnd:
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(VADProcessor(vad=vad_mock, bus=bus))
-            .add(ASRProcessor(asr=asr_mock, bus=bus))
+            .add(VADProcessor(vad_stream=vad_mock, bus=bus))
+            .add(ASRProcessor(asr_stream=asr_mock, bus=bus))
             .add(brain)
             .add(TTSProcessor(tts_engine=tts_mock, bus=bus))
             .add(PlaybackProcessor(
@@ -412,8 +412,8 @@ class TestFullPipelineEndToEnd:
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(VADProcessor(vad=vad_mock, bus=bus))
-            .add(ASRProcessor(asr=asr_mock, bus=bus))
+            .add(VADProcessor(vad_stream=vad_mock, bus=bus))
+            .add(ASRProcessor(asr_stream=asr_mock, bus=bus))
             .add(brain)
             .build()
         )
@@ -475,8 +475,8 @@ class TestFullPipelineEndToEnd:
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(VADProcessor(vad=vad_mock, bus=bus))
-            .add(ASRProcessor(asr=asr_mock, bus=bus))
+            .add(VADProcessor(vad_stream=vad_mock, bus=bus))
+            .add(ASRProcessor(asr_stream=asr_mock, bus=bus))
             .add(brain)
             .build()
         )
@@ -532,8 +532,8 @@ class TestFullPipelineEndToEnd:
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(VADProcessor(vad=vad_mock, bus=bus))
-            .add(ASRProcessor(asr=asr_mock, bus=bus))
+            .add(VADProcessor(vad_stream=vad_mock, bus=bus))
+            .add(ASRProcessor(asr_stream=asr_mock, bus=bus))
             .add(brain)
             .add(TTSProcessor(tts_engine=tts_mock, bus=bus))
             .add(PlaybackProcessor(
@@ -596,13 +596,13 @@ class TestFanOutFanInIntegration:
         # Brain: capture what it receives
         brain = _make_brain_for_pipeline(bus, interrupt_event, tts_enabled=False)
 
-        asr_proc = ASRProcessor(asr=asr_mock, bus=bus)
+        asr_proc = ASRProcessor(asr_stream=asr_mock, bus=bus)
         speaker_id_proc = SpeakerIDProcessor(recognizer=recognizer_mock, bus=bus)
         fan_in_merger = ASRSpeakerMerger(branch_count=2, timeout_s=2.0, bus=bus)
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(VADProcessor(vad=vad_mock, bus=bus))
+            .add(VADProcessor(vad_stream=vad_mock, bus=bus))
             .fan_out([asr_proc], [speaker_id_proc])
             .fan_in(fan_in_merger)
             .add(brain)
@@ -650,7 +650,7 @@ class TestFanOutFanInIntegration:
 
         brain = _make_brain_for_pipeline(bus, interrupt_event, tts_enabled=False)
 
-        asr_proc = ASRProcessor(asr=asr_mock, bus=bus)
+        asr_proc = ASRProcessor(asr_stream=asr_mock, bus=bus)
         speaker_id_proc = SpeakerIDProcessor(recognizer=recognizer_mock, bus=bus)
         # Very short timeout so the test doesn't wait long
         fan_in_merger = ASRSpeakerMerger(
@@ -659,7 +659,7 @@ class TestFanOutFanInIntegration:
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(VADProcessor(vad=vad_mock, bus=bus))
+            .add(VADProcessor(vad_stream=vad_mock, bus=bus))
             .fan_out([asr_proc], [speaker_id_proc])
             .fan_in(fan_in_merger)
             .add(brain)
@@ -703,13 +703,13 @@ class TestFanOutFanInIntegration:
         recognizer_mock = MagicMock()
         recognizer_mock.identify.return_value = "alice"
 
-        asr_proc = ASRProcessor(asr=asr_mock, bus=bus)
+        asr_proc = ASRProcessor(asr_stream=asr_mock, bus=bus)
         speaker_id_proc = SpeakerIDProcessor(recognizer=recognizer_mock, bus=bus)
         fan_in_merger = ASRSpeakerMerger(branch_count=2, timeout_s=2.0, bus=bus)
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(VADProcessor(vad=vad_mock, bus=bus))
+            .add(VADProcessor(vad_stream=vad_mock, bus=bus))
             .fan_out([asr_proc], [speaker_id_proc])
             .fan_in(fan_in_merger)
             .build()
@@ -742,13 +742,13 @@ class TestFanOutFanInIntegration:
         recognizer_mock = MagicMock()
         recognizer_mock.identify.return_value = "user1"
 
-        asr_proc = ASRProcessor(asr=asr_mock, bus=bus)
+        asr_proc = ASRProcessor(asr_stream=asr_mock, bus=bus)
         speaker_id_proc = SpeakerIDProcessor(recognizer=recognizer_mock, bus=bus)
         fan_in_merger = ASRSpeakerMerger(branch_count=2, timeout_s=2.0, bus=bus)
 
         pipeline = (
             PipelineBuilder(bus)
-            .add(VADProcessor(vad=vad_mock, bus=bus))
+            .add(VADProcessor(vad_stream=vad_mock, bus=bus))
             .fan_out([asr_proc], [speaker_id_proc])
             .fan_in(fan_in_merger)
             .build()

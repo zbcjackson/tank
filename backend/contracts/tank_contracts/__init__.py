@@ -1,6 +1,6 @@
 """Tank plugin contracts."""
 
-from .asr import StreamingASREngine
+from .asr import ASREngine, ASRStream, StreamingASREngine
 from .speaker import SpeakerEmbeddingExtractor
 from .tts import (
     AUDIO_FRAME_HEADER_SIZE,
@@ -14,6 +14,8 @@ from .tts import (
 __all__ = [
     "AUDIO_FRAME_HEADER_SIZE",
     "AUDIO_FRAME_MAGIC",
+    "ASREngine",
+    "ASRStream",
     "AudioChunk",
     "SpeakerEmbeddingExtractor",
     "StreamingASREngine",

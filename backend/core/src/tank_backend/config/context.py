@@ -10,7 +10,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from tank_contracts import ASREngine, TTSEngine
+
     from ..agents.approval import PendingToolCallStore, ToolApprovalPolicy
+    from ..audio.input.vad import VADEngine
     from ..audio.input.voiceprint import VoiceprintRecognizer
     from ..channels.store import ChannelStore
     from ..config import AppConfig
@@ -37,6 +40,9 @@ class AppContext:
     voiceprint_recognizer: VoiceprintRecognizer | None = None
     channel_store: ChannelStore | None = None
     media_store: MediaStore | None = None
+    asr_engine: ASREngine | None = None
+    tts_engine: TTSEngine | None = None
+    vad_engine: VADEngine | None = None
 
 
 @dataclass(frozen=True)

@@ -5,22 +5,24 @@ from __future__ import annotations
 from .asr import ASR
 from .mic import AudioFrame, Mic
 from .types import AudioFormat, FrameConfig, PerceptionConfig, SegmenterConfig
-from .vad import SileroVAD, VADResult, VADStatus
+from .vad import SileroVAD, VADEngine, VADResult, VADStatus, VADStream
 from .voiceprint import Utterance, VoiceprintRecognizer
 from .voiceprint_streaming import StreamingVoiceprintRecognizer
 
 __all__ = [
     "ASR",
     "AudioFormat",
-    "FrameConfig",
-    "SegmenterConfig",
-    "PerceptionConfig",
     "AudioFrame",
+    "FrameConfig",
     "Mic",
-    "Utterance",
-    "VADStatus",
-    "VADResult",
-    "VoiceprintRecognizer",
-    "StreamingVoiceprintRecognizer",
+    "PerceptionConfig",
+    "SegmenterConfig",
     "SileroVAD",
+    "StreamingVoiceprintRecognizer",
+    "Utterance",
+    "VADEngine",
+    "VADResult",
+    "VADStatus",
+    "VADStream",
+    "VoiceprintRecognizer",
 ]

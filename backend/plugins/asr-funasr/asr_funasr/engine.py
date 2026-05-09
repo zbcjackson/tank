@@ -1,6 +1,6 @@
 """FunASR streaming ASR engine.
 
-Supports two protocols via a single ``StreamingASREngine`` implementation:
+Supports two protocols via a single ``ASREngine`` implementation:
 
 **Self-hosted FunASR** (no ``api_key``):
   1. Client sends JSON config (mode, sample_rate, chunk_size, etc.)
@@ -13,6 +13,12 @@ Supports two protocols via a single ``StreamingASREngine`` implementation:
   real-time streaming ASR. The SDK handles all WebSocket protocol details.
 
 Protocol is auto-detected: if ``api_key`` is set, DashScope SDK is used.
+
+Note: both backends hold a single WebSocket/SDK session, so recognition is
+serialized — ``create_stream()`` returns a thin stream that delegates to
+the engine's shared connection. Concurrent utterances will race on the
+same connection; if Tank ever needs true parallel sessions with this
+plugin, the engine would need to pool connections.
 """
 
 from __future__ import annotations
@@ -27,7 +33,7 @@ from typing import Any
 import numpy as np
 import websockets
 
-from tank_contracts import StreamingASREngine
+from tank_contracts import ASREngine, ASRStream
 
 logger = logging.getLogger("FunASR")
 
@@ -38,17 +44,33 @@ _CHUNK_INTERVAL = 10
 _DASHSCOPE_DEFAULT_MODEL = "paraformer-realtime-v2"
 
 
-class FunASREngine(StreamingASREngine):
+class _FunASRStream(ASRStream):
+    """Per-utterance view over the shared FunASR connection."""
+
+    def __init__(self, engine: FunASREngine) -> None:
+        self._engine = engine
+
+    def start(self) -> None:
+        self._engine._start_session()
+
+    def process_pcm(self, pcm: np.ndarray) -> str:
+        return self._engine._process_pcm(pcm)
+
+    def stop(self) -> str:
+        return self._engine._stop_session()
+
+    def close(self) -> None:  # no per-session resources
+        pass
+
+
+class FunASREngine(ASREngine):
     """Streaming ASR using FunASR WebSocket API or DashScope SDK.
 
     When ``api_key`` is provided, uses DashScope SDK (recommended).
     Otherwise, connects to a self-hosted FunASR server via WebSocket.
 
-    Lifecycle:
-        start()      - Start recognition session
-        process_pcm() - Stream audio chunks
-        stop()       - Stop session and get final transcript
-        close()      - Release all resources
+    Holds a single shared connection. ``create_stream()`` returns a thin
+    stream that routes to it.
     """
 
     def __init__(
@@ -95,6 +117,13 @@ class FunASREngine(StreamingASREngine):
             self._init_dashscope()
         else:
             self._init_funasr_websocket()
+
+    # ------------------------------------------------------------------
+    # ASREngine contract
+    # ------------------------------------------------------------------
+
+    def create_stream(self) -> ASRStream:
+        return _FunASRStream(self)
 
     # ------------------------------------------------------------------
     # DashScope SDK implementation
@@ -449,11 +478,11 @@ class FunASREngine(StreamingASREngine):
         self._loop = None
 
     # ------------------------------------------------------------------
-    # StreamingASREngine contract
+    # Session helpers (called by the per-stream wrapper)
     # ------------------------------------------------------------------
 
-    def start(self) -> None:
-        """Start a new recognition session."""
+    def _start_session(self) -> None:
+        """Start a new recognition session on the shared connection."""
         with self._lock:
             self._partial_text = ""
             self._committed_text = ""
@@ -468,12 +497,8 @@ class FunASREngine(StreamingASREngine):
 
         logger.debug("FunASR: Session started")
 
-    def process_pcm(self, pcm: np.ndarray) -> str:
-        """Process a chunk of PCM audio.
-
-        Returns:
-            Current partial transcript text.
-        """
+    def _process_pcm(self, pcm: np.ndarray) -> str:
+        """Process a chunk of PCM audio. Returns current partial transcript."""
         if not self._session_active:
             logger.warning("FunASR: process_pcm called without active session")
             return ""
@@ -488,7 +513,7 @@ class FunASREngine(StreamingASREngine):
         with self._lock:
             return self._partial_text or self._committed_text
 
-    def stop(self) -> str:
+    def _stop_session(self) -> str:
         """Stop the session and return final transcript."""
         if not self._session_active:
             logger.warning("FunASR: stop called without active session")
@@ -505,7 +530,7 @@ class FunASREngine(StreamingASREngine):
         return final_text
 
     def close(self) -> None:
-        """Release all resources."""
+        """Release all engine-level resources."""
         self._session_active = False
 
         if self._is_dashscope:
@@ -514,4 +539,3 @@ class FunASREngine(StreamingASREngine):
             self._close_funasr_ws()
 
         logger.info("FunASR: Engine closed")
-

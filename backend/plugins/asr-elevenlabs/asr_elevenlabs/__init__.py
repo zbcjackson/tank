@@ -22,4 +22,4 @@ def create_engine(config: dict) -> ElevenLabsASREngine:
     )
 
 
-__all__ = ["create_engine", "ElevenLabsASREngine"]
+__all__ = ["ElevenLabsASREngine", "create_engine"]

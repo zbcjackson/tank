@@ -1,4 +1,4 @@
-"""VADProcessor — wraps SileroVAD as a pipeline Processor."""
+"""VADProcessor — wraps a VADStream as a pipeline Processor."""
 
 from __future__ import annotations
 
@@ -14,13 +14,13 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from ...audio.input.types import AudioFrame
-    from ...audio.input.vad import SileroVAD
+    from ...audio.input.vad import VADStream
 
 logger = logging.getLogger(__name__)
 
 
 class VADProcessor(Processor):
-    """Wraps SileroVAD as a pipeline Processor.
+    """Wraps a ``VADStream`` as a pipeline Processor.
 
     Input: AudioFrame (float32, 16 kHz)
     Output: AudioFrame (during speech) or VADResult (END_SPEECH with utterance PCM)
@@ -37,13 +37,13 @@ class VADProcessor(Processor):
 
     def __init__(
         self,
-        vad: SileroVAD,
+        vad_stream: VADStream,
         bus: Bus | None = None,
         playback_threshold: float | None = None,
     ) -> None:
         super().__init__(name="vad")
         self.input_caps = AudioCaps(sample_rate=16000)
-        self._vad = vad
+        self._vad = vad_stream
         self._bus = bus
         self._speech_active = False
         self._playback_threshold = playback_threshold

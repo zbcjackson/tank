@@ -40,6 +40,11 @@ from .skills import router as skills_router
 from .speakers import router as speakers_router
 from .users import router as users_router
 
+if TYPE_CHECKING:
+    from tank_contracts import ASREngine, TTSEngine
+
+    from ..audio.input.vad import VADEngine
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
@@ -146,29 +151,73 @@ def _init_voiceprint_recognizer(
         return None
 
 
+def _init_audio_engines(
+    config: AppConfig, registry: ExtensionRegistry,
+) -> tuple[ASREngine | None, TTSEngine | None, VADEngine | None]:
+    """Build process-global ASR/TTS/VAD engines once at startup.
+
+    Returns (asr_engine, tts_engine, vad_engine). Each may be None when the
+    corresponding feature is disabled or plugin instantiation fails.
+    """
+    from tank_contracts import ASREngine, TTSEngine
+
+    from ..audio.input.vad import VADEngine
+
+    asr_engine: ASREngine | None = None
+    asr_slot = config.asr
+    if asr_slot.enabled and asr_slot.extension is not None:
+        try:
+            engine = registry.instantiate(asr_slot.extension, asr_slot.config)
+            if isinstance(engine, ASREngine):
+                asr_engine = engine
+                logger.info("Shared ASR engine initialized: %s", asr_slot.extension)
+            else:
+                logger.warning(
+                    "ASR extension %s did not produce an ASREngine instance",
+                    asr_slot.extension,
+                )
+        except Exception:
+            logger.warning("Failed to initialize ASR engine", exc_info=True)
+
+    tts_engine: TTSEngine | None = None
+    tts_slot = config.tts
+    if tts_slot.enabled and tts_slot.extension is not None:
+        try:
+            engine = registry.instantiate(tts_slot.extension, tts_slot.config)
+            if isinstance(engine, TTSEngine):
+                tts_engine = engine
+                logger.info("Shared TTS engine initialized: %s", tts_slot.extension)
+            else:
+                logger.warning(
+                    "TTS extension %s did not produce a TTSEngine instance",
+                    tts_slot.extension,
+                )
+        except Exception:
+            logger.warning("Failed to initialize TTS engine", exc_info=True)
+
+    vad_engine: VADEngine | None = None
+    try:
+        vad_engine = VADEngine()
+    except Exception:
+        logger.warning("Failed to initialize VAD engine", exc_info=True)
+
+    return asr_engine, tts_engine, vad_engine
+
+
 def _init_channel_audio_service(
-    config: AppConfig,
-    registry: ExtensionRegistry,
+    tts_engine: TTSEngine | None,
     subscription_manager: ChannelSubscriptionManager,
     connection_manager: ConnectionManager,
 ) -> ChannelAudioService | None:
-    """Build the channel audio service if TTS is enabled and wired correctly."""
-    tts_slot = config.tts
-    if not tts_slot.enabled or tts_slot.extension is None:
+    """Build the channel audio service if a shared TTS engine is available."""
+    if tts_engine is None:
         return None
 
     try:
-        from tank_contracts.tts import TTSEngine
-
         from ..channels.audio_service import ChannelAudioService
 
-        engine = registry.instantiate(tts_slot.extension, tts_slot.config)
-        if not isinstance(engine, TTSEngine):
-            logger.warning("TTS extension did not produce a TTSEngine instance")
-            return None
-
         service = ChannelAudioService(
-            tts_engine=engine,
+            tts_engine=tts_engine,
             subscription_manager=subscription_manager,
             connection_manager=connection_manager,
         )
@@ -212,6 +261,8 @@ _job_store, _scheduler, _delivery = _init_job_scheduler(
 )
 _voiceprint_recognizer = _init_voiceprint_recognizer(app_config, _registry, _database)
 
+_asr_engine, _tts_engine, _vad_engine = _init_audio_engines(app_config, _registry)
+
 _media_store = MediaStore(Path("~/.tank/media").expanduser())
 
 app_context = AppContext(
@@ -223,6 +274,9 @@ app_context = AppContext(
     voiceprint_recognizer=_voiceprint_recognizer,
     channel_store=_channel_store,
     media_store=_media_store,
+    asr_engine=_asr_engine,
+    tts_engine=_tts_engine,
+    vad_engine=_vad_engine,
 )
 connection_manager = ConnectionManager(app_context=app_context)
 
@@ -231,7 +285,7 @@ _subscription_manager = ChannelSubscriptionManager()
 # Build the channel audio service before wiring deps so the composition root
 # is initialised exactly once.
 _channel_audio_service = _init_channel_audio_service(
-    app_config, _registry, _subscription_manager, connection_manager,
+    _tts_engine, _subscription_manager, connection_manager,
 )
 
 if _delivery is not None:
@@ -261,6 +315,16 @@ async def lifespan(app: FastAPI):
     if _job_store is not None:
         _job_store.close()
     await connection_manager.close_all()
+    if _asr_engine is not None:
+        try:
+            _asr_engine.close()
+        except Exception:
+            logger.warning("ASR engine close failed", exc_info=True)
+    if _vad_engine is not None:
+        try:
+            _vad_engine.close()
+        except Exception:
+            logger.warning("VAD engine close failed", exc_info=True)
 
 
 app = FastAPI(title="Tank Voice Assistant API", version="0.1.0", lifespan=lifespan)

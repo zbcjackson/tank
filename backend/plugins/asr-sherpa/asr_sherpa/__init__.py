@@ -1,6 +1,6 @@
 """Sherpa-ONNX streaming ASR plugin for Tank."""
 
-from .engine import SherpaASREngine
+from .engine import SherpaASREngine, SherpaASRStream
 
 
 def create_engine(config: dict) -> SherpaASREngine:
@@ -22,4 +22,4 @@ def create_engine(config: dict) -> SherpaASREngine:
     )
 
 
-__all__ = ["create_engine", "SherpaASREngine"]
+__all__ = ["SherpaASREngine", "SherpaASRStream", "create_engine"]

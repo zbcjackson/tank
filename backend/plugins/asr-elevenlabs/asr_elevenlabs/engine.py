@@ -3,6 +3,10 @@
 Uses the ElevenLabs WebSocket STT API (scribe_v2_realtime) with VAD-based
 commit strategy. A background asyncio loop maintains the persistent WebSocket
 connection; the synchronous ``process_pcm`` interface bridges into it.
+
+Note: the engine holds a single shared WebSocket — ``create_stream()`` returns
+a thin stream that routes to it. Concurrent utterances race on the same
+connection.
 """
 
 from __future__ import annotations
@@ -17,7 +21,7 @@ import time
 import numpy as np
 import websockets
 
-from tank_contracts import StreamingASREngine
+from tank_contracts import ASREngine, ASRStream
 
 logger = logging.getLogger("ElevenLabsASR")
 
@@ -25,18 +29,31 @@ WS_URL = "wss://api.elevenlabs.io/v1/speech-to-text/realtime"
 MODEL_ID = "scribe_v2_realtime"
 
 
-class ElevenLabsASREngine(StreamingASREngine):
+class _ElevenLabsASRStream(ASRStream):
+    """Per-utterance view over the shared ElevenLabs connection."""
+
+    def __init__(self, engine: ElevenLabsASREngine) -> None:
+        self._engine = engine
+
+    def start(self) -> None:
+        self._engine._start_session()
+
+    def process_pcm(self, pcm: np.ndarray) -> str:
+        return self._engine._process_pcm(pcm)
+
+    def stop(self) -> str:
+        return self._engine._stop_session()
+
+    def close(self) -> None:  # no per-session resources
+        pass
+
+
+class ElevenLabsASREngine(ASREngine):
     """Streaming ASR using ElevenLabs realtime WebSocket API.
 
     Maintains a background event loop with a persistent WebSocket connection.
-    Audio chunks are sent via ``process_pcm``; transcripts arrive asynchronously
-    and are buffered for the caller to consume.
-
-    Lifecycle:
-        start()      - Clear state, ready to receive audio
-        process_pcm() - Send audio chunks to ElevenLabs
-        stop()       - Return final transcript
-        close()      - Shut down WebSocket connection
+    Audio chunks are sent via the stream's ``process_pcm``; transcripts arrive
+    asynchronously and are buffered for the caller to consume.
     """
 
     def __init__(
@@ -65,6 +82,13 @@ class ElevenLabsASREngine(StreamingASREngine):
         self._session_active = False
 
         self._start_background_loop()
+
+    # ------------------------------------------------------------------
+    # ASREngine contract
+    # ------------------------------------------------------------------
+
+    def create_stream(self) -> ASRStream:
+        return _ElevenLabsASRStream(self)
 
     # ------------------------------------------------------------------
     # Background event loop
@@ -145,10 +169,10 @@ class ElevenLabsASREngine(StreamingASREngine):
         self._connected.clear()
 
     # ------------------------------------------------------------------
-    # StreamingASREngine contract
+    # Session helpers (called by the per-stream wrapper)
     # ------------------------------------------------------------------
 
-    def start(self) -> None:
+    def _start_session(self) -> None:
         """Start a new recognition session."""
         with self._lock:
             self._partial_text = ""
@@ -156,15 +180,8 @@ class ElevenLabsASREngine(StreamingASREngine):
         self._session_active = True
         logger.debug("ElevenLabs: Session started")
 
-    def process_pcm(self, pcm: np.ndarray) -> str:
-        """Send a PCM chunk to ElevenLabs and return current transcript.
-
-        Args:
-            pcm: Float32 mono audio samples.
-
-        Returns:
-            Current partial transcript text.
-        """
+    def _process_pcm(self, pcm: np.ndarray) -> str:
+        """Send a PCM chunk to ElevenLabs and return current transcript."""
         if not self._session_active:
             logger.warning("ElevenLabs: process_pcm called without active session")
             return ""
@@ -191,7 +208,7 @@ class ElevenLabsASREngine(StreamingASREngine):
         with self._lock:
             return self._partial_text or self._committed_text
 
-    def stop(self) -> str:
+    def _stop_session(self) -> str:
         """Stop the session and return final transcript."""
         if not self._session_active:
             logger.warning("ElevenLabs: stop called without active session")

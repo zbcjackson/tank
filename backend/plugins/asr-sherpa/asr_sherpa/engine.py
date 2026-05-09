@@ -1,4 +1,12 @@
-"""Sherpa-ONNX streaming ASR engine."""
+"""Sherpa-ONNX streaming ASR engine.
+
+Split into two layers:
+
+* ``SherpaASREngine`` — loads the ``OnlineRecognizer`` (and its ONNX models)
+  once per process, creates cheap streams.
+* ``SherpaASRStream`` — per-utterance decoding state (the sherpa stream object,
+  session flag, last-seen text).
+"""
 
 from __future__ import annotations
 
@@ -6,9 +14,12 @@ import ctypes
 import logging
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import numpy as np
-from tank_contracts import StreamingASREngine
+from tank_contracts import ASREngine, ASRStream
+
+if TYPE_CHECKING:
+    import numpy as np
 
 logger = logging.getLogger("SherpaASREngine")
 
@@ -55,14 +66,76 @@ def _load_sherpa():
     )
 
 
-class SherpaASREngine(StreamingASREngine):
-    """Streaming ASR using sherpa-onnx.
+class SherpaASRStream(ASRStream):
+    """Per-utterance sherpa-onnx recognition session.
 
-    Lifecycle:
-        start()      - Reset stream for new utterance
-        process_pcm() - Process audio chunks
-        stop()       - Get final transcript and reset
-        close()      - Release resources (no-op for local model)
+    Holds a fresh sherpa stream (from ``recognizer.create_stream()``) and
+    tracks session state. The underlying model lives on the engine.
+    """
+
+    def __init__(self, engine: SherpaASREngine) -> None:
+        self._engine = engine
+        self._recognizer = engine._recognizer
+        self._stream = self._recognizer.create_stream()
+        self._sample_rate = engine._sample_rate
+        self._session_active = False
+        self._last_text = ""
+
+    def start(self) -> None:
+        """Start a new recognition session."""
+        self._recognizer.reset(self._stream)
+        self._session_active = True
+        self._last_text = ""
+        logger.debug("Sherpa: Session started")
+
+    def process_pcm(self, pcm: np.ndarray) -> str:
+        """Process a chunk of PCM audio.
+
+        Returns:
+            Current partial transcript text.
+        """
+        if not self._session_active:
+            logger.warning("Sherpa: process_pcm called without active session")
+            return ""
+
+        self._stream.accept_waveform(self._sample_rate, pcm)
+
+        while self._recognizer.is_ready(self._stream):
+            self._recognizer.decode_stream(self._stream)
+
+        text = self._recognizer.get_result(self._stream).text.strip()
+
+        if text:
+            self._last_text = text
+
+        return text
+
+    def stop(self) -> str:
+        """Stop the session and return final transcript."""
+        if not self._session_active:
+            logger.warning("Sherpa: stop called without active session")
+            return ""
+
+        self._session_active = False
+
+        text = self._recognizer.get_result(self._stream).text.strip()
+        final_text = text or self._last_text
+
+        self._recognizer.reset(self._stream)
+        self._last_text = ""
+
+        logger.debug("Sherpa: Session stopped, final text: %s", final_text[:50] if final_text else "(empty)")
+        return final_text
+
+    def close(self) -> None:
+        """Release per-session resources (no-op for local model)."""
+        self._session_active = False
+
+
+class SherpaASREngine(ASREngine):
+    """Process-global sherpa-onnx engine. Owns the OnlineRecognizer + ONNX models.
+
+    Create once at startup, then call ``create_stream()`` per utterance.
     """
 
     def __init__(
@@ -116,62 +189,13 @@ class SherpaASREngine(StreamingASREngine):
         )
 
         self._recognizer = OnlineRecognizer(recognizer_config)
-        self._stream = self._recognizer.create_stream()
         self._sample_rate = sample_rate
-        self._session_active = False
-        self._last_text = ""
         logger.info("SherpaASREngine initialized with model from %s", model_dir)
 
-    def start(self) -> None:
-        """Start a new recognition session."""
-        self._recognizer.reset(self._stream)
-        self._session_active = True
-        self._last_text = ""
-        logger.debug("Sherpa: Session started")
-
-    def process_pcm(self, pcm: np.ndarray) -> str:
-        """Process a chunk of PCM audio.
-
-        Returns:
-            Current partial transcript text.
-        """
-        if not self._session_active:
-            logger.warning("Sherpa: process_pcm called without active session")
-            return ""
-
-        self._stream.accept_waveform(self._sample_rate, pcm)
-
-        while self._recognizer.is_ready(self._stream):
-            self._recognizer.decode_stream(self._stream)
-
-        text = self._recognizer.get_result(self._stream).text.strip()
-
-        # Capture text for stop() in case endpoint is detected internally
-        if text:
-            self._last_text = text
-
-        return text
-
-    def stop(self) -> str:
-        """Stop the session and return final transcript."""
-        if not self._session_active:
-            logger.warning("Sherpa: stop called without active session")
-            return ""
-
-        self._session_active = False
-
-        # Get final text
-        text = self._recognizer.get_result(self._stream).text.strip()
-        final_text = text or self._last_text
-
-        # Reset for next session
-        self._recognizer.reset(self._stream)
-        self._last_text = ""
-
-        logger.debug("Sherpa: Session stopped, final text: %s", final_text[:50] if final_text else "(empty)")
-        return final_text
+    def create_stream(self) -> ASRStream:
+        """Create a fresh per-utterance recognition stream."""
+        return SherpaASRStream(self)
 
     def close(self) -> None:
-        """Release resources (no-op for local model)."""
-        self._session_active = False
+        """Release engine-level resources (no-op for local model)."""
         logger.info("Sherpa: Engine closed")
