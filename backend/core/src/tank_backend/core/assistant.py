@@ -64,6 +64,8 @@ class Assistant:
         app_context: AppContext,
         *,
         on_exit_request: Callable[[], None] | None = None,
+        wants_audio_input: bool = True,
+        wants_audio_output: bool = True,
     ) -> None:
 
         self._app_context = app_context
@@ -83,8 +85,16 @@ class Assistant:
 
         self._voiceprint_recognizer = app_context.voiceprint_recognizer
 
-        asr_engine = app_context.asr_engine
-        tts_engine = app_context.tts_engine
+        # Text-only sessions (e.g. chat-platform connectors) opt out of the
+        # audio legs so the pipeline doesn't burn cycles running VAD/ASR on
+        # silence or generating TTS chunks nobody hears. Overriding the
+        # engines locally cascades through the ``_add_*_processors``
+        # gates — no VAD/ASR/TTS/Playback processor is ever built, and the
+        # Brain stops emitting ``AudioOutputRequest``.
+        asr_engine = app_context.asr_engine if wants_audio_input else None
+        tts_engine = app_context.tts_engine if wants_audio_output else None
+        self._wants_audio_input = wants_audio_input
+        self._wants_audio_output = wants_audio_output
 
         self._init_observers()
         self._pipeline = self._build_pipeline(registry, asr_engine, tts_engine)

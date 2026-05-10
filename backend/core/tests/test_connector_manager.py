@@ -56,10 +56,16 @@ class _FakeConnectionManager:
 
     def __init__(self) -> None:
         self.assistants: dict[str, _FakeAssistant] = {}
+        self.modality_calls: list[tuple[bool, bool]] = []
 
     async def get_or_create_assistant(
-        self, session_id: str,
+        self,
+        session_id: str,
+        *,
+        wants_audio_input: bool = True,
+        wants_audio_output: bool = True,
     ) -> tuple[_FakeAssistant, bool]:
+        self.modality_calls.append((wants_audio_input, wants_audio_output))
         if session_id in self.assistants:
             return self.assistants[session_id], False
         assistant = _FakeAssistant()
@@ -144,6 +150,23 @@ class TestLifecycle:
 
 
 class TestInboundDispatch:
+    async def test_inbound_requests_text_only_session(
+        self, manager: ConnectorManager,
+    ) -> None:
+        """Connector dispatch must ask ConnectionManager for a text-only
+        Assistant so the audio pipeline never runs on these sessions
+        (no VAD/ASR on silence, no TTS chunks dropped by Playback)."""
+        fake = FakeConnector("t")
+        manager.register(fake)
+        await manager.start_all()
+
+        await fake.inject_inbound(
+            Identity(platform="fake", external_id="user-1"), text="hello",
+        )
+
+        cm = manager._conn_mgr  # noqa: SLF001
+        assert cm.modality_calls == [(False, False)]
+
     async def test_text_message_reaches_assistant(
         self, manager: ConnectorManager,
     ) -> None:

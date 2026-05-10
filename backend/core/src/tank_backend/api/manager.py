@@ -117,6 +117,9 @@ class ConnectionManager:
 
     async def get_or_create_assistant(
         self, session_id: str,
+        *,
+        wants_audio_input: bool = True,
+        wants_audio_output: bool = True,
     ) -> tuple[Assistant, bool]:
         """Get existing session or create new one. Returns (assistant, is_new).
 
@@ -125,6 +128,11 @@ class ConnectionManager:
         Uses a lock to prevent concurrent reconnects from creating duplicates.
         Increments the WebSocket refcount so we know when all connections
         have detached.
+
+        ``wants_audio_input`` / ``wants_audio_output`` only apply when a
+        fresh Assistant is built. Reattach reuses the existing Assistant's
+        modality choice — callers must not assume the first caller's flags
+        match later callers'.
         """
         async with self._session_lock:
             self._cancel_idle_timer(session_id)
@@ -144,12 +152,17 @@ class ConnectionManager:
             if existing:
                 await self._cleanup_assistant(session_id, existing)
 
-            assistant = Assistant(app_context=self._app_context)
+            assistant = Assistant(
+                app_context=self._app_context,
+                wants_audio_input=wants_audio_input,
+                wants_audio_output=wants_audio_output,
+            )
             self._sessions[session_id] = assistant
             self._ws_refcount[session_id] = 1
             await assistant.start()
             logger.info(
-                f"Created and started Assistant for session: {session_id}"
+                f"Created and started Assistant for session: {session_id} "
+                f"(audio_in={wants_audio_input}, audio_out={wants_audio_output})"
             )
             return assistant, True
 

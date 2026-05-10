@@ -98,7 +98,11 @@ class _FakeConnectionManager:
         self.assistants: dict[str, _FakeAssistant] = {}
 
     async def get_or_create_assistant(
-        self, session_id: str,
+        self,
+        session_id: str,
+        *,
+        wants_audio_input: bool = True,
+        wants_audio_output: bool = True,
     ) -> tuple[_FakeAssistant, bool]:
         if session_id in self.assistants:
             return self.assistants[session_id], False

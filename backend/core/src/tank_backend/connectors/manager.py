@@ -134,7 +134,15 @@ class ConnectorManager:
             )
             return
 
-        assistant, is_new = await self._conn_mgr.get_or_create_assistant(session_id)
+        # Connector sessions are text-only today. Voice in/out (Phase 4+)
+        # will flip these based on ``source.capabilities.supports_voice_*``.
+        # Skipping ASR/TTS keeps the pipeline from running VAD on silence
+        # or generating TTS chunks that nobody plays.
+        assistant, is_new = await self._conn_mgr.get_or_create_assistant(
+            session_id,
+            wants_audio_input=False,
+            wants_audio_output=False,
+        )
 
         if is_new:
             self._attach_outbound_stream(assistant, source, identity, session_id)
