@@ -1,0 +1,15 @@
+# Example connector-telegram configuration.
+#
+# Copy the `connectors:` block into `backend/core/config.yaml`, then set
+# the TELEGRAM_BOT_TOKEN environment variable (from @BotFather) before
+# starting Tank.
+#
+# SECURITY: This connector has no allowlist — any Telegram user who finds
+# the bot can talk to Tank and drive its tools. Deploy privately. A
+# per-identity allowlist is planned for a future release.
+
+connectors:
+  - instance: my-telegram-bot
+    extension: connector-telegram:connector
+    config:
+      bot_token: ${TELEGRAM_BOT_TOKEN}

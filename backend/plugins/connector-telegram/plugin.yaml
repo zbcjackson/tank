@@ -1,0 +1,8 @@
+name: connector-telegram
+display_name: Telegram Connector
+description: Talk to Tank from Telegram (DMs and groups)
+
+extensions:
+  - name: connector
+    type: connector
+    factory: connector_telegram:create_connector

@@ -327,3 +327,9 @@ jobs:
  tick_interval: 60         # Seconds between scheduler ticks
 #   output_dir: ~/.tank/jobs/output
 #   seed_path: ~/.tank/jobs/seed.yaml
+
+connectors:
+  - instance: my-telegram-bot
+    extension: connector-telegram:connector
+    config:
+      bot_token: ${TELEGRAM_BOT_TOKEN}

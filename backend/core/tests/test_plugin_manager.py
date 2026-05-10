@@ -210,6 +210,58 @@ class TestPluginManager:
         assert registry.has("tts-edge:tts")
         assert len(registry) == 1
 
+    def test_load_all_auto_merges_new_plugins(self, tmp_path):
+        """When plugins.yaml exists but a new plugin dir has appeared,
+        load_all appends the new plugin (enabled by default) and rewrites
+        the yaml — developer convenience for drop-in plugins.
+        """
+        plugins_yaml = tmp_path / "plugins.yaml"
+        plugins_yaml.write_text(yaml.safe_dump({
+            "tts-edge": {
+                "enabled": True,
+                "extensions": {"tts": {"enabled": True}},
+            },
+        }))
+
+        plugins_dir = tmp_path / "plugins"
+        _make_plugin_dir(plugins_dir, "tts-edge", {
+            "name": "tts-edge",
+            "display_name": "Edge TTS",
+            "description": "test",
+            "extensions": [
+                {"name": "tts", "type": "tts", "factory": "tts_edge:create_engine"},
+            ],
+        })
+        # A new plugin appears on disk that isn't in plugins.yaml yet.
+        _make_plugin_dir(plugins_dir, "connector-fake", {
+            "name": "connector-fake",
+            "display_name": "Fake",
+            "description": "test",
+            "extensions": [
+                {
+                    "name": "connector",
+                    "type": "connector",
+                    "factory": "connector_fake:create_connector",
+                },
+            ],
+        })
+
+        pm = PluginManager(plugins_yaml_path=plugins_yaml, plugins_dir=plugins_dir)
+        registry = pm.load_all()
+
+        # Both plugins are registered — the new one was auto-merged.
+        assert registry.has("tts-edge:tts")
+        assert registry.has("connector-fake:connector")
+
+        # plugins.yaml was rewritten with the new entry enabled.
+        rewritten = yaml.safe_load(plugins_yaml.read_text())
+        assert "connector-fake" in rewritten
+        assert rewritten["connector-fake"]["enabled"] is True
+        assert rewritten["connector-fake"]["extensions"]["connector"]["enabled"] is True
+
+        # Existing entry untouched.
+        assert rewritten["tts-edge"]["enabled"] is True
+
     def test_disabled_plugin_not_registered(self, tmp_path):
         """Disabled plugins are skipped during load_all."""
         plugins_yaml = tmp_path / "plugins.yaml"

@@ -207,6 +207,11 @@ class PluginManager:
         """Main entry point. Read plugins.yaml, register enabled extensions.
 
         If ``plugins.yaml`` does not exist, auto-generates it via discovery.
+        If it exists but new plugin directories have appeared since it was
+        written, the new plugins are appended (enabled by default) and the
+        file is rewritten — so a developer who drops a new plugin into
+        ``plugins/`` and restarts gets it loaded without hand-editing
+        ``plugins.yaml``.
         """
         path = self._resolve_plugins_yaml_path()
 
@@ -215,6 +220,25 @@ class PluginManager:
             self.generate_plugins_yaml()
 
         self._entries = self._read_plugins_yaml(path)
+
+        # Merge in any plugins that appeared on disk after the yaml was written.
+        discovered = self.discover_plugins()
+        new_plugins = [name for name in discovered if name not in self._entries]
+        if new_plugins:
+            for name in new_plugins:
+                manifest = discovered[name]
+                self._entries[name] = PluginEntry(
+                    name=name,
+                    extensions={
+                        ext.name: ExtensionEntry(name=ext.name, enabled=True)
+                        for ext in manifest.extensions
+                    },
+                )
+            self._write_plugins_yaml()
+            logger.info(
+                "Auto-registered %d new plugin(s) in plugins.yaml: %s",
+                len(new_plugins), ", ".join(sorted(new_plugins)),
+            )
 
         for plugin_name, entry in self._entries.items():
             if not entry.enabled:
