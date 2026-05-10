@@ -106,13 +106,24 @@ class TelegramConnector(Connector):
     async def _run_polling(self) -> None:
         """Run long-polling and surface unexpected crashes.
 
+        ``handle_signals=False`` is critical: aiogram's default is to
+        install its own ``SIGINT``/``SIGTERM`` handlers on the running
+        event loop via ``loop.add_signal_handler``, which overwrites the
+        handlers uvicorn installed during startup. When the operator hits
+        Ctrl+C, aiogram catches the signal and stops only its own polling
+        loop — uvicorn never hears it, the ASGI lifespan never fires, and
+        the process appears hung. With ``handle_signals=False`` uvicorn
+        owns the signal pipeline; its shutdown flow calls our lifespan,
+        which calls :meth:`stop` on this connector, which drains the poll
+        loop cleanly.
+
         aiogram swallows some errors internally; we wrap the call so a
         crashing polling loop is at least logged loudly rather than
         leaving the connector silently dead.
         """
         assert self._dp is not None and self._bot is not None  # noqa: S101
         try:
-            await self._dp.start_polling(self._bot)
+            await self._dp.start_polling(self._bot, handle_signals=False)
         except asyncio.CancelledError:
             raise
         except Exception:
