@@ -20,7 +20,6 @@ import time
 
 import numpy as np
 import websockets
-
 from tank_contracts import ASREngine, ASRStream
 
 logger = logging.getLogger("ElevenLabsASR")
@@ -224,7 +223,10 @@ class ElevenLabsASREngine(ASREngine):
             self._committed_text = ""
             self._partial_text = ""
 
-        logger.debug("ElevenLabs: Session stopped, final text: %s", final_text[:50] if final_text else "(empty)")
+        logger.debug(
+            "ElevenLabs: Session stopped, final text: %s",
+            final_text[:50] if final_text else "(empty)",
+        )
         return final_text
 
     def close(self) -> None:

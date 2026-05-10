@@ -39,6 +39,8 @@ def _load_sherpa():
     _patch_macos_onnxruntime()
     from sherpa_onnx.lib._sherpa_onnx import (
         SpeakerEmbeddingExtractor as _SherpaExtractor,
+    )
+    from sherpa_onnx.lib._sherpa_onnx import (
         SpeakerEmbeddingExtractorConfig,
     )
     return _SherpaExtractor, SpeakerEmbeddingExtractorConfig

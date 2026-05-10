@@ -24,6 +24,7 @@ plugin, the engine would need to pool connections.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import threading
@@ -32,7 +33,6 @@ from typing import Any
 
 import numpy as np
 import websockets
-
 from tank_contracts import ASREngine, ASRStream
 
 logger = logging.getLogger("FunASR")
@@ -217,10 +217,8 @@ class FunASREngine(ASREngine):
             remaining = bytes(self._audio_buffer)
             self._audio_buffer = bytearray()
             if remaining:
-                try:
+                with contextlib.suppress(Exception):
                     self._recognition.send_audio_frame(remaining)
-                except Exception:
-                    pass
 
             # Stop recognition
             try:
@@ -294,10 +292,8 @@ class FunASREngine(ASREngine):
             with self._lock:
                 was_running = self._recognition_started and not self._recognition_closed
             if was_running:
-                try:
+                with contextlib.suppress(Exception):
                     self._recognition.stop()
-                except Exception:
-                    pass
             with self._lock:
                 self._recognition_started = False
                 self._recognition_closed = True
@@ -526,7 +522,10 @@ class FunASREngine(ASREngine):
         else:
             final_text = self._stop_funasr_session()
 
-        logger.debug("FunASR: Session stopped, final text: %s", final_text[:50] if final_text else "(empty)")
+        logger.debug(
+            "FunASR: Session stopped, final text: %s",
+            final_text[:50] if final_text else "(empty)",
+        )
         return final_text
 
     def close(self) -> None:

@@ -124,7 +124,10 @@ class SherpaASRStream(ASRStream):
         self._recognizer.reset(self._stream)
         self._last_text = ""
 
-        logger.debug("Sherpa: Session stopped, final text: %s", final_text[:50] if final_text else "(empty)")
+        logger.debug(
+            "Sherpa: Session stopped, final text: %s",
+            final_text[:50] if final_text else "(empty)",
+        )
         return final_text
 
     def close(self) -> None:

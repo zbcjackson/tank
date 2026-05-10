@@ -9,7 +9,7 @@ import sys
 import numpy as np
 import sounddevice as sd
 
-from .engine import CosyVoiceTTSEngine, COSYVOICE_SAMPLE_RATE
+from .engine import COSYVOICE_SAMPLE_RATE, CosyVoiceTTSEngine
 
 
 async def _speak(engine: CosyVoiceTTSEngine, text: str, language: str, voice: str | None = None) -> None:

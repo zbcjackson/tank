@@ -24,6 +24,8 @@ from .models import (
     BrainConfig,
     ChannelsConfig,
     CommandSecurityConfig,
+    ConnectorInstanceConfig,
+    ConnectorsConfig,
     ContextConfig,
     DatabaseConfig,
     EchoGuardConfig,
@@ -119,6 +121,9 @@ class AppConfig:
     # Channels
     channels: ChannelsConfig = field(default_factory=ChannelsConfig)
 
+    # Connectors (multi-instance — list of configured platform adapters)
+    connectors: ConnectorsConfig = field(default_factory=ConnectorsConfig)
+
     # Observability
     alerting: AlertingConfig = field(default_factory=AlertingConfig)
     health_monitor: HealthMonitorConfig = field(default_factory=HealthMonitorConfig)
@@ -172,6 +177,7 @@ class AppConfig:
                 skills=parse_section(SkillsConfig, raw.get("skills")),
                 jobs=parse_section(JobsConfig, raw.get("jobs")),
                 channels=parse_section(ChannelsConfig, raw.get("channels")),
+                connectors=_parse_connectors(raw.get("connectors")),
                 alerting=parse_section(AlertingConfig, raw.get("alerting")),
                 health_monitor=parse_section(HealthMonitorConfig, raw.get("health_monitor")),
                 asr=_parse_feature(raw, "asr"),
@@ -231,9 +237,10 @@ class AppConfig:
 
     @staticmethod
     def _validate_features(cfg: AppConfig, registry: ExtensionRegistry) -> None:
-        from ..plugin.manager import validate_feature_refs
+        from ..plugin.manager import validate_connector_refs, validate_feature_refs
 
         validate_feature_refs(cfg, registry)
+        validate_connector_refs(cfg, registry)
 
 
 def _parse_llm_profiles(llm_raw: dict[str, Any]) -> dict[str, LLMProfile]:
@@ -274,3 +281,69 @@ def _parse_feature(raw: dict[str, Any], name: str) -> FeatureConfig:
         enabled=True,
         extension=extension_ref,
     )
+
+
+def _parse_connectors(raw: Any) -> ConnectorsConfig:
+    """Parse the ``connectors:`` top-level section.
+
+    The section is a list of connector instance dicts. Each instance
+    requires ``instance`` and ``extension`` string fields; ``config`` and
+    ``enabled`` are optional. Duplicate ``instance`` names raise
+    :class:`ConfigError`.
+    """
+    if not raw:
+        return ConnectorsConfig()
+
+    if not isinstance(raw, list):
+        raise ConfigError(
+            f"connectors: expected a list of instance dicts, got {type(raw).__name__}"
+        )
+
+    instances: list[ConnectorInstanceConfig] = []
+    seen_names: set[str] = set()
+
+    for index, entry in enumerate(raw):
+        if not isinstance(entry, dict):
+            raise ConfigError(
+                f"connectors[{index}]: expected a dict, got {type(entry).__name__}"
+            )
+
+        instance_name = entry.get("instance", "")
+        if not isinstance(instance_name, str) or not instance_name.strip():
+            raise ConfigError(
+                f"connectors[{index}]: 'instance' is required and must be a non-empty string"
+            )
+
+        extension_ref = entry.get("extension", "")
+        if not isinstance(extension_ref, str) or not extension_ref.strip():
+            raise ConfigError(
+                f"connectors[{index}] '{instance_name}': 'extension' is required and "
+                "must be a non-empty string"
+            )
+
+        if instance_name in seen_names:
+            raise ConfigError(
+                f"connectors: duplicate instance name '{instance_name}'"
+            )
+        seen_names.add(instance_name)
+
+        cfg = entry.get("config", {}) or {}
+        if not isinstance(cfg, dict):
+            raise ConfigError(
+                f"connectors[{index}] '{instance_name}': 'config' must be a mapping"
+            )
+
+        enabled = entry.get("enabled", True)
+        if not isinstance(enabled, bool):
+            raise ConfigError(
+                f"connectors[{index}] '{instance_name}': 'enabled' must be a bool"
+            )
+
+        instances.append(ConnectorInstanceConfig(
+            instance=instance_name,
+            extension=extension_ref,
+            enabled=enabled,
+            config=cfg,
+        ))
+
+    return ConnectorsConfig(instances=tuple(instances))

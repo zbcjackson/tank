@@ -25,6 +25,7 @@ from tank_backend.persistence.base import Base
 from tank_backend.persistence.models import (  # noqa: F401 — side-effect import
     ChannelReadStateRow,
     ChannelRow,
+    ConnectorIdentityRow,
     ConversationRow,
     EmbeddingRow,
     JobRow,

@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
-
 from speaker_sherpa.engine import SherpaEmbeddingExtractor
 
 MODULE = "speaker_sherpa.engine"

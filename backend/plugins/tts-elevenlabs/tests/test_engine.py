@@ -1,11 +1,11 @@
 """Test ElevenLabs TTS plugin."""
 
 import base64
+from unittest.mock import AsyncMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, patch
-from tts_elevenlabs import create_engine
 from tank_contracts.tts import AudioChunk
+from tts_elevenlabs import create_engine
 
 
 async def _async_iter(items):

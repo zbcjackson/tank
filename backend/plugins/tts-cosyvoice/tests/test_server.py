@@ -8,11 +8,11 @@ from unittest.mock import MagicMock, call, patch
 import httpx
 import pytest
 from tts_cosyvoice.server import (
-    CosyVoiceServer,
-    CosyVoiceServerError,
     DEFAULT_CONTAINER,
     DEFAULT_IMAGE,
     DEFAULT_PORT,
+    CosyVoiceServer,
+    CosyVoiceServerError,
 )
 
 MODULE = "tts_cosyvoice.server"

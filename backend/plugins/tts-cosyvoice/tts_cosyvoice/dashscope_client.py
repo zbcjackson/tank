@@ -13,7 +13,6 @@ import uuid
 from collections.abc import AsyncIterator, Callable
 
 import websockets
-
 from tank_contracts.tts import AudioChunk
 
 logger = logging.getLogger(__name__)

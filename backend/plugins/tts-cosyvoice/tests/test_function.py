@@ -12,11 +12,10 @@ import threading
 import numpy as np
 import pytest
 import uvicorn
-from fastapi import FastAPI, Form, UploadFile, File
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import StreamingResponse
 from tank_contracts.tts import AudioChunk
 from tts_cosyvoice import create_engine
-
 
 # ---------------------------------------------------------------------------
 # Fake CosyVoice server
@@ -102,8 +101,9 @@ def cosyvoice_server():
     thread.start()
 
     # Wait for server to be ready
-    import httpx
     import time
+
+    import httpx
 
     base_url = f"http://{host}:{port}"
     for _ in range(50):

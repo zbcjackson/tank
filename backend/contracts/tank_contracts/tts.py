@@ -7,7 +7,6 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 
-
 # Binary wire format for streamed audio frames.
 # Layout (little-endian): magic(2) | sample_rate(4) | channels(2) | pcm_bytes...
 # Magic distinguishes framed PCM from legacy raw-PCM frames if a client needs

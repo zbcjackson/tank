@@ -29,6 +29,12 @@ FEATURE_TYPE_MAP: dict[str, str] = {
     "speaker": "speaker_id",
 }
 
+# Known extension type used by connector plugins. Connectors are
+# multi-instance (config.yaml declares a list of instances, each pointing
+# at one extension), so they don't fit the ``FEATURE_TYPE_MAP`` shape and
+# get their own validator below.
+CONNECTOR_EXT_TYPE = "connector"
+
 # Backward-compatible alias
 SLOT_TYPE_MAP = FEATURE_TYPE_MAP
 
@@ -96,6 +102,39 @@ def validate_feature_refs(app_config: AppConfig, registry: ExtensionRegistry) ->
 
 # Backward-compatible alias
 validate_slot_refs = validate_feature_refs
+
+
+def validate_connector_refs(app_config: AppConfig, registry: ExtensionRegistry) -> None:
+    """Validate ``config.yaml`` ``connectors:`` entries against the registry.
+
+    Runs after :func:`validate_feature_refs`. Checks that every enabled
+    connector instance references an extension that exists and declares
+    ``type: connector``. Disabled instances are skipped so operators can
+    keep draft configs in-tree.
+    """
+    errors: list[str] = []
+    for instance_cfg in app_config.connectors.instances:
+        if not instance_cfg.enabled:
+            continue
+
+        if not registry.has(instance_cfg.extension):
+            errors.append(
+                f"Connector '{instance_cfg.instance}': extension "
+                f"'{instance_cfg.extension}' is not registered "
+                "(not installed or disabled)"
+            )
+            continue
+
+        ext_manifest = registry.get(instance_cfg.extension)
+        if ext_manifest is not None and ext_manifest.type != CONNECTOR_EXT_TYPE:
+            errors.append(
+                f"Connector '{instance_cfg.instance}': extension "
+                f"'{instance_cfg.extension}' has type '{ext_manifest.type}', "
+                f"expected '{CONNECTOR_EXT_TYPE}'"
+            )
+
+    if errors:
+        raise ConfigError(errors)
 
 
 class PluginManager:

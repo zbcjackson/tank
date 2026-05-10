@@ -7,7 +7,7 @@ Each model is a frozen dataclass with sensible defaults.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import ClassVar, Literal
+from typing import Any, ClassVar, Literal
 
 from ..policy.verdict import AccessLevel
 
@@ -288,6 +288,32 @@ class ChannelsConfig:
     """``channels:`` section."""
 
     enabled: bool = True
+
+
+# ── Connectors ────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class ConnectorInstanceConfig:
+    """One configured connector instance under ``connectors:``.
+
+    ``instance`` is a locally-unique logical name (e.g. ``my-tg-bot``).
+    ``extension`` is the fully-qualified plugin extension reference
+    (``plugin:extension``) that must resolve to an extension of type
+    ``connector``. ``config`` holds the instance-specific options
+    passed to the connector factory.
+    """
+
+    instance: str = ""
+    extension: str = ""
+    enabled: bool = True
+    config: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ConnectorsConfig:
+    """``connectors:`` section — a list of configured connector instances."""
+
+    instances: tuple[ConnectorInstanceConfig, ...] = ()
 
 
 # ── Observability ─────────────────────────────────────────────────

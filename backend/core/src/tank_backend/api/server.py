@@ -44,6 +44,7 @@ if TYPE_CHECKING:
     from tank_contracts import ASREngine, TTSEngine
 
     from ..audio.input.vad import VADEngine
+    from ..connectors import ConnectorManager
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -204,6 +205,80 @@ def _init_audio_engines(
     return asr_engine, tts_engine, vad_engine
 
 
+def _init_connectors(
+    config: AppConfig,
+    registry: ExtensionRegistry,
+    connection_manager: ConnectionManager,
+    channel_store: ChannelStore | None,
+    conversation_store: ConversationStore | None,
+    database: Database,
+) -> ConnectorManager | None:
+    """Build :class:`ConnectorManager` from ``config.yaml`` ``connectors:``.
+
+    Returns ``None`` when no connectors are configured — the existing
+    WebSocket entrypoint remains the only entrypoint in that case, and
+    no connector machinery is loaded.
+    """
+    instances = config.connectors.instances
+    if not instances:
+        return None
+
+    if channel_store is None or conversation_store is None:
+        logger.warning(
+            "Connectors configured but ChannelStore/ConversationStore "
+            "unavailable — skipping connector initialization",
+        )
+        return None
+
+    from ..connectors import (
+        ConnectorIdentityStore,
+        ConnectorManager,
+        SessionMapper,
+    )
+    from ..connectors.base import Connector
+
+    identity_store = ConnectorIdentityStore(database)
+    session_mapper = SessionMapper(
+        identity_store=identity_store,
+        channel_store=channel_store,
+        conversation_store=conversation_store,
+    )
+    manager = ConnectorManager(
+        connection_manager=connection_manager,
+        session_mapper=session_mapper,
+    )
+
+    for inst in instances:
+        if not inst.enabled:
+            logger.info("Connector '%s' disabled — skipping", inst.instance)
+            continue
+        try:
+            connector = registry.instantiate(
+                inst.extension,
+                {
+                    "instance": inst.instance,
+                    "config": inst.config,
+                },
+            )
+        except Exception:
+            logger.exception(
+                "Failed to instantiate connector '%s' (extension=%s)",
+                inst.instance, inst.extension,
+            )
+            continue
+
+        if not isinstance(connector, Connector):
+            logger.warning(
+                "Connector '%s' (extension=%s) did not produce a Connector instance",
+                inst.instance, inst.extension,
+            )
+            continue
+
+        manager.register(connector)
+
+    return manager
+
+
 def _init_channel_audio_service(
     tts_engine: TTSEngine | None,
     subscription_manager: ChannelSubscriptionManager,
@@ -280,6 +355,10 @@ app_context = AppContext(
 )
 connection_manager = ConnectionManager(app_context=app_context)
 
+_connector_manager = _init_connectors(
+    app_config, _registry, connection_manager, _channel_store, _store, _database,
+)
+
 _subscription_manager = ChannelSubscriptionManager()
 
 # Build the channel audio service before wiring deps so the composition root
@@ -306,8 +385,12 @@ async def lifespan(app: FastAPI):
     logger.info("API Server starting up")
     if _scheduler is not None:
         await _scheduler.start()
+    if _connector_manager is not None:
+        await _connector_manager.start_all()
     yield
     logger.info("API Server shutting down")
+    if _connector_manager is not None:
+        await _connector_manager.stop_all()
     if _channel_audio_service is not None:
         await _channel_audio_service.stop()
     if _scheduler is not None:

@@ -12,7 +12,6 @@ import logging
 from collections.abc import AsyncIterator, Callable
 
 import websockets
-
 from tank_contracts.tts import AudioChunk, TTSEngine
 
 logger = logging.getLogger("ElevenLabsTTS")

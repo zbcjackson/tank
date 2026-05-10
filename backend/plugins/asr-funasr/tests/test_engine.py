@@ -2,10 +2,9 @@
 
 import json
 import threading
+from unittest.mock import MagicMock, patch
 
 import numpy as np
-from unittest.mock import patch, MagicMock
-
 from asr_funasr import create_engine
 from asr_funasr.engine import FunASREngine
 
@@ -129,9 +128,8 @@ class TestLifecycle:
         engine._ws = MagicMock()
         engine._loop = MagicMock()
 
-        with patch("asyncio.run_coroutine_threadsafe"):
-            with patch("time.sleep"):
-                final_text = engine.stop()
+        with patch("asyncio.run_coroutine_threadsafe"), patch("time.sleep"):
+            final_text = engine.stop()
 
         assert final_text == "你好世界"
         assert engine._session_active is False

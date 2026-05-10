@@ -8,7 +8,6 @@ from tank_contracts.tts import AudioChunk, TTSEngine
 from tts_cosyvoice import CosyVoiceTTSEngine, create_engine
 from tts_cosyvoice.engine import COSYVOICE_SAMPLE_RATE
 
-
 # ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
