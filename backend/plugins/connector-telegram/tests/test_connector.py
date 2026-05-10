@@ -15,6 +15,7 @@ fire. The tests cover:
 from __future__ import annotations
 
 import asyncio
+from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -24,7 +25,7 @@ from aiogram.exceptions import (
     TelegramBadRequest,
     TelegramRetryAfter,
 )
-from tank_contracts.connector import Identity, MessageEvent
+from tank_contracts.connector import Attachment, Identity, MessageEvent
 
 from connector_telegram import TelegramConnector, create_connector
 
@@ -79,9 +80,10 @@ class TestCapabilities:
         # Telegram hard limit on sendMessage text.
         assert caps.max_message_length == 4096
         assert caps.supports_typing_indicator is True
-        # Phase-3 scope: no media in/out yet.
-        assert caps.supports_images_in is False
-        assert caps.supports_images_out is False
+        # Phase-4: photo support in both directions.
+        assert caps.supports_images_in is True
+        assert caps.supports_images_out is True
+        # Voice still pending.
         assert caps.supports_voice_in is False
         assert caps.supports_voice_out is False
 
@@ -142,8 +144,8 @@ class TestLifecycle:
             assert c.connected
             aiogram_mocks.bot_cls.assert_called_once()
             aiogram_mocks.dp_cls.assert_called_once()
-            # Handler for plain text was registered.
-            aiogram_mocks.mocks.dp.message.register.assert_called_once()
+            # One handler for photos, one for text.
+            assert aiogram_mocks.mocks.dp.message.register.call_count == 2
             # Polling task was spawned.
             assert c._task is not None  # noqa: SLF001
             assert not c._task.done()  # noqa: SLF001
@@ -554,3 +556,337 @@ class TestParseChatId:
     def test_accepts_arbitrary_prefix(self) -> None:
         # The parser takes the part after the last ':' as the id. Any prefix works.
         assert TelegramConnector._parse_chat_id("slack:channel:42") == 42  # noqa: SLF001
+
+
+# ---------------------------------------------------------------------------
+# Photo inbound (Phase 4)
+# ---------------------------------------------------------------------------
+
+
+def _make_mock_photo_message(
+    *,
+    chat_id: int,
+    chat_type: str = "private",
+    caption: str = "",
+    user_full_name: str | None = "Alice",
+    reply_to_message_id: int | None = None,
+    photo_sizes: list[tuple[int, int, int]] | None = None,
+    largest_file_size: int | None = None,
+):
+    """Minimal MagicMock mirroring a Telegram photo ``Message``.
+
+    ``photo_sizes`` is a list of ``(width, height, file_size)`` tuples
+    representing successive :class:`PhotoSize` entries — the last one is
+    the largest, matching Telegram's convention.
+    """
+    chat = MagicMock()
+    chat.id = chat_id
+    chat.type = chat_type
+
+    from_user = None
+    if user_full_name is not None:
+        from_user = MagicMock()
+        from_user.full_name = user_full_name
+
+    reply_to = None
+    if reply_to_message_id is not None:
+        reply_to = MagicMock()
+        reply_to.message_id = reply_to_message_id
+
+    if photo_sizes is None:
+        photo_sizes = [(90, 60, 1024), (320, 240, 8192), (1280, 960, 65536)]
+
+    photo_list = []
+    for w, h, size in photo_sizes:
+        ps = MagicMock()
+        ps.width = w
+        ps.height = h
+        ps.file_size = size
+        photo_list.append(ps)
+
+    if largest_file_size is not None:
+        photo_list[-1].file_size = largest_file_size
+
+    message = MagicMock()
+    message.chat = chat
+    message.photo = photo_list
+    message.caption = caption
+    # Photo messages carry caption — never text.
+    message.text = None
+    message.from_user = from_user
+    message.reply_to_message = reply_to
+    return message
+
+
+class TestPhotoInbound:
+    async def test_photo_emits_message_event_with_image_attachment(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock(return_value=BytesIO(b"\xff\xd8\xffPHOTO"))  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+
+        async def handler(event: MessageEvent) -> None:
+            received.append(event)
+
+        c.set_message_handler(handler)
+
+        msg = _make_mock_photo_message(
+            chat_id=12345, caption="what is this?", user_full_name="Alice",
+        )
+        await c._on_photo(msg)  # noqa: SLF001
+
+        assert len(received) == 1
+        event = received[0]
+        assert event.text == "what is this?"
+        assert event.identity.external_id == "tg:chat:12345"
+        assert event.identity.display_name == "Alice"
+        assert len(event.attachments) == 1
+        att = event.attachments[0]
+        assert att.kind == "image"
+        assert att.data == b"\xff\xd8\xffPHOTO"
+        assert att.mime_type == "image/jpeg"
+
+    async def test_picks_largest_photo_size(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock(return_value=BytesIO(b"big"))  # noqa: SLF001
+
+        async def handler(event: MessageEvent) -> None:
+            pass
+
+        c.set_message_handler(handler)
+
+        msg = _make_mock_photo_message(chat_id=1)
+        await c._on_photo(msg)  # noqa: SLF001
+
+        # Verify bot.download was called with the LAST (largest) photo.
+        downloaded = c._bot.download.call_args.args[0]  # noqa: SLF001
+        assert downloaded is msg.photo[-1]
+
+    async def test_empty_caption_becomes_empty_text(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock(return_value=BytesIO(b"x"))  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+
+        async def handler(event: MessageEvent) -> None:
+            received.append(event)
+
+        c.set_message_handler(handler)
+        msg = _make_mock_photo_message(chat_id=1, caption="")
+        await c._on_photo(msg)  # noqa: SLF001
+
+        assert received[0].text == ""
+
+    async def test_oversize_photo_replies_with_too_large(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.send_message = AsyncMock()  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+
+        async def handler(event: MessageEvent) -> None:
+            received.append(event)
+
+        c.set_message_handler(handler)
+
+        # 26 MB — just over the 25 MB cap.
+        msg = _make_mock_photo_message(
+            chat_id=99, largest_file_size=26 * 1024 * 1024,
+        )
+        await c._on_photo(msg)  # noqa: SLF001
+
+        # No handler invocation; user got a friendly reply.
+        assert received == []
+        c._bot.send_message.assert_awaited_once()  # noqa: SLF001
+        kwargs = c._bot.send_message.call_args.kwargs  # noqa: SLF001
+        assert kwargs["chat_id"] == 99
+        assert "too large" in kwargs["text"].lower()
+
+    async def test_download_failure_logs_and_drops(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock(  # noqa: SLF001
+            side_effect=TelegramAPIError(method=MagicMock(), message="boom"),
+        )
+
+        received: list[MessageEvent] = []
+
+        async def handler(event: MessageEvent) -> None:
+            received.append(event)
+
+        c.set_message_handler(handler)
+
+        msg = _make_mock_photo_message(chat_id=1)
+        # Must not propagate. The handler sees nothing.
+        await c._on_photo(msg)  # noqa: SLF001
+        assert received == []
+
+    async def test_no_handler_registered_drops_silently(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        # No set_message_handler() — handler stays None.
+
+        msg = _make_mock_photo_message(chat_id=1)
+        # Must not raise; must not call download.
+        await c._on_photo(msg)  # noqa: SLF001
+
+    async def test_group_chat_sets_is_group(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock(return_value=BytesIO(b"x"))  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+
+        async def handler(event: MessageEvent) -> None:
+            received.append(event)
+
+        c.set_message_handler(handler)
+        msg = _make_mock_photo_message(chat_id=-1001234567, chat_type="supergroup")
+        await c._on_photo(msg)  # noqa: SLF001
+
+        assert received[0].identity.is_group is True
+        assert received[0].identity.external_id == "tg:chat:-1001234567"
+
+
+# ---------------------------------------------------------------------------
+# Photo outbound (Phase 4)
+# ---------------------------------------------------------------------------
+
+
+class TestPhotoOutbound:
+    async def test_send_with_bytes_image_calls_send_photo(
+        self, started_connector,
+    ) -> None:
+        from aiogram.types import BufferedInputFile
+
+        sent_message = MagicMock()
+        sent_message.message_id = 777
+        started_connector._bot.send_photo = AsyncMock(return_value=sent_message)  # noqa: SLF001
+
+        result = await started_connector.send(
+            _identity(12345),
+            text="a cat",
+            attachments=(
+                Attachment(kind="image", data=b"\xff\xd8\xff" + b"\x00" * 100,
+                           mime_type="image/jpeg"),
+            ),
+        )
+
+        assert result.ok is True
+        assert result.message_id == "777"
+        started_connector._bot.send_photo.assert_awaited_once()  # noqa: SLF001
+        kwargs = started_connector._bot.send_photo.call_args.kwargs  # noqa: SLF001
+        assert kwargs["chat_id"] == 12345
+        assert kwargs["caption"] == "a cat"
+        assert isinstance(kwargs["photo"], BufferedInputFile)
+
+    async def test_send_with_url_image_passes_string(
+        self, started_connector,
+    ) -> None:
+        sent_message = MagicMock()
+        sent_message.message_id = 1
+        started_connector._bot.send_photo = AsyncMock(return_value=sent_message)  # noqa: SLF001
+
+        await started_connector.send(
+            _identity(),
+            text="",
+            attachments=(
+                Attachment(kind="image", data="https://example.com/x.png",
+                           mime_type="image/png"),
+            ),
+        )
+
+        kwargs = started_connector._bot.send_photo.call_args.kwargs  # noqa: SLF001
+        assert kwargs["photo"] == "https://example.com/x.png"
+
+    async def test_empty_text_becomes_none_caption(
+        self, started_connector,
+    ) -> None:
+        sent_message = MagicMock()
+        sent_message.message_id = 1
+        started_connector._bot.send_photo = AsyncMock(return_value=sent_message)  # noqa: SLF001
+
+        await started_connector.send(
+            _identity(),
+            text="",
+            attachments=(
+                Attachment(kind="image", data=b"x", mime_type="image/jpeg"),
+            ),
+        )
+
+        kwargs = started_connector._bot.send_photo.call_args.kwargs  # noqa: SLF001
+        assert kwargs["caption"] is None
+
+    async def test_long_caption_truncated_to_1024(
+        self, started_connector,
+    ) -> None:
+        sent_message = MagicMock()
+        sent_message.message_id = 1
+        started_connector._bot.send_photo = AsyncMock(return_value=sent_message)  # noqa: SLF001
+
+        long_text = "x" * 2000
+        await started_connector.send(
+            _identity(),
+            text=long_text,
+            attachments=(
+                Attachment(kind="image", data=b"x", mime_type="image/jpeg"),
+            ),
+        )
+
+        kwargs = started_connector._bot.send_photo.call_args.kwargs  # noqa: SLF001
+        assert len(kwargs["caption"]) == 1024
+        assert kwargs["caption"].endswith("…")
+
+    async def test_rate_limit_on_send_photo(
+        self, started_connector,
+    ) -> None:
+        started_connector._bot.send_photo = AsyncMock(  # noqa: SLF001
+            side_effect=TelegramRetryAfter(
+                method=MagicMock(),
+                message="Too Many Requests: retry after 4",
+                retry_after=4,
+            ),
+        )
+
+        result = await started_connector.send(
+            _identity(), text="",
+            attachments=(
+                Attachment(kind="image", data=b"x", mime_type="image/jpeg"),
+            ),
+        )
+        assert result.ok is False
+        assert result.error == "rate_limited:4"
+
+    async def test_generic_error_on_send_photo(
+        self, started_connector,
+    ) -> None:
+        started_connector._bot.send_photo = AsyncMock(  # noqa: SLF001
+            side_effect=TelegramAPIError(method=MagicMock(), message="boom"),
+        )
+
+        result = await started_connector.send(
+            _identity(), text="",
+            attachments=(
+                Attachment(kind="image", data=b"x", mime_type="image/jpeg"),
+            ),
+        )
+        assert result.ok is False
+        assert result.error is not None
+        assert result.error.startswith("telegram:")
+
+    async def test_text_only_send_still_works(
+        self, started_connector,
+    ) -> None:
+        """Regression: a send() with no attachments still hits send_message."""
+        sent_message = MagicMock()
+        sent_message.message_id = 1
+        started_connector._bot.send_message = AsyncMock(return_value=sent_message)  # noqa: SLF001
+        started_connector._bot.send_photo = AsyncMock()  # noqa: SLF001
+
+        await started_connector.send(_identity(), text="hello")
+
+        started_connector._bot.send_message.assert_awaited_once()  # noqa: SLF001
+        started_connector._bot.send_photo.assert_not_awaited()  # noqa: SLF001

@@ -4,9 +4,10 @@ Uses aiogram 3's async Bot + Dispatcher. Long-polling runs as a
 background task spawned by :meth:`start`; graceful shutdown signals the
 poll loop and joins the task within a short timeout.
 
-Text-only in this release. Non-text inbound messages (voice, photos,
-documents, stickers) are ignored — see the plugin README for the full
-list of Phase-3 limitations.
+Text and single-photo messages are supported in both directions.
+Voice notes, documents, stickers, and media groups still fall off the
+handlers and are silently ignored for now — see the plugin README for
+the full list of supported/unsupported message types.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
@@ -23,6 +24,7 @@ from aiogram.exceptions import (
     TelegramBadRequest,
     TelegramRetryAfter,
 )
+from aiogram.types import BufferedInputFile
 from tank_contracts.connector import (
     Attachment,
     Connector,
@@ -44,6 +46,13 @@ _DEFAULT_EDIT_INTERVAL_MS = 1100
 # Telegram's hard max message length for sendMessage.
 _TELEGRAM_MAX_MESSAGE_LENGTH = 4096
 
+# Telegram's max caption length (for media like photos).
+_TELEGRAM_MAX_CAPTION_LENGTH = 1024
+
+# Upper bound on photos we'll download / accept inbound. Matches the
+# /api/upload boundary elsewhere in Tank.
+_MAX_PHOTO_BYTES = 25 * 1024 * 1024
+
 # Timeout for the polling task to drain cleanly on shutdown.
 _SHUTDOWN_TIMEOUT_S = 5.0
 
@@ -60,6 +69,8 @@ class TelegramConnector(Connector):
                 supports_edits=True,
                 edit_min_interval_ms=_DEFAULT_EDIT_INTERVAL_MS,
                 max_message_length=_TELEGRAM_MAX_MESSAGE_LENGTH,
+                supports_images_in=True,
+                supports_images_out=True,
                 supports_typing_indicator=True,
             ),
         )
@@ -78,10 +89,12 @@ class TelegramConnector(Connector):
             default=DefaultBotProperties(parse_mode=None),
         )
         self._dp = Dispatcher()
-        # `F.text` matches any inbound message whose ``text`` field is
-        # truthy. Photos, voice notes, stickers etc. have ``text == None``
-        # (they carry ``caption`` or media payloads instead) and fall off
-        # this filter — silently ignored for v1.
+        # Register handlers in priority order. ``F.photo`` matches photo
+        # messages (with or without caption); ``F.text`` matches plain
+        # text-only messages. aiogram 3 dispatches to the first handler
+        # whose filter matches, so order here is safe — text and photo
+        # filters are mutually exclusive at the API level.
+        self._dp.message.register(self._on_photo, F.photo)
         self._dp.message.register(self._on_text, F.text)
         self._task = asyncio.create_task(
             self._run_polling(),
@@ -188,6 +201,120 @@ class TelegramConnector(Connector):
                 self.instance_name,
             )
 
+    async def _on_photo(self, message: "Message") -> None:
+        """Handle an inbound photo message.
+
+        Telegram delivers photos as a list of :class:`PhotoSize` at
+        several resolutions. We take the largest (last element) as the
+        canonical version — the smaller ones are thumbnails.
+
+        Photo messages can carry a caption; we surface it as
+        :attr:`MessageEvent.text` so the downstream LLM sees the user's
+        prompt ("what is this?") alongside the image.
+        """
+        if self._on_message is None:
+            logger.debug(
+                "Telegram connector '%s': dropping inbound photo; "
+                "no handler registered",
+                self.instance_name,
+            )
+            return
+        if self._bot is None:
+            return
+        if not message.photo:
+            return
+
+        largest = message.photo[-1]
+
+        # Reject oversized photos at the edge before downloading.
+        if largest.file_size and largest.file_size > _MAX_PHOTO_BYTES:
+            with contextlib.suppress(TelegramAPIError):
+                await self._bot.send_message(
+                    chat_id=message.chat.id,
+                    text=(
+                        "That image is too large — please send one "
+                        "under 25 MB."
+                    ),
+                )
+            return
+
+        try:
+            buf = await self._bot.download(largest)
+        except TelegramAPIError:
+            logger.exception(
+                "Telegram connector '%s': photo download failed in chat %s",
+                self.instance_name, message.chat.id,
+            )
+            return
+        except Exception:
+            logger.exception(
+                "Telegram connector '%s': unexpected error downloading photo",
+                self.instance_name,
+            )
+            return
+
+        if buf is None:
+            logger.debug(
+                "Telegram connector '%s': download returned no buffer",
+                self.instance_name,
+            )
+            return
+
+        try:
+            # aiogram returns a ``BytesIO`` in practice, but the declared
+            # type is ``BinaryIO`` — which doesn't expose ``getvalue()``.
+            # Rewind + read works for both without fighting the stubs.
+            with contextlib.suppress(Exception):
+                buf.seek(0)
+            data = buf.read()
+        except Exception:
+            logger.exception(
+                "Telegram connector '%s': buffer read failed",
+                self.instance_name,
+            )
+            return
+        finally:
+            with contextlib.suppress(Exception):
+                buf.close()
+
+        if not data:
+            return
+
+        # Post-server processing at Telegram normalises uploaded photos
+        # to JPEG regardless of the user's original format.
+        mime_type = "image/jpeg"
+
+        display_name = ""
+        if message.from_user is not None:
+            display_name = message.from_user.full_name or ""
+
+        identity = Identity(
+            platform=self.platform,
+            external_id=f"tg:chat:{message.chat.id}",
+            display_name=display_name,
+            is_group=message.chat.type in ("group", "supergroup"),
+        )
+
+        reply_to_id: str | None = None
+        if message.reply_to_message is not None:
+            reply_to_id = str(message.reply_to_message.message_id)
+
+        event = MessageEvent(
+            identity=identity,
+            text=message.caption or "",
+            attachments=(
+                Attachment(kind="image", data=data, mime_type=mime_type),
+            ),
+            reply_to_message_id=reply_to_id,
+        )
+        try:
+            await self._on_message(event)
+        except Exception:
+            logger.exception(
+                "Telegram connector '%s': inbound handler raised on photo",
+                self.instance_name,
+            )
+
     # ── Outbound ────────────────────────────────────────────────────
 
     async def send(
@@ -215,10 +342,82 @@ class TelegramConnector(Connector):
                     self.instance_name, reply_to,
                 )
 
+        # Route image attachments through send_photo. The Connector
+        # contract allows mixed attachment + text; Telegram's photo API
+        # only carries a single photo per send with an optional caption
+        # (≤1024 chars), so we send the first image here and leave any
+        # leftover text to the text path. In practice today callers
+        # invoke send() either with ``text`` OR with ``attachments`` (the
+        # StreamConsumer sends text; the _ImageDispatcher sends photos).
+        image_att = next(
+            (a for a in attachments if a.kind == "image"),
+            None,
+        )
+        if image_att is not None:
+            return await self._send_photo(
+                chat_id=chat_id,
+                attachment=image_att,
+                caption=text,
+                reply_to_message_id=reply_to_message_id,
+            )
+
         try:
             msg = await self._bot.send_message(
                 chat_id=chat_id,
                 text=text,
+                reply_to_message_id=reply_to_message_id,
+            )
+        except TelegramRetryAfter as e:
+            return SendResult(ok=False, error=f"rate_limited:{e.retry_after}")
+        except TelegramAPIError as e:
+            return SendResult(ok=False, error=f"telegram:{e}")
+
+        return SendResult(ok=True, message_id=str(msg.message_id))
+
+    async def _send_photo(
+        self,
+        *,
+        chat_id: int,
+        attachment: Attachment,
+        caption: str,
+        reply_to_message_id: int | None,
+    ) -> SendResult:
+        """Deliver one image via ``bot.send_photo``.
+
+        ``attachment.data`` may be ``bytes`` (uploaded as a
+        :class:`BufferedInputFile`) or ``str`` (passed to Telegram as a
+        URL — Telegram's servers then fetch and host it). The caption is
+        silently truncated to the 1024-char Telegram limit so we never
+        raise a confusing ``MESSAGE_CAPTION_TOO_LONG`` mid-reply.
+        """
+        assert self._bot is not None  # noqa: S101 — guarded by caller
+
+        if isinstance(attachment.data, bytes):
+            photo: Any = BufferedInputFile(
+                attachment.data,
+                filename=attachment.filename or "image.jpg",
+            )
+        elif isinstance(attachment.data, str):
+            photo = attachment.data
+        else:
+            return SendResult(
+                ok=False,
+                error=f"bad_attachment_data:{type(attachment.data).__name__}",
+            )
+
+        send_caption: str | None = None
+        if caption:
+            send_caption = (
+                caption
+                if len(caption) <= _TELEGRAM_MAX_CAPTION_LENGTH
+                else caption[: _TELEGRAM_MAX_CAPTION_LENGTH - 1] + "…"
+            )
+
+        try:
+            msg = await self._bot.send_photo(
+                chat_id=chat_id,
+                photo=photo,
+                caption=send_caption,
                 reply_to_message_id=reply_to_message_id,
             )
         except TelegramRetryAfter as e:

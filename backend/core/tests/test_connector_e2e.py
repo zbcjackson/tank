@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -135,9 +136,13 @@ def e2e(tmp_path: Path):
     conv_store = _MemoryConvStore()
     session_mapper = SessionMapper(identity_store, channel_store, conv_store)
     connection_manager = _FakeConnectionManager()
+    app_context = MagicMock(name="AppContext")
+    app_context.media_store = None
+    app_context.llm_capabilities = None
     manager = ConnectorManager(
         connection_manager=connection_manager,  # type: ignore[arg-type]
         session_mapper=session_mapper,
+        app_context=app_context,
     )
     return manager, connection_manager, channel_store, identity_store
 

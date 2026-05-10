@@ -212,6 +212,7 @@ def _init_connectors(
     channel_store: ChannelStore | None,
     conversation_store: ConversationStore | None,
     database: Database,
+    app_context: AppContext,
 ) -> ConnectorManager | None:
     """Build :class:`ConnectorManager` from ``config.yaml`` ``connectors:``.
 
@@ -246,6 +247,7 @@ def _init_connectors(
     manager = ConnectorManager(
         connection_manager=connection_manager,
         session_mapper=session_mapper,
+        app_context=app_context,
     )
 
     for inst in instances:
@@ -340,6 +342,24 @@ _asr_engine, _tts_engine, _vad_engine = _init_audio_engines(app_config, _registr
 
 _media_store = MediaStore(Path("~/.tank/media").expanduser())
 
+# Resolve LLM capabilities once at startup. Read by:
+#   - POST /api/upload (capability-gated upload)
+#   - ConnectorManager (capability-gated inbound images)
+try:
+    from ..llm.capabilities import resolve_capabilities_sync
+
+    _llm_capabilities = resolve_capabilities_sync(
+        app_config.get_llm_profile("default"),
+    )
+    logger.info(
+        "LLM capabilities resolved: modalities=%s source=%s",
+        sorted(_llm_capabilities.input_modalities),
+        _llm_capabilities.source.value,
+    )
+except Exception:
+    logger.warning("Failed to resolve LLM capabilities", exc_info=True)
+    _llm_capabilities = None
+
 app_context = AppContext(
     app_config=app_config,
     registry=_registry,
@@ -352,11 +372,13 @@ app_context = AppContext(
     asr_engine=_asr_engine,
     tts_engine=_tts_engine,
     vad_engine=_vad_engine,
+    llm_capabilities=_llm_capabilities,
 )
 connection_manager = ConnectionManager(app_context=app_context)
 
 _connector_manager = _init_connectors(
     app_config, _registry, connection_manager, _channel_store, _store, _database,
+    app_context,
 )
 
 _subscription_manager = ChannelSubscriptionManager()

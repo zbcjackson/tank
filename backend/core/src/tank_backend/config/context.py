@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from ..context.store import ConversationStore
     from ..jobs.scheduler import CronScheduler
     from ..jobs.store import JobStore
+    from ..llm.capabilities import ModelCapabilities
     from ..llm.llm import LLM
     from ..media import MediaStore
     from ..pipeline.bus import Bus
@@ -43,6 +44,11 @@ class AppContext:
     asr_engine: ASREngine | None = None
     tts_engine: TTSEngine | None = None
     vad_engine: VADEngine | None = None
+    # Resolved once at startup from the default LLM profile. Consumers
+    # (``ConnectorManager``, upload endpoint, …) read ``input_modalities``
+    # to decide whether to accept multi-modal content before it hits the
+    # LLM transport.
+    llm_capabilities: ModelCapabilities | None = None
 
 
 @dataclass(frozen=True)

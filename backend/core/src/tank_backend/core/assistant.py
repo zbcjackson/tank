@@ -515,6 +515,35 @@ class Assistant:
         if self._playback_processor is not None:
             self._playback_processor._playback_callback = callback
 
+    def emit_outbound_attachment(
+        self,
+        blocks: list[Any],
+        *,
+        msg_id: str | None = None,
+    ) -> None:
+        """Post an ``outbound_attachment`` Bus event.
+
+        Connectors (via :class:`~tank_backend.connectors.manager._ImageDispatcher`)
+        subscribe to this event to deliver non-text content — images today,
+        other media in later phases — through their platform transports.
+        Text replies keep flowing through the usual ``ui_message`` path,
+        so nothing about the streaming-text transport changes.
+
+        ``blocks`` should be a list of :class:`ContentBlock` instances; the
+        dispatcher filters to the kinds each connector supports. ``msg_id``
+        is optional and currently informational — reserved for correlating
+        attachments with text streams in a later phase.
+        """
+        if not blocks:
+            return
+        self._bus.post(
+            BusMessage(
+                type="outbound_attachment",
+                source="assistant",
+                payload={"msg_id": msg_id, "blocks": blocks},
+            )
+        )
+
     # ------------------------------------------------------------------
     # Internal event handlers
     # ------------------------------------------------------------------
