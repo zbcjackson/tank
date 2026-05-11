@@ -17,9 +17,16 @@ import logging
 from typing import TYPE_CHECKING
 
 from ..core.content import ImageBlock, TextBlock
+from ..policy.verdict import AccessLevel
 from .base import Attachment
 from .exceptions import DuplicateConnectorError
 from .stream_consumer import StreamConsumer
+from .voice_bridge import (
+    VoiceBridgeError,
+    concat_audio_chunks,
+    decode_ogg_opus,
+    encode_pcm_to_opus,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -29,6 +36,7 @@ if TYPE_CHECKING:
     from ..core.assistant import Assistant
     from ..core.content import ContentBlock
     from ..pipeline.bus import BusMessage
+    from ..policy.connector_access import ConnectorAllowlistPolicy
     from .base import (
         Connector,
         Identity,
@@ -42,6 +50,10 @@ logger = logging.getLogger("ConnectorManager")
 # Match the /api/upload boundary. Oversized images are rejected in the
 # connector path with a user-visible message before they hit MediaStore.
 _MAX_IMAGE_BYTES = 25 * 1024 * 1024
+
+# Default polite text sent to identities the allowlist rejects. Operators
+# can override per-instance via ``unauthorized_reply`` in connector config.
+_DEFAULT_UNAUTHORIZED_REPLY = "You're not authorised to use this bot."
 
 
 class ConnectorManager:
@@ -65,10 +77,16 @@ class ConnectorManager:
         self._session_mapper = session_mapper
         self._app_context = app_context
         self._connectors: dict[str, Connector] = {}
-        # Track StreamConsumers and ImageDispatchers so we can GC them
-        # when sessions end. Keyed by (instance_name, session_id).
+        # Track StreamConsumers and dispatchers so we can GC them when
+        # sessions end. Keyed by (instance_name, session_id).
         self._consumers: dict[tuple[str, str], StreamConsumer] = {}
         self._dispatchers: dict[tuple[str, str], _ImageDispatcher] = {}
+        self._voice_dispatchers: dict[tuple[str, str], _VoiceDispatcher] = {}
+        # Per-instance allowlist policies and rejection text. Absence of
+        # a policy means allow-all — the zero-config case that matches
+        # pre-Phase-6 behaviour.
+        self._allowlist_policies: dict[str, ConnectorAllowlistPolicy] = {}
+        self._unauthorized_replies: dict[str, str] = {}
 
     # ── Registration ────────────────────────────────────────────────
 
@@ -102,6 +120,43 @@ class ConnectorManager:
     def get(self, instance_name: str) -> Connector | None:
         return self._connectors.get(instance_name)
 
+    # ── Allowlist wiring ────────────────────────────────────────────
+
+    def set_allowlist_policy(
+        self,
+        instance_name: str,
+        policy: ConnectorAllowlistPolicy,
+    ) -> None:
+        """Attach an allowlist policy to a connector instance.
+
+        Must be called after :meth:`register` — the instance name is the
+        link between them. Omitting this call leaves the instance in
+        allow-all mode (pre-Phase-6 behaviour).
+
+        Rebinding a policy at runtime is supported: call again with the
+        same ``instance_name`` and a fresh :class:`ConnectorAllowlistPolicy`
+        (the one in ``app_context.bus``-wired mode will re-publish every
+        decision afterwards).
+        """
+        if instance_name not in self._connectors:
+            raise KeyError(
+                f"Cannot set allowlist for unknown connector "
+                f"instance '{instance_name}'",
+            )
+        self._allowlist_policies[instance_name] = policy
+        logger.info(
+            "Attached allowlist policy to connector '%s'", instance_name,
+        )
+
+    def set_unauthorized_reply(self, instance_name: str, text: str) -> None:
+        """Override the polite rejection text for one connector instance."""
+        if instance_name not in self._connectors:
+            raise KeyError(
+                f"Cannot set reply for unknown connector "
+                f"instance '{instance_name}'",
+            )
+        self._unauthorized_replies[instance_name] = text
+
     # ── Lifecycle ───────────────────────────────────────────────────
 
     async def start_all(self) -> None:
@@ -128,6 +183,7 @@ class ConnectorManager:
                 )
         self._consumers.clear()
         self._dispatchers.clear()
+        self._voice_dispatchers.clear()
 
     # ── Dispatch ────────────────────────────────────────────────────
 
@@ -136,6 +192,28 @@ class ConnectorManager:
     ) -> None:
         """Route an inbound platform message to the right Assistant."""
         identity = event.identity
+
+        # Allowlist gate — runs before any session resolution or Assistant
+        # construction so denied requests cost essentially nothing. Absence
+        # of a policy for this instance means allow-all (zero-config case,
+        # pre-Phase-6 behaviour).
+        policy = self._allowlist_policies.get(source.instance_name)
+        if policy is not None:
+            verdict = policy.evaluate(identity)
+            if verdict.level is not AccessLevel.ALLOW:
+                reply_text = self._unauthorized_replies.get(
+                    source.instance_name,
+                    _DEFAULT_UNAUTHORIZED_REPLY,
+                )
+                await _safe_send(source, identity, reply_text)
+                logger.info(
+                    "ConnectorManager: denied inbound from %s/%s via '%s' "
+                    "(%s): %s",
+                    identity.platform, identity.external_id,
+                    source.instance_name,
+                    verdict.level.value, verdict.reason,
+                )
+                return
 
         try:
             session_id = self._session_mapper.resolve(identity)
@@ -188,9 +266,9 @@ class ConnectorManager:
         identity: Identity,
         session_id: str,
     ) -> None:
-        """Subscribe a :class:`StreamConsumer` + :class:`_ImageDispatcher`
-        to the Assistant's Bus so outbound text streams and image
-        attachments both flow back through ``source``.
+        """Subscribe the outbound dispatchers for this session to the
+        Assistant's Bus so text streams, image attachments, and voice
+        all flow back through ``source``.
         """
         consumer = StreamConsumer(connector=source, identity=identity)
         assistant._bus.subscribe("ui_message", consumer.on_ui_message)  # noqa: SLF001
@@ -203,6 +281,14 @@ class ConnectorManager:
         )
         assistant._bus.subscribe("outbound_attachment", dispatcher.on_event)  # noqa: SLF001
         self._dispatchers[(source.instance_name, session_id)] = dispatcher
+
+        voice_dispatcher = _VoiceDispatcher(
+            connector=source,
+            identity=identity,
+            tts_engine=self._app_context.tts_engine,
+        )
+        assistant._bus.subscribe("outbound_voice", voice_dispatcher.on_event)  # noqa: SLF001
+        self._voice_dispatchers[(source.instance_name, session_id)] = voice_dispatcher
 
         logger.debug(
             "Attached outbound stream: connector=%s session=%s",
@@ -246,6 +332,12 @@ class ConnectorManager:
                 block = await self._image_to_block(
                     att, session_id=session_id,
                     source=source, identity=identity,
+                )
+                if block is not None:
+                    blocks.append(block)
+            elif att.kind == "audio":
+                block = await self._audio_to_text_block(
+                    att, source=source, identity=identity,
                 )
                 if block is not None:
                     blocks.append(block)
@@ -319,6 +411,80 @@ class ConnectorManager:
             return None
 
         return ImageBlock(source=stored.media_uri, mime_type=stored.mime_type)
+
+    async def _audio_to_text_block(
+        self,
+        att: Attachment,
+        *,
+        source: Connector,
+        identity: Identity,
+    ) -> TextBlock | None:
+        """Transcribe a voice attachment into a :class:`TextBlock`.
+
+        Decodes Ogg/Opus → 16 kHz float32 PCM via
+        :mod:`~tank_backend.connectors.voice_bridge`, runs a one-shot
+        transcription through :attr:`AppContext.asr_engine`, returns the
+        transcript wrapped in a ``TextBlock`` with a ``[voice message
+        transcript]`` prefix so the LLM can tell the text came from audio.
+
+        Returns ``None`` silently for empty transcripts (pure silence /
+        unintelligible) — spamming the user with "I heard nothing" is
+        worse than no reply. Other failures send user-visible errors so
+        operators can tell what went wrong.
+        """
+        asr_engine = self._app_context.asr_engine
+        if asr_engine is None:
+            await _safe_send(
+                source, identity,
+                "I can't transcribe voice messages with my current setup.",
+            )
+            return None
+
+        if isinstance(att.data, str):
+            # URL-based audio (e.g. a link to an externally hosted clip).
+            # Decoding arbitrary URLs is deferred — v1 only handles bytes
+            # that arrived over the connector's own download path.
+            logger.debug(
+                "ConnectorManager: URL-based audio attachment not supported in v1",
+            )
+            return None
+
+        try:
+            pcm = await asyncio.to_thread(decode_ogg_opus, att.data)
+        except VoiceBridgeError:
+            logger.exception("Voice decode failed for inbound audio")
+            await _safe_send(
+                source, identity,
+                "Sorry, I couldn't read that voice message.",
+            )
+            return None
+        except Exception:
+            logger.exception("Unexpected error decoding inbound audio")
+            await _safe_send(
+                source, identity,
+                "Sorry, I couldn't read that voice message.",
+            )
+            return None
+
+        try:
+            transcript = await asr_engine.transcribe_once(pcm, sample_rate=16000)
+        except Exception:
+            logger.exception("ASR transcribe_once failed")
+            await _safe_send(
+                source, identity,
+                "Sorry, I couldn't transcribe that voice message.",
+            )
+            return None
+
+        transcript = transcript.strip()
+        if not transcript:
+            logger.debug(
+                "ConnectorManager: empty ASR transcript from '%s'; dropping",
+                source.instance_name,
+            )
+            return None
+
+        return TextBlock(text=f"[voice message transcript] {transcript}")
 
 
 async def _safe_send(
@@ -428,3 +594,113 @@ class _ImageDispatcher:
         return Attachment(
             kind="image", data=block.source, mime_type=block.mime_type,
         )
+
+
+class _VoiceDispatcher:
+    """Subscribe to ``outbound_voice`` Bus events; synthesize the assistant
+    reply via :attr:`AppContext.tts_engine` and send it as a voice message
+    through the bound connector.
+
+    Unlike :class:`_ImageDispatcher`, voice output is strictly
+    **completion-only** — Telegram (and every other chat platform we'll
+    support) doesn't let us stream audio into a voice message. We
+    collect the full text, generate the full PCM, encode once, send once.
+
+    Gated on ``connector.capabilities.supports_voice_out`` and the
+    presence of a TTS engine in AppContext. Missing either → silently no-op,
+    so the text reply (via :class:`StreamConsumer`) continues to flow.
+    """
+
+    def __init__(
+        self,
+        *,
+        connector: Connector,
+        identity: Identity,
+        tts_engine,  # TTSEngine | None
+    ) -> None:
+        self._connector = connector
+        self._identity = identity
+        self._tts_engine = tts_engine
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:  # pragma: no cover — defensive only
+            self._loop = asyncio.new_event_loop()
+        # Serialize multiple turns — two concurrent TTS generations in the
+        # same chat would play over each other.
+        self._lock = asyncio.Lock()
+
+    def on_event(self, message: BusMessage) -> None:
+        payload = message.payload or {}
+        text = (payload.get("text") or "").strip()
+        if not text:
+            return
+        language = payload.get("language") or "auto"
+        asyncio.run_coroutine_threadsafe(
+            self._dispatch(text, language), self._loop,
+        )
+
+    async def _dispatch(self, text: str, language: str) -> None:
+        if not self._connector.capabilities.supports_voice_out:
+            return
+        if self._tts_engine is None:
+            return
+
+        async with self._lock:
+            try:
+                chunks = []
+                async for chunk in self._tts_engine.generate_stream(
+                    text, language=language,
+                ):
+                    chunks.append(chunk)
+            except Exception:
+                logger.exception(
+                    "TTS generate_stream failed for connector '%s'",
+                    self._connector.instance_name,
+                )
+                return
+
+            if not chunks:
+                return
+
+            try:
+                pcm, sample_rate = concat_audio_chunks(chunks)
+            except VoiceBridgeError:
+                logger.exception(
+                    "Failed to concatenate TTS chunks for connector '%s'",
+                    self._connector.instance_name,
+                )
+                return
+
+            try:
+                ogg = await asyncio.to_thread(
+                    encode_pcm_to_opus, pcm, sample_rate,
+                )
+            except VoiceBridgeError:
+                logger.exception(
+                    "Voice encode failed for connector '%s'",
+                    self._connector.instance_name,
+                )
+                return
+            except Exception:
+                logger.exception(
+                    "Unexpected error encoding voice for connector '%s'",
+                    self._connector.instance_name,
+                )
+                return
+
+            try:
+                result = await self._connector.send_voice(
+                    self._identity, ogg, mime_type="audio/ogg",
+                )
+            except Exception:
+                logger.exception(
+                    "connector.send_voice raised on '%s'",
+                    self._connector.instance_name,
+                )
+                return
+
+            if not result.ok:
+                logger.warning(
+                    "Outbound voice send failed on '%s': %s",
+                    self._connector.instance_name, result.error,
+                )

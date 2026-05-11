@@ -639,3 +639,175 @@ class TestOutboundImageDispatcher:
         # URL path: data is the URL string; MediaStore was not involved
         # for resolution on this outbound.
         assert att.data == "https://example.com/cat.png"
+
+
+# ---------------------------------------------------------------------------
+# Allowlist gate — Phase 6
+# ---------------------------------------------------------------------------
+
+
+class TestAllowlistGate:
+    """The allowlist gate runs before session resolution. Denied requests
+    must leave no trace in ConnectionManager, the identity store, or
+    anywhere else — the only side effect is the polite-rejection reply
+    and the audit Bus event."""
+
+    async def test_denied_inbound_does_not_reach_assistant(
+        self, manager: ConnectorManager,
+    ) -> None:
+        from tank_backend.policy.connector_access import (
+            ConnectorAllowlistConfig,
+            ConnectorAllowlistPolicy,
+        )
+        from tank_backend.policy.verdict import AccessLevel
+
+        fake = FakeConnector("t")
+        manager.register(fake)
+        manager.set_allowlist_policy(
+            "t",
+            ConnectorAllowlistPolicy(
+                ConnectorAllowlistConfig(default=AccessLevel.DENY),
+                instance_name="t",
+            ),
+        )
+        await manager.start_all()
+
+        await fake.inject_inbound(
+            Identity(platform="fake", external_id="user-1"), text="hi",
+        )
+
+        # No Assistant spawned, so no process_input call either.
+        assert manager._conn_mgr.assistants == {}  # noqa: SLF001
+
+    async def test_denied_inbound_sends_polite_reply(
+        self, manager: ConnectorManager,
+    ) -> None:
+        from tank_backend.policy.connector_access import (
+            ConnectorAllowlistConfig,
+            ConnectorAllowlistPolicy,
+        )
+        from tank_backend.policy.verdict import AccessLevel
+
+        fake = FakeConnector("t")
+        manager.register(fake)
+        manager.set_allowlist_policy(
+            "t",
+            ConnectorAllowlistPolicy(
+                ConnectorAllowlistConfig(default=AccessLevel.DENY),
+                instance_name="t",
+            ),
+        )
+        await manager.start_all()
+
+        await fake.inject_inbound(
+            Identity(platform="fake", external_id="user-1"), text="hi",
+        )
+
+        sends = [r for r in fake.outbox if r.kind == "send"]
+        assert len(sends) == 1
+        assert "not authorised" in sends[0].text.lower()
+
+    async def test_custom_unauthorized_reply_honored(
+        self, manager: ConnectorManager,
+    ) -> None:
+        from tank_backend.policy.connector_access import (
+            ConnectorAllowlistConfig,
+            ConnectorAllowlistPolicy,
+        )
+        from tank_backend.policy.verdict import AccessLevel
+
+        fake = FakeConnector("t")
+        manager.register(fake)
+        manager.set_allowlist_policy(
+            "t",
+            ConnectorAllowlistPolicy(
+                ConnectorAllowlistConfig(default=AccessLevel.DENY),
+                instance_name="t",
+            ),
+        )
+        manager.set_unauthorized_reply("t", "Sorry, this bot is private.")
+        await manager.start_all()
+
+        await fake.inject_inbound(
+            Identity(platform="fake", external_id="user-1"), text="hi",
+        )
+
+        sends = [r for r in fake.outbox if r.kind == "send"]
+        assert sends[0].text == "Sorry, this bot is private."
+
+    async def test_allowed_inbound_reaches_assistant_normally(
+        self, manager: ConnectorManager,
+    ) -> None:
+        from tank_backend.policy.connector_access import (
+            ConnectorAllowlistConfig,
+            ConnectorAllowlistPolicy,
+            ConnectorAllowRule,
+        )
+        from tank_backend.policy.verdict import AccessLevel
+
+        fake = FakeConnector("t")
+        manager.register(fake)
+        manager.set_allowlist_policy(
+            "t",
+            ConnectorAllowlistPolicy(
+                ConnectorAllowlistConfig(
+                    default=AccessLevel.DENY,
+                    rules=(
+                        ConnectorAllowRule(
+                            external_ids=("user-1",),
+                            policy=AccessLevel.ALLOW,
+                        ),
+                    ),
+                ),
+                instance_name="t",
+            ),
+        )
+        await manager.start_all()
+
+        await fake.inject_inbound(
+            Identity(platform="fake", external_id="user-1"), text="hello",
+        )
+
+        # Happy path: Assistant created, message delivered.
+        cm = manager._conn_mgr  # noqa: SLF001
+        assert len(cm.assistants) == 1
+        assistant = next(iter(cm.assistants.values()))
+        assert len(assistant.inputs) == 1
+        assert assistant.inputs[0]["text"] == "hello"
+
+    async def test_no_policy_registered_allows_everything(
+        self, manager: ConnectorManager,
+    ) -> None:
+        """Zero-config / pre-Phase-6 compatibility: an instance without
+        a registered allowlist policy behaves exactly as before."""
+        fake = FakeConnector("t")
+        manager.register(fake)
+        await manager.start_all()
+
+        await fake.inject_inbound(
+            Identity(platform="fake", external_id="anyone"), text="hi",
+        )
+
+        assert len(manager._conn_mgr.assistants) == 1  # noqa: SLF001
+
+    async def test_set_allowlist_for_unknown_instance_raises(
+        self, manager: ConnectorManager,
+    ) -> None:
+        from tank_backend.policy.connector_access import (
+            ConnectorAllowlistConfig,
+            ConnectorAllowlistPolicy,
+        )
+        with pytest.raises(KeyError):
+            manager.set_allowlist_policy(
+                "never-registered",
+                ConnectorAllowlistPolicy(
+                    ConnectorAllowlistConfig(),
+                    instance_name="never-registered",
+                ),
+            )
+
+    async def test_set_unauthorized_reply_for_unknown_instance_raises(
+        self, manager: ConnectorManager,
+    ) -> None:
+        with pytest.raises(KeyError):
+            manager.set_unauthorized_reply("never-registered", "text")

@@ -4,10 +4,13 @@ Uses aiogram 3's async Bot + Dispatcher. Long-polling runs as a
 background task spawned by :meth:`start`; graceful shutdown signals the
 poll loop and joins the task within a short timeout.
 
-Text and single-photo messages are supported in both directions.
-Voice notes, documents, stickers, and media groups still fall off the
-handlers and are silently ignored for now — see the plugin README for
-the full list of supported/unsupported message types.
+Supports text, single-photo, and voice-note messages in both
+directions. Voice I/O is gated per-instance on ``voice_in`` /
+``voice_out`` config flags — operators who want a text-only bot even
+when ASR/TTS are configured globally can opt out. Documents,
+stickers, and media groups still fall off the handlers and are
+silently ignored — see the plugin README for the full list of
+supported/unsupported message types.
 """
 
 from __future__ import annotations
@@ -53,6 +56,12 @@ _TELEGRAM_MAX_CAPTION_LENGTH = 1024
 # /api/upload boundary elsewhere in Tank.
 _MAX_PHOTO_BYTES = 25 * 1024 * 1024
 
+# Voice notes: Telegram's own cap is 20 MB on download; we match /api/upload's
+# 25 MB ceiling for consistency with photos. The duration cap prevents Tank
+# from waiting minutes on ASR for a fat clip.
+_MAX_VOICE_BYTES = 25 * 1024 * 1024
+_MAX_VOICE_DURATION_S = 120
+
 # Timeout for the polling task to drain cleanly on shutdown.
 _SHUTDOWN_TIMEOUT_S = 5.0
 
@@ -62,7 +71,14 @@ class TelegramConnector(Connector):
 
     platform = "telegram"
 
-    def __init__(self, *, instance_name: str, bot_token: str) -> None:
+    def __init__(
+        self,
+        *,
+        instance_name: str,
+        bot_token: str,
+        voice_in: bool = True,
+        voice_out: bool = True,
+    ) -> None:
         super().__init__(
             instance_name=instance_name,
             capabilities=ConnectorCapabilities(
@@ -71,10 +87,14 @@ class TelegramConnector(Connector):
                 max_message_length=_TELEGRAM_MAX_MESSAGE_LENGTH,
                 supports_images_in=True,
                 supports_images_out=True,
+                supports_voice_in=voice_in,
+                supports_voice_out=voice_out,
                 supports_typing_indicator=True,
             ),
         )
         self._token = bot_token
+        self._voice_in = voice_in
+        self._voice_out = voice_out
         self._bot: Bot | None = None
         self._dp: Dispatcher | None = None
         self._task: asyncio.Task | None = None
@@ -89,19 +109,26 @@ class TelegramConnector(Connector):
             default=DefaultBotProperties(parse_mode=None),
         )
         self._dp = Dispatcher()
-        # Register handlers in priority order. ``F.photo`` matches photo
-        # messages (with or without caption); ``F.text`` matches plain
-        # text-only messages. aiogram 3 dispatches to the first handler
-        # whose filter matches, so order here is safe — text and photo
-        # filters are mutually exclusive at the API level.
+        # Register handlers in priority order. aiogram 3 dispatches to
+        # the first handler whose filter matches, so order is stable —
+        # the filters (photo / voice / text) are mutually exclusive at
+        # the API level anyway. ``F.voice`` is only registered when the
+        # operator actually wants voice in, so a bot configured
+        # ``voice_in: false`` will silently drop voice notes (they fall
+        # off all handlers).
         self._dp.message.register(self._on_photo, F.photo)
+        if self._voice_in:
+            self._dp.message.register(self._on_voice, F.voice)
         self._dp.message.register(self._on_text, F.text)
         self._task = asyncio.create_task(
             self._run_polling(),
             name=f"telegram-poll-{self.instance_name}",
         )
         self._connected = True
-        logger.info("Telegram connector '%s' started", self.instance_name)
+        logger.info(
+            "Telegram connector '%s' started (voice_in=%s, voice_out=%s)",
+            self.instance_name, self._voice_in, self._voice_out,
+        )
 
     async def _run_polling(self) -> None:
         """Run long-polling and surface unexpected crashes.
@@ -184,16 +211,7 @@ class TelegramConnector(Connector):
             )
             return
 
-        display_name = ""
-        if message.from_user is not None:
-            display_name = message.from_user.full_name or ""
-
-        identity = Identity(
-            platform=self.platform,
-            external_id=f"tg:chat:{message.chat.id}",
-            display_name=display_name,
-            is_group=message.chat.type in ("group", "supergroup"),
-        )
+        identity = self._make_identity(message)
 
         reply_to_id: str | None = None
         if message.reply_to_message is not None:
@@ -295,16 +313,7 @@ class TelegramConnector(Connector):
         # to JPEG regardless of the user's original format.
         mime_type = "image/jpeg"
 
-        display_name = ""
-        if message.from_user is not None:
-            display_name = message.from_user.full_name or ""
-
-        identity = Identity(
-            platform=self.platform,
-            external_id=f"tg:chat:{message.chat.id}",
-            display_name=display_name,
-            is_group=message.chat.type in ("group", "supergroup"),
-        )
+        identity = self._make_identity(message)
 
         reply_to_id: str | None = None
         if message.reply_to_message is not None:
@@ -323,6 +332,117 @@ class TelegramConnector(Connector):
         except Exception:
             logger.exception(
                 "Telegram connector '%s': inbound handler raised on photo",
+                self.instance_name,
+            )
+
+    async def _on_voice(self, message: "Message") -> None:
+        """Handle an inbound voice note.
+
+        Telegram delivers voice notes as Ogg-encapsulated Opus at 48 kHz
+        mono — the format is fixed by the client and we don't need to
+        sniff the MIME. Rejects overlong or oversized clips at the edge
+        before paying for the download, so a user who taps-and-holds for
+        five minutes gets a fast "too long" reply instead of a silent
+        timeout.
+
+        Transcription itself happens in
+        :meth:`ConnectorManager._audio_to_text_block` — this handler just
+        packages the bytes as ``Attachment(kind="audio")`` and lets the
+        manager route them through the shared ``ASREngine``.
+        """
+        if self._on_message is None:
+            logger.debug(
+                "Telegram connector '%s': dropping inbound voice; "
+                "no handler registered",
+                self.instance_name,
+            )
+            return
+        if self._bot is None:
+            return
+        if message.voice is None:
+            return
+
+        voice = message.voice
+
+        # Duration is the cheapest reject — no bytes crossed the wire yet.
+        if voice.duration and voice.duration > _MAX_VOICE_DURATION_S:
+            with contextlib.suppress(TelegramAPIError):
+                await self._bot.send_message(
+                    chat_id=message.chat.id,
+                    text=(
+                        f"That voice note is too long — please keep it "
+                        f"under {_MAX_VOICE_DURATION_S // 60} minutes."
+                    ),
+                )
+            return
+
+        if voice.file_size and voice.file_size > _MAX_VOICE_BYTES:
+            with contextlib.suppress(TelegramAPIError):
+                await self._bot.send_message(
+                    chat_id=message.chat.id,
+                    text="That voice note is too large — please send a shorter one.",
+                )
+            return
+
+        try:
+            buf = await self._bot.download(voice)
+        except TelegramAPIError:
+            logger.exception(
+                "Telegram connector '%s': voice download failed in chat %s",
+                self.instance_name, message.chat.id,
+            )
+            return
+        except Exception:
+            logger.exception(
+                "Telegram connector '%s': unexpected error downloading voice",
+                self.instance_name,
+            )
+            return
+
+        if buf is None:
+            logger.debug(
+                "Telegram connector '%s': voice download returned no buffer",
+                self.instance_name,
+            )
+            return
+
+        try:
+            with contextlib.suppress(Exception):
+                buf.seek(0)
+            data = buf.read()
+        except Exception:
+            logger.exception(
+                "Telegram connector '%s': voice buffer read failed",
+                self.instance_name,
+            )
+            return
+        finally:
+            with contextlib.suppress(Exception):
+                buf.close()
+
+        if not data:
+            return
+
+        identity = self._make_identity(message)
+
+        reply_to_id: str | None = None
+        if message.reply_to_message is not None:
+            reply_to_id = str(message.reply_to_message.message_id)
+
+        # Telegram voice notes are always Ogg/Opus — no sniffing needed.
+        event = MessageEvent(
+            identity=identity,
+            text="",
+            attachments=(
+                Attachment(kind="audio", data=data, mime_type="audio/ogg"),
+            ),
+            reply_to_message_id=reply_to_id,
+        )
+        try:
+            await self._on_message(event)
+        except Exception:
+            logger.exception(
+                "Telegram connector '%s': inbound handler raised on voice",
                 self.instance_name,
             )
 
@@ -476,6 +596,60 @@ class TelegramConnector(Connector):
 
         return SendResult(ok=True, message_id=message_id)
 
+    async def send_voice(
+        self,
+        identity: Identity,
+        data: bytes,
+        *,
+        mime_type: str = "audio/ogg",
+        caption: str = "",
+    ) -> SendResult:
+        """Send an Ogg/Opus voice note.
+
+        Telegram expects Ogg-encapsulated Opus — our
+        :mod:`~tank_backend.connectors.voice_bridge` encoder produces
+        exactly that shape, so the dispatcher can hand us raw bytes.
+        ``voice_out=False`` on this instance short-circuits with a
+        ``"disabled"`` error so the upstream dispatcher logs and skips
+        without burning an HTTP round-trip.
+
+        ``caption`` is silently truncated to Telegram's 1024-char limit
+        (matching the photo path) — ffmpeg errors on long captions are
+        more confusing than a trimmed-with-ellipsis message.
+        """
+        if self._bot is None:
+            return SendResult(ok=False, error="not connected")
+        if not self._voice_out:
+            return SendResult(ok=False, error="disabled:voice_out=false")
+        try:
+            chat_id = self._parse_chat_id(identity.external_id)
+        except ValueError as e:
+            return SendResult(ok=False, error=f"bad_identity:{e}")
+        if not data:
+            return SendResult(ok=False, error="empty_payload")
+
+        send_caption: str | None = None
+        if caption:
+            send_caption = (
+                caption
+                if len(caption) <= _TELEGRAM_MAX_CAPTION_LENGTH
+                else caption[: _TELEGRAM_MAX_CAPTION_LENGTH - 1] + "…"
+            )
+
+        voice_file = BufferedInputFile(data, filename="voice.ogg")
+        try:
+            msg = await self._bot.send_voice(
+                chat_id=chat_id,
+                voice=voice_file,
+                caption=send_caption,
+            )
+        except TelegramRetryAfter as e:
+            return SendResult(ok=False, error=f"rate_limited:{e.retry_after}")
+        except TelegramAPIError as e:
+            return SendResult(ok=False, error=f"telegram:{e}")
+
+        return SendResult(ok=True, message_id=str(msg.message_id))
+
     async def send_typing(self, identity: Identity) -> None:
         if self._bot is None:
             return
@@ -489,13 +663,60 @@ class TelegramConnector(Connector):
 
     # ── Helpers ────────────────────────────────────────────────────
 
+    def _make_identity(self, message: "Message") -> Identity:
+        """Build an :class:`Identity` from an inbound Telegram ``Message``.
+
+        DMs emit ``tg:user:{user_id}`` so allowlists can match individual
+        people regardless of which 1:1 chat the ``chat_id`` happens to
+        represent. Groups and channels emit ``tg:chat:{chat_id}`` — the
+        chat itself is the allowlist unit, not any particular member.
+
+        :attr:`Identity.metadata` stashes both raw ids so downstream
+        audit / debugging can cross-reference without re-parsing the
+        external_id string.
+        """
+        display_name = ""
+        if message.from_user is not None:
+            display_name = message.from_user.full_name or ""
+
+        chat = message.chat
+        chat_id: int = chat.id
+        user_id: int | None = (
+            message.from_user.id if message.from_user is not None else None
+        )
+        is_group = chat.type in ("group", "supergroup", "channel")
+
+        if is_group:
+            external_id = f"tg:chat:{chat_id}"
+        else:
+            # DMs: prefer the user id (equals chat_id but is the more
+            # semantically-meaningful key) and fall back to chat_id only
+            # when from_user is missing — which shouldn't happen in real
+            # Telegram traffic, but defensive coding costs nothing here.
+            external_id = f"tg:user:{user_id if user_id is not None else chat_id}"
+
+        return Identity(
+            platform=self.platform,
+            external_id=external_id,
+            display_name=display_name,
+            is_group=is_group,
+            metadata={
+                "chat_id": chat_id,
+                "user_id": user_id,
+                "chat_type": chat.type,
+            },
+        )
+
     @staticmethod
     def _parse_chat_id(external_id: str) -> int:
-        """Parse ``"tg:chat:<id>"`` → ``<id>`` as int.
+        """Parse ``"tg:chat:<id>"`` or ``"tg:user:<id>"`` → ``<id>`` as int.
 
-        Raises ``ValueError`` for any format that doesn't match — the
-        connector framework should never produce one, but defensive
-        parsing protects against a bad identity slipping through.
+        Both inbound prefixes are accepted for outbound operations —
+        Telegram's ``send_message`` takes the same chat_id regardless of
+        whether it was a DM or a group. Raises ``ValueError`` for any
+        format that doesn't match — the connector framework should never
+        produce one, but defensive parsing protects against a bad
+        identity slipping through.
         """
         _, sep, raw = external_id.rpartition(":")
         if not sep or not raw:
@@ -504,5 +725,5 @@ class TelegramConnector(Connector):
             return int(raw)
         except ValueError as e:
             raise ValueError(
-                f"telegram identity has non-numeric chat id: {external_id!r}"
+                f"telegram identity has non-numeric id: {external_id!r}"
             ) from e

@@ -581,6 +581,22 @@ class Brain(Processor):
                 ),
             ))
 
+            # Surface the completed reply text to any transport that wants
+            # to synthesize voice (e.g. Telegram connector sending a voice
+            # message alongside the streamed text). No-op when no subscriber
+            # is attached — bus events with no handlers are dropped on next
+            # poll.
+            if full_response_text.strip():
+                self._bus.post(BusMessage(
+                    type="outbound_voice",
+                    source=self.name,
+                    payload={
+                        "msg_id": msg_id,
+                        "text": full_response_text,
+                        "language": language,
+                    },
+                ))
+
             if full_response_text:
                 turn_messages = state.metadata.get("turn_messages", [])
                 self._finish_turn(turn_messages)

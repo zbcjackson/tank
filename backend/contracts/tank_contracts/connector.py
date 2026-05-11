@@ -225,6 +225,28 @@ class Connector(ABC):
         ``capabilities.supports_typing_indicator=True`` SHOULD override.
         """
 
+    async def send_voice(
+        self,
+        identity: Identity,
+        data: bytes,
+        *,
+        mime_type: str = "audio/ogg",
+        caption: str = "",
+    ) -> SendResult:
+        """Send a voice message.
+
+        ``data`` is the fully-encoded audio file payload in the format
+        the platform expects (Telegram wants Ogg/Opus; others will vary
+        when their connectors arrive). Caption, when supported by the
+        platform, rides alongside the audio; connectors that don't
+        support captions on voice messages ignore it.
+
+        Default implementation reports the feature as unsupported.
+        Connectors with ``capabilities.supports_voice_out=True`` MUST
+        override this.
+        """
+        return SendResult(ok=False, error="voice not supported by this connector")
+
     # ── Inbound handler registration ─────────────────────────────────
 
     def set_message_handler(self, handler: MessageHandler) -> None:

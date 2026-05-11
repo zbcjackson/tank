@@ -320,3 +320,75 @@ class TestPhase2E2E:
 
         # Both replies landed as sends.
         assert [s.text for s in fake.sends()] == ["hello", "goodbye"]
+
+
+class TestPhase6AllowlistE2E:
+    """Verify the allowlist gate rejects *before* SessionMapper runs —
+    no identity row, no channel auto-create, no Assistant spawn."""
+
+    async def test_denied_inbound_creates_no_identity_row(self, e2e) -> None:
+        from tank_backend.policy.connector_access import (
+            ConnectorAllowlistConfig,
+            ConnectorAllowlistPolicy,
+        )
+        from tank_backend.policy.verdict import AccessLevel
+
+        manager, conn_mgr, channel_store, identity_store = e2e
+        fake = FakeConnector("e2e")
+        manager.register(fake)
+        manager.set_allowlist_policy(
+            "e2e",
+            ConnectorAllowlistPolicy(
+                ConnectorAllowlistConfig(default=AccessLevel.DENY),
+                instance_name="e2e",
+            ),
+        )
+        await manager.start_all()
+
+        identity = Identity(platform="fake", external_id="stranger-1")
+        await fake.inject_inbound(identity, text="hi")
+
+        # No identity row, no channel, no Assistant — all proof that the
+        # gate rejected before SessionMapper.resolve().
+        assert identity_store.get("fake", "stranger-1") is None
+        assert conn_mgr.assistants == {}
+        # Polite reply was still sent so the user knows what happened.
+        sends = [r for r in fake.outbox if r.kind == "send"]
+        assert len(sends) == 1
+        assert "not authorised" in sends[0].text.lower()
+
+    async def test_allowed_inbound_still_creates_identity_row(self, e2e) -> None:
+        from tank_backend.policy.connector_access import (
+            ConnectorAllowlistConfig,
+            ConnectorAllowlistPolicy,
+            ConnectorAllowRule,
+        )
+        from tank_backend.policy.verdict import AccessLevel
+
+        manager, conn_mgr, channel_store, identity_store = e2e
+        fake = FakeConnector("e2e")
+        manager.register(fake)
+        manager.set_allowlist_policy(
+            "e2e",
+            ConnectorAllowlistPolicy(
+                ConnectorAllowlistConfig(
+                    default=AccessLevel.DENY,
+                    rules=(
+                        ConnectorAllowRule(
+                            external_ids=("friend-*",),
+                            policy=AccessLevel.ALLOW,
+                        ),
+                    ),
+                ),
+                instance_name="e2e",
+            ),
+        )
+        await manager.start_all()
+
+        identity = Identity(platform="fake", external_id="friend-1")
+        await fake.inject_inbound(identity, text="hi")
+
+        # Allowed path: identity row and Assistant both exist.
+        record = identity_store.get("fake", "friend-1")
+        assert record is not None
+        assert len(conn_mgr.assistants) == 1

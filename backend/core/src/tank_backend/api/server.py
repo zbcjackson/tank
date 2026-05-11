@@ -237,6 +237,10 @@ def _init_connectors(
         SessionMapper,
     )
     from ..connectors.base import Connector
+    from ..policy.connector_access import (
+        ConnectorAllowlistPolicy,
+        parse_allowlist,
+    )
 
     identity_store = ConnectorIdentityStore(database)
     session_mapper = SessionMapper(
@@ -277,6 +281,31 @@ def _init_connectors(
             continue
 
         manager.register(connector)
+
+        # Phase 6: attach per-instance allowlist policy if configured.
+        # Missing ``allowlist`` key → allow-all (pre-Phase-6 behaviour);
+        # malformed ``allowlist`` raises ConfigError at parse time so
+        # operators fail fast at startup rather than silently letting
+        # everyone through (or locking everyone out).
+        #
+        # Decisions are still logged at INFO level via the manager's
+        # ``_on_inbound`` path — a proper audit Bus for connector-level
+        # decisions is deferred until the audit subsystem grows an
+        # app-scoped Bus (today's Bus is per-Assistant).
+        allowlist_cfg = inst.config.get("allowlist")
+        if allowlist_cfg:
+            parsed = parse_allowlist(
+                allowlist_cfg, instance_name=inst.instance,
+            )
+            policy = ConnectorAllowlistPolicy(
+                parsed,
+                instance_name=inst.instance,
+            )
+            manager.set_allowlist_policy(inst.instance, policy)
+
+        unauthorized_reply = inst.config.get("unauthorized_reply")
+        if isinstance(unauthorized_reply, str) and unauthorized_reply.strip():
+            manager.set_unauthorized_reply(inst.instance, unauthorized_reply)
 
     return manager
 

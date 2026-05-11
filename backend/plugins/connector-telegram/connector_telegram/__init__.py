@@ -14,8 +14,19 @@ def create_connector(spec: dict) -> TelegramConnector:
 
         {
             "instance": <instance name, e.g. "my-telegram-bot">,
-            "config":   {"bot_token": "..."},
+            "config":   {
+                "bot_token": "...",
+                "voice_in": true,   # optional; default true
+                "voice_out": true,  # optional; default true
+            },
         }
+
+    ``voice_in`` / ``voice_out`` are wired through to the connector's
+    capabilities and handler registration. Disabling either doesn't
+    affect ASR/TTS availability in AppContext — it just means this
+    particular connector instance won't touch voice, which is useful
+    for operators who want a text-only Telegram bot even though the
+    rest of Tank has voice configured.
     """
     instance_name = spec.get("instance", "")
     cfg = spec.get("config", {}) or {}
@@ -33,9 +44,14 @@ def create_connector(spec: dict) -> TelegramConnector:
             "reference it as ${TELEGRAM_BOT_TOKEN} in config.yaml)"
         )
 
+    voice_in = bool(cfg.get("voice_in", True))
+    voice_out = bool(cfg.get("voice_out", True))
+
     return TelegramConnector(
         instance_name=instance_name or "telegram",
         bot_token=bot_token,
+        voice_in=voice_in,
+        voice_out=voice_out,
     )
 
 

@@ -333,3 +333,11 @@ connectors:
     extension: connector-telegram:connector
     config:
       bot_token: ${TELEGRAM_BOT_TOKEN}
+      allowlist:
+        default: deny              # "allow" (default) or "deny"
+        rules:
+          - external_ids: [ "tg:user:6081184568" ]
+            policy: allow
+            reason: "me"
+      unauthorized_reply: |
+        Sorry, this bot is invite-only.

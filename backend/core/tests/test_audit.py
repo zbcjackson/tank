@@ -29,9 +29,13 @@ class TestAuditLogger:
         logger = AuditLogger(AuditConfig(log_path=audit_path, enabled=True))
         bus = MagicMock()
         logger.subscribe(bus)
-        assert bus.subscribe.call_count == 2
+        assert bus.subscribe.call_count == 3
         types = {call.args[0] for call in bus.subscribe.call_args_list}
-        assert types == {"file_access_decision", "network_access_decision"}
+        assert types == {
+            "file_access_decision",
+            "network_access_decision",
+            "connector_access_decision",
+        }
 
     def test_on_file_decision_writes_jsonl(self, audit_path: str):
         logger = AuditLogger(AuditConfig(log_path=audit_path, enabled=True))
@@ -110,3 +114,79 @@ class TestAuditLogger:
         msg.payload = {"operation": "read", "path": "/x", "level": "allow", "reason": "test"}
         logger._on_file_decision(msg)
         assert Path(deep_path).exists()
+
+    def test_on_connector_decision_writes_jsonl(self, audit_path: str):
+        """Connector allowlist decisions share the JSONL schema with
+        file/network entries — unified grep-ability for operators."""
+        from tank_backend.policy.verdict import AccessLevel, PolicyVerdict
+
+        logger = AuditLogger(AuditConfig(log_path=audit_path, enabled=True))
+        verdict = PolicyVerdict(
+            level=AccessLevel.DENY,
+            reason="no matching rule; using default",
+            policy="connector_access",
+            context={
+                "connector": "my-bot",
+                "platform": "telegram",
+                "external_id": "tg:user:99",
+                "display_name": "Stranger",
+            },
+        )
+        msg = MagicMock()
+        msg.payload = {"verdict": verdict}
+
+        logger._on_connector_decision(msg)
+
+        lines = Path(audit_path).read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 1
+        entry = json.loads(lines[0])
+        assert entry["category"] == "connector"
+        assert entry["operation"] == "inbound"
+        assert entry["target"] == "tg:user:99"
+        assert entry["decision"] == "deny"
+        assert entry["connector"] == "my-bot"
+        assert entry["platform"] == "telegram"
+        assert entry["display_name"] == "Stranger"
+        assert "timestamp" in entry
+
+    def test_on_connector_decision_records_matched_pattern(
+        self, audit_path: str,
+    ):
+        """Allow entries carry the glob pattern that matched — useful
+        for debugging 'why did this user get through?' questions."""
+        from tank_backend.policy.verdict import AccessLevel, PolicyVerdict
+
+        logger = AuditLogger(AuditConfig(log_path=audit_path, enabled=True))
+        verdict = PolicyVerdict(
+            level=AccessLevel.ALLOW,
+            reason="team",
+            policy="connector_access",
+            context={
+                "connector": "my-bot",
+                "platform": "telegram",
+                "external_id": "tg:user:42",
+                "display_name": "Alice",
+                "matched_pattern": "tg:user:*",
+            },
+        )
+        msg = MagicMock()
+        msg.payload = {"verdict": verdict}
+        logger._on_connector_decision(msg)
+
+        entry = json.loads(Path(audit_path).read_text(encoding="utf-8").splitlines()[0])
+        assert entry["matched_pattern"] == "tg:user:*"
+        assert entry["decision"] == "allow"
+
+    def test_on_connector_decision_tolerates_missing_verdict(
+        self, audit_path: str,
+    ):
+        """Malformed payload must not crash the Bus loop — AuditLogger
+        silently skips entries it can't parse."""
+        logger = AuditLogger(AuditConfig(log_path=audit_path, enabled=True))
+        msg = MagicMock()
+        msg.payload = {}  # no "verdict" key
+
+        logger._on_connector_decision(msg)
+
+        # No file written, no exception.
+        assert not Path(audit_path).exists()

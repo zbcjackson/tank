@@ -83,9 +83,25 @@ class TestCapabilities:
         # Phase-4: photo support in both directions.
         assert caps.supports_images_in is True
         assert caps.supports_images_out is True
-        # Voice still pending.
-        assert caps.supports_voice_in is False
-        assert caps.supports_voice_out is False
+        # Phase-5: voice support defaults on (ASR/TTS gated at the
+        # manager layer via AppContext; instance flag can opt out).
+        assert caps.supports_voice_in is True
+        assert caps.supports_voice_out is True
+
+    def test_voice_in_can_be_disabled_per_instance(self) -> None:
+        c = TelegramConnector(
+            instance_name="t", bot_token="x", voice_in=False,
+        )
+        assert c.capabilities.supports_voice_in is False
+        # Voice-out is independent — still on by default.
+        assert c.capabilities.supports_voice_out is True
+
+    def test_voice_out_can_be_disabled_per_instance(self) -> None:
+        c = TelegramConnector(
+            instance_name="t", bot_token="x", voice_out=False,
+        )
+        assert c.capabilities.supports_voice_out is False
+        assert c.capabilities.supports_voice_in is True
 
 
 # ---------------------------------------------------------------------------
@@ -144,11 +160,24 @@ class TestLifecycle:
             assert c.connected
             aiogram_mocks.bot_cls.assert_called_once()
             aiogram_mocks.dp_cls.assert_called_once()
-            # One handler for photos, one for text.
-            assert aiogram_mocks.mocks.dp.message.register.call_count == 2
+            # Phase-5 defaults: photo, voice, and text handlers.
+            assert aiogram_mocks.mocks.dp.message.register.call_count == 3
             # Polling task was spawned.
             assert c._task is not None  # noqa: SLF001
             assert not c._task.done()  # noqa: SLF001
+        finally:
+            await c.stop()
+
+    async def test_voice_in_false_skips_voice_handler(
+        self, aiogram_mocks,
+    ) -> None:
+        c = TelegramConnector(
+            instance_name="t", bot_token="tok", voice_in=False,
+        )
+        await c.start()
+        try:
+            # Only photo + text — no voice handler when opted out.
+            assert aiogram_mocks.mocks.dp.message.register.call_count == 2
         finally:
             await c.stop()
 
@@ -226,9 +255,15 @@ def _make_mock_message(
     chat_type: str = "private",
     text: str = "",
     user_full_name: str | None = "Alice",
+    user_id: int | None = None,
     reply_to_message_id: int | None = None,
 ):
-    """Build a minimal MagicMock looking like ``aiogram.types.Message``."""
+    """Build a minimal MagicMock looking like ``aiogram.types.Message``.
+
+    In private chats Telegram guarantees ``chat_id == from_user.id`` —
+    the helper mirrors that convention by defaulting ``user_id`` to
+    ``chat_id`` when not supplied, so DM tests don't have to pass both.
+    """
     chat = MagicMock()
     chat.id = chat_id
     chat.type = chat_type
@@ -237,6 +272,7 @@ def _make_mock_message(
     if user_full_name is not None:
         from_user = MagicMock()
         from_user.full_name = user_full_name
+        from_user.id = user_id if user_id is not None else chat_id
 
     reply_to = None
     if reply_to_message_id is not None:
@@ -273,9 +309,14 @@ class TestInboundTranslation:
         event = received[0]
         assert event.text == "hello tank"
         assert event.identity.platform == "telegram"
-        assert event.identity.external_id == "tg:chat:12345"
+        # DMs emit tg:user:* so allowlists can match individual users.
+        assert event.identity.external_id == "tg:user:12345"
         assert event.identity.display_name == "Alice"
         assert event.identity.is_group is False
+        # Metadata carries both raw ids for audit / cross-referencing.
+        assert event.identity.metadata["chat_id"] == 12345
+        assert event.identity.metadata["user_id"] == 12345
+        assert event.identity.metadata["chat_type"] == "private"
 
     async def test_group_chat_sets_is_group_true(self) -> None:
         c = TelegramConnector(instance_name="t", bot_token="tok")
@@ -569,6 +610,7 @@ def _make_mock_photo_message(
     chat_type: str = "private",
     caption: str = "",
     user_full_name: str | None = "Alice",
+    user_id: int | None = None,
     reply_to_message_id: int | None = None,
     photo_sizes: list[tuple[int, int, int]] | None = None,
     largest_file_size: int | None = None,
@@ -578,6 +620,10 @@ def _make_mock_photo_message(
     ``photo_sizes`` is a list of ``(width, height, file_size)`` tuples
     representing successive :class:`PhotoSize` entries — the last one is
     the largest, matching Telegram's convention.
+
+    In private chats Telegram guarantees ``chat_id == from_user.id`` —
+    the helper defaults ``user_id`` to ``chat_id`` so DM tests don't
+    have to pass both.
     """
     chat = MagicMock()
     chat.id = chat_id
@@ -587,6 +633,7 @@ def _make_mock_photo_message(
     if user_full_name is not None:
         from_user = MagicMock()
         from_user.full_name = user_full_name
+        from_user.id = user_id if user_id is not None else chat_id
 
     reply_to = None
     if reply_to_message_id is not None:
@@ -639,7 +686,8 @@ class TestPhotoInbound:
         assert len(received) == 1
         event = received[0]
         assert event.text == "what is this?"
-        assert event.identity.external_id == "tg:chat:12345"
+        # DMs emit tg:user:* (Phase 6); groups still emit tg:chat:*.
+        assert event.identity.external_id == "tg:user:12345"
         assert event.identity.display_name == "Alice"
         assert len(event.attachments) == 1
         att = event.attachments[0]
@@ -890,3 +938,356 @@ class TestPhotoOutbound:
 
         started_connector._bot.send_message.assert_awaited_once()  # noqa: SLF001
         started_connector._bot.send_photo.assert_not_awaited()  # noqa: SLF001
+
+
+# ---------------------------------------------------------------------------
+# Voice inbound
+# ---------------------------------------------------------------------------
+
+
+def _make_mock_voice_message(
+    *,
+    chat_id: int,
+    chat_type: str = "private",
+    user_full_name: str | None = "Alice",
+    user_id: int | None = None,
+    reply_to_message_id: int | None = None,
+    duration: int = 3,
+    file_size: int | None = 4096,
+    mime_type: str = "audio/ogg",
+):
+    """Minimal MagicMock mirroring a Telegram voice ``Message``.
+
+    In private chats Telegram guarantees ``chat_id == from_user.id`` —
+    the helper defaults ``user_id`` to ``chat_id`` so DM tests don't
+    have to pass both.
+    """
+    chat = MagicMock()
+    chat.id = chat_id
+    chat.type = chat_type
+
+    from_user = None
+    if user_full_name is not None:
+        from_user = MagicMock()
+        from_user.full_name = user_full_name
+        from_user.id = user_id if user_id is not None else chat_id
+
+    reply_to = None
+    if reply_to_message_id is not None:
+        reply_to = MagicMock()
+        reply_to.message_id = reply_to_message_id
+
+    voice = MagicMock()
+    voice.duration = duration
+    voice.file_size = file_size
+    voice.mime_type = mime_type
+
+    message = MagicMock()
+    message.chat = chat
+    message.voice = voice
+    # Voice messages don't carry text or caption by default.
+    message.text = None
+    message.caption = None
+    message.photo = None
+    message.from_user = from_user
+    message.reply_to_message = reply_to
+    return message
+
+
+class TestInboundVoice:
+    async def test_voice_emits_message_event_with_audio_attachment(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock(return_value=BytesIO(b"OggS_bytes"))  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+
+        async def handler(event: MessageEvent) -> None:
+            received.append(event)
+
+        c.set_message_handler(handler)
+
+        msg = _make_mock_voice_message(chat_id=42, duration=5)
+        await c._on_voice(msg)  # noqa: SLF001
+
+        assert len(received) == 1
+        event = received[0]
+        # Phase 6: DMs emit tg:user:*; groups continue to emit tg:chat:*.
+        assert event.identity.external_id == "tg:user:42"
+        assert event.identity.is_group is False
+        assert event.text == ""
+        assert len(event.attachments) == 1
+        att = event.attachments[0]
+        assert att.kind == "audio"
+        assert att.data == b"OggS_bytes"
+        assert att.mime_type == "audio/ogg"
+
+    async def test_voice_in_supergroup_sets_is_group(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock(return_value=BytesIO(b"bytes"))  # noqa: SLF001
+        received: list[MessageEvent] = []
+        c.set_message_handler(lambda e: received.append(e) or asyncio.sleep(0))
+
+        msg = _make_mock_voice_message(
+            chat_id=-1001234567, chat_type="supergroup",
+        )
+        await c._on_voice(msg)  # noqa: SLF001
+
+        assert received[0].identity.is_group is True
+
+    async def test_voice_reply_to_is_stringified(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock(return_value=BytesIO(b"bytes"))  # noqa: SLF001
+        received: list[MessageEvent] = []
+
+        async def handler(e):
+            received.append(e)
+
+        c.set_message_handler(handler)
+
+        msg = _make_mock_voice_message(chat_id=1, reply_to_message_id=99)
+        await c._on_voice(msg)  # noqa: SLF001
+
+        assert received[0].reply_to_message_id == "99"
+
+    async def test_overlong_voice_rejected_before_download(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock()  # noqa: SLF001
+        c._bot.send_message = AsyncMock()  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+        c.set_message_handler(lambda e: received.append(e))
+
+        # 3 minutes — over the 2-minute cap.
+        msg = _make_mock_voice_message(chat_id=7, duration=180)
+        await c._on_voice(msg)  # noqa: SLF001
+
+        c._bot.download.assert_not_awaited()  # noqa: SLF001
+        c._bot.send_message.assert_awaited_once()  # noqa: SLF001
+        reply_text = c._bot.send_message.call_args.kwargs["text"]  # noqa: SLF001
+        assert "too long" in reply_text.lower()
+        assert received == []
+
+    async def test_oversize_voice_rejected_before_download(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock()  # noqa: SLF001
+        c._bot.send_message = AsyncMock()  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+        c.set_message_handler(lambda e: received.append(e))
+
+        msg = _make_mock_voice_message(
+            chat_id=7, duration=5, file_size=30 * 1024 * 1024,
+        )
+        await c._on_voice(msg)  # noqa: SLF001
+
+        c._bot.download.assert_not_awaited()  # noqa: SLF001
+        c._bot.send_message.assert_awaited_once()  # noqa: SLF001
+        assert "too large" in c._bot.send_message.call_args.kwargs["text"].lower()  # noqa: SLF001
+        assert received == []
+
+    async def test_download_failure_drops_silently(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock(  # noqa: SLF001
+            side_effect=TelegramAPIError(method=MagicMock(), message="gone"),
+        )
+
+        received: list[MessageEvent] = []
+        c.set_message_handler(lambda e: received.append(e))
+
+        msg = _make_mock_voice_message(chat_id=1)
+        await c._on_voice(msg)  # noqa: SLF001
+
+        assert received == []
+
+    async def test_no_handler_registered_drops_silently(self) -> None:
+        """Defence-in-depth: voice delivered before ConnectorManager wires
+        a handler must not explode."""
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock(return_value=BytesIO(b"data"))  # noqa: SLF001
+
+        msg = _make_mock_voice_message(chat_id=1)
+        # Should not raise.
+        await c._on_voice(msg)  # noqa: SLF001
+
+        # Download is skipped because `_on_message` is None; the early
+        # return happens before download.
+        c._bot.download.assert_not_awaited()  # noqa: SLF001
+
+
+# ---------------------------------------------------------------------------
+# Voice outbound — send_voice
+# ---------------------------------------------------------------------------
+
+
+class TestSendVoice:
+    async def test_happy_path_sends_ogg(self, started_connector) -> None:
+        sent = MagicMock()
+        sent.message_id = 77
+        started_connector._bot.send_voice = AsyncMock(return_value=sent)  # noqa: SLF001
+
+        result = await started_connector.send_voice(
+            _identity(42), b"OggSAAAbytes",
+        )
+
+        assert result.ok is True
+        assert result.message_id == "77"
+        kwargs = started_connector._bot.send_voice.call_args.kwargs  # noqa: SLF001
+        assert kwargs["chat_id"] == 42
+        # voice is wrapped in BufferedInputFile
+        from aiogram.types import BufferedInputFile as _BIF
+        assert isinstance(kwargs["voice"], _BIF)
+
+    async def test_voice_out_disabled_short_circuits(self) -> None:
+        c = TelegramConnector(
+            instance_name="t", bot_token="tok", voice_out=False,
+        )
+        c._bot = MagicMock()  # noqa: SLF001
+        c._connected = True  # noqa: SLF001
+        c._bot.send_voice = AsyncMock()  # noqa: SLF001
+
+        result = await c.send_voice(_identity(), b"bytes")
+
+        assert result.ok is False
+        assert result.error == "disabled:voice_out=false"
+        c._bot.send_voice.assert_not_awaited()  # noqa: SLF001
+
+    async def test_not_connected_returns_error(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        # _bot is None (never started)
+        result = await c.send_voice(_identity(), b"bytes")
+        assert result.ok is False
+        assert result.error == "not connected"
+
+    async def test_empty_payload_rejected(self, started_connector) -> None:
+        started_connector._bot.send_voice = AsyncMock()  # noqa: SLF001
+        result = await started_connector.send_voice(_identity(), b"")
+        assert result.ok is False
+        assert result.error == "empty_payload"
+        started_connector._bot.send_voice.assert_not_awaited()  # noqa: SLF001
+
+    async def test_bad_identity_returns_error(self, started_connector) -> None:
+        started_connector._bot.send_voice = AsyncMock()  # noqa: SLF001
+        bad = Identity(platform="telegram", external_id="not-a-chat-id")
+        result = await started_connector.send_voice(bad, b"bytes")
+        assert result.ok is False
+        assert result.error is not None
+        assert result.error.startswith("bad_identity:")
+
+    async def test_caption_truncated_to_1024(self, started_connector) -> None:
+        sent = MagicMock()
+        sent.message_id = 1
+        started_connector._bot.send_voice = AsyncMock(return_value=sent)  # noqa: SLF001
+
+        long_caption = "x" * 2000
+        await started_connector.send_voice(
+            _identity(), b"bytes", caption=long_caption,
+        )
+
+        kwargs = started_connector._bot.send_voice.call_args.kwargs  # noqa: SLF001
+        assert kwargs["caption"] is not None
+        assert len(kwargs["caption"]) == 1024
+        assert kwargs["caption"].endswith("…")
+
+    async def test_rate_limit_returns_retry_after(
+        self, started_connector,
+    ) -> None:
+        started_connector._bot.send_voice = AsyncMock(  # noqa: SLF001
+            side_effect=TelegramRetryAfter(
+                method=MagicMock(),
+                message="Too Many Requests: retry after 5",
+                retry_after=5,
+            ),
+        )
+
+        result = await started_connector.send_voice(_identity(), b"bytes")
+
+        assert result.ok is False
+        assert result.error == "rate_limited:5"
+
+    async def test_generic_telegram_error_returns_error(
+        self, started_connector,
+    ) -> None:
+        started_connector._bot.send_voice = AsyncMock(  # noqa: SLF001
+            side_effect=TelegramAPIError(method=MagicMock(), message="boom"),
+        )
+        result = await started_connector.send_voice(_identity(), b"bytes")
+        assert result.ok is False
+        assert result.error is not None
+        assert result.error.startswith("telegram:")
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — identity format split (DM → tg:user:*; group → tg:chat:*)
+# ---------------------------------------------------------------------------
+
+
+class TestIdentityFormat:
+    """Pin the Phase-6 contract: DMs key on the user, groups key on the
+    chat. The metadata dict carries both ids so downstream audit and
+    debugging can cross-reference without re-parsing strings."""
+
+    async def test_dm_emits_tg_user_prefix(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        received: list[MessageEvent] = []
+        c.set_message_handler(lambda e: received.append(e) or asyncio.sleep(0))
+
+        msg = _make_mock_message(chat_id=42, text="hi")
+        await c._on_text(msg)  # noqa: SLF001
+
+        assert received[0].identity.external_id == "tg:user:42"
+        assert received[0].identity.is_group is False
+        assert received[0].identity.metadata["chat_id"] == 42
+        assert received[0].identity.metadata["user_id"] == 42
+        assert received[0].identity.metadata["chat_type"] == "private"
+
+    async def test_group_still_emits_tg_chat_prefix(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        received: list[MessageEvent] = []
+        c.set_message_handler(lambda e: received.append(e) or asyncio.sleep(0))
+
+        msg = _make_mock_message(
+            chat_id=-1001234567,
+            chat_type="supergroup",
+            text="hi team",
+            user_id=99,  # the user in the group — ≠ chat_id
+        )
+        await c._on_text(msg)  # noqa: SLF001
+
+        assert received[0].identity.external_id == "tg:chat:-1001234567"
+        assert received[0].identity.is_group is True
+        assert received[0].identity.metadata["chat_id"] == -1001234567
+        assert received[0].identity.metadata["user_id"] == 99
+        assert received[0].identity.metadata["chat_type"] == "supergroup"
+
+    async def test_channel_is_treated_as_group(self) -> None:
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        received: list[MessageEvent] = []
+        c.set_message_handler(lambda e: received.append(e) or asyncio.sleep(0))
+
+        msg = _make_mock_message(
+            chat_id=-1009999999,
+            chat_type="channel",
+            text="broadcast",
+            user_full_name=None,  # channels often post without a from_user
+        )
+        await c._on_text(msg)  # noqa: SLF001
+
+        assert received[0].identity.external_id == "tg:chat:-1009999999"
+        assert received[0].identity.is_group is True
+
+    async def test_parse_chat_id_accepts_both_prefixes(self) -> None:
+        """``_parse_chat_id`` is used on outbound for all identities —
+        it must strip either DM or group prefix to the numeric id
+        Telegram's ``send_message`` needs."""
+        assert TelegramConnector._parse_chat_id("tg:user:42") == 42  # noqa: SLF001
+        assert TelegramConnector._parse_chat_id("tg:chat:12345") == 12345  # noqa: SLF001
+        assert TelegramConnector._parse_chat_id(  # noqa: SLF001
+            "tg:chat:-1001234567",
+        ) == -1001234567

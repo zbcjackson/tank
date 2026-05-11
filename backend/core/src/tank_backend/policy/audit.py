@@ -23,14 +23,14 @@ class AuditLogger:
 
     Each line is a JSON object with:
     - ``timestamp`` (ISO 8601 UTC)
-    - ``category`` (``"file"`` or ``"network"``)
-    - ``operation`` / ``host``
-    - ``level`` (``"allow"`` / ``"require_approval"`` / ``"deny"``)
+    - ``category`` (``"file"`` / ``"network"`` / ``"connector"``)
+    - ``operation`` / ``target``
+    - ``decision`` (``"allow"`` / ``"require_approval"`` / ``"deny"``)
     - ``reason`` (policy reason string)
 
-    Call ``subscribe(bus)`` to wire up — the logger then receives all
-    ``file_access_decision`` and ``network_access_decision`` messages
-    automatically.
+    Call ``subscribe(bus)`` to wire up — the logger then receives
+    ``file_access_decision``, ``network_access_decision``, and
+    ``connector_access_decision`` messages automatically.
     """
 
     def __init__(self, config: AuditConfig) -> None:
@@ -43,6 +43,7 @@ class AuditLogger:
             return
         bus.subscribe("file_access_decision", self._on_file_decision)
         bus.subscribe("network_access_decision", self._on_network_decision)
+        bus.subscribe("connector_access_decision", self._on_connector_decision)
 
     # ------------------------------------------------------------------
     # Bus handlers (sync — called from Bus.poll())
@@ -66,6 +67,30 @@ class AuditLogger:
             "target": payload.get("host", ""),
             "decision": payload.get("level", ""),
             "reason": payload.get("reason", ""),
+        })
+
+    def _on_connector_decision(self, message: BusMessage) -> None:
+        """Record a connector allowlist decision.
+
+        :class:`ConnectorAllowlistPolicy` posts messages with a
+        :class:`PolicyVerdict` in ``payload["verdict"]`` — different
+        shape from the flat dicts file/network policies post. Unpack
+        here to keep the audit log's flat schema consistent.
+        """
+        verdict = message.payload.get("verdict")
+        if verdict is None:
+            return
+        ctx = getattr(verdict, "context", {}) or {}
+        self._write_line({
+            "category": "connector",
+            "operation": "inbound",
+            "target": ctx.get("external_id", ""),
+            "decision": verdict.level.value,
+            "reason": verdict.reason,
+            "connector": ctx.get("connector", ""),
+            "platform": ctx.get("platform", ""),
+            "display_name": ctx.get("display_name", ""),
+            "matched_pattern": ctx.get("matched_pattern"),
         })
 
     # ------------------------------------------------------------------

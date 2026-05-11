@@ -4,12 +4,30 @@
 # the TELEGRAM_BOT_TOKEN environment variable (from @BotFather) before
 # starting Tank.
 #
-# SECURITY: This connector has no allowlist — any Telegram user who finds
-# the bot can talk to Tank and drive its tools. Deploy privately. A
-# per-identity allowlist is planned for a future release.
+# Access control: the `allowlist` block below is optional. Without it,
+# the bot accepts messages from anyone who finds it. With it, denied
+# senders get a polite rejection reply and no Assistant session is
+# spawned — see the plugin README for pattern syntax and gotchas.
 
 connectors:
   - instance: my-telegram-bot
     extension: connector-telegram:connector
     config:
       bot_token: ${TELEGRAM_BOT_TOKEN}
+
+      # Optional per-instance allowlist.  Zero-config = allow-all.
+      # allowlist:
+      #   default: deny              # "allow" (default) or "deny"
+      #   rules:
+      #     - external_ids: ["tg:user:123456789"]
+      #       policy: allow
+      #       reason: "me"
+      #     - external_ids: ["tg:chat:-1001234567"]
+      #       policy: allow
+      #       reason: "engineering group chat"
+      # unauthorized_reply: |
+      #   Sorry, this bot is invite-only.
+
+      # Optional voice toggles (default true when ASR / TTS are configured):
+      # voice_in: true
+      # voice_out: true
