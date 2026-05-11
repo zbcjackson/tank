@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from aiogram import Bot, Dispatcher, F
@@ -65,6 +66,33 @@ _MAX_VOICE_DURATION_S = 120
 # Timeout for the polling task to drain cleanly on shutdown.
 _SHUTDOWN_TIMEOUT_S = 5.0
 
+# Media-group (album) buffering window. Telegram delivers albums as N
+# separate Message objects arriving within ~50-100ms of each other, with
+# no explicit "album finished" signal. We collect siblings for this long
+# after the first photo, then flush them as a single MessageEvent.
+_MEDIA_GROUP_BUFFER_S = 0.5
+
+# Defensive cap on the album buffer. Telegram limits albums to 10 files
+# client-side, but a misbehaving client could in principle send more —
+# anything above this cap falls through to the existing single-photo
+# path rather than accumulating unboundedly.
+_MAX_MEDIA_GROUP_SIZE = 10
+
+
+@dataclass
+class _PendingPhoto:
+    """One photo accumulated for a media group.
+
+    ``message`` is kept so the flush path can re-derive the Identity
+    from the first-arriving message (Telegram's album caption +
+    thread-reply conventions both key on the album's first message).
+    """
+
+    data: bytes
+    mime_type: str
+    caption: str | None
+    message: "Message"
+
 
 class TelegramConnector(Connector):
     """Platform adapter for Telegram."""
@@ -98,6 +126,13 @@ class TelegramConnector(Connector):
         self._bot: Bot | None = None
         self._dp: Dispatcher | None = None
         self._task: asyncio.Task | None = None
+        # Media-group (album) buffering — see ``_on_photo`` + ``_flush_media_group``.
+        # ``media_group_id`` → list of photos accumulated so far.
+        self._media_group_buffers: dict[str, list[_PendingPhoto]] = {}
+        # ``media_group_id`` → one-shot timer scheduled on the first photo
+        # of the group. Siblings DO NOT reset the timer; otherwise a
+        # steady dribble of photos could keep a group alive forever.
+        self._media_group_timers: dict[str, asyncio.TimerHandle] = {}
 
     # ── Lifecycle ───────────────────────────────────────────────────
 
@@ -192,6 +227,15 @@ class TelegramConnector(Connector):
             with contextlib.suppress(Exception):
                 await self._bot.session.close()
 
+        # Cancel any pending media-group flush timers and drop buffered
+        # photos. The polling loop is gone; flushes can't reach the
+        # (now-cleared) _on_message handler anyway.
+        for timer in self._media_group_timers.values():
+            with contextlib.suppress(Exception):
+                timer.cancel()
+        self._media_group_timers.clear()
+        self._media_group_buffers.clear()
+
         self._bot = None
         self._dp = None
         self._task = None
@@ -237,6 +281,12 @@ class TelegramConnector(Connector):
         several resolutions. We take the largest (last element) as the
         canonical version — the smaller ones are thumbnails.
 
+        Photos that are part of an **album** (multi-photo send) arrive
+        as N separate messages sharing the same ``media_group_id``. We
+        buffer siblings for ``_MEDIA_GROUP_BUFFER_S`` and then flush
+        them as a single :class:`MessageEvent` with N attachments —
+        otherwise the LLM sees N separate turns and replies N times.
+
         Photo messages can carry a caption; we surface it as
         :attr:`MessageEvent.text` so the downstream LLM sees the user's
         prompt ("what is this?") alongside the image.
@@ -253,6 +303,136 @@ class TelegramConnector(Connector):
         if not message.photo:
             return
 
+        data = await self._download_photo_bytes(message)
+        if data is None:
+            return
+
+        group_id = message.media_group_id
+        if group_id is None:
+            # Single-photo path — dispatch immediately.
+            await self._dispatch_single_photo(message, data)
+            return
+
+        # Album path — defensive cap on buffer size. If a misbehaving
+        # client ever pushes past the limit, fall the excess through as
+        # a standalone photo rather than accumulating forever.
+        buffer = self._media_group_buffers.setdefault(group_id, [])
+        if len(buffer) >= _MAX_MEDIA_GROUP_SIZE:
+            logger.warning(
+                "Telegram connector '%s': media group '%s' exceeded "
+                "%d photos; treating overflow as standalone",
+                self.instance_name, group_id, _MAX_MEDIA_GROUP_SIZE,
+            )
+            await self._dispatch_single_photo(message, data)
+            return
+
+        buffer.append(_PendingPhoto(
+            data=data,
+            mime_type="image/jpeg",
+            caption=message.caption,
+            message=message,
+        ))
+
+        # Arm the flush timer on the first photo. Siblings must NOT
+        # restart it — otherwise a steady dribble of photos could keep
+        # the album open past any reasonable wait.
+        if group_id not in self._media_group_timers:
+            loop = asyncio.get_running_loop()
+            self._media_group_timers[group_id] = loop.call_later(
+                _MEDIA_GROUP_BUFFER_S,
+                lambda gid=group_id: asyncio.create_task(
+                    self._flush_media_group(gid),
+                    name=f"telegram-album-flush-{self.instance_name}-{gid}",
+                ),
+            )
+
+    async def _dispatch_single_photo(
+        self, message: "Message", data: bytes,
+    ) -> None:
+        """Emit a :class:`MessageEvent` for one (non-album) photo."""
+        if self._on_message is None:
+            return
+
+        identity = self._make_identity(message)
+
+        reply_to_id: str | None = None
+        if message.reply_to_message is not None:
+            reply_to_id = str(message.reply_to_message.message_id)
+
+        event = MessageEvent(
+            identity=identity,
+            text=message.caption or "",
+            attachments=(
+                Attachment(kind="image", data=data, mime_type="image/jpeg"),
+            ),
+            reply_to_message_id=reply_to_id,
+        )
+        try:
+            await self._on_message(event)
+        except Exception:
+            logger.exception(
+                "Telegram connector '%s': inbound handler raised on photo",
+                self.instance_name,
+            )
+
+    async def _flush_media_group(self, group_id: str) -> None:
+        """Drain the buffered album into a single :class:`MessageEvent`.
+
+        Called by the per-album timer. If ``stop()`` ran concurrently,
+        the buffer and timer may already be cleared — we just return.
+        The caption + reply context come from the **first** message in
+        the album, matching Telegram's client-side conventions: clients
+        only let users attach a caption to the first photo of an album.
+        """
+        buffer = self._media_group_buffers.pop(group_id, [])
+        self._media_group_timers.pop(group_id, None)
+        if not buffer:
+            return
+        if self._on_message is None:
+            # Shutdown race: handler cleared before the timer fired.
+            return
+
+        first = buffer[0].message
+        identity = self._make_identity(first)
+
+        reply_to_id: str | None = None
+        if first.reply_to_message is not None:
+            reply_to_id = str(first.reply_to_message.message_id)
+
+        attachments = tuple(
+            Attachment(kind="image", data=p.data, mime_type=p.mime_type)
+            for p in buffer
+        )
+        event = MessageEvent(
+            identity=identity,
+            text=buffer[0].caption or "",
+            attachments=attachments,
+            reply_to_message_id=reply_to_id,
+        )
+        try:
+            await self._on_message(event)
+        except Exception:
+            logger.exception(
+                "Telegram connector '%s': inbound handler raised on "
+                "album (group_id=%s, %d photos)",
+                self.instance_name, group_id, len(buffer),
+            )
+
+    async def _download_photo_bytes(
+        self, message: "Message",
+    ) -> bytes | None:
+        """Download the largest :class:`PhotoSize` of ``message`` and
+        return its bytes, or ``None`` if the photo was rejected at the
+        edge (too large) or the download failed.
+
+        Rejection reasons are communicated to the user via
+        ``send_message``; download failures are logged and swallowed so
+        the poll loop stays alive.
+        """
+        assert self._bot is not None  # noqa: S101 — guarded by caller
+        if not message.photo:
+            return None
+
         largest = message.photo[-1]
 
         # Reject oversized photos at the edge before downloading.
@@ -265,7 +445,7 @@ class TelegramConnector(Connector):
                         "under 25 MB."
                     ),
                 )
-            return
+            return None
 
         try:
             buf = await self._bot.download(largest)
@@ -274,20 +454,20 @@ class TelegramConnector(Connector):
                 "Telegram connector '%s': photo download failed in chat %s",
                 self.instance_name, message.chat.id,
             )
-            return
+            return None
         except Exception:
             logger.exception(
                 "Telegram connector '%s': unexpected error downloading photo",
                 self.instance_name,
             )
-            return
+            return None
 
         if buf is None:
             logger.debug(
                 "Telegram connector '%s': download returned no buffer",
                 self.instance_name,
             )
-            return
+            return None
 
         try:
             # aiogram returns a ``BytesIO`` in practice, but the declared
@@ -301,39 +481,12 @@ class TelegramConnector(Connector):
                 "Telegram connector '%s': buffer read failed",
                 self.instance_name,
             )
-            return
+            return None
         finally:
             with contextlib.suppress(Exception):
                 buf.close()
 
-        if not data:
-            return
-
-        # Post-server processing at Telegram normalises uploaded photos
-        # to JPEG regardless of the user's original format.
-        mime_type = "image/jpeg"
-
-        identity = self._make_identity(message)
-
-        reply_to_id: str | None = None
-        if message.reply_to_message is not None:
-            reply_to_id = str(message.reply_to_message.message_id)
-
-        event = MessageEvent(
-            identity=identity,
-            text=message.caption or "",
-            attachments=(
-                Attachment(kind="image", data=data, mime_type=mime_type),
-            ),
-            reply_to_message_id=reply_to_id,
-        )
-        try:
-            await self._on_message(event)
-        except Exception:
-            logger.exception(
-                "Telegram connector '%s': inbound handler raised on photo",
-                self.instance_name,
-            )
+        return data or None
 
     async def _on_voice(self, message: "Message") -> None:
         """Handle an inbound voice note.

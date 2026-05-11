@@ -10,6 +10,7 @@ message-id encoding, and the DM vs channel identity split.
 from __future__ import annotations
 
 import asyncio
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -290,7 +291,7 @@ class TestIdentityConstruction:
         c = SlackConnector(
             instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
         )
-        c._display_name_cache["U100"] = "Alice"  # skip users.info lookup  # noqa: SLF001
+        c._display_name_cache["U100"] = ("Alice", 9999999999.0)  # skip users.info lookup  # noqa: SLF001
 
         identity = await c._make_identity(_make_event(  # noqa: SLF001
             user="U100", channel="D400", channel_type="im",
@@ -306,7 +307,7 @@ class TestIdentityConstruction:
         c = SlackConnector(
             instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
         )
-        c._display_name_cache["U100"] = "Alice"  # noqa: SLF001
+        c._display_name_cache["U100"] = ("Alice", 9999999999.0)  # noqa: SLF001
 
         identity = await c._make_identity(_make_event(  # noqa: SLF001
             channel="C200", channel_type="channel",
@@ -319,7 +320,7 @@ class TestIdentityConstruction:
         c = SlackConnector(
             instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
         )
-        c._display_name_cache["U100"] = "Alice"  # noqa: SLF001
+        c._display_name_cache["U100"] = ("Alice", 9999999999.0)  # noqa: SLF001
 
         identity = await c._make_identity(_make_event(  # noqa: SLF001
             channel="G500", channel_type="group",
@@ -332,7 +333,7 @@ class TestIdentityConstruction:
         c = SlackConnector(
             instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
         )
-        c._display_name_cache["U100"] = "Alice"  # noqa: SLF001
+        c._display_name_cache["U100"] = ("Alice", 9999999999.0)  # noqa: SLF001
 
         identity = await c._make_identity(_make_event(  # noqa: SLF001
             channel="G600", channel_type="mpim",
@@ -344,7 +345,7 @@ class TestIdentityConstruction:
         c = SlackConnector(
             instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
         )
-        c._display_name_cache["U100"] = "Alice"  # noqa: SLF001
+        c._display_name_cache["U100"] = ("Alice", 9999999999.0)  # noqa: SLF001
 
         identity = await c._make_identity(_make_event(  # noqa: SLF001
             channel_type="channel", thread_ts="1712345000.000",
@@ -441,7 +442,7 @@ class TestInboundFiltering:
         c = SlackConnector(
             instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
         )
-        c._display_name_cache["U100"] = "Alice"  # noqa: SLF001
+        c._display_name_cache["U100"] = ("Alice", 9999999999.0)  # noqa: SLF001
 
         received: list[MessageEvent] = []
 
@@ -466,7 +467,7 @@ class TestInboundImages:
         c = SlackConnector(
             instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
         )
-        c._display_name_cache["U100"] = "Alice"  # noqa: SLF001
+        c._display_name_cache["U100"] = ("Alice", 9999999999.0)  # noqa: SLF001
 
         received: list[MessageEvent] = []
 
@@ -804,3 +805,180 @@ class TestEdit:
         )
         sent = started_connector._app.client.chat_update.call_args.kwargs["text"]  # noqa: SLF001
         assert len(sent) == 40_000
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 — Mention-only mode
+# ---------------------------------------------------------------------------
+
+
+class TestMentionOnly:
+    """In public channels / groups / MPIMs, the ``mention_only`` flag
+    narrows delivery to messages that mention the bot. DMs always get
+    through regardless. The mention token is stripped from the forwarded
+    text so the LLM doesn't see Slack's ``<@U0BOTID>`` syntax."""
+
+    async def test_mention_only_false_forwards_every_channel_message(
+        self,
+    ) -> None:
+        """Default behaviour (``mention_only=False``) is unchanged —
+        channel messages forward regardless of mention."""
+        c = SlackConnector(
+            instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
+            mention_only=False,
+        )
+        c._display_name_cache["U100"] = ("Alice", 9999999999.0)  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+
+        async def handler(event: MessageEvent) -> None:
+            received.append(event)
+
+        c.set_message_handler(handler)
+        await c._on_message_event(_make_event(  # noqa: SLF001
+            text="hi tank", channel_type="channel",
+        ))
+        assert len(received) == 1
+
+    async def test_mention_only_drops_non_mention_in_channel(self) -> None:
+        """``mention_only=True`` filters channel messages that don't
+        contain the bot's ``<@...>`` token."""
+        c = SlackConnector(
+            instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
+            mention_only=True,
+        )
+        c._bot_user_id = "U0BOTID"  # noqa: SLF001 — simulate auth.test resolution
+        c._display_name_cache["U100"] = ("Alice", 9999999999.0)  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+        c.set_message_handler(lambda e: received.append(e) or asyncio.sleep(0))
+
+        await c._on_message_event(_make_event(  # noqa: SLF001
+            text="hi everyone", channel_type="channel",
+        ))
+        # No mention → dropped.
+        assert received == []
+
+    async def test_mention_only_forwards_channel_message_when_mentioned(
+        self,
+    ) -> None:
+        """The ``<@U0BOTID>`` mention token gates delivery; once present,
+        the message forwards with the token stripped from the text."""
+        c = SlackConnector(
+            instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
+            mention_only=True,
+        )
+        c._bot_user_id = "U0BOTID"  # noqa: SLF001
+        c._display_name_cache["U100"] = ("Alice", 9999999999.0)  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+
+        async def handler(event: MessageEvent) -> None:
+            received.append(event)
+
+        c.set_message_handler(handler)
+        await c._on_message_event(_make_event(  # noqa: SLF001
+            text="<@U0BOTID> what's the weather?", channel_type="channel",
+        ))
+
+        assert len(received) == 1
+        # Mention token stripped — the LLM sees just the user's prompt.
+        assert received[0].text == "what's the weather?"
+
+    async def test_mention_only_always_forwards_dms(self) -> None:
+        """DMs bypass the mention filter — the user is obviously talking
+        to the bot, no ``@`` needed."""
+        c = SlackConnector(
+            instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
+            mention_only=True,
+        )
+        c._bot_user_id = "U0BOTID"  # noqa: SLF001
+        c._display_name_cache["U100"] = ("Alice", 9999999999.0)  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+        c.set_message_handler(lambda e: received.append(e) or asyncio.sleep(0))
+
+        await c._on_message_event(_make_event(  # noqa: SLF001
+            text="just a casual hello", channel_type="im",
+        ))
+        assert len(received) == 1
+        # No mention token was present; text passes through unchanged.
+        assert received[0].text == "just a casual hello"
+
+    async def test_mention_only_without_bot_user_id_drops_channel_msgs(
+        self,
+    ) -> None:
+        """Safe failure: if ``auth.test`` didn't resolve ``_bot_user_id``
+        at start-up, the mention filter can't recognise any mention and
+        so drops every channel message. Documented trade-off: silent
+        channels (investigable) beats accidental allow-all."""
+        c = SlackConnector(
+            instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
+            mention_only=True,
+        )
+        # _bot_user_id left as None (auth.test failed or was never called)
+        c._display_name_cache["U100"] = ("Alice", 9999999999.0)  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+        c.set_message_handler(lambda e: received.append(e) or asyncio.sleep(0))
+
+        await c._on_message_event(_make_event(  # noqa: SLF001
+            text="<@UOTHER> hello", channel_type="channel",
+        ))
+        assert received == []
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 — Display-name cache TTL
+# ---------------------------------------------------------------------------
+
+
+class TestDisplayNameTtl:
+    """Cached display names go stale when users rename. The TTL catches
+    those without forcing a ``users.info`` call on every inbound
+    message."""
+
+    async def test_cache_hit_within_ttl_does_not_refetch(self) -> None:
+        """An entry with an expiry timestamp in the future is returned
+        from cache without hitting the Slack API."""
+        c = SlackConnector(
+            instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
+        )
+        # Seed with a far-future expiry: should always be a cache hit.
+        c._display_name_cache["U42"] = ("Alice", 9999999999.0)  # noqa: SLF001
+        # Attach a stub ``_app`` that would fail the test if called.
+        app = MagicMock()
+        app.client = MagicMock()
+        app.client.users_info = AsyncMock(
+            side_effect=AssertionError("users.info must not be called"),
+        )
+        c._app = app  # noqa: SLF001
+
+        name = await c._resolve_display_name("U42")  # noqa: SLF001
+        assert name == "Alice"
+        app.client.users_info.assert_not_awaited()
+
+    async def test_cache_expired_entry_is_refreshed(self) -> None:
+        """A cached entry whose expiry is in the past triggers a fresh
+        ``users.info`` call; the old name is replaced with the new one
+        and re-cached with a new expiry."""
+        c = SlackConnector(
+            instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
+        )
+        # Seed with expiry=0 (epoch) → definitively stale.
+        c._display_name_cache["U42"] = ("OldName", 0.0)  # noqa: SLF001
+        app = MagicMock()
+        app.client = MagicMock()
+        app.client.users_info = AsyncMock(return_value={
+            "user": {"profile": {"display_name": "NewName"}},
+        })
+        c._app = app  # noqa: SLF001
+
+        name = await c._resolve_display_name("U42")  # noqa: SLF001
+        assert name == "NewName"
+        app.client.users_info.assert_awaited_once_with(user="U42")
+
+        # Cache was refreshed with a fresh expiry well in the future.
+        cached_name, cached_expiry = c._display_name_cache["U42"]  # noqa: SLF001
+        assert cached_name == "NewName"
+        assert cached_expiry > time.time() + 3600  # at least one hour of freshness

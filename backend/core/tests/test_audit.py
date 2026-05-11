@@ -190,3 +190,148 @@ class TestAuditLogger:
 
         # No file written, no exception.
         assert not Path(audit_path).exists()
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 — size-based rotation
+# ---------------------------------------------------------------------------
+
+
+class TestAuditLogRotation:
+    """The rotation path runs inline with every write_line. These tests
+    cover the four states that matter: disabled (current behaviour),
+    threshold respected, rotation happening, and recovery when the file
+    disappears between stat and rename."""
+
+    def test_max_bytes_zero_disables_rotation(self, audit_path: str):
+        """Default config keeps pre-Phase-8 behaviour: writes append
+        forever, no backup files are ever created. Operators running
+        external logrotate shouldn't be surprised by mysterious
+        ``.jsonl.1`` files."""
+        logger = AuditLogger(AuditConfig(
+            log_path=audit_path, enabled=True, max_bytes=0,
+        ))
+        msg = MagicMock()
+        msg.payload = {
+            "operation": "read", "path": "/x",
+            "level": "allow", "reason": "t",
+        }
+        for _ in range(200):
+            logger._on_file_decision(msg)
+
+        # Live log grew freely; no backups were made.
+        assert Path(audit_path).exists()
+        assert not Path(audit_path + ".1").exists()
+
+    def test_rotation_threshold_respected(self, audit_path: str):
+        """With a generous cap, small writes don't trigger rotation even
+        if many land — avoids per-entry renames burning disk I/O."""
+        logger = AuditLogger(AuditConfig(
+            log_path=audit_path, enabled=True,
+            max_bytes=10 * 1024 * 1024,  # 10 MB
+        ))
+        msg = MagicMock()
+        msg.payload = {
+            "operation": "read", "path": "/x",
+            "level": "allow", "reason": "t",
+        }
+        for _ in range(10):
+            logger._on_file_decision(msg)
+
+        assert Path(audit_path).exists()
+        assert not Path(audit_path + ".1").exists()
+        assert not Path(audit_path + ".2").exists()
+
+    def test_rotation_creates_backup_on_overflow(self, audit_path: str):
+        """When the live log crosses ``max_bytes``, the next write
+        renames it to ``.jsonl.1`` and starts a fresh live file."""
+        # Tiny cap so the very first write triggers rotation on the
+        # second write's _maybe_rotate check.
+        logger = AuditLogger(AuditConfig(
+            log_path=audit_path, enabled=True, max_bytes=10,
+        ))
+        msg = MagicMock()
+        msg.payload = {
+            "operation": "read", "path": "/x",
+            "level": "allow", "reason": "t",
+        }
+        logger._on_file_decision(msg)  # ~60 bytes → over the 10-byte cap
+        # Next write notices the overflow and rotates before appending.
+        logger._on_file_decision(msg)
+
+        backup_path = Path(audit_path).with_suffix(".jsonl.1")
+        assert backup_path.exists(), "backup was not created"
+        # The live log exists again (fresh, with one entry).
+        assert Path(audit_path).exists()
+        assert len(Path(audit_path).read_text().splitlines()) == 1
+        # Backup carries the first entry.
+        assert len(backup_path.read_text().splitlines()) == 1
+
+    def test_rotation_shifts_existing_backups_up(self, audit_path: str):
+        """After ``backup_count`` rotations, ``.jsonl``, ``.jsonl.1``,
+        …, ``.jsonl.N`` exist; nothing past N is kept."""
+        logger = AuditLogger(AuditConfig(
+            log_path=audit_path, enabled=True,
+            max_bytes=10, backup_count=3,
+        ))
+        msg = MagicMock()
+        msg.payload = {
+            "operation": "read", "path": "/x",
+            "level": "allow", "reason": "t",
+        }
+        # Each pair of writes triggers one rotation (the second write
+        # sees the first's bytes and renames). Loop more than needed
+        # to confirm the cap holds.
+        for _ in range(10):
+            logger._on_file_decision(msg)
+
+        base = Path(audit_path)
+        assert base.exists()
+        assert base.with_suffix(".jsonl.1").exists()
+        assert base.with_suffix(".jsonl.2").exists()
+        assert base.with_suffix(".jsonl.3").exists()
+        # backup_count=3 → nothing past .3 retained.
+        assert not base.with_suffix(".jsonl.4").exists()
+        assert not base.with_suffix(".jsonl.5").exists()
+
+    def test_rotation_missing_file_is_a_noop(self, audit_path: str):
+        """If the live file disappears between checks (external process
+        rotated it out from under us), we just write a fresh one without
+        raising."""
+        logger = AuditLogger(AuditConfig(
+            log_path=audit_path, enabled=True, max_bytes=10,
+        ))
+        # No file exists yet — rotation should noop and the write should
+        # proceed.
+        logger._maybe_rotate()
+
+        msg = MagicMock()
+        msg.payload = {
+            "operation": "read", "path": "/x",
+            "level": "allow", "reason": "t",
+        }
+        logger._on_file_decision(msg)
+        assert Path(audit_path).exists()
+
+    def test_backup_count_zero_drops_live_instead_of_renaming(
+        self, audit_path: str,
+    ):
+        """With ``backup_count=0``, rotation truncates by unlinking —
+        no backup file at all. Useful for deployments that forward
+        entries to an external system and don't want local history."""
+        logger = AuditLogger(AuditConfig(
+            log_path=audit_path, enabled=True,
+            max_bytes=10, backup_count=0,
+        ))
+        msg = MagicMock()
+        msg.payload = {
+            "operation": "read", "path": "/x",
+            "level": "allow", "reason": "t",
+        }
+        logger._on_file_decision(msg)
+        logger._on_file_decision(msg)
+
+        # Live log has exactly one entry (the second write, after
+        # rotation unlinked the first).
+        assert len(Path(audit_path).read_text().splitlines()) == 1
+        assert not Path(audit_path + ".1").exists()

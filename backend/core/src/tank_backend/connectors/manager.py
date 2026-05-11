@@ -466,8 +466,36 @@ class ConnectorManager:
             )
             return None
 
+        timeout_s = (
+            self._app_context.app_config.connectors.asr_transcribe_timeout_s
+        )
         try:
-            transcript = await asr_engine.transcribe_once(pcm, sample_rate=16000)
+            if timeout_s > 0:
+                transcript = await asyncio.wait_for(
+                    asr_engine.transcribe_once(pcm, sample_rate=16000),
+                    timeout=timeout_s,
+                )
+            else:
+                transcript = await asr_engine.transcribe_once(
+                    pcm, sample_rate=16000,
+                )
+        except asyncio.TimeoutError:
+            # A hung ASR engine (model deadlock, upstream network drop,
+            # pathological audio input) would otherwise block the inbound
+            # dispatcher for this session until TCP timeouts fire, minutes
+            # later. The bound above — configurable via
+            # ``connectors.asr_transcribe_timeout_s``, default 30s — caps
+            # the wait; the user sees a prompt polite reply instead of a
+            # silent drop.
+            logger.warning(
+                "ASR timeout (> %.1fs) for inbound audio via '%s'",
+                timeout_s, source.instance_name,
+            )
+            await _safe_send(
+                source, identity,
+                "Sorry, transcribing your voice message took too long.",
+            )
+            return None
         except Exception:
             logger.exception("ASR transcribe_once failed")
             await _safe_send(

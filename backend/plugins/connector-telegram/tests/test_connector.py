@@ -614,12 +614,17 @@ def _make_mock_photo_message(
     reply_to_message_id: int | None = None,
     photo_sizes: list[tuple[int, int, int]] | None = None,
     largest_file_size: int | None = None,
+    media_group_id: str | None = None,
 ):
     """Minimal MagicMock mirroring a Telegram photo ``Message``.
 
     ``photo_sizes`` is a list of ``(width, height, file_size)`` tuples
     representing successive :class:`PhotoSize` entries — the last one is
     the largest, matching Telegram's convention.
+
+    ``media_group_id`` defaults to ``None`` so existing single-photo tests
+    take the canonical single-photo dispatch path. Album tests pass a
+    shared id across N messages to exercise the buffer-and-flush logic.
 
     In private chats Telegram guarantees ``chat_id == from_user.id`` —
     the helper defaults ``user_id`` to ``chat_id`` so DM tests don't
@@ -662,6 +667,7 @@ def _make_mock_photo_message(
     message.text = None
     message.from_user = from_user
     message.reply_to_message = reply_to
+    message.media_group_id = media_group_id
     return message
 
 
@@ -1291,3 +1297,215 @@ class TestIdentityFormat:
         assert TelegramConnector._parse_chat_id(  # noqa: SLF001
             "tg:chat:-1001234567",
         ) == -1001234567
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 — Telegram media groups (albums)
+# ---------------------------------------------------------------------------
+
+
+class TestMediaGroups:
+    """Albums arrive as N separate Message objects sharing a
+    ``media_group_id``. Without buffering, the LLM sees N turns and
+    replies N times. The connector collects siblings for
+    ``_MEDIA_GROUP_BUFFER_S`` and flushes them as one MessageEvent."""
+
+    async def test_single_photo_unchanged_regression(self) -> None:
+        """A ``media_group_id=None`` message takes the existing single-
+        photo dispatch path — no buffering, one MessageEvent."""
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock(return_value=BytesIO(b"\xff\xd8\xffPHOTO"))  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+
+        async def handler(event: MessageEvent) -> None:
+            received.append(event)
+
+        c.set_message_handler(handler)
+        msg = _make_mock_photo_message(chat_id=1, caption="solo", media_group_id=None)
+        await c._on_photo(msg)  # noqa: SLF001
+
+        assert len(received) == 1
+        assert len(received[0].attachments) == 1
+        # Buffer stayed empty — we took the single-photo path.
+        assert c._media_group_buffers == {}  # noqa: SLF001
+        assert c._media_group_timers == {}  # noqa: SLF001
+
+    async def test_album_buffers_and_flushes_as_one_event(self) -> None:
+        """Three photos sharing a ``media_group_id`` produce exactly one
+        MessageEvent with three attachments."""
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        # Each download returns distinct bytes so we can assert ordering.
+        c._bot.download = AsyncMock(side_effect=[  # noqa: SLF001
+            BytesIO(b"P1"), BytesIO(b"P2"), BytesIO(b"P3"),
+        ])
+
+        received: list[MessageEvent] = []
+
+        async def handler(event: MessageEvent) -> None:
+            received.append(event)
+
+        c.set_message_handler(handler)
+
+        with patch(
+            "connector_telegram.connector._MEDIA_GROUP_BUFFER_S", 0.01,
+        ):
+            for _ in range(3):
+                await c._on_photo(_make_mock_photo_message(  # noqa: SLF001
+                    chat_id=1, caption="", media_group_id="A1",
+                ))
+            # Let the timer fire.
+            await asyncio.sleep(0.05)
+
+        assert len(received) == 1
+        event = received[0]
+        assert len(event.attachments) == 3
+        assert [a.data for a in event.attachments] == [b"P1", b"P2", b"P3"]
+        # Buffer and timer cleared after flush.
+        assert c._media_group_buffers == {}  # noqa: SLF001
+        assert c._media_group_timers == {}  # noqa: SLF001
+
+    async def test_album_caption_taken_from_first_message(self) -> None:
+        """Telegram clients only let users caption the first photo of
+        an album. Subsequent photos arrive with ``caption=""``. Our
+        flush must use the first message's caption as the event text."""
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock(side_effect=[  # noqa: SLF001
+            BytesIO(b"first"), BytesIO(b"second"),
+        ])
+        received: list[MessageEvent] = []
+        c.set_message_handler(lambda e: received.append(e) or asyncio.sleep(0))
+
+        with patch(
+            "connector_telegram.connector._MEDIA_GROUP_BUFFER_S", 0.01,
+        ):
+            await c._on_photo(_make_mock_photo_message(  # noqa: SLF001
+                chat_id=1, caption="check out these cats", media_group_id="A2",
+            ))
+            await c._on_photo(_make_mock_photo_message(  # noqa: SLF001
+                chat_id=1, caption="", media_group_id="A2",
+            ))
+            await asyncio.sleep(0.05)
+
+        assert len(received) == 1
+        assert received[0].text == "check out these cats"
+
+    async def test_two_albums_do_not_cross_buffer(self) -> None:
+        """Different ``media_group_id``s must stay in separate buffers
+        and produce separate MessageEvents."""
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock(side_effect=[  # noqa: SLF001
+            BytesIO(b"a1"), BytesIO(b"b1"), BytesIO(b"a2"), BytesIO(b"b2"),
+        ])
+        received: list[MessageEvent] = []
+        c.set_message_handler(lambda e: received.append(e) or asyncio.sleep(0))
+
+        with patch(
+            "connector_telegram.connector._MEDIA_GROUP_BUFFER_S", 0.01,
+        ):
+            await c._on_photo(_make_mock_photo_message(  # noqa: SLF001
+                chat_id=1, caption="album A", media_group_id="A",
+            ))
+            await c._on_photo(_make_mock_photo_message(  # noqa: SLF001
+                chat_id=1, caption="album B", media_group_id="B",
+            ))
+            await c._on_photo(_make_mock_photo_message(  # noqa: SLF001
+                chat_id=1, caption="", media_group_id="A",
+            ))
+            await c._on_photo(_make_mock_photo_message(  # noqa: SLF001
+                chat_id=1, caption="", media_group_id="B",
+            ))
+            await asyncio.sleep(0.05)
+
+        assert len(received) == 2
+        texts = sorted(e.text for e in received)
+        assert texts == ["album A", "album B"]
+        # Each event has exactly 2 attachments.
+        assert {len(e.attachments) for e in received} == {2}
+
+    async def test_flush_timer_not_restarted_by_siblings(self) -> None:
+        """Timer is armed on the first photo only — siblings append to
+        the buffer but do NOT reset the window. Otherwise a steady
+        dribble of photos could keep the album open indefinitely.
+
+        We verify by arming with a short window and ensuring the flush
+        fires on schedule even though siblings arrive up to that point.
+        """
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        c._bot = MagicMock()  # noqa: SLF001
+        c._bot.download = AsyncMock(side_effect=[  # noqa: SLF001
+            BytesIO(b"1"), BytesIO(b"2"), BytesIO(b"3"),
+        ])
+        received: list[MessageEvent] = []
+        c.set_message_handler(lambda e: received.append(e) or asyncio.sleep(0))
+
+        with patch(
+            "connector_telegram.connector._MEDIA_GROUP_BUFFER_S", 0.05,
+        ):
+            t0 = asyncio.get_running_loop().time()
+            # Record the TimerHandle after the first photo so we can verify
+            # it didn't get replaced by a later call_later.
+            await c._on_photo(_make_mock_photo_message(  # noqa: SLF001
+                chat_id=1, caption="window", media_group_id="W",
+            ))
+            timer_after_first = c._media_group_timers["W"]  # noqa: SLF001
+
+            # Sibling arrives 20ms later — must NOT replace the timer.
+            await asyncio.sleep(0.02)
+            await c._on_photo(_make_mock_photo_message(  # noqa: SLF001
+                chat_id=1, caption="", media_group_id="W",
+            ))
+            assert c._media_group_timers["W"] is timer_after_first  # noqa: SLF001
+
+            # Another sibling at 40ms — still the same timer.
+            await asyncio.sleep(0.02)
+            await c._on_photo(_make_mock_photo_message(  # noqa: SLF001
+                chat_id=1, caption="", media_group_id="W",
+            ))
+            assert c._media_group_timers["W"] is timer_after_first  # noqa: SLF001
+
+            # Wait past the ~50ms window — timer should fire.
+            await asyncio.sleep(0.1)
+            elapsed = asyncio.get_running_loop().time() - t0
+
+        # One event, three attachments, fired within a reasonable bound
+        # of the first photo's timestamp (not the last).
+        assert len(received) == 1
+        assert len(received[0].attachments) == 3
+        assert elapsed < 0.5, f"flush took {elapsed:.3f}s; timer was restarted"
+
+    async def test_shutdown_cancels_pending_timers(self) -> None:
+        """``stop()`` clears the timer dict so pending flushes don't
+        fire after the connector has been torn down."""
+        c = TelegramConnector(instance_name="t", bot_token="tok")
+        # Bypass actual lifecycle — just put the connector in a state
+        # where media-group dicts have entries that stop() must clean up.
+        c._bot = MagicMock()  # noqa: SLF001
+        c._connected = True  # noqa: SLF001
+        c._bot.session = MagicMock()  # noqa: SLF001
+        c._bot.session.close = AsyncMock()  # noqa: SLF001
+        c._dp = None  # noqa: SLF001 — nothing to stop_polling
+        c._task = None  # noqa: SLF001
+
+        # Seed a fake pending album.
+        loop = asyncio.get_running_loop()
+        fired: list[str] = []
+        fake_timer = loop.call_later(10, lambda: fired.append("should-not-fire"))
+        c._media_group_timers["G"] = fake_timer  # noqa: SLF001
+        c._media_group_buffers["G"] = []  # noqa: SLF001
+
+        await c.stop()
+
+        # Timer was cancelled, dicts cleared.
+        assert fake_timer.cancelled()
+        assert c._media_group_timers == {}  # noqa: SLF001
+        assert c._media_group_buffers == {}  # noqa: SLF001
+        assert not c.connected
+
+        # Give the fake callback one last chance — it must not fire.
+        await asyncio.sleep(0.01)
+        assert fired == []

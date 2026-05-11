@@ -36,6 +36,12 @@ class AuditLogger:
     def __init__(self, config: AuditConfig) -> None:
         self._enabled = config.enabled
         self._log_path = Path(config.log_path).expanduser() if config.enabled else None
+        # Size-based rotation: when the live log reaches ``max_bytes``,
+        # we rename ``.jsonl`` → ``.jsonl.1`` (shifting older backups up
+        # by one) before the next write. ``max_bytes=0`` preserves the
+        # pre-Phase-8 unbounded behaviour.
+        self._max_bytes = config.max_bytes
+        self._backup_count = max(0, config.backup_count)
 
     def subscribe(self, bus: Bus) -> None:
         """Subscribe to policy decision messages on the Bus."""
@@ -103,7 +109,62 @@ class AuditLogger:
         entry["timestamp"] = datetime.now(timezone.utc).isoformat()
         try:
             self._log_path.parent.mkdir(parents=True, exist_ok=True)
+            self._maybe_rotate()
             with open(self._log_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
         except Exception:
             logger.debug("Audit log write failed", exc_info=True)
+
+    def _maybe_rotate(self) -> None:
+        """Rotate the log file if ``max_bytes`` is set and exceeded.
+
+        Rotation shifts existing backups up by one (``.jsonl.1`` →
+        ``.jsonl.2``, …) and drops anything past ``backup_count``, then
+        moves the live log to ``.jsonl.1``. Called from :meth:`_write_line`
+        before each append, so the next write starts a fresh live file.
+
+        Thread-safe assumption: Bus dispatch is single-threaded
+        (``Bus.poll()`` runs on the app thread), so concurrent
+        ``_write_line`` calls don't exist in practice. External
+        tail/truncate processes can still race with us — rotation is
+        best-effort, not exclusive.
+        """
+        if self._log_path is None or self._max_bytes <= 0:
+            return
+        try:
+            size = self._log_path.stat().st_size
+        except FileNotFoundError:
+            return
+        except OSError:
+            logger.debug("Audit log stat failed; skipping rotation", exc_info=True)
+            return
+        if size < self._max_bytes:
+            return
+
+        # Shift backups up by one, working from the oldest so nothing
+        # clobbers a younger backup.
+        for i in range(self._backup_count - 1, 0, -1):
+            src = self._log_path.with_suffix(f".jsonl.{i}")
+            dst = self._log_path.with_suffix(f".jsonl.{i + 1}")
+            if src.exists():
+                try:
+                    src.replace(dst)
+                except OSError:
+                    logger.debug(
+                        "Audit log rotation: rename %s → %s failed",
+                        src, dst, exc_info=True,
+                    )
+                    return
+
+        # Move the live log to ``.jsonl.1``. If backup_count is 0, just
+        # truncate by unlinking (no backups retained).
+        first_backup = self._log_path.with_suffix(".jsonl.1")
+        try:
+            if self._backup_count == 0:
+                self._log_path.unlink()
+            else:
+                self._log_path.replace(first_backup)
+        except OSError:
+            logger.debug(
+                "Audit log rotation: live rename failed", exc_info=True,
+            )

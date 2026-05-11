@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import time
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
@@ -71,6 +72,12 @@ _IGNORED_SUBTYPES = frozenset({
 
 # Timeout for the Socket-Mode polling task to drain cleanly on shutdown.
 _SHUTDOWN_TIMEOUT_S = 5.0
+
+# How long a cached display-name entry stays fresh. 24h catches renames
+# without burning ``users.info`` calls on every inbound message; lazy
+# refresh + staggered expiry (each user's TTL starts at first sight)
+# means no synchronised sweep storms the API.
+_DISPLAY_NAME_TTL_S = 24 * 60 * 60
 
 
 def _encode_msg_id(channel: str, ts: str) -> str:
@@ -129,6 +136,7 @@ class SlackConnector(Connector):
         instance_name: str,
         bot_token: str,
         app_token: str,
+        mention_only: bool = False,
     ) -> None:
         super().__init__(
             instance_name=instance_name,
@@ -145,12 +153,19 @@ class SlackConnector(Connector):
         )
         self._bot_token = bot_token
         self._app_token = app_token
+        self._mention_only = mention_only
         self._app: AsyncApp | None = None
         self._handler: AsyncSocketModeHandler | None = None
         self._task: asyncio.Task[None] | None = None
-        # Lazy cache of Slack user_id → display_name. Unbounded (small by
-        # nature — one entry per active user), no eviction.
-        self._display_name_cache: dict[str, str] = {}
+        # Resolved at ``start()`` via ``auth.test``. Needed for
+        # mention-only filtering; stripped from inbound text before
+        # forwarding so the LLM doesn't see Slack mention syntax.
+        self._bot_user_id: str | None = None
+        # Lazy cache of Slack ``user_id`` → ``(display_name, expiry_ts)``.
+        # The TTL catches renames without burning a ``users.info`` call
+        # per inbound message; staggered expiry (per-user starts at first
+        # sight) avoids a synchronised refresh storm.
+        self._display_name_cache: dict[str, tuple[str, float]] = {}
 
     # ── Lifecycle ───────────────────────────────────────────────────
 
@@ -158,6 +173,30 @@ class SlackConnector(Connector):
         if self._connected:
             return
         self._app = AsyncApp(token=self._bot_token)
+
+        # Resolve our own bot user id so mention-only filtering knows
+        # which mention token to look for. Runs before we start receiving
+        # events so inbound messages can't race past an un-resolved id.
+        # If this fails, log and leave ``_bot_user_id=None`` — the
+        # mention filter then drops all channel messages (safe failure:
+        # silent-until-investigated beats accidental allow-all).
+        if self._mention_only:
+            try:
+                auth_resp = await self._app.client.auth_test()
+                self._bot_user_id = auth_resp.get("user_id")
+                logger.info(
+                    "Slack connector '%s': mention-only bound to %s",
+                    self.instance_name, self._bot_user_id,
+                )
+            except Exception:
+                logger.warning(
+                    "Slack connector '%s': auth.test failed; mention-only "
+                    "filter will drop all channel messages until this resolves. "
+                    "Check the bot token.",
+                    self.instance_name,
+                    exc_info=True,
+                )
+
         # Register handlers before opening the socket so no events are
         # dropped between connect + registration.
         self._app.event("message")(self._on_message_event)
@@ -237,6 +276,32 @@ class SlackConnector(Connector):
             )
             return
 
+        # Mention-only filter: in channels/groups/MPIMs, only forward
+        # messages that mention us. DMs always forward (``channel_type == "im"``).
+        # The filter strips the mention token from the text so the LLM
+        # doesn't see Slack-specific ``<@U01ABCDEF>`` syntax.
+        if self._mention_only and event.get("channel_type") != "im":
+            text = event.get("text") or ""
+            mention_token = (
+                f"<@{self._bot_user_id}>" if self._bot_user_id else None
+            )
+            if mention_token is None or mention_token not in text:
+                logger.debug(
+                    "Slack connector '%s': mention-only dropping inbound "
+                    "(channel=%s, bot=%s)",
+                    self.instance_name,
+                    event.get("channel"),
+                    self._bot_user_id,
+                )
+                return
+            # Clone the event with the mention stripped so downstream
+            # identity construction and ``MessageEvent.text`` don't see
+            # the ``<@U0BOTID>`` token.
+            event = {
+                **event,
+                "text": text.replace(mention_token, "").strip(),
+            }
+
         identity = await self._make_identity(event)
 
         attachments: list[Attachment] = []
@@ -305,16 +370,25 @@ class SlackConnector(Connector):
         )
 
     async def _resolve_display_name(self, user_id: str) -> str:
-        """Lazy ``users.info`` lookup with in-memory cache.
+        """Lazy ``users.info`` lookup with TTL-bounded cache.
 
         Slack events don't carry the user's display name, only their
         opaque ID. One ``users.info`` call on first sight gets us a
-        human-friendly string; subsequent hits are free. Failures fall
-        back to the raw user ID — not pretty, but the alternative is
-        blocking inbound dispatch on a transient API error.
+        human-friendly string; subsequent hits within
+        ``_DISPLAY_NAME_TTL_S`` are free. Entries past the TTL are
+        lazily refreshed on next access — renames propagate within a
+        day without us polling every Slack workspace endlessly.
+
+        Failures fall back to the raw user ID — not pretty, but the
+        alternative is blocking inbound dispatch on a transient API
+        error. Fallback entries are cached briefly too so a dead user
+        doesn't re-trigger ``users.info`` on every message.
         """
-        if user_id in self._display_name_cache:
-            return self._display_name_cache[user_id]
+        now = time.time()
+        cached = self._display_name_cache.get(user_id)
+        if cached is not None and cached[1] > now:
+            return cached[0]
+
         if self._app is None:
             return user_id
 
@@ -327,7 +401,9 @@ class SlackConnector(Connector):
                 self.instance_name, user_id,
                 exc_info=True,
             )
-            self._display_name_cache[user_id] = user_id
+            self._display_name_cache[user_id] = (
+                user_id, now + _DISPLAY_NAME_TTL_S,
+            )
             return user_id
 
         user_obj = resp.get("user") or {}
@@ -340,7 +416,7 @@ class SlackConnector(Connector):
             or user_obj.get("real_name")
             or user_id
         )
-        self._display_name_cache[user_id] = name
+        self._display_name_cache[user_id] = (name, now + _DISPLAY_NAME_TTL_S)
         return name
 
     async def _download_file(self, file_info: dict) -> Attachment | None:

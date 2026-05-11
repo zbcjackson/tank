@@ -586,6 +586,13 @@ class Brain(Processor):
             # message alongside the streamed text). No-op when no subscriber
             # is attached — bus events with no handlers are dropped on next
             # poll.
+            #
+            # TODO(phase-9+): also emit ``outbound_attachment`` here when the
+            # agent layer gains a BLOCK-style output type (e.g. a tool that
+            # returns an ImageBlock). Today every AgentOutput.content is a
+            # string, so there are no non-text blocks to surface — the
+            # ``_ImageDispatcher`` subscriber wired in Phase 4 stays dead
+            # until tools can produce ContentBlocks directly.
             if full_response_text.strip():
                 self._bus.post(BusMessage(
                     type="outbound_voice",

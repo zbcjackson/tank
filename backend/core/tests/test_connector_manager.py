@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -811,3 +811,140 @@ class TestAllowlistGate:
     ) -> None:
         with pytest.raises(KeyError):
             manager.set_unauthorized_reply("never-registered", "text")
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 — ASR transcribe timeout
+# ---------------------------------------------------------------------------
+
+
+class TestAsrTranscribeTimeout:
+    """The ASR engine is called synchronously from the inbound dispatcher.
+    A hung call would freeze that session's dispatcher until TCP timeouts
+    fire; the configurable bound stops the bleeding."""
+
+    def _build_manager(
+        self,
+        tmp_path: Path,
+        *,
+        timeout_s: float,
+        asr_engine,
+    ) -> ConnectorManager:
+        db = Database(f"sqlite+pysqlite:///{tmp_path}/tank.db")
+        Base.metadata.create_all(db.engine)
+        identity_store = ConnectorIdentityStore(db)
+        channel_store = ChannelStore(db)
+        conv_store = _MemoryConvStore()
+        session_mapper = SessionMapper(
+            identity_store, channel_store, conv_store,
+        )
+        connection_manager = _FakeConnectionManager()
+
+        app_context = MagicMock(name="AppContext")
+        app_context.media_store = None
+        app_context.llm_capabilities = None
+        app_context.asr_engine = asr_engine
+        app_context.app_config.connectors.asr_transcribe_timeout_s = timeout_s
+
+        return ConnectorManager(
+            connection_manager=connection_manager,  # type: ignore[arg-type]
+            session_mapper=session_mapper,
+            app_context=app_context,
+        )
+
+    async def test_timeout_surfaces_polite_reply(
+        self, tmp_path: Path,
+    ) -> None:
+        """A hung ``transcribe_once`` must not freeze the dispatcher —
+        ``asyncio.wait_for`` cancels it after ``asr_transcribe_timeout_s``
+        and we send the user a polite explanation."""
+        import asyncio as _async
+
+        # A "hung" ASR: awaits a long sleep so cancellation actually
+        # propagates through the await boundary.
+        async def _hung(pcm, sample_rate=16000):  # noqa: ARG001
+            await _async.sleep(5)
+            return "unreachable"
+
+        asr_engine = MagicMock()
+        asr_engine.transcribe_once = _hung
+
+        # Tight timeout (0.05s) → wait_for fires immediately.
+        manager = self._build_manager(
+            tmp_path, timeout_s=0.05, asr_engine=asr_engine,
+        )
+        fake = FakeConnector("t")
+        manager.register(fake)
+        await manager.start_all()
+
+        att = Attachment(
+            kind="audio", data=b"OggS_fake_bytes", mime_type="audio/ogg",
+        )
+        # Patch decode_ogg_opus so the test doesn't need a real ffmpeg
+        # pipeline — the timeout path we're exercising runs after decode.
+        with patch(
+            "tank_backend.connectors.manager.decode_ogg_opus",
+            return_value=b"\x00" * 3200,  # shape doesn't matter; hung ASR ignores
+        ):
+            await fake.inject_inbound(
+                Identity(platform="fake", external_id="u-1"),
+                text="",
+                attachments=(att,),
+            )
+
+        # Polite reply landed in the outbox; no Assistant input was
+        # pushed for this turn.
+        sends = [r for r in fake.outbox if r.kind == "send"]
+        assert len(sends) == 1
+        assert "took too long" in sends[0].text.lower()
+
+    async def test_timeout_zero_disables_bound(
+        self, tmp_path: Path,
+    ) -> None:
+        """``asr_transcribe_timeout_s = 0`` restores the pre-Phase-8
+        behaviour: ``asyncio.wait_for`` is not used, so a slow-but-finite
+        ``transcribe_once`` runs to completion instead of being killed."""
+        import asyncio as _async
+
+        async def _slow(pcm, sample_rate=16000):  # noqa: ARG001
+            # 0.1s is long enough that any accidental 0.05s wait_for
+            # would fire, but short enough not to drag tests.
+            await _async.sleep(0.1)
+            return "hello world"
+
+        asr_engine = MagicMock()
+        asr_engine.transcribe_once = _slow
+
+        manager = self._build_manager(
+            tmp_path, timeout_s=0, asr_engine=asr_engine,
+        )
+        fake = FakeConnector("t")
+        manager.register(fake)
+        await manager.start_all()
+
+        # Capture inputs for the Assistant the fake CM will spawn.
+        att = Attachment(
+            kind="audio", data=b"OggS_fake_bytes", mime_type="audio/ogg",
+        )
+        with patch(
+            "tank_backend.connectors.manager.decode_ogg_opus",
+            return_value=b"\x00" * 3200,
+        ):
+            await fake.inject_inbound(
+                Identity(platform="fake", external_id="u-1"),
+                text="",
+                attachments=(att,),
+            )
+
+        # No "took too long" reply — the slow transcribe was allowed
+        # to complete, and the transcript reached the Assistant.
+        sends = [r for r in fake.outbox if r.kind == "send"]
+        assert sends == []
+
+        assistant = next(iter(manager._conn_mgr.assistants.values()))  # noqa: SLF001
+        assert len(assistant.inputs) == 1
+        blocks = assistant.inputs[0]["attachments"]
+        assert blocks is not None
+        assert len(blocks) == 1
+        assert blocks[0].type == "text"
+        assert "hello world" in blocks[0].text

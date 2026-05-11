@@ -17,8 +17,9 @@ def create_connector(spec: dict) -> SlackConnector:
             "config":   {
                 "bot_token": "xoxb-...",
                 "app_token": "xapp-...",
-                # optional: allowlist, unauthorized_reply — handled by
-                # ConnectorManager, not this factory.
+                "mention_only": false,  # optional; default false
+                # allowlist, unauthorized_reply — handled by ConnectorManager,
+                # not this factory.
             },
         }
 
@@ -26,6 +27,9 @@ def create_connector(spec: dict) -> SlackConnector:
     the app token authorises the Socket Mode WebSocket. Missing either
     raises :class:`ValueError` with a message that points operators at
     the right environment variable to set.
+
+    ``mention_only`` (default ``false``) makes the bot ignore channel
+    messages that don't mention it. DMs always get through regardless.
     """
     instance_name = spec.get("instance", "")
     cfg = spec.get("config", {}) or {}
@@ -51,10 +55,13 @@ def create_connector(spec: dict) -> SlackConnector:
             "reference it as ${SLACK_APP_TOKEN} in config.yaml)"
         )
 
+    mention_only = bool(cfg.get("mention_only", False))
+
     return SlackConnector(
         instance_name=instance_name or "slack",
         bot_token=bot_token,
         app_token=app_token,
+        mention_only=mention_only,
     )
 
 

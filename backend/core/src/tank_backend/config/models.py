@@ -174,10 +174,19 @@ class FileAccessConfig:
 
 @dataclass(frozen=True)
 class AuditConfig:
-    """``audit:`` section."""
+    """``audit:`` section.
+
+    Rotation is opt-in. Leaving ``max_bytes=0`` preserves the pre-Phase-8
+    unbounded append behaviour — operators who already pipeline the log
+    via external tooling (logrotate, fluent-bit, …) don't need to know
+    about the in-process rotation machinery. Setting any positive
+    ``max_bytes`` enables size-based rotation.
+    """
 
     enabled: bool = False
     log_path: str = "~/.tank/audit.jsonl"
+    max_bytes: int = 0        # 0 disables in-process rotation
+    backup_count: int = 5     # how many ``.jsonl.<N>`` backups to keep
 
 
 @dataclass(frozen=True)
@@ -311,9 +320,17 @@ class ConnectorInstanceConfig:
 
 @dataclass(frozen=True)
 class ConnectorsConfig:
-    """``connectors:`` section — a list of configured connector instances."""
+    """``connectors:`` section — a list of configured connector instances
+    plus cross-cutting behaviour knobs.
+
+    ``asr_transcribe_timeout_s`` bounds the :class:`ASREngine.transcribe_once`
+    call that :class:`ConnectorManager` makes on inbound voice notes.
+    A hung ASR engine could otherwise freeze inbound dispatch indefinitely.
+    Set to ``0`` to disable the bound (restores pre-Phase-8 behaviour).
+    """
 
     instances: tuple[ConnectorInstanceConfig, ...] = ()
+    asr_transcribe_timeout_s: float = 30.0
 
 
 # ── Observability ─────────────────────────────────────────────────
