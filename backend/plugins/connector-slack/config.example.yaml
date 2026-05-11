@@ -1,0 +1,32 @@
+# Example connector-slack configuration.
+#
+# Copy the `connectors:` block into `backend/core/config.yaml`, then set
+# the SLACK_BOT_TOKEN and SLACK_APP_TOKEN environment variables before
+# starting Tank. See the plugin README for the Slack-app setup walk-through
+# (scopes, event subscriptions, Socket Mode token).
+#
+# Access control: the `allowlist` block below is optional. Without it, the
+# bot accepts messages from anyone who can reach a channel it's a member
+# of. With it, denied senders get a polite rejection reply and no
+# Assistant session is spawned — see the plugin README for pattern
+# syntax and gotchas.
+
+connectors:
+  - instance: my-slack-bot
+    extension: connector-slack:connector
+    config:
+      bot_token: ${SLACK_BOT_TOKEN}
+      app_token: ${SLACK_APP_TOKEN}
+
+      # Optional per-instance allowlist.  Zero-config = allow-all.
+      # allowlist:
+      #   default: deny              # "allow" (default) or "deny"
+      #   rules:
+      #     - external_ids: ["slack:user:U01ABCDEF"]
+      #       policy: allow
+      #       reason: "me"
+      #     - external_ids: ["slack:channel:C01TEAMCHAN"]
+      #       policy: allow
+      #       reason: "engineering channel"
+      # unauthorized_reply: |
+      #   Sorry, this bot is scoped to the engineering team.

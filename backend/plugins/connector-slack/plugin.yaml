@@ -1,0 +1,8 @@
+name: connector-slack
+display_name: Slack Connector
+description: Talk to Tank from Slack (DMs, channels, groups, MPIMs) via Socket Mode.
+
+extensions:
+  - name: connector
+    type: connector
+    factory: connector_slack:create_connector
