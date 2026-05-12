@@ -1,0 +1,30 @@
+# Example connector-discord configuration.
+#
+# Copy the `connectors:` block into `backend/core/config.yaml`, then set
+# the DISCORD_BOT_TOKEN environment variable before starting Tank. See
+# the plugin README for the Developer Portal walk-through (bot creation,
+# MESSAGE CONTENT intent, invite URL).
+#
+# Access control: the `allowlist` block below is optional. Without it,
+# the bot accepts messages from anyone who can reach a channel it's been
+# invited into. With it, denied senders get a polite rejection reply
+# and no Assistant session is spawned.
+
+connectors:
+  - instance: my-discord-bot
+    extension: connector-discord:connector
+    config:
+      bot_token: ${DISCORD_BOT_TOKEN}
+
+      # Optional per-instance allowlist. Zero-config = allow-all.
+      # allowlist:
+      #   default: deny              # "allow" (default) or "deny"
+      #   rules:
+      #     - external_ids: ["discord:user:123456789012345678"]
+      #       policy: allow
+      #       reason: "me"
+      #     - external_ids: ["discord:channel:987654321098765432"]
+      #       policy: allow
+      #       reason: "#tank-dev channel"
+      # unauthorized_reply: |
+      #   Sorry, this bot is scoped to the engineering team.

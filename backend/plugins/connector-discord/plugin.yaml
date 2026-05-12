@@ -1,0 +1,8 @@
+name: connector-discord
+display_name: Discord Connector
+description: Talk to Tank from Discord (DMs, guild channels, threads) via the gateway WebSocket.
+
+extensions:
+  - name: connector
+    type: connector
+    factory: connector_discord:create_connector

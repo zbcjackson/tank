@@ -1,0 +1,610 @@
+"""Discord connector implementation.
+
+Uses discord.py 2.x's gateway WebSocket (``Client.start()``). One bot
+token authorises both receive and send — simpler than Slack's dual
+token Socket Mode. Gateway auto-reconnect is handled by the SDK.
+
+Supports text + image attachments in both directions. Threads are
+first-class ``discord.Thread`` channels: Tank's reply goes back to the
+same thread, but the underlying **session** keys on the parent channel
+(matching Slack's channel-scoped model from Phase 7). Voice, slash
+commands, and interactive components are out of scope for this release.
+
+Message IDs are composite ``{channel_id}|{message_id}`` strings so the
+Connector contract's single ``message_id`` can round-trip through
+:meth:`edit` — both pieces are needed to identify a message on
+Discord's Web API.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import io
+import logging
+from typing import TYPE_CHECKING, Any
+
+import discord
+from tank_contracts.connector import (
+    Attachment,
+    Connector,
+    ConnectorCapabilities,
+    Identity,
+    MessageEvent,
+    SendResult,
+)
+
+if TYPE_CHECKING:
+    pass
+
+logger = logging.getLogger("DiscordConnector")
+
+# Discord's edit rate limit is roughly 5 per 5 seconds per channel (1/s
+# sustained, small burst). 1100 ms gives us a safety margin without
+# feeling sluggish — matches Telegram's cadence.
+_DEFAULT_EDIT_INTERVAL_MS = 1100
+
+# Hard cap on ``channel.send(content=...)`` — 2000 chars, much tighter
+# than Slack's 40 000 or Telegram's 4096.
+_DISCORD_MAX_MESSAGE_LENGTH = 2000
+
+# Match the /api/upload + other-connector boundary. Discord permits much
+# larger uploads in absolute terms, but bot interactions rarely benefit.
+_MAX_INBOUND_IMAGE_BYTES = 25 * 1024 * 1024
+
+# Timeout for the gateway task to drain cleanly on shutdown.
+_SHUTDOWN_TIMEOUT_S = 5.0
+
+
+def _encode_msg_id(channel_id: int, message_id: int) -> str:
+    """Serialize ``(channel_id, message_id)`` into a single string.
+
+    The Connector contract exposes ``message_id`` as an opaque string.
+    Discord needs both pieces to address a message: snowflake IDs are
+    globally unique, but :meth:`edit` resolves via
+    ``channel.fetch_message(id)`` and we want to skip cross-channel
+    lookups. The pipe separator avoids collisions — Discord snowflakes
+    are purely numeric.
+    """
+    return f"{channel_id}|{message_id}"
+
+
+def _decode_msg_id(msg_id: str) -> tuple[int, int]:
+    """Inverse of :func:`_encode_msg_id`. Raises ``ValueError`` on
+    malformed input — both halves must be present and parseable as int."""
+    channel_str, sep, message_str = msg_id.partition("|")
+    if not sep or not channel_str or not message_str:
+        raise ValueError(f"not a discord message id: {msg_id!r}")
+    try:
+        return int(channel_str), int(message_str)
+    except ValueError as e:
+        raise ValueError(f"not a discord message id: {msg_id!r}") from e
+
+
+def _classify_discord_error(exc: discord.HTTPException) -> SendResult:
+    """Map a ``discord.HTTPException`` into our :class:`SendResult` shape.
+
+    Rate-limited responses surface a ``Retry-After`` header — parse it
+    into the conventional ``rate_limited:<N>`` token so the upstream
+    StreamConsumer can distinguish transient from terminal failures.
+    """
+    status = getattr(exc, "status", None)
+    if status == 429:
+        retry_after: str | None = None
+        response = getattr(exc, "response", None)
+        headers = getattr(response, "headers", None) if response else None
+        if headers is not None:
+            with contextlib.suppress(Exception):
+                retry_after = headers.get("Retry-After") or headers.get("retry-after")
+        return SendResult(
+            ok=False,
+            error=f"rate_limited:{retry_after}" if retry_after else "rate_limited:?",
+        )
+    if status == 404:
+        return SendResult(ok=False, error=f"discord:not_found:{exc}")
+    if status == 403:
+        return SendResult(ok=False, error=f"discord:forbidden:{exc}")
+    return SendResult(ok=False, error=f"discord:{status or '?'}:{exc}")
+
+
+class _TankDiscordClient(discord.Client):
+    """Thin :class:`discord.Client` subclass that delegates events to the
+    owning :class:`DiscordConnector`.
+
+    We subclass rather than use ``@client.event`` because subclassing is
+    the idiomatic pattern when event dispatch depends on instance state
+    (our connector's ``_on_message`` handler, instance-specific logging).
+    """
+
+    def __init__(
+        self,
+        *,
+        connector: DiscordConnector,
+        intents: discord.Intents,
+    ) -> None:
+        super().__init__(intents=intents)
+        self._connector = connector
+
+    async def on_ready(self) -> None:
+        logger.info(
+            "Discord connector '%s' gateway ready as %s (%d guilds)",
+            self._connector.instance_name,
+            self.user,
+            len(self.guilds),
+        )
+
+    async def on_message(self, message: discord.Message) -> None:
+        await self._connector._on_discord_message(message)  # noqa: SLF001
+
+
+class DiscordConnector(Connector):
+    """Platform adapter for Discord (gateway Socket Mode equivalent).
+
+    One connector instance serves arbitrarily many guilds through a
+    single bot token — Discord's native multi-guild model. Deploy
+    multiple instances only when you want distinct bot identities.
+    """
+
+    platform = "discord"
+
+    def __init__(
+        self,
+        *,
+        instance_name: str,
+        bot_token: str,
+    ) -> None:
+        super().__init__(
+            instance_name=instance_name,
+            capabilities=ConnectorCapabilities(
+                supports_edits=True,
+                edit_min_interval_ms=_DEFAULT_EDIT_INTERVAL_MS,
+                max_message_length=_DISCORD_MAX_MESSAGE_LENGTH,
+                supports_images_in=True,
+                supports_images_out=True,
+                supports_voice_in=False,
+                supports_voice_out=False,
+                supports_typing_indicator=True,
+            ),
+        )
+        self._token = bot_token
+        self._client: discord.Client | None = None
+        self._task: asyncio.Task[None] | None = None
+
+    # ── Lifecycle ───────────────────────────────────────────────────
+
+    async def start(self) -> None:
+        if self._connected:
+            return
+
+        # ``Intents.default()`` covers guilds + guild_messages + dm_messages.
+        # ``message_content`` is a *privileged* intent: operators must
+        # also flip the MESSAGE CONTENT INTENT toggle in the Developer
+        # Portal, or ``message.content`` will be empty for all events.
+        # This is the single most common "bot sees events but can't read
+        # anything" gotcha; the README covers it.
+        intents = discord.Intents.default()
+        intents.message_content = True
+
+        self._client = _TankDiscordClient(connector=self, intents=intents)
+        self._task = asyncio.create_task(
+            self._run_gateway(),
+            name=f"discord-gateway-{self.instance_name}",
+        )
+        self._connected = True
+        logger.info("Discord connector '%s' started", self.instance_name)
+
+    async def _run_gateway(self) -> None:
+        """Run the gateway and surface unexpected crashes.
+
+        discord.py's ``Client.start`` handles reconnects on transient
+        network drops transparently, so under normal operation this
+        coroutine runs for the connector's entire lifetime. Unrecoverable
+        errors (bad token, revoked permissions) bubble up — we log
+        loudly rather than leaving the connector silently dead.
+        """
+        assert self._client is not None  # noqa: S101
+        try:
+            await self._client.start(self._token)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception(
+                "Discord connector '%s' gateway task crashed",
+                self.instance_name,
+            )
+            raise
+
+    async def stop(self) -> None:
+        if not self._connected:
+            return
+        if self._client is not None:
+            with contextlib.suppress(Exception):
+                await self._client.close()
+        if self._task is not None:
+            try:
+                await asyncio.wait_for(self._task, timeout=_SHUTDOWN_TIMEOUT_S)
+            except asyncio.TimeoutError:
+                self._task.cancel()
+                with contextlib.suppress(
+                    asyncio.CancelledError, asyncio.TimeoutError, Exception,
+                ):
+                    await self._task
+        self._client = None
+        self._task = None
+        self._connected = False
+        logger.info("Discord connector '%s' stopped", self.instance_name)
+
+    # ── Inbound ─────────────────────────────────────────────────────
+
+    async def _on_discord_message(self, message: discord.Message) -> None:
+        """Handle an inbound ``message`` event from the gateway.
+
+        Discord's gateway delivers every message the bot can see — we
+        filter out the bot's own echoes (to prevent reply loops) and
+        other bots' messages (conservative default — if a user wants to
+        build bot-to-bot chains, they can opt in via a future flag).
+
+        Unlike Slack, Discord has no ``subtype`` concept; edit/delete
+        events fire on *separate* event types (``on_message_edit``,
+        ``on_message_delete``) we don't subscribe to. Simpler filter
+        story.
+        """
+        if self._on_message is None:
+            return
+        if self._client is not None and message.author.id == self._client.user.id:  # type: ignore[union-attr]
+            return
+        if message.author.bot:
+            return
+
+        identity = self._make_identity(message)
+
+        attachments: list[Attachment] = []
+        for disc_att in message.attachments:
+            att = await self._download_attachment(disc_att)
+            if att is not None:
+                attachments.append(att)
+
+        msg_event = MessageEvent(
+            identity=identity,
+            text=message.content or "",
+            attachments=tuple(attachments),
+            reply_to_message_id=None,
+            raw={
+                "message_id": message.id,
+                "channel_id": message.channel.id,
+                "author_id": message.author.id,
+            },
+        )
+        try:
+            await self._on_message(msg_event)
+        except Exception:
+            logger.exception(
+                "Discord connector '%s': inbound handler raised",
+                self.instance_name,
+            )
+
+    def _make_identity(self, message: discord.Message) -> Identity:
+        """Build an :class:`Identity` from a Discord ``message``.
+
+        DMs (``message.guild is None``) emit ``discord:user:{user_id}``
+        so allowlists can match individual people across DM restarts.
+        Guild channels and threads both emit
+        ``discord:channel:{parent_id}`` — i.e., a thread message
+        collapses to the parent channel's session, matching Slack's
+        channel-scoped semantics from Phase 7.
+
+        :attr:`Identity.metadata` carries both the actual channel id
+        (where outbound replies go) and the parent id (which identifies
+        the session) so callers never need to re-derive the thread/
+        parent relationship.
+        """
+        author = message.author
+        channel = message.channel
+        is_dm = message.guild is None
+
+        if is_dm:
+            external_id = f"discord:user:{author.id}"
+            parent_channel_id = channel.id
+            thread_id: int | None = None
+        else:
+            # Guild channels and threads both land here. When ``channel``
+            # is a :class:`~discord.Thread`, ``channel.parent_id`` is
+            # the owning text channel; we use that for the session key
+            # so threads share conversation history with their parent.
+            parent_channel_id = getattr(channel, "parent_id", None) or channel.id
+            external_id = f"discord:channel:{parent_channel_id}"
+            thread_id = (
+                channel.id if parent_channel_id != channel.id else None
+            )
+
+        display_name = (
+            getattr(author, "display_name", None)
+            or getattr(author, "name", None)
+            or str(author.id)
+        )
+
+        return Identity(
+            platform=self.platform,
+            external_id=external_id,
+            display_name=display_name,
+            is_group=not is_dm,
+            metadata={
+                "user_id": author.id,
+                # The actual channel/thread the message lives in —
+                # outbound replies go here to land in-thread when applicable.
+                "channel_id": channel.id,
+                # The parent text-channel id — identifies the session.
+                "parent_channel_id": parent_channel_id,
+                "guild_id": message.guild.id if message.guild else None,
+                "thread_id": thread_id,
+            },
+        )
+
+    async def _download_attachment(
+        self, attachment: discord.Attachment,
+    ) -> Attachment | None:
+        """Fetch an inbound Discord attachment's bytes and wrap it as
+        a framework :class:`Attachment`.
+
+        Only image attachments are handled in this release — documents,
+        audio, and archives are dropped with a debug log. Discord
+        attachments carry their MIME type; we filter on ``image/*``.
+        ``attachment.read()`` returns bytes via discord.py's internal
+        HTTP session (no separate auth required).
+        """
+        mime_type = attachment.content_type or ""
+        if not mime_type.startswith("image/"):
+            logger.debug(
+                "Discord connector '%s': dropping non-image attachment "
+                "mime=%s",
+                self.instance_name, mime_type,
+            )
+            return None
+
+        size = attachment.size or 0
+        if size and size > _MAX_INBOUND_IMAGE_BYTES:
+            logger.info(
+                "Discord connector '%s': dropping oversized inbound image "
+                "(%d bytes)",
+                self.instance_name, size,
+            )
+            return None
+
+        try:
+            data = await attachment.read()
+        except Exception:
+            logger.exception(
+                "Discord connector '%s': attachment.read() raised",
+                self.instance_name,
+            )
+            return None
+
+        if not data:
+            return None
+        if len(data) > _MAX_INBOUND_IMAGE_BYTES:
+            logger.info(
+                "Discord connector '%s': dropping inbound image that "
+                "exceeded cap after read (%d bytes)",
+                self.instance_name, len(data),
+            )
+            return None
+
+        return Attachment(kind="image", data=data, mime_type=mime_type)
+
+    # ── Outbound ────────────────────────────────────────────────────
+
+    async def send(
+        self,
+        identity: Identity,
+        text: str,
+        *,
+        reply_to: str | None = None,  # noqa: ARG002 — reserved; Discord's reference API is different
+        attachments: tuple[Attachment, ...] = (),
+    ) -> SendResult:
+        if self._client is None:
+            return SendResult(ok=False, error="not connected")
+
+        channel_id = identity.metadata.get("channel_id")
+        if channel_id is None:
+            return SendResult(
+                ok=False,
+                error=f"bad_identity:missing_channel_id:{identity.external_id!r}",
+            )
+
+        channel = await self._resolve_channel(channel_id, identity)
+        if channel is None:
+            return SendResult(ok=False, error=f"discord:channel_not_found:{channel_id}")
+
+        image_att = next(
+            (a for a in attachments if a.kind == "image"),
+            None,
+        )
+        if image_att is not None:
+            return await self._send_image(
+                channel=channel,
+                attachment=image_att,
+                caption=text,
+            )
+
+        truncated = self._truncate(text, _DISCORD_MAX_MESSAGE_LENGTH)
+        try:
+            msg = await channel.send(content=truncated)
+        except discord.HTTPException as e:
+            return _classify_discord_error(e)
+
+        return SendResult(
+            ok=True,
+            message_id=_encode_msg_id(msg.channel.id, msg.id),
+        )
+
+    async def _send_image(
+        self,
+        *,
+        channel: Any,  # discord.abc.Messageable
+        attachment: Attachment,
+        caption: str,
+    ) -> SendResult:
+        """Upload one image via ``channel.send(file=...)``.
+
+        Bytes go through :class:`discord.File` — discord.py accepts an
+        in-memory file pointer so we don't have to touch disk. URL
+        payloads are fetched ourselves (Discord doesn't accept arbitrary
+        remote URLs for attachments the way Telegram does).
+
+        Image sends return no edit-addressable ``message_id`` — Discord
+        allows editing the caption on a file message (``Message.edit``),
+        but the StreamConsumer only edits text messages today. Matches
+        the Slack behaviour.
+        """
+        assert self._client is not None  # noqa: S101
+
+        if isinstance(attachment.data, bytes):
+            content = attachment.data
+        elif isinstance(attachment.data, str):
+            # URL case — fetch and re-upload. Use discord.py's shared
+            # aiohttp session via the HTTP client to avoid pulling in
+            # our own dependency path.
+            try:
+                import aiohttp
+
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(attachment.data) as resp:
+                        if resp.status != 200:
+                            return SendResult(
+                                ok=False,
+                                error=f"discord:url_fetch_failed:{resp.status}",
+                            )
+                        content = await resp.read()
+            except Exception as e:
+                return SendResult(ok=False, error=f"discord:url_fetch:{e}")
+        else:
+            return SendResult(
+                ok=False,
+                error=f"bad_attachment_data:{type(attachment.data).__name__}",
+            )
+
+        if not content:
+            return SendResult(ok=False, error="empty_payload")
+
+        send_caption: str | None = None
+        if caption:
+            send_caption = self._truncate(caption, _DISCORD_MAX_MESSAGE_LENGTH)
+
+        filename = attachment.filename or "image.png"
+        file = discord.File(fp=io.BytesIO(content), filename=filename)
+
+        try:
+            await channel.send(content=send_caption, file=file)
+        except discord.HTTPException as e:
+            return _classify_discord_error(e)
+
+        # Image sends don't expose an edit-addressable message_id —
+        # intentional; StreamConsumer only edits text messages.
+        return SendResult(ok=True, message_id=None)
+
+    async def edit(
+        self,
+        identity: Identity,  # noqa: ARG002 — channel resolved from message_id
+        message_id: str,
+        text: str,
+    ) -> SendResult:
+        if self._client is None:
+            return SendResult(ok=False, error="not connected")
+
+        try:
+            channel_id, disc_message_id = _decode_msg_id(message_id)
+        except ValueError:
+            return SendResult(ok=False, error=f"bad_message_id:{message_id!r}")
+
+        channel = self._client.get_channel(channel_id)
+        if channel is None:
+            with contextlib.suppress(discord.HTTPException):
+                channel = await self._client.fetch_channel(channel_id)
+        if channel is None:
+            return SendResult(ok=False, error=f"discord:channel_not_found:{channel_id}")
+
+        try:
+            target = await channel.fetch_message(disc_message_id)  # type: ignore[union-attr]
+        except discord.HTTPException as e:
+            return _classify_discord_error(e)
+
+        truncated = self._truncate(text, _DISCORD_MAX_MESSAGE_LENGTH)
+        try:
+            await target.edit(content=truncated)
+        except discord.HTTPException as e:
+            return _classify_discord_error(e)
+
+        return SendResult(ok=True, message_id=message_id)
+
+    async def send_typing(self, identity: Identity) -> None:
+        """Briefly surface the "typing..." indicator in the target channel.
+
+        Discord exposes typing as an *interval* rather than a one-shot
+        event — ``channel.typing()`` is an async context manager that
+        keeps the indicator lit until the block exits (max ~10s). We
+        fire a short enter/exit as a cheap pulse matching Telegram's
+        one-shot semantics; callers who want a sustained indicator can
+        wrap longer blocks themselves in a future enhancement.
+        """
+        if self._client is None:
+            return
+        channel_id = identity.metadata.get("channel_id")
+        if channel_id is None:
+            return
+        channel = await self._resolve_channel(channel_id, identity)
+        if channel is None:
+            return
+        with contextlib.suppress(discord.HTTPException):
+            async with channel.typing():
+                # Brief await to let Discord register the indicator.
+                await asyncio.sleep(0)
+
+    # ── Helpers ────────────────────────────────────────────────────
+
+    async def _resolve_channel(
+        self, channel_id: int, identity: Identity,
+    ) -> Any | None:
+        """Resolve a ``channel_id`` to a ``discord.abc.Messageable``.
+
+        Tries the gateway cache first, then falls back to ``fetch_channel``
+        for guild channels/threads. DM channels sometimes miss the cache
+        across reconnects — in that case we re-open the DM via
+        ``user.create_dm()`` (idempotent per discord.py's API).
+        """
+        assert self._client is not None  # noqa: S101
+
+        channel = self._client.get_channel(channel_id)
+        if channel is not None:
+            return channel
+
+        # Guild channels / threads → HTTP fetch is cheap and documented.
+        with contextlib.suppress(discord.HTTPException):
+            channel = await self._client.fetch_channel(channel_id)
+        if channel is not None:
+            return channel
+
+        # DM fallback: re-open via the user, using the ``user_id`` that
+        # _make_identity stashed in metadata. Skips the (empty) guild
+        # channel cache lookup entirely.
+        user_id = identity.metadata.get("user_id")
+        if user_id is None:
+            return None
+        user = self._client.get_user(user_id)
+        if user is None:
+            with contextlib.suppress(discord.HTTPException):
+                user = await self._client.fetch_user(user_id)
+        if user is None:
+            return None
+        with contextlib.suppress(discord.HTTPException):
+            return await user.create_dm()
+        return None
+
+    @staticmethod
+    def _truncate(text: str, cap: int) -> str:
+        """Truncate ``text`` to ``cap`` chars, replacing the tail with a
+        single ellipsis so users see that trimming happened. Matches
+        the Telegram/Slack convention so all three connectors truncate
+        consistently."""
+        if len(text) <= cap:
+            return text
+        return text[: cap - 1] + "…"
