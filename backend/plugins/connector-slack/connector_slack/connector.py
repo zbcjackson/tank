@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -78,6 +79,18 @@ _SHUTDOWN_TIMEOUT_S = 5.0
 # refresh + staggered expiry (each user's TTL starts at first sight)
 # means no synchronised sweep storms the API.
 _DISPLAY_NAME_TTL_S = 24 * 60 * 60
+
+# Phase 10: shape of the ``action_id`` string on approval buttons.
+# ``{prefix}:{choice}:{approval_id}`` — same three-part shape every
+# connector uses. Choice literals are kept in sync (not imported) with
+# :mod:`tank_backend.connectors.approval` so the plugin doesn't back-
+# -depend on tank-backend. Slack's ``action_id`` has no length cap
+# relevant to us at this shape.
+_APPROVAL_ACTION_PREFIX = "approve"
+_APPROVAL_ACTION_RE = re.compile(r"^approve:")
+_CHOICE_ALLOW_ONCE = "allow_once"
+_CHOICE_ALLOW_FOREVER = "allow_forever"
+_CHOICE_DENY = "deny"
 
 
 def _encode_msg_id(channel: str, ts: str) -> str:
@@ -200,6 +213,11 @@ class SlackConnector(Connector):
         # Register handlers before opening the socket so no events are
         # dropped between connect + registration.
         self._app.event("message")(self._on_message_event)
+        # Phase 10: ``action_id`` matches any approval button we rendered
+        # via :meth:`send_approval_prompt`. slack_bolt's ``action``
+        # decorator dispatches on the regex; our handler parses choice
+        # + approval_id out of the id string.
+        self._app.action(_APPROVAL_ACTION_RE)(self._on_approval_action)
         self._handler = AsyncSocketModeHandler(self._app, self._app_token)
         self._task = asyncio.create_task(
             self._run_socket_mode(),
@@ -637,6 +655,187 @@ class SlackConnector(Connector):
             return _classify_slack_error(e)
 
         return SendResult(ok=True, message_id=message_id)
+
+    # ── Approval workflow (Phase 10) ────────────────────────────────
+
+    async def send_approval_prompt(
+        self,
+        *,
+        admin_identity: Identity,
+        approval_id: str,
+        sender: Identity,
+        preview: str,
+    ) -> None:
+        """Send an approval-prompt message with three Block Kit buttons.
+
+        Slack addresses DMs by user id via the ``chat.postMessage``
+        ``channel`` parameter accepting either a channel id or a user
+        id (Slack auto-resolves the DM channel). Our identity parser
+        stores ``slack:user:{U}`` for DMs — we pass the user id
+        directly and Slack handles the rest.
+
+        Each button carries an ``action_id`` encoded as
+        ``approve:<choice>:<approval_id>``. Slack delivers that same
+        string back to :meth:`_on_approval_action` when the admin
+        clicks — no length cap we need to worry about at this shape.
+        """
+        if self._app is None:
+            return
+
+        # Extract the channel/user id from the admin identity's
+        # ``external_id``. Slack DMs are ``slack:user:{U}`` → the
+        # ``U...`` id works directly as the ``channel`` arg because
+        # Slack's API accepts user ids there. Channel admins (unusual
+        # but valid) are ``slack:channel:{C}``.
+        ext_id = admin_identity.external_id
+        _, _, dest = ext_id.rpartition(":")
+        if not dest:
+            logger.warning(
+                "Slack connector '%s': unparseable admin external_id %r",
+                self.instance_name, ext_id,
+            )
+            return
+
+        sender_label = (
+            f"{sender.display_name} ({sender.external_id})"
+            if sender.display_name
+            else sender.external_id
+        )
+        # Block Kit structure — section with context, then three button
+        # actions. Matches Slack's canonical "approval modal" shape;
+        # users who expect the classic inline buttons will find it
+        # familiar.
+        blocks = [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"*New sender wants to talk to me:*\n"
+                        f"• {sender_label}\n"
+                        f"• message preview: {preview}"
+                    ),
+                },
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "✅ Allow once"},
+                        "action_id": (
+                            f"{_APPROVAL_ACTION_PREFIX}:{_CHOICE_ALLOW_ONCE}"
+                            f":{approval_id}"
+                        ),
+                        "value": approval_id,
+                    },
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "🔓 Allow forever"},
+                        "action_id": (
+                            f"{_APPROVAL_ACTION_PREFIX}:{_CHOICE_ALLOW_FOREVER}"
+                            f":{approval_id}"
+                        ),
+                        "value": approval_id,
+                    },
+                    {
+                        "type": "button",
+                        "style": "danger",
+                        "text": {"type": "plain_text", "text": "🚫 Deny"},
+                        "action_id": (
+                            f"{_APPROVAL_ACTION_PREFIX}:{_CHOICE_DENY}"
+                            f":{approval_id}"
+                        ),
+                        "value": approval_id,
+                    },
+                ],
+            },
+        ]
+
+        try:
+            await self._app.client.chat_postMessage(
+                channel=dest,
+                text="New sender wants to talk to me.",  # fallback for non-Block-Kit clients
+                blocks=blocks,
+            )
+        except SlackApiError:
+            logger.exception(
+                "Slack connector '%s': failed to send approval prompt",
+                self.instance_name,
+            )
+
+    async def _on_approval_action(
+        self, ack: Any, body: dict, **_: Any,
+    ) -> None:
+        """Route an approval button click to the :class:`ApprovalBroker`.
+
+        slack_bolt enforces a 3-second ack window; we call ``ack()``
+        immediately then run broker work async afterwards. The broker's
+        identity check rejects non-admin clickers, so the public nature
+        of Slack's buttons doesn't compromise the gate.
+
+        Silently ignores clicks when no broker is attached or the
+        action data doesn't parse.
+        """
+        # Ack first — Slack shows a "failed to complete" banner if
+        # this doesn't happen inside 3 seconds.
+        with contextlib.suppress(Exception):
+            await ack()
+
+        broker = getattr(self, "_broker", None)
+        if broker is None:
+            logger.debug(
+                "Slack connector '%s': approval action arrived but "
+                "no broker is attached; ignoring",
+                self.instance_name,
+            )
+            return
+
+        # slack_bolt hands us ``body`` with ``actions: [{action_id, ...}]``
+        # and ``user: {id: "U..."}``. Pull both.
+        actions = body.get("actions") or []
+        if not actions:
+            logger.debug(
+                "Slack connector '%s': approval body had no actions",
+                self.instance_name,
+            )
+            return
+        action_id = actions[0].get("action_id", "")
+        parts = action_id.split(":", 2)
+        if len(parts) != 3 or parts[0] != _APPROVAL_ACTION_PREFIX:
+            logger.debug(
+                "Slack connector '%s': ignoring unrecognised action_id %r",
+                self.instance_name, action_id,
+            )
+            return
+        _, choice, approval_id = parts
+        if not approval_id:
+            return
+
+        user_info = body.get("user") or {}
+        clicker_user_id = user_info.get("id")
+        if not clicker_user_id:
+            logger.warning(
+                "Slack connector '%s': approval action body missing user.id",
+                self.instance_name,
+            )
+            return
+
+        clicker_identity = Identity(
+            platform=self.platform,
+            external_id=f"slack:user:{clicker_user_id}",
+            display_name=(user_info.get("name") or ""),
+            is_group=False,
+            metadata={"user": clicker_user_id},
+        )
+
+        try:
+            await broker.resolve(approval_id, choice, clicker_identity)
+        except Exception:
+            logger.exception(
+                "Slack connector '%s': broker.resolve raised",
+                self.instance_name,
+            )
 
     # ── Helpers ────────────────────────────────────────────────────
 

@@ -982,3 +982,166 @@ class TestDisplayNameTtl:
         cached_name, cached_expiry = c._display_name_cache["U42"]  # noqa: SLF001
         assert cached_name == "NewName"
         assert cached_expiry > time.time() + 3600  # at least one hour of freshness
+
+
+# ---------------------------------------------------------------------------
+# Phase 10 — Approval buttons (send_approval_prompt + _on_approval_action)
+# ---------------------------------------------------------------------------
+
+
+class TestApprovalPrompt:
+    """Slack renders buttons via Block Kit. The ``action_id`` on each
+    button encodes ``approve:<choice>:<approval_id>`` so the action
+    handler can decode the click without consulting any other state."""
+
+    async def test_renders_three_buttons_with_expected_action_ids(
+        self, started_connector,
+    ) -> None:
+        started_connector._app.client.chat_postMessage = AsyncMock(  # noqa: SLF001
+            return_value={"ok": True, "ts": "1", "channel": "D42"},
+        )
+        admin = Identity(
+            platform="slack",
+            external_id="slack:user:U42",
+            metadata={},
+        )
+        sender = Identity(
+            platform="slack",
+            external_id="slack:user:U99",
+            display_name="Alice",
+            metadata={},
+        )
+
+        await started_connector.send_approval_prompt(
+            admin_identity=admin,
+            approval_id="abc1234567890def",
+            sender=sender,
+            preview="hello tank",
+        )
+
+        started_connector._app.client.chat_postMessage.assert_awaited_once()  # noqa: SLF001
+        kwargs = (
+            started_connector._app.client.chat_postMessage.call_args.kwargs  # noqa: SLF001
+        )
+        # Slack accepts user ids directly in ``channel`` for DMs.
+        assert kwargs["channel"] == "U42"
+
+        blocks = kwargs["blocks"]
+        assert len(blocks) == 2
+        section, actions = blocks
+        assert section["type"] == "section"
+        # Section text mentions the sender + preview.
+        assert "Alice" in section["text"]["text"]
+        assert "slack:user:U99" in section["text"]["text"]
+        assert "hello tank" in section["text"]["text"]
+
+        assert actions["type"] == "actions"
+        button_elements = actions["elements"]
+        assert len(button_elements) == 3
+        action_ids = sorted(b["action_id"] for b in button_elements)
+        assert action_ids == [
+            "approve:allow_forever:abc1234567890def",
+            "approve:allow_once:abc1234567890def",
+            "approve:deny:abc1234567890def",
+        ]
+        # Deny button uses the danger style.
+        deny = next(b for b in button_elements if "deny" in b["action_id"])
+        assert deny.get("style") == "danger"
+
+    async def test_unparseable_admin_external_id_is_noop(
+        self, started_connector,
+    ) -> None:
+        started_connector._app.client.chat_postMessage = AsyncMock()  # noqa: SLF001
+        bad = Identity(
+            platform="slack",
+            external_id="",  # no colon → rpartition returns ("", "", "")
+            metadata={},
+        )
+        await started_connector.send_approval_prompt(
+            admin_identity=bad,
+            approval_id="abc",
+            sender=Identity(platform="slack", external_id="x", metadata={}),
+            preview="x",
+        )
+        started_connector._app.client.chat_postMessage.assert_not_awaited()  # noqa: SLF001
+
+
+class TestApprovalAction:
+    async def test_ack_and_dispatch_to_broker(
+        self, started_connector,
+    ) -> None:
+        broker = MagicMock()
+        broker.resolve = AsyncMock()
+        started_connector.set_approval_broker(broker)
+
+        ack = AsyncMock()
+        body = {
+            "actions": [{
+                "action_id": "approve:allow_forever:abc1234567890def",
+                "value": "abc1234567890def",
+            }],
+            "user": {"id": "U42", "name": "admin"},
+        }
+
+        await started_connector._on_approval_action(ack, body)  # noqa: SLF001
+
+        ack.assert_awaited_once()
+        broker.resolve.assert_awaited_once()
+        args = broker.resolve.call_args.args
+        assert args[0] == "abc1234567890def"
+        assert args[1] == "allow_forever"
+        clicker = args[2]
+        assert clicker.external_id == "slack:user:U42"
+
+    async def test_no_broker_attached_silently_acks(
+        self, started_connector,
+    ) -> None:
+        started_connector._broker = None  # noqa: SLF001
+        ack = AsyncMock()
+        body = {
+            "actions": [{"action_id": "approve:deny:abc"}],
+            "user": {"id": "U42"},
+        }
+        await started_connector._on_approval_action(ack, body)  # noqa: SLF001
+        ack.assert_awaited_once()
+
+    async def test_unrecognised_action_id_is_noop(
+        self, started_connector,
+    ) -> None:
+        broker = MagicMock()
+        broker.resolve = AsyncMock()
+        started_connector.set_approval_broker(broker)
+
+        ack = AsyncMock()
+        body = {
+            "actions": [{"action_id": "other-feature:button"}],
+            "user": {"id": "U42"},
+        }
+        await started_connector._on_approval_action(ack, body)  # noqa: SLF001
+        ack.assert_awaited_once()
+        broker.resolve.assert_not_awaited()
+
+    async def test_missing_user_id_is_noop(self, started_connector) -> None:
+        broker = MagicMock()
+        broker.resolve = AsyncMock()
+        started_connector.set_approval_broker(broker)
+
+        ack = AsyncMock()
+        body = {
+            "actions": [{"action_id": "approve:allow_once:abc"}],
+            "user": {},  # Slack body without user.id
+        }
+        await started_connector._on_approval_action(ack, body)  # noqa: SLF001
+        broker.resolve.assert_not_awaited()
+
+    async def test_empty_actions_list_is_noop(
+        self, started_connector,
+    ) -> None:
+        broker = MagicMock()
+        broker.resolve = AsyncMock()
+        started_connector.set_approval_broker(broker)
+
+        ack = AsyncMock()
+        body = {"actions": [], "user": {"id": "U42"}}
+        await started_connector._on_approval_action(ack, body)  # noqa: SLF001
+        broker.resolve.assert_not_awaited()

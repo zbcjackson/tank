@@ -42,6 +42,22 @@ class FakeSendRecord:
     sequence: int = 0
 
 
+@dataclass
+class FakeApprovalPrompt:
+    """One entry in :attr:`FakeConnector.approval_prompts`.
+
+    Phase 10 tests assert on this list to verify the broker routed the
+    approval request through the connector's button-send path — the
+    broker drops the pending entry if ``send_approval_prompt`` raises,
+    so observing the record is how we confirm "the prompt was sent."
+    """
+
+    admin_identity: Identity
+    approval_id: str
+    sender: Identity
+    preview: str
+
+
 class FakeConnector(Connector):
     """In-process connector. Inbound + outbox, no network."""
 
@@ -68,6 +84,10 @@ class FakeConnector(Connector):
         self._next_message_id = 1
         self._fail_send = fail_send
         self._fail_edit = fail_edit
+        # Phase 10: recorded approval-prompt invocations. Tests exercising
+        # the REQUIRE_APPROVAL flow assert on this list to verify the
+        # broker actually routed the request through here.
+        self.approval_prompts: list[FakeApprovalPrompt] = []
 
     # ── Lifecycle ───────────────────────────────────────────────────
 
@@ -124,6 +144,25 @@ class FakeConnector(Connector):
             kind="typing",
             identity=identity,
             sequence=len(self.outbox),
+        ))
+
+    # Phase 10: record approval-prompt invocations so tests can assert
+    # the broker routed the request correctly. Overriding the default
+    # ABC (which raises :class:`NotImplementedError`) lets
+    # ``REQUIRE_APPROVAL`` flows work end-to-end in the test harness.
+    async def send_approval_prompt(
+        self,
+        *,
+        admin_identity: Identity,
+        approval_id: str,
+        sender: Identity,
+        preview: str,
+    ) -> None:
+        self.approval_prompts.append(FakeApprovalPrompt(
+            admin_identity=admin_identity,
+            approval_id=approval_id,
+            sender=sender,
+            preview=preview,
         ))
 
     # ── Inbound injection helpers for tests ─────────────────────────

@@ -186,6 +186,49 @@ class TestPolicyEvaluate:
         assert verdict.context["external_id"] == "tg:user:99"
         assert verdict.context["display_name"] == "Bob"
 
+    def test_admin_always_allowed_even_under_deny_default(self) -> None:
+        """Admins must be reachable even when not explicitly listed in allow
+        rules. Without this, a ``default: deny`` config would lock the admin
+        out and make the approval workflow deadlock."""
+        policy = ConnectorAllowlistPolicy(
+            ConnectorAllowlistConfig(
+                default=AccessLevel.DENY,
+                admin_external_ids=("tg:user:42",),
+            ),
+            instance_name="bot",
+        )
+        verdict = policy.evaluate(_identity(external_id="tg:user:42"))
+        assert verdict.level is AccessLevel.ALLOW
+        assert verdict.reason == "admin identity"
+        assert verdict.context["matched_pattern"] == "<admin>"
+
+    def test_admin_always_allowed_under_require_approval_default(self) -> None:
+        """REQUIRE_APPROVAL default must not create an approval deadlock for
+        the admin itself."""
+        policy = ConnectorAllowlistPolicy(
+            ConnectorAllowlistConfig(
+                default=AccessLevel.REQUIRE_APPROVAL,
+                admin_external_ids=("tg:user:42",),
+            ),
+            instance_name="bot",
+        )
+        assert policy.evaluate(
+            _identity(external_id="tg:user:42"),
+        ).level is AccessLevel.ALLOW
+
+    def test_non_admin_still_subject_to_rules(self) -> None:
+        """Admin short-circuit must not affect non-admin identities."""
+        policy = ConnectorAllowlistPolicy(
+            ConnectorAllowlistConfig(
+                default=AccessLevel.DENY,
+                admin_external_ids=("tg:user:42",),
+            ),
+            instance_name="bot",
+        )
+        assert policy.evaluate(
+            _identity(external_id="tg:user:99"),
+        ).level is AccessLevel.DENY
+
 
 # ---------------------------------------------------------------------------
 # Bus publication (the audit hook)
@@ -299,27 +342,30 @@ class TestParseAllowlist:
         )
         assert cfg.rules[0].policy is AccessLevel.ALLOW
 
-    def test_require_approval_rejected_at_parse_time(self) -> None:
-        """``REQUIRE_APPROVAL`` is a valid :class:`AccessLevel` but the
-        enforcement layer doesn't handle it in v1. Fail fast at startup
-        so operators don't get silent allow-all behaviour."""
-        with pytest.raises(ConfigError, match="require_approval"):
-            parse_allowlist(
-                {"default": "require_approval"},
-                instance_name="bot",
-            )
+    def test_require_approval_parses_as_default(self) -> None:
+        """Phase 10: ``require_approval`` is a valid ``default`` — the
+        manager routes REQUIRE_APPROVAL verdicts through an
+        :class:`ApprovalBroker` when admins are configured, or fails
+        closed at runtime when they aren't. Pin the parse contract so
+        accidental re-introduction of the Phase-6 rejection is caught."""
+        cfg = parse_allowlist(
+            {"default": "require_approval"},
+            instance_name="bot",
+        )
+        assert cfg.default is AccessLevel.REQUIRE_APPROVAL
 
-    def test_require_approval_rejected_on_rule_policy(self) -> None:
-        with pytest.raises(ConfigError, match="require_approval"):
-            parse_allowlist(
-                {
-                    "rules": [{
-                        "external_ids": ["*"],
-                        "policy": "require_approval",
-                    }],
-                },
-                instance_name="bot",
-            )
+    def test_require_approval_parses_on_rule_policy(self) -> None:
+        cfg = parse_allowlist(
+            {
+                "rules": [{
+                    "external_ids": ["tg:user:*"],
+                    "policy": "require_approval",
+                }],
+            },
+            instance_name="bot",
+        )
+        assert len(cfg.rules) == 1
+        assert cfg.rules[0].policy is AccessLevel.REQUIRE_APPROVAL
 
     def test_unknown_access_level_raises(self) -> None:
         with pytest.raises(ConfigError, match="unknown value"):

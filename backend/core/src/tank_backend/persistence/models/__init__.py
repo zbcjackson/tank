@@ -8,6 +8,7 @@ These are **not** domain types. Each store maps between ORM rows
 from __future__ import annotations
 
 from .channels import ChannelReadStateRow, ChannelRow
+from .connector_dynamic_allowlist import ConnectorDynamicAllowlistRow
 from .connector_identities import ConnectorIdentityRow
 from .conversations import ConversationRow
 from .jobs import JobRow, JobRunRow
@@ -16,6 +17,7 @@ from .speakers import EmbeddingRow, SpeakerRow
 __all__ = [
     "ChannelReadStateRow",
     "ChannelRow",
+    "ConnectorDynamicAllowlistRow",
     "ConnectorIdentityRow",
     "ConversationRow",
     "EmbeddingRow",

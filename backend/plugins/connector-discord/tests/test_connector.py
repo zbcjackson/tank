@@ -843,3 +843,390 @@ def _http_exception(status: int, *, retry_after: str | None = None) -> discord.H
     # Sanity: discord.py copies status onto the exception itself.
     exc.status = status
     return exc
+
+
+# ---------------------------------------------------------------------------
+# Phase 10 — Approval buttons (send_approval_prompt + _on_approval_interaction)
+# ---------------------------------------------------------------------------
+
+
+class TestApprovalPrompt:
+    """``send_approval_prompt`` DMs the admin with three button
+    components whose ``custom_id`` fields encode choice + approval_id.
+    Discord routes clicks through :meth:`_TankDiscordClient.on_interaction`,
+    which calls ``_on_approval_interaction`` below."""
+
+    async def test_sends_dm_with_three_buttons_and_expected_custom_ids(
+        self, started_connector,
+    ) -> None:
+        # Admin user DM resolution: get_user returns a cached user whose
+        # ``create_dm`` yields a mock channel we can inspect.
+        admin_user = MagicMock()
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        admin_user.create_dm = AsyncMock(return_value=channel)
+        started_connector._client.get_user = MagicMock(  # noqa: SLF001
+            return_value=admin_user,
+        )
+
+        admin = Identity(
+            platform="discord",
+            external_id="discord:user:42",
+            metadata={"user_id": 42},
+        )
+        sender = Identity(
+            platform="discord",
+            external_id="discord:user:99",
+            display_name="Alice",
+            metadata={"user_id": 99},
+        )
+
+        await started_connector.send_approval_prompt(
+            admin_identity=admin,
+            approval_id="abc1234567890def",
+            sender=sender,
+            preview="hello tank",
+        )
+
+        channel.send.assert_awaited_once()
+        kwargs = channel.send.call_args.kwargs
+        # Prompt text mentions sender + identity + preview.
+        content = kwargs["content"]
+        assert "Alice" in content
+        assert "discord:user:99" in content
+        assert "hello tank" in content
+
+        # Three buttons on the attached View, each carrying the expected
+        # ``approve:<choice>:<approval_id>`` custom_id.
+        view = kwargs["view"]
+        buttons = [child for child in view.children
+                   if isinstance(child, discord.ui.Button)]
+        assert len(buttons) == 3
+        custom_ids = sorted(b.custom_id for b in buttons)
+        assert custom_ids == [
+            "approve:allow_forever:abc1234567890def",
+            "approve:allow_once:abc1234567890def",
+            "approve:deny:abc1234567890def",
+        ]
+
+    async def test_falls_back_to_fetch_user_when_cache_misses(
+        self, started_connector,
+    ) -> None:
+        """``get_user`` hits the gateway cache; for users the bot hasn't
+        seen this session, ``fetch_user`` does the HTTP lookup. Both
+        paths should land on the same DM-send flow."""
+        started_connector._client.get_user = MagicMock(return_value=None)  # noqa: SLF001
+        admin_user = MagicMock()
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        admin_user.create_dm = AsyncMock(return_value=channel)
+        started_connector._client.fetch_user = AsyncMock(  # noqa: SLF001
+            return_value=admin_user,
+        )
+
+        admin = Identity(
+            platform="discord",
+            external_id="discord:user:42",
+            metadata={"user_id": 42},
+        )
+        await started_connector.send_approval_prompt(
+            admin_identity=admin,
+            approval_id="abc",
+            sender=_identity(user_id=99),
+            preview="x",
+        )
+
+        started_connector._client.fetch_user.assert_awaited_once_with(42)  # noqa: SLF001
+        channel.send.assert_awaited_once()
+
+    async def test_derives_user_id_from_external_id_when_metadata_missing(
+        self, started_connector,
+    ) -> None:
+        """Defensive: if the admin Identity lacks ``metadata["user_id"]``
+        we parse the trailing int from ``discord:user:<id>`` so we can
+        still find the admin."""
+        admin_user = MagicMock()
+        channel = MagicMock()
+        channel.send = AsyncMock()
+        admin_user.create_dm = AsyncMock(return_value=channel)
+        started_connector._client.get_user = MagicMock(  # noqa: SLF001
+            return_value=admin_user,
+        )
+
+        admin = Identity(
+            platform="discord",
+            external_id="discord:user:42",
+            metadata={},  # no user_id
+        )
+        await started_connector.send_approval_prompt(
+            admin_identity=admin,
+            approval_id="abc",
+            sender=_identity(user_id=99),
+            preview="x",
+        )
+
+        started_connector._client.get_user.assert_called_with(42)  # noqa: SLF001
+
+    async def test_unresolvable_admin_is_silent_noop(
+        self, started_connector,
+    ) -> None:
+        """If we can't parse the admin user id out of the Identity, we
+        bail without trying to send. The broker's 24h TTL will eventually
+        clean up the orphaned pending entry."""
+        started_connector._client.get_user = MagicMock()  # noqa: SLF001
+        bad = Identity(platform="discord", external_id="garbage")
+        await started_connector.send_approval_prompt(
+            admin_identity=bad,
+            approval_id="abc",
+            sender=_identity(user_id=99),
+            preview="x",
+        )
+        started_connector._client.get_user.assert_not_called()  # noqa: SLF001
+
+    async def test_admin_not_found_is_logged_not_raised(
+        self, started_connector,
+    ) -> None:
+        """If both the cache and fetch_user return None (e.g. admin left
+        the server), we log and move on — no crash."""
+        started_connector._client.get_user = MagicMock(return_value=None)  # noqa: SLF001
+        started_connector._client.fetch_user = AsyncMock(  # noqa: SLF001
+            return_value=None,
+        )
+        admin = Identity(
+            platform="discord",
+            external_id="discord:user:42",
+            metadata={"user_id": 42},
+        )
+        # Must not raise.
+        await started_connector.send_approval_prompt(
+            admin_identity=admin,
+            approval_id="abc",
+            sender=_identity(user_id=99),
+            preview="x",
+        )
+
+
+class TestApprovalInteraction:
+    """Button clicks arrive as :class:`discord.Interaction` objects.
+    ``_on_approval_interaction`` must defer (Discord's 3-second ack
+    window) and then route the click to the broker."""
+
+    @staticmethod
+    def _mock_interaction(
+        *, custom_id: str, user_id: int = 42, user_name: str = "Admin",
+    ):
+        interaction = MagicMock()
+        interaction.type = discord.InteractionType.component
+        interaction.data = {"custom_id": custom_id}
+        interaction.response = MagicMock()
+        interaction.response.defer = AsyncMock()
+        user = MagicMock()
+        user.id = user_id
+        user.display_name = user_name
+        user.name = user_name
+        interaction.user = user
+        return interaction
+
+    async def test_ack_and_dispatch_to_broker(
+        self, started_connector,
+    ) -> None:
+        broker = MagicMock()
+        broker.resolve = AsyncMock()
+        started_connector.set_approval_broker(broker)
+
+        interaction = self._mock_interaction(
+            custom_id="approve:allow_forever:abc1234567890def",
+        )
+        await started_connector._on_approval_interaction(  # noqa: SLF001
+            interaction, "approve:allow_forever:abc1234567890def",
+        )
+
+        # Defer fires first so Discord doesn't show "interaction failed".
+        interaction.response.defer.assert_awaited_once()
+        # Broker is handed (approval_id, choice, clicker_identity).
+        broker.resolve.assert_awaited_once()
+        args = broker.resolve.call_args.args
+        assert args[0] == "abc1234567890def"
+        assert args[1] == "allow_forever"
+        clicker = args[2]
+        assert clicker.platform == "discord"
+        assert clicker.external_id == "discord:user:42"
+        assert clicker.metadata["user_id"] == 42
+
+    async def test_no_broker_attached_silently_defers(
+        self, started_connector,
+    ) -> None:
+        """Arriving click with no broker attached — possible during a
+        restart window — still acks so Discord's UI doesn't spin."""
+        # Ensure no broker.
+        if hasattr(started_connector, "_broker"):
+            delattr(started_connector, "_broker")
+
+        interaction = self._mock_interaction(
+            custom_id="approve:allow_once:abc",
+        )
+        await started_connector._on_approval_interaction(  # noqa: SLF001
+            interaction, "approve:allow_once:abc",
+        )
+        interaction.response.defer.assert_awaited_once()
+
+    async def test_malformed_custom_id_is_noop(
+        self, started_connector,
+    ) -> None:
+        """Guard against mis-parsed prefixes — e.g. a truncated custom_id.
+        The method still defers (UX contract) but doesn't call the
+        broker."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock()
+        started_connector.set_approval_broker(broker)
+
+        interaction = self._mock_interaction(
+            custom_id="approve:only-two-parts",
+        )
+        await started_connector._on_approval_interaction(  # noqa: SLF001
+            interaction, "approve:only-two-parts",
+        )
+        broker.resolve.assert_not_awaited()
+
+    async def test_empty_approval_id_is_noop(
+        self, started_connector,
+    ) -> None:
+        """Empty approval_id after the prefix — defensive against
+        ``approve:allow_once:``."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock()
+        started_connector.set_approval_broker(broker)
+
+        interaction = self._mock_interaction(
+            custom_id="approve:allow_once:",
+        )
+        await started_connector._on_approval_interaction(  # noqa: SLF001
+            interaction, "approve:allow_once:",
+        )
+        broker.resolve.assert_not_awaited()
+
+    async def test_missing_user_on_interaction_is_noop(
+        self, started_connector,
+    ) -> None:
+        """Discord's SDK guarantees ``interaction.user`` for component
+        interactions but we code defensively."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock()
+        started_connector.set_approval_broker(broker)
+
+        interaction = self._mock_interaction(
+            custom_id="approve:allow_once:abc",
+        )
+        interaction.user = None
+
+        await started_connector._on_approval_interaction(  # noqa: SLF001
+            interaction, "approve:allow_once:abc",
+        )
+        broker.resolve.assert_not_awaited()
+
+    async def test_defer_failure_still_dispatches_to_broker(
+        self, started_connector,
+    ) -> None:
+        """If the 3-second ack window slips (network blip, Discord lag),
+        the deferred call raises an :class:`discord.HTTPException`. We
+        swallow the ack error and still dispatch to the broker — the
+        user's click shouldn't be lost because the spinner got unlucky."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock()
+        started_connector.set_approval_broker(broker)
+
+        interaction = self._mock_interaction(
+            custom_id="approve:allow_forever:abc1234567890def",
+        )
+        interaction.response.defer = AsyncMock(
+            side_effect=_http_exception(404),
+        )
+
+        await started_connector._on_approval_interaction(  # noqa: SLF001
+            interaction, "approve:allow_forever:abc1234567890def",
+        )
+        broker.resolve.assert_awaited_once()
+
+    async def test_broker_resolve_raising_is_logged_not_raised(
+        self, started_connector,
+    ) -> None:
+        """Broker bugs shouldn't propagate up through the gateway
+        dispatcher — discord.py would log and drop, but we want
+        explicit containment with a clear log at our layer."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock(side_effect=RuntimeError("synthetic"))
+        started_connector.set_approval_broker(broker)
+
+        interaction = self._mock_interaction(
+            custom_id="approve:allow_once:abc",
+        )
+        # Must not raise.
+        await started_connector._on_approval_interaction(  # noqa: SLF001
+            interaction, "approve:allow_once:abc",
+        )
+
+
+class TestClientInteractionDispatch:
+    """``_TankDiscordClient.on_interaction`` is the gateway-level hook
+    that filters by ``custom_id`` prefix before routing to
+    ``_on_approval_interaction``. Non-approval interactions must pass
+    through (or be dropped) without touching the connector's approval
+    path — otherwise future UI additions would conflict."""
+
+    async def test_non_component_interactions_skip_approval_path(
+        self, started_connector,
+    ) -> None:
+        """Slash commands, application commands, etc. have type != component."""
+        from connector_discord.connector import _TankDiscordClient
+
+        # Construct a client directly so we can call on_interaction in
+        # isolation — the fixture's _client is a MagicMock, not a real
+        # _TankDiscordClient.
+        client = _TankDiscordClient.__new__(_TankDiscordClient)
+        client._connector = started_connector  # noqa: SLF001
+        started_connector._on_approval_interaction = AsyncMock()  # noqa: SLF001
+
+        interaction = MagicMock()
+        interaction.type = discord.InteractionType.application_command
+        interaction.data = {"custom_id": "approve:allow_once:abc"}
+
+        await client.on_interaction(interaction)
+        started_connector._on_approval_interaction.assert_not_awaited()  # noqa: SLF001
+
+    async def test_non_approval_custom_id_skips_approval_path(
+        self, started_connector,
+    ) -> None:
+        """Component interactions whose ``custom_id`` is not an
+        ``approve:`` click fall through — e.g. if a future phase adds
+        settings toggles via buttons."""
+        from connector_discord.connector import _TankDiscordClient
+
+        client = _TankDiscordClient.__new__(_TankDiscordClient)
+        client._connector = started_connector  # noqa: SLF001
+        started_connector._on_approval_interaction = AsyncMock()  # noqa: SLF001
+
+        interaction = MagicMock()
+        interaction.type = discord.InteractionType.component
+        interaction.data = {"custom_id": "settings:theme:dark"}
+
+        await client.on_interaction(interaction)
+        started_connector._on_approval_interaction.assert_not_awaited()  # noqa: SLF001
+
+    async def test_approval_prefix_routes_to_connector_handler(
+        self, started_connector,
+    ) -> None:
+        from connector_discord.connector import _TankDiscordClient
+
+        client = _TankDiscordClient.__new__(_TankDiscordClient)
+        client._connector = started_connector  # noqa: SLF001
+        started_connector._on_approval_interaction = AsyncMock()  # noqa: SLF001
+
+        interaction = MagicMock()
+        interaction.type = discord.InteractionType.component
+        interaction.data = {"custom_id": "approve:deny:xyz"}
+
+        await client.on_interaction(interaction)
+        started_connector._on_approval_interaction.assert_awaited_once()  # noqa: SLF001
+        args = started_connector._on_approval_interaction.call_args.args  # noqa: SLF001
+        assert args[0] is interaction
+        assert args[1] == "approve:deny:xyz"

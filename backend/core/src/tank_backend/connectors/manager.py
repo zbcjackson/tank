@@ -37,11 +37,13 @@ if TYPE_CHECKING:
     from ..core.content import ContentBlock
     from ..pipeline.bus import BusMessage
     from ..policy.connector_access import ConnectorAllowlistPolicy
+    from .approval import ApprovalBroker
     from .base import (
         Connector,
         Identity,
         MessageEvent,
     )
+    from .dynamic_allowlist import DynamicAllowlistStore
     from .session_mapper import SessionMapper
 
 logger = logging.getLogger("ConnectorManager")
@@ -54,6 +56,12 @@ _MAX_IMAGE_BYTES = 25 * 1024 * 1024
 # Default polite text sent to identities the allowlist rejects. Operators
 # can override per-instance via ``unauthorized_reply`` in connector config.
 _DEFAULT_UNAUTHORIZED_REPLY = "You're not authorised to use this bot."
+
+# Phase 10: default text shown to an unknown sender while their message
+# awaits admin approval. Operators override per-instance via
+# ``allowlist.pending_reply``. Keep it short and reassuring — the sender
+# doesn't need to know about the admin's UX.
+_DEFAULT_PENDING_REPLY = "Request sent to admin. I'll reply once they approve."
 
 
 class ConnectorManager:
@@ -72,10 +80,12 @@ class ConnectorManager:
         connection_manager: ConnectionManager,
         session_mapper: SessionMapper,
         app_context: AppContext,
+        dynamic_allowlist_store: DynamicAllowlistStore | None = None,
     ) -> None:
         self._conn_mgr = connection_manager
         self._session_mapper = session_mapper
         self._app_context = app_context
+        self._dynamic_allowlist_store = dynamic_allowlist_store
         self._connectors: dict[str, Connector] = {}
         # Track StreamConsumers and dispatchers so we can GC them when
         # sessions end. Keyed by (instance_name, session_id).
@@ -87,6 +97,18 @@ class ConnectorManager:
         # pre-Phase-6 behaviour.
         self._allowlist_policies: dict[str, ConnectorAllowlistPolicy] = {}
         self._unauthorized_replies: dict[str, str] = {}
+        # Phase 10: REQUIRE_APPROVAL machinery.
+        # ``_brokers``: per-instance :class:`ApprovalBroker` (built only
+        # when the policy configures ``admin_external_ids``).
+        # ``_one_shot_passes``: per-instance set of ``external_id`` strings
+        # that bypass the allowlist gate for exactly one inbound event;
+        # populated by the broker on an ``allow_once`` verdict and
+        # consumed on the replay's second pass through :meth:`_on_inbound`.
+        # ``_pending_replies``: per-instance override for the "please wait"
+        # reply sent to the sender while the admin decides.
+        self._brokers: dict[str, ApprovalBroker] = {}
+        self._one_shot_passes: dict[str, set[str]] = {}
+        self._pending_replies: dict[str, str] = {}
 
     # ── Registration ────────────────────────────────────────────────
 
@@ -157,6 +179,59 @@ class ConnectorManager:
             )
         self._unauthorized_replies[instance_name] = text
 
+    # ── Approval workflow (Phase 10) ────────────────────────────────
+
+    def set_approval_broker(
+        self, instance_name: str, broker: ApprovalBroker,
+    ) -> None:
+        """Attach an :class:`ApprovalBroker` to a connector instance.
+
+        Wired at startup when the instance's allowlist configures
+        ``admin_external_ids``. The broker's ``dispatch`` callback
+        points at :meth:`_on_inbound` so replays re-enter the same
+        gate — the one-shot set or dynamic grant allows the replay
+        through on its second pass.
+
+        The per-instance one-shot set is stored here so the broker and
+        the inbound gate share the same mutable object; the broker
+        adds to it on ``allow_once``, the gate discards on consume.
+        """
+        if instance_name not in self._connectors:
+            raise KeyError(
+                f"Cannot set approval broker for unknown connector "
+                f"instance '{instance_name}'",
+            )
+        self._brokers[instance_name] = broker
+        # The set was already wired at construction time when the
+        # broker was built (see :func:`_wire_approval` in server.py),
+        # so we just make sure the manager knows about it.
+        self._one_shot_passes.setdefault(instance_name, set())
+
+        connector = self._connectors[instance_name]
+        connector.set_approval_broker(broker)
+        logger.info(
+            "Attached ApprovalBroker to connector '%s'", instance_name,
+        )
+
+    def set_pending_reply(self, instance_name: str, text: str) -> None:
+        """Override the "please wait" reply sent to senders awaiting approval."""
+        if instance_name not in self._connectors:
+            raise KeyError(
+                f"Cannot set pending reply for unknown connector "
+                f"instance '{instance_name}'",
+            )
+        self._pending_replies[instance_name] = text
+
+    def _one_shot_set_for(self, instance_name: str) -> set[str]:
+        """Return the per-instance one-shot pass set, lazily creating it.
+
+        Exposed for :class:`ApprovalBroker` construction at startup —
+        the broker mutates the *same* set that the gate reads, so
+        "Allow once" grants pass through without a second coordination
+        surface.
+        """
+        return self._one_shot_passes.setdefault(instance_name, set())
+
     # ── Lifecycle ───────────────────────────────────────────────────
 
     async def start_all(self) -> None:
@@ -190,30 +265,99 @@ class ConnectorManager:
     async def _on_inbound(
         self, source: Connector, event: MessageEvent,
     ) -> None:
-        """Route an inbound platform message to the right Assistant."""
+        """Route an inbound platform message to the right Assistant.
+
+        Allowlist gate — runs before session resolution or Assistant
+        construction so denied requests cost essentially nothing.
+        Absence of a policy for this instance means allow-all
+        (zero-config case, pre-Phase-6 behaviour).
+
+        Phase 10 adds two short-circuits:
+
+        1. **One-shot pass**: after an admin clicked "Allow once", the
+           broker added the sender's ``external_id`` to the per-instance
+           set. Inbound events for that identity skip the allowlist gate
+           exactly once; the consume-on-hit semantics mean the next
+           message will face the gate again.
+
+        2. **REQUIRE_APPROVAL**: the policy returns an approval verdict
+           when an unknown sender's identity doesn't match any rule
+           under a ``default: require_approval`` allowlist. The manager
+           routes through :class:`ApprovalBroker` — pending message
+           parked, admin prompt fired, polite-wait reply sent to the
+           sender. The broker's ``allow_*`` verdicts replay via this
+           same method, taking the one-shot or dynamic-grant fast path.
+        """
         identity = event.identity
 
-        # Allowlist gate — runs before any session resolution or Assistant
-        # construction so denied requests cost essentially nothing. Absence
-        # of a policy for this instance means allow-all (zero-config case,
-        # pre-Phase-6 behaviour).
-        policy = self._allowlist_policies.get(source.instance_name)
-        if policy is not None:
-            verdict = policy.evaluate(identity)
-            if verdict.level is not AccessLevel.ALLOW:
-                reply_text = self._unauthorized_replies.get(
-                    source.instance_name,
-                    _DEFAULT_UNAUTHORIZED_REPLY,
-                )
-                await _safe_send(source, identity, reply_text)
-                logger.info(
-                    "ConnectorManager: denied inbound from %s/%s via '%s' "
-                    "(%s): %s",
-                    identity.platform, identity.external_id,
-                    source.instance_name,
-                    verdict.level.value, verdict.reason,
-                )
-                return
+        # Phase 10: one-shot consume. Must run *before* policy.evaluate()
+        # so a replayed "allow_once" message doesn't bounce back into a
+        # fresh approval request.
+        one_shot_set = self._one_shot_passes.get(source.instance_name)
+        one_shot_hit = (
+            one_shot_set is not None
+            and identity.external_id in one_shot_set
+        )
+        if one_shot_hit:
+            # Consume before any await points so concurrent events on
+            # the same identity don't double-dip.
+            assert one_shot_set is not None  # noqa: S101 — guarded above
+            one_shot_set.discard(identity.external_id)
+            logger.debug(
+                "ConnectorManager: one-shot allow for %s/%s via '%s'",
+                identity.platform, identity.external_id,
+                source.instance_name,
+            )
+
+        if not one_shot_hit:
+            policy = self._allowlist_policies.get(source.instance_name)
+            if policy is not None:
+                verdict = policy.evaluate(identity)
+                if verdict.level is AccessLevel.DENY:
+                    reply_text = self._unauthorized_replies.get(
+                        source.instance_name,
+                        _DEFAULT_UNAUTHORIZED_REPLY,
+                    )
+                    await _safe_send(source, identity, reply_text)
+                    logger.info(
+                        "ConnectorManager: denied inbound from %s/%s via '%s' "
+                        "(%s): %s",
+                        identity.platform, identity.external_id,
+                        source.instance_name,
+                        verdict.level.value, verdict.reason,
+                    )
+                    return
+                if verdict.level is AccessLevel.REQUIRE_APPROVAL:
+                    broker = self._brokers.get(source.instance_name)
+                    if broker is None:
+                        # Operator configured require_approval but
+                        # didn't list any admins (or the broker failed
+                        # to wire at startup). Fail closed: deny the
+                        # sender, log loudly so the operator sees it.
+                        logger.warning(
+                            "ConnectorManager: REQUIRE_APPROVAL verdict on "
+                            "'%s' but no broker attached "
+                            "(admin_external_ids empty?); denying",
+                            source.instance_name,
+                        )
+                        reply_text = self._unauthorized_replies.get(
+                            source.instance_name,
+                            _DEFAULT_UNAUTHORIZED_REPLY,
+                        )
+                        await _safe_send(source, identity, reply_text)
+                        return
+                    # Tell the sender we're waiting on the admin, then
+                    # let the broker park the pending event + send the
+                    # admin prompt. Reply first so the sender sees a
+                    # response even if the admin-prompt send fails.
+                    pending_text = self._pending_replies.get(
+                        source.instance_name,
+                        _DEFAULT_PENDING_REPLY,
+                    )
+                    await _safe_send(source, identity, pending_text)
+                    await broker.request(source, event)
+                    return
+                # ALLOW → fall through to existing dispatch path.
 
         try:
             session_id = self._session_mapper.resolve(identity)

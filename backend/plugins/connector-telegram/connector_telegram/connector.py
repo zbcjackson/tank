@@ -28,7 +28,11 @@ from aiogram.exceptions import (
     TelegramBadRequest,
     TelegramRetryAfter,
 )
-from aiogram.types import BufferedInputFile
+from aiogram.types import (
+    BufferedInputFile,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 from tank_contracts.connector import (
     Attachment,
     Connector,
@@ -39,7 +43,7 @@ from tank_contracts.connector import (
 )
 
 if TYPE_CHECKING:
-    from aiogram.types import Message
+    from aiogram.types import CallbackQuery, Message
 
 logger = logging.getLogger("TelegramConnector")
 
@@ -77,6 +81,20 @@ _MEDIA_GROUP_BUFFER_S = 0.5
 # anything above this cap falls through to the existing single-photo
 # path rather than accumulating unboundedly.
 _MAX_MEDIA_GROUP_SIZE = 10
+
+# Phase 10: shape of the ``callback_data`` string for approval buttons.
+# ``{prefix}:{choice}:{approval_id}`` — choice is one of the three
+# string literals below, which MUST stay in sync with the constants
+# in :mod:`tank_backend.connectors.approval` (``CHOICE_ALLOW_ONCE`` /
+# ``CHOICE_ALLOW_FOREVER`` / ``CHOICE_DENY``). We don't import those
+# from tank_backend because plugins depend on ``tank_contracts`` only
+# — inlining the strings keeps the dependency direction clean.
+# approval_id is the 16-hex token minted by :class:`ApprovalBroker`.
+# Telegram caps callback_data at 64 bytes; our shape fits under that.
+_APPROVAL_CALLBACK_PREFIX = "approve"
+_CHOICE_ALLOW_ONCE = "allow_once"
+_CHOICE_ALLOW_FOREVER = "allow_forever"
+_CHOICE_DENY = "deny"
 
 
 @dataclass
@@ -155,6 +173,16 @@ class TelegramConnector(Connector):
         if self._voice_in:
             self._dp.message.register(self._on_voice, F.voice)
         self._dp.message.register(self._on_text, F.text)
+        # Phase 10: register the callback-query handler for approval
+        # button clicks. Filter ``F.data.startswith("approve:")`` so
+        # other bots that add buttons via the same dispatcher (not
+        # Phase 10 scope, but possible in the future) don't step on
+        # each other. ``aiogram`` routes callbacks independently of
+        # the message-type filters above — no ordering concern.
+        self._dp.callback_query.register(
+            self._on_callback_query,
+            F.data.startswith(_APPROVAL_CALLBACK_PREFIX),
+        )
         self._task = asyncio.create_task(
             self._run_polling(),
             name=f"telegram-poll-{self.instance_name}",
@@ -813,6 +841,157 @@ class TelegramConnector(Connector):
         # Typing is advisory — swallow any Telegram failure.
         with contextlib.suppress(TelegramAPIError):
             await self._bot.send_chat_action(chat_id=chat_id, action="typing")
+
+    # ── Approval workflow (Phase 10) ────────────────────────────────
+
+    async def send_approval_prompt(
+        self,
+        *,
+        admin_identity: Identity,
+        approval_id: str,
+        sender: Identity,
+        preview: str,
+    ) -> None:
+        """Send an approval-prompt message with three inline buttons.
+
+        The buttons carry ``callback_data`` encoded as
+        ``approve:<choice>:<approval_id>`` — Telegram delivers the same
+        string back to ``_on_callback_query`` when the admin taps a
+        button. Telegram's 64-byte callback-data cap is comfortable:
+        our format lands around 30 bytes.
+
+        The prompt text includes the sender's display name and
+        ``external_id`` so admins can decide without leaving the chat,
+        plus a short preview of the pending message's content.
+        """
+        if self._bot is None:
+            return
+
+        try:
+            chat_id = self._parse_chat_id(admin_identity.external_id)
+        except ValueError:
+            logger.warning(
+                "Telegram connector '%s': cannot parse admin identity %r",
+                self.instance_name, admin_identity.external_id,
+            )
+            return
+
+        sender_label = (
+            f"{sender.display_name} ({sender.external_id})"
+            if sender.display_name
+            else sender.external_id
+        )
+        text = (
+            f"New sender wants to talk to me:\n"
+            f"• {sender_label}\n"
+            f"• message preview: {preview}"
+        )
+        markup = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="✅ Allow once",
+                        callback_data=(
+                            f"{_APPROVAL_CALLBACK_PREFIX}:{_CHOICE_ALLOW_ONCE}"
+                            f":{approval_id}"
+                        ),
+                    ),
+                    InlineKeyboardButton(
+                        text="🔓 Allow forever",
+                        callback_data=(
+                            f"{_APPROVAL_CALLBACK_PREFIX}:{_CHOICE_ALLOW_FOREVER}"
+                            f":{approval_id}"
+                        ),
+                    ),
+                ],
+                [
+                    InlineKeyboardButton(
+                        text="🚫 Deny",
+                        callback_data=(
+                            f"{_APPROVAL_CALLBACK_PREFIX}:{_CHOICE_DENY}"
+                            f":{approval_id}"
+                        ),
+                    ),
+                ],
+            ],
+        )
+
+        try:
+            await self._bot.send_message(
+                chat_id=chat_id, text=text, reply_markup=markup,
+            )
+        except TelegramAPIError:
+            logger.exception(
+                "Telegram connector '%s': failed to send approval prompt",
+                self.instance_name,
+            )
+
+    async def _on_callback_query(self, callback: "CallbackQuery") -> None:
+        """Route an approval button click to the :class:`ApprovalBroker`.
+
+        Acks the query immediately (Telegram shows a loading spinner
+        until ``callback.answer()`` fires) then parses the
+        ``callback_data`` into ``(choice, approval_id)`` and calls
+        ``broker.resolve``. The clicker's identity is synthesised from
+        ``callback.from_user.id`` in Telegram's ``tg:user:*`` shape so
+        ``ApprovalBroker.resolve``'s admin-membership check works.
+
+        Silently ignores clicks when no broker is attached (operator
+        config mistake) or the data doesn't parse.
+        """
+        data = callback.data or ""
+        # Ack first — the spinner has a ~3 second patience window, and
+        # broker.resolve() can take longer (DB write + reply send).
+        with contextlib.suppress(TelegramAPIError):
+            await callback.answer()
+
+        broker = getattr(self, "_broker", None)
+        if broker is None:
+            logger.debug(
+                "Telegram connector '%s': approval callback arrived but "
+                "no broker is attached; ignoring",
+                self.instance_name,
+            )
+            return
+
+        parts = data.split(":", 2)
+        if len(parts) != 3 or parts[0] != _APPROVAL_CALLBACK_PREFIX:
+            logger.debug(
+                "Telegram connector '%s': ignoring unrecognised "
+                "callback_data %r",
+                self.instance_name, data,
+            )
+            return
+        _, choice, approval_id = parts
+        if not approval_id:
+            return
+
+        # Synthesise the clicker's identity in the same format as
+        # _make_identity would for a DM — the broker checks identity
+        # membership against the configured admin_external_ids set.
+        clicker_user = callback.from_user
+        if clicker_user is None:
+            logger.warning(
+                "Telegram connector '%s': approval callback without "
+                "from_user; ignoring",
+                self.instance_name,
+            )
+            return
+        clicker_identity = Identity(
+            platform=self.platform,
+            external_id=f"tg:user:{clicker_user.id}",
+            display_name=clicker_user.full_name or "",
+            is_group=False,
+            metadata={"user_id": clicker_user.id},
+        )
+
+        try:
+            await broker.resolve(approval_id, choice, clicker_identity)
+        except Exception:
+            logger.exception(
+                "Telegram connector '%s': broker.resolve raised",
+                self.instance_name,
+            )
 
     # ── Helpers ────────────────────────────────────────────────────
 

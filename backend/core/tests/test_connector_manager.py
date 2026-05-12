@@ -948,3 +948,243 @@ class TestAsrTranscribeTimeout:
         assert len(blocks) == 1
         assert blocks[0].type == "text"
         assert "hello world" in blocks[0].text
+
+
+# ---------------------------------------------------------------------------
+# Phase 10 — REQUIRE_APPROVAL integration
+# ---------------------------------------------------------------------------
+
+
+class TestRequireApprovalGate:
+    """Covers the three non-obvious manager behaviours added in Phase 10:
+    routing a REQUIRE_APPROVAL verdict through an :class:`ApprovalBroker`,
+    failing closed when no broker is attached, and consuming a one-shot
+    pass on a replayed message."""
+
+    def _build_manager_with_broker_support(
+        self, tmp_path: Path,
+    ) -> ConnectorManager:
+        """Build a manager with a real DynamicAllowlistStore so we can
+        exercise the full dynamic-grant short-circuit, not a mock."""
+        from tank_backend.connectors.dynamic_allowlist import (
+            DynamicAllowlistStore,
+        )
+
+        db = Database(f"sqlite+pysqlite:///{tmp_path}/tank.db")
+        Base.metadata.create_all(db.engine)
+        identity_store = ConnectorIdentityStore(db)
+        channel_store = ChannelStore(db)
+        conv_store = _MemoryConvStore()
+        session_mapper = SessionMapper(identity_store, channel_store, conv_store)
+        connection_manager = _FakeConnectionManager()
+        app_context = MagicMock(name="AppContext")
+        app_context.media_store = None
+        app_context.llm_capabilities = None
+        return ConnectorManager(
+            connection_manager=connection_manager,  # type: ignore[arg-type]
+            session_mapper=session_mapper,
+            app_context=app_context,
+            dynamic_allowlist_store=DynamicAllowlistStore(db),
+        )
+
+    async def test_require_approval_routes_through_broker(
+        self, tmp_path: Path,
+    ) -> None:
+        """With a broker attached, REQUIRE_APPROVAL verdicts send the
+        pending-reply to the sender and call ``broker.request``. No
+        Assistant session is spawned for this turn."""
+        from tank_backend.connectors.approval import ApprovalBroker
+        from tank_backend.policy.connector_access import (
+            ConnectorAllowlistConfig,
+            ConnectorAllowlistPolicy,
+        )
+        from tank_backend.policy.verdict import AccessLevel
+
+        manager = self._build_manager_with_broker_support(tmp_path)
+        fake = FakeConnector("t")
+        manager.register(fake)
+
+        policy = ConnectorAllowlistPolicy(
+            ConnectorAllowlistConfig(
+                default=AccessLevel.REQUIRE_APPROVAL,
+                admin_external_ids=("tg:user:42",),
+            ),
+            instance_name="t",
+            dynamic_store=manager._dynamic_allowlist_store,  # noqa: SLF001
+        )
+        manager.set_allowlist_policy("t", policy)
+
+        broker = ApprovalBroker(
+            instance_name="t",
+            admin_external_ids={"tg:user:42"},
+            dynamic_store=manager._dynamic_allowlist_store,  # noqa: SLF001
+            dispatch=manager._on_inbound,  # noqa: SLF001
+            one_shot_passes=manager._one_shot_set_for("t"),  # noqa: SLF001
+        )
+        manager.set_approval_broker("t", broker)
+
+        await manager.start_all()
+
+        # Unknown sender → pending reply + broker.request (sends prompt).
+        await fake.inject_inbound(
+            Identity(platform="fake", external_id="user-stranger"),
+            text="hello?",
+        )
+
+        sends = [r for r in fake.outbox if r.kind == "send"]
+        # First send is the "please wait"; second is the admin prompt.
+        assert len(sends) >= 1
+        pending_reply = sends[0].text
+        assert "admin" in pending_reply.lower()
+        assert broker.pending_count == 1
+        # No Assistant session spawned for this turn.
+        assert manager._conn_mgr.assistants == {}  # noqa: SLF001
+
+    async def test_require_approval_without_broker_denies(
+        self, tmp_path: Path,
+    ) -> None:
+        """Operator configured ``require_approval`` but didn't populate
+        ``admin_external_ids`` → no broker attached. Manager fails
+        closed with a warning instead of silently allow-all."""
+        from tank_backend.policy.connector_access import (
+            ConnectorAllowlistConfig,
+            ConnectorAllowlistPolicy,
+        )
+        from tank_backend.policy.verdict import AccessLevel
+
+        manager = self._build_manager_with_broker_support(tmp_path)
+        fake = FakeConnector("t")
+        manager.register(fake)
+
+        policy = ConnectorAllowlistPolicy(
+            ConnectorAllowlistConfig(default=AccessLevel.REQUIRE_APPROVAL),
+            instance_name="t",
+            dynamic_store=manager._dynamic_allowlist_store,  # noqa: SLF001
+        )
+        manager.set_allowlist_policy("t", policy)
+        # Deliberately no set_approval_broker call.
+
+        await manager.start_all()
+        await fake.inject_inbound(
+            Identity(platform="fake", external_id="user-stranger"),
+            text="hello?",
+        )
+
+        sends = [r for r in fake.outbox if r.kind == "send"]
+        assert len(sends) == 1
+        # Fails closed with the "not authorised" reply, not pending text.
+        assert "not authorised" in sends[0].text.lower()
+        assert manager._conn_mgr.assistants == {}  # noqa: SLF001
+
+    async def test_one_shot_pass_bypasses_gate_then_self_clears(
+        self, tmp_path: Path,
+    ) -> None:
+        """After an admin clicked "Allow once", the sender's
+        external_id is in the per-instance one-shot set. The next
+        inbound skips the allowlist gate entirely, and the set
+        self-clears so the following turn faces the gate again."""
+        from tank_backend.policy.connector_access import (
+            ConnectorAllowlistConfig,
+            ConnectorAllowlistPolicy,
+        )
+        from tank_backend.policy.verdict import AccessLevel
+
+        manager = self._build_manager_with_broker_support(tmp_path)
+        fake = FakeConnector("t")
+        manager.register(fake)
+
+        policy = ConnectorAllowlistPolicy(
+            ConnectorAllowlistConfig(default=AccessLevel.DENY),
+            instance_name="t",
+            dynamic_store=manager._dynamic_allowlist_store,  # noqa: SLF001
+        )
+        manager.set_allowlist_policy("t", policy)
+        await manager.start_all()
+
+        # Pre-populate the one-shot set (simulates a prior broker
+        # "Allow once" decision).
+        one_shot = manager._one_shot_set_for("t")  # noqa: SLF001
+        one_shot.add("user-stranger")
+
+        # First inbound: allowed via one-shot, bypasses the deny gate.
+        await fake.inject_inbound(
+            Identity(platform="fake", external_id="user-stranger"),
+            text="first",
+        )
+        assert len(manager._conn_mgr.assistants) == 1  # noqa: SLF001
+        # One-shot set was consumed.
+        assert "user-stranger" not in one_shot
+
+        # Second inbound from the same sender: the gate denies it now.
+        await fake.inject_inbound(
+            Identity(platform="fake", external_id="user-stranger"),
+            text="second",
+        )
+        sends = [r for r in fake.outbox if r.kind == "send"]
+        # At least one deny reply landed.
+        assert any("not authorised" in s.text.lower() for s in sends)
+
+    async def test_dynamic_grant_auto_allows(
+        self, tmp_path: Path,
+    ) -> None:
+        """A pre-existing dynamic grant short-circuits the allowlist
+        policy at ``has`` time — no rule scan, no approval prompt,
+        straight to dispatch."""
+        from tank_backend.policy.connector_access import (
+            ConnectorAllowlistConfig,
+            ConnectorAllowlistPolicy,
+        )
+        from tank_backend.policy.verdict import AccessLevel
+
+        manager = self._build_manager_with_broker_support(tmp_path)
+        fake = FakeConnector("t")
+        manager.register(fake)
+
+        # Default is REQUIRE_APPROVAL, but the identity is pre-granted.
+        store = manager._dynamic_allowlist_store  # noqa: SLF001
+        store.grant(
+            instance_name="t", platform="fake",
+            external_id="user-friend", granted_by="tg:user:42",
+        )
+        policy = ConnectorAllowlistPolicy(
+            ConnectorAllowlistConfig(
+                default=AccessLevel.REQUIRE_APPROVAL,
+                admin_external_ids=("tg:user:42",),
+            ),
+            instance_name="t",
+            dynamic_store=store,
+        )
+        manager.set_allowlist_policy("t", policy)
+        await manager.start_all()
+
+        await fake.inject_inbound(
+            Identity(platform="fake", external_id="user-friend"),
+            text="hi",
+        )
+
+        # No pending reply, no admin prompt — just dispatch.
+        sends = [r for r in fake.outbox if r.kind == "send"]
+        assert sends == []
+        assert len(manager._conn_mgr.assistants) == 1  # noqa: SLF001
+
+    async def test_set_approval_broker_attaches_via_connector(
+        self, tmp_path: Path,
+    ) -> None:
+        """``manager.set_approval_broker`` calls through to the
+        connector's ``set_approval_broker`` so the SDK callback can
+        find the broker later."""
+        from tank_backend.connectors.approval import ApprovalBroker
+
+        manager = self._build_manager_with_broker_support(tmp_path)
+        fake = FakeConnector("t")
+        manager.register(fake)
+
+        broker = ApprovalBroker(
+            instance_name="t",
+            admin_external_ids={"tg:user:42"},
+            dynamic_store=manager._dynamic_allowlist_store,  # noqa: SLF001
+            dispatch=manager._on_inbound,  # noqa: SLF001
+            one_shot_passes=manager._one_shot_set_for("t"),  # noqa: SLF001
+        )
+        manager.set_approval_broker("t", broker)
+        assert fake._broker is broker  # noqa: SLF001

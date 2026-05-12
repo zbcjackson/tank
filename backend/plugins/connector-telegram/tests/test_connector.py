@@ -1509,3 +1509,148 @@ class TestMediaGroups:
         # Give the fake callback one last chance — it must not fire.
         await asyncio.sleep(0.01)
         assert fired == []
+
+
+# ---------------------------------------------------------------------------
+# Phase 10 — Approval buttons (send_approval_prompt + _on_callback_query)
+# ---------------------------------------------------------------------------
+
+
+class TestApprovalPrompt:
+    """``send_approval_prompt`` renders three inline buttons whose
+    ``callback_data`` fields encode choice + approval_id. The handler
+    routes clicks via the attached broker."""
+
+    async def test_renders_three_buttons_with_expected_callback_data(
+        self, started_connector,
+    ) -> None:
+        started_connector._bot.send_message = AsyncMock(  # noqa: SLF001
+            return_value=MagicMock(message_id=1),
+        )
+        admin = _identity(42)
+        sender = Identity(
+            platform="telegram",
+            external_id="tg:user:99",
+            display_name="Alice",
+            metadata={"user_id": 99},
+        )
+
+        await started_connector.send_approval_prompt(
+            admin_identity=admin,
+            approval_id="abc1234567890def",
+            sender=sender,
+            preview="hello tank",
+        )
+
+        started_connector._bot.send_message.assert_awaited_once()  # noqa: SLF001
+        kwargs = started_connector._bot.send_message.call_args.kwargs  # noqa: SLF001
+        assert kwargs["chat_id"] == 42
+        # The prompt text mentions the sender and their identity.
+        assert "Alice" in kwargs["text"]
+        assert "tg:user:99" in kwargs["text"]
+        assert "hello tank" in kwargs["text"]
+
+        # Three buttons in the markup, each with the expected
+        # callback_data shape ``approve:<choice>:<approval_id>``.
+        markup = kwargs["reply_markup"]
+        flat = [btn for row in markup.inline_keyboard for btn in row]
+        assert len(flat) == 3
+        datas = sorted(b.callback_data for b in flat)
+        assert datas == [
+            "approve:allow_forever:abc1234567890def",
+            "approve:allow_once:abc1234567890def",
+            "approve:deny:abc1234567890def",
+        ]
+
+    async def test_bad_admin_external_id_logs_and_returns(
+        self, started_connector,
+    ) -> None:
+        started_connector._bot.send_message = AsyncMock()  # noqa: SLF001
+        # ``external_id`` without a numeric suffix can't be parsed into
+        # a Telegram chat_id; we expect the method to bail silently.
+        bad_admin = Identity(platform="telegram", external_id="garbage")
+        await started_connector.send_approval_prompt(
+            admin_identity=bad_admin,
+            approval_id="abc",
+            sender=_identity(99),
+            preview="x",
+        )
+        started_connector._bot.send_message.assert_not_awaited()  # noqa: SLF001
+
+
+class TestApprovalCallbackQuery:
+    async def test_ack_and_dispatch_to_broker(
+        self, started_connector,
+    ) -> None:
+        """Happy path: ack the callback spinner first, then route to
+        ``broker.resolve`` with the clicker's :class:`Identity`."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock()
+        started_connector.set_approval_broker(broker)
+
+        callback = MagicMock()
+        callback.data = "approve:allow_forever:abc1234567890def"
+        callback.answer = AsyncMock()
+        from_user = MagicMock()
+        from_user.id = 42
+        from_user.full_name = "Admin"
+        callback.from_user = from_user
+
+        await started_connector._on_callback_query(callback)  # noqa: SLF001
+
+        callback.answer.assert_awaited_once()
+        broker.resolve.assert_awaited_once()
+        args = broker.resolve.call_args.args
+        assert args[0] == "abc1234567890def"
+        assert args[1] == "allow_forever"
+        clicker = args[2]
+        assert clicker.external_id == "tg:user:42"
+        assert clicker.metadata["user_id"] == 42
+
+    async def test_no_broker_attached_silently_acks(
+        self, started_connector,
+    ) -> None:
+        """Arriving callback with no broker attached must not raise; we
+        still ack (clear the UI spinner) and drop the click."""
+        # Ensure no broker is attached (setter was never called).
+        started_connector._broker = None  # noqa: SLF001
+
+        callback = MagicMock()
+        callback.data = "approve:deny:abc"
+        callback.answer = AsyncMock()
+        callback.from_user = MagicMock(id=42, full_name="x")
+
+        await started_connector._on_callback_query(callback)  # noqa: SLF001
+        callback.answer.assert_awaited_once()
+
+    async def test_unrecognised_callback_data_is_noop(
+        self, started_connector,
+    ) -> None:
+        broker = MagicMock()
+        broker.resolve = AsyncMock()
+        started_connector.set_approval_broker(broker)
+
+        callback = MagicMock()
+        callback.data = "some-other-callback:whatever"
+        callback.answer = AsyncMock()
+        callback.from_user = MagicMock(id=42, full_name="x")
+
+        await started_connector._on_callback_query(callback)  # noqa: SLF001
+        broker.resolve.assert_not_awaited()
+
+    async def test_missing_from_user_is_noop(
+        self, started_connector,
+    ) -> None:
+        """Telegram guarantees ``from_user`` on callback queries but we
+        code defensively — no user → no identity → no dispatch."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock()
+        started_connector.set_approval_broker(broker)
+
+        callback = MagicMock()
+        callback.data = "approve:allow_once:abc"
+        callback.answer = AsyncMock()
+        callback.from_user = None
+
+        await started_connector._on_callback_query(callback)  # noqa: SLF001
+        broker.resolve.assert_not_awaited()

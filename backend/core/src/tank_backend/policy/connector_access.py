@@ -27,6 +27,7 @@ from .verdict import AccessLevel, PolicyVerdict
 if TYPE_CHECKING:
     from tank_contracts.connector import Identity
 
+    from ..connectors.dynamic_allowlist import DynamicAllowlistStore
     from ..pipeline.bus import Bus
 
 logger = logging.getLogger(__name__)
@@ -60,10 +61,22 @@ class ConnectorAllowlistConfig:
     Absent ``allowlist`` key in config.yaml defaults to
     ``ConnectorAllowlistConfig()`` — allow-all, zero rules — which
     matches pre-Phase-6 behaviour.
+
+    Phase 10 additions:
+
+    - ``admin_external_ids``: identities on this connector who receive
+      approval prompts when an unknown sender triggers a
+      ``REQUIRE_APPROVAL`` verdict. Leave empty to disable the approval
+      workflow (``REQUIRE_APPROVAL`` verdicts then fail closed with a
+      warning in logs).
+    - ``pending_reply``: optional override for the text sent to the
+      unknown sender while they wait on the admin's decision.
     """
 
     default: AccessLevel = AccessLevel.ALLOW
     rules: tuple[ConnectorAllowRule, ...] = ()
+    admin_external_ids: tuple[str, ...] = ()
+    pending_reply: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +92,13 @@ class ConnectorAllowlistPolicy:
     Bus messages when a :class:`Bus` is wired in — the
     :class:`AuditLogger` subscribes and records them.
 
+    Phase 10 adds a runtime-grant short-circuit: when a
+    :class:`~tank_backend.connectors.dynamic_allowlist.DynamicAllowlistStore`
+    is wired in, it's consulted *before* the rule scan. An admin-granted
+    identity (via the approval-prompt "Allow forever" button) bypasses
+    all configured rules — the dynamic table is the single source of
+    truth for post-approval allows.
+
     Constructing with an empty :class:`ConnectorAllowlistConfig` gives
     an effectively inert policy (everything allowed, no rule scanning)
     — useful as a placeholder for instances that haven't declared an
@@ -91,15 +111,37 @@ class ConnectorAllowlistPolicy:
         *,
         instance_name: str,
         bus: Bus | None = None,
+        dynamic_store: DynamicAllowlistStore | None = None,
     ) -> None:
         self._default = config.default
         self._rules = config.rules
+        self._admin_external_ids: frozenset[str] = frozenset(
+            config.admin_external_ids,
+        )
+        self._pending_reply = config.pending_reply
         self._instance_name = instance_name
         self._bus = bus
+        self._dynamic_store = dynamic_store
 
     @property
     def instance_name(self) -> str:
         return self._instance_name
+
+    @property
+    def admin_external_ids(self) -> frozenset[str]:
+        """Read-only view of the configured admin identities.
+
+        Exposed so :class:`ConnectorManager` can discover admins when it
+        wires up the approval broker at startup, without re-parsing the
+        config dict.
+        """
+        return self._admin_external_ids
+
+    @property
+    def pending_reply(self) -> str | None:
+        """Operator-configured "please wait" text; ``None`` means use
+        the framework default."""
+        return self._pending_reply
 
     def evaluate(self, identity: Identity) -> PolicyVerdict:
         """Return the verdict for ``identity``.
@@ -108,7 +150,54 @@ class ConnectorAllowlistPolicy:
         was provided at construction. Callers should use the returned
         verdict's ``level`` to decide behaviour; the Bus post is for
         audit, not control flow.
+
+        Phase 10: a :class:`DynamicAllowlistStore` hit short-circuits
+        the rule scan. The dynamic table records admin-granted allows
+        (``Allow forever`` button clicks) and is the single source of
+        truth for post-approval access — config rules are the
+        operator's policy, dynamic rows are the admin's runtime grants.
         """
+        # Phase 10 short-circuit: admin identities always get ALLOW so they
+        # can reach the assistant even when not listed in the allow rules.
+        # Without this, a default of DENY/REQUIRE_APPROVAL would lock the
+        # admin out and make the approval workflow deadlock.
+        if identity.external_id in self._admin_external_ids:
+            verdict = PolicyVerdict(
+                level=AccessLevel.ALLOW,
+                reason="admin identity",
+                policy="connector_access",
+                context={
+                    "connector": self._instance_name,
+                    "platform": identity.platform,
+                    "external_id": identity.external_id,
+                    "display_name": identity.display_name,
+                    "matched_pattern": "<admin>",
+                },
+            )
+            self._publish(verdict)
+            return verdict
+
+        # Phase 10 short-circuit: admin-granted (persisted) allow.
+        if self._dynamic_store is not None and self._dynamic_store.has(
+            instance_name=self._instance_name,
+            platform=identity.platform,
+            external_id=identity.external_id,
+        ):
+            verdict = PolicyVerdict(
+                level=AccessLevel.ALLOW,
+                reason="dynamic allowlist",
+                policy="connector_access",
+                context={
+                    "connector": self._instance_name,
+                    "platform": identity.platform,
+                    "external_id": identity.external_id,
+                    "display_name": identity.display_name,
+                    "matched_pattern": "<dynamic>",
+                },
+            )
+            self._publish(verdict)
+            return verdict
+
         for rule in self._rules:
             for pattern in rule.external_ids:
                 if fnmatch.fnmatchcase(identity.external_id, pattern):
@@ -169,8 +258,12 @@ def parse_allowlist(
     Malformed input raises :class:`ConfigError` with the instance name
     in the message so operators can locate the bad entry in config.yaml.
 
-    ``REQUIRE_APPROVAL`` parses but is rejected here — a connector-level
-    approval workflow is Phase 7+ material and not supported in v1.
+    Phase 10: ``REQUIRE_APPROVAL`` is now a valid ``default`` / ``policy``
+    value. Operators who use it must also populate
+    ``admin_external_ids`` — otherwise a ``REQUIRE_APPROVAL`` verdict
+    has nowhere to send the prompt, and the manager fails closed with
+    a warning in logs. ``admin_external_ids`` and ``pending_reply`` are
+    both optional; leaving them unset preserves pre-Phase-10 shape.
     """
     if raw is None or raw == {}:
         return ConnectorAllowlistConfig()
@@ -202,7 +295,54 @@ def parse_allowlist(
             rule_raw, instance_name=instance_name, index=index,
         ))
 
-    return ConnectorAllowlistConfig(default=default, rules=tuple(rules))
+    admin_external_ids = _parse_admin_external_ids(
+        raw.get("admin_external_ids"),
+        instance_name=instance_name,
+    )
+
+    pending_reply_raw = raw.get("pending_reply")
+    pending_reply: str | None = None
+    if pending_reply_raw is not None:
+        if not isinstance(pending_reply_raw, str):
+            raise ConfigError(
+                f"connectors[{instance_name}].allowlist.pending_reply: "
+                f"expected string, got {type(pending_reply_raw).__name__}",
+            )
+        pending_reply = pending_reply_raw
+
+    return ConnectorAllowlistConfig(
+        default=default,
+        rules=tuple(rules),
+        admin_external_ids=admin_external_ids,
+        pending_reply=pending_reply,
+    )
+
+
+def _parse_admin_external_ids(
+    raw: object | None, *, instance_name: str,
+) -> tuple[str, ...]:
+    """Parse the optional ``admin_external_ids`` list.
+
+    Missing / empty list → empty tuple; a non-empty list of strings is
+    returned verbatim. Non-string entries raise :class:`ConfigError`
+    with a descriptive message so operators can locate the bad entry.
+    """
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise ConfigError(
+            f"connectors[{instance_name}].allowlist.admin_external_ids: "
+            f"expected list, got {type(raw).__name__}",
+        )
+    result: list[str] = []
+    for i, entry in enumerate(raw):
+        if not isinstance(entry, str) or not entry:
+            raise ConfigError(
+                f"connectors[{instance_name}].allowlist."
+                f"admin_external_ids[{i}]: must be a non-empty string",
+            )
+        result.append(entry)
+    return tuple(result)
 
 
 def _parse_rule(
@@ -264,15 +404,14 @@ def _parse_access_level(
             f"{where}: unknown value {raw!r}; must be one of {valid}",
         ) from None
 
-    # REQUIRE_APPROVAL is a forward-compat parse target but not supported
-    # by the enforcement layer today. Fail at startup with a clear message
-    # so operators don't get silent allow-all behaviour.
-    if level is AccessLevel.REQUIRE_APPROVAL:
-        raise ConfigError(
-            f"{where}: 'require_approval' is not supported for connector "
-            "allowlists in this release — use 'allow' or 'deny'.",
-        )
-
+    # Phase 10: REQUIRE_APPROVAL is accepted as a real verdict. The
+    # manager handles it by routing through :class:`ApprovalBroker`
+    # when ``admin_external_ids`` is set, and fails closed (deny + log)
+    # when it isn't — the config parser deliberately doesn't enforce
+    # "if REQUIRE_APPROVAL then admin_external_ids must be non-empty"
+    # so operators can stage the change in two steps (declare the
+    # default first, add admins next) without a chicken-and-egg
+    # validation failure.
     return level
 
 

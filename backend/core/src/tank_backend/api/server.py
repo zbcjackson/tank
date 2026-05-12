@@ -232,8 +232,10 @@ def _init_connectors(
         return None
 
     from ..connectors import (
+        ApprovalBroker,
         ConnectorIdentityStore,
         ConnectorManager,
+        DynamicAllowlistStore,
         SessionMapper,
     )
     from ..connectors.base import Connector
@@ -243,6 +245,10 @@ def _init_connectors(
     )
 
     identity_store = ConnectorIdentityStore(database)
+    # Phase 10: shared across every connector instance. One SQLite table
+    # backs every "Allow forever" grant; per-instance isolation comes
+    # from the ``instance_name`` column, not from separate store objects.
+    dynamic_allowlist_store = DynamicAllowlistStore(database)
     session_mapper = SessionMapper(
         identity_store=identity_store,
         channel_store=channel_store,
@@ -252,6 +258,7 @@ def _init_connectors(
         connection_manager=connection_manager,
         session_mapper=session_mapper,
         app_context=app_context,
+        dynamic_allowlist_store=dynamic_allowlist_store,
     )
 
     for inst in instances:
@@ -288,6 +295,13 @@ def _init_connectors(
         # operators fail fast at startup rather than silently letting
         # everyone through (or locking everyone out).
         #
+        # Phase 10: the policy also consults ``dynamic_allowlist_store``
+        # before rule evaluation so admin-granted ``Allow forever``
+        # rows short-circuit to ALLOW. Per-instance admin identities
+        # from the allowlist config spin up an :class:`ApprovalBroker`
+        # for the REQUIRE_APPROVAL path; without admins, a
+        # REQUIRE_APPROVAL verdict fails closed with a warning.
+        #
         # Decisions are still logged at INFO level via the manager's
         # ``_on_inbound`` path — a proper audit Bus for connector-level
         # decisions is deferred until the audit subsystem grows an
@@ -300,8 +314,28 @@ def _init_connectors(
             policy = ConnectorAllowlistPolicy(
                 parsed,
                 instance_name=inst.instance,
+                dynamic_store=dynamic_allowlist_store,
             )
             manager.set_allowlist_policy(inst.instance, policy)
+
+            # Phase 10: spin up an ApprovalBroker when admins are
+            # configured. The broker's ``dispatch`` callback points at
+            # the manager's own ``_on_inbound`` so replays re-enter the
+            # allowlist gate — the one-shot set or dynamic grant
+            # short-circuits the replayed event through.
+            if parsed.admin_external_ids:
+                one_shot_set = manager._one_shot_set_for(inst.instance)  # noqa: SLF001
+                broker = ApprovalBroker(
+                    instance_name=inst.instance,
+                    admin_external_ids=parsed.admin_external_ids,
+                    dynamic_store=dynamic_allowlist_store,
+                    dispatch=manager._on_inbound,  # noqa: SLF001 — intentional shared dispatch
+                    one_shot_passes=one_shot_set,
+                )
+                manager.set_approval_broker(inst.instance, broker)
+
+            if parsed.pending_reply:
+                manager.set_pending_reply(inst.instance, parsed.pending_reply)
 
         unauthorized_reply = inst.config.get("unauthorized_reply")
         if isinstance(unauthorized_reply, str) and unauthorized_reply.strip():

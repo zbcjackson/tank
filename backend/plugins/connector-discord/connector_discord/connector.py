@@ -55,6 +55,20 @@ _MAX_INBOUND_IMAGE_BYTES = 25 * 1024 * 1024
 # Timeout for the gateway task to drain cleanly on shutdown.
 _SHUTDOWN_TIMEOUT_S = 5.0
 
+# Phase 10: shape of the ``custom_id`` string on approval buttons.
+# ``{prefix}:{choice}:{approval_id}`` — the three-part form every
+# connector uses, mirroring Telegram's ``callback_data`` and Slack's
+# ``action_id``. Kept as plain strings (not imported from
+# tank_backend.connectors.approval) so the plugin's dependency graph
+# stays pointing at ``tank-contracts`` only; the literals MUST stay in
+# sync with the canonical ``CHOICE_*`` constants in the broker module.
+# Discord's ``custom_id`` is capped at 100 bytes; our shape lands at
+# ~30 bytes.
+_APPROVAL_ACTION_PREFIX = "approve"
+_CHOICE_ALLOW_ONCE = "allow_once"
+_CHOICE_ALLOW_FOREVER = "allow_forever"
+_CHOICE_DENY = "deny"
+
 
 def _encode_msg_id(channel_id: int, message_id: int) -> str:
     """Serialize ``(channel_id, message_id)`` into a single string.
@@ -135,6 +149,29 @@ class _TankDiscordClient(discord.Client):
 
     async def on_message(self, message: discord.Message) -> None:
         await self._connector._on_discord_message(message)  # noqa: SLF001
+
+    async def on_interaction(self, interaction: discord.Interaction) -> None:
+        """Phase 10: dispatch approval button clicks to the broker.
+
+        Catching interactions at the client level (rather than binding
+        callbacks to specific ``discord.ui.View`` instances) has one
+        practical advantage: the approval prompts persist in the admin's
+        DM even after Tank restarts, but the in-memory ``View`` objects
+        don't. By routing on ``custom_id`` here, post-restart clicks
+        reach the broker (which then no-ops on stale ``approval_id``,
+        matching Telegram/Slack behaviour). discord.py fires
+        :meth:`on_interaction` for *every* component interaction —
+        filtering on the ``approve:`` prefix keeps us out of the way of
+        any future non-approval UI.
+        """
+        if interaction.type is not discord.InteractionType.component:
+            return
+        custom_id = (interaction.data or {}).get("custom_id") or ""
+        if not custom_id.startswith(f"{_APPROVAL_ACTION_PREFIX}:"):
+            return
+        await self._connector._on_approval_interaction(  # noqa: SLF001
+            interaction, custom_id,
+        )
 
 
 class DiscordConnector(Connector):
@@ -558,6 +595,180 @@ class DiscordConnector(Connector):
             async with channel.typing():
                 # Brief await to let Discord register the indicator.
                 await asyncio.sleep(0)
+
+    # ── Approval workflow (Phase 10) ────────────────────────────────
+
+    async def send_approval_prompt(
+        self,
+        *,
+        admin_identity: Identity,
+        approval_id: str,
+        sender: Identity,
+        preview: str,
+    ) -> None:
+        """Send an approval-prompt DM with three button components.
+
+        The buttons live on a :class:`discord.ui.View` attached to the
+        message; their ``custom_id`` fields encode
+        ``approve:<choice>:<approval_id>``. Discord routes the click
+        back through :meth:`_TankDiscordClient.on_interaction`, which
+        filters on the ``approve:`` prefix and calls
+        :meth:`_on_approval_interaction` below.
+
+        The View is *not* registered as persistent — that would require
+        stashing it across restarts. When Tank restarts, the pending
+        approval entry vanishes from the in-memory broker; subsequent
+        clicks land on the interaction handler, fail the broker's
+        lookup, and no-op cleanly (matching the Telegram/Slack stale
+        behaviour).
+        """
+        if self._client is None:
+            return
+
+        admin_user_id = admin_identity.metadata.get("user_id")
+        if admin_user_id is None:
+            # Derive from ``discord:user:{id}`` external_id — same
+            # round-trip the other identity code paths use.
+            _, _, raw = admin_identity.external_id.rpartition(":")
+            try:
+                admin_user_id = int(raw)
+            except ValueError:
+                logger.warning(
+                    "Discord connector '%s': cannot parse admin external_id "
+                    "%r",
+                    self.instance_name, admin_identity.external_id,
+                )
+                return
+
+        # Resolve / open the admin's DM channel. ``get_user`` hits the
+        # cache; ``fetch_user`` falls back to an HTTP lookup for a user
+        # that hasn't been seen in this process's gateway session.
+        user = self._client.get_user(admin_user_id)
+        if user is None:
+            with contextlib.suppress(discord.HTTPException):
+                user = await self._client.fetch_user(admin_user_id)
+        if user is None:
+            logger.warning(
+                "Discord connector '%s': cannot resolve admin user %s",
+                self.instance_name, admin_user_id,
+            )
+            return
+        try:
+            channel = await user.create_dm()
+        except discord.HTTPException:
+            logger.exception(
+                "Discord connector '%s': failed to open admin DM",
+                self.instance_name,
+            )
+            return
+
+        sender_label = (
+            f"{sender.display_name} ({sender.external_id})"
+            if sender.display_name
+            else sender.external_id
+        )
+        text = (
+            f"**New sender wants to talk to me:**\n"
+            f"• {sender_label}\n"
+            f"• message preview: {preview}"
+        )
+
+        view = discord.ui.View(timeout=None)
+        view.add_item(discord.ui.Button(
+            label="✅ Allow once",
+            style=discord.ButtonStyle.primary,
+            custom_id=(
+                f"{_APPROVAL_ACTION_PREFIX}:{_CHOICE_ALLOW_ONCE}"
+                f":{approval_id}"
+            ),
+        ))
+        view.add_item(discord.ui.Button(
+            label="🔓 Allow forever",
+            style=discord.ButtonStyle.success,
+            custom_id=(
+                f"{_APPROVAL_ACTION_PREFIX}:{_CHOICE_ALLOW_FOREVER}"
+                f":{approval_id}"
+            ),
+        ))
+        view.add_item(discord.ui.Button(
+            label="🚫 Deny",
+            style=discord.ButtonStyle.danger,
+            custom_id=(
+                f"{_APPROVAL_ACTION_PREFIX}:{_CHOICE_DENY}"
+                f":{approval_id}"
+            ),
+        ))
+
+        try:
+            await channel.send(content=text, view=view)
+        except discord.HTTPException:
+            logger.exception(
+                "Discord connector '%s': failed to send approval prompt",
+                self.instance_name,
+            )
+
+    async def _on_approval_interaction(
+        self,
+        interaction: discord.Interaction,
+        custom_id: str,
+    ) -> None:
+        """Route an approval button click to the :class:`ApprovalBroker`.
+
+        Discord requires an :meth:`~discord.InteractionResponse.defer`
+        (or equivalent) within 3 seconds, same as Slack. We defer first,
+        then run the broker work afterwards — the broker's DB write + reply
+        send can safely run past the ack window.
+        """
+        # Ack first — Discord shows "This interaction failed" after 3s.
+        with contextlib.suppress(discord.HTTPException):
+            await interaction.response.defer()
+
+        broker = getattr(self, "_broker", None)
+        if broker is None:
+            logger.debug(
+                "Discord connector '%s': approval interaction arrived but "
+                "no broker is attached; ignoring",
+                self.instance_name,
+            )
+            return
+
+        parts = custom_id.split(":", 2)
+        if len(parts) != 3 or parts[0] != _APPROVAL_ACTION_PREFIX:
+            logger.debug(
+                "Discord connector '%s': ignoring unrecognised custom_id %r",
+                self.instance_name, custom_id,
+            )
+            return
+        _, choice, approval_id = parts
+        if not approval_id:
+            return
+
+        clicker = interaction.user
+        if clicker is None:
+            logger.warning(
+                "Discord connector '%s': approval interaction without user",
+                self.instance_name,
+            )
+            return
+        clicker_identity = Identity(
+            platform=self.platform,
+            external_id=f"discord:user:{clicker.id}",
+            display_name=(
+                getattr(clicker, "display_name", None)
+                or getattr(clicker, "name", None)
+                or str(clicker.id)
+            ),
+            is_group=False,
+            metadata={"user_id": clicker.id},
+        )
+
+        try:
+            await broker.resolve(approval_id, choice, clicker_identity)
+        except Exception:
+            logger.exception(
+                "Discord connector '%s': broker.resolve raised",
+                self.instance_name,
+            )
 
     # ── Helpers ────────────────────────────────────────────────────
 
