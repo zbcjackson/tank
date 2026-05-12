@@ -162,9 +162,8 @@ class TestLifecycle:
             assert c.connected
             # Event handler for 'message' was registered exactly once.
             lifecycle_mocks.app.event.assert_called_once_with("message")
-            # Polling task was spawned.
-            assert c._task is not None  # noqa: SLF001
-            assert not c._task.done()  # noqa: SLF001
+            # Polling task was spawned via the shared BackgroundTaskRunner.
+            assert c._runner.running  # noqa: SLF001
         finally:
             await c.stop()
 
@@ -178,7 +177,7 @@ class TestLifecycle:
         await c.stop()
         lifecycle_mocks.handler.close_async.assert_awaited_once()
         assert not c.connected
-        assert c._task is None  # noqa: SLF001
+        assert not c._runner.running  # noqa: SLF001
         assert c._handler is None  # noqa: SLF001
         assert c._app is None  # noqa: SLF001
 
@@ -214,13 +213,12 @@ class TestLifecycle:
             instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
         )
         await c.start()
-        task_ref = c._task  # noqa: SLF001
-        assert task_ref is not None
+        assert c._runner.running  # noqa: SLF001
 
         await c.stop()
-        # With _SHUTDOWN_TIMEOUT_S=0.1 the task is cancelled rather than
-        # awaited indefinitely.
-        assert task_ref.cancelled() or task_ref.done()
+        # With _SHUTDOWN_TIMEOUT_S=0.1 the runner cancelled the task
+        # rather than awaiting it indefinitely.
+        assert not c._runner.running  # noqa: SLF001
         assert not c.connected
 
 

@@ -33,6 +33,17 @@ from tank_contracts.connector import (
     MessageEvent,
     SendResult,
 )
+from tank_contracts.connector_sdk import (
+    APPROVAL_ACTION_PREFIX,
+    APPROVAL_CHOICE_ALLOW_FOREVER,
+    APPROVAL_CHOICE_ALLOW_ONCE,
+    APPROVAL_CHOICE_DENY,
+    BackgroundTaskRunner,
+    build_prompt_text,
+    decode_action,
+    encode_action,
+    truncate_for_platform,
+)
 
 if TYPE_CHECKING:
     pass
@@ -55,19 +66,9 @@ _MAX_INBOUND_IMAGE_BYTES = 25 * 1024 * 1024
 # Timeout for the gateway task to drain cleanly on shutdown.
 _SHUTDOWN_TIMEOUT_S = 5.0
 
-# Phase 10: shape of the ``custom_id`` string on approval buttons.
-# ``{prefix}:{choice}:{approval_id}`` — the three-part form every
-# connector uses, mirroring Telegram's ``callback_data`` and Slack's
-# ``action_id``. Kept as plain strings (not imported from
-# tank_backend.connectors.approval) so the plugin's dependency graph
-# stays pointing at ``tank-contracts`` only; the literals MUST stay in
-# sync with the canonical ``CHOICE_*`` constants in the broker module.
-# Discord's ``custom_id`` is capped at 100 bytes; our shape lands at
-# ~30 bytes.
-_APPROVAL_ACTION_PREFIX = "approve"
-_CHOICE_ALLOW_ONCE = "allow_once"
-_CHOICE_ALLOW_FOREVER = "allow_forever"
-_CHOICE_DENY = "deny"
+
+# Approval-button wire format (prefix + three choice literals) lives in
+# ``tank_contracts.connector_sdk.constants`` and is imported at the top.
 
 
 def _encode_msg_id(channel_id: int, message_id: int) -> str:
@@ -167,7 +168,7 @@ class _TankDiscordClient(discord.Client):
         if interaction.type is not discord.InteractionType.component:
             return
         custom_id = (interaction.data or {}).get("custom_id") or ""
-        if not custom_id.startswith(f"{_APPROVAL_ACTION_PREFIX}:"):
+        if not custom_id.startswith(f"{APPROVAL_ACTION_PREFIX}:"):
             return
         await self._connector._on_approval_interaction(  # noqa: SLF001
             interaction, custom_id,
@@ -205,7 +206,13 @@ class DiscordConnector(Connector):
         )
         self._token = bot_token
         self._client: discord.Client | None = None
-        self._task: asyncio.Task[None] | None = None
+        # Shared lifecycle coordinator owns the drain-then-cancel dance
+        # after ``stop()`` signals the gateway via ``client.close()``.
+        self._runner = BackgroundTaskRunner(
+            instance_name=instance_name,
+            platform=self.platform,
+            shutdown_timeout_s=_SHUTDOWN_TIMEOUT_S,
+        )
 
     # ── Lifecycle ───────────────────────────────────────────────────
 
@@ -223,33 +230,19 @@ class DiscordConnector(Connector):
         intents.message_content = True
 
         self._client = _TankDiscordClient(connector=self, intents=intents)
-        self._task = asyncio.create_task(
-            self._run_gateway(),
-            name=f"discord-gateway-{self.instance_name}",
-        )
+        self._runner.spawn(self._run_gateway())
         self._connected = True
         logger.info("Discord connector '%s' started", self.instance_name)
 
     async def _run_gateway(self) -> None:
-        """Run the gateway and surface unexpected crashes.
+        """Run the gateway until cancelled or the client disconnects.
 
-        discord.py's ``Client.start`` handles reconnects on transient
-        network drops transparently, so under normal operation this
-        coroutine runs for the connector's entire lifetime. Unrecoverable
-        errors (bad token, revoked permissions) bubble up — we log
-        loudly rather than leaving the connector silently dead.
+        Exception logging + cancellation handling now live on the
+        shared :class:`BackgroundTaskRunner`; this method is a thin
+        platform-specific await the runner wraps.
         """
         assert self._client is not None  # noqa: S101
-        try:
-            await self._client.start(self._token)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            logger.exception(
-                "Discord connector '%s' gateway task crashed",
-                self.instance_name,
-            )
-            raise
+        await self._client.start(self._token)
 
     async def stop(self) -> None:
         if not self._connected:
@@ -257,17 +250,9 @@ class DiscordConnector(Connector):
         if self._client is not None:
             with contextlib.suppress(Exception):
                 await self._client.close()
-        if self._task is not None:
-            try:
-                await asyncio.wait_for(self._task, timeout=_SHUTDOWN_TIMEOUT_S)
-            except asyncio.TimeoutError:
-                self._task.cancel()
-                with contextlib.suppress(
-                    asyncio.CancelledError, asyncio.TimeoutError, Exception,
-                ):
-                    await self._task
+        # Shared drain-then-cancel matches the other connectors.
+        await self._runner.drain()
         self._client = None
-        self._task = None
         self._connected = False
         logger.info("Discord connector '%s' stopped", self.instance_name)
 
@@ -463,7 +448,7 @@ class DiscordConnector(Connector):
                 caption=text,
             )
 
-        truncated = self._truncate(text, _DISCORD_MAX_MESSAGE_LENGTH)
+        truncated = truncate_for_platform(text, _DISCORD_MAX_MESSAGE_LENGTH)
         try:
             msg = await channel.send(content=truncated)
         except discord.HTTPException as e:
@@ -525,7 +510,7 @@ class DiscordConnector(Connector):
 
         send_caption: str | None = None
         if caption:
-            send_caption = self._truncate(caption, _DISCORD_MAX_MESSAGE_LENGTH)
+            send_caption = truncate_for_platform(caption, _DISCORD_MAX_MESSAGE_LENGTH)
 
         filename = attachment.filename or "image.png"
         file = discord.File(fp=io.BytesIO(content), filename=filename)
@@ -565,7 +550,7 @@ class DiscordConnector(Connector):
         except discord.HTTPException as e:
             return _classify_discord_error(e)
 
-        truncated = self._truncate(text, _DISCORD_MAX_MESSAGE_LENGTH)
+        truncated = truncate_for_platform(text, _DISCORD_MAX_MESSAGE_LENGTH)
         try:
             await target.edit(content=truncated)
         except discord.HTTPException as e:
@@ -662,41 +647,31 @@ class DiscordConnector(Connector):
             )
             return
 
-        sender_label = (
-            f"{sender.display_name} ({sender.external_id})"
-            if sender.display_name
-            else sender.external_id
-        )
-        text = (
-            f"**New sender wants to talk to me:**\n"
-            f"• {sender_label}\n"
-            f"• message preview: {preview}"
-        )
+        # Shared helper renders the plain-text body; Discord wraps the
+        # first line in ``**bold**`` (Markdown) for channel.send().
+        prompt_body = build_prompt_text(sender, preview)
+        prompt_lines = prompt_body.split("\n", 1)
+        if len(prompt_lines) == 2:
+            first, rest = prompt_lines
+            text = f"**{first}**\n{rest}"
+        else:
+            text = f"**{prompt_body}**"
 
         view = discord.ui.View(timeout=None)
         view.add_item(discord.ui.Button(
             label="✅ Allow once",
             style=discord.ButtonStyle.primary,
-            custom_id=(
-                f"{_APPROVAL_ACTION_PREFIX}:{_CHOICE_ALLOW_ONCE}"
-                f":{approval_id}"
-            ),
+            custom_id=encode_action(APPROVAL_CHOICE_ALLOW_ONCE, approval_id),
         ))
         view.add_item(discord.ui.Button(
             label="🔓 Allow forever",
             style=discord.ButtonStyle.success,
-            custom_id=(
-                f"{_APPROVAL_ACTION_PREFIX}:{_CHOICE_ALLOW_FOREVER}"
-                f":{approval_id}"
-            ),
+            custom_id=encode_action(APPROVAL_CHOICE_ALLOW_FOREVER, approval_id),
         ))
         view.add_item(discord.ui.Button(
             label="🚫 Deny",
             style=discord.ButtonStyle.danger,
-            custom_id=(
-                f"{_APPROVAL_ACTION_PREFIX}:{_CHOICE_DENY}"
-                f":{approval_id}"
-            ),
+            custom_id=encode_action(APPROVAL_CHOICE_DENY, approval_id),
         ))
 
         try:
@@ -732,16 +707,14 @@ class DiscordConnector(Connector):
             )
             return
 
-        parts = custom_id.split(":", 2)
-        if len(parts) != 3 or parts[0] != _APPROVAL_ACTION_PREFIX:
+        decoded = decode_action(custom_id)
+        if decoded is None:
             logger.debug(
                 "Discord connector '%s': ignoring unrecognised custom_id %r",
                 self.instance_name, custom_id,
             )
             return
-        _, choice, approval_id = parts
-        if not approval_id:
-            return
+        choice, approval_id = decoded
 
         clicker = interaction.user
         if clicker is None:
@@ -810,12 +783,5 @@ class DiscordConnector(Connector):
             return await user.create_dm()
         return None
 
-    @staticmethod
-    def _truncate(text: str, cap: int) -> str:
-        """Truncate ``text`` to ``cap`` chars, replacing the tail with a
-        single ellipsis so users see that trimming happened. Matches
-        the Telegram/Slack convention so all three connectors truncate
-        consistently."""
-        if len(text) <= cap:
-            return text
-        return text[: cap - 1] + "…"
+    # (Phase 11: ``_truncate`` moved to
+    # ``tank_contracts.connector_sdk.truncate_for_platform`` — import at top.)

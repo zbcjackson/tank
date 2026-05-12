@@ -18,7 +18,6 @@ message.
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import logging
 import re
@@ -36,6 +35,17 @@ from tank_contracts.connector import (
     Identity,
     MessageEvent,
     SendResult,
+)
+from tank_contracts.connector_sdk import (
+    APPROVAL_ACTION_PREFIX,
+    APPROVAL_CHOICE_ALLOW_FOREVER,
+    APPROVAL_CHOICE_ALLOW_ONCE,
+    APPROVAL_CHOICE_DENY,
+    BackgroundTaskRunner,
+    build_prompt_text,
+    decode_action,
+    encode_action,
+    truncate_for_platform,
 )
 
 if TYPE_CHECKING:
@@ -80,17 +90,12 @@ _SHUTDOWN_TIMEOUT_S = 5.0
 # means no synchronised sweep storms the API.
 _DISPLAY_NAME_TTL_S = 24 * 60 * 60
 
-# Phase 10: shape of the ``action_id`` string on approval buttons.
-# ``{prefix}:{choice}:{approval_id}`` — same three-part shape every
-# connector uses. Choice literals are kept in sync (not imported) with
-# :mod:`tank_backend.connectors.approval` so the plugin doesn't back-
-# -depend on tank-backend. Slack's ``action_id`` has no length cap
-# relevant to us at this shape.
-_APPROVAL_ACTION_PREFIX = "approve"
-_APPROVAL_ACTION_RE = re.compile(r"^approve:")
-_CHOICE_ALLOW_ONCE = "allow_once"
-_CHOICE_ALLOW_FOREVER = "allow_forever"
-_CHOICE_DENY = "deny"
+
+# The approval wire format (prefix + choices) now lives in
+# ``tank_contracts.connector_sdk.constants`` and is imported above.
+# The existing ``_APPROVAL_ACTION_RE`` matcher used to filter slack_bolt's
+# ``action_id`` dispatcher stays — the regex is Slack-specific wiring.
+_APPROVAL_ACTION_RE = re.compile(f"^{APPROVAL_ACTION_PREFIX}:")
 
 
 def _encode_msg_id(channel: str, ts: str) -> str:
@@ -169,7 +174,15 @@ class SlackConnector(Connector):
         self._mention_only = mention_only
         self._app: AsyncApp | None = None
         self._handler: AsyncSocketModeHandler | None = None
-        self._task: asyncio.Task[None] | None = None
+        # Shared lifecycle coordinator — see
+        # :mod:`tank_contracts.connector_sdk.lifecycle`. Owns the socket-
+        # mode task's drain-then-cancel dance; ``stop()`` signals the
+        # platform loop via ``handler.close_async`` and then delegates.
+        self._runner = BackgroundTaskRunner(
+            instance_name=instance_name,
+            platform=self.platform,
+            shutdown_timeout_s=_SHUTDOWN_TIMEOUT_S,
+        )
         # Resolved at ``start()`` via ``auth.test``. Needed for
         # mention-only filtering; stripped from inbound text before
         # forwarding so the LLM doesn't see Slack mention syntax.
@@ -219,31 +232,19 @@ class SlackConnector(Connector):
         # + approval_id out of the id string.
         self._app.action(_APPROVAL_ACTION_RE)(self._on_approval_action)
         self._handler = AsyncSocketModeHandler(self._app, self._app_token)
-        self._task = asyncio.create_task(
-            self._run_socket_mode(),
-            name=f"slack-socket-{self.instance_name}",
-        )
+        self._runner.spawn(self._run_socket_mode())
         self._connected = True
         logger.info("Slack connector '%s' started", self.instance_name)
 
     async def _run_socket_mode(self) -> None:
-        """Run Socket Mode and surface unexpected crashes.
+        """Run Socket Mode until cancelled or the handler disconnects.
 
-        Slack's SDK auto-reconnects on transient drops but bubbles up
-        unrecoverable errors. We log loudly rather than leaving the
-        connector silently dead.
+        Exception logging + cancellation handling now live on the shared
+        :class:`BackgroundTaskRunner`; this method is a thin platform-
+        specific await that the runner wraps.
         """
         assert self._handler is not None  # noqa: S101
-        try:
-            await self._handler.start_async()
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            logger.exception(
-                "Slack connector '%s' socket-mode task crashed",
-                self.instance_name,
-            )
-            raise
+        await self._handler.start_async()
 
     async def stop(self) -> None:
         if not self._connected:
@@ -251,20 +252,11 @@ class SlackConnector(Connector):
         if self._handler is not None:
             with contextlib.suppress(Exception):
                 await self._handler.close_async()
-        if self._task is not None:
-            try:
-                await asyncio.wait_for(
-                    self._task, timeout=_SHUTDOWN_TIMEOUT_S,
-                )
-            except asyncio.TimeoutError:
-                self._task.cancel()
-                with contextlib.suppress(
-                    asyncio.CancelledError, asyncio.TimeoutError, Exception,
-                ):
-                    await self._task
+        # Shared drain-then-cancel via the runner — matches the
+        # Telegram/Discord shutdown shape.
+        await self._runner.drain()
         self._app = None
         self._handler = None
-        self._task = None
         self._connected = False
         logger.info("Slack connector '%s' stopped", self.instance_name)
 
@@ -539,7 +531,7 @@ class SlackConnector(Connector):
                 caption=text,
             )
 
-        truncated = self._truncate(text, _SLACK_MAX_MESSAGE_LENGTH)
+        truncated = truncate_for_platform(text, _SLACK_MAX_MESSAGE_LENGTH)
         post_kwargs: dict[str, Any] = {
             "channel": channel,
             "text": truncated,
@@ -608,7 +600,7 @@ class SlackConnector(Connector):
 
         send_caption: str | None = None
         if caption:
-            send_caption = self._truncate(caption, _SLACK_MAX_CAPTION_LENGTH)
+            send_caption = truncate_for_platform(caption, _SLACK_MAX_CAPTION_LENGTH)
 
         filename = attachment.filename or "image.png"
         try:
@@ -643,7 +635,7 @@ class SlackConnector(Connector):
         except ValueError:
             return SendResult(ok=False, error=f"bad_message_id:{message_id!r}")
 
-        truncated = self._truncate(text, _SLACK_MAX_MESSAGE_LENGTH)
+        truncated = truncate_for_platform(text, _SLACK_MAX_MESSAGE_LENGTH)
 
         try:
             await self._app.client.chat_update(
@@ -696,11 +688,15 @@ class SlackConnector(Connector):
             )
             return
 
-        sender_label = (
-            f"{sender.display_name} ({sender.external_id})"
-            if sender.display_name
-            else sender.external_id
-        )
+        # Shared helper renders the plain-text body; Slack wraps the
+        # header line in *bold* for Block Kit's mrkdwn renderer.
+        prompt_body = build_prompt_text(sender, preview)
+        prompt_lines = prompt_body.split("\n", 1)
+        if len(prompt_lines) == 2:
+            first, rest = prompt_lines
+            prompt_md = f"*{first}*\n{rest}"
+        else:
+            prompt_md = f"*{prompt_body}*"
         # Block Kit structure — section with context, then three button
         # actions. Matches Slack's canonical "approval modal" shape;
         # users who expect the classic inline buttons will find it
@@ -710,11 +706,7 @@ class SlackConnector(Connector):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": (
-                        f"*New sender wants to talk to me:*\n"
-                        f"• {sender_label}\n"
-                        f"• message preview: {preview}"
-                    ),
+                    "text": prompt_md,
                 },
             },
             {
@@ -723,18 +715,16 @@ class SlackConnector(Connector):
                     {
                         "type": "button",
                         "text": {"type": "plain_text", "text": "✅ Allow once"},
-                        "action_id": (
-                            f"{_APPROVAL_ACTION_PREFIX}:{_CHOICE_ALLOW_ONCE}"
-                            f":{approval_id}"
+                        "action_id": encode_action(
+                            APPROVAL_CHOICE_ALLOW_ONCE, approval_id,
                         ),
                         "value": approval_id,
                     },
                     {
                         "type": "button",
                         "text": {"type": "plain_text", "text": "🔓 Allow forever"},
-                        "action_id": (
-                            f"{_APPROVAL_ACTION_PREFIX}:{_CHOICE_ALLOW_FOREVER}"
-                            f":{approval_id}"
+                        "action_id": encode_action(
+                            APPROVAL_CHOICE_ALLOW_FOREVER, approval_id,
                         ),
                         "value": approval_id,
                     },
@@ -742,9 +732,8 @@ class SlackConnector(Connector):
                         "type": "button",
                         "style": "danger",
                         "text": {"type": "plain_text", "text": "🚫 Deny"},
-                        "action_id": (
-                            f"{_APPROVAL_ACTION_PREFIX}:{_CHOICE_DENY}"
-                            f":{approval_id}"
+                        "action_id": encode_action(
+                            APPROVAL_CHOICE_DENY, approval_id,
                         ),
                         "value": approval_id,
                     },
@@ -801,16 +790,14 @@ class SlackConnector(Connector):
             )
             return
         action_id = actions[0].get("action_id", "")
-        parts = action_id.split(":", 2)
-        if len(parts) != 3 or parts[0] != _APPROVAL_ACTION_PREFIX:
+        decoded = decode_action(action_id)
+        if decoded is None:
             logger.debug(
                 "Slack connector '%s': ignoring unrecognised action_id %r",
                 self.instance_name, action_id,
             )
             return
-        _, choice, approval_id = parts
-        if not approval_id:
-            return
+        choice, approval_id = decoded
 
         user_info = body.get("user") or {}
         clicker_user_id = user_info.get("id")
@@ -838,15 +825,5 @@ class SlackConnector(Connector):
             )
 
     # ── Helpers ────────────────────────────────────────────────────
-
-    @staticmethod
-    def _truncate(text: str, cap: int) -> str:
-        """Truncate ``text`` to ``cap`` chars, replacing the tail with a
-        single ellipsis so users see that trimming happened.
-
-        Matches the Telegram connector's convention so both platforms
-        truncate the same way.
-        """
-        if len(text) <= cap:
-            return text
-        return text[: cap - 1] + "…"
+    # (Phase 11: ``_truncate`` moved to
+    # ``tank_contracts.connector_sdk.truncate_for_platform`` — import at top.)

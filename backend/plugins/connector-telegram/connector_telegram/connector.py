@@ -41,6 +41,17 @@ from tank_contracts.connector import (
     MessageEvent,
     SendResult,
 )
+from tank_contracts.connector_sdk import (
+    APPROVAL_ACTION_PREFIX,
+    APPROVAL_CHOICE_ALLOW_FOREVER,
+    APPROVAL_CHOICE_ALLOW_ONCE,
+    APPROVAL_CHOICE_DENY,
+    BackgroundTaskRunner,
+    build_prompt_text,
+    decode_action,
+    encode_action,
+    truncate_for_platform,
+)
 
 if TYPE_CHECKING:
     from aiogram.types import CallbackQuery, Message
@@ -82,19 +93,12 @@ _MEDIA_GROUP_BUFFER_S = 0.5
 # path rather than accumulating unboundedly.
 _MAX_MEDIA_GROUP_SIZE = 10
 
-# Phase 10: shape of the ``callback_data`` string for approval buttons.
-# ``{prefix}:{choice}:{approval_id}`` — choice is one of the three
-# string literals below, which MUST stay in sync with the constants
-# in :mod:`tank_backend.connectors.approval` (``CHOICE_ALLOW_ONCE`` /
-# ``CHOICE_ALLOW_FOREVER`` / ``CHOICE_DENY``). We don't import those
-# from tank_backend because plugins depend on ``tank_contracts`` only
-# — inlining the strings keeps the dependency direction clean.
-# approval_id is the 16-hex token minted by :class:`ApprovalBroker`.
-# Telegram caps callback_data at 64 bytes; our shape fits under that.
-_APPROVAL_CALLBACK_PREFIX = "approve"
-_CHOICE_ALLOW_ONCE = "allow_once"
-_CHOICE_ALLOW_FOREVER = "allow_forever"
-_CHOICE_DENY = "deny"
+
+# Approval-button wire format + choice constants live in
+# ``tank_contracts.connector_sdk.constants`` and are imported above.
+# ``APPROVAL_ACTION_PREFIX`` drives both the ``F.data.startswith(...)``
+# filter and the payloads ``encode_action`` emits, so all four parties
+# (broker + three plugins) stay agreed on the exact literal.
 
 
 @dataclass
@@ -143,7 +147,16 @@ class TelegramConnector(Connector):
         self._voice_out = voice_out
         self._bot: Bot | None = None
         self._dp: Dispatcher | None = None
-        self._task: asyncio.Task | None = None
+        # Shared lifecycle coordinator: owns the polling task's lifecycle
+        # (spawn, drain-with-timeout, cancel-on-timeout). The platform-
+        # specific "signal the loop to exit" call (``dp.stop_polling()``)
+        # stays in ``stop()``; the runner only manages the background
+        # task after that signal lands.
+        self._runner = BackgroundTaskRunner(
+            instance_name=instance_name,
+            platform=self.platform,
+            shutdown_timeout_s=_SHUTDOWN_TIMEOUT_S,
+        )
         # Media-group (album) buffering — see ``_on_photo`` + ``_flush_media_group``.
         # ``media_group_id`` → list of photos accumulated so far.
         self._media_group_buffers: dict[str, list[_PendingPhoto]] = {}
@@ -181,12 +194,9 @@ class TelegramConnector(Connector):
         # the message-type filters above — no ordering concern.
         self._dp.callback_query.register(
             self._on_callback_query,
-            F.data.startswith(_APPROVAL_CALLBACK_PREFIX),
+            F.data.startswith(f"{APPROVAL_ACTION_PREFIX}:"),
         )
-        self._task = asyncio.create_task(
-            self._run_polling(),
-            name=f"telegram-poll-{self.instance_name}",
-        )
+        self._runner.spawn(self._run_polling())
         self._connected = True
         logger.info(
             "Telegram connector '%s' started (voice_in=%s, voice_out=%s)",
@@ -194,7 +204,7 @@ class TelegramConnector(Connector):
         )
 
     async def _run_polling(self) -> None:
-        """Run long-polling and surface unexpected crashes.
+        """Run long-polling until cancelled or dispatcher shuts down.
 
         ``handle_signals=False`` is critical: aiogram's default is to
         install its own ``SIGINT``/``SIGTERM`` handlers on the running
@@ -205,23 +215,13 @@ class TelegramConnector(Connector):
         the process appears hung. With ``handle_signals=False`` uvicorn
         owns the signal pipeline; its shutdown flow calls our lifespan,
         which calls :meth:`stop` on this connector, which drains the poll
-        loop cleanly.
+        loop cleanly via the shared :class:`BackgroundTaskRunner`.
 
-        aiogram swallows some errors internally; we wrap the call so a
-        crashing polling loop is at least logged loudly rather than
-        leaving the connector silently dead.
+        Exception logging + cancellation handling live on the runner;
+        this method only owns the platform-specific await.
         """
         assert self._dp is not None and self._bot is not None  # noqa: S101
-        try:
-            await self._dp.start_polling(self._bot, handle_signals=False)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            logger.exception(
-                "Telegram connector '%s' polling task crashed",
-                self.instance_name,
-            )
-            raise
+        await self._dp.start_polling(self._bot, handle_signals=False)
 
     async def stop(self) -> None:
         if not self._connected:
@@ -233,23 +233,10 @@ class TelegramConnector(Connector):
             with contextlib.suppress(Exception):
                 await self._dp.stop_polling()
 
-        if self._task is not None:
-            try:
-                await asyncio.wait_for(self._task, timeout=_SHUTDOWN_TIMEOUT_S)
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "Telegram connector '%s' polling task did not exit in %.0fs; "
-                    "cancelling",
-                    self.instance_name, _SHUTDOWN_TIMEOUT_S,
-                )
-                self._task.cancel()
-                with contextlib.suppress(asyncio.CancelledError, Exception):
-                    await self._task
-            except Exception:
-                logger.exception(
-                    "Telegram connector '%s' polling task raised on shutdown",
-                    self.instance_name,
-                )
+        # Hand the task's drain-then-cancel choreography to the shared
+        # runner — it handles timeout, cancellation, and exception
+        # swallowing consistently across plugins.
+        await self._runner.drain()
 
         if self._bot is not None:
             with contextlib.suppress(Exception):
@@ -266,7 +253,6 @@ class TelegramConnector(Connector):
 
         self._bot = None
         self._dp = None
-        self._task = None
         self._connected = False
         logger.info("Telegram connector '%s' stopped", self.instance_name)
 
@@ -719,10 +705,8 @@ class TelegramConnector(Connector):
 
         send_caption: str | None = None
         if caption:
-            send_caption = (
-                caption
-                if len(caption) <= _TELEGRAM_MAX_CAPTION_LENGTH
-                else caption[: _TELEGRAM_MAX_CAPTION_LENGTH - 1] + "…"
+            send_caption = truncate_for_platform(
+                caption, _TELEGRAM_MAX_CAPTION_LENGTH,
             )
 
         try:
@@ -811,10 +795,8 @@ class TelegramConnector(Connector):
 
         send_caption: str | None = None
         if caption:
-            send_caption = (
-                caption
-                if len(caption) <= _TELEGRAM_MAX_CAPTION_LENGTH
-                else caption[: _TELEGRAM_MAX_CAPTION_LENGTH - 1] + "…"
+            send_caption = truncate_for_platform(
+                caption, _TELEGRAM_MAX_CAPTION_LENGTH,
             )
 
         voice_file = BufferedInputFile(data, filename="voice.ogg")
@@ -876,40 +858,28 @@ class TelegramConnector(Connector):
             )
             return
 
-        sender_label = (
-            f"{sender.display_name} ({sender.external_id})"
-            if sender.display_name
-            else sender.external_id
-        )
-        text = (
-            f"New sender wants to talk to me:\n"
-            f"• {sender_label}\n"
-            f"• message preview: {preview}"
-        )
+        text = build_prompt_text(sender, preview)
         markup = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
                         text="✅ Allow once",
-                        callback_data=(
-                            f"{_APPROVAL_CALLBACK_PREFIX}:{_CHOICE_ALLOW_ONCE}"
-                            f":{approval_id}"
+                        callback_data=encode_action(
+                            APPROVAL_CHOICE_ALLOW_ONCE, approval_id,
                         ),
                     ),
                     InlineKeyboardButton(
                         text="🔓 Allow forever",
-                        callback_data=(
-                            f"{_APPROVAL_CALLBACK_PREFIX}:{_CHOICE_ALLOW_FOREVER}"
-                            f":{approval_id}"
+                        callback_data=encode_action(
+                            APPROVAL_CHOICE_ALLOW_FOREVER, approval_id,
                         ),
                     ),
                 ],
                 [
                     InlineKeyboardButton(
                         text="🚫 Deny",
-                        callback_data=(
-                            f"{_APPROVAL_CALLBACK_PREFIX}:{_CHOICE_DENY}"
-                            f":{approval_id}"
+                        callback_data=encode_action(
+                            APPROVAL_CHOICE_DENY, approval_id,
                         ),
                     ),
                 ],
@@ -954,17 +924,15 @@ class TelegramConnector(Connector):
             )
             return
 
-        parts = data.split(":", 2)
-        if len(parts) != 3 or parts[0] != _APPROVAL_CALLBACK_PREFIX:
+        decoded = decode_action(data)
+        if decoded is None:
             logger.debug(
                 "Telegram connector '%s': ignoring unrecognised "
                 "callback_data %r",
                 self.instance_name, data,
             )
             return
-        _, choice, approval_id = parts
-        if not approval_id:
-            return
+        choice, approval_id = decoded
 
         # Synthesise the clicker's identity in the same format as
         # _make_identity would for a DM — the broker checks identity

@@ -162,9 +162,8 @@ class TestLifecycle:
             aiogram_mocks.dp_cls.assert_called_once()
             # Phase-5 defaults: photo, voice, and text handlers.
             assert aiogram_mocks.mocks.dp.message.register.call_count == 3
-            # Polling task was spawned.
-            assert c._task is not None  # noqa: SLF001
-            assert not c._task.done()  # noqa: SLF001
+            # Polling task was spawned via the shared BackgroundTaskRunner.
+            assert c._runner.running  # noqa: SLF001
         finally:
             await c.stop()
 
@@ -189,7 +188,7 @@ class TestLifecycle:
         await c.stop()
 
         assert not c.connected
-        assert c._task is None  # noqa: SLF001
+        assert not c._runner.running  # noqa: SLF001
         assert c._bot is None  # noqa: SLF001
         aiogram_mocks.mocks.bot.session.close.assert_awaited()
 
@@ -1489,7 +1488,7 @@ class TestMediaGroups:
         c._bot.session = MagicMock()  # noqa: SLF001
         c._bot.session.close = AsyncMock()  # noqa: SLF001
         c._dp = None  # noqa: SLF001 — nothing to stop_polling
-        c._task = None  # noqa: SLF001
+        # Post-Phase 11 the runner has no task yet; drain() is a no-op.
 
         # Seed a fake pending album.
         loop = asyncio.get_running_loop()

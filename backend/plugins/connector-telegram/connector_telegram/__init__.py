@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from tank_contracts.connector_sdk import require_string_field, validate_spec
+
 from .connector import TelegramConnector
 
 
@@ -28,21 +30,14 @@ def create_connector(spec: dict) -> TelegramConnector:
     for operators who want a text-only Telegram bot even though the
     rest of Tank has voice configured.
     """
-    instance_name = spec.get("instance", "")
-    cfg = spec.get("config", {}) or {}
+    instance_name, cfg = validate_spec(spec, plugin_name="connector-telegram")
 
-    if not isinstance(cfg, dict):
-        raise ValueError(
-            f"connector-telegram '{instance_name}': 'config' must be a mapping"
-        )
-
-    bot_token = cfg.get("bot_token")
-    if not isinstance(bot_token, str) or not bot_token.strip():
-        raise ValueError(
-            f"connector-telegram '{instance_name}': 'config.bot_token' is "
-            "required (set TELEGRAM_BOT_TOKEN in your environment and "
-            "reference it as ${TELEGRAM_BOT_TOKEN} in config.yaml)"
-        )
+    bot_token = require_string_field(
+        cfg, "bot_token",
+        plugin_name="connector-telegram",
+        instance_name=instance_name,
+        env_var="TELEGRAM_BOT_TOKEN",
+    )
 
     voice_in = bool(cfg.get("voice_in", True))
     voice_out = bool(cfg.get("voice_out", True))

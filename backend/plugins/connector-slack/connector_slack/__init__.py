@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from tank_contracts.connector_sdk import require_string_field, validate_spec
+
 from .connector import SlackConnector
 
 
@@ -31,30 +33,20 @@ def create_connector(spec: dict) -> SlackConnector:
     ``mention_only`` (default ``false``) makes the bot ignore channel
     messages that don't mention it. DMs always get through regardless.
     """
-    instance_name = spec.get("instance", "")
-    cfg = spec.get("config", {}) or {}
+    instance_name, cfg = validate_spec(spec, plugin_name="connector-slack")
 
-    if not isinstance(cfg, dict):
-        raise ValueError(
-            f"connector-slack '{instance_name}': 'config' must be a mapping"
-        )
-
-    bot_token = cfg.get("bot_token")
-    if not isinstance(bot_token, str) or not bot_token.strip():
-        raise ValueError(
-            f"connector-slack '{instance_name}': 'config.bot_token' is "
-            "required (set SLACK_BOT_TOKEN in your environment and "
-            "reference it as ${SLACK_BOT_TOKEN} in config.yaml)"
-        )
-
-    app_token = cfg.get("app_token")
-    if not isinstance(app_token, str) or not app_token.strip():
-        raise ValueError(
-            f"connector-slack '{instance_name}': 'config.app_token' is "
-            "required (set SLACK_APP_TOKEN in your environment and "
-            "reference it as ${SLACK_APP_TOKEN} in config.yaml)"
-        )
-
+    bot_token = require_string_field(
+        cfg, "bot_token",
+        plugin_name="connector-slack",
+        instance_name=instance_name,
+        env_var="SLACK_BOT_TOKEN",
+    )
+    app_token = require_string_field(
+        cfg, "app_token",
+        plugin_name="connector-slack",
+        instance_name=instance_name,
+        env_var="SLACK_APP_TOKEN",
+    )
     mention_only = bool(cfg.get("mention_only", False))
 
     return SlackConnector(

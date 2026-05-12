@@ -132,9 +132,8 @@ class TestLifecycle:
             assert intents.message_content is True
             # Connector is passed so on_message can dispatch into us.
             assert kw.get("connector") is c
-            # Gateway task is alive.
-            assert c._task is not None  # noqa: SLF001
-            assert not c._task.done()  # noqa: SLF001
+            # Gateway task is alive (managed by the shared runner).
+            assert c._runner.running  # noqa: SLF001
         finally:
             await c.stop()
 
@@ -147,7 +146,7 @@ class TestLifecycle:
         lifecycle_mocks.client.close.assert_awaited_once()
         assert not c.connected
         assert c._client is None  # noqa: SLF001
-        assert c._task is None  # noqa: SLF001
+        assert not c._runner.running  # noqa: SLF001
 
     async def test_double_start_is_no_op(self, lifecycle_mocks) -> None:
         c = DiscordConnector(instance_name="t", bot_token="xxx")
@@ -174,11 +173,12 @@ class TestLifecycle:
 
         c = DiscordConnector(instance_name="t", bot_token="xxx")
         await c.start()
-        task_ref = c._task  # noqa: SLF001
-        assert task_ref is not None
+        assert c._runner.running  # noqa: SLF001
 
         await c.stop()
-        assert task_ref.cancelled() or task_ref.done()
+        # With _SHUTDOWN_TIMEOUT_S patched low the runner cancelled
+        # the task rather than awaiting it indefinitely.
+        assert not c._runner.running  # noqa: SLF001
         assert not c.connected
 
 

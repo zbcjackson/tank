@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from tank_contracts.connector_sdk import require_string_field, validate_spec
+
 from .connector import DiscordConnector
 
 
@@ -26,21 +28,14 @@ def create_connector(spec: dict) -> DiscordConnector:
     with a message pointing operators at the right environment
     variable.
     """
-    instance_name = spec.get("instance", "")
-    cfg = spec.get("config", {}) or {}
+    instance_name, cfg = validate_spec(spec, plugin_name="connector-discord")
 
-    if not isinstance(cfg, dict):
-        raise ValueError(
-            f"connector-discord '{instance_name}': 'config' must be a mapping"
-        )
-
-    bot_token = cfg.get("bot_token")
-    if not isinstance(bot_token, str) or not bot_token.strip():
-        raise ValueError(
-            f"connector-discord '{instance_name}': 'config.bot_token' is "
-            "required (set DISCORD_BOT_TOKEN in your environment and "
-            "reference it as ${DISCORD_BOT_TOKEN} in config.yaml)"
-        )
+    bot_token = require_string_field(
+        cfg, "bot_token",
+        plugin_name="connector-discord",
+        instance_name=instance_name,
+        env_var="DISCORD_BOT_TOKEN",
+    )
 
     return DiscordConnector(
         instance_name=instance_name or "discord",
