@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import platform
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -429,9 +430,13 @@ class TestDeniedMountsHardcoded:
         assert "~/.gnupg" in DENIED_MOUNTS_HARDCODED
 
     def test_contains_keychains(self):
+        if platform.system() != "Darwin":
+            pytest.skip("macOS-only path")
         assert "~/Library/Keychains" in DENIED_MOUNTS_HARDCODED
 
     def test_contains_docker_socket(self):
+        if platform.system() not in ("Darwin", "Linux"):
+            pytest.skip("only mounted on Darwin/Linux")
         assert "/var/run/docker.sock" in DENIED_MOUNTS_HARDCODED
 
 
