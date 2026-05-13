@@ -1065,21 +1065,63 @@ class TestApprovalPrompt:
 
 
 class TestApprovalAction:
+    @staticmethod
+    def _make_pending(sender_id: str = "U99") -> MagicMock:
+        """A ``PendingApproval``-shaped mock for the broker's ``resolve``
+        return value. The click handler reads ``resolved.event.identity``
+        to render the outcome text."""
+        pending = MagicMock()
+        pending.event.identity = Identity(
+            platform="slack",
+            external_id=f"slack:user:{sender_id}",
+            display_name="Alice",
+            is_group=False,
+            metadata={"user": sender_id},
+        )
+        return pending
+
+    @staticmethod
+    def _body(
+        *,
+        action_id: str = "approve:allow_forever:abc1234567890def",
+        channel_id: str | None = "C123",
+        message_ts: str | None = "1234567890.001",
+        user_id: str = "U42",
+        user_name: str = "admin",
+    ) -> dict:
+        """Build a plausible slack_bolt action payload.
+
+        ``container.channel_id`` + ``container.message_ts`` drive the
+        ``chat_update`` call; omit them to test the graceful-degrade path
+        where the connector skips the edit but still resolves.
+        """
+        container: dict = {}
+        if channel_id is not None:
+            container["channel_id"] = channel_id
+        if message_ts is not None:
+            container["message_ts"] = message_ts
+        return {
+            "actions": [{
+                "action_id": action_id,
+                "value": action_id.rsplit(":", 1)[-1],
+            }],
+            "user": {"id": user_id, "name": user_name},
+            "container": container,
+        }
+
     async def test_ack_and_dispatch_to_broker(
         self, started_connector,
     ) -> None:
+        """Happy path: ack the click, route to ``broker.resolve``, then
+        overwrite the prompt with the outcome via ``chat_update`` so the
+        three Block Kit buttons vanish."""
         broker = MagicMock()
-        broker.resolve = AsyncMock()
+        broker.resolve = AsyncMock(return_value=self._make_pending("U99"))
         started_connector.set_approval_broker(broker)
+        started_connector._app.client.chat_update = AsyncMock()  # noqa: SLF001
 
         ack = AsyncMock()
-        body = {
-            "actions": [{
-                "action_id": "approve:allow_forever:abc1234567890def",
-                "value": "abc1234567890def",
-            }],
-            "user": {"id": "U42", "name": "admin"},
-        }
+        body = self._body()
 
         await started_connector._on_approval_action(ack, body)  # noqa: SLF001
 
@@ -1090,6 +1132,97 @@ class TestApprovalAction:
         assert args[1] == "allow_forever"
         clicker = args[2]
         assert clicker.external_id == "slack:user:U42"
+
+        # Prompt was edited — empty ``blocks`` strips the buttons.
+        started_connector._app.client.chat_update.assert_awaited_once()  # noqa: SLF001
+        kwargs = started_connector._app.client.chat_update.call_args.kwargs  # noqa: SLF001
+        assert kwargs["channel"] == "C123"
+        assert kwargs["ts"] == "1234567890.001"
+        assert kwargs["blocks"] == []
+        assert "Approved forever" in kwargs["text"]
+        assert "Alice" in kwargs["text"]
+
+    async def test_stale_resolve_does_not_edit_prompt(
+        self, started_connector,
+    ) -> None:
+        """Broker returns ``None`` for stale clicks; the handler must
+        leave the Block Kit message alone so a real admin can still
+        act on it."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock(return_value=None)
+        started_connector.set_approval_broker(broker)
+        started_connector._app.client.chat_update = AsyncMock()  # noqa: SLF001
+
+        await started_connector._on_approval_action(  # noqa: SLF001
+            AsyncMock(), self._body(),
+        )
+        started_connector._app.client.chat_update.assert_not_awaited()  # noqa: SLF001
+
+    async def test_missing_channel_ts_skips_edit(
+        self, started_connector,
+    ) -> None:
+        """Defensive: older slack_bolt payloads (or weird edge cases)
+        may elide ``container.channel_id``/``message_ts``. The handler
+        logs and skips the edit rather than raising — the broker's work
+        already landed."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock(return_value=self._make_pending("U99"))
+        started_connector.set_approval_broker(broker)
+        started_connector._app.client.chat_update = AsyncMock()  # noqa: SLF001
+
+        body = self._body(channel_id=None, message_ts=None)
+        # No ``channel`` fallback either.
+        body.pop("channel", None)
+        body.pop("message", None)
+
+        await started_connector._on_approval_action(  # noqa: SLF001
+            AsyncMock(), body,
+        )
+        started_connector._app.client.chat_update.assert_not_awaited()  # noqa: SLF001
+
+    async def test_falls_back_to_legacy_channel_message_shape(
+        self, started_connector,
+    ) -> None:
+        """Older payloads carry ``channel.id`` / ``message.ts`` instead
+        of ``container.channel_id`` / ``container.message_ts``. The
+        handler uses whichever shape is present."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock(return_value=self._make_pending("U99"))
+        started_connector.set_approval_broker(broker)
+        started_connector._app.client.chat_update = AsyncMock()  # noqa: SLF001
+
+        body = self._body(channel_id=None, message_ts=None)
+        body["channel"] = {"id": "C_legacy"}
+        body["message"] = {"ts": "9999.000"}
+
+        await started_connector._on_approval_action(  # noqa: SLF001
+            AsyncMock(), body,
+        )
+        started_connector._app.client.chat_update.assert_awaited_once()  # noqa: SLF001
+        kwargs = started_connector._app.client.chat_update.call_args.kwargs  # noqa: SLF001
+        assert kwargs["channel"] == "C_legacy"
+        assert kwargs["ts"] == "9999.000"
+
+    async def test_chat_update_api_error_is_swallowed(
+        self, started_connector,
+    ) -> None:
+        """If ``chat_update`` fails (expired message, missing scope,
+        etc.), the connector logs at debug and moves on. The broker
+        already did the real work."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock(return_value=self._make_pending("U99"))
+        started_connector.set_approval_broker(broker)
+        started_connector._app.client.chat_update = AsyncMock(  # noqa: SLF001
+            side_effect=SlackApiError(
+                message="message_not_found", response={"ok": False},
+            ),
+        )
+
+        # Must not raise.
+        await started_connector._on_approval_action(  # noqa: SLF001
+            AsyncMock(), self._body(),
+        )
+        started_connector._app.client.chat_update.assert_awaited_once()  # noqa: SLF001
 
     async def test_no_broker_attached_silently_acks(
         self, started_connector,

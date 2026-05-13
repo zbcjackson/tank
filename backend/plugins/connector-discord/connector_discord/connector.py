@@ -39,6 +39,7 @@ from tank_contracts.connector_sdk import (
     APPROVAL_CHOICE_ALLOW_ONCE,
     APPROVAL_CHOICE_DENY,
     BackgroundTaskRunner,
+    build_outcome_text,
     build_prompt_text,
     decode_action,
     encode_action,
@@ -736,12 +737,40 @@ class DiscordConnector(Connector):
         )
 
         try:
-            await broker.resolve(approval_id, choice, clicker_identity)
+            resolved = await broker.resolve(
+                approval_id, choice, clicker_identity,
+            )
         except Exception:
             logger.exception(
                 "Discord connector '%s': broker.resolve raised",
                 self.instance_name,
             )
+            return
+
+        # Edit the prompt message to swap the View (three buttons) for
+        # a single outcome line. Without this the buttons sit there
+        # looking still-clickable. ``resolved is None`` means the broker
+        # no-op'd (stale click, wrong admin, unknown approval_id) —
+        # leave the prompt alone so the real admin can still act.
+        if resolved is None:
+            return
+
+        prompt_message = getattr(interaction, "message", None)
+        if prompt_message is None:
+            # Discord occasionally delivers component interactions with
+            # no ``message`` (e.g. ephemeral responses). Nothing to
+            # edit; broker work already landed.
+            return
+
+        outcome = build_outcome_text(
+            sender=resolved.event.identity,
+            choice=choice,
+            admin=clicker_identity,
+        )
+        # ``view=None`` strips the attached View so the three buttons
+        # vanish entirely; ``content`` replaces the prompt body.
+        with contextlib.suppress(discord.HTTPException):
+            await prompt_message.edit(content=outcome, view=None)
 
     # ── Helpers ────────────────────────────────────────────────────
 

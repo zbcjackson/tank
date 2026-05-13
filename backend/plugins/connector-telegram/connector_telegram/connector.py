@@ -32,6 +32,7 @@ from aiogram.types import (
     BufferedInputFile,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    Message,
 )
 from tank_contracts.connector import (
     Attachment,
@@ -47,6 +48,7 @@ from tank_contracts.connector_sdk import (
     APPROVAL_CHOICE_ALLOW_ONCE,
     APPROVAL_CHOICE_DENY,
     BackgroundTaskRunner,
+    build_outcome_text,
     build_prompt_text,
     decode_action,
     encode_action,
@@ -54,7 +56,7 @@ from tank_contracts.connector_sdk import (
 )
 
 if TYPE_CHECKING:
-    from aiogram.types import CallbackQuery, Message
+    from aiogram.types import CallbackQuery
 
 logger = logging.getLogger("TelegramConnector")
 
@@ -954,12 +956,42 @@ class TelegramConnector(Connector):
         )
 
         try:
-            await broker.resolve(approval_id, choice, clicker_identity)
+            resolved = await broker.resolve(
+                approval_id, choice, clicker_identity,
+            )
         except Exception:
             logger.exception(
                 "Telegram connector '%s': broker.resolve raised",
                 self.instance_name,
             )
+            return
+
+        # Edit the prompt message to swap the three buttons for a single
+        # outcome line. Without this the buttons sit there looking
+        # still-clickable and the admin can't tell whether their click
+        # landed. ``resolved is None`` means the broker no-op'd (stale
+        # click, wrong admin, unknown approval_id) — in that case we
+        # leave the prompt alone so the real admin can still act.
+        if resolved is None:
+            return
+
+        if not isinstance(callback.message, Message):
+            # Two non-edit cases collapsed: ``None`` (rare inline-mode
+            # callbacks elide the message), and ``InaccessibleMessage``
+            # (the prompt is older than the 48-hour bot-edit window or
+            # was deleted). Either way, the broker's real work landed —
+            # we just can't show the confirmation line.
+            return
+
+        outcome = build_outcome_text(
+            sender=resolved.event.identity,
+            choice=choice,
+            admin=clicker_identity,
+        )
+        with contextlib.suppress(TelegramAPIError):
+            # ``reply_markup=None`` drops the three buttons so the
+            # admin sees the outcome line only.
+            await callback.message.edit_text(text=outcome, reply_markup=None)
 
     # ── Helpers ────────────────────────────────────────────────────
 

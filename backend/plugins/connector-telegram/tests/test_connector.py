@@ -25,6 +25,7 @@ from aiogram.exceptions import (
     TelegramBadRequest,
     TelegramRetryAfter,
 )
+from aiogram.types import Message
 from tank_contracts.connector import Attachment, Identity, MessageEvent
 
 from connector_telegram import TelegramConnector, create_connector
@@ -1578,13 +1579,29 @@ class TestApprovalPrompt:
 
 
 class TestApprovalCallbackQuery:
+    @staticmethod
+    def _make_pending(sender_id: int = 99) -> MagicMock:
+        """A ``PendingApproval``-shaped mock the broker's ``resolve``
+        returns on success — the handler reads ``resolved.event.identity``
+        to build the outcome text, so the mock just needs that path
+        addressable."""
+        pending = MagicMock()
+        pending.event.identity = Identity(
+            platform="telegram",
+            external_id=f"tg:user:{sender_id}",
+            display_name="Alice",
+            metadata={"user_id": sender_id},
+        )
+        return pending
+
     async def test_ack_and_dispatch_to_broker(
         self, started_connector,
     ) -> None:
         """Happy path: ack the callback spinner first, then route to
-        ``broker.resolve`` with the clicker's :class:`Identity`."""
+        ``broker.resolve`` with the clicker's :class:`Identity`, then
+        edit the prompt to replace the three buttons with the outcome."""
         broker = MagicMock()
-        broker.resolve = AsyncMock()
+        broker.resolve = AsyncMock(return_value=self._make_pending(99))
         started_connector.set_approval_broker(broker)
 
         callback = MagicMock()
@@ -1594,6 +1611,13 @@ class TestApprovalCallbackQuery:
         from_user.id = 42
         from_user.full_name = "Admin"
         callback.from_user = from_user
+        # The handler edits the prompt message to replace the three
+        # buttons with the outcome text. ``spec=Message`` satisfies the
+        # ``isinstance(callback.message, Message)`` narrow in the
+        # handler (which exists to rule out aiogram's
+        # ``InaccessibleMessage`` variant).
+        callback.message = MagicMock(spec=Message)
+        callback.message.edit_text = AsyncMock()
 
         await started_connector._on_callback_query(callback)  # noqa: SLF001
 
@@ -1605,6 +1629,83 @@ class TestApprovalCallbackQuery:
         clicker = args[2]
         assert clicker.external_id == "tg:user:42"
         assert clicker.metadata["user_id"] == 42
+        # Prompt was edited — buttons dropped (reply_markup=None), text
+        # is the outcome line referencing sender + admin.
+        callback.message.edit_text.assert_awaited_once()
+        kwargs = callback.message.edit_text.call_args.kwargs
+        assert kwargs["reply_markup"] is None
+        assert "Approved forever" in kwargs["text"]
+        assert "Alice" in kwargs["text"]
+        assert "Admin" in kwargs["text"]
+
+    async def test_stale_resolve_does_not_edit_prompt(
+        self, started_connector,
+    ) -> None:
+        """Broker returns ``None`` for stale/unauthorised clicks — the
+        handler must leave the prompt alone so a real admin can still
+        act on it (and so a non-admin clicker doesn't see a confirmation
+        that wasn't theirs to give)."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock(return_value=None)
+        started_connector.set_approval_broker(broker)
+
+        callback = MagicMock()
+        callback.data = "approve:deny:abc"
+        callback.answer = AsyncMock()
+        callback.from_user = MagicMock(id=42, full_name="NotAdmin")
+        callback.message = MagicMock()
+        callback.message.edit_text = AsyncMock()
+
+        await started_connector._on_callback_query(callback)  # noqa: SLF001
+
+        broker.resolve.assert_awaited_once()
+        callback.message.edit_text.assert_not_awaited()
+
+    async def test_missing_callback_message_skips_edit_silently(
+        self, started_connector,
+    ) -> None:
+        """Telegram occasionally elides ``callback.message`` on older
+        inline-mode queries. The resolve still runs; the edit is the
+        only thing that gets skipped."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock(return_value=self._make_pending(99))
+        started_connector.set_approval_broker(broker)
+
+        callback = MagicMock()
+        callback.data = "approve:allow_once:abc"
+        callback.answer = AsyncMock()
+        callback.from_user = MagicMock(id=42, full_name="Admin")
+        callback.message = None
+
+        # Must not raise — just skip the edit.
+        await started_connector._on_callback_query(callback)  # noqa: SLF001
+        broker.resolve.assert_awaited_once()
+
+    async def test_edit_text_api_error_is_swallowed(
+        self, started_connector,
+    ) -> None:
+        """Prompt-edit failures shouldn't propagate — the broker already
+        did its work, and the admin sees the confirmation (or not) via
+        platform retry. Matches the ``contextlib.suppress`` convention
+        used elsewhere in the connector."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock(return_value=self._make_pending(99))
+        started_connector.set_approval_broker(broker)
+
+        callback = MagicMock()
+        callback.data = "approve:allow_once:abc"
+        callback.answer = AsyncMock()
+        callback.from_user = MagicMock(id=42, full_name="Admin")
+        callback.message = MagicMock(spec=Message)
+        callback.message.edit_text = AsyncMock(
+            side_effect=TelegramAPIError(
+                method=MagicMock(), message="message is not modified",
+            ),
+        )
+
+        # Must not raise.
+        await started_connector._on_callback_query(callback)  # noqa: SLF001
+        callback.message.edit_text.assert_awaited_once()
 
     async def test_no_broker_attached_silently_acks(
         self, started_connector,

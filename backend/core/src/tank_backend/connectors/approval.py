@@ -240,7 +240,7 @@ class ApprovalBroker:
         approval_id: str,
         choice: str,
         admin_identity: Identity,
-    ) -> None:
+    ) -> PendingApproval | None:
         """Admin button-click arrived — route the verdict.
 
         Silent no-op when:
@@ -251,6 +251,15 @@ class ApprovalBroker:
           non-admin clicked a button they happened to see).
 
         Each no-op logs at debug / warning so operators can diagnose.
+
+        Returns the resolved :class:`PendingApproval` on a successful
+        admin-click, or ``None`` when the resolve was a no-op. Callers
+        (the three connector click handlers) use the return value to
+        render a post-click confirmation — the admin sees "Approved
+        for Alice" instead of stale, still-clickable buttons. Stale or
+        unauthorised clicks return ``None`` so those paths leave the
+        prompt alone (the admin would see buttons vanish without any
+        confirmation, which is confusing).
         """
         self._gc_expired()
 
@@ -259,7 +268,7 @@ class ApprovalBroker:
                 "ApprovalBroker '%s': unknown choice %r for approval %s",
                 self._instance_name, choice, approval_id,
             )
-            return
+            return None
 
         pending = self._pending.pop(approval_id, None)
         if pending is None:
@@ -267,7 +276,7 @@ class ApprovalBroker:
                 "ApprovalBroker '%s': approval %s is stale or unknown; ignoring %s",
                 self._instance_name, approval_id, choice,
             )
-            return
+            return None
 
         if admin_identity.external_id not in self._admin_external_ids:
             logger.warning(
@@ -280,8 +289,10 @@ class ApprovalBroker:
             )
             # Don't replay or deny — the pending entry has already been
             # popped, so the sender gets nothing. A real admin can
-            # re-prompt by asking the sender to message again.
-            return
+            # re-prompt by asking the sender to message again. Return
+            # ``None`` so the click handler knows not to overwrite the
+            # prompt (the non-admin who clicked shouldn't see confirmation).
+            return None
 
         if choice == CHOICE_DENY:
             await _safe_connector_send(
@@ -293,7 +304,7 @@ class ApprovalBroker:
                 "ApprovalBroker '%s': approval %s denied by admin %s",
                 self._instance_name, approval_id, admin_identity.external_id,
             )
-            return
+            return pending
 
         if choice == CHOICE_ALLOW_FOREVER:
             self._dynamic_store.grant(
@@ -334,6 +345,8 @@ class ApprovalBroker:
                 "ApprovalBroker '%s': replay dispatch raised for approval %s",
                 self._instance_name, approval_id,
             )
+
+        return pending
 
     # ── Internal ────────────────────────────────────────────────────
 

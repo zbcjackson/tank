@@ -1025,13 +1025,34 @@ class TestApprovalInteraction:
         user.display_name = user_name
         user.name = user_name
         interaction.user = user
+        # The prompt-edit path reads ``interaction.message`` and calls
+        # ``message.edit(content=..., view=None)``; making the latter an
+        # AsyncMock by default covers both resolved-happy-path tests and
+        # tests that explicitly null out ``interaction.message``.
+        interaction.message = MagicMock()
+        interaction.message.edit = AsyncMock()
         return interaction
+
+    @staticmethod
+    def _make_pending(sender_id: int = 99) -> MagicMock:
+        """A ``PendingApproval``-shaped mock the broker's ``resolve``
+        returns on success — the click handler reads
+        ``resolved.event.identity`` to build the outcome text."""
+        pending = MagicMock()
+        pending.event.identity = Identity(
+            platform="discord",
+            external_id=f"discord:user:{sender_id}",
+            display_name="Alice",
+            is_group=False,
+            metadata={"user_id": sender_id},
+        )
+        return pending
 
     async def test_ack_and_dispatch_to_broker(
         self, started_connector,
     ) -> None:
         broker = MagicMock()
-        broker.resolve = AsyncMock()
+        broker.resolve = AsyncMock(return_value=self._make_pending(99))
         started_connector.set_approval_broker(broker)
 
         interaction = self._mock_interaction(
@@ -1052,6 +1073,76 @@ class TestApprovalInteraction:
         assert clicker.platform == "discord"
         assert clicker.external_id == "discord:user:42"
         assert clicker.metadata["user_id"] == 42
+        # Prompt was edited — ``view=None`` drops the three buttons;
+        # ``content`` is the outcome line referencing sender + admin.
+        interaction.message.edit.assert_awaited_once()
+        kwargs = interaction.message.edit.call_args.kwargs
+        assert kwargs["view"] is None
+        assert "Approved forever" in kwargs["content"]
+        assert "Alice" in kwargs["content"]
+        assert "Admin" in kwargs["content"]
+
+    async def test_stale_resolve_does_not_edit_prompt(
+        self, started_connector,
+    ) -> None:
+        """Broker returns ``None`` for stale or non-admin clicks — the
+        handler must leave the prompt alone so a real admin can still
+        act on it."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock(return_value=None)
+        started_connector.set_approval_broker(broker)
+
+        interaction = self._mock_interaction(
+            custom_id="approve:deny:abc1234567890def",
+        )
+        await started_connector._on_approval_interaction(  # noqa: SLF001
+            interaction, "approve:deny:abc1234567890def",
+        )
+        broker.resolve.assert_awaited_once()
+        interaction.message.edit.assert_not_awaited()
+
+    async def test_missing_interaction_message_skips_edit(
+        self, started_connector,
+    ) -> None:
+        """If ``interaction.message`` is ``None`` (e.g. ephemeral
+        response), the broker still resolves, but the edit is skipped
+        silently — nothing to edit."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock(return_value=self._make_pending(99))
+        started_connector.set_approval_broker(broker)
+
+        interaction = self._mock_interaction(
+            custom_id="approve:allow_once:abc1234567890def",
+        )
+        interaction.message = None
+
+        # Must not raise.
+        await started_connector._on_approval_interaction(  # noqa: SLF001
+            interaction, "approve:allow_once:abc1234567890def",
+        )
+        broker.resolve.assert_awaited_once()
+
+    async def test_edit_http_exception_is_swallowed(
+        self, started_connector,
+    ) -> None:
+        """Prompt-edit failures (message too old, missing perms, etc.)
+        shouldn't propagate — the broker's real work already landed."""
+        broker = MagicMock()
+        broker.resolve = AsyncMock(return_value=self._make_pending(99))
+        started_connector.set_approval_broker(broker)
+
+        interaction = self._mock_interaction(
+            custom_id="approve:allow_once:abc1234567890def",
+        )
+        interaction.message.edit = AsyncMock(
+            side_effect=_http_exception(404),
+        )
+
+        # Must not raise.
+        await started_connector._on_approval_interaction(  # noqa: SLF001
+            interaction, "approve:allow_once:abc1234567890def",
+        )
+        interaction.message.edit.assert_awaited_once()
 
     async def test_no_broker_attached_silently_defers(
         self, started_connector,

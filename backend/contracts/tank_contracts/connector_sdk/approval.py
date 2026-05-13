@@ -20,13 +20,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .constants import APPROVAL_ACTION_PREFIX
+from .constants import (
+    APPROVAL_ACTION_PREFIX,
+    APPROVAL_CHOICE_ALLOW_FOREVER,
+    APPROVAL_CHOICE_ALLOW_ONCE,
+    APPROVAL_CHOICE_DENY,
+)
 
 if TYPE_CHECKING:
     from ..connector import Identity
 
 
-def build_prompt_text(sender: "Identity", preview: str) -> str:
+def build_prompt_text(sender: Identity, preview: str) -> str:
     """Render the admin-facing approval prompt body.
 
     Returns the exact three-line text every connector uses today —
@@ -101,7 +106,71 @@ def decode_action(raw: str) -> tuple[str, str] | None:
 
 
 __all__ = [
+    "build_outcome_text",
     "build_prompt_text",
     "decode_action",
     "encode_action",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Approval-outcome rendering (post-click confirmation)
+# ---------------------------------------------------------------------------
+
+
+# Glyphs chosen to echo the button labels in ``build_prompt_text``'s
+# sibling view so an admin sees a visually consistent pair (prompt
+# button ``✅`` matches outcome ``✅``). Plain emoji works across
+# Telegram, Slack, and Discord renderers without markup quirks.
+_OUTCOME_GLYPHS: dict[str, str] = {
+    APPROVAL_CHOICE_ALLOW_ONCE: "✅",
+    APPROVAL_CHOICE_ALLOW_FOREVER: "🔓",
+    APPROVAL_CHOICE_DENY: "🚫",
+}
+
+_OUTCOME_VERBS: dict[str, str] = {
+    APPROVAL_CHOICE_ALLOW_ONCE: "Approved once",
+    APPROVAL_CHOICE_ALLOW_FOREVER: "Approved forever",
+    APPROVAL_CHOICE_DENY: "Denied",
+}
+
+
+def build_outcome_text(
+    *,
+    sender: Identity,
+    choice: str,
+    admin: Identity | None = None,
+) -> str:
+    """Render the admin-facing confirmation for a resolved approval.
+
+    Every connector calls this after ``broker.resolve`` succeeds, then
+    edits the original prompt message to swap out the buttons for this
+    text. Admin sees:
+
+    .. code-block:: text
+
+        ✅ Approved once for Alice (tg:user:99) by Admin
+
+    When ``admin`` is ``None`` the ``by ...`` suffix is omitted. That
+    path exists for test paths that resolve without a real admin
+    identity — real clicks always carry one.
+
+    Unknown choices render as a fallback "Resolved: <raw>" so a future
+    broker that grows new verdict types doesn't throw a ``KeyError``
+    from the button-click handler — a weird-but-visible label is
+    strictly better than an exception that leaves the buttons frozen.
+    """
+    glyph = _OUTCOME_GLYPHS.get(choice, "ℹ️")
+    verb = _OUTCOME_VERBS.get(choice, f"Resolved: {choice}")
+
+    sender_label = (
+        f"{sender.display_name} ({sender.external_id})"
+        if sender.display_name
+        else sender.external_id
+    )
+
+    text = f"{glyph} {verb} for {sender_label}"
+    if admin is not None:
+        admin_label = admin.display_name or admin.external_id
+        text = f"{text} by {admin_label}"
+    return text

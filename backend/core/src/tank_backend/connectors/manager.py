@@ -388,10 +388,28 @@ class ConnectorManager:
             identity=identity,
         )
 
+        # A pure voice note arrives as ``MessageEvent(text="",
+        # attachments=[audio])``. ``_attachments_to_blocks`` transcribes the
+        # audio into a :class:`TextBlock` (with a ``[voice message transcript]``
+        # prefix). That block *is* the user's turn — but
+        # ``Assistant.process_input`` short-circuits on empty ``text``, so
+        # without the hoist below the turn is lost. Lift the first
+        # TextBlock out of ``blocks`` into ``text`` when ``event.text`` is
+        # empty, so voice-only messages reach the Brain like typed text.
+        text = event.text
+        if not text and blocks:
+            for idx, block in enumerate(blocks):
+                if isinstance(block, TextBlock):
+                    text = block.text
+                    # Drop the hoisted block; anything else (images,
+                    # additional text blocks) continues via attachments.
+                    blocks = blocks[:idx] + blocks[idx + 1:] or None
+                    break
+
         user_display = identity.display_name or identity.external_id
         try:
             assistant.process_input(
-                text=event.text,
+                text=text,
                 user=user_display,
                 attachments=blocks,
             )

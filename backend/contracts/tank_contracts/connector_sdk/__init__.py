@@ -34,7 +34,12 @@ without drilling into submodules.
 
 from __future__ import annotations
 
-from .approval import build_prompt_text, decode_action, encode_action
+from .approval import (
+    build_outcome_text,
+    build_prompt_text,
+    decode_action,
+    encode_action,
+)
 from .constants import (
     APPROVAL_ACTION_PREFIX,
     APPROVAL_CHOICE_ALLOW_FOREVER,
@@ -53,6 +58,7 @@ __all__ = [
     "APPROVAL_CHOICE_DENY",
     "APPROVAL_VALID_CHOICES",
     "BackgroundTaskRunner",
+    "build_outcome_text",
     "build_prompt_text",
     "decode_action",
     "encode_action",

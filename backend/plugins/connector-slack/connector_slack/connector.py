@@ -42,6 +42,7 @@ from tank_contracts.connector_sdk import (
     APPROVAL_CHOICE_ALLOW_ONCE,
     APPROVAL_CHOICE_DENY,
     BackgroundTaskRunner,
+    build_outcome_text,
     build_prompt_text,
     decode_action,
     encode_action,
@@ -817,11 +818,64 @@ class SlackConnector(Connector):
         )
 
         try:
-            await broker.resolve(approval_id, choice, clicker_identity)
+            resolved = await broker.resolve(
+                approval_id, choice, clicker_identity,
+            )
         except Exception:
             logger.exception(
                 "Slack connector '%s': broker.resolve raised",
                 self.instance_name,
+            )
+            return
+
+        # Edit the prompt message to swap the Block Kit buttons for a
+        # single outcome line. Without this the buttons sit there
+        # looking still-clickable and the admin can't tell whether
+        # their click landed. ``resolved is None`` means the broker
+        # no-op'd (stale click, wrong admin, unknown approval_id) —
+        # leave the prompt alone so the real admin can still act.
+        if resolved is None:
+            return
+
+        container = body.get("container") or {}
+        channel = container.get("channel_id") or (
+            body.get("channel") or {}
+        ).get("id")
+        ts = container.get("message_ts") or (
+            body.get("message") or {}
+        ).get("ts")
+        if not channel or not ts:
+            logger.debug(
+                "Slack connector '%s': approval body missing channel/ts; "
+                "skipping prompt edit",
+                self.instance_name,
+            )
+            return
+
+        outcome = build_outcome_text(
+            sender=resolved.event.identity,
+            choice=choice,
+            admin=clicker_identity,
+        )
+        # ``self._app`` is non-None while we're running (set in ``start``)
+        # — the early-return paths above already would've returned if
+        # the handler ran after ``stop``. Pyright doesn't track the
+        # control-flow that far, hence the narrowing assert.
+        assert self._app is not None  # noqa: S101
+        try:
+            await self._app.client.chat_update(
+                channel=channel,
+                ts=ts,
+                text=outcome,
+                # Empty blocks drop the Block Kit buttons; the Web API
+                # replaces the structure entirely with the new text.
+                blocks=[],
+            )
+        except SlackApiError:
+            logger.debug(
+                "Slack connector '%s': approval prompt edit failed",
+                self.instance_name,
+                exc_info=True,
             )
 
     # ── Helpers ────────────────────────────────────────────────────

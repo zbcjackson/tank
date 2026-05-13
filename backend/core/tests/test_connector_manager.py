@@ -943,11 +943,12 @@ class TestAsrTranscribeTimeout:
 
         assistant = next(iter(manager._conn_mgr.assistants.values()))  # noqa: SLF001
         assert len(assistant.inputs) == 1
-        blocks = assistant.inputs[0]["attachments"]
-        assert blocks is not None
-        assert len(blocks) == 1
-        assert blocks[0].type == "text"
-        assert "hello world" in blocks[0].text
+        # Phase 12 fix: voice-only inputs hoist the transcript from
+        # attachments into ``text`` so Assistant.process_input doesn't
+        # short-circuit on empty text. Leftover attachments (none in
+        # this case) would stay on the side.
+        assert "hello world" in assistant.inputs[0]["text"]
+        assert assistant.inputs[0]["attachments"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -1188,3 +1189,132 @@ class TestRequireApprovalGate:
         )
         manager.set_approval_broker("t", broker)
         assert fake._broker is broker  # noqa: SLF001
+
+
+# ---------------------------------------------------------------------------
+# Phase 12 — voice-only dispatch hoist
+# ---------------------------------------------------------------------------
+
+
+class TestVoiceOnlyHoist:
+    """The manager hoists a leading TextBlock from ``blocks`` into
+    ``text`` when the inbound event carries no text itself. That's the
+    only way a pure voice note actually reaches
+    :meth:`Assistant.process_input` — it short-circuits on empty text.
+    """
+
+    @staticmethod
+    def _build_manager_with_asr(
+        tmp_path: Path, *, transcript: str = "hello world",
+    ) -> ConnectorManager:
+        db = Database(f"sqlite+pysqlite:///{tmp_path}/tank.db")
+        Base.metadata.create_all(db.engine)
+        identity_store = ConnectorIdentityStore(db)
+        channel_store = ChannelStore(db)
+        conv_store = _MemoryConvStore()
+        session_mapper = SessionMapper(identity_store, channel_store, conv_store)
+        connection_manager = _FakeConnectionManager()
+
+        asr_engine = MagicMock()
+
+        async def _fake_transcribe(pcm, sample_rate=16000):  # noqa: ARG001
+            return transcript
+
+        asr_engine.transcribe_once = _fake_transcribe
+
+        app_context = MagicMock(name="AppContext")
+        app_context.media_store = None
+        app_context.llm_capabilities = None
+        app_context.asr_engine = asr_engine
+        app_context.app_config.connectors.asr_transcribe_timeout_s = 0
+        return ConnectorManager(
+            connection_manager=connection_manager,  # type: ignore[arg-type]
+            session_mapper=session_mapper,
+            app_context=app_context,
+        )
+
+    async def test_voice_only_message_lands_as_text(
+        self, tmp_path: Path,
+    ) -> None:
+        """User sends a voice note with no caption. The manager transcribes
+        and lifts the transcript into ``text`` so the Assistant doesn't
+        drop the turn."""
+        manager = self._build_manager_with_asr(tmp_path)
+        fake = FakeConnector("t")
+        manager.register(fake)
+        await manager.start_all()
+
+        att = Attachment(kind="audio", data=b"OggS", mime_type="audio/ogg")
+        with patch(
+            "tank_backend.connectors.manager.decode_ogg_opus",
+            return_value=b"\x00" * 3200,
+        ):
+            await fake.inject_inbound(
+                Identity(platform="fake", external_id="u-1"),
+                text="",
+                attachments=(att,),
+            )
+
+        assistant = next(iter(manager._conn_mgr.assistants.values()))  # noqa: SLF001
+        assert len(assistant.inputs) == 1
+        inp = assistant.inputs[0]
+        # The transcript became the user's turn text.
+        assert "hello world" in inp["text"]
+        # No attachments left — the TextBlock was hoisted, not duplicated.
+        assert inp["attachments"] is None
+
+    async def test_voice_with_caption_preserves_caption_text(
+        self, tmp_path: Path,
+    ) -> None:
+        """If the inbound *does* carry text (caption on a voice note, say),
+        the transcript stays as an attachment — we don't clobber the
+        user's typed words with an ASR guess.
+        """
+        manager = self._build_manager_with_asr(tmp_path)
+        fake = FakeConnector("t")
+        manager.register(fake)
+        await manager.start_all()
+
+        att = Attachment(kind="audio", data=b"OggS", mime_type="audio/ogg")
+        with patch(
+            "tank_backend.connectors.manager.decode_ogg_opus",
+            return_value=b"\x00" * 3200,
+        ):
+            await fake.inject_inbound(
+                Identity(platform="fake", external_id="u-1"),
+                text="here's my voice note:",
+                attachments=(att,),
+            )
+
+        assistant = next(iter(manager._conn_mgr.assistants.values()))  # noqa: SLF001
+        inp = assistant.inputs[0]
+        # Caption text preserved.
+        assert inp["text"] == "here's my voice note:"
+        # Transcript stayed as an attachment.
+        blocks = inp["attachments"]
+        assert blocks is not None
+        assert any(
+            getattr(b, "type", None) == "text" and "hello world" in b.text
+            for b in blocks
+        )
+
+    async def test_plain_text_message_unaffected(
+        self, tmp_path: Path,
+    ) -> None:
+        """Regression guard: the hoist must only fire when ``text`` is
+        empty. A plain text message with no attachments takes the
+        original path byte-for-byte."""
+        manager = self._build_manager_with_asr(tmp_path)
+        fake = FakeConnector("t")
+        manager.register(fake)
+        await manager.start_all()
+
+        await fake.inject_inbound(
+            Identity(platform="fake", external_id="u-1"),
+            text="hello tank",
+        )
+
+        assistant = next(iter(manager._conn_mgr.assistants.values()))  # noqa: SLF001
+        inp = assistant.inputs[0]
+        assert inp["text"] == "hello tank"
+        assert inp["attachments"] is None

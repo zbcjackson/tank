@@ -22,6 +22,7 @@ from tank_contracts.connector_sdk import (
     APPROVAL_CHOICE_DENY,
     APPROVAL_VALID_CHOICES,
     BackgroundTaskRunner,
+    build_outcome_text,
     build_prompt_text,
     decode_action,
     encode_action,
@@ -206,6 +207,90 @@ class TestBuildPromptText:
         sender = Identity(platform="t", external_id="a")
         text = build_prompt_text(sender, long_preview)
         assert long_preview in text
+
+
+# ---------------------------------------------------------------------------
+# approval.build_outcome_text
+# ---------------------------------------------------------------------------
+
+
+class TestBuildOutcomeText:
+    """``build_outcome_text`` renders the post-click confirmation that
+    every connector swaps in where the approval prompt used to be.
+    The tests pin the exact shape so future copy changes land in one
+    place (the SDK) rather than drifting per-plugin."""
+
+    def test_allow_forever_happy_path(self) -> None:
+        sender = Identity(
+            platform="telegram",
+            external_id="tg:user:99",
+            display_name="Alice",
+        )
+        admin = Identity(
+            platform="telegram",
+            external_id="tg:user:42",
+            display_name="Admin",
+        )
+        text = build_outcome_text(
+            sender=sender,
+            choice=APPROVAL_CHOICE_ALLOW_FOREVER,
+            admin=admin,
+        )
+        assert text == "🔓 Approved forever for Alice (tg:user:99) by Admin"
+
+    def test_allow_once_uses_green_check(self) -> None:
+        sender = Identity(platform="slack", external_id="slack:user:U01")
+        admin = Identity(
+            platform="slack", external_id="slack:user:UAD",
+            display_name="Admin",
+        )
+        text = build_outcome_text(
+            sender=sender, choice=APPROVAL_CHOICE_ALLOW_ONCE, admin=admin,
+        )
+        # No display_name on sender → bare external_id (no parens).
+        assert text == "✅ Approved once for slack:user:U01 by Admin"
+
+    def test_deny_uses_red_cross(self) -> None:
+        sender = Identity(
+            platform="discord",
+            external_id="discord:user:99",
+            display_name="Bob",
+        )
+        admin = Identity(
+            platform="discord",
+            external_id="discord:user:42",
+            display_name="Admin",
+        )
+        text = build_outcome_text(
+            sender=sender, choice=APPROVAL_CHOICE_DENY, admin=admin,
+        )
+        assert text.startswith("🚫 Denied for Bob")
+
+    def test_missing_admin_drops_by_suffix(self) -> None:
+        """Test paths resolve approvals without a real admin Identity
+        (auto-deny on TTL expiry, for instance). The ``by ...`` clause
+        is optional — omitting it keeps the line clean."""
+        sender = Identity(
+            platform="telegram",
+            external_id="tg:user:99",
+            display_name="Alice",
+        )
+        text = build_outcome_text(
+            sender=sender,
+            choice=APPROVAL_CHOICE_ALLOW_ONCE,
+        )
+        assert text == "✅ Approved once for Alice (tg:user:99)"
+        assert " by " not in text
+
+    def test_unknown_choice_fallback(self) -> None:
+        """A future broker verdict we haven't taught ``build_outcome_text``
+        about renders as a visible-but-weird label rather than raising.
+        The prompt edit still succeeds; operators see the raw choice
+        string so the bug is easy to spot."""
+        sender = Identity(platform="telegram", external_id="tg:user:99")
+        text = build_outcome_text(sender=sender, choice="invented")
+        assert "Resolved: invented" in text
+        assert text.startswith("ℹ️")
 
 
 # ---------------------------------------------------------------------------
