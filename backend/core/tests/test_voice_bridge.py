@@ -19,6 +19,7 @@ from tank_contracts.tts import AudioChunk
 from tank_backend.connectors.voice_bridge import (
     VoiceBridgeError,
     concat_audio_chunks,
+    decode_any_audio,
     decode_ogg_opus,
     encode_pcm_to_opus,
 )
@@ -197,3 +198,112 @@ class TestConcatAudioChunks:
         ]
         with pytest.raises(VoiceBridgeError, match="channels"):
             concat_audio_chunks(chunks)
+
+
+# ---------------------------------------------------------------------------
+# decode_any_audio (Phase 13: format-sniffing sibling of decode_ogg_opus)
+# ---------------------------------------------------------------------------
+
+
+def _audio_bytes_from_pcm(
+    pcm: bytes, *, sample_rate: int = 16000, channels: int = 1,
+    format: str, codec: str | None = None,
+) -> bytes:
+    """Export a PCM sine tone into an arbitrary container via pydub.
+
+    Used to manufacture test fixtures for every format the Slack
+    connector might plausibly receive — WebM, M4A, MP3, OGG — without
+    checking binary blobs into the repo."""
+    seg = AudioSegment(
+        data=pcm,
+        sample_width=2,
+        frame_rate=sample_rate,
+        channels=channels,
+    )
+    out = io.BytesIO()
+    kwargs: dict = {"format": format}
+    if codec is not None:
+        kwargs["codec"] = codec
+    seg.export(out, **kwargs)
+    return out.getvalue()
+
+
+class TestDecodeAnyAudio:
+    """``decode_any_audio`` lets ffmpeg sniff the format from magic
+    bytes while accepting an optional MIME hint for edge cases. Tests
+    cover the four formats Slack actually delivers (WebM, MP4, MP3,
+    OGG) plus the error paths."""
+
+    @_needs_ffmpeg
+    @pytest.mark.parametrize(
+        ("mime", "export_format", "codec"),
+        [
+            ("audio/ogg", "ogg", "libopus"),
+            ("audio/webm", "webm", "libopus"),
+            # MP4/M4A: pydub's default codec is AAC, which ffmpeg
+            # transparently supports as long as libfdk_aac or the
+            # built-in encoder is available. Skip gracefully if not.
+            ("audio/mpeg", "mp3", None),
+        ],
+    )
+    def test_roundtrip_preserves_shape(
+        self, mime: str, export_format: str, codec: str | None,
+    ) -> None:
+        pcm = _sine_pcm_bytes(duration_s=0.5, sample_rate=48000)
+        try:
+            encoded = _audio_bytes_from_pcm(
+                pcm, sample_rate=48000,
+                format=export_format, codec=codec,
+            )
+        except Exception as exc:  # codec not in this ffmpeg build
+            pytest.skip(f"ffmpeg missing codec for {export_format}: {exc}")
+
+        out = decode_any_audio(encoded, mime_type=mime)
+
+        assert out.dtype == np.float32
+        assert out.ndim == 1
+        # 16 kHz × 0.5 s = 8000 samples, ±2% for codec framing.
+        assert 7800 <= out.size <= 8200
+        assert 0.1 < float(np.abs(out).max()) < 1.0
+
+    @_needs_ffmpeg
+    def test_mime_hint_none_falls_back_to_sniffing(self) -> None:
+        """The hint is optional — ffmpeg can sniff the format from the
+        magic bytes directly. This is the path we hit when a connector
+        doesn't know the MIME (e.g. a generic webhook payload)."""
+        pcm = _sine_pcm_bytes(duration_s=0.3, sample_rate=48000)
+        ogg = _ogg_opus_bytes_from_pcm(pcm, sample_rate=48000)
+
+        out = decode_any_audio(ogg, mime_type=None)
+        assert out.size > 0
+
+    @_needs_ffmpeg
+    def test_unknown_mime_falls_back_to_sniffing(self) -> None:
+        """A bogus MIME (not in ``_MIME_TO_FORMAT_HINT``) shouldn't
+        block decoding — ffmpeg still sniffs. This is important for
+        connectors that forward untrusted MIME strings."""
+        pcm = _sine_pcm_bytes(duration_s=0.3, sample_rate=48000)
+        ogg = _ogg_opus_bytes_from_pcm(pcm, sample_rate=48000)
+
+        out = decode_any_audio(ogg, mime_type="audio/very-made-up")
+        assert out.size > 0
+
+    @_needs_ffmpeg
+    def test_mime_with_codecs_param_normalised(self) -> None:
+        """``audio/ogg; codecs=opus`` is a legal MIME Slack sometimes
+        emits — the semicolon-separated params must be stripped before
+        lookup so the hint still hits."""
+        pcm = _sine_pcm_bytes(duration_s=0.3, sample_rate=48000)
+        ogg = _ogg_opus_bytes_from_pcm(pcm, sample_rate=48000)
+
+        out = decode_any_audio(ogg, mime_type="audio/ogg; codecs=opus")
+        assert out.size > 0
+
+    def test_empty_bytes_raises(self) -> None:
+        with pytest.raises(VoiceBridgeError, match="empty"):
+            decode_any_audio(b"")
+
+    @_needs_ffmpeg
+    def test_garbage_bytes_raises(self) -> None:
+        with pytest.raises(VoiceBridgeError, match="ffmpeg could not parse"):
+            decode_any_audio(b"not any known audio format" * 100)

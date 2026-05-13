@@ -94,8 +94,11 @@ class TestCapabilities:
         # Phase-7 scope: text + image in both directions.
         assert caps.supports_images_in is True
         assert caps.supports_images_out is True
-        # Voice deferred.
-        assert caps.supports_voice_in is False
+        # Phase 13: voice-in via ffmpeg sniffing of Slack's mixed
+        # audio/webm / audio/mp4 / audio/mpeg payloads. Outbound
+        # voice still deferred — no ``sendAudioMessage`` equivalent
+        # in Slack's Web API today.
+        assert caps.supports_voice_in is True
         assert caps.supports_voice_out is False
         # Slack has no public typing indicator.
         assert caps.supports_typing_indicator is False
@@ -454,6 +457,72 @@ class TestInboundFiltering:
         assert received[0].text == "hello tank"
         assert received[0].identity.platform == "slack"
 
+    async def test_file_share_subtype_is_accepted(self) -> None:
+        """Regression: real Slack messages carrying any file upload
+        (image, audio, doc, video) arrive with ``subtype="file_share"``.
+        The connector must forward them — a prior catch-all "drop
+        unknown subtypes" guard silently ate the whole message along
+        with its ``files`` array, which is why Slack voice-in and
+        (presumably) image upload looked broken before the fix in
+        this regression guard landed."""
+        c = SlackConnector(
+            instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
+        )
+        c._display_name_cache["U100"] = ("Alice", 9999999999.0)  # noqa: SLF001
+
+        # Patch _download_file so we don't hit the network; the event
+        # just needs to reach the handler.
+        async def _fake_download(file_info: dict):
+            return Attachment(
+                kind="audio",
+                data=b"\x00" * 512,
+                mime_type=file_info.get("mimetype") or "audio/webm",
+            )
+        c._download_file = _fake_download  # type: ignore[assignment]  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+
+        async def handler(event: MessageEvent) -> None:
+            received.append(event)
+
+        c.set_message_handler(handler)
+
+        await c._on_message_event(_make_event(  # noqa: SLF001
+            subtype="file_share",
+            text="",
+            files=[{
+                "mimetype": "audio/webm",
+                "url_private": "https://files.slack.com/x",
+                "size": 1024,
+            }],
+        ))
+
+        assert len(received) == 1
+        assert len(received[0].attachments) == 1
+        assert received[0].attachments[0].kind == "audio"
+
+    async def test_unknown_subtype_still_dropped_defensively(self) -> None:
+        """The catch-all drop for unknown subtypes stays — it's just
+        no longer blanket. Anything not in ``_ACCEPTED_SUBTYPES`` or
+        ``_IGNORED_SUBTYPES`` gets logged and dropped so new Slack
+        message types don't silently slip through."""
+        c = SlackConnector(
+            instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
+        )
+        received: list[MessageEvent] = []
+
+        async def handler(event: MessageEvent) -> None:
+            received.append(event)
+
+        c.set_message_handler(handler)
+
+        # A subtype that isn't in either list — Slack adds new ones
+        # periodically (``huddle_thread``, ``sh_room_created``, …).
+        await c._on_message_event(_make_event(  # noqa: SLF001
+            subtype="huddle_thread",
+        ))
+        assert received == []
+
 
 # ---------------------------------------------------------------------------
 # Inbound images
@@ -485,6 +554,7 @@ class TestInboundImages:
 
         await c._on_message_event(_make_event(  # noqa: SLF001
             text="look",
+            subtype="file_share",
             files=[{
                 "mimetype": "image/png",
                 "url_private": "https://files.slack.com/x",
@@ -500,6 +570,11 @@ class TestInboundImages:
 
 class TestFileDownload:
     async def test_non_image_dropped_silently(self) -> None:
+        """Non-image, non-audio mimes (documents, video, etc.) are
+        dropped at the ``_download_file`` gate. Slack delivers PDFs,
+        office docs, and video via the same ``files`` array as audio
+        and images, so the mime filter is what separates supported
+        kinds from everything else."""
         c = SlackConnector(
             instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
         )
@@ -524,6 +599,108 @@ class TestFileDownload:
             "mimetype": "image/png",
             "url_private": "https://x/img.png",
             "size": 30 * 1024 * 1024,  # >25MB cap
+        })
+        assert result is None
+
+    async def test_audio_mime_missing_url_returns_none(self) -> None:
+        """Phase 13: audio files with no ``url_private`` (shouldn't
+        happen in practice but defensive) fail the same way images do."""
+        c = SlackConnector(
+            instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
+        )
+        result = await c._download_file({"mimetype": "audio/webm"})  # noqa: SLF001
+        assert result is None
+
+    async def test_oversized_audio_rejected_by_declared_size(self) -> None:
+        """Phase 13: the same 25 MiB ceiling applies to audio — Slack
+        allows much larger files in absolute terms, but anything over
+        25 MB is a misclick for an ASR pipeline."""
+        c = SlackConnector(
+            instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
+        )
+        result = await c._download_file({  # noqa: SLF001
+            "mimetype": "audio/webm",
+            "url_private": "https://x/voice.webm",
+            "size": 30 * 1024 * 1024,  # >25MB cap
+        })
+        assert result is None
+
+
+class TestAudioDownload:
+    """Phase 13: voice-in. Slack delivers recorded audio through the
+    same ``files`` array as images — the connector's ``_download_file``
+    now accepts ``audio/*`` MIMEs, fetches with the bot-token auth
+    header, and wraps the bytes as ``Attachment(kind="audio")``. The
+    manager's ``_audio_to_text_block`` then routes the bytes through
+    :func:`decode_any_audio` for ffmpeg-sniffed decoding."""
+
+    @pytest.mark.parametrize(
+        "mime",
+        [
+            "audio/webm",      # Slack desktop (Opus-in-WebM)
+            "audio/mp4",       # Slack iOS (AAC-in-MP4)
+            "audio/mpeg",      # Legacy MP3 uploads
+            "audio/ogg",       # Mobile Chrome recordings sometimes
+        ],
+    )
+    async def test_audio_mime_becomes_audio_attachment(
+        self, mime: str,
+    ) -> None:
+        c = SlackConnector(
+            instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
+        )
+
+        async def _fake_download(file_info: dict) -> Attachment | None:
+            return Attachment(
+                kind="audio",
+                data=b"\x00" * 1024,
+                mime_type=file_info["mimetype"],
+            )
+
+        c._download_file = _fake_download  # type: ignore[assignment]  # noqa: SLF001
+
+        event: dict = {
+            "type": "message",
+            # Real Slack payloads with file uploads carry
+            # subtype="file_share". The connector must accept it so
+            # the ``files`` array is processed.
+            "subtype": "file_share",
+            "channel": "D123",
+            "channel_type": "im",
+            "user": "U99",
+            "ts": "1234567890.001",
+            "files": [{
+                "mimetype": mime,
+                "url_private": "https://files.slack.com/T/x",
+                "size": 4096,
+            }],
+        }
+
+        received: list[MessageEvent] = []
+
+        async def _handler(evt: MessageEvent) -> None:
+            received.append(evt)
+
+        c.set_message_handler(_handler)
+        await c._on_message_event(event)  # noqa: SLF001
+
+        assert len(received) == 1
+        attachments = received[0].attachments
+        assert len(attachments) == 1
+        assert attachments[0].kind == "audio"
+        assert attachments[0].mime_type == mime
+
+    async def test_audio_file_caps_enforced_on_declared_size(self) -> None:
+        """The 25 MiB cap on ``audio/*`` matches ``image/*``. Check
+        both the declared-size gate and the post-read recheck hit."""
+        c = SlackConnector(
+            instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
+        )
+        # Declared > cap → short-circuit before the HTTP GET.
+        result = await c._download_file({  # noqa: SLF001
+            "mimetype": "audio/webm",
+            "url_private": "https://x/voice.webm",
+            "size": 26 * 1024 * 1024,
         })
         assert result is None
 

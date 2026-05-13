@@ -24,6 +24,7 @@ from .stream_consumer import StreamConsumer
 from .voice_bridge import (
     VoiceBridgeError,
     concat_audio_chunks,
+    decode_any_audio,
     decode_ogg_opus,
     encode_pcm_to_opus,
 )
@@ -612,7 +613,19 @@ class ConnectorManager:
             return None
 
         try:
-            pcm = await asyncio.to_thread(decode_ogg_opus, att.data)
+            # Dispatch on MIME: Telegram's fixed ``audio/ogg`` hits the
+            # tight ogg-specific decoder; everything else (Slack's
+            # audio/webm, Apple mobile's audio/mp4, web recordings, …)
+            # goes through the format-sniffing ``decode_any_audio``.
+            # The split preserves Telegram's fast path byte-for-byte
+            # while giving other connectors a one-liner to opt in.
+            mime_type = (att.mime_type or "").split(";", 1)[0].strip().lower()
+            if mime_type == "audio/ogg":
+                pcm = await asyncio.to_thread(decode_ogg_opus, att.data)
+            else:
+                pcm = await asyncio.to_thread(
+                    decode_any_audio, att.data, mime_type=att.mime_type,
+                )
         except VoiceBridgeError:
             logger.exception("Voice decode failed for inbound audio")
             await _safe_send(

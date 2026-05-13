@@ -90,24 +90,36 @@ DMs work without invitation — just open a DM with the bot.
 - Progressive streaming — reply is sent once, then edited as tokens arrive
 - Image attachments: inbound photos go through vision models; outbound
   `ImageBlock` replies appear as native Slack file uploads
+- **Voice notes inbound**: recorded audio (WebM / MP4 / MP3 / OGG) is
+  auto-transcribed via the configured ASR engine. Slack desktop emits
+  Opus-in-WebM, iOS emits AAC-in-MP4; ffmpeg sniffs the format. Voice
+  notes over 25 MB are rejected — keep them under ~14 minutes. Outbound
+  voice (bot-sent audio messages) is not supported; Slack's Web API
+  has no reliable equivalent.
 - Thread-aware replies: if you message in a thread, Tank replies in that same
   thread
 - Long messages truncated to Slack's 40 000-character limit
 - Per-instance allowlist — see [Access control](#access-control)
+- **Admin approval** for unknown senders (`default: require_approval` in
+  the allowlist): a three-button prompt is DM'd to the admin; clicking
+  swaps the buttons for a confirmation line. Click from anywhere in
+  Slack — the broker checks the clicker is actually an admin.
 
 ## What doesn't work yet
 
-- **Voice notes**: Slack's audio files aren't handled (the voice flow that
-  Telegram supports is deferred for Slack)
 - **Slash commands**: `/ask-tank ...` isn't a first-class surface; mention-only
   / DM-only for now
-- **Interactive components** (buttons, modals, shortcuts): none
+- **Interactive components** (buttons, modals, shortcuts): none beyond
+  the Phase 10 approval prompt
 - **Ephemeral replies** (`chat.postEphemeral`): not exposed
 - **Thread-as-session**: all messages in a channel map to one Tank conversation
   regardless of which thread they belong to. You'll still get thread-local
   replies, but Tank's memory groups them together
 - **Rich block formatting**: Tank sends plaintext; Slack's markdown is
   respected on the wire but Tank doesn't emit Slack-specific formatting
+- **Outbound voice**: Slack's API has no reliable `sendAudioMessage`
+  equivalent; bot-sent audio would require uploading a file with a
+  special block structure and isn't supported here
 
 ## Channel model
 

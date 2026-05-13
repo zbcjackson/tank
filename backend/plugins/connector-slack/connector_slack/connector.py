@@ -68,6 +68,12 @@ _SLACK_MAX_CAPTION_LENGTH = 40_000
 # files in absolute terms, but bot interactions rarely need >25 MB.
 _MAX_INBOUND_IMAGE_BYTES = 25 * 1024 * 1024
 
+# Audio shares the same 25 MB ceiling — Telegram's _MAX_VOICE_BYTES
+# matches. Slack's desktop client records Opus-in-WebM around
+# ~30 KB/s, so 25 MB ≈ 14 minutes; mobile (M4A) is denser. Anything
+# beyond that is a misclick.
+_MAX_INBOUND_AUDIO_BYTES = 25 * 1024 * 1024
+
 # Slack message subtypes we never want to react to — they represent
 # state changes (edits, deletes, joins, leaves) rather than user speech.
 _IGNORED_SUBTYPES = frozenset({
@@ -80,6 +86,17 @@ _IGNORED_SUBTYPES = frozenset({
     "channel_name",
     "thread_broadcast",
     "bot_message",
+})
+
+# Subtypes that DO carry user intent and must be forwarded. Slack tags
+# any user message with a file upload (image, audio, PDF, video, …)
+# as ``file_share`` — an earlier catch-all "drop unknown subtypes"
+# guard accidentally threw these away, which is why Slack voice-in
+# looked broken even after the audio path was wired in Phase 13. Keep
+# this set narrow: anything not listed here (or in ``_IGNORED_SUBTYPES``)
+# is still dropped defensively.
+_ACCEPTED_SUBTYPES = frozenset({
+    "file_share",
 })
 
 # Timeout for the Socket-Mode polling task to drain cleanly on shutdown.
@@ -165,7 +182,7 @@ class SlackConnector(Connector):
                 max_message_length=_SLACK_MAX_MESSAGE_LENGTH,
                 supports_images_in=True,
                 supports_images_out=True,
-                supports_voice_in=False,
+                supports_voice_in=True,
                 supports_voice_out=False,
                 supports_typing_indicator=False,
             ),
@@ -278,11 +295,17 @@ class SlackConnector(Connector):
         subtype = event.get("subtype")
         if subtype and subtype in _IGNORED_SUBTYPES:
             return
-        # Subtypes we don't recognise are also suspicious; skip defensively.
-        if subtype:
-            logger.debug(
-                "Slack connector '%s': dropping inbound with unknown "
-                "subtype=%s",
+        # Accept-list: subtypes that DO carry user intent (``file_share``
+        # is the only one today — it's how Slack tags messages with an
+        # uploaded file). Everything else with a subtype is dropped
+        # defensively, but emit a warning instead of debug so new
+        # Slack-side message types don't silently vanish the way
+        # ``file_share`` did before Phase 13's fix.
+        if subtype and subtype not in _ACCEPTED_SUBTYPES:
+            logger.warning(
+                "Slack connector '%s': dropping inbound with unhandled "
+                "subtype=%s — add to _ACCEPTED_SUBTYPES or "
+                "_IGNORED_SUBTYPES",
                 self.instance_name, subtype,
             )
             return
@@ -433,19 +456,36 @@ class SlackConnector(Connector):
     async def _download_file(self, file_info: dict) -> Attachment | None:
         """Fetch an inbound Slack file's bytes and wrap it as an Attachment.
 
-        Only image files are currently handled — documents, audio, and
-        other MIME types are dropped with a debug log. Slack files live
-        at ``url_private`` and require a bot token in the ``Authorization``
-        header; opening the URL unauthenticated returns HTML.
+        Handles two inbound kinds:
 
-        Returns ``None`` for failures (missing url, non-image, oversized,
-        network error) so the caller can skip silently without killing
-        the rest of the message's attachments.
+        - ``image/*`` → ``Attachment(kind="image")`` for vision-capable
+          LLMs (gated downstream by the model's image capability).
+        - ``audio/*`` → ``Attachment(kind="audio")`` for ASR. Slack's
+          desktop client records Opus-in-WebM, mobile records M4A, web
+          recordings vary; the manager's
+          :meth:`_audio_to_text_block` calls
+          :func:`tank_backend.connectors.voice_bridge.decode_any_audio`
+          which lets ffmpeg sniff the format from the magic bytes.
+
+        Other MIME types (documents, video, etc.) are dropped with a
+        debug log. Slack files live at ``url_private`` and require a
+        bot token in the ``Authorization`` header; opening the URL
+        unauthenticated returns HTML.
+
+        Returns ``None`` for failures (missing url, unsupported mime,
+        oversized, network error) so the caller can skip silently
+        without killing the rest of the message's attachments.
         """
         mime_type = file_info.get("mimetype") or ""
-        if not mime_type.startswith("image/"):
+        if mime_type.startswith("image/"):
+            kind: str = "image"
+            cap = _MAX_INBOUND_IMAGE_BYTES
+        elif mime_type.startswith("audio/"):
+            kind = "audio"
+            cap = _MAX_INBOUND_AUDIO_BYTES
+        else:
             logger.debug(
-                "Slack connector '%s': dropping non-image file mime=%s",
+                "Slack connector '%s': dropping unsupported file mime=%s",
                 self.instance_name, mime_type,
             )
             return None
@@ -455,11 +495,11 @@ class SlackConnector(Connector):
             return None
 
         size = file_info.get("size") or 0
-        if size and size > _MAX_INBOUND_IMAGE_BYTES:
+        if size and size > cap:
             logger.info(
-                "Slack connector '%s': dropping oversized inbound image "
+                "Slack connector '%s': dropping oversized inbound %s "
                 "(%d bytes)",
-                self.instance_name, size,
+                self.instance_name, kind, size,
             )
             return None
 
@@ -469,33 +509,33 @@ class SlackConnector(Connector):
                 async with session.get(url, headers=headers) as resp:
                     if resp.status != 200:
                         logger.warning(
-                            "Slack connector '%s': image download failed "
+                            "Slack connector '%s': %s download failed "
                             "(status=%d url=%s)",
-                            self.instance_name, resp.status, url,
+                            self.instance_name, kind, resp.status, url,
                         )
                         return None
                     # Enforce size cap even when the upstream size wasn't
                     # advertised — prevents a malicious/misconfigured
                     # Slack file from blowing out memory.
-                    data = await resp.content.read(_MAX_INBOUND_IMAGE_BYTES + 1)
+                    data = await resp.content.read(cap + 1)
         except Exception:
             logger.exception(
-                "Slack connector '%s': image download raised",
-                self.instance_name,
+                "Slack connector '%s': %s download raised",
+                self.instance_name, kind,
             )
             return None
 
         if not data:
             return None
-        if len(data) > _MAX_INBOUND_IMAGE_BYTES:
+        if len(data) > cap:
             logger.info(
-                "Slack connector '%s': dropping inbound image that "
+                "Slack connector '%s': dropping inbound %s that "
                 "exceeded cap after read (%d bytes)",
-                self.instance_name, len(data),
+                self.instance_name, kind, len(data),
             )
             return None
 
-        return Attachment(kind="image", data=data, mime_type=mime_type)
+        return Attachment(kind=kind, data=data, mime_type=mime_type)
 
     # ── Outbound ────────────────────────────────────────────────────
 

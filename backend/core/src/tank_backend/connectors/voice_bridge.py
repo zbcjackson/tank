@@ -84,12 +84,86 @@ def decode_ogg_opus(data: bytes) -> np.ndarray:
             f"voice decode failed (ffmpeg could not parse the payload): {exc}"
         ) from exc
 
+    return _segment_to_float32_pcm(seg)
+
+
+# Mapping from MIME type to pydub's ``format=`` hint. pydub/ffmpeg can
+# usually sniff the format from the magic bytes, but the hint resolves
+# a few real-world ambiguities — notably mp4 vs m4a, which share a
+# container. Keys cover the audio types Slack, Discord, and generic
+# webhook sources are likely to deliver; unknown MIMEs fall through to
+# sniffing (``None``).
+_MIME_TO_FORMAT_HINT: dict[str, str] = {
+    "audio/ogg": "ogg",
+    "audio/opus": "ogg",
+    "audio/webm": "webm",
+    "audio/mp4": "mp4",
+    "audio/x-m4a": "m4a",
+    "audio/aac": "aac",
+    "audio/mpeg": "mp3",
+    "audio/mp3": "mp3",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/flac": "flac",
+}
+
+
+def decode_any_audio(data: bytes, *, mime_type: str | None = None) -> np.ndarray:
+    """Decode arbitrary audio bytes to ASR-ready float32 PCM.
+
+    Format-agnostic sibling of :func:`decode_ogg_opus`. Used by
+    connectors (Slack, and any future multi-format platform) that
+    deliver audio in formats other than Telegram's fixed Ogg/Opus —
+    WebM (Slack/Discord desktop), M4A (Apple mobile), MP3 (legacy), etc.
+
+    ``mime_type`` is an optional hint passed to ffmpeg as the
+    ``format=`` argument when we have a reliable mapping. When the
+    MIME is unknown (or ``None``), pydub/ffmpeg sniff the magic bytes
+    — which works for all the formats in :data:`_MIME_TO_FORMAT_HINT`
+    too, but explicit hints are faster and rule out edge-case
+    misdetections.
+
+    Returns a 1-D ``np.ndarray`` of dtype ``float32`` at 16 kHz mono.
+    Raises :class:`VoiceBridgeError` on empty input or decode failure.
+    """
+    if not data:
+        raise VoiceBridgeError("voice decode: empty payload")
+    _ensure_ffmpeg_available()
+
+    # Normalise ``audio/ogg; codecs=opus`` → ``audio/ogg`` before lookup.
+    normalised = (mime_type or "").split(";", 1)[0].strip().lower()
+    format_hint = _MIME_TO_FORMAT_HINT.get(normalised)
+
+    try:
+        seg = AudioSegment.from_file(io.BytesIO(data), format=format_hint)
+    except Exception as exc:
+        raise VoiceBridgeError(
+            f"voice decode failed (ffmpeg could not parse the payload, "
+            f"mime={mime_type!r}, hint={format_hint!r}): {exc}"
+        ) from exc
+
+    return _segment_to_float32_pcm(seg)
+
+
+def _segment_to_float32_pcm(seg: AudioSegment) -> np.ndarray:
+    """Convert an :class:`AudioSegment` to 16 kHz mono float32 PCM.
+
+    Shared post-decode step for both :func:`decode_ogg_opus` and
+    :func:`decode_any_audio` — resampling + mono downmix + normalise.
+    Keeping the conversion in one place means a future change (e.g.
+    bumping the ASR sample rate) flows to every connector at once.
+    """
     seg = seg.set_channels(_ASR_CHANNELS).set_frame_rate(_ASR_SAMPLE_RATE)
     if seg.sample_width != 2:
         # Force 16-bit PCM so the int16→float32 step is unambiguous.
         seg = seg.set_sample_width(2)
 
-    samples = np.frombuffer(seg.raw_data, dtype=np.int16)
+    # pydub's stub types ``raw_data`` as optional (covers the rare edge
+    # case of an uninitialised segment). In practice every post-decode
+    # segment has bytes; assert so the narrow lands.
+    raw = seg.raw_data
+    assert raw is not None, "AudioSegment.raw_data unexpectedly None after decode"  # noqa: S101
+    samples = np.frombuffer(raw, dtype=np.int16)
     if samples.size == 0:
         raise VoiceBridgeError("voice decode: produced no samples")
 

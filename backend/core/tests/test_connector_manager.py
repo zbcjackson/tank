@@ -1318,3 +1318,147 @@ class TestVoiceOnlyHoist:
         inp = assistant.inputs[0]
         assert inp["text"] == "hello tank"
         assert inp["attachments"] is None
+
+
+# ---------------------------------------------------------------------------
+# Phase 13 — multi-format audio decode dispatch
+# ---------------------------------------------------------------------------
+
+
+class TestAudioDecodeDispatch:
+    """The manager's ``_audio_to_text_block`` dispatches on the
+    attachment's MIME type: ``audio/ogg`` hits the tight Telegram path
+    (``decode_ogg_opus``), everything else uses ``decode_any_audio``
+    (ffmpeg sniffs). Tests pin the dispatch directly so a future
+    refactor doesn't silently regress one connector's voice path while
+    leaving the other working."""
+
+    @staticmethod
+    def _build(tmp_path: Path) -> ConnectorManager:
+        db = Database(f"sqlite+pysqlite:///{tmp_path}/tank.db")
+        Base.metadata.create_all(db.engine)
+        identity_store = ConnectorIdentityStore(db)
+        channel_store = ChannelStore(db)
+        conv_store = _MemoryConvStore()
+        session_mapper = SessionMapper(identity_store, channel_store, conv_store)
+        connection_manager = _FakeConnectionManager()
+
+        asr_engine = MagicMock()
+
+        async def _ok(pcm, sample_rate=16000):  # noqa: ARG001
+            return "hello"
+
+        asr_engine.transcribe_once = _ok
+
+        app_context = MagicMock(name="AppContext")
+        app_context.media_store = None
+        app_context.llm_capabilities = None
+        app_context.asr_engine = asr_engine
+        app_context.app_config.connectors.asr_transcribe_timeout_s = 0
+        return ConnectorManager(
+            connection_manager=connection_manager,  # type: ignore[arg-type]
+            session_mapper=session_mapper,
+            app_context=app_context,
+        )
+
+    async def test_audio_ogg_routes_to_decode_ogg_opus(
+        self, tmp_path: Path,
+    ) -> None:
+        """Telegram's ``audio/ogg`` keeps the existing fast path —
+        ``decode_ogg_opus`` is called, ``decode_any_audio`` is NOT."""
+        manager = self._build(tmp_path)
+        fake = FakeConnector("t")
+        manager.register(fake)
+        await manager.start_all()
+
+        att = Attachment(
+            kind="audio", data=b"OggS_payload", mime_type="audio/ogg",
+        )
+        with patch(
+            "tank_backend.connectors.manager.decode_ogg_opus",
+            return_value=b"\x00" * 3200,
+        ) as ogg_decoder, patch(
+            "tank_backend.connectors.manager.decode_any_audio",
+            return_value=b"\x00" * 3200,
+        ) as any_decoder:
+            await fake.inject_inbound(
+                Identity(platform="fake", external_id="u-1"),
+                text="",
+                attachments=(att,),
+            )
+
+        ogg_decoder.assert_called_once()
+        any_decoder.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "mime",
+        [
+            "audio/webm",
+            "audio/mp4",
+            "audio/x-m4a",
+            "audio/mpeg",
+            "audio/wav",
+        ],
+    )
+    async def test_non_ogg_mime_routes_to_decode_any_audio(
+        self, tmp_path: Path, mime: str,
+    ) -> None:
+        """Slack/Discord/etc. MIMEs route through ``decode_any_audio``
+        with the MIME passed as a hint. ``decode_ogg_opus`` stays out
+        of the way — its strict ``format='ogg'`` would refuse these
+        bytes."""
+        manager = self._build(tmp_path)
+        fake = FakeConnector("t")
+        manager.register(fake)
+        await manager.start_all()
+
+        att = Attachment(kind="audio", data=b"any_bytes", mime_type=mime)
+        with patch(
+            "tank_backend.connectors.manager.decode_ogg_opus",
+            return_value=b"\x00" * 3200,
+        ) as ogg_decoder, patch(
+            "tank_backend.connectors.manager.decode_any_audio",
+            return_value=b"\x00" * 3200,
+        ) as any_decoder:
+            await fake.inject_inbound(
+                Identity(platform="fake", external_id="u-1"),
+                text="",
+                attachments=(att,),
+            )
+
+        ogg_decoder.assert_not_called()
+        any_decoder.assert_called_once()
+        # The MIME hint was forwarded so ffmpeg's sniffer can use it.
+        kwargs = any_decoder.call_args.kwargs
+        assert kwargs.get("mime_type") == mime
+
+    async def test_mime_with_codecs_param_still_routes_to_ogg_path(
+        self, tmp_path: Path,
+    ) -> None:
+        """Slack sometimes sends ``audio/ogg; codecs=opus``. The MIME
+        param is stripped before the ``audio/ogg`` comparison so the
+        fast path still hits — without this, codecs-decorated OGG would
+        unnecessarily detour through ``decode_any_audio``."""
+        manager = self._build(tmp_path)
+        fake = FakeConnector("t")
+        manager.register(fake)
+        await manager.start_all()
+
+        att = Attachment(
+            kind="audio", data=b"OggS_x", mime_type="audio/ogg; codecs=opus",
+        )
+        with patch(
+            "tank_backend.connectors.manager.decode_ogg_opus",
+            return_value=b"\x00" * 3200,
+        ) as ogg_decoder, patch(
+            "tank_backend.connectors.manager.decode_any_audio",
+            return_value=b"\x00" * 3200,
+        ) as any_decoder:
+            await fake.inject_inbound(
+                Identity(platform="fake", external_id="u-1"),
+                text="",
+                attachments=(att,),
+            )
+
+        ogg_decoder.assert_called_once()
+        any_decoder.assert_not_called()
