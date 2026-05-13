@@ -64,6 +64,13 @@ _DISCORD_MAX_MESSAGE_LENGTH = 2000
 # larger uploads in absolute terms, but bot interactions rarely benefit.
 _MAX_INBOUND_IMAGE_BYTES = 25 * 1024 * 1024
 
+# Audio shares the 25 MiB ceiling — Slack's and Telegram's voice caps
+# match, keeping the three-connector story uniform. Discord's native
+# voice-message feature records Opus-in-OGG; generic audio uploads
+# can be WebM / MP3 / WAV / M4A — all handled by the manager's
+# ``decode_any_audio`` ffmpeg-sniff path.
+_MAX_INBOUND_AUDIO_BYTES = 25 * 1024 * 1024
+
 # Timeout for the gateway task to drain cleanly on shutdown.
 _SHUTDOWN_TIMEOUT_S = 5.0
 
@@ -200,7 +207,7 @@ class DiscordConnector(Connector):
                 max_message_length=_DISCORD_MAX_MESSAGE_LENGTH,
                 supports_images_in=True,
                 supports_images_out=True,
-                supports_voice_in=False,
+                supports_voice_in=True,
                 supports_voice_out=False,
                 supports_typing_indicator=True,
             ),
@@ -369,27 +376,43 @@ class DiscordConnector(Connector):
         """Fetch an inbound Discord attachment's bytes and wrap it as
         a framework :class:`Attachment`.
 
-        Only image attachments are handled in this release — documents,
-        audio, and archives are dropped with a debug log. Discord
-        attachments carry their MIME type; we filter on ``image/*``.
-        ``attachment.read()`` returns bytes via discord.py's internal
-        HTTP session (no separate auth required).
+        Handles two inbound kinds:
+
+        - ``image/*`` → ``Attachment(kind="image")`` for vision-capable
+          LLMs (gated downstream by the model's image capability).
+        - ``audio/*`` → ``Attachment(kind="audio")`` for ASR. Discord's
+          native voice-message feature (2023+) uploads Opus-in-OGG;
+          generic audio file uploads (WebM, MP3, M4A) are handled the
+          same way. The manager's :meth:`_audio_to_text_block` routes
+          the bytes through :func:`decode_any_audio`'s ffmpeg-sniff
+          path for MIMEs other than ``audio/ogg``.
+
+        Other MIME types (documents, archives, video) are dropped with
+        a debug log. ``attachment.read()`` returns bytes via discord.py's
+        internal HTTP session — no separate auth required because the
+        attachment URLs are pre-signed.
         """
         mime_type = attachment.content_type or ""
-        if not mime_type.startswith("image/"):
+        if mime_type.startswith("image/"):
+            kind: str = "image"
+            cap = _MAX_INBOUND_IMAGE_BYTES
+        elif mime_type.startswith("audio/"):
+            kind = "audio"
+            cap = _MAX_INBOUND_AUDIO_BYTES
+        else:
             logger.debug(
-                "Discord connector '%s': dropping non-image attachment "
+                "Discord connector '%s': dropping unsupported attachment "
                 "mime=%s",
                 self.instance_name, mime_type,
             )
             return None
 
         size = attachment.size or 0
-        if size and size > _MAX_INBOUND_IMAGE_BYTES:
+        if size and size > cap:
             logger.info(
-                "Discord connector '%s': dropping oversized inbound image "
+                "Discord connector '%s': dropping oversized inbound %s "
                 "(%d bytes)",
-                self.instance_name, size,
+                self.instance_name, kind, size,
             )
             return None
 
@@ -404,15 +427,15 @@ class DiscordConnector(Connector):
 
         if not data:
             return None
-        if len(data) > _MAX_INBOUND_IMAGE_BYTES:
+        if len(data) > cap:
             logger.info(
-                "Discord connector '%s': dropping inbound image that "
+                "Discord connector '%s': dropping inbound %s that "
                 "exceeded cap after read (%d bytes)",
-                self.instance_name, len(data),
+                self.instance_name, kind, len(data),
             )
             return None
 
-        return Attachment(kind="image", data=data, mime_type=mime_type)
+        return Attachment(kind=kind, data=data, mime_type=mime_type)
 
     # ── Outbound ────────────────────────────────────────────────────
 

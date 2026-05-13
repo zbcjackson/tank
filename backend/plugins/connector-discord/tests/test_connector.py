@@ -74,8 +74,11 @@ class TestCapabilities:
         # Phase-9 scope: text + image in both directions.
         assert caps.supports_images_in is True
         assert caps.supports_images_out is True
-        # Voice deferred.
-        assert caps.supports_voice_in is False
+        # Phase 14: voice-in via ffmpeg sniffing of Discord's native
+        # voice-message payloads (Opus-in-OGG) and generic audio file
+        # uploads (WebM/MP3/M4A/WAV). Outbound voice still deferred —
+        # Discord's voice channels are a separate subsystem.
+        assert caps.supports_voice_in is True
         assert caps.supports_voice_out is False
         # Typing indicator is cheap via ``channel.typing()``.
         assert caps.supports_typing_indicator is True
@@ -527,6 +530,127 @@ class TestInboundImages:
         # Good image survives, bad one skipped.
         assert len(received[0].attachments) == 1
         assert received[0].attachments[0].data == b"GOOD"
+
+
+class TestInboundAudio:
+    """Phase 14: voice-in. Discord's native voice-message feature
+    (2023+) uploads Opus-in-OGG attachments; generic audio file uploads
+    arrive as ``audio/*`` MIMEs. Both route through the same
+    ``_download_attachment`` path as images, then the manager's
+    :meth:`_audio_to_text_block` dispatches to the ffmpeg-sniffing
+    :func:`decode_any_audio` for non-OGG MIMEs."""
+
+    @pytest.mark.parametrize(
+        "mime",
+        [
+            "audio/ogg",     # Discord native voice messages
+            "audio/webm",    # WebM/Opus file uploads
+            "audio/mp4",     # iOS/macOS recordings
+            "audio/mpeg",    # Plain MP3 uploads
+            "audio/wav",     # WAV uploads (rare but possible)
+        ],
+    )
+    async def test_audio_attachment_becomes_audio_block(
+        self, mime: str,
+    ) -> None:
+        c = DiscordConnector(instance_name="t", bot_token="xxx")
+        c._client = MagicMock()  # noqa: SLF001
+        c._client.user.id = 1  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+
+        async def handler(event: MessageEvent) -> None:
+            received.append(event)
+
+        c.set_message_handler(handler)
+
+        att = _mock_disc_attachment(
+            content_type=mime, data=b"\x00" * 2048, filename="voice.ogg",
+        )
+        msg = _make_mock_message(author_id=2, content="", attachments=[att])
+        await c._on_discord_message(msg)  # noqa: SLF001
+
+        assert len(received) == 1
+        event = received[0]
+        assert len(event.attachments) == 1
+        out = event.attachments[0]
+        assert out.kind == "audio"
+        assert out.mime_type == mime
+        assert out.data == b"\x00" * 2048
+
+    async def test_unsupported_attachment_dropped_silently(self) -> None:
+        """Post-Phase-14, anything neither ``image/*`` nor ``audio/*``
+        is still dropped — video, zips, plain-text docs, etc. The
+        message itself still forwards (it may carry text); only the
+        attachment is stripped."""
+        c = DiscordConnector(instance_name="t", bot_token="xxx")
+        c._client = MagicMock()  # noqa: SLF001
+        c._client.user.id = 1  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+        c.set_message_handler(
+            lambda e: received.append(e) or asyncio.sleep(0),
+        )
+
+        att = _mock_disc_attachment(
+            content_type="video/mp4", filename="clip.mp4",
+        )
+        msg = _make_mock_message(
+            author_id=2, content="check this", attachments=[att],
+        )
+        await c._on_discord_message(msg)  # noqa: SLF001
+
+        assert len(received) == 1
+        assert received[0].text == "check this"
+        assert received[0].attachments == ()
+
+    async def test_oversized_audio_skipped_by_declared_size(self) -> None:
+        """25 MiB audio cap matches the image cap; declared size > cap
+        short-circuits before ``attachment.read()`` is even awaited."""
+        c = DiscordConnector(instance_name="t", bot_token="xxx")
+        c._client = MagicMock()  # noqa: SLF001
+        c._client.user.id = 1  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+        c.set_message_handler(
+            lambda e: received.append(e) or asyncio.sleep(0),
+        )
+
+        att = _mock_disc_attachment(
+            content_type="audio/webm", size=30 * 1024 * 1024,
+            filename="big.webm",
+        )
+        msg = _make_mock_message(author_id=2, attachments=[att])
+        await c._on_discord_message(msg)  # noqa: SLF001
+
+        assert received[0].attachments == ()
+        # read() never called — size cap is the early gate.
+        att.read.assert_not_awaited()
+
+    async def test_mixed_image_and_audio_both_forwarded(self) -> None:
+        """A Discord message carrying both an image and a voice note
+        (rare but possible — user replies with a photo + a recording)
+        should forward both attachments."""
+        c = DiscordConnector(instance_name="t", bot_token="xxx")
+        c._client = MagicMock()  # noqa: SLF001
+        c._client.user.id = 1  # noqa: SLF001
+
+        received: list[MessageEvent] = []
+        c.set_message_handler(
+            lambda e: received.append(e) or asyncio.sleep(0),
+        )
+
+        img = _mock_disc_attachment(
+            content_type="image/png", data=b"\x89PNG", filename="a.png",
+        )
+        voice = _mock_disc_attachment(
+            content_type="audio/ogg", data=b"OggS_hdr", filename="v.ogg",
+        )
+        msg = _make_mock_message(author_id=2, attachments=[img, voice])
+        await c._on_discord_message(msg)  # noqa: SLF001
+
+        kinds = [a.kind for a in received[0].attachments]
+        assert kinds == ["image", "audio"]
 
 
 # ---------------------------------------------------------------------------

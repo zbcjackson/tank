@@ -79,22 +79,33 @@ edits in place as tokens arrive.
 - Progressive streaming — reply is sent once, then edited as tokens arrive
 - Image attachments: inbound photos go through vision models; outbound
   `ImageBlock` replies appear as native Discord file uploads
+- **Voice notes inbound**: Discord's native voice-message feature
+  (2023+) uploads Opus-in-OGG; generic audio file uploads (WebM, MP3,
+  M4A, WAV) are auto-transcribed via the configured ASR engine. Audio
+  over 25 MB is rejected. Outbound voice (bot-sent voice messages) is
+  not supported — Discord has no bot-API equivalent to `sendVoice`.
 - Thread-aware replies: messaging in a thread produces a reply in that
   same thread (Tank's reply doesn't leak back to the parent channel)
 - Typing indicator briefly shown while Tank is thinking
 - Long messages truncated to Discord's 2000-character limit
 - Per-instance allowlist — see [Access control](#access-control)
+- **Admin approval** for unknown senders (`default: require_approval`
+  in the allowlist): a three-button DM is sent to the admin; clicking
+  swaps the View for a confirmation line.
 
 ## What doesn't work yet
 
-- **Voice channels / Stage**: entirely separate subsystem, not handled.
-- **Voice notes**: Discord has no native voice-note concept like
-  Telegram; audio file uploads arrive as generic `audio/*` attachments
-  and are currently ignored.
+- **Voice channels / Stage**: entirely separate subsystem — these are
+  realtime audio rooms, not file uploads, and need a different wire
+  protocol (discord.py's ``VoiceClient``). Not handled.
+- **Outbound voice**: Discord's bot API can upload audio as a regular
+  attachment but has no equivalent to Telegram's ``sendVoice`` that
+  renders inline voice-message UI in the client. Bot-sent audio would
+  land as a generic file upload.
 - **Slash commands**: `/tank ask ...` isn't a first-class surface; DMs
   and channel messages only.
 - **Buttons / modals / select menus**: interactive components aren't
-  wired up.
+  wired up beyond the Phase 10 approval prompt.
 - **Reactions**: `on_reaction_add` isn't subscribed.
 - **Thread-as-session mode**: all messages in a channel map to one Tank
   conversation regardless of which thread they belong to. You still get
