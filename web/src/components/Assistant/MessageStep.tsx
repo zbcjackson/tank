@@ -4,7 +4,8 @@ import { ApprovalCard } from './ApprovalCard';
 import { ToolCard } from './ToolCard';
 import { TextBubble } from './TextBubble';
 import { ThinkingCard } from './ThinkingCard';
-import type { Step, ToolContent, ApprovalContent } from '../../types/message';
+import { ImageBubble } from './ImageBubble';
+import type { Step, ToolContent, ApprovalContent, ImageContent } from '../../types/message';
 
 interface MessageStepProps {
   step: Pick<Step, 'id' | 'type' | 'content'>;
@@ -27,6 +28,10 @@ export const MessageStep = ({ step, role, onApprovalRespond }: MessageStepProps)
 
   if (step.type === 'weather') {
     return <WeatherCard data={step.content as WeatherData} />;
+  }
+
+  if (step.type === 'image') {
+    return <ImageBubble content={step.content as ImageContent} />;
   }
 
   if (step.type === 'approval' && onApprovalRespond) {

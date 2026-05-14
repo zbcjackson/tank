@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 
 import type { WebsocketMessage, Capabilities } from '../services/websocket';
 import type { StatusEvent } from './useAssistantStatus';
-import type { Step, StepType, ToolContent, ApprovalContent, Message } from '../types/message';
+import type { Step, StepType, ToolContent, ApprovalContent, ImageContent, Message } from '../types/message';
 import type { WeatherData } from '../components/Assistant/WeatherCard';
 
 /**
@@ -40,6 +40,44 @@ function groupStepsByMsgId(steps: Step[]): Message[] {
   return Array.from(map.values());
 }
 
+/**
+ * Phase 17: turn an ATTACHMENT websocket frame into the Steps the
+ * reducer should append to the conversation.
+ *
+ * Pure (no React state, no callbacks) so it can be unit-tested in
+ * isolation. The hook below is the only caller; this lives at module
+ * scope to make the contract observable from tests.
+ *
+ * Returns ``[]`` for an empty payload — the reducer's caller short-
+ * circuits in that case rather than appending nothing.
+ */
+export function attachmentMessageToSteps(msg: WebsocketMessage): Step[] {
+  const attachments = msg.attachments ?? [];
+  if (attachments.length === 0) {
+    return [];
+  }
+  const attMsgId = msg.msg_id || `assistant_attachment_${Date.now()}`;
+  return attachments.map((att, idx): Step => ({
+    // Composite id keeps multiple images on the same turn
+    // distinguishable for React keys / deduplication.
+    id: `${attMsgId}_image_${idx}`,
+    role: 'assistant',
+    type: 'image',
+    content: {
+      url: att.url,
+      mimeType: att.mime_type,
+      // Caption only shows on the first attachment of a batch —
+      // backend already enforces caption-once via _ImageDispatcher /
+      // the ATTACHMENT frame builder, but belt-and-braces in the
+      // reducer too in case a future backend stops doing that.
+      caption: idx === 0 ? (att.caption ?? '') : '',
+    } satisfies ImageContent,
+    msgId: attMsgId,
+    isFinal: msg.is_final,
+    speaker: msg.speaker || 'Brain',
+  }));
+}
+
 interface MessageReducerCallbacks {
   dispatchStatus: (event: StatusEvent) => void;
   onCapabilities: (caps: Capabilities) => void;
@@ -74,6 +112,24 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
         } else if (msg.content === 'processing_ended') {
           callbacks.dispatchStatus({ type: 'PROCESSING_ENDED' });
         }
+        return;
+      }
+
+      // --- Phase 17: assistant-sent images ---------------------------
+      // ATTACHMENT frames carry one or more images that were emitted
+      // via Assistant.emit_outbound_attachment (typically by a tool
+      // returning a ToolResult with an ImageBlock — see echo_image).
+      // The conversion to Steps lives in the pure helper above so it's
+      // unit-testable; this branch just appends the result and bails
+      // out before the rest of the dispatch logic (transcript merging,
+      // tool upserts, etc.) — none of that applies to images.
+      if (msg.type === 'attachment') {
+        const newSteps = attachmentMessageToSteps(msg);
+        if (newSteps.length === 0) {
+          return;
+        }
+        setSteps((prev) => [...prev, ...newSteps]);
+        callbacks.dispatchStatus({ type: 'TEXT_DELTA' });
         return;
       }
 

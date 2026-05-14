@@ -17,7 +17,7 @@ from ..audio.output.types import AudioChunk
 from ..core.content import ContentBlocks, DocumentBlock, ImageBlock, modality_for_mime
 from ..core.events import DisplayMessage, SignalMessage, UIMessage, UpdateType
 from . import deps
-from .schemas import MessageType, WebsocketMessage
+from .schemas import MessageType, WebsocketAttachment, WebsocketMessage
 from .signal_handlers import DisconnectSignal
 from .signal_handlers import dispatch as dispatch_signal
 
@@ -124,6 +124,83 @@ def _ui_msg_to_ws_msg(msg: UIMessage, session_id: str) -> WebsocketMessage | Non
     return None
 
 
+def _attachment_payload_to_ws_msg(
+    payload: dict, session_id: str,
+) -> WebsocketMessage | None:
+    """Convert an ``outbound_attachment`` bus payload into a
+    :class:`WebsocketMessage` the browser can consume.
+
+    Called from the WebSocket endpoint's bus subscriber. The payload
+    shape mirrors ``Assistant.emit_outbound_attachment``:
+
+    .. code-block:: python
+
+        {"msg_id": ..., "blocks": [ImageBlock, ...], "caption": str | None}
+
+    For each :class:`ImageBlock` in ``blocks`` we emit one
+    :class:`WebsocketAttachment`. ``media://<session>/<file>`` URIs
+    are rewritten to ``/api/media/<session>/<file>`` so the browser
+    can fetch them via a regular ``<img src>``. Public ``http(s)://``
+    URLs pass through unchanged — ``echo_image`` produces those, and
+    the browser doesn't need any intermediary.
+
+    Non-image blocks (future audio/video kinds) are skipped for now;
+    Phase 17 only ships the image renderer on the frontend side.
+
+    Returns ``None`` when no image blocks survive conversion — the
+    caller should not emit an empty ATTACHMENT frame (confuses the
+    client into rendering an attachment bubble with nothing inside).
+    """
+    blocks = payload.get("blocks") or ()
+    caption = payload.get("caption")
+    msg_id = payload.get("msg_id")
+
+    attachments: list[WebsocketAttachment] = []
+    for block in blocks:
+        if not isinstance(block, ImageBlock):
+            continue
+        source = block.source or ""
+        if source.startswith("media://"):
+            # Session-scoped: strip the ``media://`` scheme and
+            # prepend the public media route. We don't verify the
+            # session segment matches ``session_id`` here — the
+            # ``MediaStore.get`` call inside the endpoint handler
+            # does that for us, and a cross-session mismatch would
+            # surface as a 404 on the browser's fetch (not a WebSocket
+            # frame drop, which would be harder to debug).
+            stripped = source[len("media://"):]
+            url = f"/api/media/{stripped}"
+        else:
+            # http(s)://, data:, absolute paths — pass through. The
+            # browser will fail its own fetch for unsupported schemes;
+            # we don't try to be clever here.
+            url = source
+        attachments.append(WebsocketAttachment(
+            kind="image",
+            url=url,
+            mime_type=block.mime_type or "image/jpeg",
+            caption=caption,
+        ))
+
+    if not attachments:
+        return None
+
+    return WebsocketMessage(
+        type=MessageType.ATTACHMENT,
+        # ``content`` carries the caption so clients that don't
+        # inspect the ``attachments`` array still see the text (and
+        # the markdown/plain-text heuristics that apply to TEXT frames
+        # apply here too).
+        content=caption or "",
+        speaker="Brain",
+        is_user=False,
+        is_final=True,
+        msg_id=msg_id,
+        session_id=session_id,
+        attachments=attachments,
+    )
+
+
 @router.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     """Pipeline-based WebSocket endpoint using Assistant."""
@@ -203,6 +280,34 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         asyncio.run_coroutine_threadsafe(_send_chunk(), loop)
 
     assistant.set_playback_callback(on_playback_chunk)
+
+    # Phase 17: outbound-attachment bridge for the web UI. Subscribe
+    # to the same bus event that _ImageDispatcher consumes on the
+    # connector side. When a tool returns an image (via
+    # Assistant.emit_outbound_attachment or ToolManager's hook), we
+    # convert the payload to an ATTACHMENT frame so the browser's
+    # MessageStep renderer draws it as part of the conversation.
+    def on_outbound_attachment(bus_msg: Any) -> None:
+        if not ws_connected:
+            return
+        payload = bus_msg.payload or {}
+        ws_msg = _attachment_payload_to_ws_msg(payload, session_id)
+        if ws_msg is None:
+            return
+
+        async def _send_attachment() -> None:
+            if not ws_connected:
+                return
+            try:
+                await websocket.send_text(ws_msg.model_dump_json())
+            except Exception as e:
+                logger.debug(f"Attachment send error: {e}")
+
+        asyncio.run_coroutine_threadsafe(_send_attachment(), loop)
+
+    assistant._bus.subscribe(  # noqa: SLF001
+        "outbound_attachment", on_outbound_attachment,
+    )
 
     # Helper for signal handlers to send messages
     async def send_ws_msg(msg: WebsocketMessage) -> None:

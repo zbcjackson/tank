@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from ..channels.store import ChannelStore
 from ..channels.subscription import ChannelSubscriptionManager
@@ -619,3 +619,44 @@ async def upload_media(
         "size": stored.size,
         "modality": modality,
     }
+
+
+@app.get("/api/media/{session_id}/{filename}")
+async def get_media(session_id: str, filename: str) -> Response:
+    """Serve a stored media file so the browser can fetch it via ``<img src>``.
+
+    Phase 17 adds this to close the outbound-image gap for the web UI.
+    When a tool returns a :class:`ImageBlock` with a ``media://`` URI,
+    the WebSocket session rewrites the URI to ``/api/media/{session}/{filename}``
+    before sending the frame to the client; the browser then fetches
+    the bytes from here.
+
+    Session-scoped path structure mirrors the existing MediaStore
+    layout (``~/.tank/media/<session>/<filename>``) — the same
+    ``CrossSessionAccessError`` guarantees apply. No auth on the GET
+    itself: media URIs contain enough entropy (hash-based filenames)
+    that guessing a valid one is impractical, and the session segment
+    is not a secret.
+
+    Returns 404 when the URI doesn't resolve. No directory listing.
+    """
+    media_uri = f"media://{session_id}/{filename}"
+    try:
+        data, mime_type = await _media_store.get(
+            media_uri, session_id=session_id,
+        )
+    except Exception:
+        # Swallow both UnknownMediaURIError and CrossSessionAccessError
+        # into a plain 404 — we don't want the 403 on cross-session
+        # access to leak that a given filename exists under a
+        # different session.
+        raise HTTPException(status_code=404, detail="Not found") from None
+    return Response(
+        content=data,
+        media_type=mime_type,
+        headers={
+            # Cache aggressively — MediaStore filenames are
+            # hash-based, so the URL → bytes mapping is immutable.
+            "Cache-Control": "public, max-age=31536000, immutable",
+        },
+    )

@@ -732,9 +732,21 @@ class _ImageDispatcher:
         blocks = payload.get("blocks") or ()
         if not blocks:
             return
-        asyncio.run_coroutine_threadsafe(self._dispatch(blocks), self._loop)
+        # Phase 15: optional caption accompanies the attachment batch.
+        # We forward it to ``_dispatch`` which places it on the first
+        # ``connector.send`` call only, so an image arrives with context
+        # ("here's your chart:") rather than as a bare file.
+        caption = payload.get("caption")
+        asyncio.run_coroutine_threadsafe(
+            self._dispatch(blocks, caption=caption), self._loop,
+        )
 
-    async def _dispatch(self, blocks: Iterable[ContentBlock]) -> None:
+    async def _dispatch(
+        self,
+        blocks: Iterable[ContentBlock],
+        *,
+        caption: str | None = None,
+    ) -> None:
         caps = self._connector.capabilities
         if not caps.supports_images_out:
             logger.debug(
@@ -743,6 +755,13 @@ class _ImageDispatcher:
                 self._connector.instance_name,
             )
             return
+
+        # Track whether we've spent the caption on an attachment yet —
+        # it rides on the *first* successful send only. Using a flag
+        # rather than an index keeps the "first successful" semantics
+        # correct even when earlier blocks are skipped (unsupported
+        # kinds, resolve failures, None returns).
+        caption_pending = bool(caption)
 
         for block in blocks:
             if not isinstance(block, ImageBlock):
@@ -757,10 +776,11 @@ class _ImageDispatcher:
             if att is None:
                 continue
 
+            send_text = caption if caption_pending else ""
             try:
                 result = await self._connector.send(
                     identity=self._identity,
-                    text="",
+                    text=send_text or "",
                     attachments=(att,),
                 )
             except Exception:
@@ -774,6 +794,11 @@ class _ImageDispatcher:
                     "Outbound image send failed on '%s': %s",
                     self._connector.instance_name, result.error,
                 )
+                continue
+            # Caption spent — don't repeat it on subsequent attachments
+            # in the same batch (Telegram/Slack/Discord would render
+            # each caption, producing N copies of the same text).
+            caption_pending = False
 
     async def _resolve_image_attachment(
         self, block: ImageBlock,

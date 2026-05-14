@@ -27,14 +27,22 @@ logger = logging.getLogger(__name__)
 # ------------------------------------------------------------------
 
 class DefaultToolGroup(ToolGroup):
-    """Calculator, Time, Weather — no external dependencies."""
+    """Calculator, Time, Weather, EchoImage — no external dependencies.
+
+    ``EchoImageTool`` is the first tool that returns non-text content;
+    :class:`~tank_backend.tools.manager.ToolManager.execute_tool`
+    handles the outbound-image emit, so registering it here is enough
+    to light up the full Brain → tool → dispatcher → connector path
+    for every operator's default config.
+    """
 
     def create_tools(self) -> list[BaseTool]:
         from .calculator import CalculatorTool
+        from .echo_image import EchoImageTool
         from .time import TimeTool
         from .weather import WeatherTool
 
-        return [CalculatorTool(), TimeTool(), WeatherTool()]
+        return [CalculatorTool(), TimeTool(), WeatherTool(), EchoImageTool()]
 
 
 class WebToolGroup(ToolGroup):

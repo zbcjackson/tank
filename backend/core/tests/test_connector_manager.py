@@ -50,6 +50,35 @@ class _FakeAssistant:
     def process_input(self, text, user="Guest", *, attachments=None) -> None:
         self.inputs.append({"text": text, "user": user, "attachments": attachments})
 
+    def emit_outbound_attachment(
+        self,
+        blocks,
+        *,
+        msg_id=None,
+        caption=None,
+    ) -> None:
+        """Mirror :meth:`tank_backend.core.assistant.Assistant.emit_outbound_attachment`.
+
+        Posts an ``outbound_attachment`` Bus event so tests can exercise
+        the dispatcher through the real public API, not just by
+        hand-crafting bus payloads.
+        """
+        from tank_backend.pipeline.bus import BusMessage
+
+        if not blocks:
+            return
+        self._bus.post(
+            BusMessage(
+                type="outbound_attachment",
+                source="assistant",
+                payload={
+                    "msg_id": msg_id,
+                    "blocks": blocks,
+                    "caption": caption,
+                },
+            )
+        )
+
 
 class _FakeConnectionManager:
     """Stand-in for ConnectionManager that hands out _FakeAssistant instances."""
@@ -639,6 +668,197 @@ class TestOutboundImageDispatcher:
         # URL path: data is the URL string; MediaStore was not involved
         # for resolution on this outbound.
         assert att.data == "https://example.com/cat.png"
+
+    async def test_caption_lands_on_first_attachment_send(
+        self, tmp_path: Path,
+    ) -> None:
+        """Phase 15: when ``emit_outbound_attachment`` carries a caption,
+        ``_ImageDispatcher`` passes it as the ``text`` argument to the
+        first ``connector.send`` call. The image arrives with context
+        instead of as a bare attachment."""
+        from tank_backend.core.content import ImageBlock
+        from tank_backend.pipeline.bus import BusMessage
+
+        media = _FakeMediaStore()
+        stored = await media.put(b"\xff\xd8\xff", "image/jpeg", session_id="s1")
+        manager = _manager_with_media(
+            tmp_path, supports_image=True, media_store=media,
+        )
+        fake = FakeConnector("t")
+        manager.register(fake)
+        await manager.start_all()
+
+        identity = Identity(platform="fake", external_id="user-1")
+        await fake.inject_inbound(identity, text="hi")
+
+        assistant = next(iter(manager._conn_mgr.assistants.values()))  # noqa: SLF001
+        bus = assistant._bus  # noqa: SLF001
+
+        bus.post(BusMessage(
+            type="outbound_attachment",
+            source="assistant",
+            payload={
+                "msg_id": "m1",
+                "blocks": [
+                    ImageBlock(source=stored.media_uri, mime_type="image/jpeg"),
+                ],
+                "caption": "Here's the chart you asked for:",
+            },
+        ))
+        bus.poll()
+
+        import asyncio
+        for _ in range(20):
+            if any(r.kind == "send" and r.attachments for r in fake.outbox):
+                break
+            await asyncio.sleep(0.01)
+
+        sends_with_images = [
+            r for r in fake.outbox if r.kind == "send" and r.attachments
+        ]
+        assert len(sends_with_images) == 1
+        assert sends_with_images[0].text == "Here's the chart you asked for:"
+
+    async def test_caption_only_on_first_of_multiple_attachments(
+        self, tmp_path: Path,
+    ) -> None:
+        """Caption must NOT repeat on subsequent attachments — Telegram /
+        Slack / Discord would render N copies of the same caption
+        otherwise. Block 0 carries it; block 1+ go out with empty text."""
+        from tank_backend.core.content import ImageBlock
+        from tank_backend.pipeline.bus import BusMessage
+
+        media = _FakeMediaStore()
+        a = await media.put(b"AAA", "image/jpeg", session_id="s1")
+        b = await media.put(b"BBB", "image/jpeg", session_id="s1")
+        manager = _manager_with_media(
+            tmp_path, supports_image=True, media_store=media,
+        )
+        fake = FakeConnector("t")
+        manager.register(fake)
+        await manager.start_all()
+
+        identity = Identity(platform="fake", external_id="user-1")
+        await fake.inject_inbound(identity, text="hi")
+
+        assistant = next(iter(manager._conn_mgr.assistants.values()))  # noqa: SLF001
+        bus = assistant._bus  # noqa: SLF001
+
+        bus.post(BusMessage(
+            type="outbound_attachment",
+            source="assistant",
+            payload={
+                "blocks": [
+                    ImageBlock(source=a.media_uri, mime_type="image/jpeg"),
+                    ImageBlock(source=b.media_uri, mime_type="image/jpeg"),
+                ],
+                "caption": "Two views:",
+            },
+        ))
+        bus.poll()
+
+        import asyncio
+        for _ in range(30):
+            if sum(1 for r in fake.outbox
+                   if r.kind == "send" and r.attachments) >= 2:
+                break
+            await asyncio.sleep(0.01)
+
+        image_sends = [
+            r for r in fake.outbox if r.kind == "send" and r.attachments
+        ]
+        assert len(image_sends) == 2
+        assert image_sends[0].text == "Two views:"
+        assert image_sends[1].text == ""
+
+    async def test_no_caption_preserves_legacy_empty_text(
+        self, tmp_path: Path,
+    ) -> None:
+        """Backward-compat: payloads without ``caption`` (or with
+        ``caption=None``) still send the image with empty text. Existing
+        callers that don't know about the new field aren't surprised."""
+        from tank_backend.core.content import ImageBlock
+        from tank_backend.pipeline.bus import BusMessage
+
+        media = _FakeMediaStore()
+        stored = await media.put(b"\xff\xd8\xff", "image/jpeg", session_id="s1")
+        manager = _manager_with_media(
+            tmp_path, supports_image=True, media_store=media,
+        )
+        fake = FakeConnector("t")
+        manager.register(fake)
+        await manager.start_all()
+
+        identity = Identity(platform="fake", external_id="user-1")
+        await fake.inject_inbound(identity, text="hi")
+
+        assistant = next(iter(manager._conn_mgr.assistants.values()))  # noqa: SLF001
+        bus = assistant._bus  # noqa: SLF001
+
+        # Payload with NO ``caption`` key at all (old shape).
+        bus.post(BusMessage(
+            type="outbound_attachment",
+            source="assistant",
+            payload={
+                "blocks": [
+                    ImageBlock(source=stored.media_uri, mime_type="image/jpeg"),
+                ],
+            },
+        ))
+        bus.poll()
+
+        import asyncio
+        for _ in range(20):
+            if any(r.kind == "send" and r.attachments for r in fake.outbox):
+                break
+            await asyncio.sleep(0.01)
+
+        image_sends = [
+            r for r in fake.outbox if r.kind == "send" and r.attachments
+        ]
+        assert len(image_sends) == 1
+        assert image_sends[0].text == ""
+
+    async def test_assistant_emit_outbound_attachment_carries_caption(
+        self, tmp_path: Path,
+    ) -> None:
+        """End-to-end: calling
+        :meth:`Assistant.emit_outbound_attachment(blocks, caption=...)`
+        threads the caption through the bus payload and onto the first
+        ``connector.send`` call. Locks the public API contract that
+        future tools will use."""
+        from tank_backend.core.content import ImageBlock
+
+        media = _FakeMediaStore()
+        stored = await media.put(b"\xff\xd8\xff", "image/jpeg", session_id="s1")
+        manager = _manager_with_media(
+            tmp_path, supports_image=True, media_store=media,
+        )
+        fake = FakeConnector("t")
+        manager.register(fake)
+        await manager.start_all()
+
+        identity = Identity(platform="fake", external_id="user-1")
+        await fake.inject_inbound(identity, text="hi")
+
+        assistant = next(iter(manager._conn_mgr.assistants.values()))  # noqa: SLF001
+        assistant.emit_outbound_attachment(
+            [ImageBlock(source=stored.media_uri, mime_type="image/jpeg")],
+            caption="Generated by `chart_tool`:",
+        )
+        assistant._bus.poll()  # noqa: SLF001
+
+        import asyncio
+        for _ in range(20):
+            if any(r.kind == "send" and r.attachments for r in fake.outbox):
+                break
+            await asyncio.sleep(0.01)
+
+        image_sends = [
+            r for r in fake.outbox if r.kind == "send" and r.attachments
+        ]
+        assert len(image_sends) == 1
+        assert image_sends[0].text == "Generated by `chart_tool`:"
 
 
 # ---------------------------------------------------------------------------

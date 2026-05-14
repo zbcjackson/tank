@@ -67,10 +67,13 @@ def _make_app_config(**overrides):
 # DefaultToolGroup
 # ------------------------------------------------------------------
 
-def test_default_group_creates_three_tools():
+def test_default_group_creates_four_tools():
     tools = DefaultToolGroup().create_tools()
     names = {t.get_info().name for t in tools}
-    assert names == {"get_weather", "get_time", "calculate"}
+    # Phase 16 added echo_image — the first DefaultToolGroup tool that
+    # returns non-text content. All four are dependency-free so this
+    # group still has no external prerequisites.
+    assert names == {"get_weather", "get_time", "calculate", "echo_image"}
 
 
 # ------------------------------------------------------------------

@@ -520,6 +520,7 @@ class Assistant:
         blocks: list[Any],
         *,
         msg_id: str | None = None,
+        caption: str | None = None,
     ) -> None:
         """Post an ``outbound_attachment`` Bus event.
 
@@ -533,6 +534,15 @@ class Assistant:
         dispatcher filters to the kinds each connector supports. ``msg_id``
         is optional and currently informational — reserved for correlating
         attachments with text streams in a later phase.
+
+        ``caption`` (Phase 15) is an optional human-readable accompaniment.
+        When provided, the dispatcher uses it as the ``text`` argument on
+        the *first* ``connector.send`` call so the image arrives as
+        "image with caption" rather than a bare attachment. Subsequent
+        attachments in the same batch go out with no text. Per-platform
+        length caps (Telegram 1024, Slack 40 000, Discord 2000) are
+        applied by each connector's ``_send_image`` path; passing a
+        long caption here is safe.
         """
         if not blocks:
             return
@@ -540,7 +550,11 @@ class Assistant:
             BusMessage(
                 type="outbound_attachment",
                 source="assistant",
-                payload={"msg_id": msg_id, "blocks": blocks},
+                payload={
+                    "msg_id": msg_id,
+                    "blocks": blocks,
+                    "caption": caption,
+                },
             )
         )
 
