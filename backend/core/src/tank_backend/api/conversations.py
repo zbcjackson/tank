@@ -50,6 +50,21 @@ def _format_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     Skips system messages. Preserves tool_calls and tool results so the
     frontend can reconstruct tool cards and approval cards on resume.
+
+    Phase 18 follow-up: also skips ``tool_follow_up`` messages — those
+    are user-role scaffolding the LLM loop emits to carry image blocks
+    back into the next turn (see ``llm._build_follow_up_user_message``).
+    They have ``content`` as a *list of OpenAI parts* rather than a
+    string, which crashes the frontend's Markdown renderer with
+    ``Unexpected value [object Object]`` on conversation resume. The
+    user-visible representation of the tool's image output is already
+    carried by the corresponding ``tool_call`` + tool-result pair, so
+    dropping the follow-up here is information-preserving for the UI.
+
+    Defensive last-line guard: any other persisted message whose
+    ``content`` is non-string also gets coerced to ``""`` so a future
+    code path that stores rich content can't reintroduce the same
+    Markdown crash.
     """
     result: list[dict[str, Any]] = []
     for i, msg in enumerate(messages):
@@ -57,9 +72,24 @@ def _format_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if role == "system":
             continue
 
+        # Phase 18 follow-up: drop tool-follow-up scaffolding —
+        # internal to the LLM loop, not user-visible.
+        metadata = msg.get("metadata") or {}
+        if metadata.get("tool_follow_up"):
+            continue
+
+        # Defensive: coerce any non-string content to "". The
+        # frontend's Markdown renderer crashes on list/dict content
+        # because react-markdown expects a string. This guard keeps
+        # the resume path resilient even if a future code path
+        # persists multi-part content without flagging tool_follow_up.
+        raw_content = msg.get("content", "")
+        if not isinstance(raw_content, str):
+            raw_content = ""
+
         entry: dict[str, Any] = {
             "role": role,
-            "content": msg.get("content", "") or "",
+            "content": raw_content,
             "msg_id": f"history_{i}",
         }
 
