@@ -47,6 +47,12 @@ dependencies = [
     # Phase 13 — making it explicit prevents a regression in any
     # deployment that doesn't ship tts-edge.
     "pydub>=0.25.1",
+    # Phase 18: ChartTool renders matplotlib figures via the headless
+    # Agg backend (no GUI deps). matplotlib is import-heavy (~1s cold
+    # import); we defer the import to the first chart call so server
+    # boots stay fast. Pinned to a recent enough version that
+    # ``matplotlib.use("Agg")`` works without a fallback warning.
+    "matplotlib>=3.8.0",
 ]
 
 [project.scripts]
@@ -59,6 +65,12 @@ dev = [
     "ruff>=0.11.0",
     "watchfiles>=1.1.1",
     "pyright>=1.1.400",
+    # Schema-validation tests run every tool's OpenAI function spec
+    # through real JSON-Schema validation. ``jsonschema`` is already
+    # in the venv via chromadb/mcp/litellm, but pinning it as a
+    # direct dev dep prevents the same hidden-transitive trap that
+    # bit pydub before Phase 18.
+    "jsonschema>=4.20.0",
 ]
 
 [build-system]

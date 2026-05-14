@@ -176,6 +176,165 @@ def _build_follow_up_user_message(
     }
 
 
+async def _materialize_blocks_for_llm(
+    blocks: ContentBlocks,
+    *,
+    media_store: Any,
+    session_id: str | None,
+) -> ContentBlocks:
+    """Resolve ``media://`` block sources into LLM-consumable URLs.
+
+    Phase 18 surfaced this seam. ``ImageBlock`` returned by tools like
+    ``render_chart`` carry ``media://session/hash.png`` URIs — those
+    work for connectors (the dispatcher resolves via ``MediaStore.get``)
+    and for the web UI (the WebSocket frame rewrites to
+    ``/api/media/...``), but the *LLM provider* receives the raw URI
+    and rejects it as
+
+        Invalid 'input[N].content[M].image_url'. Expected a valid URL,
+        but got a value with an invalid format.
+
+    Calling :meth:`MediaStore.materialize_for_llm` on each block
+    converts ``media://`` to either a data URL (small images) or a
+    pre-signed http URL — both of which the LLM accepts. Blocks
+    without ``media://`` sources, and the case where ``media_store``
+    or ``session_id`` are missing, pass through unchanged so the
+    function is a safe no-op for non-tool flows.
+
+    Behavioural notes:
+
+    - Materialization failures fall back to the original block. The
+      LLM call may still 400 on that turn, but the user already saw
+      the chart on their connector — better to log and keep going
+      than to drop the assistant turn.
+    - ``materialize_for_llm`` only acts on blocks whose source begins
+      with ``media://``. Other shapes (``http(s)://``, ``data:``)
+      pass through untouched, which matches the
+      :class:`_ImageDispatcher` semantics on the connector side.
+    """
+    if media_store is None or not session_id:
+        return blocks
+    out: list[Any] = []
+    for block in blocks:
+        try:
+            materialized = await media_store.materialize_for_llm(
+                block, session_id=session_id,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to materialize block for LLM (source=%s)",
+                getattr(block, "source", "<unknown>"),
+            )
+            out.append(block)
+            continue
+        out.append(materialized)
+    return out
+
+
+async def _materialize_messages_for_llm(
+    messages: list[Any],
+    *,
+    media_store: Any,
+    session_id: str,
+) -> list[Any]:
+    """Resolve ``media://`` URIs inside OpenAI message parts.
+
+    Phase 18 follow-up. ``_materialize_blocks_for_llm`` covers blocks
+    *coming out of a tool* (still in :class:`ContentBlock` shape).
+    But persisted message history is already in OpenAI parts format —
+    each message has ``content`` either as a plain string (text
+    messages) or as a list of parts ``[{"type": "image_url",
+    "image_url": {"url": "media://..."}}]``. Replaying those
+    messages on the next turn breaks the LLM call because the
+    historical ``media://`` URIs were never re-resolved.
+
+    This helper walks every message and rewrites the ``url`` field
+    of any ``image_url`` part whose URL starts with ``media://``.
+    Other fields, message shapes, and roles pass through unchanged
+    so the function is a safe no-op for text-only history.
+
+    Implementation notes:
+
+    - Uses :meth:`MediaStore.get` directly rather than going through
+      ``materialize_for_llm`` because we already have an
+      OpenAI-parts wire shape — round-tripping through
+      :class:`ContentBlock` would be theatrical.
+    - Builds a small in-process cache keyed on the URI so a single
+      message containing the same image twice (rare but possible)
+      doesn't read from disk twice.
+    - Failures fall back to leaving the URL alone. The LLM call may
+      still 400 on that turn but the user already saw the chart on
+      their connector. Log loud enough that operators can spot the
+      cause without a full traceback per message.
+    """
+    cache: dict[str, str] = {}
+
+    async def _resolve_media_url(url: str) -> str:
+        if not isinstance(url, str) or not url.startswith("media://"):
+            return url
+        if url in cache:
+            return cache[url]
+        try:
+            data, mime = await media_store.get(url, session_id=session_id)
+        except Exception:
+            logger.exception(
+                "Failed to materialize message-history image %r", url,
+            )
+            return url
+        # Encode as a data URL — small images go inline; the LLM's
+        # request body can absorb tens of KB without issue. For
+        # larger media the right answer is a pre-signed http URL,
+        # but render_chart's PNGs sit comfortably under that.
+        import base64
+        encoded = base64.b64encode(data).decode("ascii")
+        data_url = f"data:{mime};base64,{encoded}"
+        cache[url] = data_url
+        return data_url
+
+    out: list[Any] = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            out.append(msg)
+            continue
+        content = msg.get("content")
+        if not isinstance(content, list):
+            # Plain string content (the common case) — pass through.
+            out.append(msg)
+            continue
+
+        new_parts: list[Any] = []
+        changed = False
+        for part in content:
+            if not isinstance(part, dict) or part.get("type") != "image_url":
+                new_parts.append(part)
+                continue
+            image_url = part.get("image_url") or {}
+            url = image_url.get("url") if isinstance(image_url, dict) else None
+            if not isinstance(url, str) or not url.startswith("media://"):
+                new_parts.append(part)
+                continue
+            resolved = await _resolve_media_url(url)
+            if resolved == url:
+                new_parts.append(part)
+                continue
+            # Build a new part with the resolved URL; preserve any
+            # ``detail`` field (low / high / auto) the original carried.
+            new_image_url = dict(image_url)
+            new_image_url["url"] = resolved
+            new_part = dict(part)
+            new_part["image_url"] = new_image_url
+            new_parts.append(new_part)
+            changed = True
+
+        if changed:
+            new_msg = dict(msg)
+            new_msg["content"] = new_parts
+            out.append(new_msg)
+        else:
+            out.append(msg)
+    return out
+
+
 class LLM:
     def __init__(
         self,
@@ -241,8 +400,18 @@ class LLM:
         tool_executor: Any = None,
         trace_metadata: dict[str, Any] | None = None,
         system_prompt_fn: Callable[[], str | None] | None = None,
+        media_store: Any = None,
+        session_id: str | None = None,
     ) -> AsyncGenerator[tuple[UpdateType, str, dict[str, Any]], None]:
         """Stream chat completion with automatic tool call handling.
+
+        ``media_store`` + ``session_id`` (Phase 18) let
+        :func:`_build_follow_up_user_message` resolve ``media://``
+        URIs that tools return into LLM-consumable data URLs. Without
+        them the LLM rejects ``image_url.url == "media://..."`` as an
+        invalid value and the entire turn 400s. Both default to
+        ``None`` so callers without a session-scoped MediaStore (text-
+        only paths, narrow tests) keep working unchanged.
 
         Yields: (UpdateType, content_delta, metadata)
 
@@ -255,6 +424,23 @@ class LLM:
         # tool/assistant/user roles with shapes the OpenAI SDK TypedDicts
         # can't cleanly narrow. The dicts are still valid at the wire.
         working_messages: list[Any] = list(messages)
+
+        # Phase 18 follow-up: walk every message and resolve any
+        # ``media://session/file`` URLs embedded in ``image_url`` parts
+        # to LLM-consumable URLs (typically data: URLs via
+        # ``MediaStore.materialize_for_llm``). Without this, persisted
+        # history from earlier turns — which stored the original
+        # ``media://`` URI — breaks every subsequent LLM call with
+        # ``Invalid 'input[N].content[M].image_url'``. Walks the
+        # *whole* working_messages list, including the inbound
+        # ``messages`` arg, so historical replays and fresh turns are
+        # both safe.
+        if media_store is not None and session_id:
+            working_messages = await _materialize_messages_for_llm(
+                working_messages,
+                media_store=media_store,
+                session_id=session_id,
+            )
         turn = 0
         rejected_tools: set[str] = set()
 
@@ -485,10 +671,20 @@ class LLM:
                             })
                             yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
                             if follow_up_blocks:
+                                # Phase 18: resolve ``media://`` URIs to
+                                # data URLs the LLM provider accepts.
+                                # Without this, Azure rejects the next
+                                # turn with ``invalid_value`` on
+                                # ``image_url.url``.
+                                materialized = await _materialize_blocks_for_llm(
+                                    follow_up_blocks,
+                                    media_store=media_store,
+                                    session_id=session_id,
+                                )
                                 follow_up = _build_follow_up_user_message(
                                     tool_call_id=tc["id"],
                                     tool_name=tc["name"],
-                                    blocks=follow_up_blocks,
+                                    blocks=materialized,
                                 )
                                 working_messages.append(follow_up)
                                 yield (UpdateType.MESSAGE, "", {"message": follow_up})
@@ -547,10 +743,18 @@ class LLM:
                         })
                         yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
                         if follow_up_blocks:
+                            # Phase 18: resolve ``media://`` URIs to
+                            # data URLs the LLM provider accepts (see
+                            # the parallel branch above for the reason).
+                            materialized = await _materialize_blocks_for_llm(
+                                follow_up_blocks,
+                                media_store=media_store,
+                                session_id=session_id,
+                            )
                             follow_up = _build_follow_up_user_message(
                                 tool_call_id=tc["id"],
                                 tool_name=tc["name"],
-                                blocks=follow_up_blocks,
+                                blocks=materialized,
                             )
                             working_messages.append(follow_up)
                             yield (UpdateType.MESSAGE, "", {"message": follow_up})

@@ -10,7 +10,14 @@ import json
 import logging
 from typing import Any
 
-from .base import BaseTool, ToolGroup, ToolInfo, ToolResult
+from .base import (
+    TOOL_CONTEXT_KWARG,
+    BaseTool,
+    ToolContext,
+    ToolGroup,
+    ToolInfo,
+    ToolResult,
+)
 
 logger = logging.getLogger("ToolManager")
 
@@ -27,10 +34,19 @@ class ToolManager:
         app_config: Any,
         bus: Any = None,
         max_history_tokens: int = 8000,
+        media_store: Any = None,
     ) -> None:
         self.tools: dict[str, BaseTool] = {}
         self._groups: list[ToolGroup] = []
         self._bus = bus
+        # Phase 18: session-scoped resources tools opt into via the
+        # ``ToolContext`` kwarg. ``media_store`` is set once at startup;
+        # ``session_id`` is updated per session via
+        # :meth:`set_session_id`. Both default to ``None`` so the
+        # existing test fixtures and tools that don't need them keep
+        # working unchanged.
+        self._media_store = media_store
+        self._session_id: str | None = None
 
         # --- Shared tool infrastructure ---
         from ..policy import (
@@ -250,6 +266,17 @@ class ToolManager:
     # Tool execution
     # ------------------------------------------------------------------
 
+    def set_session_id(self, session_id: str | None) -> None:
+        """Phase 18: update the current session.
+
+        Tools that opt into ``ToolContext`` (declare ``ctx`` in their
+        ``execute`` signature) see this id when they run. The
+        :class:`~tank_backend.core.assistant.Assistant` calls this
+        whenever ``set_session_id`` flows through Brain so the chart
+        tool can persist PNGs to the right session-scoped folder.
+        """
+        self._session_id = session_id
+
     async def execute_tool(self, tool_name: str, **kwargs) -> ToolResult | str:
         if tool_name not in self.tools:
             error_msg = (
@@ -264,7 +291,14 @@ class ToolManager:
         try:
             tool = self.tools[tool_name]
             logger.info(f"Executing tool: {tool_name} with parameters: {kwargs}")
-            result: ToolResult | str = await tool.execute(**kwargs)
+            # Phase 18: tools that declare ``ctx: ToolContext`` in
+            # their execute signature opt into platform-owned context
+            # (MediaStore, session_id). Tools that don't are called
+            # exactly as before — we inspect the signature once and
+            # only inject ``ctx`` when the slot exists. The kwarg name
+            # comes from a constant so a future rename is one symbol.
+            call_kwargs = self._maybe_inject_ctx(tool, kwargs)
+            result: ToolResult | str = await tool.execute(**call_kwargs)
             logger.info(f"Tool {tool_name} executed successfully")
         except Exception as e:
             error_msg = f"Error executing tool '{tool_name}': {str(e)}"
@@ -289,6 +323,45 @@ class ToolManager:
             self._publish_tool_completed(tool_name, result)
 
         return result
+
+    def _maybe_inject_ctx(
+        self, tool: BaseTool, kwargs: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Phase 18: inject :class:`ToolContext` for tools that opt in.
+
+        A tool opts in by declaring ``ctx`` (or whatever
+        :data:`TOOL_CONTEXT_KWARG` resolves to) in its ``execute``
+        signature. We inspect the signature once per call — cheap
+        enough that caching isn't worth the complexity, and lazy
+        enough that tools added at runtime work without manual
+        registration. Tools that don't declare the parameter get
+        called with ``kwargs`` unchanged, preserving the
+        zero-impact-on-existing-tools contract.
+
+        The LLM-supplied ``kwargs`` shouldn't contain ``ctx`` because
+        the OpenAI schema is built from ``get_info().parameters``
+        which never includes the reserved name. If a malicious or
+        confused LLM does pass a ``ctx`` arg, we override it — the
+        platform's view of context wins, not the LLM's.
+        """
+        import inspect
+
+        try:
+            sig = inspect.signature(tool.execute)
+        except (TypeError, ValueError):
+            # Some Mock-based tools don't have inspectable signatures;
+            # fall back to "no opt-in" rather than crashing.
+            return kwargs
+
+        if TOOL_CONTEXT_KWARG not in sig.parameters:
+            return kwargs
+
+        injected = dict(kwargs)
+        injected[TOOL_CONTEXT_KWARG] = ToolContext(
+            media_store=self._media_store,
+            session_id=self._session_id,
+        )
+        return injected
 
     def _publish_tool_completed(
         self, tool_name: str, result: ToolResult | str,
@@ -343,10 +416,23 @@ class ToolManager:
                 required = []
 
                 for param in info.parameters:
-                    properties[param.name] = {
+                    prop: dict[str, Any] = {
                         "type": param.type,
                         "description": param.description,
                     }
+                    # OpenAI's function-calling schema (and Azure /
+                    # OpenRouter / Anthropic relays) reject ``"array"``
+                    # types that don't declare ``items``. Provide a
+                    # permissive default so a tool author who declares
+                    # ``ToolParameter(type="array", ...)`` without
+                    # overriding :meth:`BaseTool.get_raw_schema` doesn't
+                    # break the entire tool list. ``items: {}`` matches
+                    # any element shape; tools that need a tighter
+                    # constraint (chart_tool, file_search) ship a raw
+                    # schema via ``get_raw_schema``.
+                    if param.type == "array":
+                        prop["items"] = {}
+                    properties[param.name] = prop
                     if param.required:
                         required.append(param.name)
 

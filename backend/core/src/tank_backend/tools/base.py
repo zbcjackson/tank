@@ -72,6 +72,50 @@ class ToolInfo(BaseModel):
     parameters: list[ToolParameter]
 
 
+# Phase 18: name of the reserved keyword argument that
+# ``ToolManager.execute_tool`` injects when a tool's signature opts
+# in to platform context. Tools that accept ``ctx: ToolContext``
+# receive a populated :class:`ToolContext`; tools that don't are
+# called as before. The name is centralised here so a future
+# refactor (e.g. moving to a per-call context object) only changes
+# one symbol.
+TOOL_CONTEXT_KWARG = "ctx"
+
+
+@dataclass(frozen=True, slots=True)
+class ToolContext:
+    """Platform-owned context that tools may opt into.
+
+    Phase 18 introduced this to give image-producing tools (``ChartTool``
+    today, future image-generation tools) access to the
+    :class:`MediaStore` and the current ``session_id``. The LLM never
+    sees ``ToolContext`` — it's not in the tool's OpenAI schema. Tools
+    declare ``ctx: ToolContext`` in their ``execute`` signature and
+    :meth:`ToolManager.execute_tool` fills it in via the reserved
+    :data:`TOOL_CONTEXT_KWARG`.
+
+    Tools that don't need platform context just keep their current
+    signatures (``**kwargs`` or named params); the manager only injects
+    ``ctx`` when the target signature accepts it.
+
+    Attributes:
+        media_store: Session-scoped persistence for binary content
+                     (PNG bytes from a chart, downloaded image, etc.).
+                     ``None`` when the manager was constructed without
+                     a MediaStore — tools should fall back to a clear
+                     error result rather than crashing.
+        session_id:  Current session/conversation id. Tools that
+                     persist to MediaStore must pass this through
+                     because :meth:`MediaStore.put` is session-scoped.
+                     ``None`` when the manager hasn't been told about
+                     a session yet (offline tool execution from CLI,
+                     unit tests).
+    """
+
+    media_store: Any = None
+    session_id: str | None = None
+
+
 class BaseTool(ABC):
     @abstractmethod
     def get_info(self) -> ToolInfo:

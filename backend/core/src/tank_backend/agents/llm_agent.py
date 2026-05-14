@@ -141,6 +141,23 @@ class LLMAgent(Agent):
                 "metadata": {"agent_name": self.name},
             },
             system_prompt_fn=system_prompt_fn,
+            # Phase 18: thread MediaStore + session through so the
+            # LLM loop can materialize ``media://`` URIs returned by
+            # tools (e.g. ``render_chart``) into data URLs the LLM
+            # provider accepts. ``getattr`` keeps narrow tests that
+            # mock ``ToolManager`` without ``_media_store`` working.
+            media_store=getattr(self._tool_manager, "_media_store", None),
+            # Read the session id at call time from ``ToolManager``
+            # (Phase 18 keeps it in sync via ``set_session_id``)
+            # rather than from the agent's constructor — Brain builds
+            # the agent before its ``_context`` is initialised, so
+            # the constructor value is reliably empty here. Falling
+            # back to ``self._session_id`` preserves existing test
+            # paths that pass an explicit id at construction time.
+            session_id=(
+                getattr(self._tool_manager, "_session_id", None)
+                or self._session_id
+            ),
         )
         try:
             async for update_type, content, metadata in gen:

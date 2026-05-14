@@ -67,13 +67,17 @@ def _make_app_config(**overrides):
 # DefaultToolGroup
 # ------------------------------------------------------------------
 
-def test_default_group_creates_four_tools():
+def test_default_group_creates_five_tools():
     tools = DefaultToolGroup().create_tools()
     names = {t.get_info().name for t in tools}
-    # Phase 16 added echo_image — the first DefaultToolGroup tool that
-    # returns non-text content. All four are dependency-free so this
-    # group still has no external prerequisites.
-    assert names == {"get_weather", "get_time", "calculate", "echo_image"}
+    # Phase 18 added render_chart — the second DefaultToolGroup tool
+    # that returns non-text content. All five remain dependency-free
+    # at instantiation time (matplotlib import is deferred to first
+    # chart render).
+    assert names == {
+        "get_weather", "get_time", "calculate",
+        "echo_image", "render_chart",
+    }
 
 
 # ------------------------------------------------------------------
@@ -264,3 +268,49 @@ def test_tool_manager_approval_policy_from_config():
     # Non-command tools → auto-approve
     assert policy.evaluate("calculate").level == AccessLevel.ALLOW
     assert policy.evaluate("web_search").level == AccessLevel.ALLOW
+
+
+def test_array_typed_param_includes_items_in_openai_schema():
+    """Regression for Phase 18: Azure/OpenAI rejected the chart tool
+    because ``ToolManager.get_openai_tools`` produced an array schema
+    without an ``items`` key — the OpenAI function-calling spec
+    requires it. The fix added ``items: {}`` as a permissive default
+    in the auto-builder; tools that need a tighter shape (ChartTool)
+    override via ``get_raw_schema``.
+
+    Without this default, the LLM rejected the entire tools array
+    on every request — breaking not just chart rendering but every
+    other tool too. Pinning this prevents a regression that would
+    take down the whole tool surface.
+    """
+    from tank_backend.tools.base import BaseTool, ToolInfo, ToolParameter, ToolResult
+
+    class _ArrayTool(BaseTool):
+        def get_info(self) -> ToolInfo:
+            return ToolInfo(
+                name="test_array_tool",
+                description="Test tool with an array param.",
+                parameters=[
+                    ToolParameter(
+                        name="items_list",
+                        type="array",
+                        description="Some items.",
+                        required=True,
+                    ),
+                ],
+            )
+
+        async def execute(self, **_kwargs) -> ToolResult:
+            return ToolResult(content="ok")
+
+    cfg = _make_app_config()
+    tm = ToolManager(app_config=cfg)
+    tm.tools["test_array_tool"] = _ArrayTool()
+
+    schemas = tm.get_openai_tools()
+    schema = next(s for s in schemas if s["function"]["name"] == "test_array_tool")
+    items_list = schema["function"]["parameters"]["properties"]["items_list"]
+    assert items_list["type"] == "array"
+    # Permissive empty-object items satisfies the OpenAI validator.
+    # Tools that want a tighter shape ship a get_raw_schema override.
+    assert "items" in items_list

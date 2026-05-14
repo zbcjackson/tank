@@ -146,6 +146,11 @@ class Assistant:
             app_config=self._app_config,
             bus=self._bus,
             max_history_tokens=self._brain_config.max_history_tokens,
+            # Phase 18: thread the session-scoped MediaStore so tools
+            # opting into ``ToolContext`` (e.g. ChartTool) can persist
+            # binary content. ``set_session_id`` below propagates the
+            # current session id at conversation-resume time.
+            media_store=self._media_store,
         )
         # Phase 17 refactor: subscribe ToolOutputObserver to the
         # generic ``tool_completed`` event ToolManager publishes.
@@ -305,14 +310,23 @@ class Assistant:
     def set_session_id(self, session_id: str) -> None:
         """Resume a specific conversation by ID (legacy compat)."""
         self.brain.resume_conversation(session_id)
+        # Phase 18: keep the ToolManager's session in sync so tools
+        # opting into ``ToolContext`` (e.g. ChartTool persisting PNGs)
+        # see the right session-scoped MediaStore folder.
+        self._tool_manager.set_session_id(session_id)
 
     def resume_conversation(self, conversation_id: str) -> bool:
         """Resume a persisted conversation by its UUID. Returns False if not found."""
-        return self.brain.resume_conversation(conversation_id)
+        ok = self.brain.resume_conversation(conversation_id)
+        if ok:
+            self._tool_manager.set_session_id(conversation_id)
+        return ok
 
     def new_conversation(self) -> str:
         """Start a new conversation. Returns new conversation ID."""
-        return self.brain.new_conversation()
+        new_id = self.brain.new_conversation()
+        self._tool_manager.set_session_id(new_id)
+        return new_id
 
     @property
     def capabilities(self) -> dict[str, bool]:
