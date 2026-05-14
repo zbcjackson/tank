@@ -1,11 +1,11 @@
-"""End-to-end test for Phase 16: tool-initiated images reach the user.
+"""End-to-end test for Phase 16/17: tool-initiated images reach the user.
 
-This test is deliberately wider than the unit tests in
-``test_tool_manager_outbound_images.py``. It wires together every
-real component on the path from a tool returning an
-:class:`ImageBlock` to a connector's outbox:
+This test wires every real component on the path from a tool returning
+an :class:`ImageBlock` to a connector's outbox:
 
     EchoImageTool → ToolManager.execute_tool
+        → Bus.post("tool_completed")
+        → ToolOutputObserver._on_tool_completed (Phase 17 refactor)
         → Bus.post("outbound_attachment")
         → _ImageDispatcher.on_event
         → FakeConnector.send(text=caption, attachments=[Attachment])
@@ -22,11 +22,15 @@ What's mocked:
 
 What's real:
 - ``EchoImageTool`` — the Phase 16 tool itself.
-- ``ToolManager`` — the funnel that picks up image blocks and posts
-  ``outbound_attachment`` events.
-- ``Bus`` — the actual pipeline message broker.
-- ``_ImageDispatcher`` — the connector-side subscriber that turns the
-  bus event into a ``connector.send`` call.
+- ``ToolManager`` — funnels tool invocations and publishes a generic
+  ``tool_completed`` event. After Phase 17 it doesn't know about
+  ``ImageBlock``, attachments, or the UI.
+- ``ToolOutputObserver`` — Phase 17 subscriber that turns
+  ``tool_completed`` into ``outbound_attachment``. Where the
+  content-kind awareness lives.
+- ``Bus`` — actual pipeline message broker.
+- ``_ImageDispatcher`` — connector-side subscriber that turns the
+  ``outbound_attachment`` event into a ``connector.send`` call.
 - The ``Attachment`` ↔ ``ImageBlock`` round-trip via
   ``_ImageDispatcher._resolve_image_attachment``.
 """
@@ -49,6 +53,7 @@ from tank_backend.config.models import (
 from tank_backend.connectors.base import Identity
 from tank_backend.connectors.fake import FakeConnector
 from tank_backend.connectors.manager import _ImageDispatcher
+from tank_backend.connectors.tool_output_observer import ToolOutputObserver
 from tank_backend.pipeline.bus import Bus
 from tank_backend.tools.manager import ToolManager
 
@@ -72,9 +77,9 @@ def _make_app_config() -> MagicMock:
 
 @pytest.fixture()
 def wired_pipeline():
-    """Real ToolManager + Bus + FakeConnector, paired with a helper
-    that attaches a real :class:`_ImageDispatcher` once we're inside
-    the test's event loop.
+    """Real ToolManager + Bus + ToolOutputObserver + FakeConnector,
+    paired with a helper that attaches a real :class:`_ImageDispatcher`
+    once we're inside the test's event loop.
 
     Why the deferred attach: :class:`_ImageDispatcher` captures
     ``asyncio.get_running_loop()`` at construction time and routes its
@@ -91,6 +96,14 @@ def wired_pipeline():
     tm = ToolManager(app_config=_make_app_config(), bus=bus)
     fake = FakeConnector("e2e")
 
+    # Phase 17 refactor: ToolManager publishes a generic
+    # ``tool_completed`` event; ToolOutputObserver translates it into
+    # ``outbound_attachment`` for the connector path. We instantiate
+    # the observer here so the E2E covers the full chain (real
+    # ToolManager → real bus event → real observer → real dispatcher
+    # → fake connector).
+    _observer = ToolOutputObserver(bus)
+
     identity = Identity(platform="fake", external_id="user-1")
 
     def attach_dispatcher() -> _ImageDispatcher:
@@ -103,14 +116,32 @@ def wired_pipeline():
     return tm, bus, fake, identity, attach_dispatcher
 
 
-async def _wait_for_send(fake: FakeConnector, timeout_s: float = 1.0) -> None:
+async def _wait_for_send(
+    fake: FakeConnector, bus: Bus, timeout_s: float = 1.0,
+) -> None:
     """Spin briefly until the dispatcher's run_coroutine_threadsafe hop
-    lands in the outbox. The dispatcher uses ``asyncio.run_coroutine_threadsafe``
-    on the loop captured at construction time, so we just need to yield
-    a few times for the queued task to run.
+    lands in the outbox.
+
+    Two cooperating things happen between ``execute_tool`` returning and
+    the connector's outbox getting a record:
+
+    1. **Bus cascade** — Phase 17 introduced a two-hop chain
+       (``tool_completed`` → ``ToolOutputObserver`` → ``outbound_attachment``).
+       Each ``Bus.post`` queues into ``_pending``; only ``poll()``
+       dispatches. So one ``poll()`` per hop. We drain the queue in a
+       loop until empty.
+    2. **Coroutine hop** — ``_ImageDispatcher.on_event`` schedules
+       ``connector.send`` via ``run_coroutine_threadsafe``, so we yield
+       to the loop a few times after each drain to let the task run.
+
+    The combined wait covers both.
     """
     deadline = asyncio.get_running_loop().time() + timeout_s
     while asyncio.get_running_loop().time() < deadline:
+        # Drain until quiescent — any cascade-style chain is fully
+        # dispatched once a poll returns 0.
+        while bus.poll() > 0:
+            pass
         if any(r.kind == "send" and r.attachments for r in fake.outbox):
             return
         await asyncio.sleep(0.01)
@@ -124,8 +155,8 @@ class TestEchoImageEndToEnd:
         invokes ``echo_image`` with a URL and a caption. The user's
         connector outbox ends up with one ``send`` record carrying the
         URL as an image attachment AND the caption as the message
-        text. Validates the full Phase 16 path including the Phase 15
-        caption hand-off."""
+        text. Validates the full Phase 16/17 path including the Phase
+        15 caption hand-off."""
         tm, bus, fake, _identity, attach_dispatcher = wired_pipeline
         attach_dispatcher()
 
@@ -137,9 +168,7 @@ class TestEchoImageEndToEnd:
 
         # Tool result itself remains the LLM's view of the call.
         assert not result.error
-        # Drain the bus so the dispatcher coroutine is scheduled.
-        bus.poll()
-        await _wait_for_send(fake)
+        await _wait_for_send(fake, bus)
 
         sends = [r for r in fake.outbox if r.kind == "send" and r.attachments]
         assert len(sends) == 1
@@ -172,8 +201,7 @@ class TestEchoImageEndToEnd:
             "echo_image", url="https://example.com/diagram.png",
         )
         assert not result.error
-        bus.poll()
-        await _wait_for_send(fake)
+        await _wait_for_send(fake, bus)
 
         sends = [r for r in fake.outbox if r.kind == "send" and r.attachments]
         assert len(sends) == 1
@@ -195,7 +223,10 @@ class TestEchoImageEndToEnd:
             "echo_image", url="file:///etc/passwd",
         )
         assert result.error is True
-        bus.poll()
+        # Drain the cascade — observer should look at the error result
+        # and skip emitting an outbound_attachment.
+        while bus.poll() > 0:
+            pass
         # Give the dispatcher loop the same time the happy-path test
         # gives it — if anything WAS going to come through, it would
         # have by now.
@@ -220,6 +251,9 @@ class TestEchoImageEndToEnd:
 
         bus = Bus()
         tm = ToolManager(app_config=_make_app_config(), bus=bus)
+        # Same observer wiring as the main fixture — real
+        # tool_completed → outbound_attachment translation lives here.
+        _observer = ToolOutputObserver(bus)
 
         text_only_caps = ConnectorCapabilities(
             supports_edits=True, supports_images_out=False,
@@ -237,7 +271,9 @@ class TestEchoImageEndToEnd:
             "echo_image", url="https://example.com/cat.jpg",
             caption="Should be dropped.",
         )
-        bus.poll()
+        # Drain the two-hop cascade.
+        while bus.poll() > 0:
+            pass
         await asyncio.sleep(0.05)
 
         # No send call landed at all — the dispatcher returned early on

@@ -1,12 +1,16 @@
-"""Unit tests for Phase 16: ToolManager emits outbound images.
+"""Unit tests for Phase 17: ToolManager publishes tool_completed.
 
-When a tool returns a :class:`ToolResult` whose content includes an
-:class:`ImageBlock`,
-:meth:`~tank_backend.tools.manager.ToolManager.execute_tool` posts an
-``outbound_attachment`` bus event so the image reaches the user's
-connector. These tests pin that contract without depending on a real
-connector or the full pipeline — we subscribe to the bus directly and
-check what got posted.
+After the OCP refactor, ``ToolManager.execute_tool`` doesn't know about
+``ImageBlock`` or the ``outbound_attachment`` event — it only publishes
+a generic ``tool_completed`` event with the ``(tool_name, result)``
+pair. Subscribers (today: :class:`ToolOutputObserver`; tomorrow:
+audit logging, telemetry, new content kinds) react without modifying
+the manager.
+
+These tests pin the publishing contract: when does the event fire,
+what payload does it carry, what failure modes does it tolerate.
+The downstream image translation is covered in
+``test_tool_output_observer.py``.
 """
 
 from __future__ import annotations
@@ -30,11 +34,7 @@ from tank_backend.tools.manager import ToolManager
 
 
 def _make_app_config() -> MagicMock:
-    """Minimal AppConfig stub so ``ToolManager`` can initialise.
-
-    Mirrors the one in ``test_tool_groups.py``; repeating it here
-    keeps this file self-contained without cross-test imports.
-    """
+    """Minimal AppConfig stub so ``ToolManager`` can initialise."""
     cfg = MagicMock()
     cfg.network_access = NetworkAccessConfig()
     cfg.file_access = FileAccessConfig()
@@ -52,22 +52,6 @@ def _make_app_config() -> MagicMock:
 
 
 class _ImageReturningTool(BaseTool):
-    """Test tool that returns a ToolResult with an ImageBlock.
-
-    Mirrors the shape real ``echo_image`` / future chart tools use —
-    a TextBlock narrative followed by an ImageBlock. The ``display``
-    becomes the caption on the outbound side.
-    """
-
-    def __init__(
-        self,
-        *,
-        url: str = "https://example.com/cat.jpg",
-        display: str = "A picture of a cat",
-    ) -> None:
-        self._url = url
-        self._display = display
-
     def get_info(self) -> ToolInfo:
         return ToolInfo(
             name="test_image_tool",
@@ -79,9 +63,12 @@ class _ImageReturningTool(BaseTool):
         return ToolResult(
             content=[
                 TextBlock(text="Here's the image:"),
-                ImageBlock(source=self._url, mime_type="image/jpeg"),
+                ImageBlock(
+                    source="https://example.com/cat.jpg",
+                    mime_type="image/jpeg",
+                ),
             ],
-            display=self._display,
+            display="A picture of a cat",
         )
 
 
@@ -89,7 +76,7 @@ class _TextOnlyTool(BaseTool):
     def get_info(self) -> ToolInfo:
         return ToolInfo(
             name="test_text_tool",
-            description="Test-only tool that returns a text ToolResult.",
+            description="Test-only tool that returns plain text.",
             parameters=[],
         )
 
@@ -109,20 +96,8 @@ class _RaisingTool(BaseTool):
         raise RuntimeError("synthetic")
 
 
-def _collect_outbound_attachments(bus: Bus) -> list[BusMessage]:
-    captured: list[BusMessage] = []
-    bus.subscribe("outbound_attachment", captured.append)
-    # ``Bus.post`` is synchronous-dispatching in tank's implementation
-    # (see tests elsewhere that poll()). Poll once so subscribers fire.
-    bus.poll()
-    return captured
-
-
 @pytest.fixture()
 def tool_manager_with_bus() -> tuple[ToolManager, Bus]:
-    """ToolManager wired to a real Bus so outbound_attachment events
-    can be observed by the test. Default tools are irrelevant here —
-    tests register their own minimal tool into ``tm.tools``."""
     bus = Bus()
     tm = ToolManager(app_config=_make_app_config(), bus=bus)
     # Strip default tools so each test starts with a clean registry.
@@ -130,68 +105,63 @@ def tool_manager_with_bus() -> tuple[ToolManager, Bus]:
     return tm, bus
 
 
-class TestToolOutboundAttachments:
-    async def test_image_block_emits_outbound_attachment(
+class TestToolCompletedPublishing:
+    async def test_image_returning_tool_publishes_event_with_full_result(
         self, tool_manager_with_bus: tuple[ToolManager, Bus],
     ) -> None:
-        """Happy path: a tool that returns ``[TextBlock, ImageBlock]``
-        causes the manager to post an ``outbound_attachment`` event
-        whose payload has the ImageBlock and the tool's ``display``
-        as the caption."""
+        """Happy path: any successful tool — image-returning or
+        otherwise — produces exactly one ``tool_completed`` event whose
+        payload carries the tool name and the original ``ToolResult``
+        unchanged. ``ToolManager`` does not inspect the result here;
+        subscribers do."""
         tm, bus = tool_manager_with_bus
-        tool = _ImageReturningTool(
-            url="https://example.com/cat.jpg",
-            display="A picture of a cat",
-        )
-        tm.tools[tool.get_info().name] = tool
+        tm.tools["test_image_tool"] = _ImageReturningTool()
 
         captured: list[BusMessage] = []
-        bus.subscribe("outbound_attachment", captured.append)
+        bus.subscribe("tool_completed", captured.append)
 
         result = await tm.execute_tool("test_image_tool")
         bus.poll()
 
-        # Tool result shape preserved (nothing was stripped from what
-        # the LLM sees on the follow-up side).
         assert isinstance(result, ToolResult)
         assert not result.error
 
-        # Exactly one outbound_attachment event with our image.
         assert len(captured) == 1
-        payload = captured[0].payload
-        blocks = payload["blocks"]
-        assert len(blocks) == 1
-        assert isinstance(blocks[0], ImageBlock)
-        assert blocks[0].source == "https://example.com/cat.jpg"
-        # Caption carries the tool's display string.
-        assert payload["caption"] == "A picture of a cat"
-        # source tag makes it easy to grep for tool-initiated attachments
-        # in bus logs. Uses the tool name under a ``tool:`` prefix.
-        assert captured[0].source == "tool:test_image_tool"
+        msg = captured[0]
+        assert msg.type == "tool_completed"
+        # source tag follows the same convention the prior emit used,
+        # so anything grepping bus logs by ``tool:<name>`` keeps
+        # working across the refactor.
+        assert msg.source == "tool:test_image_tool"
+        assert msg.payload["tool_name"] == "test_image_tool"
+        # The whole ToolResult travels through the event — observers
+        # decide what to extract.
+        assert msg.payload["result"] is result
 
-    async def test_text_only_tool_does_not_emit(
+    async def test_text_only_tool_still_publishes_event(
         self, tool_manager_with_bus: tuple[ToolManager, Bus],
     ) -> None:
-        """Text-only ``ToolResult`` must not post an
-        ``outbound_attachment`` — otherwise every tool call would
-        wake the image dispatcher for nothing, wasting cycles and
-        potentially posting empty attachment lists."""
+        """``ToolManager`` publishes ``tool_completed`` for *every*
+        tool result, even text-only ones. That's the OCP win:
+        observers that care about images filter; observers that want
+        every invocation (audit logging, metrics) get them all."""
         tm, bus = tool_manager_with_bus
         tm.tools["test_text_tool"] = _TextOnlyTool()
 
         captured: list[BusMessage] = []
-        bus.subscribe("outbound_attachment", captured.append)
+        bus.subscribe("tool_completed", captured.append)
 
         await tm.execute_tool("test_text_tool")
         bus.poll()
 
-        assert captured == []
+        assert len(captured) == 1
+        assert captured[0].payload["tool_name"] == "test_text_tool"
 
     async def test_bus_none_is_safe_noop(self) -> None:
-        """Some ToolManager construction paths pass ``bus=None``
-        (narrow unit tests, offline tool execution). The emit hook
-        must not crash in that case — the tool still returns normally,
-        just without a published event."""
+        """Some ``ToolManager`` construction paths pass ``bus=None``
+        (narrow unit tests, offline tool execution). The publish step
+        must not crash — the tool still returns its ``ToolResult``,
+        callers just don't get a bus event."""
         tm = ToolManager(app_config=_make_app_config(), bus=None)
         tm.tools.clear()
         tm.tools["test_image_tool"] = _ImageReturningTool()
@@ -201,39 +171,39 @@ class TestToolOutboundAttachments:
         assert isinstance(result, ToolResult)
         assert not result.error
 
-    async def test_tool_error_short_circuits_emit(
+    async def test_tool_error_publishes_event_with_error_result(
         self, tool_manager_with_bus: tuple[ToolManager, Bus],
     ) -> None:
         """When the tool raises, ``execute_tool`` catches and returns
-        an error-flagged ``ToolResult`` with a text message. The error
-        ToolResult has no ImageBlocks, so no outbound_attachment —
-        we don't want to flash an empty image to the user when the
-        tool crashed."""
+        an error-flagged ``ToolResult``. The event still fires — error
+        observers (audit logging, alerting) need to see error
+        invocations too."""
         tm, bus = tool_manager_with_bus
         tm.tools["test_raising_tool"] = _RaisingTool()
 
         captured: list[BusMessage] = []
-        bus.subscribe("outbound_attachment", captured.append)
+        bus.subscribe("tool_completed", captured.append)
 
         result = await tm.execute_tool("test_raising_tool")
         bus.poll()
 
         assert isinstance(result, ToolResult)
         assert result.error is True
-        assert captured == []
+        # Event published even on the error path — important for
+        # downstream audit/metrics observers.
+        assert len(captured) == 1
+        assert captured[0].payload["result"].error is True
 
     async def test_bus_post_failure_swallowed(
         self, tool_manager_with_bus: tuple[ToolManager, Bus],
     ) -> None:
         """A bus that raises on ``post`` must not break the tool
         call — the tool's text content still needs to reach the LLM
-        even if the image-emit fails. Worst case, the user just
-        doesn't see the image on this turn."""
+        even if the publish fails. Worst case, observers miss this
+        invocation."""
         tm, _bus = tool_manager_with_bus
         tm.tools["test_image_tool"] = _ImageReturningTool()
 
-        # Swap in a bus whose ``.post`` always raises, so we can
-        # confirm the tool result still comes back.
         crashing_bus = MagicMock()
         crashing_bus.post.side_effect = RuntimeError("bus offline")
         tm._bus = crashing_bus  # noqa: SLF001
@@ -242,22 +212,20 @@ class TestToolOutboundAttachments:
         result = await tm.execute_tool("test_image_tool")
         assert isinstance(result, ToolResult)
         assert not result.error
-        # We did *try* to post — confirms we actually hit the emit path
-        # rather than short-circuiting elsewhere.
         crashing_bus.post.assert_called_once()
 
-    async def test_openai_tool_call_path_also_emits(
+    async def test_openai_tool_call_path_also_publishes(
         self, tool_manager_with_bus: tuple[ToolManager, Bus],
     ) -> None:
         """``execute_openai_tool_call`` delegates to ``execute_tool``
-        internally, so the emit works through the LLM's calling path
+        internally, so the publish works through the LLM's calling path
         too. Regression guard in case someone later adds a parallel
         execute funnel that bypasses ``execute_tool``."""
         tm, bus = tool_manager_with_bus
         tm.tools["test_image_tool"] = _ImageReturningTool()
 
         captured: list[BusMessage] = []
-        bus.subscribe("outbound_attachment", captured.append)
+        bus.subscribe("tool_completed", captured.append)
 
         fake_tool_call = MagicMock()
         fake_tool_call.function.name = "test_image_tool"
@@ -267,4 +235,4 @@ class TestToolOutboundAttachments:
         bus.poll()
 
         assert len(captured) == 1
-        assert isinstance(captured[0].payload["blocks"][0], ImageBlock)
+        assert captured[0].payload["tool_name"] == "test_image_tool"

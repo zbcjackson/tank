@@ -40,6 +40,13 @@ dependencies = [
     "python-docx>=1.2.0",
     "openpyxl>=3.1.5",
     "python-pptx>=1.0.2",
+    # voice_bridge.py imports AudioSegment at module top level; every
+    # connector pulls voice_bridge in so this is a hard runtime dep
+    # for the core, not just for voice-enabled deployments. We were
+    # silently relying on tts-edge transitively installing it before
+    # Phase 13 — making it explicit prevents a regression in any
+    # deployment that doesn't ship tts-edge.
+    "pydub>=0.25.1",
 ]
 
 [project.scripts]

@@ -147,6 +147,14 @@ class Assistant:
             bus=self._bus,
             max_history_tokens=self._brain_config.max_history_tokens,
         )
+        # Phase 17 refactor: subscribe ToolOutputObserver to the
+        # generic ``tool_completed`` event ToolManager publishes.
+        # Keeps content-kind awareness (ImageBlock today, audio/doc
+        # later) out of ToolManager. The observer's lifetime matches
+        # the assistant's; no explicit teardown is needed because the
+        # bus's subscriber list is GC'd with the assistant.
+        from ..connectors.tool_output_observer import ToolOutputObserver
+        self._tool_output_observer = ToolOutputObserver(self._bus)
 
     def _init_bus(self) -> None:
         """Create bus, subscribe UI and playback tracking events."""

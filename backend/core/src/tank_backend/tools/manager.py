@@ -264,70 +264,58 @@ class ToolManager:
         try:
             tool = self.tools[tool_name]
             logger.info(f"Executing tool: {tool_name} with parameters: {kwargs}")
-            result = await tool.execute(**kwargs)
+            result: ToolResult | str = await tool.execute(**kwargs)
             logger.info(f"Tool {tool_name} executed successfully")
         except Exception as e:
             error_msg = f"Error executing tool '{tool_name}': {str(e)}"
             logger.error(error_msg)
-            return ToolResult(content=error_msg, display=error_msg, error=True)
+            result = ToolResult(content=error_msg, display=error_msg, error=True)
 
-        # Phase 16: when a tool returns a ``ToolResult`` that carries
-        # non-text ``ContentBlock`` s (images today, more kinds later),
-        # also post them as an ``outbound_attachment`` bus event so
-        # they're delivered to the user through the connector that
-        # opened this session. The LLM still sees the same blocks via
-        # the ``user``-role follow-up message (see
-        # ``llm._tool_result_to_llm``); this hook is purely about
-        # surfacing the image on the end-user side.
+        # Phase 17 refactor: publish a generic ``tool_completed`` event
+        # so observers can react without ToolManager knowing about any
+        # specific content kind or downstream consumer. The
+        # :class:`~tank_backend.connectors.tool_output_observer.ToolOutputObserver`
+        # is one such subscriber — it converts image blocks into
+        # ``outbound_attachment`` events the connector + WebSocket
+        # paths already consume. New observers (audit logging,
+        # telemetry, future content kinds) subscribe to the same event
+        # without touching this funnel.
         #
-        # Bus availability is defensive — some ToolManager instances
-        # (e.g. in narrow unit tests) are built with ``bus=None`` and
-        # the outbound path just falls away.
-        if self._bus is not None and isinstance(result, ToolResult):
-            self._emit_tool_output_attachments(tool_name, result)
+        # Critically the publish runs on BOTH success and error paths:
+        # audit / alerting / metrics observers need to see error
+        # invocations to do their job. The pre-Phase-17 placement only
+        # fired on success, which would have been a silent gap.
+        if self._bus is not None:
+            self._publish_tool_completed(tool_name, result)
 
         return result
 
-    def _emit_tool_output_attachments(
-        self, tool_name: str, result: ToolResult,
+    def _publish_tool_completed(
+        self, tool_name: str, result: ToolResult | str,
     ) -> None:
-        """Publish image blocks from a tool result as an outbound attachment.
+        """Post a ``tool_completed`` bus event with ``(tool_name, result)``.
 
-        Keeps the bus payload aligned with
-        :meth:`~tank_backend.core.assistant.Assistant.emit_outbound_attachment`
-        so :class:`~tank_backend.connectors.manager._ImageDispatcher`
-        can consume both paths through the same subscriber. The tool's
-        ``display`` string becomes the caption — most tools use
-        ``display`` for the short human-readable summary, which is
-        exactly the right thing to render alongside an image.
+        Pure publisher — no inspection of the result, no content-kind
+        knowledge. That's what makes the surface OCP-clean: extending
+        the system means adding a new subscriber, never editing this
+        method or :meth:`execute_tool`. Failures here are logged but
+        never propagate; a misconfigured bus shouldn't swallow the
+        tool's text content (which still reaches the LLM via the
+        ``llm._tool_result_to_llm`` path).
         """
-        from ..core.content import ImageBlock  # local to avoid cycles
         from ..pipeline.bus import BusMessage
 
-        blocks = result.to_blocks()
-        image_blocks = [b for b in blocks if isinstance(b, ImageBlock)]
-        if not image_blocks:
-            return
-
-        caption = result.display or None
         try:
             self._bus.post(
                 BusMessage(
-                    type="outbound_attachment",
+                    type="tool_completed",
                     source=f"tool:{tool_name}",
-                    payload={
-                        "msg_id": None,
-                        "blocks": image_blocks,
-                        "caption": caption,
-                    },
+                    payload={"tool_name": tool_name, "result": result},
                 )
             )
         except Exception:
-            # Don't let a bus publish failure swallow the tool's result.
-            # Worst case the user doesn't see the image; the tool's
-            # text content still reaches the LLM.
             logger.exception(
-                "ToolManager: failed to emit outbound_attachment for %s",
+                "ToolManager: failed to publish tool_completed for %s",
                 tool_name,
             )
 
