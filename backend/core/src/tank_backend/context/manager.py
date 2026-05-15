@@ -154,7 +154,27 @@ class ContextManager:
                     model,
                 )
 
-        asyncio.ensure_future(_detect())
+        # Schedule the API-detection coroutine on the running event
+        # loop. Wrapped in try/except because ``ContextManager`` is
+        # constructed synchronously from many code paths — including
+        # test setup that runs between async tests, where the
+        # pytest-asyncio loop has already been cleaned up. Without
+        # this guard, ``asyncio.ensure_future`` raises ``RuntimeError:
+        # no current event loop`` and crashes any test that builds a
+        # ContextManager from sync setup. The detection is best-effort
+        # anyway (the budget falls back to model-name pattern matching
+        # if the API call never lands), so silently dropping the task
+        # in no-loop environments is the right semantic.
+        try:
+            asyncio.ensure_future(_detect())
+        except RuntimeError:
+            # No running loop (sync init from test setup, CLI tools,
+            # one-shot scripts). Skip the detection — the budget keeps
+            # whatever ``_resolve_budget`` already produced.
+            logger.debug(
+                "ContextManager: no event loop for API context-window "
+                "detection; using static budget for model=%s", model,
+            )
 
     def _get_model_name(self) -> str:
         """Extract the model name from the default LLM profile."""

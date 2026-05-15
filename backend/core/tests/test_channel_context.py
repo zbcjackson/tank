@@ -38,8 +38,13 @@ class TestContextBuilderBasics:
 
         import asyncio
 
-        asyncio.get_event_loop().run_until_complete(
-            builder.build(messages, "test-conv", "You are helpful.")
+        # ``asyncio.get_event_loop()`` raises RuntimeError when there's
+        # no current loop — the case in pytest-asyncio's full-suite run
+        # after async tests have closed their loops. ``asyncio.run``
+        # creates a fresh loop on every call, so it works regardless
+        # of where this test lands in the run order.
+        asyncio.run(
+            builder.build(messages, "test-conv", "You are helpful."),
         )
 
         # Original messages unchanged

@@ -377,3 +377,73 @@ class TestProperties:
     def test_close_noop_without_conversation(self):
         mgr = _make_manager()
         mgr.close()  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# Phase 19 follow-up: ContextManager async-init bug
+# ---------------------------------------------------------------------------
+
+
+class TestAsyncInitNoLoop:
+    """Regression for the bug where ``ContextManager.__init__`` called
+    ``asyncio.ensure_future`` from sync code without checking for a
+    running loop.
+
+    The failure mode: pytest-asyncio cleans up its event loop between
+    async tests. When a later sync test (e.g. multimodal_attachments
+    fixtures) builds a ``ContextManager``, ``_try_api_detect`` invoked
+    ``asyncio.ensure_future`` which called
+    ``asyncio.get_event_loop`` — and that raised ``RuntimeError`` in
+    Python 3.13 once a loop has been closed. 4 multimodal tests
+    crashed at setup time as a result.
+
+    Fix: catch ``RuntimeError`` around ``ensure_future`` and skip the
+    detection (the budget already has its model-name fallback). API
+    detection is best-effort anyway; a missing event loop is a
+    legitimate "skip" signal.
+    """
+
+    def test_construction_works_without_running_loop(self) -> None:
+        """``ContextManager`` must be constructible from sync code
+        even when no asyncio loop is running. This is the path
+        pytest-asyncio leaves between async tests, and also the path
+        synchronous CLI tools take when building context."""
+        # Run on the real ContextManager (no _resolve_budget patch)
+        # so ``_try_api_detect`` actually executes. The construction
+        # used to raise ``RuntimeError: no current event loop``;
+        # now it should log-and-skip and return cleanly.
+        from tank_backend.llm.profile import LLMProfile
+
+        app_config = MagicMock()
+        # Provide a real LLMProfile so the get_llm_profile path
+        # actually runs ``_try_api_detect``. The detection inside
+        # the coroutine is what we never want to await — but we
+        # still want the ``ensure_future`` call site to be reached
+        # so we exercise the no-loop branch.
+        app_config.get_llm_profile.return_value = LLMProfile(
+            name="default",
+            api_key="test",
+            model="gpt-4o",
+            base_url="http://example.test",
+        )
+
+        resolver = MagicMock()
+        config = ContextConfig()
+
+        with patch.object(
+            ContextManager, "_create_memory_service", return_value=None,
+        ), patch.object(
+            ContextManager, "_create_summarizer", return_value=None,
+        ), patch(
+            "tank_backend.prompts.assembler.PromptAssembler.assemble",
+            return_value="You are helpful.",
+        ):
+            # Must not raise — the no-loop branch logs at debug and
+            # returns cleanly.
+            mgr = ContextManager(
+                app_config=app_config, resolver=resolver, config=config,
+            )
+
+        # Budget falls back to whatever ``_resolve_budget`` produced
+        # without the API call.
+        assert mgr.budget is not None
