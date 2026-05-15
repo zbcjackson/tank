@@ -1,0 +1,25 @@
+connectors:
+  feishu:
+    instances:
+      my-feishu-bot:
+        # App ID + secret from your Feishu/Lark app's "Credentials &
+        # Basic Info" page. Both are required. Use environment variable
+        # interpolation so secrets never end up checked in.
+        app_id: ${FEISHU_APP_ID}
+        app_secret: ${FEISHU_APP_SECRET}
+
+        # Optional: per-instance admin set for the REQUIRE_APPROVAL
+        # workflow. Identities are Feishu open_ids prefixed with
+        # ``feishu:user:`` (the same shape ``Identity.external_id``
+        # uses everywhere).
+        admin_external_ids:
+          - feishu:user:ou_36686ee62209da697d8775375d0c8e88
+
+        # Optional allowlist. Pre-Phase-10 ``allow``/``deny`` rules,
+        # plus the Phase-10 ``require_approval`` default that prompts
+        # admins for unknown senders.
+        allowlist:
+          default: require_approval
+          rules:
+            - identity: feishu:user:ou_18eac85d35a26f989317ad4f02e8bbbb
+              decision: allow
