@@ -471,3 +471,35 @@ class TestCJKRendering:
         # PNG header sniff — we don't assert on byte count because
         # font + label content vary by platform.
         assert data.startswith(b"\x89PNG\r\n\x1a\n")
+
+
+# ---------------------------------------------------------------------------
+# Phase 19 follow-up: font_manager noise silenced after init
+# ---------------------------------------------------------------------------
+
+
+class TestFontManagerLogLevel:
+    """matplotlib's font_manager emits one ``WARNI findfont: Font
+    family X not found`` per missing candidate per chart render.
+    With our 8-font fallback chain, only 2-3 are typically installed
+    on any given platform — so each render flooded the log with 5+
+    warnings even though the chart rendered correctly.
+
+    The Phase 19 follow-up fix bumps the font_manager logger to
+    ERROR so the per-render noise vanishes without hiding the case
+    where ALL candidates are missing (which still emits ERROR-level
+    output that we want to see).
+    """
+
+    def test_font_manager_logger_set_to_error_after_init(self) -> None:
+        import logging
+
+        from tank_backend.tools.chart import _init_matplotlib_backend
+        _init_matplotlib_backend()
+
+        fm_logger = logging.getLogger("matplotlib.font_manager")
+        # ERROR (40) or higher means WARNI lines (30) get suppressed.
+        # Using ``getEffectiveLevel`` rather than ``level`` so the
+        # check works whether the logger is set directly or
+        # propagating from a parent.
+        assert fm_logger.getEffectiveLevel() >= logging.ERROR

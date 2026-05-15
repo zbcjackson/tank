@@ -624,6 +624,28 @@ class Brain(Processor):
             raise
         except Exception as e:
             logger.error(f"Agent stream processing error: {e}")
+            # Phase 19 follow-up: persist whatever turn messages
+            # accumulated before the failure. Without this, an LLM
+            # error (e.g. provider rejecting a follow-up image) drops
+            # the *entire* turn from history — the user sees their
+            # request but no chart, no assistant text, nothing. With
+            # this, history captures the partial state (tool_call,
+            # tool result, follow-up) so resume shows the chart that
+            # actually rendered live, and the LLM has context for any
+            # subsequent retry. Mirrors the BrainInterrupted branch
+            # above.
+            turn_messages = state.metadata.get("turn_messages", [])
+            if turn_messages:
+                try:
+                    self._finish_turn(turn_messages)
+                except Exception:
+                    # Best-effort persistence — if the conversation
+                    # store itself is in trouble, propagate the
+                    # original error rather than masking it.
+                    logger.exception(
+                        "Failed to persist partial turn after agent "
+                        "stream error",
+                    )
             raise
         finally:
             try:
@@ -749,6 +771,16 @@ class Brain(Processor):
             raise
         except Exception as e:
             logger.error(f"Confirmation turn error: {e}")
+            # Same partial-persist policy as the main agent stream
+            # error path above — see that branch for rationale.
+            turn_messages = state.metadata.get("turn_messages", [])
+            if turn_messages:
+                try:
+                    self._finish_turn(turn_messages)
+                except Exception:
+                    logger.exception(
+                        "Failed to persist partial confirmation turn",
+                    )
             raise
         finally:
             try:

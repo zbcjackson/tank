@@ -49,6 +49,18 @@ export interface HistoryMessage {
     };
   }>;
   tool_call_id?: string;
+  // Phase 19: discriminator for image-on-resume entries. The backend
+  // ``_format_messages`` produces ``kind: "image"`` (not present on
+  // any pre-Phase-19 entry) when a tool_follow_up message carried
+  // image_url parts. The ``attachments`` field is the rendered shape;
+  // ``content`` is empty for image entries.
+  kind?: 'image';
+  attachments?: Array<{
+    kind: 'image';
+    url: string;
+    mime_type: string;
+    caption: string | null;
+  }>;
 }
 
 export async function fetchConversationMessages(conversationId: string): Promise<HistoryMessage[]> {

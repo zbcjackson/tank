@@ -273,6 +273,40 @@ export const useAssistant = (
 
           const msgId = m.msg_id;
 
+          // Phase 19: image-on-resume. Backend ``_format_messages``
+          // surfaces tool_follow_up entries with image content as
+          // ``kind: "image"`` history messages. Each attachment
+          // becomes its own ``image`` Step under the same msgId so
+          // the reducer's grouping renders them as one assistant
+          // turn — matching the live-message path
+          // (``attachmentMessageToSteps``).
+          if (m.kind === 'image' && m.attachments?.length) {
+            for (let idx = 0; idx < m.attachments.length; idx++) {
+              const att = m.attachments[idx];
+              historySteps.push({
+                id: `history_image_${stepIdx++}_${idx}`,
+                role: 'assistant',
+                type: 'image',
+                content: {
+                  url: att.url,
+                  mimeType: att.mime_type,
+                  // Caption rides on the first attachment only —
+                  // backend doesn't currently surface a caption for
+                  // history entries (the original came from
+                  // ``result.display`` and isn't persisted with the
+                  // follow-up), so this stays empty until we extend
+                  // the wire shape. Reducer-side parity with the
+                  // live path keeps the contract honest.
+                  caption: idx === 0 ? (att.caption ?? '') : '',
+                },
+                msgId,
+                isFinal: true,
+                speaker: m.name,
+              });
+            }
+            continue;
+          }
+
           // If assistant message has tool_calls, emit tool steps
           if (m.role === 'assistant' && m.tool_calls?.length) {
             for (const tc of m.tool_calls) {

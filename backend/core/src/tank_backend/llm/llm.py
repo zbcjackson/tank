@@ -435,18 +435,33 @@ class LLM:
         # *whole* working_messages list, including the inbound
         # ``messages`` arg, so historical replays and fresh turns are
         # both safe.
-        if media_store is not None and session_id:
-            working_messages = await _materialize_messages_for_llm(
-                working_messages,
-                media_store=media_store,
-                session_id=session_id,
-            )
+        # Phase 19 follow-up: the walker MUST also run on each tool-
+        # loop iteration, not just once at entry. The Phase 19
+        # refactor stopped materializing follow-up blocks on the
+        # outbound path (so they persist as ``media://`` URIs); but
+        # tool iterations append fresh follow-ups mid-loop. Without
+        # re-walking, the next iteration sends those raw URIs to the
+        # LLM and Azure rejects them with ``invalid_value`` on
+        # ``image_url.url``. The walker uses a per-call cache and is
+        # idempotent on already-rewritten URLs, so re-walking is
+        # cheap.
         turn = 0
         rejected_tools: set[str] = set()
 
         for _iteration in range(MAX_TOOL_ITERATIONS):
             turn += 1
             logger.debug(f"LLM Stream iteration {turn} with {len(working_messages)} messages")
+
+            # Materialize ``media://`` URIs in any messages added
+            # since the last iteration (or the original inbound
+            # set on iteration 1). Idempotent: messages already
+            # rewritten to data URLs pass through unchanged.
+            if media_store is not None and session_id:
+                working_messages = await _materialize_messages_for_llm(
+                    working_messages,
+                    media_store=media_store,
+                    session_id=session_id,
+                )
 
             # Refresh system prompt if callback provided and rebuild needed
             if system_prompt_fn is not None:
@@ -671,20 +686,22 @@ class LLM:
                             })
                             yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
                             if follow_up_blocks:
-                                # Phase 18: resolve ``media://`` URIs to
-                                # data URLs the LLM provider accepts.
-                                # Without this, Azure rejects the next
-                                # turn with ``invalid_value`` on
-                                # ``image_url.url``.
-                                materialized = await _materialize_blocks_for_llm(
-                                    follow_up_blocks,
-                                    media_store=media_store,
-                                    session_id=session_id,
-                                )
+                                # Phase 19 refactor: keep ``media://``
+                                # URIs *as-is* in persisted history.
+                                # The inbound walker
+                                # (``_materialize_messages_for_llm``)
+                                # at the top of ``chat_stream``
+                                # rewrites them to data URLs on every
+                                # LLM call, so we don't need to do it
+                                # again here. Stripping this duplicate
+                                # keeps history compact AND preserves
+                                # the original URI so the
+                                # /api/conversations endpoint can
+                                # surface chart images on resume.
                                 follow_up = _build_follow_up_user_message(
                                     tool_call_id=tc["id"],
                                     tool_name=tc["name"],
-                                    blocks=materialized,
+                                    blocks=follow_up_blocks,
                                 )
                                 working_messages.append(follow_up)
                                 yield (UpdateType.MESSAGE, "", {"message": follow_up})
@@ -743,18 +760,17 @@ class LLM:
                         })
                         yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
                         if follow_up_blocks:
-                            # Phase 18: resolve ``media://`` URIs to
-                            # data URLs the LLM provider accepts (see
-                            # the parallel branch above for the reason).
-                            materialized = await _materialize_blocks_for_llm(
-                                follow_up_blocks,
-                                media_store=media_store,
-                                session_id=session_id,
-                            )
+                            # Phase 19 refactor: keep ``media://``
+                            # URIs as-is in persisted history; the
+                            # inbound walker
+                            # (``_materialize_messages_for_llm``)
+                            # rewrites them on every LLM call. See
+                            # the parallel branch above for the full
+                            # reasoning.
                             follow_up = _build_follow_up_user_message(
                                 tool_call_id=tc["id"],
                                 tool_name=tc["name"],
-                                blocks=materialized,
+                                blocks=follow_up_blocks,
                             )
                             working_messages.append(follow_up)
                             yield (UpdateType.MESSAGE, "", {"message": follow_up})

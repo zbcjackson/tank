@@ -51,20 +51,32 @@ def _format_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     Skips system messages. Preserves tool_calls and tool results so the
     frontend can reconstruct tool cards and approval cards on resume.
 
-    Phase 18 follow-up: also skips ``tool_follow_up`` messages — those
-    are user-role scaffolding the LLM loop emits to carry image blocks
-    back into the next turn (see ``llm._build_follow_up_user_message``).
-    They have ``content`` as a *list of OpenAI parts* rather than a
-    string, which crashes the frontend's Markdown renderer with
-    ``Unexpected value [object Object]`` on conversation resume. The
-    user-visible representation of the tool's image output is already
-    carried by the corresponding ``tool_call`` + tool-result pair, so
-    dropping the follow-up here is information-preserving for the UI.
+    Phase 19: ``tool_follow_up`` messages (the user-role scaffolding
+    the LLM loop emits to carry image blocks back into the next turn —
+    see ``llm._build_follow_up_user_message``) get *transformed* into
+    a frontend-friendly ``image`` shape rather than dropped.
+
+    The transformation:
+
+    - Each ``image_url`` part becomes one entry in ``attachments``,
+      with the URL rewritten from ``media://session/file`` to
+      ``/api/media/session/file`` so the browser can fetch via
+      ``<img src>`` (the same rewrite the WebSocket attachment frame
+      uses for live messages — keeps the live and resume paths
+      visually identical).
+    - ``http(s)://`` URLs and ``data:`` URLs pass through unchanged.
+    - ``role`` becomes ``assistant`` so the message groups under the
+      same turn as the originating tool call.
+    - The ``tool_call_id`` from the message metadata flows through so
+      the frontend can pair the image with its tool card if it wants.
+    - ``kind: "image"`` is the discriminator the frontend's
+      ``resumeConversation`` switches on; existing entries don't
+      carry this field, so the change is backward-compatible.
 
     Defensive last-line guard: any other persisted message whose
     ``content`` is non-string also gets coerced to ``""`` so a future
-    code path that stores rich content can't reintroduce the same
-    Markdown crash.
+    code path that stores rich content can't crash the Markdown
+    renderer.
     """
     result: list[dict[str, Any]] = []
     for i, msg in enumerate(messages):
@@ -72,10 +84,19 @@ def _format_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if role == "system":
             continue
 
-        # Phase 18 follow-up: drop tool-follow-up scaffolding —
-        # internal to the LLM loop, not user-visible.
+        # Phase 19: surface image follow-ups via a clean image shape.
+        # The original LLM-loop scaffolding (list-of-parts content)
+        # would otherwise crash the Markdown renderer.
         metadata = msg.get("metadata") or {}
         if metadata.get("tool_follow_up"):
+            image_msg = _follow_up_to_image_message(
+                msg, metadata, msg_id=f"history_{i}",
+            )
+            if image_msg is not None:
+                result.append(image_msg)
+            # Text-only follow-ups (no images) get dropped — they were
+            # always invisible to the user and the tool card already
+            # represents the LLM's view of the result.
             continue
 
         # Defensive: coerce any non-string content to "". The
@@ -110,3 +131,80 @@ def _format_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
         result.append(entry)
     return result
+
+
+def _follow_up_to_image_message(
+    msg: dict[str, Any],
+    metadata: dict[str, Any],
+    *,
+    msg_id: str,
+) -> dict[str, Any] | None:
+    """Extract image attachments from a ``tool_follow_up`` message.
+
+    Returns a frontend-shaped entry like::
+
+        {
+            "role": "assistant",
+            "msg_id": "history_8",
+            "kind": "image",
+            "tool_call_id": "tc_42",
+            "attachments": [
+                {
+                    "kind": "image",
+                    "url": "/api/media/<session>/<file>.png",
+                    "mime_type": "image/png",
+                    "caption": null,
+                },
+                ...
+            ],
+        }
+
+    Returns ``None`` if the follow-up carries no image_url parts —
+    those are LLM-loop noise the user never needed to see.
+    """
+    content = msg.get("content")
+    if not isinstance(content, list):
+        return None
+
+    attachments: list[dict[str, Any]] = []
+    for part in content:
+        if not isinstance(part, dict) or part.get("type") != "image_url":
+            continue
+        image_url = part.get("image_url")
+        if not isinstance(image_url, dict):
+            continue
+        url = image_url.get("url")
+        if not isinstance(url, str) or not url:
+            continue
+        # Rewrite media:// → /api/media/... so the browser can fetch
+        # via <img src>. Same rewrite the WebSocket attachment frame
+        # does for live messages — keeps the two paths visually
+        # consistent.
+        if url.startswith("media://"):
+            stripped = url[len("media://"):]
+            url = f"/api/media/{stripped}"
+        # Best-effort MIME inference — the persisted block may not
+        # carry one but the wire schema requires the field. ChartTool
+        # emits PNG; ``echo_image`` and future tools may emit other
+        # image types but the browser sniffs from the bytes anyway.
+        mime_type = "image/png"
+        attachments.append({
+            "kind": "image",
+            "url": url,
+            "mime_type": mime_type,
+            "caption": None,
+        })
+
+    if not attachments:
+        return None
+
+    entry: dict[str, Any] = {
+        "role": "assistant",
+        "msg_id": msg_id,
+        "kind": "image",
+        "attachments": attachments,
+    }
+    tool_call_id = metadata.get("tool_call_id")
+    if tool_call_id:
+        entry["tool_call_id"] = tool_call_id
+    return entry

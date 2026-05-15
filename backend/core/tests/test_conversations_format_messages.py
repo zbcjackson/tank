@@ -92,9 +92,12 @@ class TestFormatMessages:
             }
 
         Returning that array unchanged broke the frontend's Markdown
-        renderer. Drop these on the way out — the user-visible image
-        is already represented by the corresponding ``tool_call`` +
-        tool-result pair.
+        renderer.
+
+        Phase 19 update: the follow-up is no longer dropped — it's
+        transformed into a clean ``image`` shape so the chart renders
+        inline on resume. The user-visible representation now mirrors
+        what Phase 17 produces for live messages.
         """
         out = _format_messages([
             {"role": "user", "content": "draw me a chart"},
@@ -135,20 +138,32 @@ class TestFormatMessages:
             },
         ])
 
-        # Five inputs → four outputs (the tool_follow_up message is
-        # filtered out entirely).
-        assert len(out) == 4
+        # Five inputs → five outputs (Phase 19: the tool_follow_up
+        # message is now *transformed* to an image entry rather than
+        # dropped, so the count matches).
+        assert len(out) == 5
 
-        # No remaining message has list-shaped content.
+        # No remaining message has list-shaped content. Image entries
+        # carry their data in ``attachments``, not ``content``.
         for m in out:
-            assert isinstance(m["content"], str), (
-                f"non-string content survived: {m['content']!r}"
+            content = m.get("content", "")
+            assert isinstance(content, str), (
+                f"non-string content survived: {content!r}"
             )
 
-        # The tool_calls and tool-result entries are still present so
-        # the frontend can rebuild the tool card.
+        # The role/shape sequence: user message, assistant tool_call,
+        # tool result, image (Phase 19), final assistant text.
         roles = [m["role"] for m in out]
-        assert roles == ["user", "assistant", "tool", "assistant"]
+        assert roles == ["user", "assistant", "tool", "assistant", "assistant"]
+
+        # The image entry carries the resolved URL, the tool_call_id
+        # for pairing with the tool card, and a kind discriminator.
+        image = out[3]
+        assert image["kind"] == "image"
+        assert image["tool_call_id"] == "tc_1"
+        assert len(image["attachments"]) == 1
+        assert image["attachments"][0]["url"] == "/api/media/s/x.png"
+        assert image["attachments"][0]["mime_type"] == "image/png"
 
     def test_non_string_content_coerced_to_empty(self) -> None:
         """Defensive guard: any non-string content that *isn't*
@@ -200,3 +215,177 @@ class TestFormatMessages:
         # tool_calls survive the empty-content path so the frontend
         # can still render the tool card.
         assert "tool_calls" in out[0]
+
+
+class TestImageFollowUpTransform:
+    """Phase 19: tool_follow_up entries with image content surface as
+    a frontend-friendly ``image`` shape rather than being dropped.
+    These tests pin the wire shape so the frontend's
+    ``resumeConversation`` renderer can rely on it.
+    """
+
+    def test_media_uri_rewritten_to_public_path(self) -> None:
+        """``media://session/file`` becomes ``/api/media/session/file``
+        — the same rewrite the WebSocket attachment frame applies for
+        live messages. Keeps live and resume paths visually identical."""
+        out = _format_messages([
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "media://abc123/cat.png"},
+                    },
+                ],
+                "metadata": {
+                    "tool_follow_up": True,
+                    "tool_call_id": "tc_42",
+                },
+            },
+        ])
+        assert len(out) == 1
+        att = out[0]["attachments"][0]
+        assert att["url"] == "/api/media/abc123/cat.png"
+        assert att["kind"] == "image"
+        # tool_call_id flows through so the frontend can pair with
+        # the originating tool card.
+        assert out[0]["tool_call_id"] == "tc_42"
+        # ``kind: image`` is the discriminator.
+        assert out[0]["kind"] == "image"
+        # Role becomes assistant so the message groups under the
+        # same turn as the tool_call.
+        assert out[0]["role"] == "assistant"
+
+    def test_http_url_passes_through_unchanged(self) -> None:
+        """``echo_image`` produces public ``http(s)://`` URLs that
+        already point at fetchable hosts; rewriting would break them.
+        Same pass-through logic the WebSocket frame uses."""
+        out = _format_messages([
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "https://example.com/cat.png"},
+                    },
+                ],
+                "metadata": {
+                    "tool_follow_up": True,
+                    "tool_call_id": "tc_1",
+                },
+            },
+        ])
+        assert out[0]["attachments"][0]["url"] == "https://example.com/cat.png"
+
+    def test_data_url_passes_through_unchanged(self) -> None:
+        """A pre-Phase-19 conversation may have stored a data: URL in
+        history (the LLM-side materialization wrote one in before we
+        stripped it). Those still resolve client-side, so pass them
+        through rather than mangling the prefix."""
+        out = _format_messages([
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "data:image/png;base64,XYZ"},
+                    },
+                ],
+                "metadata": {
+                    "tool_follow_up": True,
+                    "tool_call_id": "tc_1",
+                },
+            },
+        ])
+        assert out[0]["attachments"][0]["url"] == "data:image/png;base64,XYZ"
+
+    def test_multiple_images_in_one_follow_up(self) -> None:
+        """A future tool may emit multiple images in one ToolResult.
+        Each ``image_url`` part becomes its own attachment entry in
+        the output; the frontend reducer handles caption-once
+        semantics if needed."""
+        out = _format_messages([
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "two views:"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "media://s/a.png"},
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "media://s/b.png"},
+                    },
+                ],
+                "metadata": {
+                    "tool_follow_up": True,
+                    "tool_call_id": "tc_1",
+                },
+            },
+        ])
+        assert len(out) == 1
+        assert len(out[0]["attachments"]) == 2
+        assert out[0]["attachments"][0]["url"] == "/api/media/s/a.png"
+        assert out[0]["attachments"][1]["url"] == "/api/media/s/b.png"
+
+    def test_text_only_follow_up_dropped(self) -> None:
+        """A future ``tool_follow_up`` carrying only text (no images)
+        gets dropped entirely — text follow-ups were always invisible
+        to the user, and the tool card already represents the LLM's
+        view of the result."""
+        out = _format_messages([
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "ok"},
+                ],
+                "metadata": {
+                    "tool_follow_up": True,
+                    "tool_call_id": "tc_1",
+                },
+            },
+            {"role": "assistant", "content": "Here you go."},
+        ])
+        # Only the assistant message survives.
+        assert len(out) == 1
+        assert out[0]["role"] == "assistant"
+        assert out[0]["content"] == "Here you go."
+
+    def test_follow_up_with_string_content_dropped(self) -> None:
+        """Defensive: a tool_follow_up message with string content
+        (shouldn't happen in practice; the LLM loop always emits a
+        list) doesn't crash. Falls through to the
+        text-follow-up-dropped path."""
+        out = _format_messages([
+            {
+                "role": "user",
+                "content": "ok",
+                "metadata": {
+                    "tool_follow_up": True,
+                    "tool_call_id": "tc_1",
+                },
+            },
+        ])
+        assert out == []
+
+    def test_follow_up_without_tool_call_id(self) -> None:
+        """``tool_call_id`` is preserved when present but optional —
+        a future image-emit code path that doesn't carry one
+        (e.g. inline markdown image extraction) still produces a
+        valid image entry."""
+        out = _format_messages([
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "media://s/x.png"},
+                    },
+                ],
+                "metadata": {"tool_follow_up": True},  # no tool_call_id
+            },
+        ])
+        assert len(out) == 1
+        assert out[0]["kind"] == "image"
+        assert "tool_call_id" not in out[0]

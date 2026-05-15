@@ -96,6 +96,8 @@ def _init_matplotlib_backend() -> None:
     global _BACKEND_INITIALIZED
     if _BACKEND_INITIALIZED:
         return
+    import logging
+
     import matplotlib
     matplotlib.use("Agg")
     # font.family accepts a list — matplotlib walks it per-glyph and
@@ -106,6 +108,19 @@ def _init_matplotlib_backend() -> None:
     # Some CJK fonts don't carry U+2212; flipping this to False keeps
     # negative numbers rendering on every font in the chain.
     matplotlib.rcParams["axes.unicode_minus"] = False
+
+    # Silence matplotlib's findfont WARNI flood. With our 8-candidate
+    # fallback chain only 2-3 fonts are typically installed on any
+    # given platform, so each chart render emitted 5+ warnings about
+    # the missing ones. The fallback chain working AS DESIGNED was
+    # producing the noise — the *first available* font does take over,
+    # so the chart renders correctly. Bumping the logger to ERROR
+    # drops the per-render noise without hiding genuine font errors
+    # (e.g. all candidates missing — which is the bug we'd want to
+    # see, and matplotlib still emits an ERROR-level log for that
+    # case).
+    logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
+
     _BACKEND_INITIALIZED = True
 
 

@@ -631,3 +631,95 @@ class TestMaterializeMessagesForLLM:
         # Original URI preserved (degraded but doesn't break tests
         # downstream).
         assert out[0]["content"][0]["image_url"]["url"] == "media://s/x.png"
+
+
+# ---------------------------------------------------------------------------
+# Phase 19 follow-up: per-iteration materialization
+# ---------------------------------------------------------------------------
+
+
+class TestPerIterationMaterialization:
+    """Phase 19 dropped outbound block materialization so persisted
+    history keeps ``media://`` URIs. The inbound ``_materialize_messages_for_llm``
+    walker is now the only seam where rewrite happens. It MUST run on
+    every chat-loop iteration, not just at entry — the Phase 19
+    refactor created mid-loop ``tool_follow_up`` appends with raw
+    URIs that the *next* iteration would otherwise hand to the LLM
+    provider as ``media://...``, which Azure rejects.
+
+    These tests pin the contract: walker is idempotent on
+    already-rewritten URLs (so re-walking is cheap) and rewrites any
+    URLs that newly appeared since the last walk.
+    """
+
+    @pytest.mark.asyncio
+    async def test_walker_is_idempotent_on_already_rewritten(self):
+        """A walker that ran once and rewrote ``media://x`` to a data
+        URL must not double-rewrite if invoked again. The check that
+        gates rewriting on ``url.startswith('media://')`` makes this
+        natural — but pin it so a future refactor doesn't regress."""
+        from tank_backend.llm.llm import _materialize_messages_for_llm
+
+        store = MagicMock()
+        store.get = AsyncMock(return_value=(b"\x89PNG_fake", "image/png"))
+
+        messages = [{
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": "media://s/x.png"}},
+            ],
+        }]
+        first = await _materialize_messages_for_llm(
+            messages, media_store=store, session_id="s",
+        )
+        # First walk rewrites; second walk leaves the data URL alone.
+        second = await _materialize_messages_for_llm(
+            first, media_store=store, session_id="s",
+        )
+
+        # Walker called MediaStore.get exactly once across both runs:
+        # the second walk had no media:// to resolve.
+        assert store.get.await_count == 1
+        # Output unchanged on the second pass.
+        assert second[0]["content"][0]["image_url"]["url"] == \
+            first[0]["content"][0]["image_url"]["url"]
+
+    @pytest.mark.asyncio
+    async def test_walker_rewrites_newly_appended_message(self):
+        """The mid-loop scenario: walker ran once on the inbound list;
+        a tool_follow_up gets appended after a tool ran; walker runs
+        again on the next iteration and rewrites the new entry. Pinned
+        because losing this guarantee was the Phase 19 follow-up bug
+        (chart turns 400'd on the next iteration with raw media://).
+        """
+        from tank_backend.llm.llm import _materialize_messages_for_llm
+
+        store = MagicMock()
+        store.get = AsyncMock(return_value=(b"\x89PNG_fake", "image/png"))
+
+        # Iteration 1: clean inbound, no images.
+        messages = [
+            {"role": "user", "content": "plot Q1-Q4"},
+        ]
+        walked = await _materialize_messages_for_llm(
+            messages, media_store=store, session_id="s",
+        )
+        assert store.get.await_count == 0  # no images yet
+
+        # Mid-loop: tool runs, follow-up appended with raw media://.
+        walked.append({
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": "media://s/c.png"}},
+            ],
+            "metadata": {"tool_follow_up": True, "tool_call_id": "tc_1"},
+        })
+
+        # Iteration 2: walker re-runs, rewrites the new entry.
+        walked2 = await _materialize_messages_for_llm(
+            walked, media_store=store, session_id="s",
+        )
+        assert store.get.await_count == 1
+        assert walked2[1]["content"][0]["image_url"]["url"].startswith(
+            "data:image/png;base64,",
+        )
