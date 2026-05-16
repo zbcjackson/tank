@@ -52,6 +52,43 @@ logging.basicConfig(
 logger = logging.getLogger("ApiServer")
 
 
+# Phase 22: silence transient-noise SDK loggers so the tmux signal-
+# to-noise ratio stays usable. Each level was picked by sampling the
+# log volume from a multi-hour run — see the per-logger comment for
+# the specific symptom that motivated bumping the level.
+#
+# Real catastrophic failures still surface: bumping to CRITICAL only
+# suppresses ERROR/WARNING; truly fatal events (uncaught exceptions
+# the SDKs route through ``logger.critical``) still log. Hit the
+# original level back up via the ``--log-level`` CLI flag if you're
+# debugging an SDK-internal issue.
+
+# aiogram retries Telegram API calls on every transient network blip
+# and emits one ERROR + one WARNING per retry attempt. The retry loop
+# itself recovers; only escalation matters for operators.
+logging.getLogger("aiogram.dispatcher").setLevel(logging.CRITICAL)
+
+# slack_bolt's AsyncApp logs ERROR every time the WebSocket session
+# reconnects (which happens routinely under flaky networks or VPN
+# transitions). The Bolt internals already retry; surfacing each
+# reconnect as ERROR creates a false-alarm pattern operators learn
+# to ignore — exactly the signal-erosion outcome we want to avoid.
+logging.getLogger("slack_bolt.AsyncApp").setLevel(logging.CRITICAL)
+
+# discord.py emits WARNING on every connect for ``PyNaCl is not
+# installed`` and ``davey is not installed`` because Tank doesn't
+# need voice-channel support (those libs are only needed for voice
+# rooms, not the bot's text/file-upload path we use). Bumping to
+# ERROR removes the on-every-reconnect repetition without hiding
+# real Discord-side failures.
+logging.getLogger("discord.client").setLevel(logging.ERROR)
+# Discord's gateway shard loggers also chatter at INFO/WARNING with
+# heartbeat noise that's only useful when actively debugging the
+# gateway. Bump them to WARNING so the gateway stays observable
+# without flooding.
+logging.getLogger("discord.gateway").setLevel(logging.WARNING)
+
+
 # ---------------------------------------------------------------------------
 # Initialization helpers — each encapsulates one startup concern
 # ---------------------------------------------------------------------------

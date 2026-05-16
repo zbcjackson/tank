@@ -369,11 +369,11 @@ connectors:
     config:
         app_id: ${FEISHU_APP_ID}
         app_secret: ${FEISHU_APP_SECRET}
-#        allowlist:
-#          default: deny              # "allow" (default) or "deny"
-#          rules:
-#            - external_ids: [ "feishu:user:705359397051957338" ]
-#              policy: allow
-#              reason: "me"
-#        unauthorized_reply: |
-#          Sorry, this bot is invite-only.
+        allowlist:
+          default: deny              # "allow" (default) or "deny"
+          rules:
+            - external_ids: [ "feishu:user:ou_b5253cab92f28a83f30d18434a5f3427" ]
+              policy: allow
+              reason: "me"
+        unauthorized_reply: |
+          Sorry, this bot is invite-only.
