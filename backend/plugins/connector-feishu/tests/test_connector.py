@@ -14,7 +14,9 @@ realistic event/payload shapes.
 
 from __future__ import annotations
 
+import asyncio
 import json
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -1109,3 +1111,132 @@ class TestLifecycle:
         # Must not raise.
         await c.stop()
         assert not c.connected
+
+
+# ---------------------------------------------------------------------------
+# lark module-global event-loop monkey-patch
+# ---------------------------------------------------------------------------
+
+
+class TestLarkLoopMonkeyPatch:
+    """Phase 20 follow-up: ``lark.ws.Client.start`` calls
+    ``run_until_complete`` on a module-global ``loop`` that lark
+    captures at import time via ``asyncio.get_event_loop()``. When
+    Tank's main loop is that captured value, the SDK raises
+    ``RuntimeError: this event loop is already running``.
+
+    The fix in ``_run_ws`` spawns a real OS thread, creates a fresh
+    loop inside it, and monkey-patches ``lark_oapi.ws.client.loop``
+    to that thread-local loop *before* calling ``ws.start()``. These
+    tests pin three invariants so a future refactor (e.g. someone
+    swapping back to ``asyncio.to_thread``) gets caught at unit-test
+    speed instead of only via live verification:
+
+    1. The module-global loop is swapped to a *different* loop
+       inside the thread before ``ws.start()`` runs.
+    2. The originally-captured loop is restored on thread exit, so
+       multiple lark.ws.Client instances elsewhere in the process
+       don't trample each other.
+    3. ``ws.start()`` actually runs on the thread (the whole point
+       of the indirection — keeping Tank's main loop free).
+    """
+
+    async def test_module_global_loop_swapped_before_start(self) -> None:
+        """The lark thread monkey-patches ``lark_oapi.ws.client.loop``
+        to a thread-owned loop *before* invoking ``ws.start()``.
+        ``ws.start`` records what ``loop`` it sees so the test can
+        assert the swap took effect at the right moment."""
+        import lark_oapi.ws.client as lark_ws_module
+
+        c = FeishuConnector(
+            instance_name="t", app_id="cli_a", app_secret="s",
+        )
+
+        # Make ``ws.start`` capture the module-global loop the moment
+        # it runs, then return immediately so the thread joins without
+        # blocking the test. The capture lets us prove the swap happened
+        # before ``start`` was called.
+        captured_loops: list[Any] = []
+
+        def fake_start() -> None:
+            captured_loops.append(lark_ws_module.loop)
+
+        ws = MagicMock()
+        ws.start = fake_start
+        c._ws = ws  # noqa: SLF001
+
+        await c._run_ws()  # noqa: SLF001
+
+        assert len(captured_loops) == 1
+        loop_during_start = captured_loops[0]
+        # The thread's loop is *not* the main test loop. If the swap
+        # didn't happen we'd see Tank's main loop here — which is the
+        # bug shape we're guarding against.
+        assert loop_during_start is not asyncio.get_running_loop()
+
+    async def test_module_global_loop_restored_on_thread_exit(self) -> None:
+        """After the lark thread exits, ``lark_oapi.ws.client.loop``
+        is restored to whatever it was before the thread started.
+        Without this, a second ``FeishuConnector`` instance (or any
+        other lark.ws.Client elsewhere in the process) would inherit
+        the *previous* thread's now-closed loop."""
+        import lark_oapi.ws.client as lark_ws_module
+
+        original_loop = lark_ws_module.loop
+
+        c = FeishuConnector(
+            instance_name="t", app_id="cli_a", app_secret="s",
+        )
+        ws = MagicMock()
+        ws.start = MagicMock()  # returns immediately
+        c._ws = ws  # noqa: SLF001
+
+        await c._run_ws()  # noqa: SLF001
+
+        # After the thread joined, the module-global is restored.
+        assert lark_ws_module.loop is original_loop
+
+    async def test_ws_start_runs_on_thread_owned_loop(self) -> None:
+        """The thread-owned loop is exposed via ``self._ws_loop`` so
+        ``stop()`` can schedule ``_disconnect`` on the right loop.
+        Pin that exposure plus the no-loop-mismatch invariant."""
+        c = FeishuConnector(
+            instance_name="t", app_id="cli_a", app_secret="s",
+        )
+        ws = MagicMock()
+        ws.start = MagicMock()
+        c._ws = ws  # noqa: SLF001
+
+        await c._run_ws()  # noqa: SLF001
+
+        # ``_ws_loop`` is populated and is NOT the main loop.
+        assert c._ws_loop is not None  # noqa: SLF001
+        assert c._ws_loop is not asyncio.get_running_loop()  # noqa: SLF001
+        # ``_ws_thread`` is populated too — ``stop()`` reads it to
+        # know whether the thread is alive when scheduling
+        # ``_disconnect``.
+        assert c._ws_thread is not None  # noqa: SLF001
+
+    async def test_start_failure_still_restores_module_global(self) -> None:
+        """If ``ws.start`` raises (e.g. the auth token is bad and lark
+        rejects the connect), the ``finally`` clause must still
+        restore the module-global. Otherwise a process that retries
+        from a fresh connector would inherit the failed-thread's
+        now-closed loop and double-fault."""
+        import lark_oapi.ws.client as lark_ws_module
+
+        original_loop = lark_ws_module.loop
+
+        c = FeishuConnector(
+            instance_name="t", app_id="cli_a", app_secret="s",
+        )
+        ws = MagicMock()
+        ws.start = MagicMock(side_effect=RuntimeError("synthetic auth fail"))
+        c._ws = ws  # noqa: SLF001
+
+        # The exception is logged inside the thread; ``_run_ws``
+        # itself returns normally because ``thread.join`` doesn't
+        # propagate exceptions raised inside the worker.
+        await c._run_ws()  # noqa: SLF001
+
+        assert lark_ws_module.loop is original_loop
