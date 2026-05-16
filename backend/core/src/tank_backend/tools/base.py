@@ -122,8 +122,17 @@ class BaseTool(ABC):
         pass
 
     @abstractmethod
-    async def execute(self, **kwargs) -> "ToolResult | str":
+    async def execute(self, **kwargs: Any) -> "ToolResult | str":
         """Execute the tool and return a result.
+
+        Concrete tools narrow ``**kwargs`` to named parameters matching
+        their OpenAI schema (e.g. ``url: str``, ``kind: str``). The
+        base signature uses ``**kwargs: Any`` so pyright doesn't flag
+        every override as ``reportIncompatibleMethodOverride`` — the
+        dispatch site (``ToolManager.execute_tool``) always calls
+        ``tool.execute(**arguments)`` where ``arguments`` is a dict
+        from the LLM's JSON, so the runtime contract is "accept any
+        keyword arguments the LLM sends."
 
         Return conventions:
         - Return ``ToolResult`` for structured results (recommended).

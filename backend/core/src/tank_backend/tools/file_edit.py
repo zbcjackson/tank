@@ -126,6 +126,7 @@ class FileEditTool(BaseTool):
                 error=True,
             )
         if is_insert:
+            assert insert_after_line is not None  # noqa: S101  # guarded by is_insert
             if insert_after_line < 0:
                 return ToolResult(
                     content=json.dumps(
@@ -194,7 +195,9 @@ class FileEditTool(BaseTool):
         backup_path = await self._backup.snapshot(str(resolved))
 
         # 6. Apply edit
+        count = 0  # initialized for pyright; set in the replace branch below
         if is_insert:
+            assert insert_after_line is not None  # noqa: S101  # guarded by is_insert
             new_content = self._insert_at_line(
                 content, new_string, insert_after_line,
             )

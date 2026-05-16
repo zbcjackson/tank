@@ -36,8 +36,9 @@ def _make_text_content(text: str):
 
 
 def _make_image_content(data: bytes):
-    from mcp.types import ImageContent
     import base64
+
+    from mcp.types import ImageContent
     # ImageContent.data is a base64-encoded string, not raw bytes
     return ImageContent(type="image", data=base64.b64encode(data).decode(), mimeType="image/png")
 
