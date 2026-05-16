@@ -18,7 +18,7 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from tank_contracts.connector import Identity, MessageEvent
+from tank_contracts.connector import Attachment, Identity, MessageEvent
 
 from connector_feishu import FeishuConnector, create_connector
 
@@ -530,12 +530,251 @@ class TestSendText:
         assert "not_connected" in result.error
 
 
+# ---------------------------------------------------------------------------
+# Outbound — image upload + send
+# ---------------------------------------------------------------------------
+
+
+class TestImageUpload:
+    """Phase 21 wired the ``_upload_image`` path so chart_tool /
+    echo_image actually deliver images to Feishu users. Phase 20 v1
+    deliberately stubbed it out (returning ``""`` so the caller
+    surfaced ``feishu:upload_failed``); these tests pin the new
+    happy path + the failure modes the implementation handles.
+    """
+
+    async def test_upload_image_returns_image_key_on_success(self) -> None:
+        c = _make_started_connector()
+        # Mock the lark image.acreate response. The real type has
+        # success(), code, msg, data.image_key — match those.
+        resp = MagicMock()
+        resp.success = MagicMock(return_value=True)
+        resp.data = MagicMock()
+        resp.data.image_key = "img_v3_abc123"
+        c._api.im.v1.image = MagicMock()  # noqa: SLF001
+        c._api.im.v1.image.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
+
+        key = await c._upload_image(b"\x89PNG_fake_bytes")  # noqa: SLF001
+        assert key == "img_v3_abc123"
+
+        # The acreate call carried image_type="message" + a BytesIO.
+        req = c._api.im.v1.image.acreate.call_args.args[0]  # noqa: SLF001
+        assert req.request_body.image_type == "message"
+        # Verify the BytesIO carries our payload — read all bytes.
+        req.request_body.image.seek(0)
+        assert req.request_body.image.read() == b"\x89PNG_fake_bytes"
+
+    async def test_upload_image_empty_bytes_returns_empty(self) -> None:
+        """Defensive: passing empty bytes (a bug upstream) must
+        short-circuit before hitting the lark API. Returns empty
+        string so the caller surfaces ``feishu:upload_failed``."""
+        c = _make_started_connector()
+        c._api.im.v1.image = MagicMock()  # noqa: SLF001
+        c._api.im.v1.image.acreate = AsyncMock()  # noqa: SLF001
+
+        key = await c._upload_image(b"")  # noqa: SLF001
+        assert key == ""
+        # acreate not even called.
+        c._api.im.v1.image.acreate.assert_not_awaited()  # noqa: SLF001
+
+    async def test_upload_image_no_api_returns_empty(self) -> None:
+        """Edge: ``_upload_image`` called before ``start()`` has
+        wired the lark client. Must not crash on ``None.im``."""
+        c = FeishuConnector(
+            instance_name="t", app_id="cli_a", app_secret="s",
+        )
+        # ``_api`` is None — never started.
+        key = await c._upload_image(b"\x89PNG")  # noqa: SLF001
+        assert key == ""
+
+    async def test_upload_image_classifies_lark_error(self) -> None:
+        """Non-success response surfaces as empty string so the
+        caller's ``feishu:upload_failed`` reaches the user. The
+        error code/msg flow into the warn log so operators can
+        diagnose."""
+        c = _make_started_connector()
+        resp = MagicMock()
+        resp.success = MagicMock(return_value=False)
+        resp.code = 230002
+        resp.msg = "image too large"
+        c._api.im.v1.image = MagicMock()  # noqa: SLF001
+        c._api.im.v1.image.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
+
+        key = await c._upload_image(b"x" * 1024)  # noqa: SLF001
+        assert key == ""
+
+    async def test_upload_image_handles_raised_exception(self) -> None:
+        """Exceptions on the upload path get caught + logged; the
+        empty-string return lets the caller surface a clean error
+        rather than a 500."""
+        c = _make_started_connector()
+        c._api.im.v1.image = MagicMock()  # noqa: SLF001
+        c._api.im.v1.image.acreate = AsyncMock(  # noqa: SLF001
+            side_effect=RuntimeError("network down"),
+        )
+
+        key = await c._upload_image(b"\x89PNG")  # noqa: SLF001
+        assert key == ""
+
+    async def test_upload_image_missing_image_key_in_response(self) -> None:
+        """Defensive: a success response with no image_key (shouldn't
+        happen but lark's response shape allows it) returns empty
+        string rather than ``None`` (which would crash the caller's
+        f-string)."""
+        c = _make_started_connector()
+        resp = MagicMock()
+        resp.success = MagicMock(return_value=True)
+        resp.data = MagicMock()
+        resp.data.image_key = None
+        c._api.im.v1.image = MagicMock()  # noqa: SLF001
+        c._api.im.v1.image.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
+
+        key = await c._upload_image(b"\x89PNG")  # noqa: SLF001
+        assert key == ""
+
+
+class TestSendImageEndToEnd:
+    """End-to-end: ``send`` with an image attachment now reaches the
+    Feishu chat. Pre-Phase-21 these tests would have asserted
+    ``feishu:upload_failed`` because ``_upload_image`` was a stub;
+    post-Phase-21 they exercise the full send flow."""
+
+    async def test_send_image_uploads_and_messages(self) -> None:
+        c = _make_started_connector()
+        # Successful upload returns an image_key.
+        upload_resp = MagicMock()
+        upload_resp.success = MagicMock(return_value=True)
+        upload_resp.data = MagicMock()
+        upload_resp.data.image_key = "img_v3_xyz"
+        c._api.im.v1.image = MagicMock()  # noqa: SLF001
+        c._api.im.v1.image.acreate = AsyncMock(return_value=upload_resp)  # noqa: SLF001
+
+        # Successful message send (image msg_type) returns msg id.
+        send_resp = MagicMock()
+        send_resp.success = MagicMock(return_value=True)
+        send_resp.data = MagicMock()
+        send_resp.data.message_id = "om_image_msg"
+        c._api.im.v1.message.acreate = AsyncMock(return_value=send_resp)  # noqa: SLF001
+
+        identity = Identity(
+            platform="feishu", external_id="feishu:user:ou_a",
+            metadata={"open_id": "ou_a"},
+        )
+        attachment = Attachment(
+            kind="image", data=b"\x89PNG_fake", mime_type="image/png",
+        )
+
+        result = await c.send(
+            identity=identity, text="", attachments=(attachment,),
+        )
+
+        assert result.ok is True
+        assert result.message_id == "om_image_msg"
+
+        # Image upload happened.
+        c._api.im.v1.image.acreate.assert_awaited_once()  # noqa: SLF001
+        # Then the message send carried the upload's image_key.
+        send_calls = c._api.im.v1.message.acreate.call_args_list  # noqa: SLF001
+        # Last call is the image message; with no caption text, only
+        # one call total.
+        last_req = send_calls[-1].args[0]
+        last_payload = json.loads(last_req.request_body.content)
+        assert last_payload == {"image_key": "img_v3_xyz"}
+
+    async def test_send_image_with_caption_sends_text_then_image(
+        self,
+    ) -> None:
+        """When the image attachment carries caption text, send the
+        text first, then the image. Feishu doesn't support inline
+        captions on image messages, so we split them. Order matches
+        Phase 15's caption-on-first-attachment expectation: text
+        renders adjacent to the image."""
+        c = _make_started_connector()
+
+        upload_resp = MagicMock()
+        upload_resp.success = MagicMock(return_value=True)
+        upload_resp.data = MagicMock()
+        upload_resp.data.image_key = "img_v3_xyz"
+        c._api.im.v1.image = MagicMock()  # noqa: SLF001
+        c._api.im.v1.image.acreate = AsyncMock(return_value=upload_resp)  # noqa: SLF001
+
+        text_resp = MagicMock()
+        text_resp.success = MagicMock(return_value=True)
+        text_resp.data = MagicMock()
+        text_resp.data.message_id = "om_text"
+        image_resp = MagicMock()
+        image_resp.success = MagicMock(return_value=True)
+        image_resp.data = MagicMock()
+        image_resp.data.message_id = "om_image"
+
+        # Two consecutive acreate calls — text, then image.
+        c._api.im.v1.message.acreate = AsyncMock(  # noqa: SLF001
+            side_effect=[text_resp, image_resp],
+        )
+
+        identity = Identity(
+            platform="feishu", external_id="feishu:user:ou_a",
+            metadata={"open_id": "ou_a"},
+        )
+        attachment = Attachment(
+            kind="image", data=b"\x89PNG", mime_type="image/png",
+        )
+
+        result = await c.send(
+            identity=identity,
+            text="here you go:",
+            attachments=(attachment,),
+        )
+        assert result.ok is True
+        # Final result carries the image's message_id.
+        assert result.message_id == "om_image"
+
+        # Two message sends in order: text, then image.
+        send_calls = c._api.im.v1.message.acreate.call_args_list  # noqa: SLF001
+        assert len(send_calls) == 2
+        text_payload = json.loads(send_calls[0].args[0].request_body.content)
+        image_payload = json.loads(send_calls[1].args[0].request_body.content)
+        assert text_payload == {"text": "here you go:"}
+        assert image_payload == {"image_key": "img_v3_xyz"}
+
+    async def test_send_image_upload_failure_returns_clear_error(
+        self,
+    ) -> None:
+        """When ``_upload_image`` returns empty (failure), the caller
+        surfaces ``feishu:upload_failed`` so the user sees a clean
+        error rather than a successful send with a missing image."""
+        c = _make_started_connector()
+        upload_resp = MagicMock()
+        upload_resp.success = MagicMock(return_value=False)
+        upload_resp.code = 230002
+        upload_resp.msg = "image too large"
+        c._api.im.v1.image = MagicMock()  # noqa: SLF001
+        c._api.im.v1.image.acreate = AsyncMock(return_value=upload_resp)  # noqa: SLF001
+
+        identity = Identity(
+            platform="feishu", external_id="feishu:user:ou_a",
+            metadata={"open_id": "ou_a"},
+        )
+        attachment = Attachment(
+            kind="image", data=b"x" * 1024, mime_type="image/png",
+        )
+        result = await c.send(
+            identity=identity, text="", attachments=(attachment,),
+        )
+        assert result.ok is False
+        assert "feishu:upload_failed" in result.error
+
+
 class TestEdit:
     async def test_edit_happy_path(self) -> None:
         c = _make_started_connector()
         resp = MagicMock()
         resp.success = MagicMock(return_value=True)
-        c._api.im.v1.message.apatch = AsyncMock(return_value=resp)  # noqa: SLF001
+        # Phase 21 follow-up: edit() now uses ``aupdate`` (text-message
+        # capable), not ``apatch`` (card-only). The previous code
+        # path 400'd on every streaming text edit with "This message
+        # is NOT a card" until we switched.
+        c._api.im.v1.message.aupdate = AsyncMock(return_value=resp)  # noqa: SLF001
 
         result = await c.edit(
             identity=Identity(
@@ -548,10 +787,12 @@ class TestEdit:
         assert result.ok is True
         assert result.message_id == "om_x"
 
-        # Edit body carries the same JSON-text shape send uses.
-        req = c._api.im.v1.message.apatch.call_args.args[0]  # noqa: SLF001
+        # Edit body carries the same JSON-text shape send uses, plus
+        # the explicit ``msg_type=text`` the aupdate API requires.
+        req = c._api.im.v1.message.aupdate.call_args.args[0]  # noqa: SLF001
         payload = json.loads(req.request_body.content)
         assert payload == {"text": "updated"}
+        assert req.request_body.msg_type == "text"
 
     async def test_edit_classifies_api_error(self) -> None:
         c = _make_started_connector()
@@ -559,7 +800,7 @@ class TestEdit:
         resp.success = MagicMock(return_value=False)
         resp.code = 230015
         resp.msg = "edit window expired"
-        c._api.im.v1.message.apatch = AsyncMock(return_value=resp)  # noqa: SLF001
+        c._api.im.v1.message.aupdate = AsyncMock(return_value=resp)  # noqa: SLF001
 
         result = await c.edit(
             identity=Identity(

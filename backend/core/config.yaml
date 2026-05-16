@@ -364,3 +364,16 @@ connectors:
             reason: "me"
       unauthorized_reply: |
         Sorry, this bot is invite-only.
+  - instance: my-feishu-bot
+    extension: connector-feishu:connector
+    config:
+        app_id: ${FEISHU_APP_ID}
+        app_secret: ${FEISHU_APP_SECRET}
+#        allowlist:
+#          default: deny              # "allow" (default) or "deny"
+#          rules:
+#            - external_ids: [ "feishu:user:705359397051957338" ]
+#              policy: allow
+#              reason: "me"
+#        unauthorized_reply: |
+#          Sorry, this bot is invite-only.

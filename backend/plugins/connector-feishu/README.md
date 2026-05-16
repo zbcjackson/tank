@@ -35,11 +35,11 @@ as the Slack Socket Mode connector.
 
 ```yaml
 connectors:
-  feishu:
-    instances:
-      my-feishu-bot:
-        app_id: ${FEISHU_APP_ID}
-        app_secret: ${FEISHU_APP_SECRET}
+  - instance: my-feishu-bot
+    extension: connector-feishu:connector
+    config:
+      app_id: ${FEISHU_APP_ID}
+      app_secret: ${FEISHU_APP_SECRET}
 ```
 
 DMs work without any allowlist. To accept group messages or restrict

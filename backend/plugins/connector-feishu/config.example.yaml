@@ -1,25 +1,42 @@
+# Example connector-feishu configuration.
+#
+# Copy the ``connectors:`` block into ``backend/core/config.yaml``,
+# then set the FEISHU_APP_ID + FEISHU_APP_SECRET environment variables
+# before starting Tank. See the plugin README for the open-platform
+# walk-through (app creation, bot enablement, event subscription
+# delivery mode = Long Connection).
+#
+# Access control: the ``allowlist`` block below is optional. Without
+# it, the bot accepts DMs from anyone in the tenant. With it, denied
+# senders get a polite rejection reply and no Assistant session is
+# spawned. The Phase-10 ``require_approval`` default is the safest
+# starting point for a public-tenant deployment.
+
 connectors:
-  feishu:
-    instances:
-      my-feishu-bot:
-        # App ID + secret from your Feishu/Lark app's "Credentials &
-        # Basic Info" page. Both are required. Use environment variable
-        # interpolation so secrets never end up checked in.
-        app_id: ${FEISHU_APP_ID}
-        app_secret: ${FEISHU_APP_SECRET}
+  - instance: my-feishu-bot
+    extension: connector-feishu:connector
+    config:
+      # App ID + secret from your Feishu/Lark app's "Credentials &
+      # Basic Info" page. Both are required. Use environment-variable
+      # interpolation so secrets never end up checked in.
+      app_id: ${FEISHU_APP_ID}
+      app_secret: ${FEISHU_APP_SECRET}
 
-        # Optional: per-instance admin set for the REQUIRE_APPROVAL
-        # workflow. Identities are Feishu open_ids prefixed with
-        # ``feishu:user:`` (the same shape ``Identity.external_id``
-        # uses everywhere).
-        admin_external_ids:
-          - feishu:user:ou_36686ee62209da697d8775375d0c8e88
-
-        # Optional allowlist. Pre-Phase-10 ``allow``/``deny`` rules,
-        # plus the Phase-10 ``require_approval`` default that prompts
-        # admins for unknown senders.
-        allowlist:
-          default: require_approval
-          rules:
-            - identity: feishu:user:ou_18eac85d35a26f989317ad4f02e8bbbb
-              decision: allow
+      # Optional per-instance allowlist. Zero-config = allow-all.
+      # allowlist:
+      #   default: require_approval   # "allow" / "deny" / "require_approval"
+      #   rules:
+      #     - external_ids:
+      #         - feishu:user:ou_18eac85d35a26f989317ad4f02e8bbbb
+      #       policy: allow
+      #       reason: "me"
+      #     - external_ids:
+      #         - feishu:chat:oc_5ce6d572455d361153b7cb51da133945
+      #       policy: allow
+      #       reason: "#tank-dev group chat"
+      #
+      # admin_external_ids:
+      #   - feishu:user:ou_36686ee62209da697d8775375d0c8e88
+      #
+      # unauthorized_reply: |
+      #   Sorry, this bot is scoped to the engineering team.

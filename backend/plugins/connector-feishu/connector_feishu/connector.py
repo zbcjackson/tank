@@ -141,6 +141,13 @@ class FeishuConnector(Connector):
         # WebSocket client (long-connection event receiver). Built in
         # ``start`` so the event handler picks up the bound methods.
         self._ws: lark.ws.Client | None = None
+        # The OS thread that runs lark's blocking ``start()`` and the
+        # asyncio loop owned by that thread. We monkey-patch lark's
+        # module-global ``loop`` to this thread-local one so the SDK
+        # doesn't try to ``run_until_complete`` Tank's main loop. See
+        # ``_run_ws`` for the full reasoning.
+        self._ws_thread: Any = None
+        self._ws_loop: asyncio.AbstractEventLoop | None = None
         # Capture the main event loop so the WS-thread callback can
         # post coroutines back onto it via run_coroutine_threadsafe.
         self._main_loop: asyncio.AbstractEventLoop | None = None
@@ -183,6 +190,7 @@ class FeishuConnector(Connector):
         event_handler = (
             lark.EventDispatcherHandler.builder("", "")
             .register_p2_im_message_receive_v1(self._on_message_event)
+            .register_p2_im_message_message_read_v1(self._on_message_read)
             .register_p2_card_action_trigger(self._on_card_action)  # type: ignore[arg-type]
             .build()
         )
@@ -203,34 +211,106 @@ class FeishuConnector(Connector):
         logger.info("Feishu connector '%s' started", self.instance_name)
 
     async def _run_ws(self) -> None:
-        """Run the lark WebSocket client on a dedicated thread.
+        """Run the lark WebSocket client on a dedicated thread with
+        its own asyncio loop.
 
-        ``lark.ws.Client.start`` is synchronous and blocks forever on
-        its own ``loop.run_until_complete`` until the connection
-        closes. Run on a thread so the main asyncio loop stays free
-        for ``send`` / ``edit`` / approval-broker work.
+        ``lark.ws.Client.start`` calls ``loop.run_until_complete`` on
+        a *module-global* ``loop`` symbol that lark grabs at import
+        time via ``asyncio.get_event_loop()``. When Tank imports lark
+        before its main loop has finished initialising, the captured
+        ``loop`` ends up being Tank's main loop — so when the SDK
+        later tries to call ``run_until_complete`` on it, Python
+        raises ``RuntimeError: this event loop is already running``.
+
+        The fix: spawn a real OS thread, create a fresh asyncio loop
+        inside it, monkey-patch ``lark_oapi.ws.client.loop`` to that
+        thread-local loop *before* calling ``self._ws.start()``. The
+        SDK then runs entirely on the thread's loop and our main loop
+        stays free for ``send`` / ``edit`` / approval-broker work.
+
+        ``asyncio.to_thread`` is the cleaner-looking alternative but
+        it doesn't change which event loop ``loop.run_until_complete``
+        targets — it only moves the *call* to a worker. The shared
+        global stays the main loop.
         """
+        import threading
+
+        import lark_oapi.ws.client as lark_ws_module
+
         assert self._ws is not None  # noqa: S101
-        await asyncio.to_thread(self._ws.start)
+        ws = self._ws
+
+        loop_ready = threading.Event()
+        thread_loop_holder: list[asyncio.AbstractEventLoop] = []
+
+        def _runner() -> None:
+            """Body of the lark thread.
+
+            Creates a private loop, swaps it in for lark's module-
+            global, makes it available to ``stop()`` via the holder,
+            then enters the SDK's blocking ``start()`` call. When the
+            connection closes the loop drains and the thread exits.
+            """
+            thread_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(thread_loop)
+            # Monkey-patch lark's module-global loop. Save the original
+            # so other lark.ws.Client instances elsewhere in the
+            # process aren't collateral damage; we don't currently
+            # ship any, but the swap-restore pattern is hygienic.
+            original_loop = lark_ws_module.loop
+            lark_ws_module.loop = thread_loop
+            thread_loop_holder.append(thread_loop)
+            loop_ready.set()
+            try:
+                ws.start()
+            except Exception:
+                logger.exception(
+                    "Feishu connector '%s': lark WS client crashed",
+                    self.instance_name,
+                )
+            finally:
+                lark_ws_module.loop = original_loop
+                thread_loop.close()
+
+        thread = threading.Thread(
+            target=_runner,
+            name=f"feishu-ws-{self.instance_name}",
+            daemon=True,
+        )
+        thread.start()
+
+        # Stash the thread + its loop so ``stop()`` can ask the lark
+        # client to disconnect on the right loop. ``loop_ready`` fires
+        # before ``start()`` blocks, so the holder is populated by
+        # the time we return.
+        loop_ready.wait()
+        self._ws_thread = thread
+        self._ws_loop = thread_loop_holder[0]
+
+        # Block this coroutine until the thread exits — same
+        # lifecycle BackgroundTaskRunner expects from the awaitable
+        # it owns. The wait happens on the main loop's executor pool,
+        # so it doesn't stall anything.
+        await asyncio.to_thread(thread.join)
 
     async def stop(self) -> None:
         if not self._connected:
             return
 
-        # Signal the lark client to disconnect. ``_disconnect`` is
-        # the internal close path; lark exposes no public stop()
-        # method but the disconnect coroutine is idempotent and
-        # exits the worker thread's ``run_until_complete`` cleanly.
-        if self._ws is not None:
+        # Signal the lark client to disconnect on the thread-owned
+        # loop ``_run_ws`` set up. ``_disconnect`` mutates client
+        # state that lives on that loop, so it MUST run there — not
+        # on Tank's main loop. ``run_coroutine_threadsafe`` posts
+        # the coroutine onto the target loop and returns a future we
+        # don't need to await: the lark thread picks it up, exits
+        # its ``start()`` blocker, and the thread joins via the
+        # ``thread.join`` we already await inside ``_run_ws``.
+        if self._ws is not None and self._ws_loop is not None:
             with contextlib.suppress(Exception):
-                # Schedule on the lark client's *own* loop, not ours —
-                # ``_disconnect`` mutates client state that lives on
-                # that loop.
-                ws_loop = getattr(lark.ws.client, "loop", None)
-                if ws_loop is not None and ws_loop.is_running():
+                if self._ws_loop.is_running():
                     asyncio.run_coroutine_threadsafe(
                         self._ws._disconnect(),  # noqa: SLF001
-                        ws_loop,
+                        self._ws_loop,
                     )
 
         # Drain the worker thread via the shared runner.
@@ -238,11 +318,26 @@ class FeishuConnector(Connector):
 
         self._api = None
         self._ws = None
+        self._ws_thread = None
+        self._ws_loop = None
         self._main_loop = None
         self._connected = False
         logger.info("Feishu connector '%s' stopped", self.instance_name)
 
     # ── Inbound ─────────────────────────────────────────────────────
+
+    def _on_message_read(self, data: Any) -> None:
+        """No-op handler for ``im.message.message_read_v1`` events.
+
+        Feishu pushes a read-receipt event whenever a user reads a
+        message we sent. lark-oapi's dispatcher rejects unhandled
+        event types with an ERROR log per receipt, which floods the
+        log under any non-trivial conversation. We don't track read
+        receipts, so register an explicit no-op to silence the noise.
+        Future work could surface read state to the UI via the
+        existing ``ui_message`` bus event; for now, drop on the floor.
+        """
+        return None
 
     def _on_message_event(self, data: P2ImMessageReceiveV1) -> None:
         """Lark dispatches inbound messages to this callback on the
@@ -355,6 +450,18 @@ class FeishuConnector(Connector):
         # the framework guarantees it's non-None by the time we reach
         # this dispatch path. The narrow assert lets pyright through.
         assert self._on_message is not None  # noqa: S101
+        # Log inbound identity at INFO so operators (and the user
+        # themselves) can grep the tmux log to find their own
+        # ``feishu:user:ou_...`` external_id without needing the
+        # Feishu admin console. Standard pattern across the four
+        # connectors — Slack and Discord do the same on inbound.
+        logger.info(
+            "Feishu connector '%s' inbound from %s (msg_type=%s, msg_id=%s)",
+            self.instance_name,
+            identity.external_id,
+            msg.message_type,
+            msg.message_id,
+        )
         try:
             await self._on_message(MessageEvent(
                 identity=identity,
@@ -577,14 +684,67 @@ class FeishuConnector(Connector):
     async def _upload_image(self, data: bytes) -> str:
         """Upload PNG/JPEG bytes to Feishu, return ``image_key``.
 
-        The lark SDK exposes the upload via ``client.im.v1.image.create``;
-        Phase 20 v1 doesn't ship this path because we have no test
-        coverage for it on real bytes. Returns empty string so the
-        caller surfaces a clear error to the user instead of a 500.
+        Feishu's outbound image messages address content by
+        ``image_key``: the bot uploads bytes to ``client.im.v1.image.acreate``,
+        receives a key, then sends a ``msg_type="image"`` message
+        whose body is ``{"image_key": ...}``. ``image_type="message"``
+        is the only value that works for chat messages (``"avatar"``
+        is for the app's own icon).
+
+        The SDK's ``image`` builder field expects an ``IO[Any]`` —
+        we wrap the raw bytes in :class:`io.BytesIO` so the upload
+        machinery can stream from a file-like object without us
+        materialising a temp file on disk.
+
+        Returns the image_key string on success, empty string on
+        failure. The caller (``_send_with_attachments``) checks for
+        empty and surfaces ``feishu:upload_failed`` to the user
+        instead of a 500.
         """
-        # TODO(phase-20+): wire ``client.im.v1.image.acreate`` once
-        # we have a unit-test fixture for the multipart upload shape.
-        return ""
+        if self._api is None or not data:
+            return ""
+
+        from io import BytesIO
+
+        from lark_oapi.api.im.v1 import (
+            CreateImageRequest,
+            CreateImageRequestBody,
+        )
+
+        body = (
+            CreateImageRequestBody.builder()
+            .image_type("message")
+            .image(BytesIO(data))
+            .build()
+        )
+        req = (
+            CreateImageRequest.builder()
+            .request_body(body)
+            .build()
+        )
+        try:
+            resp = await self._api.im.v1.image.acreate(req)  # pyright: ignore[reportOptionalMemberAccess]
+        except Exception:
+            logger.exception(
+                "Feishu connector '%s': image upload raised",
+                self.instance_name,
+            )
+            return ""
+        if not resp.success():
+            logger.warning(
+                "Feishu connector '%s': image upload failed "
+                "(code=%s msg=%s)",
+                self.instance_name, resp.code, resp.msg,
+            )
+            return ""
+        if resp.data is None or not resp.data.image_key:
+            logger.warning(
+                "Feishu connector '%s': image upload succeeded but "
+                "no image_key in response",
+                self.instance_name,
+            )
+            return ""
+        return resp.data.image_key
 
     async def edit(
         self,
@@ -592,14 +752,19 @@ class FeishuConnector(Connector):
         message_id: str,
         text: str,
     ) -> SendResult:
-        """Edit a message's text via lark's patch API.
+        """Edit a message's text via lark's update API.
 
         Used by the streaming path (StreamConsumer's edit cadence).
-        Feishu allows editing text-type messages within a window;
-        beyond that the patch returns an error which we surface as
-        ``feishu:<code>:<msg>``.
+        Feishu has two distinct edit endpoints — ``apatch`` only works
+        on **interactive cards** (``msg_type=interactive``), and
+        ``aupdate`` works on **text** messages. The original
+        implementation used ``apatch`` which 400'd every text edit
+        with ``230001: This message is NOT a card``; switching to
+        ``aupdate`` is the right path for the streaming-text use case.
+        Card edits (the approval-prompt outcome rewrite) still use
+        ``apatch`` because that endpoint is card-only.
 
-        ``identity`` is unused: Feishu's patch API addresses messages
+        ``identity`` is unused: Feishu's update API addresses messages
         by the ``om_*`` message_id directly; the chat the message
         lives in is implicit. The base contract still includes it so
         platforms that need both (Slack's ``{channel}|{ts}`` style)
@@ -610,21 +775,27 @@ class FeishuConnector(Connector):
         if not message_id:
             return SendResult(ok=False, error="feishu:no_message_id")
 
+        from lark_oapi.api.im.v1 import (
+            UpdateMessageRequest,
+            UpdateMessageRequestBody,
+        )
+
         truncated = truncate_for_platform(text, _FEISHU_MAX_MESSAGE_LENGTH)
         body = (
-            PatchMessageRequestBody.builder()
+            UpdateMessageRequestBody.builder()
+            .msg_type("text")
             .content(json.dumps({"text": truncated}, ensure_ascii=False))
             .build()
         )
         req = (
-            PatchMessageRequest.builder()
+            UpdateMessageRequest.builder()
             .message_id(message_id)
             .request_body(body)
             .build()
         )
         try:
             assert self._api is not None  # noqa: S101
-            resp = await self._api.im.v1.message.apatch(req)  # pyright: ignore[reportOptionalMemberAccess]
+            resp = await self._api.im.v1.message.aupdate(req)  # pyright: ignore[reportOptionalMemberAccess]
             if not resp.success():
                 return SendResult(
                     ok=False, error=f"feishu:{resp.code}:{resp.msg}",
