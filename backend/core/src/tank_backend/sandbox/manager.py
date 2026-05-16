@@ -85,6 +85,9 @@ class DockerSandbox:
             working_dir = "/workspace"
             environment = dict(self._extra_env)
 
+        # ``ensure_container`` set ``self._client = docker.from_env()``
+        # immediately above; narrow for pyright.
+        assert self._client is not None  # noqa: S101
         self._container = self._client.containers.run(
             image=self._config.image,
             command="sleep infinity",
@@ -100,6 +103,10 @@ class DockerSandbox:
             remove=True,
             labels={"tank.sandbox": "true"},
         )
+        # The ``run`` call above sets ``self._container`` to a non-None
+        # docker.models.containers.Container — narrow for pyright so
+        # the ``short_id`` access doesn't read as Optional.
+        assert self._container is not None  # noqa: S101
         logger.info("Sandbox container started: %s", self._container.short_id)
 
     async def cleanup(self) -> None:
@@ -112,6 +119,10 @@ class DockerSandbox:
             await asyncio.to_thread(self._destroy_container)
 
     def _destroy_container(self) -> None:
+        # ``cleanup`` only invokes us when ``self._container is not None``;
+        # narrow once for the rest of the method so pyright stops
+        # re-flagging the obvious.
+        assert self._container is not None  # noqa: S101
         try:
             self._container.stop(timeout=5)
         except Exception:
@@ -124,6 +135,37 @@ class DockerSandbox:
     @property
     def is_running(self) -> bool:
         return self._container is not None
+
+    def _require_container(self) -> Any:
+        """Return ``self._container`` narrowed to non-None.
+
+        Most operation methods are only valid after
+        :meth:`ensure_container` has run — callers that exec, poll,
+        kill, etc. structurally depend on a live container. This
+        helper documents the precondition and gives pyright a
+        single narrowing site rather than one assert per access.
+        """
+        if self._container is None:
+            raise RuntimeError(
+                "Sandbox: no container running; "
+                "call ensure_container() first",
+            )
+        return self._container
+
+    def _require_client(self) -> Any:
+        """Return ``self._client`` narrowed to non-None.
+
+        Same precondition as :meth:`_require_container`: the docker
+        client is created during :meth:`ensure_container`. Callers
+        that touch low-level ``client.api.exec_*`` need it; the
+        helper centralises the narrow.
+        """
+        if self._client is None:
+            raise RuntimeError(
+                "Sandbox: no docker client; "
+                "call ensure_container() first",
+            )
+        return self._client
 
     @property
     def capabilities(self) -> SandboxCapabilities:
@@ -160,8 +202,9 @@ class DockerSandbox:
     def _exec_sync(
         self, command: str, timeout: int, working_dir: str
     ) -> ExecResult:
+        container = self._require_container()
         wrapped = f"timeout {timeout} bash -c {shlex.quote(command)}"
-        exit_code, output = self._container.exec_run(
+        exit_code, output = container.exec_run(
             ["bash", "-c", wrapped],
             workdir=working_dir,
             demux=True,
@@ -180,17 +223,19 @@ class DockerSandbox:
         """Start a detached exec inside the container and track it."""
         import uuid
 
+        container = self._require_container()
+        client = self._require_client()
         process_id = uuid.uuid4().hex[:12]
 
-        exec_result = self._client.api.exec_create(
-            self._container.id,
+        exec_result = client.api.exec_create(
+            container.id,
             ["bash", "-c", command],
             stdin=False,
             tty=False,
             workdir=working_dir,
         )
         exec_id = exec_result["Id"]
-        sock = self._client.api.exec_start(exec_id, socket=True, tty=False)
+        sock = client.api.exec_start(exec_id, socket=True, tty=False)
 
         info = ProcessInfo(
             process_id=process_id,
@@ -217,6 +262,7 @@ class DockerSandbox:
         if info is None:
             return
 
+        client = self._require_client()
         raw = _raw_socket(sock)
         try:
             while True:
@@ -233,7 +279,7 @@ class DockerSandbox:
         finally:
             # Check exit code via Docker inspect
             try:
-                inspect = self._client.api.exec_inspect(info.handle)
+                inspect = client.api.exec_inspect(info.handle)
                 info.exit_code = inspect.get("ExitCode")
             except Exception:
                 pass
@@ -268,6 +314,7 @@ class DockerSandbox:
 
     async def kill_process(self, process_id: str) -> None:
         """Kill a background process by sending SIGKILL to the exec."""
+        container = self._require_container()
         info = self._bg_processes.get(process_id)
         if info is None:
             raise ValueError(f"Process '{process_id}' not found")
@@ -275,10 +322,11 @@ class DockerSandbox:
             # Docker doesn't have a direct "kill exec" API — we use exec_inspect
             # to get the PID and then kill it inside the container
             try:
-                inspect = self._client.api.exec_inspect(info.handle)
+                client = self._require_client()
+                inspect = client.api.exec_inspect(info.handle)
                 pid = inspect.get("Pid")
                 if pid and pid > 0:
-                    self._container.exec_run(["kill", "-9", str(pid)])
+                    container.exec_run(["kill", "-9", str(pid)])
             except Exception:
                 pass
             info.status = ProcessStatus.EXITED
@@ -321,15 +369,17 @@ class DockerSandbox:
 
     def _create_session(self, name: str) -> None:
         """Create a new bash session inside the container."""
-        exec_result = self._client.api.exec_create(
-            self._container.id,
+        container = self._require_container()
+        client = self._require_client()
+        exec_result = client.api.exec_create(
+            container.id,
             ["bash"],
             stdin=True,
             tty=True,
             workdir="/workspace",
         )
         exec_id = exec_result["Id"]
-        sock = self._client.api.exec_start(exec_id, socket=True, tty=True)
+        sock = client.api.exec_start(exec_id, socket=True, tty=True)
 
         info = SessionInfo(name=name, exec_id=exec_id, socket=sock)
         self._sessions[name] = info

@@ -309,6 +309,24 @@ class ContextManager:
         """Assemble the current system prompt. Used by resolver for lifecycle."""
         return self._prompt_assembler.assemble()
 
+    def _require_conversation(self) -> ConversationData:
+        """Return ``self._conversation`` narrowed to non-None.
+
+        Most ContextManager methods are only valid after
+        :meth:`set_conversation` has been called — Brain enforces
+        that ordering at runtime. This helper documents the
+        precondition and gives pyright a single narrowing site
+        rather than one assert per access. Raising here on misuse
+        is loud-and-actionable; a silent ``None`` would surface as
+        an obscure ``AttributeError`` halfway through a turn.
+        """
+        if self._conversation is None:
+            raise RuntimeError(
+                "ContextManager: no conversation loaded; "
+                "call set_conversation() first",
+            )
+        return self._conversation
+
     def close(self) -> None:
         """Persist and release resources."""
         if self._conversation is not None:
@@ -355,6 +373,11 @@ class ContextManager:
         """
         self.add_message("user", text, name=user, attachments=attachments)
 
+        # ``add_message`` ensures a conversation is loaded; narrow once
+        # for the rest of this method so pyright stops re-flagging the
+        # same Optional pattern at every access site.
+        conv = self._require_conversation()
+
         # Track for preference learning
         self._last_user = user
         self._last_user_text = text
@@ -362,18 +385,18 @@ class ContextManager:
         # Rebuild system prompt if prompt assembler has new discoveries
         if self._prompt_assembler.needs_rebuild():
             new_prompt = self._prompt_assembler.assemble()
-            self._conversation.messages[0] = {"role": "system", "content": new_prompt}
+            conv.messages[0] = {"role": "system", "content": new_prompt}
 
         # Non-destructive compaction: derive context, preserve full history
         if (
             self._compaction_mode == CompactionMode.NON_DESTRUCTIVE
             and self._channel_context_builder is not None
         ):
-            conv_messages = self._conversation.messages[1:]
+            conv_messages = conv.messages[1:]
             # Build augmented system prompt for channel context
             augmented_system = (
-                self._conversation.messages[0]["content"]
-                if self._conversation.messages
+                conv.messages[0]["content"]
+                if conv.messages
                 else ""
             )
             if not is_guest(user):
@@ -389,7 +412,7 @@ class ContextManager:
                         )
             derived = await self._channel_context_builder.build(
                 conv_messages,
-                self._conversation.id,
+                conv.id,
                 augmented_system,
             )
             return derived
@@ -401,7 +424,7 @@ class ContextManager:
                 await self.compact()
 
         # Build augmented system prompt (memory + preferences)
-        messages = list(self._conversation.messages)
+        messages = list(conv.messages)
         augmented_system = messages[0]["content"] if messages else ""
 
         if not is_guest(user):
@@ -520,7 +543,8 @@ class ContextManager:
 
     def finish_turn(self, turn_messages: list[dict[str, Any]]) -> None:
         """Append turn messages (tool calls, results, final response) and persist."""
-        self._conversation.messages.extend(turn_messages)
+        conv = self._require_conversation()
+        conv.messages.extend(turn_messages)
         self._persist()
 
         # Schedule preference learning (fire-and-forget, like memory)
@@ -585,6 +609,13 @@ class ContextManager:
         self._tokens_before_last_compaction = total
         self._compaction_passes += 1
 
+        # Narrow once for the rest of compact() — pre-checks have
+        # already returned for the no-conversation cases via
+        # ``count_tokens`` failing earlier (it also requires a loaded
+        # conversation). The explicit narrow keeps the rest of this
+        # method pyright-clean.
+        conv = self._require_conversation()
+
         # Phase 1: Prune oversized tool results
         self._prune_tool_results(budget)
         total = self.count_tokens()
@@ -594,8 +625,8 @@ class ContextManager:
             return
 
         # Phase 2: Split into to_summarize / tail
-        system_msg = self._conversation.messages[0]
-        rest = self._conversation.messages[1:]
+        system_msg = conv.messages[0]
+        rest = conv.messages[1:]
 
         tail_budget = self._budget.tail_budget
         tail: list[dict[str, Any]] = []
@@ -641,7 +672,7 @@ class ContextManager:
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     },
                 }
-                self._conversation.messages = [system_msg, summary_msg] + tail
+                conv.messages = [system_msg, summary_msg] + tail
                 # Phase 4: Sanitize tool pairs
                 self._sanitize_tool_pairs()
                 self._update_thrashing_state(self.count_tokens())
@@ -730,7 +761,7 @@ class ContextManager:
         if attachments:
             from ..core.content import block_to_dict
             msg["attachments"] = [block_to_dict(b) for b in attachments]
-        self._conversation.messages.append(msg)
+        self._require_conversation().messages.append(msg)
         self._persist()
 
     # ------------------------------------------------------------------
@@ -768,7 +799,7 @@ class ContextManager:
         pruned = 0
         seen_content: dict[str, int] = {}  # content hash → count (dedup)
 
-        for msg in self._conversation.messages:
+        for msg in self._require_conversation().messages:
             role = msg.get("role")
             content = msg.get("content", "")
 
@@ -818,7 +849,8 @@ class ContextManager:
         Removes orphaned tool results and adds cancellation notices for
         orphaned tool calls.
         """
-        messages = self._conversation.messages
+        conv = self._require_conversation()
+        messages = conv.messages
         tool_call_ids: set[str] = set()
         tool_result_ids: set[str] = set()
 
@@ -836,7 +868,7 @@ class ContextManager:
         # Remove tool results without matching calls
         orphan_results = tool_result_ids - tool_call_ids
         if orphan_results:
-            self._conversation.messages = [
+            conv.messages = [
                 msg for msg in messages
                 if msg.get("role") != "tool" or msg.get("tool_call_id") not in orphan_results
             ]
@@ -859,8 +891,9 @@ class ContextManager:
 
     def _truncate(self, budget: int) -> None:
         """Drop oldest non-system messages to fit within token budget."""
-        system_msg = self._conversation.messages[0]
-        rest = self._conversation.messages[1:]
+        conv = self._require_conversation()
+        system_msg = conv.messages[0]
+        rest = conv.messages[1:]
 
         system_tokens = self.count_tokens([system_msg])
         remaining_budget = budget - system_tokens
@@ -873,12 +906,12 @@ class ContextManager:
             running += msg_tokens
             keep_from = i
 
-        old_count = len(self._conversation.messages)
-        self._conversation.messages = [system_msg] + rest[keep_from:]
+        old_count = len(conv.messages)
+        conv.messages = [system_msg] + rest[keep_from:]
         logger.info(
             "Context truncated: %d → %d messages",
             old_count,
-            len(self._conversation.messages),
+            len(conv.messages),
         )
 
     # ------------------------------------------------------------------
