@@ -88,6 +88,13 @@ class LLMAgent(Agent):
             and self._bus is not None
         )
         if has_gate:
+            # ``has_gate`` is derived from three non-None checks above;
+            # pyright can't narrow through a cached boolean, so re-assert
+            # the invariants at the seam.
+            assert self._pending_store is not None  # noqa: S101
+            assert self._approval_policy is not None  # noqa: S101
+            assert self._bus is not None  # noqa: S101
+
             resolver = self._resolver
             if resolver is None:
                 from .approval import InteractiveResolver
@@ -133,7 +140,7 @@ class LLMAgent(Agent):
         system_prompt_fn = state.metadata.get("system_prompt_fn")
 
         gen = self._llm.chat_stream(
-            messages=messages,
+            messages=messages,  # type: ignore[arg-type]  # state.messages is broader than ChatCompletionMessageParam
             tools=tools or None,
             tool_executor=executor,
             trace_metadata={

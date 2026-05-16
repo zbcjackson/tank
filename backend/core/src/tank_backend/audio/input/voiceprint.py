@@ -86,6 +86,14 @@ class VoiceprintRecognizer:
         if not self._enabled:
             return self._default_user
 
+        # ``_enabled`` is set in ``__init__`` to ``extractor is not None
+        # and repository is not None`` — pyright can't track the
+        # implication through a cached boolean, so re-assert the
+        # invariant at the seam. Costs one cycle in production but
+        # documents the runtime guarantee for the type checker.
+        assert self._extractor is not None  # noqa: S101
+        assert self._repository is not None  # noqa: S101
+
         try:
             # Extract embedding
             embedding = self._extractor.extract(utterance.pcm, utterance.sample_rate)
@@ -114,6 +122,11 @@ class VoiceprintRecognizer:
         """
         if not self._enabled:
             raise RuntimeError("Voiceprint recognition is disabled")
+
+        # Same ``_enabled``-implies-non-None re-assertion as ``identify``;
+        # see that method for the rationale.
+        assert self._extractor is not None  # noqa: S101
+        assert self._repository is not None  # noqa: S101
 
         embedding = self._extractor.extract(audio, sample_rate)
         self._repository.add_speaker(user_id, name, embedding)

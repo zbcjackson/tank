@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from mcp import ClientSession, StdioServerParameters
+from mcp import types as mcp_types
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamable_http_client
 from pydantic import BaseModel
@@ -193,9 +194,19 @@ class MCPClientManager:
 
         parts: list[str] = []
         for content in result.content:
-            if hasattr(content, "text"):
+            # Pyright doesn't narrow on ``hasattr`` because the call
+            # only inspects runtime state — the static type stays the
+            # full union (TextContent | ImageContent | AudioContent |
+            # ResourceLink | EmbeddedResource). ``isinstance`` against
+            # the concrete MCP types narrows correctly AND tightens
+            # the runtime contract: only the actual content classes
+            # match, not arbitrary objects that happen to expose
+            # ``text`` or ``data``.
+            if isinstance(content, mcp_types.TextContent):
                 parts.append(content.text)
-            elif hasattr(content, "data"):
+            elif isinstance(
+                content, (mcp_types.ImageContent, mcp_types.AudioContent),
+            ):
                 parts.append(f"[{content.type} data: {len(content.data)} bytes]")
             else:
                 parts.append(str(content))

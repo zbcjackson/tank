@@ -31,11 +31,15 @@ def _make_mcp_tool(name: str, description: str = "", input_schema: dict | None =
 
 
 def _make_text_content(text: str):
-    return SimpleNamespace(type="text", text=text)
+    from mcp.types import TextContent
+    return TextContent(type="text", text=text)
 
 
 def _make_image_content(data: bytes):
-    return SimpleNamespace(type="image", data=data)
+    from mcp.types import ImageContent
+    import base64
+    # ImageContent.data is a base64-encoded string, not raw bytes
+    return ImageContent(type="image", data=base64.b64encode(data).decode(), mimeType="image/png")
 
 
 def _make_call_result(content: list, is_error: bool = False):
@@ -268,7 +272,8 @@ class TestMCPClientManager:
 
         result = await mgr.call_tool("img", "screenshot", {})
         assert "image data" in result
-        assert "40 bytes" in result
+        # ImageContent.data is base64-encoded: 40 raw bytes → 56 base64 chars
+        assert "56 bytes" in result
 
     @pytest.mark.asyncio
     async def test_call_tool_server_not_connected(self):

@@ -532,7 +532,7 @@ class Brain(Processor):
         from ...agents.base import AgentOutputType, AgentState
 
         state = AgentState(
-            messages=messages,
+            messages=messages,  # type: ignore[arg-type]  # messages is list[dict] at runtime; AgentState accepts broader shapes
             metadata={
                 "msg_id": msg_id,
                 "system_prompt_fn": system_prompt_fn,
@@ -649,7 +649,7 @@ class Brain(Processor):
             raise
         finally:
             try:
-                await asyncio.wait_for(gen.aclose(), timeout=_ACLOSE_TIMEOUT_S)
+                await asyncio.wait_for(gen.aclose(), timeout=_ACLOSE_TIMEOUT_S)  # type: ignore[attr-defined]  # gen is AsyncGenerator at runtime
             except asyncio.TimeoutError:
                 logger.warning("gen.aclose() timed out in _process_via_agents")
 
@@ -702,7 +702,7 @@ class Brain(Processor):
 
         messages = await self._context.prepare_turn(event.user, event.text)
         state = AgentState(
-            messages=messages,
+            messages=messages,  # type: ignore[arg-type]  # messages is list[dict] at runtime; AgentState accepts broader shapes
             metadata={"msg_id": msg_id, "user": event.user},
         )
         self._current_msg_id = msg_id
@@ -784,7 +784,7 @@ class Brain(Processor):
             raise
         finally:
             try:
-                await asyncio.wait_for(gen.aclose(), timeout=_ACLOSE_TIMEOUT_S)
+                await asyncio.wait_for(gen.aclose(), timeout=_ACLOSE_TIMEOUT_S)  # type: ignore[attr-defined]  # gen is AsyncGenerator at runtime
             except asyncio.TimeoutError:
                 logger.warning("gen.aclose() timed out in _process_confirmation_turn")
 
