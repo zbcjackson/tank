@@ -865,6 +865,111 @@ class TestUrlImageDownload:
         assert "unsupported_image_source" in result.error
 
 
+# ---------------------------------------------------------------------------
+# Outbound — voice
+# ---------------------------------------------------------------------------
+
+
+class TestSendVoice:
+    """send_voice() uploads OGG bytes via file.acreate then sends an
+    audio message with the returned file_key."""
+
+    async def test_happy_path(self) -> None:
+        c = _make_started_connector()
+
+        # Mock file upload
+        file_resp = MagicMock()
+        file_resp.success = MagicMock(return_value=True)
+        file_resp.data = MagicMock()
+        file_resp.data.file_key = "file_voice_abc"
+        c._api.im.v1.file = MagicMock()  # noqa: SLF001
+        c._api.im.v1.file.acreate = AsyncMock(return_value=file_resp)  # noqa: SLF001
+
+        # Mock message send
+        send_resp = MagicMock()
+        send_resp.success = MagicMock(return_value=True)
+        send_resp.data = MagicMock()
+        send_resp.data.message_id = "om_voice_1"
+        c._api.im.v1.message.acreate = AsyncMock(return_value=send_resp)  # noqa: SLF001
+
+        identity = Identity(
+            platform="feishu", external_id="feishu:user:ou_a",
+            metadata={"open_id": "ou_a"},
+        )
+        result = await c.send_voice(identity=identity, data=b"OggS_fake")
+
+        assert result.ok is True
+        assert result.message_id == "om_voice_1"
+        # File upload was called
+        c._api.im.v1.file.acreate.assert_awaited_once()  # noqa: SLF001
+        # Message send carried the file_key as audio
+        req = c._api.im.v1.message.acreate.call_args.args[0]  # noqa: SLF001
+        payload = json.loads(req.request_body.content)
+        assert payload == {"file_key": "file_voice_abc"}
+
+    async def test_not_connected_returns_error(self) -> None:
+        c = FeishuConnector(
+            instance_name="t", app_id="cli_a", app_secret="s",
+        )
+        result = await c.send_voice(
+            identity=Identity(
+                platform="feishu", external_id="feishu:user:ou_a",
+                metadata={},
+            ),
+            data=b"OggS",
+        )
+        assert result.ok is False
+        assert "not_connected" in result.error
+
+    async def test_empty_payload_returns_error(self) -> None:
+        c = _make_started_connector()
+        result = await c.send_voice(
+            identity=Identity(
+                platform="feishu", external_id="feishu:user:ou_a",
+                metadata={"open_id": "ou_a"},
+            ),
+            data=b"",
+        )
+        assert result.ok is False
+        assert "empty_payload" in result.error
+
+    async def test_file_upload_failure_returns_error(self) -> None:
+        c = _make_started_connector()
+        file_resp = MagicMock()
+        file_resp.success = MagicMock(return_value=False)
+        file_resp.code = 230099
+        file_resp.msg = "file too large"
+        c._api.im.v1.file = MagicMock()  # noqa: SLF001
+        c._api.im.v1.file.acreate = AsyncMock(return_value=file_resp)  # noqa: SLF001
+
+        identity = Identity(
+            platform="feishu", external_id="feishu:user:ou_a",
+            metadata={"open_id": "ou_a"},
+        )
+        result = await c.send_voice(identity=identity, data=b"OggS")
+
+        assert result.ok is False
+        assert "feishu:230099" in result.error
+
+    async def test_file_upload_no_key_returns_error(self) -> None:
+        c = _make_started_connector()
+        file_resp = MagicMock()
+        file_resp.success = MagicMock(return_value=True)
+        file_resp.data = MagicMock()
+        file_resp.data.file_key = ""
+        c._api.im.v1.file = MagicMock()  # noqa: SLF001
+        c._api.im.v1.file.acreate = AsyncMock(return_value=file_resp)  # noqa: SLF001
+
+        identity = Identity(
+            platform="feishu", external_id="feishu:user:ou_a",
+            metadata={"open_id": "ou_a"},
+        )
+        result = await c.send_voice(identity=identity, data=b"OggS")
+
+        assert result.ok is False
+        assert "audio_upload_no_key" in result.error
+
+
 class TestEdit:
     async def test_edit_happy_path(self) -> None:
         c = _make_started_connector()

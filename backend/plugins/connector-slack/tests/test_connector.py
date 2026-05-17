@@ -919,6 +919,88 @@ class TestSendImage:
 
 
 # ---------------------------------------------------------------------------
+# Outbound — voice
+# ---------------------------------------------------------------------------
+
+
+class TestSendVoice:
+    """send_voice() uploads OGG bytes via files_upload_v2 so Slack
+    renders an inline audio player."""
+
+    async def test_happy_path(self, started_connector) -> None:
+        started_connector._app.client.files_upload_v2 = AsyncMock(  # noqa: SLF001
+            return_value={"ok": True},
+        )
+        identity = _identity()
+        result = await started_connector.send_voice(
+            identity=identity, data=b"OggS_fake_audio",
+        )
+        assert result.ok is True
+        started_connector._app.client.files_upload_v2.assert_awaited_once()  # noqa: SLF001
+        kwargs = started_connector._app.client.files_upload_v2.call_args.kwargs  # noqa: SLF001
+        assert kwargs["channel"] == "C200"
+        assert kwargs["content"] == b"OggS_fake_audio"
+        assert kwargs["filename"] == "voice.ogg"
+
+    async def test_with_caption(self, started_connector) -> None:
+        started_connector._app.client.files_upload_v2 = AsyncMock(  # noqa: SLF001
+            return_value={"ok": True},
+        )
+        identity = _identity()
+        result = await started_connector.send_voice(
+            identity=identity, data=b"OggS", caption="Here's the audio",
+        )
+        assert result.ok is True
+        kwargs = started_connector._app.client.files_upload_v2.call_args.kwargs  # noqa: SLF001
+        assert kwargs["title"] == "Here's the audio"
+
+    async def test_not_connected_returns_error(self) -> None:
+        from connector_slack import SlackConnector
+        c = SlackConnector(
+            instance_name="t", bot_token="xoxb-t", app_token="xapp-t",
+        )
+        # _app is None — never started
+        result = await c.send_voice(
+            identity=_identity(), data=b"OggS",
+        )
+        assert result.ok is False
+        assert "not_connected" in result.error
+
+    async def test_empty_payload_returns_error(self, started_connector) -> None:
+        result = await started_connector.send_voice(
+            identity=_identity(), data=b"",
+        )
+        assert result.ok is False
+        assert "empty_payload" in result.error
+
+    async def test_missing_channel_returns_error(self, started_connector) -> None:
+        from tank_contracts.connector import Identity
+        identity = Identity(
+            platform="slack", external_id="slack:user:U100",
+            metadata={},  # no "channel" key
+        )
+        result = await started_connector.send_voice(
+            identity=identity, data=b"OggS",
+        )
+        assert result.ok is False
+        assert "missing_channel" in result.error
+
+    async def test_api_error_classified(self, started_connector) -> None:
+        from slack_sdk.errors import SlackApiError
+        resp = MagicMock()
+        resp.get.return_value = "ratelimited"
+        resp.headers = {"retry-after": "30"}
+        started_connector._app.client.files_upload_v2 = AsyncMock(  # noqa: SLF001
+            side_effect=SlackApiError("rate", response=resp),
+        )
+        result = await started_connector.send_voice(
+            identity=_identity(), data=b"OggS",
+        )
+        assert result.ok is False
+        assert "rate_limited" in result.error
+
+
+# ---------------------------------------------------------------------------
 # Outbound — edit
 # ---------------------------------------------------------------------------
 

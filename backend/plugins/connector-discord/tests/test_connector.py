@@ -834,6 +834,79 @@ class TestSendImage:
 
 
 # ---------------------------------------------------------------------------
+# Outbound — voice
+# ---------------------------------------------------------------------------
+
+
+class TestSendVoice:
+    """send_voice() uploads OGG bytes as a discord.File attachment so
+    Discord renders an inline audio player."""
+
+    async def test_happy_path(self, started_connector) -> None:
+        channel = MagicMock()
+        sent_msg = MagicMock()
+        sent_msg.id = 99999
+        channel.send = AsyncMock(return_value=sent_msg)
+
+        started_connector._client.get_channel = MagicMock(return_value=channel)  # noqa: SLF001
+
+        identity = _identity()
+        result = await started_connector.send_voice(
+            identity=identity, data=b"OggS_fake_audio",
+        )
+        assert result.ok is True
+        assert result.message_id == "99999"
+        channel.send.assert_awaited_once()
+        kwargs = channel.send.call_args.kwargs
+        assert kwargs["file"] is not None
+
+    async def test_with_caption(self, started_connector) -> None:
+        channel = MagicMock()
+        sent_msg = MagicMock()
+        sent_msg.id = 88888
+        channel.send = AsyncMock(return_value=sent_msg)
+        started_connector._client.get_channel = MagicMock(return_value=channel)  # noqa: SLF001
+
+        identity = _identity()
+        result = await started_connector.send_voice(
+            identity=identity, data=b"OggS", caption="Listen to this",
+        )
+        assert result.ok is True
+        kwargs = channel.send.call_args.kwargs
+        assert kwargs["content"] == "Listen to this"
+
+    async def test_not_connected_returns_error(self) -> None:
+        from connector_discord import DiscordConnector
+        c = DiscordConnector(instance_name="t", bot_token="xxx")
+        # _client is None — never started
+        result = await c.send_voice(
+            identity=_identity(), data=b"OggS",
+        )
+        assert result.ok is False
+        assert "not_connected" in result.error
+
+    async def test_empty_payload_returns_error(self, started_connector) -> None:
+        result = await started_connector.send_voice(
+            identity=_identity(), data=b"",
+        )
+        assert result.ok is False
+        assert "empty_payload" in result.error
+
+    async def test_http_exception_classified(self, started_connector) -> None:
+        channel = MagicMock()
+        channel.send = AsyncMock(
+            side_effect=_http_exception(413),
+        )
+        started_connector._client.get_channel = MagicMock(return_value=channel)  # noqa: SLF001
+
+        result = await started_connector.send_voice(
+            identity=_identity(), data=b"OggS_too_large",
+        )
+        assert result.ok is False
+        assert "discord:413" in result.error
+
+
+# ---------------------------------------------------------------------------
 # Outbound — edit
 # ---------------------------------------------------------------------------
 
