@@ -61,9 +61,13 @@ who can talk to the bot, see [Access control](#access-control).
 
 ## What doesn't work yet
 
-- **Outbound voice**: Feishu's audio messages need an upload via
-  `/im/v1/files` followed by a `file_key` reference; bot-sent audio
-  isn't wired here.
+- **Text + image as one turn**: Feishu delivers text and image as two
+  separate events. Each becomes its own LLM turn, so asking "what's in
+  this picture?" in one message and attaching the image in another means
+  the LLM answers the text before seeing the image. **Workaround**: use
+  Feishu's rich-text editor (the `[A]` button in the compose bar) to
+  write text and paste the image into a single message — Feishu then
+  delivers both as one `post`-type event.
 - **Slash commands / mentions**: bots can be `@`-mentioned in groups,
   but Tank doesn't strip the mention token from the inbound text or
   filter on it.

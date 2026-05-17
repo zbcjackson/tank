@@ -35,7 +35,6 @@ import asyncio
 import contextlib
 import json
 import logging
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import lark_oapi as lark
@@ -87,22 +86,6 @@ _MAX_INBOUND_AUDIO_BYTES = 25 * 1024 * 1024
 
 # Timeout for the WebSocket task to drain cleanly on shutdown.
 _SHUTDOWN_TIMEOUT_S = 5.0
-
-# How long to buffer a text event waiting for a same-sender image to
-# arrive. Feishu delivers text + image as two separate events; without
-# bundling, the LLM answers the text before seeing the image. 2 seconds
-# is long enough for Feishu's server to deliver the second event but
-# short enough that the user doesn't notice the delay.
-_BUNDLE_WINDOW_S = 2.0
-
-
-@dataclass
-class _PendingText:
-    """A buffered text event waiting for a same-sender image."""
-
-    identity: Identity
-    text: str
-    timer: asyncio.TimerHandle
 
 
 def _classify_lark_error(exc: Exception) -> SendResult:
@@ -174,12 +157,6 @@ class FeishuConnector(Connector):
             platform=self.platform,
             shutdown_timeout_s=_SHUTDOWN_TIMEOUT_S,
         )
-        # Text+image bundling: buffer a text event for up to
-        # _BUNDLE_WINDOW_S seconds waiting for a same-sender image
-        # event to arrive. If the image arrives within the window,
-        # merge into one MessageEvent. If the timer expires, forward
-        # the text-only event. Keyed by sender external_id.
-        self._pending_text: dict[str, _PendingText] = {}
 
     # ── Lifecycle ───────────────────────────────────────────────────
 
@@ -443,12 +420,6 @@ class FeishuConnector(Connector):
         attachments: list[Attachment] = []
         if msg.message_type == "text":
             text = content.get("text", "")
-            # Text+image bundling: buffer this text event for up to
-            # _BUNDLE_WINDOW_S seconds. If an image from the same
-            # sender arrives within the window, merge into one
-            # MessageEvent. If the timer expires, forward text-only.
-            await self._buffer_text_event(identity, text)
-            return
         elif msg.message_type == "image":
             image_key = content.get("image_key", "")
             image_bytes = await self._download_resource(
@@ -458,12 +429,6 @@ class FeishuConnector(Connector):
                 attachments.append(Attachment(
                     kind="image", data=image_bytes, mime_type="image/jpeg",
                 ))
-            # Check if there's a pending text from the same sender to
-            # merge with this image.
-            pending = self._pending_text.pop(identity.external_id, None)
-            if pending is not None:
-                pending.timer.cancel()
-                text = pending.text
         elif msg.message_type == "audio":
             file_key = content.get("file_key", "")
             audio_bytes = await self._download_resource(
@@ -481,56 +446,11 @@ class FeishuConnector(Connector):
             )
             return
 
-        # Forward the non-text message (image/audio, possibly merged
-        # with a pending text) via the shared helper.
+        # Forward the message directly — no bundling. Feishu delivers
+        # text and image as separate events; each becomes its own turn.
+        # Users who want text+image in one turn should use Feishu's
+        # rich-text editor to compose a single message containing both.
         await self._forward_message(identity, text, tuple(attachments))
-
-    # ── Text+image bundling ─────────────────────────────────────────
-
-    async def _buffer_text_event(
-        self, identity: Identity, text: str,
-    ) -> None:
-        """Buffer a text event for bundling with a subsequent image.
-
-        If the same sender already has a pending text, flush the old
-        one first (they sent two texts in a row without an image
-        between them — forward the first immediately).
-
-        Starts a timer that fires ``_flush_pending_text`` after
-        ``_BUNDLE_WINDOW_S`` seconds. If an image arrives before the
-        timer fires, ``_dispatch_message`` cancels the timer and
-        merges the text with the image into one ``MessageEvent``.
-        """
-        sender_id = identity.external_id
-
-        # Flush any existing pending text from this sender (two texts
-        # in a row — the first one wasn't followed by an image).
-        existing = self._pending_text.pop(sender_id, None)
-        if existing is not None:
-            existing.timer.cancel()
-            await self._forward_message(existing.identity, existing.text, ())
-
-        # Buffer the new text with a timer.
-        loop = asyncio.get_running_loop()
-        timer = loop.call_later(
-            _BUNDLE_WINDOW_S,
-            lambda: asyncio.ensure_future(self._flush_pending_text(sender_id)),
-        )
-        self._pending_text[sender_id] = _PendingText(
-            identity=identity, text=text, timer=timer,
-        )
-
-    async def _flush_pending_text(self, sender_id: str) -> None:
-        """Timer expired — forward the buffered text without an image.
-
-        Called by the event loop after ``_BUNDLE_WINDOW_S`` seconds if
-        no image arrived from the same sender. Pops the pending entry
-        and forwards as a text-only ``MessageEvent``.
-        """
-        pending = self._pending_text.pop(sender_id, None)
-        if pending is None:
-            return
-        await self._forward_message(pending.identity, pending.text, ())
 
     async def _forward_message(
         self,
@@ -538,18 +458,16 @@ class FeishuConnector(Connector):
         text: str,
         attachments: tuple[Attachment, ...],
     ) -> None:
-        """Forward a (possibly-merged) message to the framework handler.
+        """Forward a message to the framework handler.
 
-        Shared by both the bundled path (text+image merged) and the
-        flush path (text-only after timer expiry). Logs the inbound
-        identity at INFO for open_id discovery.
+        Logs the inbound identity at INFO for open_id discovery.
         """
         assert self._on_message is not None  # noqa: S101
         logger.info(
-            "Feishu connector '%s' inbound from %s (bundled=%s)",
+            "Feishu connector '%s' inbound from %s (msg_type=%s)",
             self.instance_name,
             identity.external_id,
-            bool(attachments),
+            "image" if attachments else "text",
         )
         try:
             await self._on_message(MessageEvent(

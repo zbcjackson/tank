@@ -176,8 +176,6 @@ class TestInboundIdentity:
             content={"text": "hi"},
         )
         await c._dispatch_message(data)  # noqa: SLF001
-        # Text messages are buffered for bundling; flush manually
-        await c._flush_pending_text("feishu:user:ou_alice")  # noqa: SLF001
 
         assert len(received) == 1
         identity = received[0].identity
@@ -205,8 +203,6 @@ class TestInboundIdentity:
             content={"text": "hi all"},
         )
         await c._dispatch_message(data)  # noqa: SLF001
-        # Text messages are buffered for bundling; flush manually
-        await c._flush_pending_text("feishu:chat:oc_grp")  # noqa: SLF001
 
         identity = received[0].identity
         assert identity.external_id == "feishu:chat:oc_grp"
@@ -302,8 +298,6 @@ class TestInboundText:
 
         data = _mock_message_event(content={"text": "hello tank"})
         await c._dispatch_message(data)  # noqa: SLF001
-        # Text messages are buffered for bundling; flush manually
-        await c._flush_pending_text("feishu:user:ou_sender_1")  # noqa: SLF001
 
         assert len(received) == 1
         assert received[0].text == "hello tank"
@@ -1445,194 +1439,3 @@ class TestLarkLoopMonkeyPatch:
         assert lark_ws_module.loop is original_loop
 
 
-# ---------------------------------------------------------------------------
-# Text+image bundling
-# ---------------------------------------------------------------------------
-
-
-class TestTextImageBundling:
-    """Item 2: Feishu delivers text + image as two separate events.
-    The connector buffers text for a short window and merges with a
-    subsequent image from the same sender."""
-
-    async def test_text_then_image_merged_into_one_event(self) -> None:
-        """The headline scenario: user sends text, then image within
-        the bundle window. The handler receives ONE MessageEvent with
-        both text and the image attachment."""
-        c = FeishuConnector(
-            instance_name="t", app_id="cli_a", app_secret="s",
-        )
-        received: list[MessageEvent] = []
-
-        async def handler(event: MessageEvent) -> None:
-            received.append(event)
-        c.set_message_handler(handler)
-
-        # Mock the resource download for the image event
-        c._download_resource = AsyncMock(return_value=b"\x89PNG_merged")  # noqa: SLF001
-
-        # 1. Text event arrives — gets buffered
-        text_data = _mock_message_event(
-            chat_type="p2p",
-            sender_open_id="ou_alice",
-            message_type="text",
-            content={"text": "what's in this picture?"},
-        )
-        await c._dispatch_message(text_data)  # noqa: SLF001
-        assert len(received) == 0  # buffered, not forwarded yet
-
-        # 2. Image event from same sender arrives — merges
-        image_data = _mock_message_event(
-            chat_type="p2p",
-            sender_open_id="ou_alice",
-            message_type="image",
-            content={"image_key": "img_abc"},
-        )
-        await c._dispatch_message(image_data)  # noqa: SLF001
-
-        # One merged event with text + image
-        assert len(received) == 1
-        assert received[0].text == "what's in this picture?"
-        assert len(received[0].attachments) == 1
-        assert received[0].attachments[0].kind == "image"
-        assert received[0].attachments[0].data == b"\x89PNG_merged"
-
-    async def test_text_without_image_flushes_after_timer(self) -> None:
-        """When no image follows within the window, the text forwards
-        as a text-only event after the timer fires."""
-        c = FeishuConnector(
-            instance_name="t", app_id="cli_a", app_secret="s",
-        )
-        received: list[MessageEvent] = []
-
-        async def handler(event: MessageEvent) -> None:
-            received.append(event)
-        c.set_message_handler(handler)
-
-        text_data = _mock_message_event(
-            chat_type="p2p",
-            sender_open_id="ou_bob",
-            message_type="text",
-            content={"text": "just text"},
-        )
-        await c._dispatch_message(text_data)  # noqa: SLF001
-        assert len(received) == 0  # buffered
-
-        # Manually flush (simulates timer expiry)
-        await c._flush_pending_text("feishu:user:ou_bob")  # noqa: SLF001
-
-        assert len(received) == 1
-        assert received[0].text == "just text"
-        assert received[0].attachments == ()
-
-    async def test_two_texts_in_a_row_flushes_first(self) -> None:
-        """If the same sender sends two texts without an image between
-        them, the first text is flushed immediately when the second
-        arrives (the first wasn't followed by an image)."""
-        c = FeishuConnector(
-            instance_name="t", app_id="cli_a", app_secret="s",
-        )
-        received: list[MessageEvent] = []
-
-        async def handler(event: MessageEvent) -> None:
-            received.append(event)
-        c.set_message_handler(handler)
-
-        # First text
-        data1 = _mock_message_event(
-            chat_type="p2p",
-            sender_open_id="ou_carol",
-            message_type="text",
-            content={"text": "first"},
-        )
-        await c._dispatch_message(data1)  # noqa: SLF001
-        assert len(received) == 0  # buffered
-
-        # Second text from same sender — flushes the first
-        data2 = _mock_message_event(
-            chat_type="p2p",
-            sender_open_id="ou_carol",
-            message_type="text",
-            content={"text": "second"},
-        )
-        await c._dispatch_message(data2)  # noqa: SLF001
-
-        # First text was flushed; second is now buffered
-        assert len(received) == 1
-        assert received[0].text == "first"
-
-        # Flush the second
-        await c._flush_pending_text("feishu:user:ou_carol")  # noqa: SLF001
-        assert len(received) == 2
-        assert received[1].text == "second"
-
-    async def test_image_without_pending_text_forwards_immediately(
-        self,
-    ) -> None:
-        """An image that arrives without a preceding text event
-        forwards immediately as an image-only MessageEvent."""
-        c = FeishuConnector(
-            instance_name="t", app_id="cli_a", app_secret="s",
-        )
-        received: list[MessageEvent] = []
-
-        async def handler(event: MessageEvent) -> None:
-            received.append(event)
-        c.set_message_handler(handler)
-
-        c._download_resource = AsyncMock(return_value=b"\x89PNG_solo")  # noqa: SLF001
-
-        image_data = _mock_message_event(
-            chat_type="p2p",
-            sender_open_id="ou_dave",
-            message_type="image",
-            content={"image_key": "img_solo"},
-        )
-        await c._dispatch_message(image_data)  # noqa: SLF001
-
-        # Forwarded immediately — no text to merge
-        assert len(received) == 1
-        assert received[0].text == ""
-        assert received[0].attachments[0].data == b"\x89PNG_solo"
-
-    async def test_different_senders_dont_cross_bundle(self) -> None:
-        """Text from sender A and image from sender B must NOT merge.
-        Each sender's buffer is independent."""
-        c = FeishuConnector(
-            instance_name="t", app_id="cli_a", app_secret="s",
-        )
-        received: list[MessageEvent] = []
-
-        async def handler(event: MessageEvent) -> None:
-            received.append(event)
-        c.set_message_handler(handler)
-
-        c._download_resource = AsyncMock(return_value=b"\x89PNG")  # noqa: SLF001
-
-        # Text from Alice
-        text_data = _mock_message_event(
-            chat_type="p2p",
-            sender_open_id="ou_alice",
-            message_type="text",
-            content={"text": "alice's text"},
-        )
-        await c._dispatch_message(text_data)  # noqa: SLF001
-
-        # Image from Bob — should NOT merge with Alice's text
-        image_data = _mock_message_event(
-            chat_type="p2p",
-            sender_open_id="ou_bob",
-            message_type="image",
-            content={"image_key": "img_bob"},
-        )
-        await c._dispatch_message(image_data)  # noqa: SLF001
-
-        # Bob's image forwarded immediately (no pending text from Bob)
-        assert len(received) == 1
-        assert received[0].text == ""  # Bob's image, no text
-
-        # Alice's text still buffered — flush it
-        await c._flush_pending_text("feishu:user:ou_alice")  # noqa: SLF001
-        assert len(received) == 2
-        assert received[1].text == "alice's text"
-        assert received[1].attachments == ()
