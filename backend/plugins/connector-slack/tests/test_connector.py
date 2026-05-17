@@ -99,7 +99,7 @@ class TestCapabilities:
         # voice still deferred — no ``sendAudioMessage`` equivalent
         # in Slack's Web API today.
         assert caps.supports_voice_in is True
-        assert caps.supports_voice_out is False
+        assert caps.supports_voice_out is True
         # Slack has no public typing indicator.
         assert caps.supports_typing_indicator is False
 

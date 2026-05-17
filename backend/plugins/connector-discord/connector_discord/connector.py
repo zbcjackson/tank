@@ -208,7 +208,7 @@ class DiscordConnector(Connector):
                 supports_images_in=True,
                 supports_images_out=True,
                 supports_voice_in=True,
-                supports_voice_out=False,
+                supports_voice_out=True,
                 supports_typing_indicator=True,
             ),
         )
@@ -604,6 +604,45 @@ class DiscordConnector(Connector):
             async with channel.typing():
                 # Brief await to let Discord register the indicator.
                 await asyncio.sleep(0)
+
+    async def send_voice(
+        self,
+        identity: Identity,
+        data: bytes,
+        *,
+        mime_type: str = "audio/ogg",
+        caption: str = "",
+    ) -> SendResult:
+        """Send a voice note as a file attachment.
+
+        Discord doesn't have a native voice-message API for bots, but
+        uploading an audio file renders an inline audio player in the
+        client. We send via ``channel.send(file=...)`` with the OGG
+        bytes the ``_VoiceDispatcher`` produces.
+        """
+        if self._client is None:
+            return SendResult(ok=False, error="discord:not_connected")
+        if not data:
+            return SendResult(ok=False, error="discord:empty_payload")
+
+        channel = await self._resolve_channel(
+            identity.metadata.get("channel_id") if identity.metadata else 0,
+            identity,
+        )
+        if channel is None:
+            return SendResult(ok=False, error="discord:channel_not_found")
+
+        try:
+            file = discord.File(
+                io.BytesIO(data), filename="voice.ogg",
+            )
+            content = caption if caption else None
+            msg = await channel.send(content=content, file=file)
+            return SendResult(ok=True, message_id=str(msg.id))
+        except discord.HTTPException as e:
+            return SendResult(ok=False, error=f"discord:{e.status}:{e.text}")
+        except Exception as e:
+            return SendResult(ok=False, error=f"discord:{e}")
 
     # ── Approval workflow (Phase 10) ────────────────────────────────
 

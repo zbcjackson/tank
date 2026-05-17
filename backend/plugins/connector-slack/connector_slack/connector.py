@@ -183,7 +183,7 @@ class SlackConnector(Connector):
                 supports_images_in=True,
                 supports_images_out=True,
                 supports_voice_in=True,
-                supports_voice_out=False,
+                supports_voice_out=True,
                 supports_typing_indicator=False,
             ),
         )
@@ -688,6 +688,51 @@ class SlackConnector(Connector):
             return _classify_slack_error(e)
 
         return SendResult(ok=True, message_id=message_id)
+
+    async def send_voice(
+        self,
+        identity: Identity,
+        data: bytes,
+        *,
+        mime_type: str = "audio/ogg",
+        caption: str = "",
+    ) -> SendResult:
+        """Send a voice note via Slack's file upload API.
+
+        Slack doesn't have a native "voice message" type like Telegram,
+        but uploading an audio file and posting it to a channel renders
+        an inline audio player in the client. We upload via
+        ``files_upload_v2`` with the appropriate filetype, then the
+        file auto-posts to the channel.
+
+        The ``_VoiceDispatcher`` in the manager produces Ogg/Opus bytes
+        via ``encode_pcm_to_opus``; Slack's player handles OGG natively.
+        """
+        if self._app is None:
+            return SendResult(ok=False, error="slack:not_connected")
+
+        channel = identity.metadata.get("channel") if identity.metadata else None
+        if not channel:
+            return SendResult(ok=False, error="slack:missing_channel")
+        if not data:
+            return SendResult(ok=False, error="slack:empty_payload")
+
+        try:
+            resp = await self._app.client.files_upload_v2(
+                channel=channel,
+                content=data,
+                filename="voice.ogg",
+                title=caption or "Voice message",
+            )
+            if not resp.get("ok"):
+                return SendResult(
+                    ok=False, error=f"slack:{resp.get('error', 'upload_failed')}",
+                )
+            return SendResult(ok=True)
+        except SlackApiError as e:
+            return _classify_slack_error(e)
+        except Exception as e:
+            return SendResult(ok=False, error=f"slack:{e}")
 
     # ── Approval workflow (Phase 10) ────────────────────────────────
 

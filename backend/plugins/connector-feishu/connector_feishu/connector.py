@@ -35,6 +35,7 @@ import asyncio
 import contextlib
 import json
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import lark_oapi as lark
@@ -87,6 +88,22 @@ _MAX_INBOUND_AUDIO_BYTES = 25 * 1024 * 1024
 # Timeout for the WebSocket task to drain cleanly on shutdown.
 _SHUTDOWN_TIMEOUT_S = 5.0
 
+# How long to buffer a text event waiting for a same-sender image to
+# arrive. Feishu delivers text + image as two separate events; without
+# bundling, the LLM answers the text before seeing the image. 2 seconds
+# is long enough for Feishu's server to deliver the second event but
+# short enough that the user doesn't notice the delay.
+_BUNDLE_WINDOW_S = 2.0
+
+
+@dataclass
+class _PendingText:
+    """A buffered text event waiting for a same-sender image."""
+
+    identity: Identity
+    text: str
+    timer: asyncio.TimerHandle
+
 
 def _classify_lark_error(exc: Exception) -> SendResult:
     """Map a lark SDK error into our :class:`SendResult` shape.
@@ -128,7 +145,7 @@ class FeishuConnector(Connector):
                 # Voice outbound deferred (separate file_key upload
                 # path; see README "What doesn't work yet").
                 supports_voice_in=True,
-                supports_voice_out=False,
+                supports_voice_out=True,
                 # Feishu has no public typing-indicator API.
                 supports_typing_indicator=False,
             ),
@@ -157,6 +174,12 @@ class FeishuConnector(Connector):
             platform=self.platform,
             shutdown_timeout_s=_SHUTDOWN_TIMEOUT_S,
         )
+        # Text+image bundling: buffer a text event for up to
+        # _BUNDLE_WINDOW_S seconds waiting for a same-sender image
+        # event to arrive. If the image arrives within the window,
+        # merge into one MessageEvent. If the timer expires, forward
+        # the text-only event. Keyed by sender external_id.
+        self._pending_text: dict[str, _PendingText] = {}
 
     # ── Lifecycle ───────────────────────────────────────────────────
 
@@ -420,6 +443,12 @@ class FeishuConnector(Connector):
         attachments: list[Attachment] = []
         if msg.message_type == "text":
             text = content.get("text", "")
+            # Text+image bundling: buffer this text event for up to
+            # _BUNDLE_WINDOW_S seconds. If an image from the same
+            # sender arrives within the window, merge into one
+            # MessageEvent. If the timer expires, forward text-only.
+            await self._buffer_text_event(identity, text)
+            return
         elif msg.message_type == "image":
             image_key = content.get("image_key", "")
             image_bytes = await self._download_resource(
@@ -429,6 +458,12 @@ class FeishuConnector(Connector):
                 attachments.append(Attachment(
                     kind="image", data=image_bytes, mime_type="image/jpeg",
                 ))
+            # Check if there's a pending text from the same sender to
+            # merge with this image.
+            pending = self._pending_text.pop(identity.external_id, None)
+            if pending is not None:
+                pending.timer.cancel()
+                text = pending.text
         elif msg.message_type == "audio":
             file_key = content.get("file_key", "")
             audio_bytes = await self._download_resource(
@@ -446,27 +481,81 @@ class FeishuConnector(Connector):
             )
             return
 
-        # ``_on_message`` is checked at the top of ``_on_message_event``;
-        # the framework guarantees it's non-None by the time we reach
-        # this dispatch path. The narrow assert lets pyright through.
+        # Forward the non-text message (image/audio, possibly merged
+        # with a pending text) via the shared helper.
+        await self._forward_message(identity, text, tuple(attachments))
+
+    # ── Text+image bundling ─────────────────────────────────────────
+
+    async def _buffer_text_event(
+        self, identity: Identity, text: str,
+    ) -> None:
+        """Buffer a text event for bundling with a subsequent image.
+
+        If the same sender already has a pending text, flush the old
+        one first (they sent two texts in a row without an image
+        between them — forward the first immediately).
+
+        Starts a timer that fires ``_flush_pending_text`` after
+        ``_BUNDLE_WINDOW_S`` seconds. If an image arrives before the
+        timer fires, ``_dispatch_message`` cancels the timer and
+        merges the text with the image into one ``MessageEvent``.
+        """
+        sender_id = identity.external_id
+
+        # Flush any existing pending text from this sender (two texts
+        # in a row — the first one wasn't followed by an image).
+        existing = self._pending_text.pop(sender_id, None)
+        if existing is not None:
+            existing.timer.cancel()
+            await self._forward_message(existing.identity, existing.text, ())
+
+        # Buffer the new text with a timer.
+        loop = asyncio.get_running_loop()
+        timer = loop.call_later(
+            _BUNDLE_WINDOW_S,
+            lambda: asyncio.ensure_future(self._flush_pending_text(sender_id)),
+        )
+        self._pending_text[sender_id] = _PendingText(
+            identity=identity, text=text, timer=timer,
+        )
+
+    async def _flush_pending_text(self, sender_id: str) -> None:
+        """Timer expired — forward the buffered text without an image.
+
+        Called by the event loop after ``_BUNDLE_WINDOW_S`` seconds if
+        no image arrived from the same sender. Pops the pending entry
+        and forwards as a text-only ``MessageEvent``.
+        """
+        pending = self._pending_text.pop(sender_id, None)
+        if pending is None:
+            return
+        await self._forward_message(pending.identity, pending.text, ())
+
+    async def _forward_message(
+        self,
+        identity: Identity,
+        text: str,
+        attachments: tuple[Attachment, ...],
+    ) -> None:
+        """Forward a (possibly-merged) message to the framework handler.
+
+        Shared by both the bundled path (text+image merged) and the
+        flush path (text-only after timer expiry). Logs the inbound
+        identity at INFO for open_id discovery.
+        """
         assert self._on_message is not None  # noqa: S101
-        # Log inbound identity at INFO so operators (and the user
-        # themselves) can grep the tmux log to find their own
-        # ``feishu:user:ou_...`` external_id without needing the
-        # Feishu admin console. Standard pattern across the four
-        # connectors — Slack and Discord do the same on inbound.
         logger.info(
-            "Feishu connector '%s' inbound from %s (msg_type=%s, msg_id=%s)",
+            "Feishu connector '%s' inbound from %s (bundled=%s)",
             self.instance_name,
             identity.external_id,
-            msg.message_type,
-            msg.message_id,
+            bool(attachments),
         )
         try:
             await self._on_message(MessageEvent(
                 identity=identity,
                 text=text,
-                attachments=tuple(attachments),
+                attachments=attachments,
                 reply_to_message_id=None,
             ))
         except Exception:
@@ -611,22 +700,28 @@ class FeishuConnector(Connector):
             )
 
         att = image_atts[0]
-        # ``data`` may be raw bytes or a URL string; Feishu's send
-        # API needs an ``image_key`` we get by uploading first. The
-        # bytes path is supported here; the URL path needs a
-        # download-then-upload flow we skip in v1.
-        if not isinstance(att.data, bytes):
+        # ``data`` may be raw bytes or a URL string. Feishu's send API
+        # needs an ``image_key`` we get by uploading bytes. When the
+        # source is a URL (e.g. from ``echo_image``), download first.
+        if isinstance(att.data, bytes):
+            image_bytes = att.data
+        elif isinstance(att.data, str) and att.data.startswith(("http://", "https://")):
+            image_bytes = await self._download_url_image(att.data)
+            if image_bytes is None:
+                return SendResult(
+                    ok=False, error="feishu:url_image_download_failed",
+                )
+        else:
             logger.warning(
-                "Feishu connector '%s': URL-based outbound images not "
-                "supported in v1 (got %s)",
+                "Feishu connector '%s': unsupported image data type %s",
                 self.instance_name, type(att.data).__name__,
             )
             return SendResult(
-                ok=False, error="feishu:url_image_unsupported",
+                ok=False, error="feishu:unsupported_image_source",
             )
 
         try:
-            image_key = await self._upload_image(att.data)
+            image_key = await self._upload_image(image_bytes)
         except Exception as exc:
             logger.exception(
                 "Feishu connector '%s': image upload raised",
@@ -680,6 +775,45 @@ class FeishuConnector(Connector):
             return SendResult(ok=True, message_id=message_id)
         except Exception as exc:
             return _classify_lark_error(exc)
+
+    async def _download_url_image(self, url: str) -> bytes | None:
+        """Download an image from a public URL for outbound upload.
+
+        Used when ``echo_image`` or the chart tool returns a public
+        ``http(s)://`` URL as the image source rather than raw bytes.
+        Downloads the image, caps at ``_MAX_INBOUND_IMAGE_BYTES``, and
+        returns the bytes for ``_upload_image``. Returns ``None`` on
+        any failure so the caller can surface a clean error.
+        """
+        import aiohttp
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                    if resp.status != 200:
+                        logger.warning(
+                            "Feishu connector '%s': URL image download "
+                            "failed (status=%d url=%s)",
+                            self.instance_name, resp.status, url,
+                        )
+                        return None
+                    data = await resp.content.read(_MAX_INBOUND_IMAGE_BYTES + 1)
+        except Exception:
+            logger.exception(
+                "Feishu connector '%s': URL image download raised (url=%s)",
+                self.instance_name, url,
+            )
+            return None
+
+        if not data:
+            return None
+        if len(data) > _MAX_INBOUND_IMAGE_BYTES:
+            logger.info(
+                "Feishu connector '%s': URL image too large (%d bytes)",
+                self.instance_name, len(data),
+            )
+            return None
+        return data
 
     async def _upload_image(self, data: bytes) -> str:
         """Upload PNG/JPEG bytes to Feishu, return ``image_key``.
@@ -800,6 +934,102 @@ class FeishuConnector(Connector):
                 return SendResult(
                     ok=False, error=f"feishu:{resp.code}:{resp.msg}",
                 )
+            return SendResult(ok=True, message_id=message_id)
+        except Exception as exc:
+            return _classify_lark_error(exc)
+
+    async def send_voice(
+        self,
+        identity: Identity,
+        data: bytes,
+        *,
+        mime_type: str = "audio/ogg",
+        caption: str = "",
+    ) -> SendResult:
+        """Send a voice note via Feishu's file upload + audio message.
+
+        Feishu's audio messages require a two-step flow:
+        1. Upload the audio bytes via ``client.im.v1.file.acreate``
+           with ``file_type="opus"`` to get a ``file_key``.
+        2. Send a message with ``msg_type="audio"`` carrying the
+           ``file_key``.
+
+        The ``_VoiceDispatcher`` produces Ogg/Opus bytes via
+        ``encode_pcm_to_opus``; Feishu's audio player handles that
+        format natively.
+        """
+        if self._api is None:
+            return SendResult(ok=False, error="feishu:not_connected")
+        if not data:
+            return SendResult(ok=False, error="feishu:empty_payload")
+
+        receive_id, receive_id_type = self._resolve_receive(identity)
+        if not receive_id:
+            return SendResult(ok=False, error="feishu:identity_missing_target")
+
+        # Step 1: Upload audio file
+        from io import BytesIO
+
+        from lark_oapi.api.im.v1 import (
+            CreateFileRequest,
+            CreateFileRequestBody,
+        )
+
+        file_body = (
+            CreateFileRequestBody.builder()
+            .file_type("opus")
+            .file_name("voice.opus")
+            .file(BytesIO(data))
+            .build()
+        )
+        file_req = (
+            CreateFileRequest.builder()
+            .request_body(file_body)
+            .build()
+        )
+        try:
+            assert self._api is not None  # noqa: S101
+            file_resp = await self._api.im.v1.file.acreate(file_req)  # pyright: ignore[reportOptionalMemberAccess]
+        except Exception as exc:
+            logger.exception(
+                "Feishu connector '%s': audio file upload raised",
+                self.instance_name,
+            )
+            return _classify_lark_error(exc)
+
+        if not file_resp.success():
+            return SendResult(
+                ok=False,
+                error=f"feishu:{file_resp.code}:{file_resp.msg}",
+            )
+        file_key = file_resp.data.file_key if file_resp.data else ""
+        if not file_key:
+            return SendResult(ok=False, error="feishu:audio_upload_no_key")
+
+        # Step 2: Send audio message
+        body = (
+            CreateMessageRequestBody.builder()
+            .receive_id(receive_id)
+            .msg_type("audio")
+            .content(json.dumps({"file_key": file_key}))
+            .build()
+        )
+        req = (
+            CreateMessageRequest.builder()
+            .receive_id_type(receive_id_type)
+            .request_body(body)
+            .build()
+        )
+        try:
+            assert self._api is not None  # noqa: S101
+            resp = await self._api.im.v1.message.acreate(req)  # pyright: ignore[reportOptionalMemberAccess]
+            if not resp.success():
+                return SendResult(
+                    ok=False, error=f"feishu:{resp.code}:{resp.msg}",
+                )
+            message_id = (
+                resp.data.message_id if resp.data is not None else ""
+            ) or ""
             return SendResult(ok=True, message_id=message_id)
         except Exception as exc:
             return _classify_lark_error(exc)

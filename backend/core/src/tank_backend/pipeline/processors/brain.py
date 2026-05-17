@@ -291,6 +291,69 @@ class Brain(Processor):
         self._context.pending_approvals = self._pending_store.to_list()
         self._context.finish_turn(turn_messages)
 
+    # ------------------------------------------------------------------
+    # Markdown image extraction
+    # ------------------------------------------------------------------
+
+    # Matches ![alt text](url) — standard markdown image syntax.
+    # Captures: group(1) = alt text, group(2) = URL.
+    _MARKDOWN_IMAGE_RE = __import__("re").compile(
+        r"!\[([^\]]*)\]\((https?://[^)]+)\)"
+    )
+
+    def _extract_and_emit_markdown_images(
+        self, text: str, msg_id: str,
+    ) -> str:
+        """Scan finalized LLM text for markdown image links and emit them.
+
+        For each ``![alt](url)`` found:
+        1. Emit an ``outbound_attachment`` bus event with an
+           :class:`ImageBlock` so connectors render the image inline.
+        2. Strip the markdown syntax from the text (replace with the
+           alt text or empty string) so TTS doesn't read the URL and
+           the user sees clean prose.
+
+        Returns the cleaned text with markdown image links removed.
+        Only matches ``http(s)://`` URLs — ``media://`` URIs in
+        markdown would be unusual (tools use ImageBlock directly).
+        """
+        from ...core.content import ImageBlock
+
+        matches = list(self._MARKDOWN_IMAGE_RE.finditer(text))
+        if not matches:
+            return text
+
+        # Emit one outbound_attachment per image found. Each gets its
+        # own event so the dispatcher can apply caption-once semantics
+        # per the Phase 15 contract.
+        for match in matches:
+            alt_text = match.group(1).strip()
+            url = match.group(2).strip()
+            caption = alt_text or None
+            try:
+                self._bus.post(BusMessage(
+                    type="outbound_attachment",
+                    source="brain:markdown_image",
+                    payload={
+                        "msg_id": msg_id,
+                        "blocks": [ImageBlock(source=url, mime_type="image/jpeg")],
+                        "caption": caption,
+                    },
+                ))
+            except Exception:
+                logger.exception(
+                    "Failed to emit markdown image attachment (url=%s)", url,
+                )
+
+        # Strip the markdown image syntax from the text. Replace with
+        # the alt text (if any) so the surrounding prose still reads
+        # naturally. E.g. "Here's the chart: ![Q1 Revenue](url)" →
+        # "Here's the chart: Q1 Revenue"
+        cleaned = self._MARKDOWN_IMAGE_RE.sub(
+            lambda m: m.group(1).strip(), text,
+        )
+        return cleaned
+
     def new_conversation(self) -> str:
         """Start a fresh conversation. Returns the new conversation ID."""
         self.reset_conversation()
@@ -593,6 +656,16 @@ class Brain(Processor):
             # string, so there are no non-text blocks to surface — the
             # ``_ImageDispatcher`` subscriber wired in Phase 4 stays dead
             # until tools can produce ContentBlocks directly.
+
+            # Markdown image extraction: scan the finalized text for
+            # ![alt](url) patterns and emit each as an outbound_attachment
+            # so connectors render them inline. Strip the markdown syntax
+            # from the text so TTS doesn't read it and the user sees clean
+            # prose + inline images rather than raw markdown.
+            full_response_text = self._extract_and_emit_markdown_images(
+                full_response_text, msg_id,
+            )
+
             if full_response_text.strip():
                 self._bus.post(BusMessage(
                     type="outbound_voice",

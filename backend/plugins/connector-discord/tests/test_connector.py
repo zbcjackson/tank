@@ -79,7 +79,7 @@ class TestCapabilities:
         # uploads (WebM/MP3/M4A/WAV). Outbound voice still deferred —
         # Discord's voice channels are a separate subsystem.
         assert caps.supports_voice_in is True
-        assert caps.supports_voice_out is False
+        assert caps.supports_voice_out is True
         # Typing indicator is cheap via ``channel.typing()``.
         assert caps.supports_typing_indicator is True
 
