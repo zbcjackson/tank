@@ -514,10 +514,15 @@ class SlackConnector(Connector):
                             self.instance_name, kind, resp.status, url,
                         )
                         return None
-                    # Enforce size cap even when the upstream size wasn't
-                    # advertised — prevents a malicious/misconfigured
-                    # Slack file from blowing out memory.
-                    data = await resp.content.read(cap + 1)
+                    # Read the full response body (up to cap).
+                    data = await resp.read()
+                    if len(data) > cap:
+                        logger.info(
+                            "Slack connector '%s': dropping oversized inbound %s "
+                            "(%d bytes, cap=%d)",
+                            self.instance_name, kind, len(data), cap,
+                        )
+                        return None
         except Exception:
             logger.exception(
                 "Slack connector '%s': %s download raised",
@@ -526,13 +531,6 @@ class SlackConnector(Connector):
             return None
 
         if not data:
-            return None
-        if len(data) > cap:
-            logger.info(
-                "Slack connector '%s': dropping inbound %s that "
-                "exceeded cap after read (%d bytes)",
-                self.instance_name, kind, len(data),
-            )
             return None
 
         return Attachment(kind=kind, data=data, mime_type=mime_type)
