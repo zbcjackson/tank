@@ -18,6 +18,7 @@ members = [
     "connector-feishu",
     "connector-slack",
     "connector-telegram",
+    "connector-wechat",
     "speaker-sherpa",
     "tank-backend",
     "tank-contracts",
@@ -1072,6 +1073,37 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiogram", specifier = ">=3.4.0" },
+    { name = "tank-contracts", editable = "contracts" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23.0" },
+]
+
+[[package]]
+name = "connector-wechat"
+version = "0.1.0"
+source = { editable = "plugins/connector-wechat" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "cryptography" },
+    { name = "pilk" },
+    { name = "tank-contracts" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.9.0" },
+    { name = "cryptography", specifier = ">=42.0.0" },
+    { name = "pilk", specifier = ">=0.2.4" },
     { name = "tank-contracts", editable = "contracts" },
 ]
 
@@ -3865,6 +3897,19 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/bb/63/3b054f25a44721b9a530ec12de33d6b5d94cd9952748c2586b2a64ef62ba/patchright-1.58.2-py3-none-win32.whl", hash = "sha256:7dac724893fde90d726b125f7c35507a2afb5480c23cb57f88a31484d131de98", size = 36802278, upload-time = "2026-03-07T07:42:59.362Z" },
     { url = "https://files.pythonhosted.org/packages/c4/11/f06d2f6ae8e0c1aea4b17b18a105dc2ad28e358217896eb3720e80e2d297/patchright-1.58.2-py3-none-win_amd64.whl", hash = "sha256:9b740c13343a6e412efe052d0c17a65910cc4e3fd0fd6b62c1ac8dc1eec4c158", size = 36802282, upload-time = "2026-03-07T07:43:02.775Z" },
     { url = "https://files.pythonhosted.org/packages/f5/ae/a85dca1ebcdfc63e5838783c0929d82066dacd7448e29911d052bbd286cb/patchright-1.58.2-py3-none-win_arm64.whl", hash = "sha256:958cd884787d140dd464ec2901ea85b9634aad5e8444a267f407ee648de04667", size = 33072202, upload-time = "2026-03-07T07:43:06.344Z" },
+]
+
+[[package]]
+name = "pilk"
+version = "0.2.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/66/bb/938dd697b6bc2d851ffec4ffe82ed20078e58bd0ef049e84f4d038d6f991/pilk-0.2.4.tar.gz", hash = "sha256:d4a1bcf93dc6ef5e95e0cfd728ed4ef4d49f9c0476d70816fecbe456cc762e7f", size = 226451, upload-time = "2023-05-26T03:32:34.133Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/46/68/bb558c4c48bccb12f8bbd0d55196cbc5e8aace33aa80828a189b0515eabc/pilk-0.2.4-cp310-cp310-win_amd64.whl", hash = "sha256:1e9d4a4f9dbc28f8b753babb70533007043b01cb7005915c956e670613ddaa2b", size = 126431, upload-time = "2023-05-26T03:32:22.493Z" },
+    { url = "https://files.pythonhosted.org/packages/ff/06/80cac61bc7f791bcaae552ba90fb868f7af7503ef1c74e423cc20fca1a53/pilk-0.2.4-cp311-cp311-win_amd64.whl", hash = "sha256:a6692096607e8d77d348aeec00df633788c85b527aa83cbd803ddf508936db7f", size = 127024, upload-time = "2023-05-26T03:32:24.524Z" },
 ]
 
 [[package]]

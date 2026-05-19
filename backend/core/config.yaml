@@ -12,8 +12,8 @@ llm:
     api_key: ${LLM_API_KEY}
     model: openai/gpt-5.4-nano #qwen/qwen3-coder-next
     base_url: https://openrouter.ai/api/v1
-#    model: google/gemma-4-31b
-#    base_url: http://127.0.0.1:1234/v1
+    #    model: google/gemma-4-31b
+    #    base_url: http://127.0.0.1:1234/v1
     temperature: 0.7
     max_tokens: 10000
     extra_headers:
@@ -93,7 +93,7 @@ speaker:
 
 sandbox:
   enabled: true
-  backend: auto                          # auto | docker | seatbelt | bubblewrap
+  backend: auto # auto | docker | seatbelt | bubblewrap
 
   # What the sandbox can physically see (Plane A enforcement)
   # Same-path mounts: host path == container path
@@ -225,22 +225,22 @@ brain:
 agents:
   llm_profile: default
   dirs:
-    - ../agents              # project-level agent definitions
-    - ~/.tank/agents         # user-level agent definitions
-  max_depth: 3               # max sub-agent nesting depth
-  max_concurrent: 5          # max parallel background agents
+    - ../agents # project-level agent definitions
+    - ~/.tank/agents # user-level agent definitions
+  max_depth: 3 # max sub-agent nesting depth
+  max_concurrent: 5 # max parallel background agents
 
 # Command security — per-command evaluation for shell tools (run_command, persistent_shell).
 command_security:
-#   extra_safe_commands:       # merged with built-in safe list
-#     - "docker"
-#     - "kubectl"
-#   extra_dangerous_patterns:  # merged with built-in dangerous patterns
-#     - pattern: '\bdocker\s+rm\b'
-#       description: "docker container removal"
-#   always_require_approval:   # overrides safe list
-#     - "sudo"
-  llm_evaluation:            # optional LLM for unknown commands
+  #   extra_safe_commands:       # merged with built-in safe list
+  #     - "docker"
+  #     - "kubectl"
+  #   extra_dangerous_patterns:  # merged with built-in dangerous patterns
+  #     - pattern: '\bdocker\s+rm\b'
+  #       description: "docker container removal"
+  #   always_require_approval:   # overrides safe list
+  #     - "sudo"
+  llm_evaluation: # optional LLM for unknown commands
     enabled: true
 #     model: "gpt-4o-mini"
 #     provider: "openai"       # "openai" | "anthropic" | any OpenAI-compatible
@@ -258,8 +258,8 @@ tools:
 skills:
   enabled: true
   dirs:
-    - ~/.tank/skills         # user-installed skills (default install target)
-    - ../skills              # built-in skills (shipped with repo)
+    - ~/.tank/skills # user-installed skills (default install target)
+    - ../skills # built-in skills (shipped with repo)
   # Auto-approve skills at or below this risk level on startup.
   # "low" = prompt-only skills auto-approved (default)
   # "medium" = also auto-approve skills with scripts or network tools
@@ -267,8 +267,8 @@ skills:
   auto_approve_threshold: low
   # Skill catalog budget — controls how much of the system prompt is used for skills.
   # Effective budget = min(percent-based, max_chars).
-  catalog_budget_percent: 2        # % of max_history_tokens (in chars, ~4 chars/token)
-  catalog_budget_max_chars: 12000  # hard ceiling regardless of context size
+  catalog_budget_percent: 2 # % of max_history_tokens (in chars, ~4 chars/token)
+  catalog_budget_max_chars: 12000 # hard ceiling regardless of context size
 
 # Persistence — unified ORM-backed database for conversations, channels,
 # jobs, and speakers. SQLite by default; swap to Postgres by changing ``url``.
@@ -293,12 +293,12 @@ memory:
 #  embedding_api_key: ${LLM_API_KEY}
 #  embedding_model: text-embedding-embeddinggemma-300m
 #  embedding_base_url: http://127.0.0.1:1234/v1
-  # Optional: override LLM model for fact extraction (cheaper is fine)
-  # llm_model: openai/gpt-4.1-nano
-  # Optional: override embedding provider (defaults to LLM credentials)
-  # embedding_model: text-embedding-3-small
-  # embedding_api_key: ${OPENAI_API_KEY}
-  # embedding_base_url: https://api.openai.com/v1
+# Optional: override LLM model for fact extraction (cheaper is fine)
+# llm_model: openai/gpt-4.1-nano
+# Optional: override embedding provider (defaults to LLM credentials)
+# embedding_model: text-embedding-3-small
+# embedding_api_key: ${OPENAI_API_KEY}
+# embedding_base_url: https://api.openai.com/v1
 
 # Preferences — per-user learned preferences from conversations.
 # Preferences are stored as markdown files in ~/.tank/users/{user}/preferences.md
@@ -306,7 +306,7 @@ memory:
 preferences:
   enabled: true
   max_entries: 20
-  auto_learn: true  # Automatically extract preferences from conversations
+  auto_learn: true # Automatically extract preferences from conversations
   # base_dir: ~/.tank  # optional override
 # Observability — Langfuse LLM tracing (optional).
 # Set LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST in .env to enable.
@@ -322,9 +322,9 @@ preferences:
 # Job definitions live in the unified Tank database (see ``database:`` above),
 # managed via voice, REST API, or an optional seed file at ~/.tank/jobs/seed.yaml.
 jobs:
- enabled: true
- max_parallel: 3           # Max concurrent job executions
- tick_interval: 60         # Seconds between scheduler ticks
+  enabled: true
+  max_parallel: 3 # Max concurrent job executions
+  tick_interval: 60 # Seconds between scheduler ticks
 #   output_dir: ~/.tank/jobs/output
 #   seed_path: ~/.tank/jobs/seed.yaml
 
@@ -334,9 +334,9 @@ connectors:
     config:
       bot_token: ${TELEGRAM_BOT_TOKEN}
       allowlist:
-        default: deny              # "allow" (default) or "deny"
+        default: deny # "allow" (default) or "deny"
         rules:
-          - external_ids: [ "tg:user:6081184568" ]
+          - external_ids: ["tg:user:6081184568"]
             policy: allow
             reason: "me"
       unauthorized_reply: |
@@ -347,9 +347,9 @@ connectors:
       bot_token: ${SLACK_BOT_TOKEN}
       app_token: ${SLACK_APP_TOKEN}
       allowlist:
-        default: require_approval              # "allow" (default) or "deny"
+        default: require_approval # "allow" (default) or "deny"
         admin_external_ids:
-              - "slack:user:U02V3Q18N"
+          - "slack:user:U02V3Q18N"
       unauthorized_reply: |
         Sorry, this bot is invite-only.
   - instance: my-discord-bot
@@ -357,9 +357,9 @@ connectors:
     config:
       bot_token: ${DISCORD_BOT_TOKEN}
       allowlist:
-        default: deny              # "allow" (default) or "deny"
+        default: deny # "allow" (default) or "deny"
         rules:
-          - external_ids: [ "discord:user:705359397051957338" ]
+          - external_ids: ["discord:user:705359397051957338"]
             policy: allow
             reason: "me"
       unauthorized_reply: |
@@ -367,13 +367,18 @@ connectors:
   - instance: my-feishu-bot
     extension: connector-feishu:connector
     config:
-        app_id: ${FEISHU_APP_ID}
-        app_secret: ${FEISHU_APP_SECRET}
-        allowlist:
-          default: deny              # "allow" (default) or "deny"
-          rules:
-            - external_ids: [ "feishu:user:ou_b5253cab92f28a83f30d18434a5f3427" ]
-              policy: allow
-              reason: "me"
-        unauthorized_reply: |
-          Sorry, this bot is invite-only.
+      app_id: ${FEISHU_APP_ID}
+      app_secret: ${FEISHU_APP_SECRET}
+      allowlist:
+        default: deny # "allow" (default) or "deny"
+        rules:
+          - external_ids: ["feishu:user:ou_b5253cab92f28a83f30d18434a5f3427"]
+            policy: allow
+            reason: "me"
+      unauthorized_reply: |
+        Sorry, this bot is invite-only.
+  - instance: my-wechat
+    extension: connector-wechat:connector
+    config:
+      account_id: ${WECHAT_ACCOUNT_ID}
+      token: ${WECHAT_TOKEN}

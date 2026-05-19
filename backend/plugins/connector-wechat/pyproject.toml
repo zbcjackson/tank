@@ -1,0 +1,25 @@
+[project]
+name = "connector-wechat"
+version = "0.1.0"
+description = "WeChat connector plugin for Tank Voice Assistant (iLink Bot API)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "aiohttp>=3.9.0",
+    "cryptography>=42.0.0",
+    "pilk>=0.2.4",
+    "tank-contracts",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+tank-contracts = { workspace = true }

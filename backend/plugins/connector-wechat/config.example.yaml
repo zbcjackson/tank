@@ -1,0 +1,48 @@
+# Example connector-wechat configuration.
+#
+# Copy the `connectors:` block into `backend/core/config.yaml`, then set
+# the WECHAT_ACCOUNT_ID and WECHAT_TOKEN environment variables before
+# starting Tank.
+#
+# To obtain credentials, run the QR login flow:
+#   cd backend/plugins/connector-wechat
+#   uv run python -m connector_wechat.login
+#
+# Access control: the `allowlist` block below is optional. Without it,
+# the bot accepts messages from anyone who DMs it.
+
+connectors:
+  - instance: my-wechat
+    extension: connector-wechat:connector
+    config:
+      account_id: ${WECHAT_ACCOUNT_ID}
+      token: ${WECHAT_TOKEN}
+
+      # Optional: override API base URLs
+      # base_url: https://ilinkai.weixin.qq.com
+      # cdn_base_url: https://novac2c.cdn.weixin.qq.com/c2c
+
+      # Optional: state directory for cursor, context tokens, credentials.
+      # Default: ~/.tank/wechat/<instance>/
+      # state_dir: ~/.tank/wechat/my-wechat
+
+      # Optional: group message policy.
+      # NOTE: iLink bot identities typically cannot receive ordinary
+      # WeChat group messages. This setting only takes effect when iLink
+      # actually delivers group events for your account type.
+      # group_policy: disabled
+      # group_allowlist: []
+
+      # Optional: voice toggles (default true when ASR / TTS are configured):
+      # voice_in: true
+      # voice_out: true
+
+      # Optional per-instance allowlist.  Zero-config = allow-all.
+      # allowlist:
+      #   default: deny
+      #   rules:
+      #     - external_ids: ["wechat:user:wxid_abc123"]
+      #       policy: allow
+      #       reason: "me"
+      # unauthorized_reply: |
+      #   Sorry, this bot is invite-only.
