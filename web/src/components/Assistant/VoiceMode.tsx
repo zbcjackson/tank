@@ -154,6 +154,7 @@ function deriveOrbState(
 function deriveStatusLabel(
   assistantStatus: AssistantStatus,
   conversationState: ConversationState | undefined,
+  listenMode: ListenMode,
   micOff: boolean,
   statusText?: string,
 ): string | undefined {
@@ -176,7 +177,11 @@ function deriveStatusLabel(
   // Idle sub-states
   if (conversationState === 'loading') return '正在加载唤醒词...';
   if (conversationState === 'idle') return undefined; // WakeWordIndicator handles it
-  if (micOff) return '麦克风已关闭';
+
+  // Mode-specific idle hints
+  if (listenMode === 'continuous' && micOff) return '点击按钮开始对话';
+  if (listenMode === 'ptt') return '按住按钮说话';
+  if (listenMode === 'wake_word') return undefined; // WakeWordIndicator handles it
   return statusText || '等待语音输入';
 }
 
@@ -215,7 +220,7 @@ export const VoiceMode = ({
     assistantStatus !== 'idle' && assistantStatus !== 'interrupted' && assistantStatus !== 'error';
 
   const orbState = deriveOrbState(assistantStatus, conversationState, micOff, !!pendingApproval);
-  const statusLabel = deriveStatusLabel(assistantStatus, conversationState, micOff, statusText);
+  const statusLabel = deriveStatusLabel(assistantStatus, conversationState, listenMode, micOff, statusText);
 
   return (
     <motion.div
