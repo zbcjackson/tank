@@ -508,3 +508,41 @@ class TestAssistantWaitForIdle:
 
         assert brain_active is True
         assert not brain_idle_event.is_set()
+
+
+class TestAssistantEndUtterance:
+    """Tests for Assistant.end_utterance (push-to-talk send path)."""
+
+    def _make_stub(self, vad_processor=None, pipeline=None):
+        """Stub that just carries the attributes end_utterance reads."""
+        from tank_backend.core.assistant import Assistant
+
+        stub = MagicMock(spec=Assistant)
+        stub._vad_processor = vad_processor
+        stub._pipeline = pipeline
+        # Bind the real method to the stub so it executes against the stub's attrs.
+        stub.end_utterance = Assistant.end_utterance.__get__(stub, Assistant)
+        return stub
+
+    def test_pushes_sentinel_to_vad_queue(self):
+        """end_utterance pushes END_OF_UTTERANCE sentinel to VAD queue."""
+        from tank_backend.pipeline.processors.vad import END_OF_UTTERANCE
+
+        pipeline = MagicMock()
+
+        stub = self._make_stub(vad_processor=MagicMock(), pipeline=pipeline)
+        stub.end_utterance()
+
+        pipeline.push_at.assert_called_once_with("vad", END_OF_UTTERANCE)
+
+    def test_no_op_when_vad_processor_missing(self):
+        pipeline = MagicMock()
+        stub = self._make_stub(vad_processor=None, pipeline=pipeline)
+        stub.end_utterance()
+        pipeline.push_at.assert_not_called()
+
+    def test_no_op_when_pipeline_missing(self):
+        vad_proc = MagicMock()
+        stub = self._make_stub(vad_processor=vad_proc, pipeline=None)
+        stub.end_utterance()
+        vad_proc.flush_speech.assert_not_called()

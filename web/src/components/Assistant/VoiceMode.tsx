@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import { motion, AnimatePresence, type TargetAndTransition } from 'framer-motion';
-import { Mic, MicOff, Square } from 'lucide-react';
+import { Phone, PhoneOff, Ear, Square } from 'lucide-react';
 import { Waveform } from './Waveform';
 import { WakeWordIndicator } from './WakeWordIndicator';
 import { EnrollmentBanner } from './EnrollmentBanner';
 import { VoiceApprovalOverlay } from './VoiceApprovalOverlay';
-import type { AssistantStatus, ConversationState } from '../../hooks/useAssistant';
+import { ListenModeSettings } from './ListenModeSettings';
+import { PttButton } from './PttButton';
+import type { AssistantStatus, ConversationState, ListenMode } from '../../hooks/useAssistant';
 import type { ApprovalContent } from '../../types/message';
 
 interface VoiceModeProps {
   assistantStatus: AssistantStatus;
-  isMuted: boolean;
-  onMicClick: () => void;
+  isContinuousMicOn: boolean;
+  onToggleContinuousMic: () => void;
   onStopSpeaking: () => void;
   statusText?: string;
   getAnalyserNode?: () => AnalyserNode | null;
@@ -23,6 +25,14 @@ interface VoiceModeProps {
   resumeAudioCapture: () => void;
   pendingApproval: ApprovalContent | null;
   onApprovalRespond: (approvalId: string, approved: boolean) => void;
+  listenMode: ListenMode;
+  voiceInterruptEnabled: boolean;
+  wakeWordAvailable: boolean;
+  onListenModeChange: (mode: ListenMode) => void;
+  onVoiceInterruptEnabledChange: (enabled: boolean) => void;
+  isPttActive: boolean;
+  onPttStart: () => void;
+  onPttStop: () => void;
 }
 
 const statusVariants = {
@@ -127,7 +137,7 @@ const CORE_STYLES: Record<string, React.CSSProperties> = {
 function deriveOrbState(
   assistantStatus: AssistantStatus,
   conversationState: ConversationState | undefined,
-  isMuted: boolean,
+  micOff: boolean,
   hasPendingApproval: boolean,
 ): string {
   if (hasPendingApproval) return 'approval';
@@ -136,7 +146,7 @@ function deriveOrbState(
   }
   // idle sub-states
   if (conversationState === 'loading' || conversationState === 'idle') return 'idle';
-  if (isMuted) return 'muted';
+  if (micOff) return 'muted';
   return 'idle';
 }
 
@@ -144,7 +154,7 @@ function deriveOrbState(
 function deriveStatusLabel(
   assistantStatus: AssistantStatus,
   conversationState: ConversationState | undefined,
-  isMuted: boolean,
+  micOff: boolean,
   statusText?: string,
 ): string | undefined {
   switch (assistantStatus) {
@@ -166,14 +176,14 @@ function deriveStatusLabel(
   // Idle sub-states
   if (conversationState === 'loading') return '正在加载唤醒词...';
   if (conversationState === 'idle') return undefined; // WakeWordIndicator handles it
-  if (isMuted) return '已静音';
+  if (micOff) return '麦克风已关闭';
   return statusText || '等待语音输入';
 }
 
 export const VoiceMode = ({
   assistantStatus,
-  isMuted,
-  onMicClick,
+  isContinuousMicOn,
+  onToggleContinuousMic,
   onStopSpeaking,
   statusText,
   getAnalyserNode,
@@ -185,18 +195,27 @@ export const VoiceMode = ({
   resumeAudioCapture,
   pendingApproval,
   onApprovalRespond,
+  listenMode,
+  voiceInterruptEnabled,
+  wakeWordAvailable,
+  onListenModeChange,
+  onVoiceInterruptEnabledChange,
+  isPttActive,
+  onPttStart,
+  onPttStop,
 }: VoiceModeProps) => {
   const [enrollmentKey, setEnrollmentKey] = useState(0);
   const isWakeWordIdle = conversationState === 'idle';
-  const isGateOpen = conversationState === 'active';
-  const micStatus = isMuted ? 'muted' : isGateOpen ? 'active' : 'idle';
+  const isWakeWordListening = conversationState === 'listening';
+  // For continuous mode the "mic off" state drives the orb's "muted"-like dim look.
+  const micOff = listenMode === 'continuous' && !isContinuousMicOn;
 
   const isSpeaking = assistantStatus === 'speaking';
   const isActive =
     assistantStatus !== 'idle' && assistantStatus !== 'interrupted' && assistantStatus !== 'error';
 
-  const orbState = deriveOrbState(assistantStatus, conversationState, isMuted, !!pendingApproval);
-  const statusLabel = deriveStatusLabel(assistantStatus, conversationState, isMuted, statusText);
+  const orbState = deriveOrbState(assistantStatus, conversationState, micOff, !!pendingApproval);
+  const statusLabel = deriveStatusLabel(assistantStatus, conversationState, micOff, statusText);
 
   return (
     <motion.div
@@ -295,27 +314,59 @@ export const VoiceMode = ({
           onRespond={onApprovalRespond}
         />
 
-        {/* Controls — mic always centered, stop button to the right */}
-        <div className="relative flex items-center justify-center h-16 w-48">
-          <motion.button
-            whileHover={{ scale: 1.06 }}
-            whileTap={{ scale: 0.94 }}
-            animate={MIC_IDLE_ANIMATE}
-            onClick={onMicClick}
-            aria-label={isMuted ? '取消静音' : '静音麦克风'}
-            aria-pressed={isMuted}
-            data-testid="mic-button"
-            data-muted={isMuted ? 'true' : 'false'}
-            className={`absolute left-1/2 -translate-x-1/2 w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ${
-              micStatus === 'muted'
-                ? 'bg-zinc-800/80 text-zinc-500 border border-zinc-700/50'
-                : micStatus === 'active'
+        {/* Controls — mic/PTT centered, stop button to the right, settings to the left */}
+        <div className="relative flex items-center justify-center h-16 w-56">
+          {/* Settings gear — left side */}
+          <div className="absolute left-0 top-1/2 -translate-y-1/2">
+            <ListenModeSettings
+              listenMode={listenMode}
+              voiceInterruptEnabled={voiceInterruptEnabled}
+              wakeWordAvailable={wakeWordAvailable}
+              onListenModeChange={onListenModeChange}
+              onVoiceInterruptEnabledChange={onVoiceInterruptEnabledChange}
+            />
+          </div>
+
+          {/* Center control: depends on listen mode */}
+          {listenMode === 'ptt' ? (
+            <PttButton
+              isRecording={isPttActive}
+              onStart={onPttStart}
+              onStop={onPttStop}
+              size="lg"
+            />
+          ) : listenMode === 'wake_word' ? (
+            <div
+              data-testid="wake-word-indicator-button"
+              data-state={isWakeWordListening ? 'listening' : 'idle'}
+              className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ${
+                isWakeWordListening
                   ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.1)]'
-                  : 'bg-zinc-800/40 text-zinc-600 border border-zinc-800/50'
-            }`}
-          >
-            {micStatus === 'muted' ? <MicOff size={24} /> : <Mic size={24} />}
-          </motion.button>
+                  : 'bg-zinc-800/40 text-zinc-500 border border-zinc-800/50'
+              }`}
+            >
+              <Ear size={24} />
+            </div>
+          ) : (
+            // continuous mode — phone-call style toggle
+            <motion.button
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.94 }}
+              animate={MIC_IDLE_ANIMATE}
+              onClick={onToggleContinuousMic}
+              aria-label={isContinuousMicOn ? '挂断' : '开启麦克风'}
+              aria-pressed={isContinuousMicOn}
+              data-testid="continuous-mic-button"
+              data-on={isContinuousMicOn ? 'true' : 'false'}
+              className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ${
+                isContinuousMicOn
+                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.1)]'
+                  : 'bg-zinc-800/40 text-zinc-500 border border-zinc-800/50'
+              }`}
+            >
+              {isContinuousMicOn ? <Phone size={24} /> : <PhoneOff size={24} />}
+            </motion.button>
+          )}
 
           <AnimatePresence>
             {isSpeaking && (

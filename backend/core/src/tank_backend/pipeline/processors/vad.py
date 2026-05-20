@@ -19,6 +19,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class EndOfUtterance:
+    """Sentinel pushed into VAD's input queue to force-finalize speech.
+
+    Handled exclusively by ``VADProcessor.process``: drained on VAD's own
+    thread, after every in-flight audio frame, so concurrent access to
+    ``VADStream`` state never races. Used by client-driven end-of-utterance
+    signals (push-to-talk).
+    """
+
+    __slots__ = ()
+
+
+END_OF_UTTERANCE = EndOfUtterance()
+
+
 class VADProcessor(Processor):
     """Wraps a ``VADStream`` as a pipeline Processor.
 
@@ -63,6 +78,25 @@ class VADProcessor(Processor):
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         from ...audio.input.vad import VADStatus
 
+        # ── EndOfUtterance sentinel: force-finalize speech on VAD thread ──
+        if isinstance(item, EndOfUtterance):
+            result = self._vad.flush(time.time())
+            if result.status == VADStatus.END_SPEECH:
+                self._speech_active = False
+                if self._bus:
+                    self._bus.post(BusMessage(
+                        type="speech_end",
+                        source=self.name,
+                        payload={
+                            "started_at_s": result.started_at_s,
+                            "ended_at_s": result.ended_at_s,
+                        },
+                    ))
+                yield FlowReturn.OK, result
+            else:
+                yield FlowReturn.OK, None
+            return
+
         frame: AudioFrame = item
         result = self._vad.process_frame(frame.pcm, frame.timestamp_s)
 
@@ -99,3 +133,28 @@ class VADProcessor(Processor):
             self._speech_active = False
             return False  # propagate
         return False
+
+    def flush_speech(self) -> Any | None:
+        """Force-finalize in-progress speech and return the END_SPEECH ``VADResult``.
+
+        Used by client-driven end-of-utterance signals (push-to-talk) where the
+        speaker explicitly marks the end of an utterance instead of waiting
+        for VAD silence detection. Returns ``None`` if no speech is in
+        progress, in which case callers should treat it as a no-op.
+        """
+        from ...audio.input.vad import VADStatus
+
+        result = self._vad.flush(time.time())
+        if result.status != VADStatus.END_SPEECH:
+            return None
+        self._speech_active = False
+        if self._bus:
+            self._bus.post(BusMessage(
+                type="speech_end",
+                source=self.name,
+                payload={
+                    "started_at_s": result.started_at_s,
+                    "ended_at_s": result.ended_at_s,
+                },
+            ))
+        return result

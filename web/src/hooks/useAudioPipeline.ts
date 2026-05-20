@@ -20,6 +20,12 @@ interface UseAudioPipelineArgs {
   onMessage: (msg: WebsocketMessage) => void;
   onBinaryMessage?: (data: ArrayBuffer) => void;
   dispatchStatus: (event: StatusEvent) => void;
+  /**
+   * When false, incoming TTS audio frames are dropped and any in-flight
+   * playback is stopped. The WebSocket and ASR pipeline keep running so
+   * the user can still see streamed text.
+   */
+  speakEnabledRef: React.RefObject<boolean>;
 }
 
 /**
@@ -36,6 +42,7 @@ export function useAudioPipeline({
   onMessage,
   onBinaryMessage,
   dispatchStatus,
+  speakEnabledRef,
 }: UseAudioPipelineArgs) {
   const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
   const [connectionMetadata, setConnectionMetadata] = useState<ConnectionMetadata>({});
@@ -78,6 +85,8 @@ export function useAudioPipeline({
         onMessage(msg);
       },
       (data) => {
+        // Drop TTS frames when the user has muted assistant audio.
+        if (!speakEnabledRef.current) return;
         // Route binary frames: channel audio track or interactive playback
         if (onBinaryMessage) {
           onBinaryMessage(data);
@@ -134,7 +143,7 @@ export function useAudioPipeline({
       audioProcessorRef.current = null;
       playbackRef.current = null;
     };
-  }, [sessionId, onMessage, onBinaryMessage, dispatchStatus, conversationStateRef]);
+  }, [sessionId, onMessage, onBinaryMessage, dispatchStatus, conversationStateRef, speakEnabledRef]);
 
   // Start AudioProcessor only after capabilities confirm ASR is enabled
   useEffect(() => {

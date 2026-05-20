@@ -71,8 +71,8 @@ function App() {
     sendMessage,
     respondToApproval,
     toggleMode,
-    toggleMute,
-    isMuted,
+    toggleContinuousMic,
+    isContinuousMicOn,
     getAnalyserNode,
     stopSpeaking,
     manualReconnect,
@@ -88,6 +88,16 @@ function App() {
     selectedUserId,
     setSelectedUserId,
     channelAudio,
+    listenMode,
+    setListenMode,
+    voiceInterruptEnabled,
+    setVoiceInterruptEnabled,
+    chatSpeakEnabled,
+    setChatSpeakEnabled,
+    wakeWordAvailable,
+    isPttActive,
+    startPtt,
+    stopPtt,
   } = useAssistant(SESSION_ID, wakeWordDetector, (msg) => {
     channelNotificationHandlerRef.current?.(msg);
   });
@@ -209,8 +219,8 @@ function App() {
           {mode === 'voice' ? (
             <VoiceMode
               assistantStatus={assistantStatus}
-              isMuted={isMuted}
-              onMicClick={toggleMute}
+              isContinuousMicOn={isContinuousMicOn}
+              onToggleContinuousMic={toggleContinuousMic}
               onStopSpeaking={stopSpeaking}
               statusText={statusText}
               getAnalyserNode={getAnalyserNode}
@@ -222,6 +232,14 @@ function App() {
               resumeAudioCapture={resumeAudioCapture}
               pendingApproval={pendingApproval}
               onApprovalRespond={respondToApproval}
+              listenMode={listenMode}
+              voiceInterruptEnabled={voiceInterruptEnabled}
+              wakeWordAvailable={wakeWordAvailable}
+              onListenModeChange={setListenMode}
+              onVoiceInterruptEnabledChange={setVoiceInterruptEnabled}
+              isPttActive={isPttActive}
+              onPttStart={startPtt}
+              onPttStop={stopPtt}
             />
           ) : (
             <ChatMode
@@ -235,6 +253,11 @@ function App() {
               selectedUserId={selectedUserId}
               onSelectUser={setSelectedUserId}
               sessionId={SESSION_ID}
+              chatSpeakEnabled={chatSpeakEnabled}
+              onChatSpeakEnabledChange={setChatSpeakEnabled}
+              isPttActive={isPttActive}
+              onPttStart={startPtt}
+              onPttStop={stopPtt}
             />
           )}
         </AnimatePresence>

@@ -167,7 +167,6 @@ class ASRProcessor(Processor):
             self._streaming_msg_id = f"user_{uuid.uuid4().hex[:8]}"
             self._streaming_started_at = time.time()
             self._post_speech_start(item.started_at_s)
-            logger.debug("ASR session started")
             yield FlowReturn.OK, None
             return
 

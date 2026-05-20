@@ -29,6 +29,14 @@ export class AudioProcessor {
   private preRollBuffer = new RingBuffer<Int16Array>(PRE_ROLL_FRAMES);
   private trailingSilenceTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // PTT state — when true, MicVAD callbacks must not close vadOpen
+  private pttActive = false;
+
+  // Fired after MicVAD detects end of utterance and the trailing-silence
+  // timer closes the gate. Used by wake-word mode to send end_of_utterance
+  // and re-arm the detector.
+  private onUtteranceEnd: (() => void) | null = null;
+
   // Wake word state
   private wakeWordDetector: WakeWordDetector | null = null;
 
@@ -154,19 +162,19 @@ export class AudioProcessor {
         },
 
         onSpeechEnd: () => {
+          if (this.pttActive) return;
           console.log('[AudioProcessor] VAD: speech end, sending trailing silence');
-          // Keep gate open so the AudioWorklet continues forwarding silence
-          // frames to the backend. The backend needs ~1s of silence to trigger
-          // its own END_SPEECH endpoint detection.
           this.trailingSilenceTimer = setTimeout(() => {
             this.trailingSilenceTimer = null;
             this.vadOpen = false;
             this.preRollBuffer.clear();
             console.log('[AudioProcessor] VAD: trailing silence done, gate closed');
+            this.onUtteranceEnd?.();
           }, TRAILING_SILENCE_MS);
         },
 
         onVADMisfire: () => {
+          if (this.pttActive) return;
           console.log('[AudioProcessor] VAD: misfire');
           this.vadOpen = false;
         },
@@ -217,6 +225,15 @@ export class AudioProcessor {
   }
 
   /**
+   * Subscribe to end-of-utterance: fires after MicVAD detects speech end
+   * and the trailing-silence timer closes the gate. Wake-word mode uses
+   * this to send `end_of_utterance` and re-arm the detector.
+   */
+  setOnUtteranceEnd(callback: (() => void) | null) {
+    this.onUtteranceEnd = callback;
+  }
+
+  /**
    * Enable wake word detection. Gates audio (stops forwarding to backend).
    * The detector manages its own audio pipeline via WebVoiceProcessor.
    * NOTE: Two mic streams will be active simultaneously (our worklet + WebVoiceProcessor).
@@ -257,6 +274,34 @@ export class AudioProcessor {
   resume() {
     this.gateSpeech = false;
     this.micVad?.start();
+  }
+
+  /**
+   * Open both gates unconditionally and flush the pre-roll buffer.
+   * Used by push-to-talk so audio flows immediately without waiting
+   * for frontend MicVAD to detect speech start.
+   */
+  resumeForPtt() {
+    this.pttActive = true;
+    this.gateSpeech = false;
+    this.vadOpen = true;
+    this.clearTrailingSilenceTimer();
+    for (const frame of this.preRollBuffer.drain()) {
+      this.onAudio(frame);
+    }
+    this.micVad?.start();
+  }
+
+  /**
+   * Close both gates for push-to-talk release.
+   * Does NOT pause MicVAD — let it keep running so it's ready
+   * for the next PTT press without re-initialization latency.
+   */
+  pauseForPtt() {
+    this.pttActive = false;
+    this.gateSpeech = true;
+    this.vadOpen = false;
+    this.clearTrailingSilenceTimer();
   }
 
   stop() {

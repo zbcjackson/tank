@@ -11,16 +11,23 @@ import { useAssistantStatus, type AssistantStatus } from './useAssistantStatus';
 import { useMessageReducer } from './useMessageReducer';
 import { useAudioPipeline } from './useAudioPipeline';
 import { useChannelAudio } from './useChannelAudio';
+import { useListenMode, type ListenMode } from './useListenMode';
 import type { Step, StepType, ToolContent, ApprovalContent, Message } from '../types/message';
 
-export type { Step, StepType, ToolContent, ApprovalContent, Message, ConversationState, AssistantStatus };
+export type {
+  Step,
+  StepType,
+  ToolContent,
+  ApprovalContent,
+  Message,
+  ConversationState,
+  AssistantStatus,
+  ListenMode,
+};
 
 const DEFAULT_CAPABILITIES: Capabilities = { asr: true, tts: true, speaker_id: false };
 
-const WAKE_WORD_ENABLED = import.meta.env.VITE_WAKE_WORD_ENABLED === 'true';
-const WAKE_WORD_SILENCE_TIMEOUT_MS = Number(
-  import.meta.env.VITE_WAKE_WORD_SILENCE_TIMEOUT_MS || '5000',
-);
+const WAKE_WORD_BUILD_ENABLED = import.meta.env.VITE_WAKE_WORD_ENABLED === 'true';
 
 export const useAssistant = (
   sessionId: string,
@@ -28,12 +35,29 @@ export const useAssistant = (
   onChannelNotification?: (msg: WebsocketMessage) => void,
 ) => {
   const [mode, setMode] = useState<'voice' | 'chat'>('voice');
-  const [isMuted, setIsMuted] = useState(false);
   const [capabilities, setCapabilities] = useState<Capabilities>(DEFAULT_CAPABILITIES);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [isPttActive, setIsPttActive] = useState(false);
+  const [isContinuousMicOn, setIsContinuousMicOn] = useState(false);
+
+  const wakeWordAvailable = WAKE_WORD_BUILD_ENABLED;
+  const {
+    listenMode,
+    voiceInterruptEnabled,
+    chatSpeakEnabled,
+    setListenMode,
+    setVoiceInterruptEnabled,
+    setChatSpeakEnabled,
+  } = useListenMode({ wakeWordAvailable: WAKE_WORD_BUILD_ENABLED });
+
+  // speakEnabledRef: voice mode always true; chat mode uses chatSpeakEnabled.
+  const speakEnabledRef = useRef(mode === 'voice' || chatSpeakEnabled);
+  useEffect(() => {
+    speakEnabledRef.current = mode === 'voice' || chatSpeakEnabled;
+  }, [mode, chatSpeakEnabled]);
 
   const { assistantStatus, dispatchStatus } = useAssistantStatus();
-  const conversationStateRef = useRef<ConversationState>('active');
+  const conversationStateRef = useRef<ConversationState>('listening');
 
   // Derived booleans for backward compatibility
   const isAssistantTyping =
@@ -55,7 +79,7 @@ export const useAssistant = (
     [dispatchStatus],
   );
 
-  const { steps, messages, latestMessage, handleMessage, addLocalUserStep, loadHistory, appendSteps } =
+  const { steps, messages, handleMessage, addLocalUserStep, loadHistory, appendSteps } =
     useMessageReducer(messageCallbacks);
 
   // Wrap handleMessage to intercept channel notifications before the reducer
@@ -116,6 +140,7 @@ export const useAssistant = (
     onMessage: wrappedHandleMessage,
     onBinaryMessage: handleBinaryMessage,
     dispatchStatus,
+    speakEnabledRef,
   });
 
   // Keep local ref in sync with pipeline's playbackRef
@@ -132,22 +157,22 @@ export const useAssistant = (
   }, [connectionState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Wake word / conversation session ---
+  // Wake word session is only active when the user has explicitly chosen
+  // listenMode='wake_word'. Other modes bypass useConversationSession
+  // (it falls into its always-active branch when intended=false).
   const wakeWordConfig: ConversationSessionConfig = useMemo(
     () => ({
-      intended: WAKE_WORD_ENABLED,
+      intended: listenMode === 'wake_word',
       enabled: !!wakeWordDetector,
-      silenceTimeoutMs: WAKE_WORD_SILENCE_TIMEOUT_MS,
     }),
-    [wakeWordDetector],
+    [listenMode, wakeWordDetector],
   );
 
   const { conversationState } = useConversationSession({
     clientRef,
     audioProcessorRef,
-    detector: wakeWordDetector ?? null,
+    detector: listenMode === 'wake_word' ? (wakeWordDetector ?? null) : null,
     audioReady,
-    latestMessage,
-    isSpeaking,
     config: wakeWordConfig,
     onSessionStart: undefined,
   });
@@ -157,25 +182,63 @@ export const useAssistant = (
     conversationStateRef.current = conversationState;
   }, [conversationState]);
 
-  // Gate audio during 'loading' state
+  // Reset continuous-mic state whenever listenMode changes — switching
+  // modes should always leave the mic OFF.
+  useEffect(() => {
+    setIsContinuousMicOn(false);
+  }, [listenMode]);
+
+  // --- Listen mode orchestration ---
+  // All modes start with mic OFF on entry. Explicit user actions
+  // (toggleContinuousMic / wake word / PTT press) open the gate.
+  useEffect(() => {
+    const processor = audioProcessorRef.current;
+    if (!processor || !audioReady) return;
+
+    if (mode === 'chat') {
+      processor.disableWakeWord().catch(() => {});
+      if (!isPttActive) processor.pause();
+      return;
+    }
+
+    if (listenMode === 'wake_word') {
+      // useConversationSession owns the gate — we don't pause/resume here.
+      return;
+    }
+
+    if (listenMode === 'continuous') {
+      processor.disableWakeWord().catch(() => {});
+      if (isContinuousMicOn) {
+        processor.resume();
+      } else {
+        processor.pause();
+      }
+    } else if (listenMode === 'ptt') {
+      processor.disableWakeWord().catch(() => {});
+      if (!isPttActive) processor.pause();
+    }
+  }, [mode, listenMode, audioReady, audioProcessorRef, isPttActive, isContinuousMicOn]);
+
+  // During TTS playback in continuous mode (mic on): bypass the frontend
+  // MicVAD gate so audio flows to the backend, allowing natural interrupt.
+  // In wake-word mode: only bypass when interruption is enabled.
+  // Otherwise mic stays gated during TTS.
   useEffect(() => {
     const processor = audioProcessorRef.current;
     if (!processor) return;
 
-    if (conversationState === 'loading') {
-      processor.pause();
-    } else if (conversationState === 'active') {
-      processor.resume();
-    }
-    // 'idle' state is handled by enableWakeWord() in useConversationSession
-  }, [conversationState, audioProcessorRef]);
+    const allowInterrupt =
+      (listenMode === 'continuous' && isContinuousMicOn) ||
+      (listenMode === 'wake_word' && voiceInterruptEnabled);
 
-  // During TTS playback, bypass frontend MicVAD gate so audio flows to
-  // the backend. The backend VAD (with echo-guard threshold) detects
-  // user speech and can trigger an interrupt.
-  useEffect(() => {
-    audioProcessorRef.current?.setSpeaking(isSpeaking);
-  }, [isSpeaking, audioProcessorRef]);
+    processor.setSpeaking(isSpeaking && allowInterrupt);
+  }, [
+    isSpeaking,
+    listenMode,
+    isContinuousMicOn,
+    voiceInterruptEnabled,
+    audioProcessorRef,
+  ]);
 
   // --- Actions ---
   const sendMessage = useCallback(
@@ -216,13 +279,18 @@ export const useAssistant = (
     [capabilities.asr],
   );
 
-  const toggleMute = useCallback(() => {
+  const toggleContinuousMic = useCallback(() => {
     const processor = audioProcessorRef.current;
-    if (processor) {
-      const newMuted = !processor.isMuted();
-      processor.setMuted(newMuted);
-      setIsMuted(newMuted);
-    }
+    if (!processor) return;
+    setIsContinuousMicOn((prev) => {
+      const next = !prev;
+      if (next) {
+        processor.resume();
+      } else {
+        processor.pause();
+      }
+      return next;
+    });
   }, [audioProcessorRef]);
 
   const getAnalyserNode = useCallback(
@@ -235,6 +303,30 @@ export const useAssistant = (
     playbackRef.current?.stop();
     dispatchStatus({ type: 'INTERRUPT' });
   }, [clientRef, playbackRef, dispatchStatus]);
+
+  // --- Push-to-talk ---
+  // Press: interrupt any in-flight response, open mic.
+  // Release: send end_of_utterance so the backend force-finalizes the
+  // current speech segment (skips silence detection), then pause the mic.
+  const startPtt = useCallback(() => {
+    const processor = audioProcessorRef.current;
+    if (!processor) return;
+    if (isAssistantTyping) {
+      clientRef.current?.sendInterrupt();
+      playbackRef.current?.stop();
+      dispatchStatus({ type: 'INTERRUPT' });
+    }
+    processor.resumeForPtt();
+    setIsPttActive(true);
+  }, [audioProcessorRef, clientRef, playbackRef, dispatchStatus, isAssistantTyping]);
+
+  const stopPtt = useCallback(() => {
+    const processor = audioProcessorRef.current;
+    if (!processor) return;
+    clientRef.current?.sendMessage('signal', 'end_of_utterance');
+    processor.pauseForPtt();
+    setIsPttActive(false);
+  }, [audioProcessorRef, clientRef]);
 
   const manualReconnect = useCallback(() => {
     clientRef.current?.reconnect();
@@ -381,7 +473,6 @@ export const useAssistant = (
     assistantStatus,
     isAssistantTyping,
     isSpeaking,
-    isMuted,
     connectionState,
     connectionMetadata,
     capabilities,
@@ -392,7 +483,8 @@ export const useAssistant = (
     sendMessage,
     respondToApproval,
     toggleMode,
-    toggleMute,
+    toggleContinuousMic,
+    isContinuousMicOn,
     getAnalyserNode,
     stopSpeaking,
     manualReconnect,
@@ -403,5 +495,16 @@ export const useAssistant = (
     appendSteps,
     ttsRms,
     channelAudio,
+    // Listen mode + speak mode
+    listenMode,
+    setListenMode,
+    voiceInterruptEnabled,
+    setVoiceInterruptEnabled,
+    chatSpeakEnabled,
+    setChatSpeakEnabled,
+    wakeWordAvailable,
+    isPttActive,
+    startPtt,
+    stopPtt,
   };
 };

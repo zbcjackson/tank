@@ -1,10 +1,11 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowUp, Square, Paperclip, Upload } from 'lucide-react';
+import { ArrowUp, Square, Paperclip, Upload, Volume2, VolumeX } from 'lucide-react';
 import { MessageStep } from './MessageStep';
 import { EnrollmentBanner } from './EnrollmentBanner';
 import { UserSelector } from './UserSelector';
 import { AttachmentChips } from './AttachmentChips';
+import { PttButton } from './PttButton';
 import type { Step } from '../../types/message';
 import { ActivityIndicator } from './ActivityIndicator';
 import type { AssistantStatus } from '../../hooks/useAssistant';
@@ -40,6 +41,11 @@ interface ChatModeProps {
   selectedUserId: string | null;
   onSelectUser: (userId: string | null) => void;
   sessionId: string;
+  chatSpeakEnabled: boolean;
+  onChatSpeakEnabledChange: (enabled: boolean) => void;
+  isPttActive: boolean;
+  onPttStart: () => void;
+  onPttStop: () => void;
 }
 
 export const ChatMode = ({
@@ -53,6 +59,11 @@ export const ChatMode = ({
   selectedUserId,
   onSelectUser,
   sessionId,
+  chatSpeakEnabled,
+  onChatSpeakEnabledChange,
+  isPttActive,
+  onPttStart,
+  onPttStop,
 }: ChatModeProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -312,10 +323,25 @@ export const ChatMode = ({
               onKeyDown={handleKeyDown}
               onInput={handleInput}
               onPaste={handlePaste}
-              className="w-full bg-transparent pl-[150px] pr-14 pt-[18px] pb-[13px] text-[14px] text-text-primary placeholder:text-text-muted resize-none focus:outline-none leading-relaxed"
+              className="w-full bg-transparent pl-[150px] pr-[160px] pt-[18px] pb-[13px] text-[14px] text-text-primary placeholder:text-text-muted resize-none focus:outline-none leading-relaxed"
               style={TEXTAREA_MAX_HEIGHT}
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => onChatSpeakEnabledChange(!chatSpeakEnabled)}
+                aria-label={chatSpeakEnabled ? '关闭语音回复' : '开启语音回复'}
+                data-testid="chat-voice-reply-toggle"
+                className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all ${chatSpeakEnabled ? 'text-amber-400 bg-amber-500/10 border-amber-500/15' : 'text-text-muted hover:text-amber-400 hover:bg-amber-500/10 border-border-subtle hover:border-amber-500/15'}`}
+              >
+                {chatSpeakEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+              </button>
+              <PttButton
+                isRecording={isPttActive}
+                onStart={onPttStart}
+                onStop={onPttStop}
+                size="sm"
+              />
               {assistantStatus !== 'idle' ? (
                 <button
                   type="button"

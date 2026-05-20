@@ -117,6 +117,23 @@ async def handle_interrupt(
     assistant.interrupt()
 
 
+@register("end_of_utterance")
+async def handle_end_of_utterance(
+    assistant: Assistant,
+    msg: WebsocketMessage,
+    session_id: str,
+    send_fn: SendFn,
+) -> None:
+    """Client signals push-to-talk send — force-finalize the current utterance.
+
+    Bypasses VAD silence detection so streaming ASR sessions don't wait
+    for trailing silence (and time out). The frontend pauses the mic
+    after sending this signal.
+    """
+    logger.info("Client end_of_utterance: %s", session_id)
+    assistant.end_utterance()
+
+
 @register("ping")
 async def handle_ping(
     assistant: Assistant,

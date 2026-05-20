@@ -639,6 +639,21 @@ class Assistant:
             return
         self._interrupt_pipeline("client_interrupt")
 
+    def end_utterance(self) -> None:
+        """Force-finalize an in-progress speech segment (push-to-talk send).
+
+        Pushes an ``EndOfUtterance`` sentinel into the VAD queue so it is
+        processed on the VAD consumer thread *after* all pending audio frames.
+        This avoids racing with the VAD thread over shared state like
+        ``_in_speech``. The VAD processor handles the sentinel by calling
+        ``VADStream.flush()`` and forwarding the END_SPEECH result downstream
+        to ASR.
+        """
+        if self._vad_processor is None or self._pipeline is None:
+            return
+        from ..pipeline.processors.vad import END_OF_UTTERANCE
+        self._pipeline.push_at("vad", END_OF_UTTERANCE)
+
     def _interrupt_pipeline(self, source: str) -> None:
         """Send interrupt event downstream of ASR, flush those queues, set flag.
 

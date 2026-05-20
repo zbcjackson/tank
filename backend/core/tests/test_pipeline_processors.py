@@ -129,6 +129,37 @@ class TestVADProcessor:
         assert consumed is False
         vad.flush.assert_called_once()
 
+    def test_flush_speech_returns_end_speech_result(self):
+        end_result = _make_vad_result_end_speech()
+        proc, vad = self._make_processor(_make_vad_result_in_speech())
+        vad.flush.return_value = end_result
+
+        out = proc.flush_speech()
+
+        assert out is end_result
+        vad.flush.assert_called_once()
+
+    def test_flush_speech_returns_none_when_no_active_speech(self):
+        proc, vad = self._make_processor(_make_vad_result_no_speech())
+        vad.flush.return_value = _make_vad_result_no_speech()
+
+        out = proc.flush_speech()
+
+        assert out is None
+
+    def test_flush_speech_posts_speech_end_to_bus(self):
+        bus = Bus()
+        received = []
+        bus.subscribe("speech_end", lambda m: received.append(m))
+        proc, vad = self._make_processor(_make_vad_result_in_speech(), bus=bus)
+        vad.flush.return_value = _make_vad_result_end_speech()
+
+        proc.flush_speech()
+        bus.poll()
+
+        assert len(received) == 1
+        assert received[0].source == "vad"
+
     async def test_input_caps(self):
         from tank_backend.pipeline.processors.vad import VADProcessor
 
@@ -136,6 +167,33 @@ class TestVADProcessor:
         proc = VADProcessor(vad_stream=vad)
         assert proc.input_caps is not None
         assert proc.input_caps.sample_rate == 16000
+
+    async def test_end_of_utterance_sentinel_produces_end_speech(self):
+        """EndOfUtterance sentinel flushes VAD and yields END_SPEECH downstream."""
+        from tank_backend.pipeline.processors.vad import END_OF_UTTERANCE
+
+        end_result = _make_vad_result_end_speech()
+        proc, vad = self._make_processor(_make_vad_result_in_speech())
+        vad.flush.return_value = end_result
+
+        outputs = [(fr, out) async for fr, out in proc.process(END_OF_UTTERANCE)]
+
+        vad.flush.assert_called_once()
+        assert len(outputs) == 1
+        assert outputs[0][0] == FlowReturn.OK
+        assert outputs[0][1] is end_result
+
+    async def test_end_of_utterance_sentinel_no_speech(self):
+        """EndOfUtterance sentinel yields None when VAD has no active speech."""
+        from tank_backend.pipeline.processors.vad import END_OF_UTTERANCE
+
+        proc, vad = self._make_processor(_make_vad_result_no_speech())
+        vad.flush.return_value = _make_vad_result_no_speech()
+
+        outputs = [(fr, out) async for fr, out in proc.process(END_OF_UTTERANCE)]
+
+        assert len(outputs) == 1
+        assert outputs[0] == (FlowReturn.OK, None)
 
 
 # ── ASRProcessor ─────────────────────────────────────────────────────────────
