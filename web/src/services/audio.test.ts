@@ -231,4 +231,89 @@ describe('AudioProcessor', () => {
       expect(mockVadInstance.destroy).toHaveBeenCalled();
     });
   });
+
+  describe('setBypassMicVad (continuous mode)', () => {
+    let processor: AudioProcessor;
+    let received: Int16Array[];
+
+    beforeEach(async () => {
+      vi.clearAllMocks();
+      vadCallbacks = {};
+      received = [];
+      processor = new AudioProcessor((data) => received.push(data));
+      const fakeStream = { getAudioTracks: () => [] } as unknown as MediaStream;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (processor as any).stream = fakeStream;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (processor as any).initVad();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (processor as any).gateSpeech = false;
+    });
+
+    function pushFrame(proc: AudioProcessor, frame: Int16Array) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (proc as any).handleCapturedFrame(frame);
+    }
+
+    it('forwards all frames when bypass is enabled, regardless of vadOpen', () => {
+      // Default state: vadOpen=false, bypass=false → frames are blocked
+      pushFrame(processor, new Int16Array([1]));
+      expect(received).toHaveLength(0);
+
+      // Enable bypass — frames should now flow even though no speech detected
+      processor.setBypassMicVad(true);
+      pushFrame(processor, new Int16Array([2]));
+      pushFrame(processor, new Int16Array([3]));
+      expect(received).toHaveLength(2);
+      expect(Array.from(received[0])).toEqual([2]);
+      expect(Array.from(received[1])).toEqual([3]);
+    });
+
+    it('pauses MicVAD when bypass is enabled', () => {
+      processor.setBypassMicVad(true);
+      expect(mockVadInstance.pause).toHaveBeenCalled();
+    });
+
+    it('ignores onSpeechEnd callback while bypassed', () => {
+      processor.setBypassMicVad(true);
+      pushFrame(processor, new Int16Array([1]));
+      expect(received).toHaveLength(1);
+
+      // Simulate a stray onSpeechEnd callback while bypassed
+      vadCallbacks.onSpeechEnd?.(new Float32Array(0));
+      pushFrame(processor, new Int16Array([2]));
+      // Frame still flows since bypass is still on
+      expect(received).toHaveLength(2);
+    });
+
+    it('ignores onSpeechStart callback while bypassed', () => {
+      processor.setBypassMicVad(true);
+      // onSpeechStart should be ignored — pre-roll won't flush, but frames still flow
+      vadCallbacks.onSpeechStart?.();
+      pushFrame(processor, new Int16Array([1]));
+      expect(received).toHaveLength(1);
+    });
+
+    it('restores VAD gating when bypass is disabled', () => {
+      processor.setBypassMicVad(true);
+      pushFrame(processor, new Int16Array([1]));
+      expect(received).toHaveLength(1);
+
+      // Disable bypass — vadOpen reset to false, MicVAD started
+      processor.setBypassMicVad(false);
+      expect(mockVadInstance.start).toHaveBeenCalled();
+
+      pushFrame(processor, new Int16Array([2]));
+      // No frame forwarded — vadOpen=false again
+      expect(received).toHaveLength(1);
+    });
+
+    it('is idempotent when called twice with same value', () => {
+      processor.setBypassMicVad(true);
+      const pauseCalls = mockVadInstance.pause.mock.calls.length;
+      processor.setBypassMicVad(true);
+      // No additional pause call
+      expect(mockVadInstance.pause.mock.calls.length).toBe(pauseCalls);
+    });
+  });
 });

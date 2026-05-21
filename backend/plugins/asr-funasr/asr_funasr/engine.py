@@ -24,6 +24,7 @@ plugin, the engine would need to pool connections.
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import contextlib
 import json
 import logging
@@ -144,6 +145,11 @@ class FunASREngine(ASREngine):
         self._recognition_closed = True
         self._restart_lock = threading.Lock()
 
+        # Session age tracking — used by the watchdog to detect the SDK's
+        # silent self-kill at SILENCE_TIMEOUT_S=23 (it does not fire on_close).
+        self._recognition_started_at: float | None = None
+        self._last_audio_sent_at: float | None = None
+
         # Create callback handler
         engine = self
 
@@ -152,6 +158,8 @@ class FunASREngine(ASREngine):
                 logger.info("DashScope: Recognition opened")
                 with engine._lock:
                     engine._recognition_closed = False
+                    engine._recognition_started_at = time.time()
+                    engine._last_audio_sent_at = time.time()
 
             def on_close(self) -> None:
                 logger.info("DashScope: Recognition closed")
@@ -181,13 +189,46 @@ class FunASREngine(ASREngine):
         self._callback = _Callback()
         logger.info("DashScope: Initialized")
 
+    def _force_reset(self) -> None:
+        """Nuclear reset of DashScope state.
+
+        DashScope SDK self-kills at SILENCE_TIMEOUT_S=23 without firing
+        on_close(), leaving our flags stale. This method discards the
+        dead session entirely so the next start() succeeds.
+        """
+        logger.warning("DashScope: Force-resetting recognition state")
+        with self._lock:
+            self._recognition = None
+            self._recognition_started = False
+            self._recognition_closed = True
+            self._recognition_started_at = None
+            self._last_audio_sent_at = None
+            self._audio_buffer = bytearray()
+
     def _start_dashscope_recognition(self) -> None:
         """Start a new DashScope recognition session."""
         from dashscope.audio.asr import Recognition
 
         with self._restart_lock:
             if self._recognition_started and not self._recognition_closed:
-                return
+                # Watchdog: detect SDK silent self-kill (SILENCE_TIMEOUT_S=23).
+                # Only force-reset if the session is old AND has been silent —
+                # both conditions must be true to avoid killing active sessions.
+                now = time.time()
+                started_at = self._recognition_started_at
+                last_audio_at = self._last_audio_sent_at
+                elapsed = (now - started_at) if started_at else 0.0
+                silence = (now - last_audio_at) if last_audio_at else 0.0
+                if elapsed > 20.0 and silence > 5.0:
+                    logger.warning(
+                        "DashScope: Watchdog detected stale session "
+                        "(elapsed=%.1fs, silence=%.1fs) — forcing reset",
+                        elapsed,
+                        silence,
+                    )
+                    self._force_reset()
+                else:
+                    return
 
             self._recognition = Recognition(
                 model=self._model,
@@ -220,12 +261,18 @@ class FunASREngine(ASREngine):
                 with contextlib.suppress(Exception):
                     self._recognition.send_audio_frame(remaining)
 
-            # Stop recognition
+            # Stop recognition with timeout protection — the SDK can hang
+            # if the internal worker already self-killed.
             try:
-                self._recognition.stop()
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(self._recognition.stop)
+                    future.result(timeout=5.0)
                 logger.debug("DashScope: Recognition stopped")
+            except concurrent.futures.TimeoutError:
+                logger.error("DashScope: stop() timed out after 5s — forcing reset")
+                self._force_reset()
             except Exception:
-                pass
+                logger.debug("DashScope: stop() raised, ignoring")
 
         # Wait briefly for final results
         time.sleep(0.1)
@@ -234,6 +281,8 @@ class FunASREngine(ASREngine):
             self._recognition_started = False
             self._recognition_closed = True
             self._recognition = None
+            self._recognition_started_at = None
+            self._last_audio_sent_at = None
             # Return best available text
             final_text = self._committed_text or self._partial_text
             self._committed_text = ""
@@ -274,13 +323,22 @@ class FunASREngine(ASREngine):
             self._audio_buffer = self._audio_buffer[send_stride:]
             try:
                 self._recognition.send_audio_frame(chunk)
+                with self._lock:
+                    self._last_audio_sent_at = time.time()
             except Exception as e:
                 if "stopped" in str(e).lower():
-                    logger.debug("DashScope: Recognition stopped unexpectedly")
-                    with self._lock:
-                        self._recognition_closed = True
-                        self._recognition_started = False
+                    # SDK self-killed via SILENCE_TIMEOUT_S. Discard the
+                    # dead session and try to restart so this utterance
+                    # isn't lost.
+                    logger.warning(
+                        "DashScope: Recognition stopped unexpectedly — restarting",
+                    )
+                    self._force_reset()
                     self._audio_buffer = bytearray(chunk) + self._audio_buffer
+                    try:
+                        self._start_dashscope_recognition()
+                    except Exception:
+                        logger.exception("DashScope: Restart after 'stopped' failed")
                     break
                 else:
                     logger.exception("DashScope: Failed to send audio frame")

@@ -183,9 +183,17 @@ export const useAssistant = (
   }, [conversationState]);
 
   // Reset continuous-mic state whenever listenMode changes — switching
-  // modes should always leave the mic OFF.
+  // modes should always leave the mic OFF. If the mic was ON when
+  // switching away from continuous mode, send end_of_utterance so the
+  // backend cleans up any in-progress ASR session.
   useEffect(() => {
-    setIsContinuousMicOn(false);
+    if (isContinuousMicOn) {
+      clientRef.current?.sendMessage('signal', 'end_of_utterance');
+      setIsContinuousMicOn(false);
+    }
+    // Only react to listenMode changes — isContinuousMicOn must not
+    // re-trigger this effect or it would fight with toggleContinuousMic.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listenMode]);
 
   // --- Listen mode orchestration ---
@@ -197,11 +205,13 @@ export const useAssistant = (
 
     if (mode === 'chat') {
       processor.disableWakeWord().catch(() => {});
+      processor.setBypassMicVad(false);
       if (!isPttActive) processor.pause();
       return;
     }
 
     if (listenMode === 'wake_word') {
+      processor.setBypassMicVad(false);
       // useConversationSession owns the gate — we don't pause/resume here.
       return;
     }
@@ -210,11 +220,14 @@ export const useAssistant = (
       processor.disableWakeWord().catch(() => {});
       if (isContinuousMicOn) {
         processor.resume();
+        processor.setBypassMicVad(true);
       } else {
+        processor.setBypassMicVad(false);
         processor.pause();
       }
     } else if (listenMode === 'ptt') {
       processor.disableWakeWord().catch(() => {});
+      processor.setBypassMicVad(false);
       if (!isPttActive) processor.pause();
     }
   }, [mode, listenMode, audioReady, audioProcessorRef, isPttActive, isContinuousMicOn]);
@@ -287,11 +300,16 @@ export const useAssistant = (
       if (next) {
         processor.resume();
       } else {
+        // Close the gate first, then signal end_of_utterance so the
+        // backend finalizes any in-progress ASR segment. WebSocket
+        // in-order delivery ensures the signal arrives after the last
+        // audio frame.
+        clientRef.current?.sendMessage('signal', 'end_of_utterance');
         processor.pause();
       }
       return next;
     });
-  }, [audioProcessorRef]);
+  }, [audioProcessorRef, clientRef]);
 
   const getAnalyserNode = useCallback(
     () => playbackRef.current?.getAnalyserNode() ?? null,

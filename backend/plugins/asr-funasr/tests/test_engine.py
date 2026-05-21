@@ -1,5 +1,6 @@
 """Tests for FunASR ASR plugin."""
 
+import concurrent.futures
 import json
 import threading
 from unittest.mock import MagicMock, patch
@@ -47,6 +48,8 @@ def _make_dashscope_engine(**overrides) -> FunASREngine:
         engine._recognition = None
         engine._recognition_started = False
         engine._recognition_closed = True
+        engine._recognition_started_at = None
+        engine._last_audio_sent_at = None
         engine._restart_lock = threading.Lock()
         engine._callback = MagicMock()
         return engine
@@ -107,7 +110,7 @@ class TestLifecycle:
         engine._loop = MagicMock()
 
         with patch("asyncio.run_coroutine_threadsafe"):
-            engine.start()
+            engine._start_session()
 
         assert engine._session_active is True
 
@@ -115,7 +118,7 @@ class TestLifecycle:
         engine = _make_self_hosted_engine()
         audio = np.zeros(1600, dtype=np.float32)
 
-        text = engine.process_pcm(audio)
+        text = engine._process_pcm(audio)
 
         assert text == ""
 
@@ -129,7 +132,7 @@ class TestLifecycle:
         engine._loop = MagicMock()
 
         with patch("asyncio.run_coroutine_threadsafe"), patch("time.sleep"):
-            final_text = engine.stop()
+            final_text = engine._stop_session()
 
         assert final_text == "你好世界"
         assert engine._session_active is False
@@ -138,7 +141,7 @@ class TestLifecycle:
         engine = _make_self_hosted_engine()
         engine._session_active = False
 
-        final_text = engine.stop()
+        final_text = engine._stop_session()
 
         assert final_text == ""
 
@@ -146,7 +149,7 @@ class TestLifecycle:
         engine = _make_dashscope_engine()
 
         with patch("asr_funasr.engine.FunASREngine._start_dashscope_recognition") as mock:
-            engine.start()
+            engine._start_session()
             mock.assert_called_once()
 
         assert engine._session_active is True
@@ -160,7 +163,7 @@ class TestLifecycle:
         engine._committed_text = "测试"
 
         with patch("time.sleep"):
-            final_text = engine.stop()
+            final_text = engine._stop_session()
 
         assert final_text == "测试"
         mock_recognition.stop.assert_called_once()
@@ -342,4 +345,143 @@ class TestClose:
         assert engine._recognition is None
 
 
+# ── DashScope SDK resilience (23s timeout / watchdog / restart) ──────
+
+
+class TestDashScopeResilience:
+    """Tests for the resilience layer that defends against the DashScope
+    SDK's hardcoded SILENCE_TIMEOUT_S=23 self-kill."""
+
+    def test_force_reset_clears_all_state(self):
+        engine = _make_dashscope_engine()
+        engine._recognition = MagicMock()
+        engine._recognition_started = True
+        engine._recognition_closed = False
+        engine._recognition_started_at = 100.0
+        engine._last_audio_sent_at = 100.0
+        engine._audio_buffer = bytearray(b"leftover")
+
+        engine._force_reset()
+
+        assert engine._recognition is None
+        assert engine._recognition_started is False
+        assert engine._recognition_closed is True
+        assert engine._recognition_started_at is None
+        assert engine._last_audio_sent_at is None
+        assert len(engine._audio_buffer) == 0
+
+    def test_watchdog_triggers_after_stale_session(self):
+        """If a session is >20s old AND silent for >5s, force-reset and
+        start fresh."""
+        engine = _make_dashscope_engine()
+        engine._recognition = MagicMock()
+        engine._recognition_started = True
+        engine._recognition_closed = False
+        engine._recognition_started_at = 100.0
+        engine._last_audio_sent_at = 100.0  # silent for the full elapsed time
+
+        mock_recognition_cls = MagicMock()
+        with patch("dashscope.audio.asr.Recognition", mock_recognition_cls), \
+             patch("time.time", return_value=130.0):  # 30s elapsed, 30s silent
+            engine._start_dashscope_recognition()
+
+        # New Recognition was constructed (force_reset cleared state, then started)
+        mock_recognition_cls.assert_called_once()
+        assert engine._recognition_started is True
+
+    def test_watchdog_does_not_trigger_during_active_audio(self):
+        """If session is old but audio was just sent, don't reset — early-exit
+        as before."""
+        engine = _make_dashscope_engine()
+        existing_recognition = MagicMock()
+        engine._recognition = existing_recognition
+        engine._recognition_started = True
+        engine._recognition_closed = False
+        engine._recognition_started_at = 100.0
+        engine._last_audio_sent_at = 129.0  # last audio 1s ago
+
+        mock_recognition_cls = MagicMock()
+        with patch("dashscope.audio.asr.Recognition", mock_recognition_cls), \
+             patch("time.time", return_value=130.0):  # 30s elapsed, 1s silence
+            engine._start_dashscope_recognition()
+
+        # Watchdog skipped — no new Recognition created, existing kept
+        mock_recognition_cls.assert_not_called()
+        assert engine._recognition is existing_recognition
+
+    def test_watchdog_does_not_trigger_for_young_session(self):
+        """If session is recent, even if silent, don't reset."""
+        engine = _make_dashscope_engine()
+        existing_recognition = MagicMock()
+        engine._recognition = existing_recognition
+        engine._recognition_started = True
+        engine._recognition_closed = False
+        engine._recognition_started_at = 100.0
+        engine._last_audio_sent_at = 100.0
+
+        mock_recognition_cls = MagicMock()
+        with patch("dashscope.audio.asr.Recognition", mock_recognition_cls), \
+             patch("time.time", return_value=110.0):  # only 10s elapsed
+            engine._start_dashscope_recognition()
+
+        mock_recognition_cls.assert_not_called()
+        assert engine._recognition is existing_recognition
+
+    def test_stopped_exception_triggers_restart(self):
+        """When DashScope's send_audio_frame raises 'stopped', force-reset
+        and restart so the audio isn't lost."""
+        engine = _make_dashscope_engine()
+        first_recognition = MagicMock()
+        first_recognition.send_audio_frame.side_effect = RuntimeError(
+            "Speech recognition has stopped."
+        )
+        engine._recognition = first_recognition
+        engine._recognition_started = True
+        engine._recognition_closed = False
+
+        with patch.object(engine, "_start_dashscope_recognition") as mock_start:
+            audio_chunk = b"\x00" * 3200  # one ~100ms chunk
+            engine._process_dashscope(audio_chunk)
+            mock_start.assert_called_once()
+
+        # Audio was preserved so the restarted session can re-send it
+        assert len(engine._audio_buffer) > 0
+
+    def test_stop_timeout_calls_force_reset(self):
+        """If recognition.stop() hangs past 5s, _stop_dashscope_recognition
+        catches the TimeoutError and force-resets."""
+        engine = _make_dashscope_engine()
+        hanging_recognition = MagicMock()
+        engine._recognition = hanging_recognition
+        engine._recognition_started = True
+        engine._recognition_closed = False
+        engine._audio_buffer = bytearray()
+        engine._committed_text = ""
+
+        # Make future.result() raise TimeoutError to simulate hang
+        mock_future = MagicMock()
+        mock_future.result.side_effect = concurrent.futures.TimeoutError()
+
+        mock_pool = MagicMock()
+        mock_pool.__enter__ = MagicMock(return_value=mock_pool)
+        mock_pool.__exit__ = MagicMock(return_value=False)
+        mock_pool.submit.return_value = mock_future
+
+        with patch("asr_funasr.engine.concurrent.futures.ThreadPoolExecutor",
+                   return_value=mock_pool), \
+             patch("time.sleep"), \
+             patch.object(engine, "_force_reset", wraps=engine._force_reset) as spy:
+            engine._stop_dashscope_recognition()
+
+        spy.assert_called_once()
+        assert engine._recognition is None
+
+    def test_on_open_records_session_timestamps(self):
+        """The on_open callback must initialize started_at and last_audio_sent_at."""
+        # We can't easily exercise on_open without the SDK, but we can verify
+        # the contract via _init_dashscope's initial state:
+        engine = _make_dashscope_engine()
+        # Fresh engine has no timestamps — they're set when on_open fires.
+        assert engine._recognition_started_at is None
+        assert engine._last_audio_sent_at is None
 

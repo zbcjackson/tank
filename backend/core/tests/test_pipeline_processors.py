@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 
@@ -524,6 +524,100 @@ class TestASRProcessor:
         # speech_detected + one partial (text didn't change on second frame)
         assert len(received) == 2
         assert received[0].payload.signal_type == "speech_detected"
+
+    # ── _stop_with_timeout resilience ───────────────────────────────────────
+
+    async def test_stop_with_timeout_succeeds(self):
+        """Normal stop() completes within timeout and returns text."""
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+
+        proc, asr = self._make_processor(text="final text")
+
+        # Start session
+        start_speech = VADResult(status=VADStatus.START_SPEECH, started_at_s=BASE_TIME)
+        await _collect(proc, start_speech)
+
+        # END_SPEECH triggers _stop_with_timeout
+        vad_result = _make_vad_result_end_speech()
+        outputs = await _collect(proc, vad_result)
+
+        brain_event = outputs[0][1]
+        assert brain_event is not None
+        assert brain_event.text == "final text"
+        asr.stop.assert_called_once()
+
+    async def test_stop_with_timeout_posts_recognition_failed(self):
+        """When stop() times out, recognition_failed signal is posted."""
+        from unittest.mock import AsyncMock
+
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+        from tank_backend.pipeline.processors.asr import ASRProcessor
+
+        bus = Bus()
+        received = []
+        bus.subscribe("ui_message", lambda m: received.append(m))
+
+        asr = MagicMock()
+        asr.supports_streaming = True
+        asr.start = MagicMock()
+        asr.process_pcm = MagicMock(return_value="partial")
+        asr.stop = MagicMock(side_effect=lambda: None)
+
+        proc = ASRProcessor(asr_stream=asr, bus=bus, user="TestUser")
+
+        # Start session
+        start_speech = VADResult(status=VADStatus.START_SPEECH, started_at_s=BASE_TIME)
+        await _collect(proc, start_speech)
+
+        # Make _stop_with_timeout raise TimeoutError
+        with patch.object(proc, "_stop_with_timeout", new=AsyncMock(return_value="")):
+            # Simulate timeout by having _stop_with_timeout return "" and post signal
+            proc._post_recognition_failed()
+            vad_result = _make_vad_result_end_speech()
+            await _collect(proc, vad_result)
+
+        bus.poll()
+
+        # Check recognition_failed signal was posted
+        signal_msgs = [
+            m for m in received
+            if hasattr(m.payload, 'signal_type')
+            and m.payload.signal_type == "recognition_failed"
+        ]
+        assert len(signal_msgs) == 1
+
+    async def test_stop_timeout_returns_partial_text(self):
+        """When stop() times out, partial text is used as fallback."""
+        from unittest.mock import AsyncMock
+
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+        from tank_backend.pipeline.processors.asr import ASRProcessor
+
+        asr = MagicMock()
+        asr.supports_streaming = True
+        asr.start = MagicMock()
+        asr.process_pcm = MagicMock(return_value="partial fallback")
+        asr.stop = MagicMock(return_value="")
+
+        proc = ASRProcessor(asr_stream=asr, user="TestUser")
+
+        # Start session
+        start_speech = VADResult(status=VADStatus.START_SPEECH, started_at_s=BASE_TIME)
+        await _collect(proc, start_speech)
+
+        # Send a frame to build up partial text
+        await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME))
+        assert proc._partial_text == "partial fallback"
+
+        # Make _stop_with_timeout return "" (simulating timeout)
+        with patch.object(proc, "_stop_with_timeout", new=AsyncMock(return_value="")):
+            vad_result = _make_vad_result_end_speech()
+            outputs = await _collect(proc, vad_result)
+
+        # Falls back to partial text
+        brain_event = outputs[0][1]
+        assert brain_event is not None
+        assert brain_event.text == "partial fallback"
 
 
 # ── TTSProcessor ─────────────────────────────────────────────────────────────

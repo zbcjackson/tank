@@ -32,6 +32,12 @@ export class AudioProcessor {
   // PTT state — when true, MicVAD callbacks must not close vadOpen
   private pttActive = false;
 
+  // When true, frontend MicVAD gating is disabled and all captured audio
+  // flows to the backend (subject only to gateSpeech). The backend's VAD
+  // becomes the sole utterance-boundary detector. Used in continuous mode
+  // so the backend segmenter sees silence frames and can detect endpoints.
+  private bypassMicVad = false;
+
   // Fired after MicVAD detects end of utterance and the trailing-silence
   // timer closes the gate. Used by wake-word mode to send end_of_utterance
   // and re-arm the detector.
@@ -114,7 +120,7 @@ export class AudioProcessor {
     // Always buffer for pre-roll regardless of gate state
     this.preRollBuffer.push(frame);
 
-    if (!this.gateSpeech && this.vadOpen) {
+    if (!this.gateSpeech && (this.bypassMicVad || this.vadOpen)) {
       this.onAudio(frame);
     }
   }
@@ -144,6 +150,7 @@ export class AudioProcessor {
         resumeStream: () => Promise.resolve(capturedStream),
 
         onSpeechStart: () => {
+          if (this.bypassMicVad) return;
           console.log('[AudioProcessor] VAD: speech start');
           // Cancel any pending trailing-silence close — user is speaking again
           if (this.trailingSilenceTimer) {
@@ -162,7 +169,7 @@ export class AudioProcessor {
         },
 
         onSpeechEnd: () => {
-          if (this.pttActive) return;
+          if (this.pttActive || this.bypassMicVad) return;
           console.log('[AudioProcessor] VAD: speech end, sending trailing silence');
           this.trailingSilenceTimer = setTimeout(() => {
             this.trailingSilenceTimer = null;
@@ -174,7 +181,7 @@ export class AudioProcessor {
         },
 
         onVADMisfire: () => {
-          if (this.pttActive) return;
+          if (this.pttActive || this.bypassMicVad) return;
           console.log('[AudioProcessor] VAD: misfire');
           this.vadOpen = false;
         },
@@ -222,6 +229,29 @@ export class AudioProcessor {
 
   isMuted(): boolean {
     return this.muted;
+  }
+
+  /**
+   * In bypass mode the frontend MicVAD no longer gates audio — all captured
+   * frames flow to the backend (subject only to `gateSpeech`). Used by
+   * continuous mode so the backend segmenter sees silence frames and can
+   * detect utterance endpoints itself. MicVAD is paused while bypassed to
+   * avoid spurious callbacks and CPU cost.
+   */
+  setBypassMicVad(bypass: boolean): void {
+    if (this.bypassMicVad === bypass) return;
+    this.bypassMicVad = bypass;
+    this.clearTrailingSilenceTimer();
+    if (bypass) {
+      this.vadOpen = true;
+      this.micVad?.pause();
+    } else {
+      this.vadOpen = false;
+      this.preRollBuffer.clear();
+      if (!this.gateSpeech) {
+        this.micVad?.start();
+      }
+    }
   }
 
   /**

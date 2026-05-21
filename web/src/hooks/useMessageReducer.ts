@@ -111,6 +111,8 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
           callbacks.dispatchStatus({ type: 'PROCESSING_STARTED' });
         } else if (msg.content === 'processing_ended') {
           callbacks.dispatchStatus({ type: 'PROCESSING_ENDED' });
+        } else if (msg.content === 'recognition_failed') {
+          callbacks.dispatchStatus({ type: 'ERROR' });
         }
         return;
       }

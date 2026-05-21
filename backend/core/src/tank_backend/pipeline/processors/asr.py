@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import contextlib
+import asyncio
+import concurrent.futures
 import logging
 import time
 import uuid
@@ -20,6 +21,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_STOP_TIMEOUT_S = 5.0
+
 
 class ASRProcessor(Processor):
     """Wraps a per-utterance ``ASRStream`` as a pipeline Processor.
@@ -36,6 +39,7 @@ class ASRProcessor(Processor):
       - speech_start — when speech starts (triggers assistant interrupt)
       - ui_message — partial and final transcripts for UI
       - asr_result — transcription metrics
+      - recognition_failed — when ASR stop times out or fails unrecoverably
 
     For non-streaming streams (supports_streaming=False):
       - AudioFrame → ignored
@@ -156,6 +160,41 @@ class ASRProcessor(Processor):
                 },
             ))
 
+    def _post_recognition_failed(self) -> None:
+        """Notify the frontend that ASR failed and the user should retry."""
+        if not self._bus:
+            return
+        from ...core.events import SignalMessage
+        self._bus.post(BusMessage(
+            type="ui_message",
+            source=self.name,
+            payload=SignalMessage(signal_type="recognition_failed"),
+        ))
+
+    async def _stop_with_timeout(self) -> str:
+        """Call ``self._asr.stop()`` with a timeout.
+
+        The DashScope SDK can hang on stop() if its internal worker
+        already self-killed. Returning empty string and posting
+        ``recognition_failed`` lets the pipeline keep moving.
+        """
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(self._asr.stop),
+                timeout=_STOP_TIMEOUT_S,
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                "ASR stop() timed out after %.1fs — dropping utterance",
+                _STOP_TIMEOUT_S,
+            )
+            self._post_recognition_failed()
+            return ""
+        except Exception:
+            logger.exception("ASR stop() raised — dropping utterance")
+            self._post_recognition_failed()
+            return ""
+
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         from ...audio.input.types import AudioFrame
         from ...audio.input.vad import VADResult, VADStatus
@@ -194,7 +233,7 @@ class ASRProcessor(Processor):
 
             # Get final transcript
             if self._asr.supports_streaming:
-                final_text = self._asr.stop()
+                final_text = await self._stop_with_timeout()
                 if not final_text:
                     final_text = self._partial_text
                 elapsed = (
@@ -207,7 +246,7 @@ class ASRProcessor(Processor):
                 started_at = time.time()
                 self._asr.start()
                 self._asr.process_pcm(item.utterance_pcm)
-                final_text = self._asr.stop()
+                final_text = await self._stop_with_timeout()
                 elapsed = time.time() - started_at
                 # For batch mode, create msg_id and post speech_start now
                 self._streaming_msg_id = f"user_{uuid.uuid4().hex[:8]}"
@@ -247,8 +286,13 @@ class ASRProcessor(Processor):
 
     def handle_event(self, event: PipelineEvent) -> bool:
         if event.type == "flush":
-            with contextlib.suppress(Exception):
-                self._asr.stop()  # Discard any partial results
+            # Timeout-protected stop — don't let a hung SDK block interrupt flow
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(self._asr.stop)
+                    future.result(timeout=_STOP_TIMEOUT_S)
+            except (concurrent.futures.TimeoutError, Exception):
+                logger.warning("ASR stop() during flush timed out or failed")
             self._reset_state()
             return False  # propagate
         return False
