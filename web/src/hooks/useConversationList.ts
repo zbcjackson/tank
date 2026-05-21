@@ -6,6 +6,7 @@ import { useState, useCallback } from 'react';
 export interface ConversationInfo {
   id: string;
   start_time: string;
+  updated_at: string;
   message_count: number;
   preview: string;
 }

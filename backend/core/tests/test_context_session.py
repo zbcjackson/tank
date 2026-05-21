@@ -60,8 +60,9 @@ class TestConversationData:
 
 class TestConversationSummary:
     def test_frozen(self):
+        now = datetime.now(timezone.utc)
         summary = ConversationSummary(
-            id="abc", start_time=datetime.now(timezone.utc), message_count=5
+            id="abc", start_time=now, message_count=5, updated_at=now
         )
         assert summary.id == "abc"
         assert summary.message_count == 5

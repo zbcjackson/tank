@@ -23,6 +23,7 @@ async def list_conversations() -> list[dict[str, Any]]:
         {
             "id": s.id,
             "start_time": s.start_time.isoformat(),
+            "updated_at": s.updated_at.isoformat(),
             "message_count": s.message_count,
             "preview": s.preview,
         }

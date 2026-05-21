@@ -71,6 +71,7 @@ class ConversationSummary:
     id: str
     start_time: datetime
     message_count: int
+    updated_at: datetime
     preview: str = ""
 
 

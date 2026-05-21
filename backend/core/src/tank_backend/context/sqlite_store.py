@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import delete, select
 
@@ -61,6 +61,7 @@ class SqliteConversationStore(ConversationStore):
                     ConversationRow.conversation_id,
                     ConversationRow.start_time,
                     ConversationRow.messages,
+                    ConversationRow.updated_at,
                 ).order_by(ConversationRow.updated_at.desc())
             ).all()
         return [
@@ -68,6 +69,7 @@ class SqliteConversationStore(ConversationStore):
                 id=row[0],
                 start_time=datetime.fromisoformat(row[1]),
                 message_count=len(json.loads(row[2])),
+                updated_at=datetime.fromtimestamp(row[3], tz=timezone.utc),
             )
             for row in rows
         ]

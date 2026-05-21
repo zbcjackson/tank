@@ -38,7 +38,7 @@ function groupByDate(conversations: ConversationInfo[]): Map<string, Conversatio
   yesterday.setDate(yesterday.getDate() - 1);
 
   for (const c of conversations) {
-    const d = new Date(c.start_time);
+    const d = new Date(c.updated_at);
     let label: string;
     if (d.toDateString() === now.toDateString()) label = 'Today';
     else if (d.toDateString() === yesterday.toDateString()) label = 'Yesterday';
@@ -248,7 +248,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                                 {c.preview || 'Empty conversation'}
                               </div>
                               <div className="text-xs text-neutral-500 mt-0.5">
-                                {c.message_count} messages · {formatTime(c.start_time)}
+                                {c.message_count} messages · {formatTime(c.updated_at)}
                               </div>
                             </div>
                           </div>

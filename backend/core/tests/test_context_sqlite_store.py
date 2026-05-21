@@ -75,6 +75,29 @@ class TestSqliteConversationStore:
         assert "a" in ids
         assert "b" in ids
 
+    def test_list_conversations_ordered_by_updated_at_desc(self, store):
+        old = ConversationData(
+            id="old",
+            start_time=datetime(2026, 4, 14, 10, 0, 0, tzinfo=timezone.utc),
+            pid=1,
+            messages=[{"role": "system", "content": "a"}],
+        )
+        new = ConversationData(
+            id="new",
+            start_time=datetime(2026, 4, 14, 11, 0, 0, tzinfo=timezone.utc),
+            pid=2,
+            messages=[{"role": "system", "content": "b"}],
+        )
+        store.save(old)
+        store.save(new)
+        # Re-save ``old`` so its ``updated_at`` is now the most recent,
+        # even though its ``start_time`` is earlier than ``new``'s.
+        store.save(old)
+        conversations = store.list_conversations()
+        assert [s.id for s in conversations] == ["old", "new"]
+        assert all(s.updated_at.tzinfo is not None for s in conversations)
+        assert conversations[0].updated_at >= conversations[1].updated_at
+
     def test_find_latest(self, store):
         s1 = ConversationData(
             id="old",
