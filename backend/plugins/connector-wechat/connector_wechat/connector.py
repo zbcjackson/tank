@@ -158,11 +158,13 @@ class WeChatConnector(Connector):
         if not self._connected:
             return
         self._shutdown_requested = True
-        await self._runner.drain()
+        # Close the HTTP session first so the in-flight long-poll request
+        # (up to 35s) is aborted immediately rather than blocking drain.
         if self._client is not None:
             with contextlib.suppress(Exception):
                 await self._client.close()
             self._client = None
+        await self._runner.drain()
         self._connected = False
         logger.info("WeChat connector '%s' stopped", self.instance_name)
 
@@ -347,6 +349,8 @@ class WeChatConnector(Connector):
                 raise
 
             except Exception:
+                if self._shutdown_requested:
+                    break
                 consecutive_errors += 1
                 if consecutive_errors <= 2:
                     logger.warning("Poll error (attempt %d), retrying in 2s", consecutive_errors, exc_info=True)

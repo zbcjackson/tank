@@ -263,6 +263,17 @@ class FeishuConnector(Connector):
             loop_ready.set()
             try:
                 ws.start()
+            except RuntimeError as e:
+                if "Event loop stopped" in str(e):
+                    logger.debug(
+                        "Feishu connector '%s': lark loop stopped (shutdown)",
+                        self.instance_name,
+                    )
+                else:
+                    logger.exception(
+                        "Feishu connector '%s': lark WS client crashed",
+                        self.instance_name,
+                    )
             except Exception:
                 logger.exception(
                     "Feishu connector '%s': lark WS client crashed",
@@ -297,25 +308,36 @@ class FeishuConnector(Connector):
         if not self._connected:
             return
 
+        # Suppress the lark SDK's noisy ERROR log when the WebSocket
+        # closes during shutdown ("receive message loop exit, err: ...").
+        lark_logger = logging.getLogger("Lark")
+        prev_level = lark_logger.level
+        lark_logger.setLevel(logging.CRITICAL)
+
         # Signal the lark client to disconnect on the thread-owned
         # loop ``_run_ws`` set up. ``_disconnect`` mutates client
         # state that lives on that loop, so it MUST run there — not
-        # on Tank's main loop. ``run_coroutine_threadsafe`` posts
-        # the coroutine onto the target loop and returns a future we
-        # don't need to await: the lark thread picks it up, exits
-        # its ``start()`` blocker, and the thread joins via the
-        # ``thread.join`` we already await inside ``_run_ws``.
+        # on Tank's main loop. After disconnect, we stop the loop so
+        # the blocking ``_select()`` (while True: sleep 3600) exits
+        # and the thread can join.
         if self._ws is not None and self._ws_loop is not None:
             with contextlib.suppress(Exception):
                 if self._ws_loop.is_running():
-                    asyncio.run_coroutine_threadsafe(
+                    fut = asyncio.run_coroutine_threadsafe(
                         self._ws._disconnect(),  # noqa: SLF001
                         self._ws_loop,
                     )
+                    await asyncio.to_thread(fut.result, 3.0)
+            # After disconnect, cancel remaining tasks (ping_loop,
+            # _select) and stop the loop so run_until_complete returns.
+            with contextlib.suppress(Exception):
+                if self._ws_loop.is_running():
+                    self._ws_loop.call_soon_threadsafe(self._ws_loop.stop)
 
         # Drain the worker thread via the shared runner.
         await self._runner.drain()
 
+        lark_logger.setLevel(prev_level)
         self._api = None
         self._ws = None
         self._ws_thread = None

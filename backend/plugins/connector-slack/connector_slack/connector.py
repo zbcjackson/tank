@@ -18,6 +18,7 @@ message.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 import re
@@ -250,28 +251,29 @@ class SlackConnector(Connector):
         # + approval_id out of the id string.
         self._app.action(_APPROVAL_ACTION_RE)(self._on_approval_action)
         self._handler = AsyncSocketModeHandler(self._app, self._app_token)
+        self._stop_event = asyncio.Event()
         self._runner.spawn(self._run_socket_mode())
         self._connected = True
         logger.info("Slack connector '%s' started", self.instance_name)
 
     async def _run_socket_mode(self) -> None:
-        """Run Socket Mode until cancelled or the handler disconnects.
+        """Run Socket Mode until stop is signalled.
 
-        Exception logging + cancellation handling now live on the shared
-        :class:`BackgroundTaskRunner`; this method is a thin platform-
-        specific await that the runner wraps.
+        ``start_async()`` contains ``asyncio.sleep(inf)`` which never
+        exits on its own.  Instead we use ``connect_async()`` to open
+        the socket, then wait on a shutdown event that ``stop()`` sets.
         """
         assert self._handler is not None  # noqa: S101
-        await self._handler.start_async()
+        await self._handler.connect_async()
+        await self._stop_event.wait()
 
     async def stop(self) -> None:
         if not self._connected:
             return
+        self._stop_event.set()
         if self._handler is not None:
             with contextlib.suppress(Exception):
                 await self._handler.close_async()
-        # Shared drain-then-cancel via the runner — matches the
-        # Telegram/Discord shutdown shape.
         await self._runner.drain()
         self._app = None
         self._handler = None
