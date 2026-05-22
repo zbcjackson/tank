@@ -71,6 +71,12 @@ export class AudioProcessor {
     }
 
     // Browser mode — getUserMedia + AudioWorklet
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error(
+        'Microphone access requires HTTPS or localhost. ' +
+          'Ensure the page is served over a secure context.',
+      );
+    }
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         sampleRate: 16000,
