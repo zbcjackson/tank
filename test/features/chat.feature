@@ -5,6 +5,8 @@ Feature: Chat mode
     And the user switches to chat mode
 
   Scenario: Empty state shows placeholder
+    When the user clicks the conversations button
+    And the user clicks new conversation
     Then the empty state text "开始对话吧" is visible
 
   Scenario: User message appears in conversation

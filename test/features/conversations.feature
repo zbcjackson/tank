@@ -24,3 +24,11 @@ Feature: Conversations
     And eventually an assistant message appears
     And the user clicks the conversations button
     Then the conversation list contains at least 1 conversation
+
+  @requires-active-conversation
+  Scenario: Today's conversation auto-loads after page refresh
+    When the user types "remember tank refresh test" and sends it
+    And eventually an assistant message appears
+    And the user reloads the page
+    And the user switches to chat mode
+    Then the user message "remember tank refresh test" is visible in the conversation

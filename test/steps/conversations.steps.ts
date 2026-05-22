@@ -2,6 +2,7 @@ import { When, Then } from '@cucumber/cucumber';
 import type { TankWorld } from '../support/world';
 import { ChatModePage } from '../support/page-objects/ChatModePage';
 import { ConversationListPage } from '../support/page-objects/ConversationListPage';
+import { VoiceModePage } from '../support/page-objects/VoiceModePage';
 
 When('the user clicks the conversations button', async function (this: TankWorld) {
   const convList = new ConversationListPage(this.page);
@@ -49,3 +50,9 @@ Then(
     }
   },
 );
+
+When('the user reloads the page', async function (this: TankWorld) {
+  await this.page.reload();
+  const voicePage = new VoiceModePage(this.page);
+  await voicePage.container().waitFor({ state: 'visible', timeout: 30000 });
+});

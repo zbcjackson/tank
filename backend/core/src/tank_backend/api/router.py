@@ -318,12 +318,18 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 logger.debug(f"Send error: {e}")
 
     try:
-        # Send 'ready' signal with capabilities
+        # Send 'ready' signal with capabilities and active conversation
+        ready_metadata: dict[str, Any] = {
+            "capabilities": assistant.capabilities,
+        }
+        conv_id = assistant.brain.conversation_id
+        if conv_id:
+            ready_metadata["conversation_id"] = conv_id
         ready_msg = WebsocketMessage(
             type=MessageType.SIGNAL,
             content="ready",
             session_id=session_id,
-            metadata={"capabilities": assistant.capabilities},
+            metadata=ready_metadata,
         )
         await websocket.send_text(ready_msg.model_dump_json())
 

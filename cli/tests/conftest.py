@@ -3,7 +3,6 @@
 import sys
 from unittest.mock import MagicMock
 
-
 # Try to import sounddevice; if unavailable, provide a mock for test collection.
 try:
     import sounddevice  # noqa: F401

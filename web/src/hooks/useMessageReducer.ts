@@ -81,6 +81,7 @@ export function attachmentMessageToSteps(msg: WebsocketMessage): Step[] {
 interface MessageReducerCallbacks {
   dispatchStatus: (event: StatusEvent) => void;
   onCapabilities: (caps: Capabilities) => void;
+  onResumedConversation?: (conversationId: string) => void;
 }
 
 /**
@@ -106,6 +107,10 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
           const caps = msg.metadata?.capabilities as Capabilities | undefined;
           if (caps) {
             callbacks.onCapabilities(caps);
+          }
+          const conversationId = msg.metadata?.conversation_id;
+          if (typeof conversationId === 'string' && conversationId) {
+            callbacks.onResumedConversation?.(conversationId);
           }
         } else if (msg.content === 'processing_started') {
           callbacks.dispatchStatus({ type: 'PROCESSING_STARTED' });

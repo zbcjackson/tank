@@ -12,6 +12,7 @@ import { useMessageReducer } from './useMessageReducer';
 import { useAudioPipeline } from './useAudioPipeline';
 import { useChannelAudio } from './useChannelAudio';
 import { useListenMode, type ListenMode } from './useListenMode';
+import { fetchConversationMessages, type HistoryMessage } from './useConversationList';
 import type { Step, StepType, ToolContent, ApprovalContent, Message } from '../types/message';
 
 export type {
@@ -28,6 +29,96 @@ export type {
 const DEFAULT_CAPABILITIES: Capabilities = { asr: true, tts: true, speaker_id: false };
 
 const WAKE_WORD_BUILD_ENABLED = import.meta.env.VITE_WAKE_WORD_ENABLED === 'true';
+
+/**
+ * Convert backend conversation history into reducer Steps.
+ *
+ * Pure / side-effect-free so both ``resumeConversation`` (user picks
+ * a session from the sidebar) and the auto-resume path (page refresh
+ * with a same-day conversation) use the same conversion.
+ */
+function historyToSteps(historyMsgs: HistoryMessage[]): Step[] {
+  const historySteps: Step[] = [];
+
+  // Build a lookup of tool_call_id → tool result content for pairing
+  const toolResults = new Map<string, string>();
+  for (const m of historyMsgs) {
+    if (m.role === 'tool' && m.tool_call_id) {
+      toolResults.set(m.tool_call_id, m.content);
+    }
+  }
+
+  let stepIdx = 0;
+  for (const m of historyMsgs) {
+    // Skip raw tool-result messages — they're merged into tool steps below
+    if (m.role === 'tool') continue;
+
+    const msgId = m.msg_id;
+
+    if (m.kind === 'image' && m.attachments?.length) {
+      for (let idx = 0; idx < m.attachments.length; idx++) {
+        const att = m.attachments[idx];
+        historySteps.push({
+          id: `history_image_${stepIdx++}_${idx}`,
+          role: 'assistant',
+          type: 'image',
+          content: {
+            url: att.url,
+            mimeType: att.mime_type,
+            caption: idx === 0 ? (att.caption ?? '') : '',
+          },
+          msgId,
+          isFinal: true,
+          speaker: m.name,
+        });
+      }
+      continue;
+    }
+
+    if (m.role === 'assistant' && m.tool_calls?.length) {
+      for (const tc of m.tool_calls) {
+        const result = toolResults.get(tc.id);
+        const toolData: ToolContent = {
+          name: tc.function.name,
+          arguments: tc.function.arguments,
+          status: result !== undefined ? 'success' : 'calling',
+          result: result ?? undefined,
+        };
+        historySteps.push({
+          id: `history_tool_${stepIdx++}`,
+          role: 'assistant',
+          type: 'tool',
+          content: toolData,
+          msgId,
+          isFinal: true,
+        });
+      }
+      if (m.content) {
+        historySteps.push({
+          id: `history_text_${stepIdx++}`,
+          role: 'assistant',
+          type: 'text',
+          content: m.content,
+          msgId,
+          isFinal: true,
+          speaker: m.name,
+        });
+      }
+    } else {
+      historySteps.push({
+        id: `history_text_${stepIdx++}`,
+        role: m.role as 'user' | 'assistant',
+        type: 'text',
+        content: m.content,
+        msgId,
+        isFinal: true,
+        speaker: m.name,
+      });
+    }
+  }
+
+  return historySteps;
+}
 
 export const useAssistant = (
   sessionId: string,
@@ -68,6 +159,8 @@ export const useAssistant = (
   const isSpeaking = assistantStatus === 'speaking';
 
   // --- Message/step state ---
+  const loadHistoryRef = useRef<((steps: Step[]) => void) | null>(null);
+
   const messageCallbacks = useMemo(
     () => ({
       dispatchStatus,
@@ -75,12 +168,25 @@ export const useAssistant = (
         setCapabilities(caps);
         if (!caps.asr) setMode('chat');
       },
+      onResumedConversation: (conversationId: string) => {
+        fetchConversationMessages(conversationId)
+          .then((historyMsgs) => {
+            const steps = historyToSteps(historyMsgs);
+            loadHistoryRef.current?.(steps);
+          })
+          .catch((e) => {
+            console.error('Failed to load resumed conversation:', e);
+          });
+      },
     }),
     [dispatchStatus],
   );
 
   const { steps, messages, handleMessage, addLocalUserStep, loadHistory, appendSteps } =
     useMessageReducer(messageCallbacks);
+
+  // Keep ref in sync so the callback closure can call loadHistory
+  loadHistoryRef.current = loadHistory;
 
   // Wrap handleMessage to intercept channel notifications before the reducer
   const channelNotificationRef = useRef(onChannelNotification);
@@ -363,104 +469,9 @@ export const useAssistant = (
    */
   const resumeConversation = useCallback(
     async (conversationId: string) => {
-      const { fetchConversationMessages } = await import('./useConversationList');
       try {
         const historyMsgs = await fetchConversationMessages(conversationId);
-        const historySteps: Step[] = [];
-
-        // Build a lookup of tool_call_id → tool result content for pairing
-        const toolResults = new Map<string, string>();
-        for (const m of historyMsgs) {
-          if (m.role === 'tool' && m.tool_call_id) {
-            toolResults.set(m.tool_call_id, m.content);
-          }
-        }
-
-        let stepIdx = 0;
-        for (const m of historyMsgs) {
-          // Skip raw tool-result messages — they're merged into tool steps below
-          if (m.role === 'tool') continue;
-
-          const msgId = m.msg_id;
-
-          // Phase 19: image-on-resume. Backend ``_format_messages``
-          // surfaces tool_follow_up entries with image content as
-          // ``kind: "image"`` history messages. Each attachment
-          // becomes its own ``image`` Step under the same msgId so
-          // the reducer's grouping renders them as one assistant
-          // turn — matching the live-message path
-          // (``attachmentMessageToSteps``).
-          if (m.kind === 'image' && m.attachments?.length) {
-            for (let idx = 0; idx < m.attachments.length; idx++) {
-              const att = m.attachments[idx];
-              historySteps.push({
-                id: `history_image_${stepIdx++}_${idx}`,
-                role: 'assistant',
-                type: 'image',
-                content: {
-                  url: att.url,
-                  mimeType: att.mime_type,
-                  // Caption rides on the first attachment only —
-                  // backend doesn't currently surface a caption for
-                  // history entries (the original came from
-                  // ``result.display`` and isn't persisted with the
-                  // follow-up), so this stays empty until we extend
-                  // the wire shape. Reducer-side parity with the
-                  // live path keeps the contract honest.
-                  caption: idx === 0 ? (att.caption ?? '') : '',
-                },
-                msgId,
-                isFinal: true,
-                speaker: m.name,
-              });
-            }
-            continue;
-          }
-
-          // If assistant message has tool_calls, emit tool steps
-          if (m.role === 'assistant' && m.tool_calls?.length) {
-            for (const tc of m.tool_calls) {
-              const result = toolResults.get(tc.id);
-              const toolData: ToolContent = {
-                name: tc.function.name,
-                arguments: tc.function.arguments,
-                status: result !== undefined ? 'success' : 'calling',
-                result: result ?? undefined,
-              };
-              historySteps.push({
-                id: `history_tool_${stepIdx++}`,
-                role: 'assistant',
-                type: 'tool',
-                content: toolData,
-                msgId,
-                isFinal: true,
-              });
-            }
-            // If the assistant message also has text content, emit a text step
-            if (m.content) {
-              historySteps.push({
-                id: `history_text_${stepIdx++}`,
-                role: 'assistant',
-                type: 'text',
-                content: m.content,
-                msgId,
-                isFinal: true,
-                speaker: m.name,
-              });
-            }
-          } else {
-            // Regular user or assistant text message
-            historySteps.push({
-              id: `history_text_${stepIdx++}`,
-              role: m.role as 'user' | 'assistant',
-              type: 'text',
-              content: m.content,
-              msgId,
-              isFinal: true,
-              speaker: m.name,
-            });
-          }
-        }
+        const historySteps = historyToSteps(historyMsgs);
 
         loadHistory(historySteps);
 

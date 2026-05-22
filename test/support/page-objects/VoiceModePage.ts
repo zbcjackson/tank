@@ -16,7 +16,7 @@ export class VoiceModePage {
   }
 
   micButton(): Locator {
-    return this.page.locator('[data-testid="mic-button"]');
+    return this.page.locator('[data-testid="continuous-mic-button"]');
   }
 
   stopButton(): Locator {

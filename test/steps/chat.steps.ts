@@ -64,7 +64,7 @@ Then('eventually the send button is visible', async function (this: TankWorld) {
 
 Then('the user message {string} is visible in the conversation', async function (this: TankWorld, text: string) {
   const chatPage = new ChatModePage(this.page);
-  await chatPage.userMessage(text).waitFor({ state: 'visible', timeout: 5000 });
+  await chatPage.userMessage(text).first().waitFor({ state: 'visible', timeout: 10000 });
 });
 
 Then('the chat input is visible', async function (this: TankWorld) {
