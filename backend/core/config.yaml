@@ -46,21 +46,21 @@ echo_guard:
     similarity_threshold: 0.6 # discard if >60% token overlap with recent TTS
     window_seconds: 10.0 # compare against last 10s of TTS text
 
+#asr:
+#  enabled: true
+#  extension: asr-funasr:asr
+#  config:
+#    api_key: ${DASHSCOPE_API_KEY}
+#    model: fun-asr-realtime-2026-02-28
+#    sample_rate: 16000
+
 asr:
   enabled: true
-  extension: asr-funasr:asr
+  extension: asr-sherpa:asr
   config:
-    api_key: ${DASHSCOPE_API_KEY}
-    model: fun-asr-realtime-2026-02-28
+    model_dir: ../models/sherpa-onnx-zipformer-en-zh
+    num_threads: 4
     sample_rate: 16000
-
-# asr:
-#   enabled: true
-#   extension: asr-sherpa:asr
-#   config:
-#     model_dir: ../models/sherpa-onnx-zipformer-en-zh
-#     num_threads: 4
-#     sample_rate: 16000
 
 #tts:
 #  enabled: true
