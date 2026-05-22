@@ -128,9 +128,9 @@ download_openwakeword() {
   echo "    Copied shared models + hey_jarvis keyword"
 
   # ONNX Runtime WASM files — needed for browser execution.
-  # Copy from node_modules (installed via openwakeword-wasm-browser → onnxruntime-web).
+  # Copied to public/ort/ (the default ortWasmPath in openWakeWordDetector.ts).
   echo "==> Copying ONNX Runtime WASM files..."
-  local ORT_DIR="$MODEL_DIR/ort"
+  local ORT_DIR="$PUBLIC_DIR/ort"
   mkdir -p "$ORT_DIR"
 
   local ORT_SRC
@@ -153,8 +153,8 @@ download_openwakeword() {
   echo ""
   echo "Available keywords: hey_jarvis"
   echo ""
-  echo "To add more pre-trained keywords, download from:"
-  echo "  $BASE_URL/<keyword>_v0.1.onnx"
+  echo "To add more pre-trained keywords, copy from node_modules:"
+  echo "  node_modules/openwakeword-wasm-browser/models/<keyword>_v0.1.onnx"
   echo ""
   echo "To train a custom 'Hey Tank' model, see:"
   echo "  https://github.com/dscripka/openWakeWord#training-new-models"

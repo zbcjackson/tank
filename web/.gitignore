@@ -30,3 +30,6 @@ public/vad/
 # Wake word model files (downloaded via scripts/download-wake-word-models.sh)
 public/models/sherpa-onnx-kws/
 public/models/openwakeword/
+
+# ONNX Runtime WASM files (copied by download-wake-word-models.sh)
+public/ort/
