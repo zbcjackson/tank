@@ -140,7 +140,6 @@ function AppWithServer({
     toggleMode,
     toggleContinuousMic,
     isContinuousMicOn,
-    getAnalyserNode,
     stopSpeaking,
     manualReconnect,
     pauseAudioCapture,
@@ -151,7 +150,6 @@ function AppWithServer({
     capabilities,
     conversationState,
     wakeWordKeyword,
-    ttsRms,
     selectedUserId,
     setSelectedUserId,
     channelAudio,
@@ -302,10 +300,8 @@ function AppWithServer({
               onToggleContinuousMic={toggleContinuousMic}
               onStopSpeaking={stopSpeaking}
               statusText={statusText}
-              getAnalyserNode={getAnalyserNode}
               conversationState={conversationState}
               wakeWordKeyword={wakeWordKeyword}
-              ttsRms={ttsRms}
               speaker={lastUserSpeaker}
               pauseAudioCapture={pauseAudioCapture}
               resumeAudioCapture={resumeAudioCapture}
@@ -320,6 +316,10 @@ function AppWithServer({
               onPttStart={startPtt}
               onPttStop={stopPtt}
               apiBaseUrl={apiBaseUrl}
+              steps={steps}
+              sessionId={SESSION_ID}
+              isSocketConnected={connectionState === 'connected'}
+              hasSocketError={connectionState === 'failed'}
             />
           ) : (
             <ChatMode

@@ -1,13 +1,20 @@
-import { useState } from 'react';
-import { motion, AnimatePresence, type TargetAndTransition } from 'framer-motion';
+import { useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, PhoneOff, Ear, Square } from 'lucide-react';
-import { Waveform } from './Waveform';
 import { WakeWordIndicator } from './WakeWordIndicator';
 import { EnrollmentBanner } from './EnrollmentBanner';
 import { VoiceApprovalOverlay } from './VoiceApprovalOverlay';
 import { ListenModeSettings } from './ListenModeSettings';
 import { PttButton } from './PttButton';
-import type { AssistantStatus, ConversationState, ListenMode } from '../../hooks/useAssistant';
+import { HudDesktop } from './Hud/HudDesktop';
+import { useHudWindows } from './Hud/useHudWindows';
+import type { OrbTone } from './Hud/HudOrb';
+import type {
+  AssistantStatus,
+  ConversationState,
+  ListenMode,
+  Step,
+} from '../../hooks/useAssistant';
 import type { ApprovalContent } from '../../types/message';
 
 interface VoiceModeProps {
@@ -16,10 +23,8 @@ interface VoiceModeProps {
   onToggleContinuousMic: () => void;
   onStopSpeaking: () => void;
   statusText?: string;
-  getAnalyserNode?: () => AnalyserNode | null;
   conversationState?: ConversationState;
   wakeWordKeyword?: string | null;
-  ttsRms?: number;
   speaker?: string;
   pauseAudioCapture: () => void;
   resumeAudioCapture: () => void;
@@ -34,6 +39,10 @@ interface VoiceModeProps {
   onPttStart: () => void;
   onPttStop: () => void;
   apiBaseUrl?: string;
+  steps: Step[];
+  sessionId: string;
+  isSocketConnected: boolean;
+  hasSocketError: boolean;
 }
 
 const statusVariants = {
@@ -41,117 +50,27 @@ const statusVariants = {
   visible: { opacity: 1, y: 0 },
 };
 
-const ORB_COLORS: Record<string, string> = {
-  speaking: 'from-amber-500/40 via-orange-400/20 to-transparent',
-  thinking: 'from-amber-600/25 via-amber-500/10 to-transparent',
-  tool_calling: 'from-blue-500/25 via-blue-400/10 to-transparent',
-  interrupted: 'from-rose-500/20 via-rose-400/8 to-transparent',
-  error: 'from-rose-600/25 via-rose-500/10 to-transparent',
-  muted: 'from-zinc-600/20 via-zinc-500/5 to-transparent',
-  idle: 'from-amber-500/15 via-amber-400/5 to-transparent',
-  approval: 'from-amber-500/50 via-amber-400/25 to-transparent',
-};
-
-const ORB_ANIMATIONS: Record<string, TargetAndTransition> = {
-  speaking: {
-    scale: [1, 1.1, 1],
-    transition: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
-  },
-  thinking: {
-    scale: [1, 1.04, 1],
-    opacity: [0.6, 0.9, 0.6],
-    transition: { duration: 2.5, repeat: Infinity, ease: 'easeInOut' },
-  },
-  tool_calling: {
-    scale: [1, 1.06, 1],
-    opacity: [0.5, 0.85, 0.5],
-    transition: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' },
-  },
-  interrupted: {
-    scale: [1, 0.96, 1],
-    opacity: [0.7, 0.4, 0.7],
-    transition: { duration: 0.8, repeat: Infinity, ease: 'easeInOut' },
-  },
-  error: {
-    scale: [1, 0.98, 1],
-    opacity: [0.6, 0.3, 0.6],
-    transition: { duration: 1.5, repeat: Infinity, ease: 'easeInOut' },
-  },
-  idle: { scale: 1, opacity: 0.6 },
-  muted: { scale: 1, opacity: 0.6 },
-  approval: {
-    scale: [1, 1.12, 1],
-    opacity: [0.5, 1, 0.5],
-    transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' },
-  },
-};
-
-const CORE_SPEAKING_ANIMATE = {
-  scale: [1, 1.08, 1],
-  transition: { duration: 1.2, repeat: Infinity, ease: 'easeInOut' },
-};
-const CORE_IDLE_ANIMATE = {};
-
-const MIC_IDLE_ANIMATE = {};
-
-const RING_PULSE_ANIMATE = { scale: [1, 1.8], opacity: [0.4, 0] };
-const RING_PULSE_TRANSITION = { duration: 2, repeat: Infinity, ease: 'easeOut' as const };
-
-const VOICE_BG_STYLE = {
-  background: 'radial-gradient(ellipse at 50% 40%, #141210 0%, #0a0a0a 70%)',
-};
-const ORB_CONTAINER_STYLE = { width: 280, height: 280 };
-const ORB_GRADIENT_STYLE = { width: 200, height: 200 };
-
-const AMBIENT_STYLES: Record<string, React.CSSProperties> = {
-  speaking: {
-    background: 'radial-gradient(circle at 50% 45%, rgba(212, 160, 84, 0.06) 0%, transparent 60%)',
-  },
-  thinking: {
-    background: 'radial-gradient(circle at 50% 45%, rgba(212, 160, 84, 0.03) 0%, transparent 60%)',
-  },
-  tool_calling: {
-    background: 'radial-gradient(circle at 50% 45%, rgba(96, 165, 250, 0.04) 0%, transparent 60%)',
-  },
-  none: { background: 'none' },
-};
-
-const CORE_BASE: React.CSSProperties = {
-  width: 120,
-  height: 120,
-  background: 'radial-gradient(circle, rgba(212,160,84,0.15) 0%, rgba(212,160,84,0.02) 70%)',
-  boxShadow: 'inset 0 0 30px rgba(212,160,84,0.03)',
-};
-
-const CORE_STYLES: Record<string, React.CSSProperties> = {
-  muted: {
-    ...CORE_BASE,
-    background: 'radial-gradient(circle, rgba(80,75,70,0.3) 0%, rgba(40,38,35,0.1) 70%)',
-  },
-  speaking: {
-    ...CORE_BASE,
-    boxShadow: '0 0 60px rgba(212,160,84,0.15), inset 0 0 30px rgba(212,160,84,0.05)',
-  },
-};
-
-/** Map assistantStatus + context flags → visual orb state key */
-function deriveOrbState(
+/** Map assistantStatus + context flags → visual orb tone. */
+function deriveOrbTone(
   assistantStatus: AssistantStatus,
   conversationState: ConversationState | undefined,
   micOff: boolean,
   hasPendingApproval: boolean,
-): string {
-  if (hasPendingApproval) return 'approval';
-  if (assistantStatus !== 'idle') {
-    return assistantStatus === 'responding' ? 'thinking' : assistantStatus;
-  }
-  // idle sub-states
-  if (conversationState === 'loading' || conversationState === 'idle') return 'idle';
+  hudActiveTone: 'idle' | 'thinking' | 'tool' | 'agent' | 'response',
+): OrbTone {
+  if (hasPendingApproval) return 'thinking';
+  if (assistantStatus === 'error') return 'error';
+  // Prefer the live HUD window tone — that's what's actually happening
+  if (hudActiveTone !== 'idle') return hudActiveTone;
+  if (assistantStatus === 'speaking') return 'response';
+  if (assistantStatus === 'thinking' || assistantStatus === 'responding') return 'thinking';
+  if (assistantStatus === 'tool_calling') return 'tool';
+  if (conversationState === 'loading') return 'idle';
   if (micOff) return 'muted';
   return 'idle';
 }
 
-/** Map assistantStatus + context → Chinese status label */
+/** Map status into a Chinese label, same vocabulary as before. */
 function deriveStatusLabel(
   assistantStatus: AssistantStatus,
   conversationState: ConversationState | undefined,
@@ -174,15 +93,11 @@ function deriveStatusLabel(
     case 'idle':
       break;
   }
-
-  // Idle sub-states
   if (conversationState === 'loading') return '正在加载唤醒词...';
-  if (conversationState === 'idle') return undefined; // WakeWordIndicator handles it
-
-  // Mode-specific idle hints
+  if (conversationState === 'idle') return undefined;
   if (listenMode === 'continuous' && micOff) return '点击按钮开始对话';
   if (listenMode === 'ptt') return '按住按钮说话';
-  if (listenMode === 'wake_word') return undefined; // WakeWordIndicator handles it
+  if (listenMode === 'wake_word') return undefined;
   return statusText || '等待语音输入';
 }
 
@@ -192,10 +107,8 @@ export const VoiceMode = ({
   onToggleContinuousMic,
   onStopSpeaking,
   statusText,
-  getAnalyserNode,
   conversationState,
   wakeWordKeyword,
-  ttsRms,
   speaker,
   pauseAudioCapture,
   resumeAudioCapture,
@@ -210,19 +123,50 @@ export const VoiceMode = ({
   onPttStart,
   onPttStop,
   apiBaseUrl = '',
+  steps,
+  sessionId,
+  isSocketConnected,
+  hasSocketError,
 }: VoiceModeProps) => {
   const [enrollmentKey, setEnrollmentKey] = useState(0);
   const isWakeWordIdle = conversationState === 'idle';
   const isWakeWordListening = conversationState === 'listening';
-  // For continuous mode the "mic off" state drives the orb's "muted"-like dim look.
   const micOff = listenMode === 'continuous' && !isContinuousMicOn;
 
   const isSpeaking = assistantStatus === 'speaking';
   const isActive =
     assistantStatus !== 'idle' && assistantStatus !== 'interrupted' && assistantStatus !== 'error';
 
-  const orbState = deriveOrbState(assistantStatus, conversationState, micOff, !!pendingApproval);
+  const { windows, openCount, activeTone, brainStatusLabel, zOrder, raiseWindow } = useHudWindows({
+    steps,
+    isSpeaking,
+    isActive,
+  });
+
+  const orbTone = deriveOrbTone(assistantStatus, conversationState, micOff, !!pendingApproval, activeTone);
   const statusLabel = deriveStatusLabel(assistantStatus, conversationState, listenMode, micOff, statusText);
+
+  // Count distinct user-message turns for the bottom-right counter
+  const turn = useMemo(() => {
+    const seen = new Set<string>();
+    for (const s of steps) {
+      if (s.role === 'user' && s.msgId) seen.add(s.msgId);
+    }
+    return seen.size;
+  }, [steps]);
+
+  const voiceMeta =
+    listenMode === 'continuous'
+      ? isContinuousMicOn
+        ? 'continuous · live'
+        : 'continuous · muted'
+      : listenMode === 'ptt'
+      ? isPttActive
+        ? 'ptt · holding'
+        : 'ptt · ready'
+      : isWakeWordListening
+      ? 'wake · listening'
+      : 'wake · idle';
 
   return (
     <motion.div
@@ -232,68 +176,27 @@ export const VoiceMode = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.4 }}
-      className="grain h-full flex flex-col items-center justify-center relative overflow-hidden"
-      style={VOICE_BG_STYLE}
+      className="h-full w-full relative overflow-hidden"
     >
-      {/* Ambient background glow */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={AMBIENT_STYLES[orbState] || AMBIENT_STYLES.none}
-      />
-
-      {/* Enrollment Banner */}
-      <div className="absolute top-8 left-1/2 -translate-x-1/2 w-full max-w-md px-6 z-20">
-        <EnrollmentBanner
-          key={enrollmentKey}
-          speaker={speaker}
-          onEnrollComplete={() => setEnrollmentKey((k) => k + 1)}
-          pauseAudioCapture={pauseAudioCapture}
-          resumeAudioCapture={resumeAudioCapture}
-          apiBaseUrl={apiBaseUrl}
-        />
-      </div>
-
-      {/* Center content */}
-      <div className="relative flex flex-col items-center gap-16 z-10">
-        {/* Orb + Waveform */}
-        <div className="relative flex items-center justify-center" style={ORB_CONTAINER_STYLE}>
-          {/* Outer ring pulse (speaking only) */}
-          {isSpeaking && (
-            <motion.div
-              className="absolute inset-0 rounded-full border border-amber-500/20"
-              animate={RING_PULSE_ANIMATE}
-              transition={RING_PULSE_TRANSITION}
-            />
-          )}
-
-          {/* Orb gradient */}
-          <motion.div
-            className={`absolute rounded-full bg-gradient-radial ${ORB_COLORS[orbState] || ORB_COLORS.idle}`}
-            style={ORB_GRADIENT_STYLE}
-            animate={ORB_ANIMATIONS[orbState] || ORB_ANIMATIONS.idle}
-          />
-
-          {/* Inner core */}
-          <motion.div
-            className="absolute rounded-full"
-            style={CORE_STYLES[orbState] ?? CORE_BASE}
-            animate={orbState === 'speaking' ? CORE_SPEAKING_ANIMATE : CORE_IDLE_ANIMATE}
-          />
-
-          {/* Waveform overlay (speaking) */}
-          {isSpeaking && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Waveform
-                active={isSpeaking}
-                getAnalyserNode={getAnalyserNode}
-                rmsAmplitude={ttsRms}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Status area */}
-        <div className="flex flex-col items-center gap-3">
+      <HudDesktop
+        windows={windows}
+        zOrder={zOrder}
+        onRaiseWindow={raiseWindow}
+        orbTone={orbTone}
+        ambientTone={activeTone}
+        brainStatusLabel={brainStatusLabel}
+        windowsOpen={openCount}
+        turn={turn}
+        sessionId={sessionId}
+        speaker={speaker}
+        socketConnected={isSocketConnected}
+        socketError={hasSocketError}
+        asrLabel="sherpa · zh+en"
+        ttsLabel="edge · jenny"
+        voiceMeta={voiceMeta}
+      >
+        {/* Status / wake-word / approval / controls live in this center column */}
+        <div className="hud-status" data-tone={activeTone}>
           <AnimatePresence mode="wait">
             {isWakeWordIdle && !isActive ? (
               <WakeWordIndicator key="wake-word" keyword={wakeWordKeyword || 'Hey Tank'} />
@@ -307,24 +210,24 @@ export const VoiceMode = ({
                   animate="visible"
                   exit="hidden"
                   transition={{ duration: 0.3 }}
-                  className="text-sm font-medium tracking-wide text-text-secondary"
+                  className="hud-status__label"
                 >
                   {statusLabel}
                 </motion.p>
               )
             )}
           </AnimatePresence>
+          <div className="hud-status__meta">
+            {brainStatusLabel === 'idle' ? 'cognitive surface idle' : brainStatusLabel}
+          </div>
         </div>
 
-        {/* Approval overlay — floats between orb and controls */}
         <VoiceApprovalOverlay
           approval={pendingApproval}
           onRespond={onApprovalRespond}
         />
 
-        {/* Controls — mic/PTT centered, stop button to the right, settings to the left */}
         <div className="relative flex items-center justify-center h-16 w-56">
-          {/* Settings gear — left side */}
           <div className="absolute left-0 top-1/2 -translate-y-1/2">
             <ListenModeSettings
               listenMode={listenMode}
@@ -335,14 +238,8 @@ export const VoiceMode = ({
             />
           </div>
 
-          {/* Center control: depends on listen mode */}
           {listenMode === 'ptt' ? (
-            <PttButton
-              isRecording={isPttActive}
-              onStart={onPttStart}
-              onStop={onPttStop}
-              size="lg"
-            />
+            <PttButton isRecording={isPttActive} onStart={onPttStart} onStop={onPttStop} size="lg" />
           ) : listenMode === 'wake_word' ? (
             <div
               data-testid="wake-word-indicator-button"
@@ -356,11 +253,9 @@ export const VoiceMode = ({
               <Ear size={24} />
             </div>
           ) : (
-            // continuous mode — phone-call style toggle
             <motion.button
               whileHover={{ scale: 1.06 }}
               whileTap={{ scale: 0.94 }}
-              animate={MIC_IDLE_ANIMATE}
               onClick={onToggleContinuousMic}
               aria-label={isContinuousMicOn ? '挂断' : '开启麦克风'}
               aria-pressed={isContinuousMicOn}
@@ -394,14 +289,22 @@ export const VoiceMode = ({
             )}
           </AnimatePresence>
         </div>
+      </HudDesktop>
+
+      {/* Enrollment banner — floating top, outside HudDesktop's center column */}
+      <div className="absolute top-8 left-1/2 -translate-x-1/2 w-full max-w-md px-6 z-30">
+        <EnrollmentBanner
+          key={enrollmentKey}
+          speaker={speaker}
+          onEnrollComplete={() => setEnrollmentKey((k) => k + 1)}
+          pauseAudioCapture={pauseAudioCapture}
+          resumeAudioCapture={resumeAudioCapture}
+          apiBaseUrl={apiBaseUrl}
+        />
       </div>
 
-      {/* Bottom brand mark */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
-        <span className="text-[10px] font-mono tracking-[0.3em] text-text-muted/40 uppercase">
-          Tank
-        </span>
-      </div>
+      {/* Bottom hint */}
+      <div className="hud-hint">drag windows · they close on completion</div>
     </motion.div>
   );
 };
