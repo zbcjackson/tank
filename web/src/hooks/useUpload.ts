@@ -11,8 +11,7 @@
  * The hook owns no UI. Consumers render their own thumbnails/errors.
  */
 import { useCallback, useState } from 'react';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { buildApiUrl } from '../services/serverSettings';
 
 export interface Attachment {
   /** Unique client-side id — used for list keys and removal. */
@@ -64,7 +63,7 @@ function replaceById(
   return list.map((a) => (a.id === id ? { ...a, ...patch } : a));
 }
 
-export function useUpload(sessionId: string) {
+export function useUpload(sessionId: string, apiBaseUrl: string = '') {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
 
   const upload = useCallback(
@@ -87,7 +86,7 @@ export function useUpload(sessionId: string) {
             const form = new FormData();
             form.append('file', seed.file);
             const res = await fetch(
-              `${API_BASE}/api/upload?session_id=${encodeURIComponent(sessionId)}`,
+              buildApiUrl(`/api/upload?session_id=${encodeURIComponent(sessionId)}`, apiBaseUrl),
               { method: 'POST', body: form },
             );
             if (!res.ok) {
@@ -120,7 +119,7 @@ export function useUpload(sessionId: string) {
         }),
       );
     },
-    [sessionId],
+    [sessionId, apiBaseUrl],
   );
 
   /** Remove one attachment by id; revokes its preview URL to free memory. */

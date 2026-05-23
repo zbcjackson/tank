@@ -7,8 +7,11 @@ import { ModeToggle } from './components/Assistant/ModeToggle';
 import { ConnectionStatusOverlay } from './components/Assistant/ConnectionStatusOverlay';
 import { ConversationList } from './components/Assistant/ConversationList';
 import { ChannelAudioIndicator } from './components/Assistant/ChannelAudioIndicator';
+import { ServerSettingsPanel } from './components/Assistant/ServerSettings';
+import { useServerSettings } from './hooks/useServerSettings';
+import { buildApiUrl } from './services/serverSettings';
 import { AnimatePresence } from 'framer-motion';
-import { Menu } from 'lucide-react';
+import { Menu, Settings } from 'lucide-react';
 import type { WakeWordDetector } from './services/wakeWordDetector';
 import { createWakeWordDetector, type WakeWordEngine } from './services/wakeWordFactory';
 import type { ApprovalContent } from './types/message';
@@ -53,6 +56,8 @@ function useWakeWordDetector(): WakeWordDetector | null {
 }
 
 function App() {
+  const server = useServerSettings();
+  const [showSettings, setShowSettings] = useState(false);
   const wakeWordDetector = useWakeWordDetector();
   const [conversationListOpen, setConversationListOpen] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -61,6 +66,67 @@ function App() {
   // Ref to break circular dependency: useAssistant needs the handler,
   // but useChannelNotifications needs appendSteps from useAssistant.
   const channelNotificationHandlerRef = useRef<((msg: import('./services/websocket').WebsocketMessage) => void) | null>(null);
+
+  // Show server settings when not configured
+  if (!server.isConfigured || showSettings) {
+    return (
+      <div style={APP_BG_STYLE}>
+        <ServerSettingsPanel
+          isProbing={server.isProbing}
+          probeError={server.probeError}
+          currentHostPort={server.apiBaseUrl ? server.apiBaseUrl.replace(/^https?:\/\//, '') : ''}
+          onSave={async (hostPort) => {
+            const ok = await server.saveSettings(hostPort);
+            if (ok) setShowSettings(false);
+            return ok;
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <AppWithServer
+      server={server}
+      wakeWordDetector={wakeWordDetector}
+      setShowSettings={setShowSettings}
+      conversationListOpen={conversationListOpen}
+      setConversationListOpen={setConversationListOpen}
+      activeConversationId={activeConversationId}
+      setActiveConversationId={setActiveConversationId}
+      activeChannelSlug={activeChannelSlug}
+      setActiveChannelSlug={setActiveChannelSlug}
+      channelNotificationHandlerRef={channelNotificationHandlerRef}
+    />
+  );
+}
+
+/** Inner component rendered only when server is configured. */
+function AppWithServer({
+  server,
+  wakeWordDetector,
+  setShowSettings,
+  conversationListOpen,
+  setConversationListOpen,
+  activeConversationId,
+  setActiveConversationId,
+  activeChannelSlug,
+  setActiveChannelSlug,
+  channelNotificationHandlerRef,
+}: {
+  server: ReturnType<typeof useServerSettings>;
+  wakeWordDetector: WakeWordDetector | null;
+  setShowSettings: (v: boolean) => void;
+  conversationListOpen: boolean;
+  setConversationListOpen: (v: boolean) => void;
+  activeConversationId: string | null;
+  setActiveConversationId: (v: string | null) => void;
+  activeChannelSlug: string | null;
+  setActiveChannelSlug: (v: string | null) => void;
+  channelNotificationHandlerRef: React.RefObject<((msg: import('./services/websocket').WebsocketMessage) => void) | null>;
+}) {
+  const apiBaseUrl = server.apiBaseUrl;
+  const backendUrl = server.wsBaseUrl || undefined;
 
   const {
     steps,
@@ -100,11 +166,12 @@ function App() {
     stopPtt,
   } = useAssistant(SESSION_ID, wakeWordDetector, (msg) => {
     channelNotificationHandlerRef.current?.(msg);
-  });
+  }, backendUrl, apiBaseUrl);
 
   const channelNotifications = useChannelNotifications({
     activeChannelSlug,
     onActiveChannelMessages: appendSteps,
+    apiBaseUrl,
   });
 
   useEffect(() => {
@@ -113,7 +180,7 @@ function App() {
 
   // Seed unread counts from API on mount
   useEffect(() => {
-    fetch('/api/channels')
+    fetch(buildApiUrl('/api/channels', apiBaseUrl))
       .then((r) => (r.ok ? r.json() : []))
       .then((channels) => channelNotifications.initFromChannels(channels))
       .catch(() => {});
@@ -125,7 +192,7 @@ function App() {
       setActiveConversationId(conversationId);
       await resumeConversation(conversationId);
     },
-    [resumeConversation],
+    [resumeConversation, setConversationListOpen, setActiveConversationId],
   );
 
   const handleNewConversation = useCallback(() => {
@@ -133,7 +200,7 @@ function App() {
     setActiveConversationId(null);
     setActiveChannelSlug(null);
     newConversation();
-  }, [newConversation]);
+  }, [newConversation, setConversationListOpen, setActiveConversationId, setActiveChannelSlug]);
 
   const handleSelectChannel = useCallback(
     async (slug: string) => {
@@ -141,7 +208,7 @@ function App() {
       setActiveChannelSlug(slug);
       setActiveConversationId(null);
       try {
-        const resp = await fetch(`/api/channels/${slug}`);
+        const resp = await fetch(buildApiUrl(`/api/channels/${slug}`, apiBaseUrl));
         if (!resp.ok) return;
         const channel = await resp.json();
         if (channel.conversation_id) {
@@ -152,7 +219,7 @@ function App() {
         // Channel not found or fetch failed — ignore silently
       }
     },
-    [resumeConversation, channelNotifications],
+    [resumeConversation, channelNotifications, apiBaseUrl, setConversationListOpen, setActiveChannelSlug, setActiveConversationId],
   );
 
   const lastUserSpeaker = useMemo(() => {
@@ -182,6 +249,7 @@ function App() {
         state={connectionState}
         metadata={connectionMetadata}
         onReconnect={manualReconnect}
+        onChangeServer={() => setShowSettings(true)}
       />
 
       {/* Conversation list sidebar */}
@@ -196,17 +264,27 @@ function App() {
         unreadCounts={channelNotifications.unreadCounts}
         subscribedChannels={channelAudio.subscribedChannels}
         onToggleChannelSubscription={channelAudio.toggleSubscription}
+        apiBaseUrl={apiBaseUrl}
       />
 
-      {/* Conversation list toggle button */}
-      <button
-        onClick={() => setConversationListOpen(true)}
-        className="absolute top-3 right-3 z-30 p-2 rounded-lg bg-neutral-800/60 hover:bg-neutral-700/80 text-neutral-400 hover:text-neutral-200 transition-colors backdrop-blur-sm"
-        title="Conversations"
-        data-testid="conversations-button"
-      >
-        <Menu size={18} />
-      </button>
+      {/* Top-right buttons: settings gear + conversations menu */}
+      <div className="absolute top-3 right-3 z-30 flex gap-1.5">
+        <button
+          onClick={() => setShowSettings(true)}
+          className="p-2 rounded-lg bg-neutral-800/60 hover:bg-neutral-700/80 text-neutral-400 hover:text-neutral-200 transition-colors backdrop-blur-sm"
+          title="Server Settings"
+        >
+          <Settings size={18} />
+        </button>
+        <button
+          onClick={() => setConversationListOpen(true)}
+          className="p-2 rounded-lg bg-neutral-800/60 hover:bg-neutral-700/80 text-neutral-400 hover:text-neutral-200 transition-colors backdrop-blur-sm"
+          title="Conversations"
+          data-testid="conversations-button"
+        >
+          <Menu size={18} />
+        </button>
+      </div>
 
       {/* Channel audio playback indicator + stop button */}
       <ChannelAudioIndicator
@@ -240,6 +318,7 @@ function App() {
               isPttActive={isPttActive}
               onPttStart={startPtt}
               onPttStop={stopPtt}
+              apiBaseUrl={apiBaseUrl}
             />
           ) : (
             <ChatMode
@@ -258,6 +337,7 @@ function App() {
               isPttActive={isPttActive}
               onPttStart={startPtt}
               onPttStop={stopPtt}
+              apiBaseUrl={apiBaseUrl}
             />
           )}
         </AnimatePresence>

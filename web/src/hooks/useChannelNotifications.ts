@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 
 import type { WebsocketMessage } from '../services/websocket';
+import { buildApiUrl } from '../services/serverSettings';
 import type { Step } from '../types/message';
 
 interface ChannelNotificationMetadata {
@@ -21,7 +22,8 @@ interface UseChannelNotificationsArgs {
 export function useChannelNotifications({
   activeChannelSlug,
   onActiveChannelMessages,
-}: UseChannelNotificationsArgs) {
+  apiBaseUrl = '',
+}: UseChannelNotificationsArgs & { apiBaseUrl?: string }) {
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const activeSlugRef = useRef(activeChannelSlug);
 
@@ -79,11 +81,11 @@ export function useChannelNotifications({
       return next;
     });
     try {
-      await fetch(`/api/channels/${slug}/read`, { method: 'PUT' });
+      await fetch(buildApiUrl(`/api/channels/${slug}/read`, apiBaseUrl), { method: 'PUT' });
     } catch {
       // Best-effort — unread badge is already cleared locally
     }
-  }, []);
+  }, [apiBaseUrl]);
 
   const initFromChannels = useCallback((channels: Array<{ slug: string; unread_count: number }>) => {
     const counts: Record<string, number> = {};

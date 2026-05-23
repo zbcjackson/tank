@@ -33,6 +33,7 @@ interface VoiceModeProps {
   isPttActive: boolean;
   onPttStart: () => void;
   onPttStop: () => void;
+  apiBaseUrl?: string;
 }
 
 const statusVariants = {
@@ -208,6 +209,7 @@ export const VoiceMode = ({
   isPttActive,
   onPttStart,
   onPttStop,
+  apiBaseUrl = '',
 }: VoiceModeProps) => {
   const [enrollmentKey, setEnrollmentKey] = useState(0);
   const isWakeWordIdle = conversationState === 'idle';
@@ -247,6 +249,7 @@ export const VoiceMode = ({
           onEnrollComplete={() => setEnrollmentKey((k) => k + 1)}
           pauseAudioCapture={pauseAudioCapture}
           resumeAudioCapture={resumeAudioCapture}
+          apiBaseUrl={apiBaseUrl}
         />
       </div>
 

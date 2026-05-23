@@ -26,6 +26,8 @@ interface UseAudioPipelineArgs {
    * the user can still see streamed text.
    */
   speakEnabledRef: React.RefObject<boolean>;
+  /** Protocol-aware WebSocket base URL (e.g. "wss://192.168.1.50:8000"). Undefined = use window.location.host. */
+  backendUrl?: string;
 }
 
 /**
@@ -43,6 +45,7 @@ export function useAudioPipeline({
   onBinaryMessage,
   dispatchStatus,
   speakEnabledRef,
+  backendUrl,
 }: UseAudioPipelineArgs) {
   const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
   const [connectionMetadata, setConnectionMetadata] = useState<ConnectionMetadata>({});
@@ -68,7 +71,7 @@ export function useAudioPipeline({
     });
 
     // Create WebSocket client (pure transport)
-    const client = new VoiceAssistantClient(sessionId);
+    const client = new VoiceAssistantClient(sessionId, backendUrl);
     clientRef.current = client;
     client.connect(
       (msg) => {
@@ -143,7 +146,7 @@ export function useAudioPipeline({
       audioProcessorRef.current = null;
       playbackRef.current = null;
     };
-  }, [sessionId, onMessage, onBinaryMessage, dispatchStatus, conversationStateRef, speakEnabledRef]);
+  }, [sessionId, onMessage, onBinaryMessage, dispatchStatus, conversationStateRef, speakEnabledRef, backendUrl]);
 
   // Start AudioProcessor only after capabilities confirm ASR is enabled
   useEffect(() => {

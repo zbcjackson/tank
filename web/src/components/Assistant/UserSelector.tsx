@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronUp, Check } from 'lucide-react';
+import { buildApiUrl } from '../../services/serverSettings';
 
 interface UserInfo {
   user_id: string;
@@ -11,6 +12,7 @@ interface UserInfo {
 interface UserSelectorProps {
   selectedUserId: string | null;
   onSelectUser: (userId: string | null) => void;
+  apiBaseUrl?: string;
 }
 
 const dropdownVariants = {
@@ -19,14 +21,14 @@ const dropdownVariants = {
   exit: { opacity: 0, y: 4, scale: 0.97 },
 };
 
-export const UserSelector = ({ selectedUserId, onSelectUser }: UserSelectorProps) => {
+export const UserSelector = ({ selectedUserId, onSelectUser, apiBaseUrl = '' }: UserSelectorProps) => {
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch('/api/users')
+    fetch(buildApiUrl('/api/users', apiBaseUrl))
       .then((res) => res.json())
       .then((data) => {
         setUsers(data);
@@ -36,7 +38,7 @@ export const UserSelector = ({ selectedUserId, onSelectUser }: UserSelectorProps
         console.error('Failed to load users:', err);
         setIsLoading(false);
       });
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isOpen) return;

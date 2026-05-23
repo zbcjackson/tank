@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
-import { WifiOff, RefreshCw, RotateCw, AlertCircle, Clock } from 'lucide-react';
+import { WifiOff, RefreshCw, RotateCw, AlertCircle, Clock, Settings } from 'lucide-react';
 import type { ConnectionState, ConnectionMetadata } from '../../services/websocket';
 
 const TIMEOUT_ANIMATE = { scale: [1, 1.1, 1] };
@@ -18,9 +18,10 @@ interface Props {
   state: ConnectionState;
   metadata: ConnectionMetadata;
   onReconnect: () => void;
+  onChangeServer?: () => void;
 }
 
-export const ConnectionStatusOverlay = ({ state, metadata, onReconnect }: Props) => {
+export const ConnectionStatusOverlay = ({ state, metadata, onReconnect, onChangeServer }: Props) => {
   const [countdown, setCountdown] = useState<number>(0);
   const startTimeRef = useRef<number>(0);
   const initialDelayRef = useRef<number>(0);
@@ -108,6 +109,15 @@ export const ConnectionStatusOverlay = ({ state, metadata, onReconnect }: Props)
                   <RotateCw className="w-3 h-3" />
                   重新连接
                 </button>
+                {onChangeServer && (
+                  <button
+                    onClick={onChangeServer}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 text-text-secondary border border-border-subtle hover:bg-white/8 transition-colors"
+                  >
+                    <Settings className="w-3 h-3 inline mr-1" />
+                    Change Server
+                  </button>
+                )}
                 <button
                   onClick={() => window.location.reload()}
                   className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white/5 text-text-secondary border border-border-subtle hover:bg-white/8 transition-colors"

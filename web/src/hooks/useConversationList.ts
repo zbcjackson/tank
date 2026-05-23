@@ -2,6 +2,7 @@
  * Hook for fetching and managing the conversation list from the backend.
  */
 import { useState, useCallback } from 'react';
+import { buildApiUrl } from '../services/serverSettings';
 
 export interface ConversationInfo {
   id: string;
@@ -11,9 +12,7 @@ export interface ConversationInfo {
   preview: string;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
-
-export function useConversationList() {
+export function useConversationList(apiBaseUrl: string = '') {
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +21,7 @@ export function useConversationList() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/conversations`);
+      const res = await fetch(buildApiUrl('/api/conversations', apiBaseUrl));
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: ConversationInfo[] = await res.json();
       setConversations(data);
@@ -31,7 +30,7 @@ export function useConversationList() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [apiBaseUrl]);
 
   return { conversations, loading, error, refresh };
 }
@@ -64,8 +63,13 @@ export interface HistoryMessage {
   }>;
 }
 
-export async function fetchConversationMessages(conversationId: string): Promise<HistoryMessage[]> {
-  const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/messages`);
+export async function fetchConversationMessages(
+  conversationId: string,
+  apiBaseUrl: string = '',
+): Promise<HistoryMessage[]> {
+  const res = await fetch(
+    buildApiUrl(`/api/conversations/${conversationId}/messages`, apiBaseUrl),
+  );
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   return data.messages;

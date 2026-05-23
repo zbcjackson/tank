@@ -77,8 +77,14 @@ export class VoiceAssistantClient {
   private heartbeatTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(sessionId: string, baseUrl: string = window.location.host) {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    this.url = `${protocol}//${baseUrl}/ws/${sessionId}`;
+    // If baseUrl already contains a protocol (e.g. "wss://host:port"), use it.
+    // Otherwise derive from the page protocol.
+    if (baseUrl.includes('://')) {
+      this.url = `${baseUrl}/ws/${sessionId}`;
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      this.url = `${protocol}//${baseUrl}/ws/${sessionId}`;
+    }
   }
 
   connect(

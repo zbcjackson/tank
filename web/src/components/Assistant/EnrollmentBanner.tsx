@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserPlus, X, Mic, Check, Loader2, ChevronRight } from 'lucide-react';
+import { buildApiUrl } from '../../services/serverSettings';
 
 interface UserInfo {
   user_id: string;
@@ -22,6 +23,7 @@ interface EnrollmentBannerProps {
   onEnrollComplete: () => void;
   pauseAudioCapture: () => void;
   resumeAudioCapture: () => void;
+  apiBaseUrl?: string;
 }
 
 export const EnrollmentBanner = ({
@@ -29,6 +31,7 @@ export const EnrollmentBanner = ({
   onEnrollComplete,
   pauseAudioCapture,
   resumeAudioCapture,
+  apiBaseUrl = '',
 }: EnrollmentBannerProps) => {
   const [showModal, setShowModal] = useState(false);
 
@@ -65,6 +68,7 @@ export const EnrollmentBanner = ({
           }}
           pauseAudioCapture={pauseAudioCapture}
           resumeAudioCapture={resumeAudioCapture}
+          apiBaseUrl={apiBaseUrl}
         />
       )}
     </>
@@ -76,6 +80,7 @@ interface EnrollmentModalProps {
   onComplete: () => void;
   pauseAudioCapture: () => void;
   resumeAudioCapture: () => void;
+  apiBaseUrl?: string;
 }
 
 type RecordingState =
@@ -92,6 +97,7 @@ const EnrollmentModal = ({
   onComplete,
   pauseAudioCapture,
   resumeAudioCapture,
+  apiBaseUrl = '',
 }: EnrollmentModalProps) => {
   const [state, setState] = useState<RecordingState>('idle');
   const [name, setName] = useState('');
@@ -108,7 +114,7 @@ const EnrollmentModal = ({
 
   useEffect(() => {
     // Fetch existing users
-    fetch('/api/users')
+    fetch(buildApiUrl('/api/users', apiBaseUrl))
       .then((res) => res.json())
       .then((data: UserInfo[]) => {
         setUsers(data);
@@ -118,7 +124,7 @@ const EnrollmentModal = ({
         console.error('Failed to load users:', err);
         setIsLoadingUsers(false);
       });
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     return () => {
@@ -242,7 +248,7 @@ const EnrollmentModal = ({
         url += `&user_id=${encodeURIComponent(selectedUserId)}`;
       }
 
-      const res = await fetch(url, {
+      const res = await fetch(buildApiUrl(url, apiBaseUrl), {
         method: 'POST',
         body: formData,
       });

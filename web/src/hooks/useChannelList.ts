@@ -1,10 +1,9 @@
 import { useState, useCallback } from 'react';
 
 import type { ChannelInfo } from '../types/channel';
+import { buildApiUrl } from '../services/serverSettings';
 
-const API_BASE = '/api/channels';
-
-export function useChannelList() {
+export function useChannelList(apiBaseUrl: string = '') {
   const [channels, setChannels] = useState<ChannelInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -13,7 +12,7 @@ export function useChannelList() {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(API_BASE);
+      const resp = await fetch(buildApiUrl('/api/channels', apiBaseUrl));
       if (!resp.ok) throw new Error(`Failed to fetch channels: ${resp.status}`);
       const data: ChannelInfo[] = await resp.json();
       setChannels(data);
@@ -22,12 +21,12 @@ export function useChannelList() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [apiBaseUrl]);
 
   const createChannel = useCallback(
     async (name: string, slug?: string, description?: string): Promise<ChannelInfo | null> => {
       try {
-        const resp = await fetch(API_BASE, {
+        const resp = await fetch(buildApiUrl('/api/channels', apiBaseUrl), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, slug: slug || undefined, description: description || '' }),
@@ -41,13 +40,15 @@ export function useChannelList() {
         return null;
       }
     },
-    [refresh],
+    [refresh, apiBaseUrl],
   );
 
   const deleteChannel = useCallback(
     async (slug: string): Promise<boolean> => {
       try {
-        const resp = await fetch(`${API_BASE}/${slug}`, { method: 'DELETE' });
+        const resp = await fetch(buildApiUrl(`/api/channels/${slug}`, apiBaseUrl), {
+          method: 'DELETE',
+        });
         if (!resp.ok) throw new Error(`Failed to delete channel: ${resp.status}`);
         await refresh();
         return true;
@@ -56,7 +57,7 @@ export function useChannelList() {
         return false;
       }
     },
-    [refresh],
+    [refresh, apiBaseUrl],
   );
 
   return { channels, loading, error, refresh, createChannel, deleteChannel };
