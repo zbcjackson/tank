@@ -51,26 +51,26 @@ export async function probeProtocol(
   timeoutMs = 3000,
 ): Promise<DetectedProtocol> {
   const bare = hostPort.replace(/^https?:\/\//, '');
+
+  // Try HTTP first — most common for intranet/VM setups.
+  // Avoids self-signed cert errors from HTTPS-only dev servers.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
-    await fetch(`https://${bare}/health`, { signal: controller.signal, mode: 'no-cors' });
+    await fetch(`http://${bare}/health`, { signal: controller.signal, mode: 'no-cors' });
     clearTimeout(timer);
-    // `no-cors` yields opaque responses (type: 'opaque', status: 0) for cross-origin.
-    // If we get ANY response (even opaque), HTTPS is reachable.
-    return 'https';
+    return 'http';
   } catch {
     clearTimeout(timer);
   }
 
-  // Retry with HTTP — also use no-cors so cross-origin servers aren't blocked
+  // Fallback to HTTPS (e.g. production servers behind a reverse proxy)
   const controller2 = new AbortController();
   const timer2 = setTimeout(() => controller2.abort(), timeoutMs);
   try {
-    await fetch(`http://${bare}/health`, { signal: controller2.signal, mode: 'no-cors' });
+    await fetch(`https://${bare}/health`, { signal: controller2.signal, mode: 'no-cors' });
     clearTimeout(timer2);
-    return 'http';
+    return 'https';
   } catch (err) {
     clearTimeout(timer2);
     throw new Error(

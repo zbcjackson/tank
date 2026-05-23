@@ -36,7 +36,9 @@ function resolveInitialUrls(): {
 } {
   const saved = loadServerSettings();
   if (saved) {
-    const apiBaseUrl = `${saved.protocol}://${saved.hostPort}`;
+    // Defensive: strip any accidental protocol prefix in saved hostPort
+    const bare = saved.hostPort.replace(/^https?:\/\//, '');
+    const apiBaseUrl = `${saved.protocol}://${bare}`;
     return { apiBaseUrl, wsBaseUrl: deriveWsBaseUrl(apiBaseUrl), configured: true };
   }
 
@@ -51,13 +53,10 @@ function resolveInitialUrls(): {
   }
 
   // Browser dev mode with Vite proxy — relative URLs work fine
-  if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
-    const hasPort = /:\d+$/.test(window.location.host);
-    // Tauri loads from tauri:// — not a normal browser context
-    // If we're in a real browser with a port, the Vite proxy handles it
-    if (hasPort || window.location.protocol === 'https:') {
-      return { apiBaseUrl: '', wsBaseUrl: '', configured: true };
-    }
+  // Only auto-configure when on localhost (where the Vite proxy handles routing).
+  // Non-localhost HTTPS/HTTP (e.g. Tauri or remote access) needs explicit config.
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return { apiBaseUrl: '', wsBaseUrl: '', configured: true };
   }
 
   return { apiBaseUrl: '', wsBaseUrl: '', configured: false };
@@ -83,8 +82,21 @@ export function useServerSettings(): UseServerSettingsResult {
     setProbeError(null);
 
     try {
-      const protocol = await probeProtocol(trimmed);
-      const settings = { hostPort: trimmed, protocol };
+      // If user explicitly prefixed with https:// or http://, skip probing
+      let protocol: DetectedProtocol;
+      let bare: string;
+      if (trimmed.startsWith('https://')) {
+        protocol = 'https';
+        bare = trimmed.replace(/^https:\/\//, '');
+      } else if (trimmed.startsWith('http://')) {
+        protocol = 'http';
+        bare = trimmed.replace(/^http:\/\//, '');
+      } else {
+        protocol = await probeProtocol(trimmed);
+        bare = trimmed;
+      }
+
+      const settings = { hostPort: bare, protocol };
       storeServerSettings(settings);
 
       const newApiBaseUrl = `${protocol}://${trimmed}`;
