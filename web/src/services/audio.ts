@@ -50,6 +50,11 @@ export class AudioProcessor {
   private platformAdapter: PlatformAudioAdapter | null = null;
   private captureHandle: CaptureHandle | null = null;
 
+  // Set in stop(); checked after each await in start()/initVad() so a
+  // mid-flight teardown (e.g. React StrictMode double-mount) cannot leak
+  // a MicVAD instance that finishes loading after stop() returns.
+  private disposed = false;
+
   constructor(onAudio: (data: Int16Array) => void) {
     this.onAudio = onAudio;
   }
@@ -66,6 +71,11 @@ export class AudioProcessor {
           this.onAudio(samples);
         }
       });
+      if (this.disposed) {
+        this.captureHandle.stop();
+        this.captureHandle = null;
+        return;
+      }
       this.gateSpeech = false;
       return;
     }
@@ -85,6 +95,11 @@ export class AudioProcessor {
         noiseSuppression: true,
       },
     });
+    if (this.disposed) {
+      this.stream.getTracks().forEach((t) => t.stop());
+      this.stream = null;
+      return;
+    }
 
     this.audioContext = new (
       window.AudioContext ||
@@ -94,6 +109,13 @@ export class AudioProcessor {
     });
 
     await this.audioContext.audioWorklet.addModule('/audio-processor.js');
+    if (this.disposed) {
+      this.stream.getTracks().forEach((t) => t.stop());
+      this.stream = null;
+      this.audioContext.close();
+      this.audioContext = null;
+      return;
+    }
 
     this.source = this.audioContext.createMediaStreamSource(this.stream);
     this.workletNode = new AudioWorkletNode(this.audioContext, 'audio-capture-processor');
@@ -110,10 +132,12 @@ export class AudioProcessor {
 
     // Initialize MicVAD for utterance-level gating
     await this.initVad();
+    if (this.disposed) return;
 
     // No calibration needed — backend SileroVAD handles segmentation
     if (!this.wakeWordDetector) {
       this.gateSpeech = false;
+      this.micVad?.start();
     }
   }
 
@@ -143,11 +167,11 @@ export class AudioProcessor {
     try {
       const { MicVAD: MicVADClass } = await import('@ricky0123/vad-web');
 
-      this.micVad = await MicVADClass.new({
+      const newVad = await MicVADClass.new({
         model: 'v5',
         baseAssetPath: '/vad/',
         onnxWASMBasePath: '/ort/',
-        startOnLoad: true,
+        startOnLoad: false,
 
         // Share our existing MediaStream — no second mic
         getStream: () => Promise.resolve(capturedStream),
@@ -156,7 +180,7 @@ export class AudioProcessor {
         resumeStream: () => Promise.resolve(capturedStream),
 
         onSpeechStart: () => {
-          if (this.bypassMicVad) return;
+          if (this.bypassMicVad || this.gateSpeech) return;
           console.log('[AudioProcessor] VAD: speech start');
           // Cancel any pending trailing-silence close — user is speaking again
           if (this.trailingSilenceTimer) {
@@ -165,17 +189,13 @@ export class AudioProcessor {
           }
           this.vadOpen = true;
           // Flush pre-roll buffer so backend gets the beginning of the utterance
-          if (!this.gateSpeech) {
-            for (const frame of this.preRollBuffer.drain()) {
-              this.onAudio(frame);
-            }
-          } else {
-            this.preRollBuffer.clear();
+          for (const frame of this.preRollBuffer.drain()) {
+            this.onAudio(frame);
           }
         },
 
         onSpeechEnd: () => {
-          if (this.pttActive || this.bypassMicVad) return;
+          if (this.pttActive || this.bypassMicVad || this.gateSpeech) return;
           console.log('[AudioProcessor] VAD: speech end, sending trailing silence');
           this.trailingSilenceTimer = setTimeout(() => {
             this.trailingSilenceTimer = null;
@@ -187,11 +207,18 @@ export class AudioProcessor {
         },
 
         onVADMisfire: () => {
-          if (this.pttActive || this.bypassMicVad) return;
+          if (this.pttActive || this.bypassMicVad || this.gateSpeech) return;
           console.log('[AudioProcessor] VAD: misfire');
           this.vadOpen = false;
         },
       });
+
+      // If stop() ran while MicVAD was loading, discard it so it never starts.
+      if (this.disposed) {
+        newVad.destroy();
+        return;
+      }
+      this.micVad = newVad;
     } catch (err) {
       // Graceful fallback — VAD gate stays always-open
       console.warn('[AudioProcessor] MicVAD init failed, falling back to no VAD gating:', err);
@@ -222,7 +249,11 @@ export class AudioProcessor {
       // Resume MicVAD but do NOT close vadOpen — if the user is
       // mid-sentence the gate must stay open until MicVAD fires
       // onSpeechEnd naturally.
-      this.micVad.start();
+      // Only restart MicVAD if the session gate is open — in wake-word
+      // mode (gateSpeech=true), enableWakeWord owns MicVAD lifecycle.
+      if (!this.gateSpeech) {
+        this.micVad.start();
+      }
     }
   }
 
@@ -278,17 +309,20 @@ export class AudioProcessor {
     console.log('[AudioProcessor] Enabling wake word detection, gating audio');
     this.wakeWordDetector = detector;
     this.gateSpeech = true;
-    this.micVad?.pause();
+    this.vadOpen = false;
+    this.clearTrailingSilenceTimer();
+    if (this.micVad) {
+      await this.micVad.pause();
+    }
     await detector.start(onDetected);
   }
 
   /**
    * Disable wake word detection. Ungates audio so it flows to the backend.
+   * Does NOT call detector.stop() — the startSession guard prevents
+   * double-activation, and enableWakeWord is the authoritative re-arm point.
    */
   async disableWakeWord(): Promise<void> {
-    if (this.wakeWordDetector) {
-      await this.wakeWordDetector.stop();
-    }
     this.wakeWordDetector = null;
     this.gateSpeech = false;
     this.micVad?.start();
@@ -341,6 +375,7 @@ export class AudioProcessor {
   }
 
   stop() {
+    this.disposed = true;
     this.clearTrailingSilenceTimer();
     this.wakeWordDetector?.release();
     this.wakeWordDetector = null;

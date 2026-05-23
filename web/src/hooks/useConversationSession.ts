@@ -71,6 +71,7 @@ export function useConversationSession({
 
   // Transition: idle → listening (wake word detected)
   const startSession = useCallback(() => {
+    console.log('[ConversationSession] startSession called, current state:', stateRef.current);
     if (stateRef.current === 'listening') return;
 
     setConversationState('listening');
@@ -87,6 +88,7 @@ export function useConversationSession({
 
   // Transition: listening → idle (utterance finished)
   const endUtterance = useCallback(() => {
+    console.log('[ConversationSession] endUtterance called, current state:', stateRef.current);
     if (stateRef.current !== 'listening') return;
 
     clientRef.current?.sendMessage('signal', 'end_of_utterance');
@@ -98,7 +100,12 @@ export function useConversationSession({
         .enableWakeWord(detector, () => {
           startSessionRef.current();
         })
+        .then(() => {
+          console.log('[ConversationSession] Wake word re-armed successfully');
+        })
         .catch((err) => console.error('[ConversationSession] Failed to re-arm wake word:', err));
+    } else {
+      console.warn('[ConversationSession] Cannot re-arm: processor=%o, detector=%o', !!processor, !!detector);
     }
   }, [clientRef, audioProcessorRef, detector]);
 

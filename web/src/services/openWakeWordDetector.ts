@@ -90,7 +90,11 @@ export class OpenWakeWordDetector implements WakeWordDetector {
       console.log(
         `[OpenWakeWord] Keyword detected: "${event.keyword}" (score=${event.score.toFixed(3)})`,
       );
-      this._onDetected?.();
+      if (this._onDetected) {
+        this._onDetected();
+      } else {
+        console.warn('[OpenWakeWord] Detection dropped — callback not registered');
+      }
     });
 
     this.engine.on('error', (err: unknown) => {

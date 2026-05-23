@@ -152,10 +152,19 @@ describe('AudioProcessor', () => {
       expect((processor as any).vadOpen).toBe(true);
     });
 
-    it('resumes MicVAD when speaking=false', () => {
+    it('resumes MicVAD when speaking=false and gate is open', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (processor as any).gateSpeech = false;
       processor.setSpeaking(true);
       processor.setSpeaking(false);
       expect(mockVadInstance.start).toHaveBeenCalled();
+    });
+
+    it('does not resume MicVAD when speaking=false if gate is closed (wake word idle)', () => {
+      // gateSpeech defaults to true — wake word mode keeps it closed
+      processor.setSpeaking(true);
+      processor.setSpeaking(false);
+      expect(mockVadInstance.start).not.toHaveBeenCalled();
     });
 
     it('is a no-op when micVad is null', () => {
