@@ -80,6 +80,7 @@ function App() {
             if (ok) setShowSettings(false);
             return ok;
           }}
+          onClose={showSettings ? () => setShowSettings(false) : undefined}
         />
       </div>
     );

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Server, Loader2, AlertCircle } from 'lucide-react';
+import { Server, Loader2, AlertCircle, X } from 'lucide-react';
 
 const CARD_VARIANTS = {
   hidden: { opacity: 0, y: 12 },
@@ -12,6 +12,8 @@ interface ServerSettingsProps {
   probeError: string | null;
   currentHostPort: string;
   onSave: (hostPort: string) => Promise<boolean>;
+  /** When provided, shows a close button. Omit for first-launch (must configure). */
+  onClose?: () => void;
 }
 
 export const ServerSettingsPanel = ({
@@ -19,6 +21,7 @@ export const ServerSettingsPanel = ({
   probeError,
   currentHostPort,
   onSave,
+  onClose,
 }: ServerSettingsProps) => {
   const [input, setInput] = useState(currentHostPort);
 
@@ -36,15 +39,26 @@ export const ServerSettingsPanel = ({
         initial="hidden"
         animate="visible"
         transition={{ duration: 0.25 }}
-        className="w-full max-w-sm mx-4 p-6 rounded-2xl bg-surface-raised border border-border-subtle shadow-2xl shadow-black/50"
+        className="w-full max-w-sm mx-4 p-6 rounded-2xl bg-surface-raised border border-border-subtle shadow-2xl shadow-black/50 relative"
       >
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="absolute top-3 right-3 p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-white/5 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        )}
+
         <div className="flex items-center gap-3 mb-5">
           <div className="p-2.5 rounded-xl bg-amber-500/10">
             <Server className="w-5 h-5 text-amber-400" />
           </div>
           <div>
             <h2 className="text-text-primary text-sm font-medium">Connect to Server</h2>
-            <p className="text-text-muted text-xs mt-0.5">Enter the backend address to get started</p>
+            <p className="text-text-muted text-xs mt-0.5">
+              {currentHostPort ? 'Change the backend address' : 'Enter the backend address to get started'}
+            </p>
           </div>
         </div>
 
