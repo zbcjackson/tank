@@ -44,11 +44,6 @@ WEB_TOOLS: frozenset[str] = frozenset({
     "web_fetch", "web_search",
 })
 
-# Tools that always require user approval regardless of arguments.
-# Used for deliberate, durable side effects (e.g. pinning facts to memory).
-REQUIRE_APPROVAL_TOOLS: frozenset[str] = frozenset({
-    "remember",
-})
 
 
 class ToolApprovalPolicy:
@@ -88,9 +83,6 @@ class ToolApprovalPolicy:
         if tool_name in WEB_TOOLS:
             return self._evaluate_network(tool_name, args)
 
-        if tool_name in REQUIRE_APPROVAL_TOOLS:
-            return self._evaluate_require_approval(tool_name, args)
-
         return PolicyVerdict(
             level=AccessLevel.ALLOW,
             reason=f"auto-approved tool: {tool_name}",
@@ -111,9 +103,6 @@ class ToolApprovalPolicy:
 
         if tool_name in WEB_TOOLS:
             return self._evaluate_network(tool_name, args)
-
-        if tool_name in REQUIRE_APPROVAL_TOOLS:
-            return self._evaluate_require_approval(tool_name, args)
 
         return PolicyVerdict(
             level=AccessLevel.ALLOW,
@@ -218,34 +207,6 @@ class ToolApprovalPolicy:
 
         return self._network_policy.evaluate(host)
 
-    # ------------------------------------------------------------------
-    # Require-approval evaluation (write-side memory tools)
-    # ------------------------------------------------------------------
-
-    # Tool actions that mutate durable state need explicit user approval.
-    # Read-only actions are allowed through to avoid pointless prompts.
-    _REQUIRE_APPROVAL_READ_ACTIONS: dict[str, frozenset[str]] = {
-        "remember": frozenset({"list"}),
-    }
-
-    def _evaluate_require_approval(
-        self, tool_name: str, args: dict[str, Any],
-    ) -> PolicyVerdict:
-        action = str(args.get("action", "")).lower()
-        read_actions = self._REQUIRE_APPROVAL_READ_ACTIONS.get(
-            tool_name, frozenset(),
-        )
-        if action and action in read_actions:
-            return PolicyVerdict(
-                level=AccessLevel.ALLOW,
-                reason=f"read-only action: {tool_name}.{action}",
-                policy="tool",
-            )
-        return PolicyVerdict(
-            level=AccessLevel.REQUIRE_APPROVAL,
-            reason=f"deliberate write requires approval: {tool_name}",
-            policy="tool",
-        )
 
 
 @dataclass(frozen=True)
