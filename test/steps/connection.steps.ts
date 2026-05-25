@@ -3,7 +3,7 @@ import type { TankWorld } from '../support/world';
 import { AppPage } from '../support/page-objects/AppPage';
 import { VoiceModePage } from '../support/page-objects/VoiceModePage';
 
-const APP_URL = process.env.APP_URL || 'http://localhost:5173';
+const APP_URL = process.env.APP_URL || 'https://localhost:5173';
 
 Given('the app is open', async function (this: TankWorld) {
   const appPage = new AppPage(this.page);

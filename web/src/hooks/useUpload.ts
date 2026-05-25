@@ -12,6 +12,7 @@
  */
 import { useCallback, useState } from 'react';
 import { buildApiUrl } from '../services/serverSettings';
+import { httpFetch } from '../services/httpClient';
 
 export interface Attachment {
   /** Unique client-side id — used for list keys and removal. */
@@ -85,7 +86,7 @@ export function useUpload(sessionId: string, apiBaseUrl: string = '') {
           try {
             const form = new FormData();
             form.append('file', seed.file);
-            const res = await fetch(
+            const res = await httpFetch(
               buildApiUrl(`/api/upload?session_id=${encodeURIComponent(sessionId)}`, apiBaseUrl),
               { method: 'POST', body: form },
             );

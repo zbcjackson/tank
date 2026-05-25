@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from ..channels.store import ChannelStore
@@ -537,6 +538,21 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Tank Voice Assistant API", version="0.1.0", lifespan=lifespan)
+
+# Narrow CORS allowlist: safety net for same-origin model violations.
+# Under normal operation (nginx gateway or Vite proxy), all requests are
+# same-origin and this middleware is a no-op. It only matters when:
+# - Browser loads from http://localhost:5173 and backend is on 8000 (dev)
+# - Browser explicitly configures a remote backend (rare)
+# Tauri bypasses this entirely via @tauri-apps/plugin-http (no CORS in Rust).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "https://localhost:5173"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],
+    allow_credentials=False,
+)
+
 _wire_routers(app)
 
 

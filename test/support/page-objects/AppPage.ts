@@ -3,7 +3,7 @@ import type { Page, Locator } from 'playwright';
 export class AppPage {
   constructor(private page: Page) {}
 
-  async open(url = 'http://localhost:5173'): Promise<void> {
+  async open(url = 'https://localhost:5173'): Promise<void> {
     await this.page.goto(url);
   }
 

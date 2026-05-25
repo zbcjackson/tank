@@ -10,6 +10,7 @@ Before({tags: 'not @fake-audio'}, async function (this: TankWorld) {
     this.browser = await chromium.launch({headless: HEADLESS});
     this.context = await this.browser.newContext({
         permissions: ['microphone'],
+        ignoreHTTPSErrors: true,
     });
 
     this.page = await this.context.newPage();
@@ -19,6 +20,7 @@ Before({tags: '@fake-audio'}, async function (this: TankWorld) {
     this.browser = await chromium.launch({headless: HEADLESS});
     this.context = await this.browser.newContext({
         permissions: ['microphone'],
+        ignoreHTTPSErrors: true,
     });
 
     this.page = await this.context.newPage();

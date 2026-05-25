@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserPlus, X, Mic, Check, Loader2, ChevronRight } from 'lucide-react';
 import { buildApiUrl } from '../../services/serverSettings';
+import { httpFetch } from '../../services/httpClient';
 
 interface UserInfo {
   user_id: string;
@@ -114,7 +115,7 @@ const EnrollmentModal = ({
 
   useEffect(() => {
     // Fetch existing users
-    fetch(buildApiUrl('/api/users', apiBaseUrl))
+    httpFetch(buildApiUrl('/api/users', apiBaseUrl))
       .then((res) => res.json())
       .then((data: UserInfo[]) => {
         setUsers(data);
@@ -248,7 +249,7 @@ const EnrollmentModal = ({
         url += `&user_id=${encodeURIComponent(selectedUserId)}`;
       }
 
-      const res = await fetch(buildApiUrl(url, apiBaseUrl), {
+      const res = await httpFetch(buildApiUrl(url, apiBaseUrl), {
         method: 'POST',
         body: formData,
       });

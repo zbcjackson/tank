@@ -3,6 +3,7 @@
  */
 import { useState, useCallback } from 'react';
 import { buildApiUrl } from '../services/serverSettings';
+import { httpFetch } from '../services/httpClient';
 
 export interface ConversationInfo {
   id: string;
@@ -21,7 +22,7 @@ export function useConversationList(apiBaseUrl: string = '') {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(buildApiUrl('/api/conversations', apiBaseUrl));
+      const res = await httpFetch(buildApiUrl('/api/conversations', apiBaseUrl));
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: ConversationInfo[] = await res.json();
       setConversations(data);
@@ -67,7 +68,7 @@ export async function fetchConversationMessages(
   conversationId: string,
   apiBaseUrl: string = '',
 ): Promise<HistoryMessage[]> {
-  const res = await fetch(
+  const res = await httpFetch(
     buildApiUrl(`/api/conversations/${conversationId}/messages`, apiBaseUrl),
   );
   if (!res.ok) throw new Error(`HTTP ${res.status}`);

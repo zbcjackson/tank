@@ -50,18 +50,18 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    // @tauri-apps/api is only loaded at runtime inside Tauri (dynamic import
-    // guarded by __TAURI__). Exclude it from the dep scanner so Vite doesn't
-    // warn when running the plain web dev server where it's not installed.
-    exclude: ['@tauri-apps/api'],
+    // @tauri-apps/* packages are only loaded at runtime inside Tauri (dynamic import
+    // guarded by __TAURI__). Exclude from the dep scanner so Vite doesn't warn
+    // when running the plain web dev server where they're not installed.
+    exclude: ['@tauri-apps/api', '@tauri-apps/plugin-http'],
   },
   build: {
     // WKWebView (Tauri) uses Safari's engine — target safari13 for compatibility
     target: process.env.TAURI_ENV_PLATFORM ? 'safari13' : undefined,
     rollupOptions: {
-      // @tauri-apps/api is only available inside Tauri at runtime (dynamic import
+      // @tauri-apps/* are only available inside Tauri at runtime (dynamic import
       // guarded by __TAURI__). Externalize so Rollup doesn't fail on web builds.
-      external: ['@tauri-apps/api/core', '@tauri-apps/api/event'],
+      external: ['@tauri-apps/api/core', '@tauri-apps/api/event', '@tauri-apps/plugin-http'],
     },
   },
 });

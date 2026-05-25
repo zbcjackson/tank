@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 
 import type { WebsocketMessage } from '../services/websocket';
 import { buildApiUrl } from '../services/serverSettings';
+import { httpFetch } from '../services/httpClient';
 import type { Step } from '../types/message';
 
 interface ChannelNotificationMetadata {
@@ -81,7 +82,7 @@ export function useChannelNotifications({
       return next;
     });
     try {
-      await fetch(buildApiUrl(`/api/channels/${slug}/read`, apiBaseUrl), { method: 'PUT' });
+      await httpFetch(buildApiUrl(`/api/channels/${slug}/read`, apiBaseUrl), { method: 'PUT' });
     } catch {
       // Best-effort — unread badge is already cleared locally
     }

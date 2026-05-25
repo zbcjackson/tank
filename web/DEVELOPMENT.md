@@ -40,6 +40,56 @@ pnpm build
 pnpm preview
 ```
 
+## Production Deployment
+
+For production, Tank runs behind nginx as a single‑origin gateway. The SPA,
+REST API, and WebSocket all share one public HTTPS host — no CORS, no mixed
+content.
+
+### Quick Start
+
+1. Build the frontend: `pnpm build` → produces `dist/`.
+2. Copy `dist/*` to `/srv/tank/web/` on your server.
+3. Install nginx and copy `deploy/nginx.conf` to `/etc/nginx/sites-available/tank`.
+4. Edit `server_name` and SSL paths in the nginx config.
+5. `ln -s /etc/nginx/sites-available/tank /etc/nginx/sites-enabled/`
+6. `nginx -t && nginx -s reload`
+
+### nginx Configuration
+
+A ready‑to‑use nginx config lives at `deploy/nginx.conf` in the repo. It:
+
+- Serves the SPA from `/srv/tank/web/` with cache headers.
+- Proxies `/api/*` to `http://127.0.0.1:8000` (backend).
+- Proxies `/ws/*` with WebSocket upgrade, long timeouts, and buffering off.
+- Enforces HTTPS with optional HTTP→HTTPS redirect.
+
+### SSL Certificates
+
+Use Let's Encrypt with certbot, or provide your own certificates:
+
+```bash
+certbot certonly --webroot -w /var/www/html -d tank.example.com
+ln -s /etc/letsencrypt/live/tank.example.com/fullchain.pem /etc/ssl/tank/
+ln -s /etc/letsencrypt/live/tank.example.com/privkey.pem /etc/ssl/tank/
+```
+
+Then update `ssl_certificate` and `ssl_certificate_key` in `nginx.conf`.
+
+### Backend Requirements
+
+- Backend must be running on `127.0.0.1:8000` (or update `proxy_pass`).
+- No CORS middleware needed — nginx makes all requests same‑origin.
+- For file uploads, `client_max_body_size` in nginx must match or exceed the backend's upload size limit (50MB in the template).
+
+### Tauri Considerations
+
+Tauri bundles the `dist/` files directly into the `.app`, so it doesn't go through nginx. For REST requests under Tauri, `@tauri-apps/plugin-http` is used to bypass browser CORS entirely. This means:
+- Browser users → nginx gateway → backend (single origin)
+- Tauri users → plugin-http → backend (direct, no CORS)
+
+Both work without CORS headers on the backend.
+
 ## Testing
 
 > Tests are not yet set up. See [TESTING.md](TESTING.md) for setup instructions.

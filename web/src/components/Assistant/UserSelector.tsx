@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronUp, Check } from 'lucide-react';
 import { buildApiUrl } from '../../services/serverSettings';
+import { httpFetch } from '../../services/httpClient';
 
 interface UserInfo {
   user_id: string;
@@ -28,7 +29,7 @@ export const UserSelector = ({ selectedUserId, onSelectUser, apiBaseUrl = '' }: 
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch(buildApiUrl('/api/users', apiBaseUrl))
+    httpFetch(buildApiUrl('/api/users', apiBaseUrl))
       .then((res) => res.json())
       .then((data) => {
         setUsers(data);

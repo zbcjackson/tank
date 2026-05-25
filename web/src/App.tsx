@@ -10,6 +10,7 @@ import { ChannelAudioIndicator } from './components/Assistant/ChannelAudioIndica
 import { ServerSettingsPanel } from './components/Assistant/ServerSettings';
 import { useServerSettings } from './hooks/useServerSettings';
 import { buildApiUrl } from './services/serverSettings';
+import { httpFetch } from './services/httpClient';
 import { AnimatePresence } from 'framer-motion';
 import { Menu, Settings } from 'lucide-react';
 import type { WakeWordDetector } from './services/wakeWordDetector';
@@ -179,7 +180,7 @@ function AppWithServer({
 
   // Seed unread counts from API on mount
   useEffect(() => {
-    fetch(buildApiUrl('/api/channels', apiBaseUrl))
+    httpFetch(buildApiUrl('/api/channels', apiBaseUrl))
       .then((r) => (r.ok ? r.json() : []))
       .then((channels) => channelNotifications.initFromChannels(channels))
       .catch(() => {});
@@ -207,7 +208,7 @@ function AppWithServer({
       setActiveChannelSlug(slug);
       setActiveConversationId(null);
       try {
-        const resp = await fetch(buildApiUrl(`/api/channels/${slug}`, apiBaseUrl));
+        const resp = await httpFetch(buildApiUrl(`/api/channels/${slug}`, apiBaseUrl));
         if (!resp.ok) return;
         const channel = await resp.json();
         if (channel.conversation_id) {

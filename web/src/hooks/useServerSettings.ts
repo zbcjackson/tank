@@ -52,14 +52,12 @@ function resolveInitialUrls(): {
     return { apiBaseUrl, wsBaseUrl: deriveWsBaseUrl(apiBaseUrl), configured: true };
   }
 
-  // Browser dev mode with Vite proxy — relative URLs work fine
-  // Only auto-configure when on localhost (where the Vite proxy handles routing).
-  // Non-localhost HTTPS/HTTP (e.g. Tauri or remote access) needs explicit config.
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return { apiBaseUrl: '', wsBaseUrl: '', configured: true };
-  }
-
-  return { apiBaseUrl: '', wsBaseUrl: '', configured: false };
+  // Default: same-origin. The Vite dev proxy (or nginx in prod) routes
+  // /api and /ws to the backend, so relative URLs work on every host —
+  // not just localhost. Saved settings + VITE_BACKEND_URL above remain
+  // the explicit cross-origin override (Tauri pointing at a remote
+  // backend, or any other non-default deployment).
+  return { apiBaseUrl: '', wsBaseUrl: '', configured: true };
 }
 
 export function useServerSettings(): UseServerSettingsResult {

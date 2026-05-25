@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 
 import type { ChannelInfo } from '../types/channel';
 import { buildApiUrl } from '../services/serverSettings';
+import { httpFetch } from '../services/httpClient';
 
 export function useChannelList(apiBaseUrl: string = '') {
   const [channels, setChannels] = useState<ChannelInfo[]>([]);
@@ -12,7 +13,7 @@ export function useChannelList(apiBaseUrl: string = '') {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(buildApiUrl('/api/channels', apiBaseUrl));
+      const resp = await httpFetch(buildApiUrl('/api/channels', apiBaseUrl));
       if (!resp.ok) throw new Error(`Failed to fetch channels: ${resp.status}`);
       const data: ChannelInfo[] = await resp.json();
       setChannels(data);
@@ -26,7 +27,7 @@ export function useChannelList(apiBaseUrl: string = '') {
   const createChannel = useCallback(
     async (name: string, slug?: string, description?: string): Promise<ChannelInfo | null> => {
       try {
-        const resp = await fetch(buildApiUrl('/api/channels', apiBaseUrl), {
+        const resp = await httpFetch(buildApiUrl('/api/channels', apiBaseUrl), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, slug: slug || undefined, description: description || '' }),
@@ -46,7 +47,7 @@ export function useChannelList(apiBaseUrl: string = '') {
   const deleteChannel = useCallback(
     async (slug: string): Promise<boolean> => {
       try {
-        const resp = await fetch(buildApiUrl(`/api/channels/${slug}`, apiBaseUrl), {
+        const resp = await httpFetch(buildApiUrl(`/api/channels/${slug}`, apiBaseUrl), {
           method: 'DELETE',
         });
         if (!resp.ok) throw new Error(`Failed to delete channel: ${resp.status}`);
