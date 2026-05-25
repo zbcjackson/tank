@@ -12,6 +12,7 @@ from ..users import is_guest
 logger = logging.getLogger(__name__)
 
 _STALENESS_DAYS = 90  # Entries older than this are auto-removed
+_PINNED = "pinned"  # Source tier that escapes staleness sweep + cap
 
 
 def _slugify(user: str) -> str:
@@ -94,7 +95,10 @@ class PreferenceStore:
     # ------------------------------------------------------------------
 
     def add_if_new(self, user: str, text: str, source: str = "inferred") -> bool:
-        """Add a preference if not semantically duplicate. Returns True if added."""
+        """Add a preference if not semantically duplicate. Returns True if added.
+
+        ``source="pinned"`` entries skip the max-entry cap (durable tier).
+        """
         if is_guest(user):
             return False
         text = text.strip()
@@ -110,9 +114,14 @@ class PreferenceStore:
                 logger.debug("Preference duplicate skipped: %s", text)
                 return False
 
-        # Cap at max_entries — drop oldest
-        if len(raw_entries) >= self._max_entries:
-            raw_entries.pop(0)
+        # Cap at max_entries — drop oldest non-pinned entry.
+        # Pinned entries are durable and never evicted by the cap.
+        if source != _PINNED:
+            non_pinned = [
+                i for i, (_t, s, _d) in enumerate(raw_entries) if s != _PINNED
+            ]
+            if len(non_pinned) >= self._max_entries:
+                raw_entries.pop(non_pinned[0])
 
         raw_entries.append((text, source, date.today().isoformat()))
         self._save_raw_entries(user, raw_entries)
@@ -151,17 +160,33 @@ class PreferenceStore:
         return False
 
     def list_for_user(self, user: str) -> list[str]:
-        """Return all preference texts for a user (after staleness filtering)."""
+        """Return all preference texts for a user, pinned first.
+
+        Pinned entries are ordered before non-pinned (learned/explicit)
+        entries so the most durable facts surface first.
+        """
         if is_guest(user):
             return []
-        return [text for text, _source, _date in self._load_raw_entries(user)]
+        entries = self._load_raw_entries(user)
+        pinned = [text for text, source, _date in entries if source == _PINNED]
+        rest = [text for text, source, _date in entries if source != _PINNED]
+        return pinned + rest
+
+    def list_pinned(self, user: str) -> list[str]:
+        """Return only pinned preference texts for a user."""
+        if is_guest(user):
+            return []
+        return [
+            text for text, source, _date in self._load_raw_entries(user)
+            if source == _PINNED
+        ]
 
     def render_for_user(self, user: str) -> str:
         """Render preferences for system prompt injection.
 
         Merge order:
         1. Per-user USER.md (explicit overrides, if exists)
-        2. Learned preferences.md (after staleness filtering)
+        2. Learned preferences.md (pinned first, then inferred/explicit)
 
         Returns empty string for guest/unidentified users.
         """
@@ -179,7 +204,7 @@ class PreferenceStore:
             except Exception:
                 logger.warning("Failed to read %s", user_override, exc_info=True)
 
-        # Learned preferences
+        # Learned preferences (pinned first via list_for_user ordering)
         entries = self.list_for_user(user)
         if entries:
             parts.append("\n".join(f"- {e}" for e in entries))
@@ -191,9 +216,10 @@ class PreferenceStore:
     # ------------------------------------------------------------------
 
     def _load_raw_entries(self, user: str) -> list[tuple[str, str, str]]:
-        """Load entries with metadata. Auto-removes stale entries.
+        """Load entries with metadata. Auto-removes stale non-pinned entries.
 
-        Returns list of (text, source, date_str) tuples.
+        Returns list of (text, source, date_str) tuples. Bullets written by
+        hand without a ``[source, date]`` suffix are treated as ``pinned``.
         """
         path = self._prefs_path(user)
         if not path.exists():
@@ -209,10 +235,18 @@ class PreferenceStore:
                 if not m:
                     continue
                 text = m.group(1).strip()
-                source = m.group(2) or ""
-                date_str = m.group(3) or date.today().isoformat()
+                raw_source = m.group(2)
+                raw_date = m.group(3)
 
-                if date_str < cutoff:
+                # Hand-edited bullet with no [source, date] suffix → pinned.
+                if raw_source is None and raw_date is None:
+                    source = _PINNED
+                else:
+                    source = (raw_source or "").strip()
+                date_str = raw_date or date.today().isoformat()
+
+                # Pinned entries are durable — skip staleness sweep.
+                if source != _PINNED and date_str < cutoff:
                     stale_found = True
                     logger.debug("Stale preference removed for %s: %s", user, text)
                     continue

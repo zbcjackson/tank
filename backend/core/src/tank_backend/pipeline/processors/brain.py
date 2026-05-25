@@ -135,6 +135,13 @@ class Brain(Processor):
             for tool in PreferencesToolGroup(self._context.preference_store).create_tools():
                 tool_manager.register_tool(tool)
 
+        # Register context tool so the assistant can compact its own
+        # history (with optional focus topic) on user request.
+        from ...tools.groups import ContextToolGroup
+
+        for tool in ContextToolGroup(self._context).create_tools():
+            tool_manager.register_tool(tool)
+
         # Start or resume conversation
         system_prompt = self._context.assemble_system_prompt()
         resolved = self._resolver.resume_or_new(system_prompt)

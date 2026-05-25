@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -23,6 +24,20 @@ from .conversation import ConversationData
 from .resolver import CompactionMode, ResolvedConversation
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class UsageSnapshot:
+    """Read-only snapshot of context-budget usage for the /api/context/usage endpoint."""
+
+    tokens_used: int
+    budget: int
+    context_window: int
+    fill_pct: float
+    last_compaction_at: str | None
+    ineffective_count: int
+    compaction_passes: int
+    conversation_id: str | None
 
 
 class ContextManager:
@@ -67,6 +82,9 @@ class ContextManager:
         self._compaction_passes: int = 0
         self._tokens_before_last_compaction: int = 0
         self._ineffective_count: int = 0
+        self._last_compaction_at: str | None = None
+
+        self._memory_facts: list[str] = []
 
         # Resolve dynamic budget from model metadata
         self._budget = self._resolve_budget()
@@ -336,17 +354,53 @@ class ContextManager:
     # Turn preparation — the key API for Brain
     # ------------------------------------------------------------------
 
+    def _build_augmented_system_prompt(self, base: str, user: str) -> str:
+        """Append memory and preference sections to ``base``.
+
+        Sections (in order, each only when non-empty):
+        - ``KNOWN FACTS ({user})`` — flat memory pool from MemoryService
+        - ``USER PREFERENCES ({user})`` — PreferenceStore output
+
+        Guests get no augmentation. The block is rebuilt on every turn
+        because memory recall is per-turn — caching here would risk
+        showing stale facts when the user pivots topics.
+        """
+        if is_guest(user):
+            return base
+        out = base
+        if self._memory_facts:
+            rendered = "\n".join(f"- {m}" for m in self._memory_facts)
+            out += f"\n\nKNOWN FACTS ({user}):\n{rendered}"
+        if self._preference_store:
+            prefs = self._preference_store.render_for_user(user)
+            if prefs:
+                out += f"\n\nUSER PREFERENCES ({user}):\n{prefs}"
+        return out
+
     async def recall_memory(self, user: str, text: str) -> None:
-        """Pre-fetch memory for the upcoming turn."""
+        """Pre-fetch memory for the upcoming turn.
+
+        Issues a single semantic-search call against the flat memory
+        pool. mem0 already does the relevance ranking, so there's no
+        per-tier filtering to do here.
+        """
         self._memory_context = ""
+        self._memory_facts = []
         if self._memory_service is None or is_guest(user):
             return
+
         try:
-            memories = await self._memory_service.recall(user, text)
-            if memories:
-                self._memory_context = "\n".join(f"- {m}" for m in memories)
+            self._memory_facts = await self._memory_service.recall(user, text)
         except Exception:
-            logger.warning("Memory recall failed for user %s", user, exc_info=True)
+            logger.warning(
+                "Memory recall failed for user %s", user, exc_info=True,
+            )
+            return
+
+        # Legacy mirror: keep ``_memory_context`` populated for any
+        # callers still reading the field directly.
+        if self._memory_facts:
+            self._memory_context = "\n".join(f"- {m}" for m in self._memory_facts)
 
     async def prepare_turn(
         self,
@@ -393,23 +447,12 @@ class ContextManager:
             and self._channel_context_builder is not None
         ):
             conv_messages = conv.messages[1:]
-            # Build augmented system prompt for channel context
-            augmented_system = (
+            base_system = (
                 conv.messages[0]["content"]
                 if conv.messages
                 else ""
             )
-            if not is_guest(user):
-                if self._memory_context:
-                    augmented_system += (
-                        f"\n\nKNOWN FACTS ABOUT {user}:\n{self._memory_context}"
-                    )
-                if self._preference_store:
-                    prefs = self._preference_store.render_for_user(user)
-                    if prefs:
-                        augmented_system += (
-                            f"\n\nUSER PREFERENCES ({user}):\n{prefs}"
-                        )
+            augmented_system = self._build_augmented_system_prompt(base_system, user)
             derived = await self._channel_context_builder.build(
                 conv_messages,
                 conv.id,
@@ -425,19 +468,8 @@ class ContextManager:
 
         # Build augmented system prompt (memory + preferences)
         messages = list(conv.messages)
-        augmented_system = messages[0]["content"] if messages else ""
-
-        if not is_guest(user):
-            if self._memory_context:
-                augmented_system += (
-                    f"\n\nKNOWN FACTS ABOUT {user}:\n{self._memory_context}"
-                )
-            if self._preference_store:
-                prefs = self._preference_store.render_for_user(user)
-                if prefs:
-                    augmented_system += (
-                        f"\n\nUSER PREFERENCES ({user}):\n{prefs}"
-                    )
+        base_system = messages[0]["content"] if messages else ""
+        augmented_system = self._build_augmented_system_prompt(base_system, user)
 
         # Destructive compaction: return full messages with augmented system prompt
         if augmented_system != messages[0]["content"]:
@@ -527,17 +559,7 @@ class ContextManager:
                 and self._conversation.messages[0].get("role") == "system"
             ):
                 self._conversation.messages[0]["content"] = new_prompt
-            # Re-apply memory + preference augmentation (skip for guests)
-            if not is_guest(user):
-                if self._memory_context:
-                    new_prompt += (
-                        f"\n\nKNOWN FACTS ABOUT {user}:\n{self._memory_context}"
-                    )
-                if self._preference_store:
-                    prefs = self._preference_store.render_for_user(user)
-                    if prefs:
-                        new_prompt += f"\n\nUSER PREFERENCES ({user}):\n{prefs}"
-            return new_prompt
+            return self._build_augmented_system_prompt(new_prompt, user)
 
         return _refresh
 
@@ -570,7 +592,7 @@ class ContextManager:
     # Compaction — 5-phase algorithm
     # ------------------------------------------------------------------
 
-    async def compact(self) -> None:
+    async def compact(self, focus: str | None = None) -> None:
         """Compact conversation if over token budget.
 
         4-phase algorithm:
@@ -582,32 +604,45 @@ class ContextManager:
         After compaction the message list becomes:
         ``[system_msg, summary_msg, ...tail]``
 
+        When called with an explicit ``focus`` (user-initiated compaction
+        via ``/compact <topic>``), the anti-thrashing guards are bypassed
+        and compaction always runs — the user has asked for it. The focus
+        string is forwarded to the summarizer so the resulting summary
+        biases toward information related to ``focus``.
+
         Guaranteed safety: Phases 1+2+4 cannot fail. Phase 3 is best-effort —
         if summarization fails, truncation keeps only the tail (Phase 2).
         """
         if self._compaction_mode == CompactionMode.NON_DESTRUCTIVE:
             return
 
-        # Anti-thrashing: skip if recent compactions were ineffective
-        if self._ineffective_count >= 2:
-            logger.debug(
-                "Compaction skipped: anti-thrashing guard (%d ineffective)",
-                self._ineffective_count,
-            )
-            return
+        forced = focus is not None
 
-        # Anti-thrashing: skip if too many passes in this session
-        if self._compaction_passes >= self._config.max_compaction_passes:
-            logger.debug("Compaction skipped: max passes reached (%d)", self._compaction_passes)
-            return
+        if not forced:
+            # Anti-thrashing: skip if recent compactions were ineffective
+            if self._ineffective_count >= 2:
+                logger.debug(
+                    "Compaction skipped: anti-thrashing guard (%d ineffective)",
+                    self._ineffective_count,
+                )
+                return
+
+            # Anti-thrashing: skip if too many passes in this session
+            if self._compaction_passes >= self._config.max_compaction_passes:
+                logger.debug(
+                    "Compaction skipped: max passes reached (%d)",
+                    self._compaction_passes,
+                )
+                return
 
         budget = self._budget.effective_history_tokens
         total = self.count_tokens()
-        if total <= budget:
+        if not forced and total <= budget:
             return
 
         self._tokens_before_last_compaction = total
         self._compaction_passes += 1
+        self._last_compaction_at = datetime.now(timezone.utc).isoformat()
 
         # Narrow once for the rest of compact() — pre-checks have
         # already returned for the no-conversation cases via
@@ -619,7 +654,7 @@ class ContextManager:
         # Phase 1: Prune oversized tool results
         self._prune_tool_results(budget)
         total = self.count_tokens()
-        if total <= budget:
+        if not forced and total <= budget:
             self._update_thrashing_state(total)
             self._persist()
             return
@@ -627,23 +662,33 @@ class ContextManager:
         # Phase 2: Split into to_summarize / tail
         system_msg = conv.messages[0]
         rest = conv.messages[1:]
+        tail: list[dict[str, Any]]
 
-        tail_budget = self._budget.tail_budget
-        tail: list[dict[str, Any]] = []
-        tail_tokens = 0
-        for msg in reversed(rest):
-            msg_tokens = self.count_tokens([msg])
-            if tail and tail_tokens + msg_tokens > tail_budget * 1.5:
-                break  # allow 1.5x overshoot to avoid splitting mid-message
-            tail.append(msg)
-            tail_tokens += msg_tokens
-            if tail_tokens >= tail_budget:
-                break
-        tail.reverse()
+        if forced:
+            # User-triggered compaction with focus: pin the tail to the last
+            # ``keep_recent_messages`` so the summarizer always has prior
+            # turns to compress. Without this, an under-budget conversation
+            # would let the token-driven tail eat everything and leave
+            # nothing to summarize.
+            keep = max(self._config.keep_recent_messages, 1)
+            tail = rest[-keep:] if len(rest) >= keep else list(rest)
+        else:
+            tail_budget = self._budget.tail_budget
+            tail = []
+            tail_tokens = 0
+            for msg in reversed(rest):
+                msg_tokens = self.count_tokens([msg])
+                if tail and tail_tokens + msg_tokens > tail_budget * 1.5:
+                    break  # allow 1.5x overshoot to avoid splitting mid-message
+                tail.append(msg)
+                tail_tokens += msg_tokens
+                if tail_tokens >= tail_budget:
+                    break
+            tail.reverse()
 
-        # Hard minimum: always keep last 3 messages
-        if len(tail) < 3 and len(rest) >= 3:
-            tail = rest[-3:]
+            # Hard minimum: always keep last 3 messages
+            if len(tail) < 3 and len(rest) >= 3:
+                tail = rest[-3:]
 
         # Everything before tail gets summarized
         tail_start = len(rest) - len(tail)
@@ -661,7 +706,9 @@ class ContextManager:
         if self._summarizer is not None:
             try:
                 summary_text = await self._summarizer.summarize(
-                    to_summarize, previous_summary=previous_summary
+                    to_summarize,
+                    previous_summary=previous_summary,
+                    focus=focus,
                 )
                 summary_msg: dict[str, Any] = {
                     "role": "system",
@@ -714,7 +761,9 @@ class ContextManager:
         """Store memory with retry — never crashes the pipeline."""
         for attempt in range(1, 4):
             try:
-                await self._memory_service.store_turn(user_id, user_msg, assistant_msg)
+                await self._memory_service.store_turn(
+                    user_id, user_msg, assistant_msg,
+                )
                 return
             except Exception:
                 if attempt == 3:
@@ -944,6 +993,54 @@ class ContextManager:
     def preference_store(self) -> Any:
         """PreferenceStore instance, or None if disabled."""
         return self._preference_store
+
+    def usage_snapshot(self) -> UsageSnapshot:
+        """Return a read-only view of the current context-budget usage."""
+        budget = self._budget.effective_history_tokens
+        tokens_used = self.count_tokens()
+        fill_pct = (tokens_used / budget) if budget > 0 else 0.0
+        return UsageSnapshot(
+            tokens_used=tokens_used,
+            budget=budget,
+            context_window=self._budget.context_window,
+            fill_pct=fill_pct,
+            last_compaction_at=self._last_compaction_at,
+            ineffective_count=self._ineffective_count,
+            compaction_passes=self._compaction_passes,
+            conversation_id=self.conversation_id,
+        )
+
+    async def gather_memory_snapshot(
+        self, user: str,
+    ) -> tuple[list[str], list[str], list[str]]:
+        """Aggregate stored memory for an introspection query.
+
+        Returns ``(pinned, learned, facts)``:
+        - ``pinned`` / ``learned`` come from the file-backed PreferenceStore.
+        - ``facts`` is the full mem0 fact set for the user (single flat pool).
+
+        Used by the system-intent handler to answer "what do you remember
+        about me?" without an LLM round-trip. Guest users get empty data.
+        """
+        pinned: list[str] = []
+        learned: list[str] = []
+        if self._preference_store is not None:
+            pinned = self._preference_store.list_pinned(user)
+            all_entries = self._preference_store.list_for_user(user)
+            learned = [e for e in all_entries if e not in pinned]
+
+        facts: list[str] = []
+        if self._memory_service is None or is_guest(user):
+            return pinned, learned, facts
+
+        try:
+            facts = await self._memory_service.get_all(user)
+        except Exception:
+            logger.warning(
+                "Memory snapshot failed for user %s", user, exc_info=True,
+            )
+            facts = []
+        return pinned, learned, facts
 
     @property
     def pending_approvals(self) -> list[dict[str, Any]] | None:

@@ -284,5 +284,32 @@ class PreferencesToolGroup(ToolGroup):
             return []
 
         from .preference_tool import PreferenceTool
+        from .remember import RememberTool
 
-        return [PreferenceTool(self._store)]
+        return [PreferenceTool(self._store), RememberTool(self._store)]
+
+
+class ContextToolGroup(ToolGroup):
+    """Context management tools — operate on the live :class:`ContextManager`.
+
+    Session-scoped: instantiated by ``Brain.__init__`` with the running
+    ``ContextManager`` so the tool acts on the same instance that owns
+    the current conversation's history and budget.
+    """
+
+    def __init__(self, context_manager: Any = None) -> None:
+        self._context_manager = context_manager
+
+    def create_tools(self) -> list[BaseTool]:
+        if self._context_manager is None:
+            return []
+
+        from .compact_context import CompactContextTool
+        from .get_context_usage import GetContextUsageTool
+        from .get_user_memory import GetUserMemoryTool
+
+        return [
+            CompactContextTool(self._context_manager),
+            GetContextUsageTool(self._context_manager),
+            GetUserMemoryTool(self._context_manager),
+        ]

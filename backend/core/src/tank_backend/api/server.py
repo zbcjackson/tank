@@ -34,10 +34,12 @@ from .channels import router as channels_router
 from .conversations import router as conversations_router
 from .jobs import router as jobs_router
 from .manager import ConnectionManager
+from .memory import router as memory_router
 from .metrics import router as metrics_router
 from .router import router
 from .skills import router as skills_router
 from .speakers import router as speakers_router
+from .usage import router as usage_router
 from .users import router as users_router
 
 if TYPE_CHECKING:
@@ -414,6 +416,8 @@ def _wire_routers(app: FastAPI) -> None:
     app.include_router(skills_router)
     app.include_router(jobs_router)
     app.include_router(channels_router)
+    app.include_router(usage_router)
+    app.include_router(memory_router)
 
 
 # ---------------------------------------------------------------------------

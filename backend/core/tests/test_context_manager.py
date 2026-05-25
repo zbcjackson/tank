@@ -136,11 +136,11 @@ class TestPrepareTurn:
     async def test_includes_memory_context(self):
         mgr = _make_manager()
         _load_conversation(mgr)
-        mgr._memory_context = "- likes Python"
+        mgr._memory_facts = ["likes Python"]
 
         messages = await mgr.prepare_turn("Jackson", "hello")
         system_content = messages[0]["content"]
-        assert "KNOWN FACTS ABOUT Jackson" in system_content
+        assert "KNOWN FACTS (Jackson)" in system_content
         assert "likes Python" in system_content
 
     def test_finish_turn_records_turn_messages(self):
@@ -315,6 +315,77 @@ class TestCompaction:
 
         await mgr.compact()
         assert len(mgr.messages) == original_count  # no truncation
+
+    async def test_compact_with_focus_forwards_to_summarizer(self):
+        config = ContextConfig(
+            max_history_tokens=50,
+            keep_recent_messages=2,
+            summary_max_tokens=100,
+        )
+        mgr = _make_manager(config=config)
+
+        mock_summarizer = AsyncMock()
+        mock_summarizer.summarize.return_value = "Focused summary"
+        mgr._summarizer = mock_summarizer
+
+        _load_conversation(mgr)
+        for i in range(20):
+            mgr.add_message("user", f"message {i}")
+            mgr.add_message("assistant", f"reply {i}")
+
+        await mgr.compact(focus="API design")
+        mock_summarizer.summarize.assert_called_once()
+        kwargs = mock_summarizer.summarize.call_args.kwargs
+        assert kwargs.get("focus") == "API design"
+
+    async def test_compact_with_focus_bypasses_under_budget_guard(self):
+        config = ContextConfig(
+            max_history_tokens=100_000,  # huge — never triggers auto-compact
+            keep_recent_messages=2,
+            summary_max_tokens=100,
+        )
+        mgr = _make_manager(config=config)
+
+        mock_summarizer = AsyncMock()
+        mock_summarizer.summarize.return_value = "Focused summary"
+        mgr._summarizer = mock_summarizer
+
+        _load_conversation(mgr)
+        # Add enough turns that there's something to summarize after
+        # the tail is carved off.
+        for i in range(10):
+            mgr.add_message("user", f"message {i}")
+            mgr.add_message("assistant", f"reply {i}")
+
+        # Far under budget — auto-compact would no-op, but explicit
+        # focus forces it.
+        assert mgr.count_tokens() < mgr._budget.effective_history_tokens
+        await mgr.compact(focus="recent decisions")
+        mock_summarizer.summarize.assert_called_once()
+
+    async def test_compact_with_focus_bypasses_anti_thrashing(self):
+        config = ContextConfig(
+            max_history_tokens=50,
+            keep_recent_messages=2,
+            summary_max_tokens=100,
+        )
+        mgr = _make_manager(config=config)
+
+        mock_summarizer = AsyncMock()
+        mock_summarizer.summarize.return_value = "Focused summary"
+        mgr._summarizer = mock_summarizer
+
+        _load_conversation(mgr)
+        for i in range(20):
+            mgr.add_message("user", f"message {i}")
+            mgr.add_message("assistant", f"reply {i}")
+
+        # Trip the anti-thrashing guard
+        mgr._ineffective_count = 5
+        mgr._compaction_passes = 99
+
+        await mgr.compact(focus="anything")
+        mock_summarizer.summarize.assert_called_once()
 
 
 class TestTokenCounting:

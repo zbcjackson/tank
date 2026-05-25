@@ -10,7 +10,9 @@ from typing import TYPE_CHECKING
 from ..users import is_guest
 
 if TYPE_CHECKING:
-    from ...llm.llm import LLM
+    from openai.types.chat import ChatCompletionMessageParam
+
+    from ..llm.llm import LLM
     from .store import PreferenceStore
 
 logger = logging.getLogger(__name__)
@@ -62,6 +64,8 @@ class PreferenceLearner:
         for attempt in range(1, _MAX_RETRIES + 1):
             try:
                 extracted = await self._extract(user_text, assistant_text)
+                if not extracted:
+                    return
                 for pref in extracted:
                     self._store.add_if_new(user, pref, source="inferred")
                 return
@@ -84,7 +88,9 @@ class PreferenceLearner:
             user_text=user_text,
             assistant_text=assistant_text,
         )
-        messages: list[dict[str, str]] = [{"role": "user", "content": prompt}]
+        messages: list[ChatCompletionMessageParam] = [
+            {"role": "user", "content": prompt}
+        ]
         response = await self._llm.complete(
             messages,
             temperature=0.3,

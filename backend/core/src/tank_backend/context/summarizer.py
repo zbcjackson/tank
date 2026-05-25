@@ -37,7 +37,7 @@ List any decisions made and their rationale.
 - If a Previous Summary exists, merge it with new information — never drop facts from it
 - Drop completed items only if replaced by newer information
 - Write in the same language as the conversation
-
+{focus_section}
 CONVERSATION TO SUMMARIZE:
 {conversation}
 """
@@ -58,7 +58,12 @@ RULES:
 - Update "Current Task" to reflect the most recent request
 - Move completed items to "Completed Actions"
 - Keep the same structured format
-"""
+{focus_section}"""
+
+_FOCUS_INSTRUCTION = (
+    "- Prioritize preserving information related to: {focus}\n"
+    "- Drop incidental details unrelated to the focus when over budget.\n"
+)
 
 
 class LLMSummarizer:
@@ -76,6 +81,7 @@ class LLMSummarizer:
         self,
         messages: list[dict[str, Any]],
         previous_summary: str | None = None,
+        focus: str | None = None,
     ) -> str:
         """Summarize conversation messages into a structured summary.
 
@@ -83,23 +89,31 @@ class LLMSummarizer:
             messages: Messages to summarize.
             previous_summary: Existing summary to update incrementally.
                 When provided, the LLM merges new content into it.
+            focus: Optional topic to bias the summary toward. When provided,
+                the summarizer is instructed to prioritize information
+                related to ``focus`` and drop incidental details.
 
         Returns:
             Structured summary text.
         """
         conversation = self._serialize_messages(messages)
         summary_budget = self._config.summary_max_tokens
+        focus_section = (
+            "\n" + _FOCUS_INSTRUCTION.format(focus=focus.strip()) if focus else ""
+        )
 
         if previous_summary:
             prompt = _UPDATE_TEMPLATE.format(
                 previous_summary=previous_summary,
                 conversation=conversation,
+                focus_section=focus_section,
             )
         else:
             previous_section = ""
             prompt = _SUMMARY_TEMPLATE.format(
                 previous_section=previous_section,
                 conversation=conversation,
+                focus_section=focus_section,
             )
 
         response = await self._llm.chat_completion_async(

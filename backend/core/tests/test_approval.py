@@ -71,3 +71,25 @@ class TestToolApprovalPolicy:
         assert policy.evaluate("file_write").level == AccessLevel.ALLOW
         assert policy.evaluate("file_delete").level == AccessLevel.ALLOW
         assert policy.evaluate("file_list").level == AccessLevel.ALLOW
+
+    def test_remember_pin_requires_approval(self):
+        """`remember` mutations (pin/unpin) must be approval-gated."""
+        policy = ToolApprovalPolicy()
+        v = policy.evaluate("remember", {"action": "pin", "content": "x"})
+        assert v.level == AccessLevel.REQUIRE_APPROVAL
+
+        v2 = policy.evaluate("remember", {"action": "unpin", "content": "x"})
+        assert v2.level == AccessLevel.REQUIRE_APPROVAL
+
+    def test_remember_list_auto_approved(self):
+        """`remember.list` is read-only — must not park the call."""
+        policy = ToolApprovalPolicy()
+        v = policy.evaluate("remember", {"action": "list"})
+        assert v.level == AccessLevel.ALLOW
+
+    def test_remember_no_action_requires_approval(self):
+        """`remember` with missing action defaults to require_approval (safe)."""
+        policy = ToolApprovalPolicy()
+        v = policy.evaluate("remember", {})
+        assert v.level == AccessLevel.REQUIRE_APPROVAL
+
