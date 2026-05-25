@@ -38,7 +38,6 @@ interface VoiceModeProps {
   isPttActive: boolean;
   onPttStart: () => void;
   onPttStop: () => void;
-  apiBaseUrl?: string;
   steps: Step[];
   sessionId: string;
   isSocketConnected: boolean;
@@ -122,7 +121,6 @@ export const VoiceMode = ({
   isPttActive,
   onPttStart,
   onPttStop,
-  apiBaseUrl = '',
   steps,
   sessionId,
   isSocketConnected,
@@ -299,7 +297,6 @@ export const VoiceMode = ({
           onEnrollComplete={() => setEnrollmentKey((k) => k + 1)}
           pauseAudioCapture={pauseAudioCapture}
           resumeAudioCapture={resumeAudioCapture}
-          apiBaseUrl={apiBaseUrl}
         />
       </div>
 

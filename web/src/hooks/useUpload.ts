@@ -11,8 +11,8 @@
  * The hook owns no UI. Consumers render their own thumbnails/errors.
  */
 import { useCallback, useState } from 'react';
-import { buildApiUrl } from '../services/serverSettings';
-import { httpFetch } from '../services/httpClient';
+
+import * as api from '../services/api';
 
 export interface Attachment {
   /** Unique client-side id — used for list keys and removal. */
@@ -29,17 +29,6 @@ export interface Attachment {
   modality?: 'image' | 'file' | 'audio' | 'video';
   /** Populated when status === 'error'. */
   errorMessage?: string;
-}
-
-interface UploadResponse {
-  media_uri: string;
-  mime_type: string;
-  size: number;
-  modality: 'image' | 'file' | 'audio' | 'video';
-}
-
-interface UploadErrorPayload {
-  detail?: string;
 }
 
 function nextId(): string {
@@ -64,7 +53,7 @@ function replaceById(
   return list.map((a) => (a.id === id ? { ...a, ...patch } : a));
 }
 
-export function useUpload(sessionId: string, apiBaseUrl: string = '') {
+export function useUpload(sessionId: string) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
 
   const upload = useCallback(
@@ -84,24 +73,7 @@ export function useUpload(sessionId: string, apiBaseUrl: string = '') {
       await Promise.all(
         seeds.map(async (seed) => {
           try {
-            const form = new FormData();
-            form.append('file', seed.file);
-            const res = await httpFetch(
-              buildApiUrl(`/api/upload?session_id=${encodeURIComponent(sessionId)}`, apiBaseUrl),
-              { method: 'POST', body: form },
-            );
-            if (!res.ok) {
-              const payload: UploadErrorPayload = await res.json().catch(() => ({}));
-              const detail = payload.detail || `HTTP ${res.status}`;
-              setAttachments((prev) =>
-                replaceById(prev, seed.id, {
-                  status: 'error',
-                  errorMessage: detail,
-                }),
-              );
-              return;
-            }
-            const body: UploadResponse = await res.json();
+            const body = await api.upload.file({ file: seed.file, sessionId });
             setAttachments((prev) =>
               replaceById(prev, seed.id, {
                 status: 'uploaded',
@@ -120,7 +92,7 @@ export function useUpload(sessionId: string, apiBaseUrl: string = '') {
         }),
       );
     },
-    [sessionId, apiBaseUrl],
+    [sessionId],
   );
 
   /** Remove one attachment by id; revokes its preview URL to free memory. */

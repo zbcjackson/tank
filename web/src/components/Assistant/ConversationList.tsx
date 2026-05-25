@@ -15,7 +15,6 @@ interface ConversationListProps {
   unreadCounts?: Record<string, number>;
   subscribedChannels?: Set<string>;
   onToggleChannelSubscription?: (slug: string) => void;
-  apiBaseUrl?: string;
 }
 
 function formatTime(isoString: string): string {
@@ -63,10 +62,9 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   unreadCounts = {},
   subscribedChannels,
   onToggleChannelSubscription,
-  apiBaseUrl = '',
 }) => {
-  const { conversations, loading, refresh } = useConversationList(apiBaseUrl);
-  const { channels, refresh: refreshChannels } = useChannelList(apiBaseUrl);
+  const { conversations, loading, refresh } = useConversationList();
+  const { channels, refresh: refreshChannels } = useChannelList();
   const [channelsExpanded, setChannelsExpanded] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(true);
 

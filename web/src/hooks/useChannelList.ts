@@ -1,10 +1,9 @@
 import { useState, useCallback } from 'react';
 
-import type { ChannelInfo } from '../types/channel';
-import { buildApiUrl } from '../services/serverSettings';
-import { httpFetch } from '../services/httpClient';
+import * as api from '../services/api';
+import type { ChannelInfo } from '../services/api';
 
-export function useChannelList(apiBaseUrl: string = '') {
+export function useChannelList() {
   const [channels, setChannels] = useState<ChannelInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -13,27 +12,19 @@ export function useChannelList(apiBaseUrl: string = '') {
     setLoading(true);
     setError(null);
     try {
-      const resp = await httpFetch(buildApiUrl('/api/channels', apiBaseUrl));
-      if (!resp.ok) throw new Error(`Failed to fetch channels: ${resp.status}`);
-      const data: ChannelInfo[] = await resp.json();
+      const data = await api.channels.list();
       setChannels(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to fetch channels');
     } finally {
       setLoading(false);
     }
-  }, [apiBaseUrl]);
+  }, []);
 
   const createChannel = useCallback(
     async (name: string, slug?: string, description?: string): Promise<ChannelInfo | null> => {
       try {
-        const resp = await httpFetch(buildApiUrl('/api/channels', apiBaseUrl), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, slug: slug || undefined, description: description || '' }),
-        });
-        if (!resp.ok) throw new Error(`Failed to create channel: ${resp.status}`);
-        const channel: ChannelInfo = await resp.json();
+        const channel = await api.channels.create({ name, slug, description });
         await refresh();
         return channel;
       } catch (e) {
@@ -41,16 +32,13 @@ export function useChannelList(apiBaseUrl: string = '') {
         return null;
       }
     },
-    [refresh, apiBaseUrl],
+    [refresh],
   );
 
   const deleteChannel = useCallback(
     async (slug: string): Promise<boolean> => {
       try {
-        const resp = await httpFetch(buildApiUrl(`/api/channels/${slug}`, apiBaseUrl), {
-          method: 'DELETE',
-        });
-        if (!resp.ok) throw new Error(`Failed to delete channel: ${resp.status}`);
+        await api.channels.delete(slug);
         await refresh();
         return true;
       } catch (e) {
@@ -58,7 +46,7 @@ export function useChannelList(apiBaseUrl: string = '') {
         return false;
       }
     },
-    [refresh, apiBaseUrl],
+    [refresh],
   );
 
   return { channels, loading, error, refresh, createChannel, deleteChannel };

@@ -9,8 +9,7 @@ import { ConversationList } from './components/Assistant/ConversationList';
 import { ChannelAudioIndicator } from './components/Assistant/ChannelAudioIndicator';
 import { ServerSettingsPanel } from './components/Assistant/ServerSettings';
 import { useServerSettings } from './hooks/useServerSettings';
-import { buildApiUrl } from './services/serverSettings';
-import { httpFetch } from './services/httpClient';
+import * as api from './services/api';
 import { AnimatePresence } from 'framer-motion';
 import { Menu, Settings } from 'lucide-react';
 import type { WakeWordDetector } from './services/wakeWordDetector';
@@ -127,7 +126,6 @@ function AppWithServer({
   setActiveChannelSlug: (v: string | null) => void;
   channelNotificationHandlerRef: React.RefObject<((msg: import('./services/websocket').WebsocketMessage) => void) | null>;
 }) {
-  const apiBaseUrl = server.apiBaseUrl;
   const backendUrl = server.wsBaseUrl || undefined;
 
   const {
@@ -166,25 +164,24 @@ function AppWithServer({
     stopPtt,
   } = useAssistant(SESSION_ID, wakeWordDetector, (msg) => {
     channelNotificationHandlerRef.current?.(msg);
-  }, backendUrl, apiBaseUrl);
+  }, backendUrl);
 
   const channelNotifications = useChannelNotifications({
     activeChannelSlug,
     onActiveChannelMessages: appendSteps,
-    apiBaseUrl,
   });
 
   useEffect(() => {
     channelNotificationHandlerRef.current = channelNotifications.handleNotification;
-  }, [channelNotifications.handleNotification]);
+  }, [channelNotifications.handleNotification, channelNotificationHandlerRef]);
 
   // Seed unread counts from API on mount
   useEffect(() => {
-    httpFetch(buildApiUrl('/api/channels', apiBaseUrl))
-      .then((r) => (r.ok ? r.json() : []))
+    api.channels.list()
       .then((channels) => channelNotifications.initFromChannels(channels))
       .catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
 
   const handleSelectConversation = useCallback(
     async (conversationId: string) => {
@@ -208,9 +205,7 @@ function AppWithServer({
       setActiveChannelSlug(slug);
       setActiveConversationId(null);
       try {
-        const resp = await httpFetch(buildApiUrl(`/api/channels/${slug}`, apiBaseUrl));
-        if (!resp.ok) return;
-        const channel = await resp.json();
+        const channel = await api.channels.get(slug);
         if (channel.conversation_id) {
           await resumeConversation(channel.conversation_id);
         }
@@ -219,7 +214,7 @@ function AppWithServer({
         // Channel not found or fetch failed — ignore silently
       }
     },
-    [resumeConversation, channelNotifications, apiBaseUrl, setConversationListOpen, setActiveChannelSlug, setActiveConversationId],
+    [resumeConversation, channelNotifications, setConversationListOpen, setActiveChannelSlug, setActiveConversationId],
   );
 
   const lastUserSpeaker = useMemo(() => {
@@ -264,7 +259,6 @@ function AppWithServer({
         unreadCounts={channelNotifications.unreadCounts}
         subscribedChannels={channelAudio.subscribedChannels}
         onToggleChannelSubscription={channelAudio.toggleSubscription}
-        apiBaseUrl={apiBaseUrl}
       />
 
       {/* Top-right buttons: settings gear + conversations menu */}
@@ -316,7 +310,6 @@ function AppWithServer({
               isPttActive={isPttActive}
               onPttStart={startPtt}
               onPttStop={stopPtt}
-              apiBaseUrl={apiBaseUrl}
               steps={steps}
               sessionId={SESSION_ID}
               isSocketConnected={connectionState === 'connected'}
@@ -339,7 +332,6 @@ function AppWithServer({
               isPttActive={isPttActive}
               onPttStart={startPtt}
               onPttStop={stopPtt}
-              apiBaseUrl={apiBaseUrl}
             />
           )}
         </AnimatePresence>

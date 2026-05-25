@@ -1,14 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserPlus, X, Mic, Check, Loader2, ChevronRight } from 'lucide-react';
-import { buildApiUrl } from '../../services/serverSettings';
-import { httpFetch } from '../../services/httpClient';
 
-interface UserInfo {
-  user_id: string;
-  name: string;
-  sample_count: number;
-}
+import * as api from '../../services/api';
+import type { UserInfo } from '../../services/api';
 
 const RECORDING_PULSE_ANIMATE = { scale: [1, 1.2, 1] };
 const RECORDING_PULSE_TRANSITION = { repeat: Infinity, duration: 1.5 };
@@ -24,7 +19,6 @@ interface EnrollmentBannerProps {
   onEnrollComplete: () => void;
   pauseAudioCapture: () => void;
   resumeAudioCapture: () => void;
-  apiBaseUrl?: string;
 }
 
 export const EnrollmentBanner = ({
@@ -32,7 +26,6 @@ export const EnrollmentBanner = ({
   onEnrollComplete,
   pauseAudioCapture,
   resumeAudioCapture,
-  apiBaseUrl = '',
 }: EnrollmentBannerProps) => {
   const [showModal, setShowModal] = useState(false);
 
@@ -69,7 +62,6 @@ export const EnrollmentBanner = ({
           }}
           pauseAudioCapture={pauseAudioCapture}
           resumeAudioCapture={resumeAudioCapture}
-          apiBaseUrl={apiBaseUrl}
         />
       )}
     </>
@@ -81,7 +73,6 @@ interface EnrollmentModalProps {
   onComplete: () => void;
   pauseAudioCapture: () => void;
   resumeAudioCapture: () => void;
-  apiBaseUrl?: string;
 }
 
 type RecordingState =
@@ -98,7 +89,6 @@ const EnrollmentModal = ({
   onComplete,
   pauseAudioCapture,
   resumeAudioCapture,
-  apiBaseUrl = '',
 }: EnrollmentModalProps) => {
   const [state, setState] = useState<RecordingState>('idle');
   const [name, setName] = useState('');
@@ -115,9 +105,8 @@ const EnrollmentModal = ({
 
   useEffect(() => {
     // Fetch existing users
-    httpFetch(buildApiUrl('/api/users', apiBaseUrl))
-      .then((res) => res.json())
-      .then((data: UserInfo[]) => {
+    api.users.list()
+      .then((data) => {
         setUsers(data);
         setIsLoadingUsers(false);
       })
@@ -125,7 +114,7 @@ const EnrollmentModal = ({
         console.error('Failed to load users:', err);
         setIsLoadingUsers(false);
       });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -240,24 +229,12 @@ const EnrollmentModal = ({
 
     setState('submitting');
     try {
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'enrollment.pcm');
-
       const enrollName = isExistingUser ? selectedUser!.name : name.trim();
-      let url = `/api/speakers/enroll?name=${encodeURIComponent(enrollName)}`;
-      if (isExistingUser) {
-        url += `&user_id=${encodeURIComponent(selectedUserId)}`;
-      }
-
-      const res = await httpFetch(buildApiUrl(url, apiBaseUrl), {
-        method: 'POST',
-        body: formData,
+      await api.speakers.enroll({
+        audioBlob,
+        name: enrollName,
+        userId: isExistingUser ? selectedUserId : undefined,
       });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ detail: 'Enrollment failed' }));
-        throw new Error(data.detail || 'Enrollment failed');
-      }
 
       setState('done');
       setTimeout(onComplete, 1000);

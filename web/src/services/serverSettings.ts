@@ -80,15 +80,6 @@ export async function probeProtocol(
 }
 
 /**
- * Prefix a REST API path with the resolved base URL.
- * Empty `apiBaseUrl` → relative path (dev proxy / same-origin).
- */
-export function buildApiUrl(path: string, apiBaseUrl: string): string {
-  if (!apiBaseUrl) return path;
-  return `${apiBaseUrl}${path}`;
-}
-
-/**
  * Derive the WebSocket base URL from an HTTP(S) base URL.
  * "https://host:port" → "wss://host:port"
  * "http://host:port"  → "ws://host:port"

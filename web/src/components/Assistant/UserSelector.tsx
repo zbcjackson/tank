@@ -1,19 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronUp, Check } from 'lucide-react';
-import { buildApiUrl } from '../../services/serverSettings';
-import { httpFetch } from '../../services/httpClient';
 
-interface UserInfo {
-  user_id: string;
-  name: string;
-  sample_count: number;
-}
+import * as api from '../../services/api';
+import type { UserInfo } from '../../services/api';
 
 interface UserSelectorProps {
   selectedUserId: string | null;
   onSelectUser: (userId: string | null) => void;
-  apiBaseUrl?: string;
 }
 
 const dropdownVariants = {
@@ -22,15 +16,14 @@ const dropdownVariants = {
   exit: { opacity: 0, y: 4, scale: 0.97 },
 };
 
-export const UserSelector = ({ selectedUserId, onSelectUser, apiBaseUrl = '' }: UserSelectorProps) => {
+export const UserSelector = ({ selectedUserId, onSelectUser }: UserSelectorProps) => {
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    httpFetch(buildApiUrl('/api/users', apiBaseUrl))
-      .then((res) => res.json())
+    api.users.list()
       .then((data) => {
         setUsers(data);
         setIsLoading(false);
@@ -39,7 +32,7 @@ export const UserSelector = ({ selectedUserId, onSelectUser, apiBaseUrl = '' }: 
         console.error('Failed to load users:', err);
         setIsLoading(false);
       });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;

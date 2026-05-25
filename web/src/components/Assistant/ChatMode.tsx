@@ -46,7 +46,6 @@ interface ChatModeProps {
   isPttActive: boolean;
   onPttStart: () => void;
   onPttStop: () => void;
-  apiBaseUrl?: string;
 }
 
 export const ChatMode = ({
@@ -65,14 +64,13 @@ export const ChatMode = ({
   isPttActive,
   onPttStart,
   onPttStop,
-  apiBaseUrl = '',
 }: ChatModeProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [enrollmentKey, setEnrollmentKey] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const { attachments, upload, remove, clear } = useUpload(sessionId, apiBaseUrl);
+  const { attachments, upload, remove, clear } = useUpload(sessionId);
 
   const lastUserSpeaker = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -206,7 +204,6 @@ export const ChatMode = ({
         onEnrollComplete={() => setEnrollmentKey((k) => k + 1)}
         pauseAudioCapture={pauseAudioCapture}
         resumeAudioCapture={resumeAudioCapture}
-        apiBaseUrl={apiBaseUrl}
       />
 
       {/* Messages */}
@@ -298,7 +295,7 @@ export const ChatMode = ({
 
           <div className="relative rounded-2xl bg-surface-raised border border-border-subtle focus-within:border-amber-500/20 transition-all duration-200">
             <div className="absolute left-2 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1">
-              <UserSelector selectedUserId={selectedUserId} onSelectUser={onSelectUser} apiBaseUrl={apiBaseUrl} />
+              <UserSelector selectedUserId={selectedUserId} onSelectUser={onSelectUser} />
               {/* Attach-file button. Hidden file input triggered via ref. */}
               <button
                 type="button"

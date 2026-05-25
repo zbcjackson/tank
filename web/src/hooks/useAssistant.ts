@@ -125,7 +125,6 @@ export const useAssistant = (
   wakeWordDetector?: WakeWordDetector | null,
   onChannelNotification?: (msg: WebsocketMessage) => void,
   backendUrl?: string,
-  apiBaseUrl?: string,
 ) => {
   const [mode, setMode] = useState<'voice' | 'chat'>('voice');
   const [capabilities, setCapabilities] = useState<Capabilities>(DEFAULT_CAPABILITIES);
@@ -171,7 +170,7 @@ export const useAssistant = (
         if (!caps.asr) setMode('chat');
       },
       onResumedConversation: (conversationId: string) => {
-        fetchConversationMessages(conversationId, apiBaseUrl ?? '')
+        fetchConversationMessages(conversationId)
           .then((historyMsgs) => {
             const steps = historyToSteps(historyMsgs);
             loadHistoryRef.current?.(steps);
@@ -181,7 +180,7 @@ export const useAssistant = (
           });
       },
     }),
-    [dispatchStatus], // eslint-disable-line react-hooks/exhaustive-deps
+    [dispatchStatus],  
   );
 
   const { steps, messages, handleMessage, addLocalUserStep, loadHistory, appendSteps } =
@@ -473,7 +472,7 @@ export const useAssistant = (
   const resumeConversation = useCallback(
     async (conversationId: string) => {
       try {
-        const historyMsgs = await fetchConversationMessages(conversationId, apiBaseUrl ?? '');
+        const historyMsgs = await fetchConversationMessages(conversationId);
         const historySteps = historyToSteps(historyMsgs);
 
         loadHistory(historySteps);
@@ -487,7 +486,7 @@ export const useAssistant = (
         console.error('Failed to resume conversation:', e);
       }
     },
-    [clientRef, loadHistory], // eslint-disable-line react-hooks/exhaustive-deps
+    [clientRef, loadHistory],  
   );
 
   /**
