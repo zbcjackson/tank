@@ -76,7 +76,9 @@ export class AudioProcessor {
         this.captureHandle = null;
         return;
       }
-      this.gateSpeech = false;
+      // IMPORTANT: Start with mic GATED. The useAssistant hook will
+      // explicitly resume() when user enables audio via PTT or toggle.
+      this.gateSpeech = true;
       return;
     }
 
@@ -134,9 +136,13 @@ export class AudioProcessor {
     await this.initVad();
     if (this.disposed) return;
 
-    // No calibration needed — backend SileroVAD handles segmentation
+    // IMPORTANT: Start with mic GATED (gateSpeech=true). The useAssistant
+    // hook will explicitly resume() when the user has taken action to
+    // enable audio (PTT press, continuous toggle, wake word detection).
+    // This prevents audio from flowing on page load or HMR before the
+    // orchestration effect can pause the processor.
     if (!this.wakeWordDetector) {
-      this.gateSpeech = false;
+      this.gateSpeech = true;
       this.micVad?.start();
     }
   }
