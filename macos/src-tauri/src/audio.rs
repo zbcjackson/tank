@@ -36,8 +36,12 @@ pub async fn start_audio_capture(app: AppHandle) -> Result<(), String> {
     let state = app.state::<AudioState>();
     let mut guard = state.inner.lock().await;
 
+    // Stop any existing capture (e.g., page reload without proper cleanup).
+    // Setting to None drops our Arc ref; the capture loop ends when
+    // the underlying stream closes.
     if guard.is_some() {
-        return Err("Audio capture already running".into());
+        log::info!("Stopping existing audio capture before restart");
+        *guard = None;
     }
 
     let config = AecConfig {
