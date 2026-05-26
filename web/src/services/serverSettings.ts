@@ -53,15 +53,13 @@ export async function probeProtocol(
   const bare = hostPort.replace(/^https?:\/\//, '');
 
   // Dynamic import to avoid circular dependency at module load time.
-  const { httpFetch } = await import('./httpClient');
+  const { health } = await import('./api');
 
   // Try HTTP first — most common for intranet/VM setups.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await httpFetch(`http://${bare}/health`, {
-      signal: controller.signal,
-    });
+    const res = await health.probe(`http://${bare}/health`, controller.signal);
     clearTimeout(timer);
     if (res.ok || res.type === 'opaque') return 'http';
   } catch {
@@ -72,9 +70,7 @@ export async function probeProtocol(
   const controller2 = new AbortController();
   const timer2 = setTimeout(() => controller2.abort(), timeoutMs);
   try {
-    const res = await httpFetch(`https://${bare}/health`, {
-      signal: controller2.signal,
-    });
+    const res = await health.probe(`https://${bare}/health`, controller2.signal);
     clearTimeout(timer2);
     if (res.ok || res.type === 'opaque') return 'https';
   } catch (err) {
