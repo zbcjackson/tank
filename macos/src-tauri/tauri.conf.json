@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.tank.voiceassistant",
   "build": {
-    "beforeDevCommand": "curl -s http://localhost:5173 > /dev/null 2>&1 || pnpm --dir ../web dev",
+    "beforeDevCommand": "curl -sk https://localhost:5173 > /dev/null 2>&1 || pnpm --dir ../web dev",
     "beforeBuildCommand": "pnpm --dir ../web build",
-    "devUrl": "http://localhost:5173",
+    "devUrl": "https://localhost:5173",
     "frontendDist": "../../web/dist"
   },
   "app": {
@@ -17,7 +17,6 @@
         "width": 400,
         "height": 700,
         "resizable": true,
-        "center": true,
         "decorations": true,
         "titleBarStyle": "Overlay"
       }

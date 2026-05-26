@@ -32,6 +32,14 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Tauri window drag region */
+.tauri-drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Noise grain overlay */
 .grain::before {
   content: '';

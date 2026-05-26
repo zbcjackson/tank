@@ -61,7 +61,7 @@ export default defineConfig({
     rollupOptions: {
       // @tauri-apps/* are only available inside Tauri at runtime (dynamic import
       // guarded by __TAURI__). Externalize so Rollup doesn't fail on web builds.
-      external: ['@tauri-apps/api/core', '@tauri-apps/api/event', '@tauri-apps/plugin-http'],
+      external: [],
     },
   },
 });

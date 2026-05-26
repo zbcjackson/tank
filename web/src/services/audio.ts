@@ -312,6 +312,13 @@ export class AudioProcessor {
    * NOTE: Two mic streams will be active simultaneously (our worklet + WebVoiceProcessor).
    */
   async enableWakeWord(detector: WakeWordDetector, onDetected: () => void): Promise<void> {
+    // Wake word engines (OpenWakeWord, Porcupine) manage their own mic capture
+    // via getUserMedia, which doesn't exist in Tauri's WKWebView. Skip in
+    // Tauri — native audio capture is handled by the platform adapter instead.
+    if (this.platformAdapter) {
+      console.info('[AudioProcessor] Wake word skipped — platform adapter active (native capture)');
+      return;
+    }
     console.log('[AudioProcessor] Enabling wake word detection, gating audio');
     this.wakeWordDetector = detector;
     this.gateSpeech = true;

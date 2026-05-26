@@ -56,6 +56,7 @@ export function useAudioPipeline({
   const audioProcessorRef = useRef<AudioProcessor | null>(null);
   const playbackRef = useRef<AudioPlayback | null>(null);
   const audioStartedRef = useRef(false);
+  const adapterReadyRef = useRef<Promise<void> | null>(null);
 
   // Main lifecycle: create and wire up all audio services
   useEffect(() => {
@@ -114,7 +115,7 @@ export function useAudioPipeline({
 
     // Create platform audio adapter and wire it to both services
     let disposed = false;
-    createPlatformAudio((error) => {
+    adapterReadyRef.current = createPlatformAudio((error) => {
       console.error('[useAudioPipeline] Platform audio error:', error);
     }).then((adapter) => {
       if (disposed) {
@@ -155,16 +156,22 @@ export function useAudioPipeline({
     if (!capabilities.asr) return;
 
     audioStartedRef.current = true;
-    processor
-      .start()
-      .then(() => {
-        setAudioReady(true);
-      })
-      .catch((err) => {
-        console.error('Failed to start audio processor:', err);
-        setConnectionState('failed');
-        setConnectionMetadata({ error: 'Failed to start audio processor' });
-      });
+
+    // Ensure platform adapter is wired before starting (avoids race where
+    // capabilities arrive before createPlatformAudio resolves)
+    const startPipeline = async () => {
+      if (adapterReadyRef.current) {
+        await adapterReadyRef.current;
+      }
+      await processor.start();
+      setAudioReady(true);
+    };
+
+    startPipeline().catch((err) => {
+      console.error('Failed to start audio processor:', err);
+      setConnectionState('failed');
+      setConnectionMetadata({ error: 'Failed to start audio processor' });
+    });
   }, [capabilities.asr]);
 
   return {

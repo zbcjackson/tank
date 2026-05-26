@@ -43,7 +43,7 @@ export function clearServerSettings(): void {
 
 /**
  * Probe the backend to auto-detect whether it speaks HTTPS or plain HTTP.
- * Tries HTTPS first (secure-by-default), falls back to HTTP.
+ * Tries HTTP first (common for intranet/VM), falls back to HTTPS.
  * Throws if neither succeeds within `timeoutMs`.
  */
 export async function probeProtocol(
@@ -52,14 +52,18 @@ export async function probeProtocol(
 ): Promise<DetectedProtocol> {
   const bare = hostPort.replace(/^https?:\/\//, '');
 
+  // Dynamic import to avoid circular dependency at module load time.
+  const { httpFetch } = await import('./httpClient');
+
   // Try HTTP first — most common for intranet/VM setups.
-  // Avoids self-signed cert errors from HTTPS-only dev servers.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    await fetch(`http://${bare}/health`, { signal: controller.signal, mode: 'no-cors' });
+    const res = await httpFetch(`http://${bare}/health`, {
+      signal: controller.signal,
+    });
     clearTimeout(timer);
-    return 'http';
+    if (res.ok || res.type === 'opaque') return 'http';
   } catch {
     clearTimeout(timer);
   }
@@ -68,15 +72,20 @@ export async function probeProtocol(
   const controller2 = new AbortController();
   const timer2 = setTimeout(() => controller2.abort(), timeoutMs);
   try {
-    await fetch(`https://${bare}/health`, { signal: controller2.signal, mode: 'no-cors' });
+    const res = await httpFetch(`https://${bare}/health`, {
+      signal: controller2.signal,
+    });
     clearTimeout(timer2);
-    return 'https';
+    if (res.ok || res.type === 'opaque') return 'https';
   } catch (err) {
     clearTimeout(timer2);
     throw new Error(
       `Cannot reach server at ${bare}: ${err instanceof Error ? err.message : 'unknown error'}`,
     );
   }
+
+  // Should not reach here, but satisfy the type checker
+  throw new Error(`Cannot reach server at ${bare}`);
 }
 
 /**

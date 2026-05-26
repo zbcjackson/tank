@@ -40,13 +40,13 @@ export interface PlatformAudioAdapter {
 }
 
 /**
- * Factory — the single place where `__TAURI__` is checked.
+ * Factory — the single place where Tauri is detected.
  * Returns the appropriate adapter for the current runtime.
  */
 export async function createPlatformAudio(
   onError?: (error: string) => void,
 ): Promise<PlatformAudioAdapter> {
-  if ('__TAURI__' in window) {
+  if ('__TAURI_INTERNALS__' in window) {
     const { TauriAudioAdapter } = await import('./tauriAudio');
     return new TauriAudioAdapter(onError);
   }

@@ -71,6 +71,7 @@ function App() {
   if (!server.isConfigured || showSettings) {
     return (
       <div style={APP_BG_STYLE}>
+        <div data-tauri-drag-region className="tauri-drag-region fixed top-0 left-0 right-0 h-[36px]" style={{ zIndex: 20 }} />
         <ServerSettingsPanel
           isProbing={server.isProbing}
           probeError={server.probeError}
@@ -240,6 +241,7 @@ function AppWithServer({
 
   return (
     <div className="h-screen w-full flex flex-col overflow-hidden relative" style={APP_BG_STYLE}>
+      <div data-tauri-drag-region className="fixed top-0 left-0 right-0 h-[36px]" style={{ zIndex: 20 }} />
       <ConnectionStatusOverlay
         state={connectionState}
         metadata={connectionMetadata}
