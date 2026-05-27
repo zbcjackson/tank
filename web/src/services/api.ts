@@ -83,16 +83,11 @@ export const health = {
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await httpFetch(url, { signal: controller.signal });
+      if (!res.ok && res.type !== 'opaque') {
+        throw new Error(`Server returned HTTP ${res.status}`);
+      }
+    } finally {
       clearTimeout(timer);
-      if (res.ok || res.type === 'opaque') return;
-      throw new Error(`Server returned HTTP ${res.status}`);
-    } catch (err) {
-      clearTimeout(timer);
-      const settings = loadServerSettings();
-      const bare = settings?.hostPort ?? url;
-      throw new Error(
-        `Cannot reach server at ${bare}: ${err instanceof Error ? err.message : 'unknown error'}`,
-      );
     }
   },
 };
