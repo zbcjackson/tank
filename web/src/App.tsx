@@ -75,7 +75,7 @@ function App() {
         <ServerSettingsPanel
           isProbing={server.isProbing}
           probeError={server.probeError}
-          currentHostPort={server.apiBaseUrl ? server.apiBaseUrl.replace(/^https?:\/\//, '') : ''}
+          currentHostPort={server.apiBaseUrl ? server.apiBaseUrl.replace(/^https:\/\//, '') : ''}
           onSave={async (hostPort) => {
             const ok = await server.saveSettings(hostPort);
             if (ok) setShowSettings(false);

@@ -3,9 +3,7 @@ import {
   loadServerSettings,
   storeServerSettings,
   clearServerSettings,
-  probeProtocol,
-  deriveWsBaseUrl,
-  type DetectedProtocol,
+  checkServer,
 } from '../services/serverSettings';
 
 export interface UseServerSettingsResult {
@@ -15,14 +13,21 @@ export interface UseServerSettingsResult {
   wsBaseUrl: string;
   /** True when a server is configured (saved or via env var). */
   isConfigured: boolean;
-  /** True while probing the server for protocol detection. */
+  /** True while checking the server connection. */
   isProbing: boolean;
-  /** Error from the last probe attempt. */
+  /** Error from the last check attempt. */
   probeError: string | null;
-  /** Probe + save a new host:port. Returns true on success. */
+  /** Check + save a new host:port. Returns true on success. */
   saveSettings: (hostPort: string) => Promise<boolean>;
   /** Clear saved settings (triggers the settings panel again). */
   clearSettings: () => void;
+}
+
+function buildUrls(hostPort: string): { apiBaseUrl: string; wsBaseUrl: string } {
+  return {
+    apiBaseUrl: `https://${hostPort}`,
+    wsBaseUrl: `wss://${hostPort}`,
+  };
 }
 
 /**
@@ -36,27 +41,17 @@ function resolveInitialUrls(): {
 } {
   const saved = loadServerSettings();
   if (saved) {
-    // Defensive: strip any accidental protocol prefix in saved hostPort
-    const bare = saved.hostPort.replace(/^https?:\/\//, '');
-    const apiBaseUrl = `${saved.protocol}://${bare}`;
-    return { apiBaseUrl, wsBaseUrl: deriveWsBaseUrl(apiBaseUrl), configured: true };
+    return { ...buildUrls(saved.hostPort), configured: true };
   }
 
   const envUrl = import.meta.env.VITE_BACKEND_URL as string | undefined;
   if (envUrl) {
     const bare = envUrl.replace(/^https?:\/\//, '');
-    // Guess protocol from port — 443 or no-port implies https
-    const hasHttpsPort = bare.endsWith(':443') || !bare.includes(':');
-    const protocol: DetectedProtocol = hasHttpsPort ? 'https' : 'http';
-    const apiBaseUrl = `${protocol}://${bare}`;
-    return { apiBaseUrl, wsBaseUrl: deriveWsBaseUrl(apiBaseUrl), configured: true };
+    return { ...buildUrls(bare), configured: true };
   }
 
   // Default: same-origin. The Vite dev proxy (or nginx in prod) routes
-  // /api and /ws to the backend, so relative URLs work on every host —
-  // not just localhost. Saved settings + VITE_BACKEND_URL above remain
-  // the explicit cross-origin override (Tauri pointing at a remote
-  // backend, or any other non-default deployment).
+  // /api and /ws to the backend, so relative URLs work on every host.
   return { apiBaseUrl: '', wsBaseUrl: '', configured: true };
 }
 
@@ -76,30 +71,17 @@ export function useServerSettings(): UseServerSettingsResult {
       return false;
     }
 
+    const bare = trimmed.replace(/^https?:\/\//, '');
     setIsProbing(true);
     setProbeError(null);
 
     try {
-      // If user explicitly prefixed with https:// or http://, skip probing
-      let protocol: DetectedProtocol;
-      let bare: string;
-      if (trimmed.startsWith('https://')) {
-        protocol = 'https';
-        bare = trimmed.replace(/^https:\/\//, '');
-      } else if (trimmed.startsWith('http://')) {
-        protocol = 'http';
-        bare = trimmed.replace(/^http:\/\//, '');
-      } else {
-        protocol = await probeProtocol(trimmed);
-        bare = trimmed;
-      }
+      await checkServer(bare);
 
-      const settings = { hostPort: bare, protocol };
-      storeServerSettings(settings);
-
-      const newApiBaseUrl = `${protocol}://${trimmed}`;
-      setApiBaseUrl(newApiBaseUrl);
-      setWsBaseUrl(deriveWsBaseUrl(newApiBaseUrl));
+      storeServerSettings({ hostPort: bare });
+      const urls = buildUrls(bare);
+      setApiBaseUrl(urls.apiBaseUrl);
+      setWsBaseUrl(urls.wsBaseUrl);
       setIsConfigured(true);
       return true;
     } catch (err) {

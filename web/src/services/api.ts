@@ -36,7 +36,7 @@ export class ApiError extends Error {
 function getApiBaseUrl(): string {
   const settings = loadServerSettings();
   if (!settings) return '';
-  return `${settings.protocol}://${settings.hostPort}`;
+  return `https://${settings.hostPort}`;
 }
 
 /**
@@ -64,22 +64,6 @@ function apiUrl(path: string): string {
   const baseUrl = getApiBaseUrl();
   return baseUrl ? `${baseUrl}${path}` : path;
 }
-
-// ============================================================================
-// Health
-// ============================================================================
-
-export const health = {
-  /**
-   * Probe a specific backend URL for a health response.
-   * Used during connection setup to detect HTTP vs HTTPS.
-   * Accepts a fully-qualified URL (e.g. "http://host:port/health")
-   * since server settings are not yet stored at probe time.
-   */
-  async probe(url: string, signal?: AbortSignal): Promise<Response> {
-    return httpFetch(url, { signal });
-  },
-};
 
 // ============================================================================
 // Channels

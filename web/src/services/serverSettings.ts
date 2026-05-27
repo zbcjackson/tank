@@ -1,13 +1,13 @@
 /**
  * Runtime server connection settings. Persisted in localStorage so
  * the Tauri app (and browser) remember the last backend address.
+ *
+ * All connections go through a reverse proxy (Vite in dev, nginx in prod)
+ * which serves HTTPS, so no protocol detection is needed.
  */
 
-export type DetectedProtocol = 'http' | 'https';
-
 export interface ServerSettings {
-  hostPort: string; // e.g. "192.168.1.50:8000"
-  protocol: DetectedProtocol;
+  hostPort: string; // e.g. "192.168.1.50:8000" or "tank.example.com"
 }
 
 const STORAGE_KEY = 'tank.serverSettings';
@@ -18,8 +18,7 @@ export function loadServerSettings(): ServerSettings | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     if (typeof parsed.hostPort !== 'string' || !parsed.hostPort) return null;
-    const protocol = parsed.protocol === 'https' ? 'https' : 'http';
-    return { hostPort: parsed.hostPort, protocol };
+    return { hostPort: parsed.hostPort };
   } catch {
     return null;
   }
@@ -42,53 +41,27 @@ export function clearServerSettings(): void {
 }
 
 /**
- * Probe the backend to auto-detect whether it speaks HTTPS or plain HTTP.
- * Tries HTTP first (common for intranet/VM), falls back to HTTPS.
- * Throws if neither succeeds within `timeoutMs`.
+ * Verify the server is reachable over HTTPS. Returns true on success.
+ * Throws on failure (timeout, network error, non-OK response).
  */
-export async function probeProtocol(
+export async function checkServer(
   hostPort: string,
   timeoutMs = 3000,
-): Promise<DetectedProtocol> {
+): Promise<boolean> {
   const bare = hostPort.replace(/^https?:\/\//, '');
 
-  // Dynamic import to avoid circular dependency at module load time.
-  const { health } = await import('./api');
-
-  // Try HTTP first — most common for intranet/VM setups.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await health.probe(`http://${bare}/health`, controller.signal);
+    const { httpFetch } = await import('./httpClient');
+    const res = await httpFetch(`https://${bare}/health`, { signal: controller.signal });
     clearTimeout(timer);
-    if (res.ok || res.type === 'opaque') return 'http';
-  } catch {
-    clearTimeout(timer);
-  }
-
-  // Fallback to HTTPS (e.g. production servers behind a reverse proxy)
-  const controller2 = new AbortController();
-  const timer2 = setTimeout(() => controller2.abort(), timeoutMs);
-  try {
-    const res = await health.probe(`https://${bare}/health`, controller2.signal);
-    clearTimeout(timer2);
-    if (res.ok || res.type === 'opaque') return 'https';
+    if (res.ok || res.type === 'opaque') return true;
+    throw new Error(`Server returned HTTP ${res.status}`);
   } catch (err) {
-    clearTimeout(timer2);
+    clearTimeout(timer);
     throw new Error(
       `Cannot reach server at ${bare}: ${err instanceof Error ? err.message : 'unknown error'}`,
     );
   }
-
-  // Should not reach here, but satisfy the type checker
-  throw new Error(`Cannot reach server at ${bare}`);
-}
-
-/**
- * Derive the WebSocket base URL from an HTTP(S) base URL.
- * "https://host:port" → "wss://host:port"
- * "http://host:port"  → "ws://host:port"
- */
-export function deriveWsBaseUrl(apiBaseUrl: string): string {
-  return apiBaseUrl.replace(/^http/, 'ws');
 }
