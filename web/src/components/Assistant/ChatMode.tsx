@@ -227,6 +227,8 @@ export const ChatMode = ({
           {messages.map((msg, i) => {
             const prevMsg = i > 0 ? messages[i - 1] : null;
             const isFirstInRoleGroup = !prevMsg || prevMsg.role !== msg.role;
+            const isLastMessage = i === messages.length - 1;
+            const showIndicator = isLastMessage && assistantStatus !== 'idle';
 
             return (
               <div
@@ -248,7 +250,17 @@ export const ChatMode = ({
                 )}
 
                 <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`${msg.role === 'user' ? 'max-w-[85%]' : 'w-full max-w-[95%]'}`}>
+                  <div
+                    className={`relative ${msg.role === 'user' ? 'max-w-[85%]' : 'w-full max-w-[95%]'}`}
+                  >
+                    {showIndicator && (
+                      <div
+                        data-testid="activity-indicator"
+                        className="absolute right-full bottom-0 mr-2 pointer-events-none"
+                      >
+                        <ActivityIndicator status={assistantStatus} />
+                      </div>
+                    )}
                     <MessageStep
                       step={{ id: msg.id, type: msg.type, content: msg.content }}
                       role={msg.role}
@@ -259,13 +271,6 @@ export const ChatMode = ({
               </div>
             );
           })}
-
-          {/* Activity indicator — covers all active states */}
-          {assistantStatus !== 'idle' && (
-            <div data-testid="activity-indicator" className="flex justify-start mt-4">
-              <ActivityIndicator status={assistantStatus} />
-            </div>
-          )}
         </div>
       </div>
 
