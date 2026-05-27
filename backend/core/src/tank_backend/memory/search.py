@@ -99,7 +99,9 @@ class HybridSearch:
         if self._memory is None:
             return []
         try:
-            return await self._memory.recall(user_id, query, limit)
+            # Call _vector_recall directly to avoid infinite recursion:
+            # recall() → HybridSearch.search() → _safe_vector() → recall() → ...
+            return await self._memory._vector_recall(user_id, query, limit)
         except Exception:
             logger.debug(
                 "HybridSearch: vector recall raised", exc_info=True,

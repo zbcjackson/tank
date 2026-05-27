@@ -480,6 +480,7 @@ def build_consolidator(app_config: Any) -> Consolidator | None:
     only preference candidates.
     """
     from ..config.models import MemoryConfig
+    from ..config.parser import ConfigError
     from ..llm.profile import create_llm_from_profile
     from ..preferences import PreferenceStore
     from .service import MemoryService
@@ -495,10 +496,10 @@ def build_consolidator(app_config: Any) -> Consolidator | None:
     profile_name = cons_cfg.llm_profile
     try:
         profile = app_config.get_llm_profile(profile_name)
-    except (KeyError, ValueError):
+    except (KeyError, ValueError, ConfigError):
         try:
             profile = app_config.get_llm_profile("default")
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, ConfigError):
             return None
     llm = create_llm_from_profile(profile)
 
@@ -507,7 +508,7 @@ def build_consolidator(app_config: Any) -> Consolidator | None:
     if mem_cfg.enabled:
         try:
             default_profile = app_config.get_llm_profile("default")
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, ConfigError):
             default_profile = None
         if default_profile is not None:
             resolved = MemoryConfig(

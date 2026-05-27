@@ -25,19 +25,19 @@ def _kw_hit(text: str, rank: float = -1.0) -> ConversationMessageHit:
 class TestHybridSearch:
     async def test_empty_query_returns_empty(self):
         memory = MagicMock()
-        memory.recall = AsyncMock()
+        memory._vector_recall = AsyncMock()
         messages_store = MagicMock()
 
         hs = HybridSearch(memory=memory, messages_store=messages_store)
         result = await hs.search(user_id="u", query="   ", limit=5)
 
         assert result == []
-        memory.recall.assert_not_called()
+        memory._vector_recall.assert_not_called()
         messages_store.search.assert_not_called()
 
     async def test_vector_only_when_messages_store_absent(self):
         memory = MagicMock()
-        memory.recall = AsyncMock(return_value=["fact one", "fact two"])
+        memory._vector_recall = AsyncMock(return_value=["fact one", "fact two"])
 
         hs = HybridSearch(memory=memory, messages_store=None)
         result = await hs.search(user_id="u", query="something", limit=5)
@@ -60,7 +60,7 @@ class TestHybridSearch:
 
     async def test_fusion_promotes_dual_hits(self):
         memory = MagicMock()
-        memory.recall = AsyncMock(return_value=["A", "B", "C"])
+        memory._vector_recall = AsyncMock(return_value=["A", "B", "C"])
         messages_store = MagicMock()
         messages_store.search = MagicMock(return_value=[
             _kw_hit("B"), _kw_hit("D"),
@@ -78,7 +78,7 @@ class TestHybridSearch:
 
     async def test_dedupes_whitespace_and_case(self):
         memory = MagicMock()
-        memory.recall = AsyncMock(return_value=["Hello World"])
+        memory._vector_recall = AsyncMock(return_value=["Hello World"])
         messages_store = MagicMock()
         messages_store.search = MagicMock(return_value=[
             _kw_hit("hello   world"),
@@ -99,7 +99,7 @@ class TestHybridSearch:
 
     async def test_limit_applied_after_fusion(self):
         memory = MagicMock()
-        memory.recall = AsyncMock(return_value=[
+        memory._vector_recall = AsyncMock(return_value=[
             "v1", "v2", "v3", "v4", "v5",
         ])
         messages_store = MagicMock()
@@ -114,7 +114,7 @@ class TestHybridSearch:
 
     async def test_vector_failure_falls_back_to_keyword(self):
         memory = MagicMock()
-        memory.recall = AsyncMock(side_effect=RuntimeError("mem0 down"))
+        memory._vector_recall = AsyncMock(side_effect=RuntimeError("mem0 down"))
         messages_store = MagicMock()
         messages_store.search = MagicMock(return_value=[_kw_hit("kw")])
 
@@ -125,7 +125,7 @@ class TestHybridSearch:
 
     async def test_keyword_failure_falls_back_to_vector(self):
         memory = MagicMock()
-        memory.recall = AsyncMock(return_value=["v1", "v2"])
+        memory._vector_recall = AsyncMock(return_value=["v1", "v2"])
         messages_store = MagicMock()
         messages_store.search = MagicMock(side_effect=RuntimeError("fts boom"))
 
@@ -136,7 +136,7 @@ class TestHybridSearch:
 
     async def test_both_failing_returns_empty(self):
         memory = MagicMock()
-        memory.recall = AsyncMock(side_effect=RuntimeError("a"))
+        memory._vector_recall = AsyncMock(side_effect=RuntimeError("a"))
         messages_store = MagicMock()
         messages_store.search = MagicMock(side_effect=RuntimeError("b"))
 

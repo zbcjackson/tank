@@ -40,6 +40,12 @@ def run_migrations(url: str) -> None:
     ``CREATE TABLE``), we stamp it to the current head rather than
     attempt to re-create the tables. This makes the first migration
     run idempotent for existing installations.
+
+    Alembic loads ``alembic.ini`` via ``logging.config.fileConfig`` and
+    overrides the root logger level to ``WARN``. That silences every
+    tank_backend INFO log for the rest of the process. We snapshot the
+    root level before the migration and restore it after, so backend
+    INFO logging survives.
     """
     from sqlalchemy import create_engine, inspect
 
@@ -50,20 +56,27 @@ def run_migrations(url: str) -> None:
 
     cfg = _build_config(resolved)
 
-    # Auto-stamp legacy installations that pre-date Alembic tracking.
-    engine = create_engine(resolved, future=True)
-    try:
-        inspector = inspect(engine)
-        tables = set(inspector.get_table_names())
-        if "alembic_version" not in tables and _TANK_TABLES.issubset(tables):
-            logger.info("Existing Tank schema detected; stamping at head")
-            command.stamp(cfg, "head")
-            return
-    finally:
-        engine.dispose()
+    root_level_before = logging.getLogger().level
 
-    command.upgrade(cfg, "head")
-    logger.info("Database migrations complete")
+    try:
+        # Auto-stamp legacy installations that pre-date Alembic tracking.
+        engine = create_engine(resolved, future=True)
+        try:
+            inspector = inspect(engine)
+            tables = set(inspector.get_table_names())
+            if "alembic_version" not in tables and _TANK_TABLES.issubset(tables):
+                logger.info("Existing Tank schema detected; stamping at head")
+                command.stamp(cfg, "head")
+                return
+        finally:
+            engine.dispose()
+
+        command.upgrade(cfg, "head")
+        logger.info("Database migrations complete")
+    finally:
+        # Alembic's fileConfig forces root logger to WARN. Restore the
+        # caller's level so application logs survive.
+        logging.getLogger().setLevel(root_level_before)
 
 
 # Tables that mark a database as "already a Tank DB". Used by run_migrations

@@ -113,3 +113,70 @@ class TestConsolidateAPI:
 
         assert response.status_code == 200
         consolidator.run.assert_awaited_once_with("jackson", force=False)
+
+    def test_bulk_run_iterates_known_users(self, client, tmp_path):
+        # Seed two user dirs with preferences.md so _list_known_users
+        # actually returns them.
+        for name in ("jackson", "alice"):
+            (tmp_path / "users" / name).mkdir(parents=True)
+            (tmp_path / "users" / name / "preferences.md").write_text("- fact\n")
+
+        consolidator = MagicMock()
+        consolidator.run = AsyncMock(side_effect=lambda u, force: _report(u))
+        with patch(
+            "tank_backend.memory.consolidator.build_consolidator",
+            return_value=consolidator,
+        ):
+            response = client.post("/api/memory/consolidate", json={})
+
+        assert response.status_code == 200
+        body = response.json()
+        users_returned = sorted(r["user"] for r in body)
+        assert users_returned == ["alice", "jackson"]
+        assert consolidator.run.await_count == 2
+
+
+class TestProfileFallback:
+    """build_consolidator() should fall back to ``default`` LLM profile
+    when the configured one is missing — the case that broke our manual
+    test (profile name 'consolidation' didn't exist)."""
+
+    def test_falls_back_to_default_profile_on_configerror(self, tmp_path):
+        from tank_backend.config.models import (
+            ConsolidationConfig,
+            MemoryConfig,
+            PreferenceConfig,
+        )
+        from tank_backend.config.parser import ConfigError
+        from tank_backend.memory.consolidator import build_consolidator
+
+        default_profile = MagicMock(
+            api_key="k", base_url="https://example", model="gpt-x",
+            temperature=0.2, max_tokens=4000,
+            extra_headers={}, extra_body=None, stream_options=False,
+        )
+
+        def _get_profile(name: str = "default"):
+            if name == "default":
+                return default_profile
+            raise ConfigError(f"profile '{name}' not found")
+
+        cfg = MagicMock()
+        cfg.consolidation = ConsolidationConfig(
+            enabled=True, llm_profile="consolidation",  # missing!
+        )
+        cfg.preferences = PreferenceConfig(
+            enabled=True, base_dir=str(tmp_path),
+        )
+        cfg.memory = MemoryConfig(enabled=False)
+        cfg.get_llm_profile.side_effect = _get_profile
+
+        with patch(
+            "tank_backend.llm.profile.create_llm_from_profile",
+        ) as mock_create:
+            mock_create.return_value = MagicMock()
+            consolidator = build_consolidator(cfg)
+
+        assert consolidator is not None
+        # Was built with the default profile.
+        mock_create.assert_called_once_with(default_profile)

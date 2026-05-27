@@ -80,6 +80,13 @@ class MemoryService:
     async def _vector_recall(
         self, user_id: str, query: str, limit: int,
     ) -> list[str]:
+        """Pure mem0 vector search — no hybrid fusion.
+
+        Called from :meth:`recall` when no hybrid is attached, **and**
+        from :class:`HybridSearch._safe_vector` to obtain the vector
+        leg of the fusion. ``HybridSearch`` calls this directly to
+        avoid recursing back through :meth:`recall`.
+        """
         result = await asyncio.to_thread(
             self._mem.search,
             query=query,
