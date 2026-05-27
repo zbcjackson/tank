@@ -313,3 +313,32 @@ class ContextToolGroup(ToolGroup):
             GetContextUsageTool(self._context_manager),
             GetUserMemoryTool(self._context_manager),
         ]
+
+
+class ConsolidationToolGroup(ToolGroup):
+    """Dream Consolidation tool — manual trigger for the assistant.
+
+    Constructed by Brain when ``consolidation.enabled`` is true. The
+    factory builds a fresh Consolidator per invocation so the underlying
+    LLM client and mem0 connection don't have to live on the long-lived
+    tool instance.
+    """
+
+    def __init__(self, app_config: Any = None) -> None:
+        self._app_config = app_config
+
+    def create_tools(self) -> list[BaseTool]:
+        if self._app_config is None:
+            return []
+        if not self._app_config.consolidation.enabled:
+            return []
+
+        from ..memory.consolidator import build_consolidator
+        from .consolidate_memory import ConsolidateMemoryTool
+
+        app_config = self._app_config
+
+        def factory() -> Any:
+            return build_consolidator(app_config)
+
+        return [ConsolidateMemoryTool(factory)]

@@ -61,6 +61,8 @@ class Brain(Processor):
         approval_manager: Any = None,
         channel_store: Any = None,
         conversation_store: Any = None,
+        compaction_store: Any = None,
+        messages_store: Any = None,
         media_store: Any = None,
         llm_capabilities: frozenset[str] | None = None,
     ):
@@ -126,6 +128,8 @@ class Brain(Processor):
             skill_provider=tool_manager.get_skill_catalog,
             media_store=media_store,
             llm_capabilities=llm_capabilities,
+            compaction_store=compaction_store,
+            messages_store=messages_store,
         )
 
         # Register preference tool if store is available
@@ -137,10 +141,15 @@ class Brain(Processor):
 
         # Register context tool so the assistant can compact its own
         # history (with optional focus topic) on user request.
-        from ...tools.groups import ContextToolGroup
+        from ...tools.groups import ConsolidationToolGroup, ContextToolGroup
 
         for tool in ContextToolGroup(self._context).create_tools():
             tool_manager.register_tool(tool)
+
+        # Register Dream Consolidation tool when enabled in config.
+        if app_config is not None:
+            for tool in ConsolidationToolGroup(app_config).create_tools():
+                tool_manager.register_tool(tool)
 
         # Start or resume conversation
         system_prompt = self._context.assemble_system_prompt()

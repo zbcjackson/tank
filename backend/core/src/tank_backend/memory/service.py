@@ -5,9 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..config.models import MemoryConfig
+
+if TYPE_CHECKING:
+    from .search import HybridSearch
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +26,15 @@ class MemoryService:
     def __init__(self, config: MemoryConfig) -> None:
         self._config = config
         self._mem = self._create_memory(config)
+        self._hybrid: HybridSearch | None = None
+
+    def attach_hybrid_search(self, hybrid: HybridSearch | None) -> None:
+        """Optionally route ``recall`` through hybrid (vector + keyword) search.
+
+        When attached, ``recall`` returns the fused list. ``store_turn``
+        and ``get_all`` are unchanged — they still go straight to mem0.
+        """
+        self._hybrid = hybrid
 
     async def store_turn(
         self,
@@ -54,13 +66,25 @@ class MemoryService:
         """Retrieve relevant memories for context injection.
 
         Returns a list of plain-text memory strings, most relevant first.
+        When a :class:`HybridSearch` orchestrator is attached, fuses
+        vector results with FTS5 keyword hits via RRF.
         """
         search_limit = limit or self._config.search_limit
+        if self._hybrid is not None:
+            hits = await self._hybrid.search(
+                user_id=user_id, query=query, limit=search_limit,
+            )
+            return [h.text for h in hits]
+        return await self._vector_recall(user_id, query, search_limit)
+
+    async def _vector_recall(
+        self, user_id: str, query: str, limit: int,
+    ) -> list[str]:
         result = await asyncio.to_thread(
             self._mem.search,
             query=query,
             user_id=user_id,
-            limit=search_limit,
+            limit=limit,
         )
         memories: list[dict[str, Any]] = result.get("results", [])
         return _extract_memory_texts(memories)

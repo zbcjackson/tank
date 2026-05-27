@@ -5,13 +5,35 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from . import deps
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"], redirect_slashes=False)
+
+
+class CompactionResponse(BaseModel):
+    id: str
+    conversation_id: str
+    parent_id: str | None
+    created_at: str
+    focus: str | None
+    tokens_before: int
+    tokens_after: int
+    compacted_count: int
+    summary_text: str
+    pre_compaction_messages: list[dict[str, Any]] | None = None
+
+
+class RestoreResponse(BaseModel):
+    conversation_id: str
+    restored_compaction_id: str
+    messages_restored: int
+    descendants_removed: int
+    message_count_after: int
 
 
 @router.get("")
@@ -37,13 +59,95 @@ async def get_conversation_messages(conversation_id: str) -> dict[str, Any]:
     store = deps.conversation_store()
     conversation = store.load(conversation_id)
     if conversation is None:
-        from fastapi import HTTPException
         raise HTTPException(404, "Conversation not found")
     return {
         "id": conversation.id,
         "start_time": conversation.start_time.isoformat(),
         "messages": _format_messages(conversation.messages),
     }
+
+
+@router.get("/{conversation_id}/compactions", response_model=list[CompactionResponse])
+async def list_compactions(
+    conversation_id: str, include_messages: bool = False,
+) -> list[CompactionResponse]:
+    """List compaction lineage for a conversation, newest first.
+
+    Pass ``?include_messages=true`` to include the full pre-compaction
+    message snapshots. Off by default to keep the payload small.
+    """
+    store = deps.compaction_store()
+    records = store.list_for_conversation(conversation_id)
+    return [_record_to_response(r, include_messages) for r in records]
+
+
+@router.post(
+    "/{conversation_id}/compactions/{compaction_id}/restore",
+    response_model=RestoreResponse,
+)
+async def restore_compaction(
+    conversation_id: str, compaction_id: str,
+) -> RestoreResponse:
+    """Re-inflate a conversation to its pre-compaction state.
+
+    Replaces the post-summary view with ``[system_msg] + pre_compaction_messages
+    + current_tail`` (where current_tail is everything after the latest
+    compaction summary). The restored record and any descendants are then
+    deleted — they no longer describe a valid history.
+    """
+    compaction_store = deps.compaction_store()
+    conversation_store = deps.conversation_store()
+
+    record = compaction_store.get(compaction_id)
+    if record is None or record.conversation_id != conversation_id:
+        raise HTTPException(404, "Compaction record not found")
+
+    conversation = conversation_store.load(conversation_id)
+    if conversation is None:
+        raise HTTPException(404, "Conversation not found")
+
+    # The current conversation looks like [system_msg, summary_msg?, ...tail].
+    # We restore by replacing summary_msg (if present) with the original
+    # pre_compaction_messages.
+    messages = conversation.messages
+    if not messages or messages[0].get("role") != "system":
+        raise HTTPException(409, "Conversation has no system prompt to anchor restore")
+
+    system_msg = messages[0]
+    rest = messages[1:]
+    if rest and rest[0].get("role") == "system" and \
+            (rest[0].get("metadata") or {}).get("type") == "compaction_summary":
+        tail = rest[1:]
+    else:
+        tail = rest
+
+    conversation.messages = [system_msg] + list(record.pre_compaction_messages) + tail
+    conversation_store.save(conversation)
+
+    descendants_removed = compaction_store.delete_descendants(compaction_id)
+
+    return RestoreResponse(
+        conversation_id=conversation_id,
+        restored_compaction_id=compaction_id,
+        messages_restored=len(record.pre_compaction_messages),
+        descendants_removed=descendants_removed,
+        message_count_after=len(conversation.messages),
+    )
+
+
+def _record_to_response(record: Any, include_messages: bool) -> CompactionResponse:
+    return CompactionResponse(
+        id=record.id,
+        conversation_id=record.conversation_id,
+        parent_id=record.parent_id,
+        created_at=record.created_at.isoformat(),
+        focus=record.focus,
+        tokens_before=record.tokens_before,
+        tokens_after=record.tokens_after,
+        compacted_count=record.compacted_count,
+        summary_text=record.summary_text,
+        pre_compaction_messages=record.pre_compaction_messages if include_messages else None,
+    )
 
 
 def _format_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:

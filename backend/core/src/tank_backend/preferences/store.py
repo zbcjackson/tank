@@ -86,6 +86,16 @@ class PreferenceStore:
         dir_name = self._resolve_user_dir(user)
         return self._base_dir / "users" / dir_name / "preferences.md"
 
+    def user_file_path(self, user: str, filename: str) -> Path:
+        """Resolve an arbitrary per-user file path under the user's dir.
+
+        Lets other modules (e.g. the Dream consolidator's DREAMS.md
+        diary) store files alongside ``preferences.md`` without
+        duplicating the user-dir resolution logic.
+        """
+        dir_name = self._resolve_user_dir(user)
+        return self._base_dir / "users" / dir_name / filename
+
     def _user_override_path(self, user: str) -> Path:
         dir_name = self._resolve_user_dir(user)
         return self._base_dir / "users" / dir_name / "USER.md"

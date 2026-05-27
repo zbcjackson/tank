@@ -31,6 +31,26 @@ class MemoryResponse(BaseModel):
     facts: list[str]
 
 
+class ConsolidateRequest(BaseModel):
+    """Body for ``POST /api/memory/consolidate``."""
+
+    user_id: str | None = None  # None → run for all known users
+    force: bool = True          # manual triggers default to forcing through gates
+
+
+class ConsolidationReportResponse(BaseModel):
+    """Per-user outcome of a consolidation run."""
+
+    user: str
+    started_at: str
+    finished_at: str
+    candidates_scanned: int
+    promoted: list[str]
+    consolidated: list[tuple[str, list[str]]]
+    archived: list[str]
+    error: str | None = None
+
+
 def _get_store() -> PreferenceStore | None:
     """Build a PreferenceStore from app config, or None if disabled."""
     cfg = deps.app_context().app_config.preferences
@@ -99,3 +119,52 @@ async def _fetch_facts(user_id: str) -> list[str]:
     except Exception:
         logger.warning("Memory recall failed for user=%s", user_id, exc_info=True)
         return []
+
+
+@router.post("/consolidate")
+async def consolidate(
+    request: ConsolidateRequest,
+) -> list[ConsolidationReportResponse]:
+    """Manually trigger Dream Consolidation for one user or all users.
+
+    Idle/interval gates are bypassed by default (``force=true``) — the
+    REST endpoint exists precisely to override the schedule.
+    """
+    from ..memory.consolidator import build_consolidator
+
+    cons_cfg = deps.app_context().app_config.consolidation
+    if not cons_cfg.enabled:
+        raise HTTPException(503, "Consolidation is disabled")
+
+    consolidator = build_consolidator(deps.app_context().app_config)
+    if consolidator is None:
+        raise HTTPException(503, "Consolidator could not be initialised")
+
+    users = [request.user_id] if request.user_id else _list_known_users()
+
+    reports: list[ConsolidationReportResponse] = []
+    for user in users:
+        report = await consolidator.run(user, force=request.force)
+        reports.append(ConsolidationReportResponse(
+            user=report.user,
+            started_at=report.started_at.isoformat(),
+            finished_at=report.finished_at.isoformat(),
+            candidates_scanned=report.candidates_scanned,
+            promoted=report.promoted,
+            consolidated=report.consolidated,
+            archived=report.archived,
+            error=report.error,
+        ))
+    return reports
+
+
+def _list_known_users() -> list[str]:
+    """Return every user with a preferences file under the base dir."""
+    cfg = deps.app_context().app_config.preferences
+    base_dir = Path(cfg.base_dir or "~/.tank").expanduser() / "users"
+    if not base_dir.exists():
+        return []
+    return sorted(
+        p.name for p in base_dir.iterdir()
+        if p.is_dir() and (p / "preferences.md").exists()
+    )

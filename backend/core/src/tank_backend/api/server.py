@@ -408,6 +408,66 @@ def _init_channel_audio_service(
         return None
 
 
+def _register_dream_schedule(scheduler: CronScheduler, config: AppConfig) -> None:
+    """Register the Dream Consolidation recurring schedule.
+
+    Runs once per ``consolidation.schedule`` cron expression for every
+    user with a preferences file. Idle/interval gates inside the
+    consolidator still apply per-user — the cron just kicks the loop.
+    """
+    cons_cfg = config.consolidation
+    if not cons_cfg.enabled:
+        return
+
+    # Use a partial bound to the module-level callback so APScheduler can
+    # serialise the reference (it rejects nested functions).
+    from functools import partial
+
+    scheduler.register_recurring(
+        schedule_id="tank_dream_consolidation",
+        cron=cons_cfg.schedule,
+        callback=partial(_dream_consolidation_tick, config),
+    )
+    logger.info(
+        "Dream Consolidation scheduled (cron=%r, idle>=%dm, interval>=%dh)",
+        cons_cfg.schedule,
+        cons_cfg.min_idle_minutes,
+        cons_cfg.interval_hours,
+    )
+
+
+async def _dream_consolidation_tick(config: AppConfig) -> None:
+    """Module-level Dream Consolidation tick.
+
+    Lifted out of :func:`_register_dream_schedule` because APScheduler's
+    serialiser refuses nested functions (raises SerializationError).
+    """
+    from pathlib import Path
+
+    from ..memory.consolidator import build_consolidator
+
+    consolidator = build_consolidator(config)
+    if consolidator is None:
+        logger.debug("Dream Consolidation skipped: consolidator unavailable")
+        return
+    prefs_cfg = config.preferences
+    base_dir = Path(prefs_cfg.base_dir or "~/.tank").expanduser() / "users"
+    if not base_dir.exists():
+        return
+    users = [
+        p.name for p in base_dir.iterdir()
+        if p.is_dir() and (p / "preferences.md").exists()
+    ]
+    for user in users:
+        try:
+            await consolidator.run(user)
+        except Exception:
+            logger.warning(
+                "Dream Consolidation failed for user=%s", user,
+                exc_info=True,
+            )
+
+
 def _wire_routers(app: FastAPI) -> None:
     app.include_router(router)
     app.include_router(speakers_router)
@@ -437,6 +497,17 @@ _database = Database(app_config.database.url, echo=app_config.database.echo)
 bootstrap_legacy_data(_database)
 
 _store, _channel_store = _init_stores(app_config, _database)
+
+_compaction_store = None
+_messages_store = None
+if _store is not None:
+    from ..context.compaction_store import CompactionStore
+    from ..persistence.conversation_messages_store import (
+        ConversationMessagesStore,
+    )
+    _compaction_store = CompactionStore(_database)
+    _messages_store = ConversationMessagesStore(_database)
+    logger.info("Compaction + conversation-messages stores initialized on unified DB")
 
 _job_store, _scheduler, _delivery = _init_job_scheduler(
     app_config, (_store, _channel_store), _database,
@@ -471,6 +542,8 @@ app_context = AppContext(
     job_store=_job_store,
     scheduler=_scheduler,
     conversation_store=_store,
+    compaction_store=_compaction_store,
+    conversation_messages_store=_messages_store,
     voiceprint_recognizer=_voiceprint_recognizer,
     channel_store=_channel_store,
     media_store=_media_store,
@@ -511,6 +584,7 @@ deps.init(
 async def lifespan(app: FastAPI):
     logger.info("API Server starting up")
     if _scheduler is not None:
+        _register_dream_schedule(_scheduler, app_config)
         await _scheduler.start()
     if _connector_manager is not None:
         await _connector_manager.start_all()

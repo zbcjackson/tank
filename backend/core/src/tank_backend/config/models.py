@@ -84,6 +84,7 @@ class ContextConfig:
     pre_turn_compact: bool = True
     max_compaction_passes: int = 3
     tool_result_max_share: float = 0.30
+    pre_compaction_flush: bool = True
 
 
 @dataclass(frozen=True)
@@ -109,6 +110,37 @@ class PreferenceConfig:
     max_entries: int = 20
     auto_learn: bool = True
     base_dir: str = ""
+
+
+@dataclass(frozen=True)
+class ConsolidationWeights:
+    """Six-factor weighting for the Dream consolidator's scoring pass.
+
+    Weights need not sum to 1.0 — they're applied to per-candidate
+    factors that are each normalised to [0, 1]. Defaults match the
+    OpenClaw heuristic that the doc credits as well-validated.
+    """
+
+    frequency: float = 0.24
+    relevance: float = 0.30
+    diversity: float = 0.15
+    recency: float = 0.15
+    consolidation: float = 0.10
+    conceptual: float = 0.06
+
+
+@dataclass(frozen=True)
+class ConsolidationConfig:
+    """``consolidation:`` section — Dream consolidation pipeline."""
+
+    enabled: bool = False
+    min_idle_minutes: int = 30
+    interval_hours: int = 24
+    diary_filename: str = "DREAMS.md"
+    llm_profile: str = "consolidation"
+    top_k_candidates: int = 20
+    schedule: str = "0 3 * * *"        # 03:00 every day (cron syntax)
+    weights: ConsolidationWeights = field(default_factory=ConsolidationWeights)
 
 
 # ── Tools & policies ─────────────────────────────────────────────

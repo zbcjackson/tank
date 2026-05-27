@@ -308,6 +308,27 @@ preferences:
   max_entries: 20
   auto_learn: true # Automatically extract preferences from conversations
   # base_dir: ~/.tank  # optional override
+
+# Dream Consolidation (IMP-1) — idle/scheduled curator that promotes
+# durable facts to ``pinned``, merges duplicates, archives stale entries,
+# and writes a per-user ``DREAMS.md`` diary alongside ``preferences.md``
+# under ``~/.tank/users/<user>/`` for human inspection.
+consolidation:
+  enabled: true            # opt-in; off by default
+  min_idle_minutes: 30     # require at least this long since last user activity
+  interval_hours: 24       # at most one run per user per N hours
+  diary_filename: DREAMS.md   # per-user, next to preferences.md
+  llm_profile: consolidation  # falls back to ``default`` if missing
+  top_k_candidates: 20
+  schedule: "0 3 * * *"    # 03:00 daily
+  # weights: defaults are fine; override individually if needed.
+  # weights:
+  #   frequency: 0.24
+  #   relevance: 0.30
+  #   diversity: 0.15
+  #   recency: 0.15
+  #   consolidation: 0.10
+  #   conceptual: 0.06
 # Observability — Langfuse LLM tracing (optional).
 # Set LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST in .env to enable.
 # Run `docker compose up -d` from project root to start self-hosted Langfuse.

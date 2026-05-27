@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from apscheduler import AsyncScheduler, ConflictPolicy
@@ -33,18 +34,52 @@ class CronScheduler:
         self._max_parallel = max_parallel
         self._scheduler = AsyncScheduler(max_concurrent_jobs=max_parallel)
         self._running_tasks: dict[str, asyncio.Task[None]] = {}
+        self._extra_schedules: dict[str, tuple[str, Callable[[], Any]]] = {}
         self._started = False
 
     async def start(self) -> None:
         """Initialize APScheduler, sync schedules, start background loop."""
         await self._scheduler.__aenter__()
         await self._sync_schedules()
+        await self._register_extra_schedules()
         await self._scheduler.start_in_background()
         self._started = True
         logger.info(
             "CronScheduler started (APScheduler, max_parallel=%d)",
             self._max_parallel,
         )
+
+    def register_recurring(
+        self,
+        schedule_id: str,
+        cron: str,
+        callback: Callable[[], Any],
+    ) -> None:
+        """Register a non-job recurring task — e.g. Dream Consolidation.
+
+        Unlike :class:`JobDefinition` schedules (which live in JobStore
+        and surface to the user via ``manage_jobs``), these are
+        framework-internal: they don't appear in seeds or job lists,
+        and they survive ``sync_schedules`` calls.
+
+        Must be called before :meth:`start`. Re-registering with the same
+        ``schedule_id`` replaces the previous callback.
+        """
+        self._extra_schedules[schedule_id] = (cron, callback)
+
+    async def _register_extra_schedules(self) -> None:
+        for schedule_id, (cron, callback) in self._extra_schedules.items():
+            trigger = CronTrigger.from_crontab(cron)
+            await self._scheduler.add_schedule(
+                callback,
+                trigger,
+                id=schedule_id,
+                conflict_policy=ConflictPolicy.replace,
+            )
+            logger.info(
+                "Registered recurring schedule '%s' (%s)",
+                schedule_id, cron,
+            )
 
     async def stop(self) -> None:
         """Stop scheduler and cancel running tasks."""

@@ -26,6 +26,7 @@ from .models import (
     CommandSecurityConfig,
     ConnectorInstanceConfig,
     ConnectorsConfig,
+    ConsolidationConfig,
     ContextConfig,
     DatabaseConfig,
     EchoGuardConfig,
@@ -98,6 +99,7 @@ class AppConfig:
     context: ContextConfig = field(default_factory=ContextConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
     preferences: PreferenceConfig = field(default_factory=PreferenceConfig)
+    consolidation: ConsolidationConfig = field(default_factory=ConsolidationConfig)
 
     # Persistence
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
@@ -167,6 +169,9 @@ class AppConfig:
                 context=parse_section(ContextConfig, raw.get("context")),
                 memory=parse_section(MemoryConfig, raw.get("memory")),
                 preferences=parse_section(PreferenceConfig, raw.get("preferences")),
+                consolidation=parse_section(
+                    ConsolidationConfig, raw.get("consolidation"),
+                ),
                 database=parse_section(DatabaseConfig, raw.get("database")),
                 sandbox=parse_section(SandboxConfig, raw.get("sandbox")),
                 network_access=parse_section(NetworkAccessConfig, raw.get("network_access")),

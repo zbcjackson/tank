@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from ..channels.store import ChannelStore
     from ..channels.subscription import ChannelSubscriptionManager
     from ..config.context import AppContext
+    from ..context.compaction_store import CompactionStore
     from ..context.store import ConversationStore
     from ..jobs.scheduler import CronScheduler
     from ..jobs.store import JobStore
@@ -78,6 +79,14 @@ def conversation_store() -> ConversationStore:
     s = app_context().conversation_store
     if s is None:
         raise HTTPException(503, "Conversation store not initialised")
+    return s
+
+
+def compaction_store() -> CompactionStore:
+    """Return the compaction store, or raise 503 if unavailable."""
+    s = app_context().compaction_store
+    if s is None:
+        raise HTTPException(503, "Compaction store not initialised")
     return s
 
 

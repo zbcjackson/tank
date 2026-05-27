@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -20,6 +21,8 @@ from ..config.models import ContextConfig
 from ..config.parser import ConfigError
 from ..users import is_guest
 from .budget import ContextBudget, resolve_context_window
+from .compaction_store import CompactionStore
+from .compactions import CompactionRecord
 from .conversation import ConversationData
 from .resolver import CompactionMode, ResolvedConversation
 
@@ -63,6 +66,8 @@ class ContextManager:
         skill_provider: Any = None,
         media_store: Any = None,
         llm_capabilities: frozenset[str] | None = None,
+        compaction_store: CompactionStore | None = None,
+        messages_store: Any = None,
     ) -> None:
         self._app_config = app_config
         self._config = config or ContextConfig()
@@ -70,6 +75,8 @@ class ContextManager:
         self._resolver = resolver
         self._media_store = media_store
         self._llm_capabilities = llm_capabilities or frozenset()
+        self._compaction_store = compaction_store
+        self._messages_store = messages_store
         self._conversation: ConversationData | None = None
         self._compaction_mode: CompactionMode = CompactionMode.DESTRUCTIVE
         self._channel_context_builder: Any = None
@@ -94,6 +101,8 @@ class ContextManager:
         self._summarizer = self._create_summarizer()
         self._preference_store = self._create_preference_store()
         self._preference_learner = self._create_preference_learner()
+        self._flusher = self._create_flusher()
+        self._attach_hybrid_search()
 
         # PromptAssembler lives here
         from ..prompts.assembler import PromptAssembler
@@ -298,6 +307,59 @@ class ContextManager:
         llm = create_llm_from_profile(profile)
         logger.info("Preference learner initialised (model=%s)", profile.model)
         return PreferenceLearner(self._preference_store, llm)
+
+    def _create_flusher(self) -> Any:
+        """Create MemoryFlusher when pre-compaction flush is enabled.
+
+        Returns ``None`` when:
+        - the feature is disabled via ``context.pre_compaction_flush``
+        - neither memory nor preferences are available (nothing to flush to)
+        - no usable LLM profile exists
+        """
+        if not self._config.pre_compaction_flush:
+            return None
+        if self._memory_service is None and self._preference_store is None:
+            return None
+
+        from ..llm.profile import create_llm_from_profile
+        from ..memory.flush import MemoryFlusher
+
+        # Reuse the cheap summarization profile when available; fall back
+        # to default. Same precedence the preference learner uses.
+        try:
+            profile = self._app_config.get_llm_profile("summarization")
+        except (KeyError, ValueError, ConfigError):
+            try:
+                profile = self._app_config.get_llm_profile("default")
+            except (KeyError, ValueError, ConfigError):
+                return None
+
+        llm = create_llm_from_profile(profile)
+        logger.info("Memory flusher initialised (model=%s)", profile.model)
+        return MemoryFlusher(
+            llm=llm,
+            memory=self._memory_service,
+            preferences=self._preference_store,
+        )
+
+    def _attach_hybrid_search(self) -> None:
+        """Wire :class:`HybridSearch` into ``MemoryService.recall``.
+
+        No-op when either side is missing — recall falls back to
+        vector-only (existing behaviour).
+        """
+        if self._memory_service is None:
+            return
+        if self._messages_store is None:
+            return
+        from ..memory.search import HybridSearch
+
+        hybrid = HybridSearch(
+            memory=self._memory_service,
+            messages_store=self._messages_store,
+        )
+        self._memory_service.attach_hybrid_search(hybrid)
+        logger.info("Hybrid memory recall enabled (vector + FTS5 keyword)")
 
     # ------------------------------------------------------------------
     # Conversation loading
@@ -701,6 +763,19 @@ class ContextManager:
             self._persist()
             return
 
+        # Pre-compaction flush: try to persist durable facts before the
+        # summarizer compresses them away. Best-effort — failure is
+        # logged but does not block compaction.
+        if self._flusher is not None and self._last_user:
+            try:
+                await self._flusher.flush(
+                    user=self._last_user, messages=to_summarize,
+                )
+            except Exception:
+                logger.warning(
+                    "Pre-compaction flush failed", exc_info=True,
+                )
+
         # Phase 3: Summarize (incremental)
         previous_summary = self._extract_previous_summary(to_summarize)
         if self._summarizer is not None:
@@ -719,10 +794,19 @@ class ContextManager:
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     },
                 }
+                pre_compaction_messages = list(to_summarize)
                 conv.messages = [system_msg, summary_msg] + tail
                 # Phase 4: Sanitize tool pairs
                 self._sanitize_tool_pairs()
-                self._update_thrashing_state(self.count_tokens())
+                tokens_after = self.count_tokens()
+                self._record_compaction(
+                    conv=conv,
+                    focus=focus,
+                    tokens_after=tokens_after,
+                    summary_text=summary_text,
+                    pre_compaction_messages=pre_compaction_messages,
+                )
+                self._update_thrashing_state(tokens_after)
                 self._persist()
                 logger.info(
                     "Context compacted: %d msgs → summary + tail(%d), "
@@ -730,7 +814,7 @@ class ContextManager:
                     len(to_summarize),
                     len(tail),
                     self._tokens_before_last_compaction,
-                    self.count_tokens(),
+                    tokens_after,
                 )
                 return
             except Exception:
@@ -938,6 +1022,35 @@ class ContextManager:
         else:
             self._ineffective_count = 0
 
+    def _record_compaction(
+        self,
+        *,
+        conv: ConversationData,
+        focus: str | None,
+        tokens_after: int,
+        summary_text: str,
+        pre_compaction_messages: list[dict[str, Any]],
+    ) -> None:
+        """Persist a CompactionRecord. Failure is non-fatal."""
+        if self._compaction_store is None:
+            return
+        try:
+            parent = self._compaction_store.latest_for_conversation(conv.id)
+            self._compaction_store.save(CompactionRecord(
+                id=uuid.uuid4().hex,
+                conversation_id=conv.id,
+                parent_id=parent.id if parent else None,
+                created_at=datetime.now(timezone.utc),
+                focus=focus,
+                tokens_before=self._tokens_before_last_compaction,
+                tokens_after=tokens_after,
+                compacted_count=len(pre_compaction_messages),
+                summary_text=summary_text,
+                pre_compaction_messages=pre_compaction_messages,
+            ))
+        except Exception:
+            logger.warning("Failed to persist compaction lineage", exc_info=True)
+
     def _truncate(self, budget: int) -> None:
         """Drop oldest non-system messages to fit within token budget."""
         conv = self._require_conversation()
@@ -968,10 +1081,20 @@ class ContextManager:
     # ------------------------------------------------------------------
 
     def _persist(self) -> None:
-        """Save current conversation via resolver."""
+        """Save current conversation via resolver, and mirror messages to FTS."""
         if self._resolver is None or self._conversation is None:
             return
         self._resolver.save(self._conversation)
+        if self._messages_store is not None:
+            try:
+                self._messages_store.replace_for_conversation(
+                    self._conversation.id, self._conversation.messages,
+                )
+            except Exception:
+                logger.debug(
+                    "Failed to mirror conversation messages to FTS index",
+                    exc_info=True,
+                )
 
     # ------------------------------------------------------------------
     # Properties

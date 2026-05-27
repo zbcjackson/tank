@@ -71,6 +71,8 @@ class Assistant:
         self._app_context = app_context
         self._channel_store = app_context.channel_store
         self._conversation_store = app_context.conversation_store
+        self._compaction_store = app_context.compaction_store
+        self._messages_store = app_context.conversation_messages_store
         self._media_store = app_context.media_store
         registry = self._init_config_and_llm(app_context.app_config, registry=app_context.registry)
         self._init_bus()
@@ -210,6 +212,8 @@ class Assistant:
             echo_guard_config=echo_guard_cfg,
             channel_store=self._channel_store,
             conversation_store=self._conversation_store,
+            compaction_store=self._compaction_store,
+            messages_store=self._messages_store,
             media_store=self._media_store,
             llm_capabilities=self._llm_capabilities.input_modalities,
         )

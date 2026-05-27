@@ -17,12 +17,16 @@ if TYPE_CHECKING:
     from ..audio.input.voiceprint import VoiceprintRecognizer
     from ..channels.store import ChannelStore
     from ..config import AppConfig
+    from ..context.compaction_store import CompactionStore
     from ..context.store import ConversationStore
     from ..jobs.scheduler import CronScheduler
     from ..jobs.store import JobStore
     from ..llm.capabilities import ModelCapabilities
     from ..llm.llm import LLM
     from ..media import MediaStore
+    from ..persistence.conversation_messages_store import (
+        ConversationMessagesStore,
+    )
     from ..pipeline.bus import Bus
     from ..plugin.registry import ExtensionRegistry
     from ..tools.manager import ToolManager
@@ -38,6 +42,8 @@ class AppContext:
     job_store: JobStore | None = None
     scheduler: CronScheduler | None = None
     conversation_store: ConversationStore | None = None
+    compaction_store: CompactionStore | None = None
+    conversation_messages_store: ConversationMessagesStore | None = None
     voiceprint_recognizer: VoiceprintRecognizer | None = None
     channel_store: ChannelStore | None = None
     media_store: MediaStore | None = None
