@@ -66,6 +66,38 @@ function apiUrl(path: string): string {
 }
 
 // ============================================================================
+// Health
+// ============================================================================
+
+export const health = {
+  /**
+   * Check server reachability over HTTPS.
+   * Reads the hostPort from server settings (localStorage) — call
+   * `storeServerSettings()` before invoking so the URL is available.
+   * Throws on failure (timeout, network error, non-OK response).
+   */
+  async check(timeoutMs = 3000): Promise<void> {
+    const url = apiUrl('/health');
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await httpFetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      if (res.ok || res.type === 'opaque') return;
+      throw new Error(`Server returned HTTP ${res.status}`);
+    } catch (err) {
+      clearTimeout(timer);
+      const settings = loadServerSettings();
+      const bare = settings?.hostPort ?? url;
+      throw new Error(
+        `Cannot reach server at ${bare}: ${err instanceof Error ? err.message : 'unknown error'}`,
+      );
+    }
+  },
+};
+
+// ============================================================================
 // Channels
 // ============================================================================
 

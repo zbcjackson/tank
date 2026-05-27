@@ -3,8 +3,8 @@ import {
   loadServerSettings,
   storeServerSettings,
   clearServerSettings,
-  checkServer,
 } from '../services/serverSettings';
+import * as api from '../services/api';
 
 export interface UseServerSettingsResult {
   /** Full API base URL, e.g. "https://192.168.1.50:8000". Empty = use browser origin (dev proxy). */
@@ -75,16 +75,20 @@ export function useServerSettings(): UseServerSettingsResult {
     setIsProbing(true);
     setProbeError(null);
 
-    try {
-      await checkServer(bare);
+    // Save to localStorage first so api.health.check() can read the URL.
+    // This is safe because the settings panel blocks the rest of the app.
+    storeServerSettings({ hostPort: bare });
 
-      storeServerSettings({ hostPort: bare });
+    try {
+      await api.health.check();
+
       const urls = buildUrls(bare);
       setApiBaseUrl(urls.apiBaseUrl);
       setWsBaseUrl(urls.wsBaseUrl);
       setIsConfigured(true);
       return true;
     } catch (err) {
+      clearServerSettings(); // Rollback
       setProbeError(err instanceof Error ? err.message : 'Connection failed');
       return false;
     } finally {

@@ -40,28 +40,3 @@ export function clearServerSettings(): void {
   }
 }
 
-/**
- * Verify the server is reachable over HTTPS. Returns true on success.
- * Throws on failure (timeout, network error, non-OK response).
- */
-export async function checkServer(
-  hostPort: string,
-  timeoutMs = 3000,
-): Promise<boolean> {
-  const bare = hostPort.replace(/^https?:\/\//, '');
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const { httpFetch } = await import('./httpClient');
-    const res = await httpFetch(`https://${bare}/health`, { signal: controller.signal });
-    clearTimeout(timer);
-    if (res.ok || res.type === 'opaque') return true;
-    throw new Error(`Server returned HTTP ${res.status}`);
-  } catch (err) {
-    clearTimeout(timer);
-    throw new Error(
-      `Cannot reach server at ${bare}: ${err instanceof Error ? err.message : 'unknown error'}`,
-    );
-  }
-}
