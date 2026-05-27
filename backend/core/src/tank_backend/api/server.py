@@ -630,7 +630,7 @@ app.add_middleware(
 _wire_routers(app)
 
 
-@app.get("/health")
+@app.get("/api/health")
 async def health_check(detail: bool = False):
     """Health check endpoint."""
     if not detail:

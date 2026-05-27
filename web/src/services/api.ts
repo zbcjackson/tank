@@ -77,7 +77,7 @@ export const health = {
    * Throws on failure (timeout, network error, non-OK response).
    */
   async check(timeoutMs = 3000): Promise<void> {
-    const url = apiUrl('/health');
+    const url = apiUrl('/api/health');
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
