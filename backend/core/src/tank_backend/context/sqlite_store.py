@@ -35,12 +35,14 @@ class SqliteConversationStore(ConversationStore):
                     pid=conversation.pid,
                     messages=payload,
                     updated_at=now,
+                    title=conversation.title,
                 ))
             else:
                 row.start_time = conversation.start_time.isoformat()
                 row.pid = conversation.pid
                 row.messages = payload
                 row.updated_at = now
+                row.title = conversation.title
 
     def load(self, conversation_id: str) -> ConversationData | None:
         with self._db.session() as s:
@@ -52,6 +54,7 @@ class SqliteConversationStore(ConversationStore):
                 start_time=datetime.fromisoformat(row.start_time),
                 pid=row.pid,
                 messages=json.loads(row.messages),
+                title=row.title,
             )
 
     def list_conversations(self) -> list[ConversationSummary]:
@@ -62,6 +65,7 @@ class SqliteConversationStore(ConversationStore):
                     ConversationRow.start_time,
                     ConversationRow.messages,
                     ConversationRow.updated_at,
+                    ConversationRow.title,
                 ).order_by(ConversationRow.updated_at.desc())
             ).all()
         return [
@@ -70,6 +74,7 @@ class SqliteConversationStore(ConversationStore):
                 start_time=datetime.fromisoformat(row[1]),
                 message_count=len(json.loads(row[2])),
                 updated_at=datetime.fromtimestamp(row[3], tz=timezone.utc),
+                title=row[4],
             )
             for row in rows
         ]
@@ -94,6 +99,7 @@ class SqliteConversationStore(ConversationStore):
                 start_time=datetime.fromisoformat(row.start_time),
                 pid=row.pid,
                 messages=json.loads(row.messages),
+                title=row.title,
             )
 
     def close(self) -> None:

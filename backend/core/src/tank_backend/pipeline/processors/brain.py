@@ -306,6 +306,35 @@ class Brain(Processor):
         # Sync pending approvals to conversation before persist
         self._context.pending_approvals = self._pending_store.to_list()
         self._context.finish_turn(turn_messages)
+        self._maybe_request_title()
+
+    def _maybe_request_title(self) -> None:
+        """Post ``conversation_title_needed`` once, after the first turn.
+
+        The observer wired in ``Assistant`` runs the LLM out-of-band so the
+        pipeline never blocks on title generation.
+        """
+        conv = self._context.conversation
+        if conv is None or conv.title:
+            return
+        user_count = 0
+        assistant_count = 0
+        for msg in conv.messages:
+            role = msg.get("role")
+            if role == "user":
+                user_count += 1
+            elif role == "assistant":
+                assistant_count += 1
+            if user_count > 1:
+                return
+        if user_count != 1 or assistant_count < 1:
+            return
+        self._bus.post(BusMessage(
+            type="conversation_title_needed",
+            source=self.name,
+            payload={"conversation_id": conv.id},
+            timestamp=time.time(),
+        ))
 
     # ------------------------------------------------------------------
     # Markdown image extraction

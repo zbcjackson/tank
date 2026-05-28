@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from ..config.context import AppContext
     from ..context.compaction_store import CompactionStore
     from ..context.store import ConversationStore
+    from ..context.title_generator import TitleGenerator
     from ..jobs.scheduler import CronScheduler
     from ..jobs.store import JobStore
     from .manager import ConnectionManager
@@ -88,6 +89,14 @@ def compaction_store() -> CompactionStore:
     if s is None:
         raise HTTPException(503, "Compaction store not initialised")
     return s
+
+
+def title_generator() -> TitleGenerator:
+    """Return the title generator, or raise 503 if unavailable."""
+    g = app_context().title_generator
+    if g is None:
+        raise HTTPException(503, "Title generator not initialised")
+    return g
 
 
 def channel_store() -> ChannelStore:

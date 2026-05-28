@@ -32,3 +32,11 @@ Feature: Conversations
     And the user reloads the page
     And the user switches to chat mode
     Then the user message "remember tank refresh test" is visible in the conversation
+
+  @requires-active-conversation
+  Scenario: User renames a conversation
+    When the user types "hello" and sends it
+    And eventually an assistant message appears
+    And the user clicks the conversations button
+    And the user renames the first conversation to "Trip planning"
+    Then the first conversation in the list is titled "Trip planning"

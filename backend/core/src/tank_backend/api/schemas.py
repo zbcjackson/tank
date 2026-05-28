@@ -18,6 +18,7 @@ class MessageType(str, Enum):
     INPUT = "input"  # Client-side text input (keyboard)
     CHANNEL_NOTIFICATION = "channel_notification"  # Real-time channel updates
     ATTACHMENT = "attachment"  # Phase 17: assistant-sent media (images)
+    CONVERSATION_METADATA_UPDATED = "conversation_metadata_updated"  # Title/etc.
 
 
 class WebsocketAttachment(BaseModel):

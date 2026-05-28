@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from ..config import AppConfig
     from ..context.compaction_store import CompactionStore
     from ..context.store import ConversationStore
+    from ..context.title_generator import TitleGenerator
     from ..jobs.scheduler import CronScheduler
     from ..jobs.store import JobStore
     from ..llm.capabilities import ModelCapabilities
@@ -44,6 +45,7 @@ class AppContext:
     conversation_store: ConversationStore | None = None
     compaction_store: CompactionStore | None = None
     conversation_messages_store: ConversationMessagesStore | None = None
+    title_generator: TitleGenerator | None = None
     voiceprint_recognizer: VoiceprintRecognizer | None = None
     channel_store: ChannelStore | None = None
     media_store: MediaStore | None = None

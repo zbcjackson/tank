@@ -6,13 +6,16 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import deps
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"], redirect_slashes=False)
+
+
+_TITLE_MAX_LEN = 80
 
 
 class CompactionResponse(BaseModel):
@@ -36,6 +39,15 @@ class RestoreResponse(BaseModel):
     message_count_after: int
 
 
+class TitleUpdateRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=_TITLE_MAX_LEN)
+
+
+class TitleResponse(BaseModel):
+    conversation_id: str
+    title: str | None
+
+
 @router.get("")
 async def list_conversations() -> list[dict[str, Any]]:
     """List all conversations, most recent first."""
@@ -48,6 +60,7 @@ async def list_conversations() -> list[dict[str, Any]]:
             "updated_at": s.updated_at.isoformat(),
             "message_count": s.message_count,
             "preview": s.preview,
+            "title": s.title,
         }
         for s in conversations
     ]
@@ -63,8 +76,42 @@ async def get_conversation_messages(conversation_id: str) -> dict[str, Any]:
     return {
         "id": conversation.id,
         "start_time": conversation.start_time.isoformat(),
+        "title": conversation.title,
         "messages": _format_messages(conversation.messages),
     }
+
+
+@router.patch("/{conversation_id}", response_model=TitleResponse)
+async def update_conversation_title(
+    conversation_id: str, body: TitleUpdateRequest,
+) -> TitleResponse:
+    """Rename a conversation. The user-supplied title overrides any LLM title."""
+    store = deps.conversation_store()
+    conversation = store.load(conversation_id)
+    if conversation is None:
+        raise HTTPException(404, "Conversation not found")
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(400, "Title must not be empty after trimming")
+    if len(title) > _TITLE_MAX_LEN:
+        raise HTTPException(400, f"Title exceeds {_TITLE_MAX_LEN} characters")
+    conversation.title = title
+    store.save(conversation)
+    return TitleResponse(conversation_id=conversation_id, title=title)
+
+
+@router.post("/{conversation_id}/title/regenerate", response_model=TitleResponse)
+async def regenerate_conversation_title(conversation_id: str) -> TitleResponse:
+    """Re-run the LLM title generator and persist the result.
+
+    Returns the new title (may be ``None`` if the LLM produced empty output).
+    """
+    store = deps.conversation_store()
+    if store.load(conversation_id) is None:
+        raise HTTPException(404, "Conversation not found")
+    generator = deps.title_generator()
+    title = await generator.generate(conversation_id)
+    return TitleResponse(conversation_id=conversation_id, title=title)
 
 
 @router.get("/{conversation_id}/compactions", response_model=list[CompactionResponse])

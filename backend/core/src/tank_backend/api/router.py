@@ -15,7 +15,13 @@ from tank_contracts import encode_audio_frame
 from ..audio.input.types import AudioFrame
 from ..audio.output.types import AudioChunk
 from ..core.content import ContentBlocks, DocumentBlock, ImageBlock, modality_for_mime
-from ..core.events import DisplayMessage, SignalMessage, UIMessage, UpdateType
+from ..core.events import (
+    ConversationMetadataUpdate,
+    DisplayMessage,
+    SignalMessage,
+    UIMessage,
+    UpdateType,
+)
 from . import deps
 from .schemas import MessageType, WebsocketAttachment, WebsocketMessage
 from .signal_handlers import DisconnectSignal
@@ -91,6 +97,21 @@ def _ui_msg_to_ws_msg(msg: UIMessage, session_id: str) -> WebsocketMessage | Non
             msg_id=msg.msg_id,
             session_id=session_id,
             metadata=msg.metadata.copy() if msg.metadata else {},
+        )
+    if isinstance(msg, ConversationMetadataUpdate):
+        # Scope to the matching session so a title generated for one
+        # conversation never leaks into another open tab's sidebar.
+        if msg.conversation_id != session_id:
+            return None
+        metadata: dict[str, Any] = {"conversation_id": msg.conversation_id}
+        if msg.title is not None:
+            metadata["title"] = msg.title
+        return WebsocketMessage(
+            type=MessageType.CONVERSATION_METADATA_UPDATED,
+            content="",
+            session_id=session_id,
+            is_final=True,
+            metadata=metadata,
         )
     if isinstance(msg, DisplayMessage):
         ws_msg = WebsocketMessage(

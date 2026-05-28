@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MessageSquare, Plus, Hash, ChevronDown, ChevronUp, Bell, BellOff } from 'lucide-react';
-import { useConversationList, type ConversationInfo } from '../../hooks/useConversationList';
+import { X, MessageSquare, Plus, Hash, ChevronDown, ChevronUp, Bell, BellOff, Pencil } from 'lucide-react';
+import { type ConversationInfo } from '../../hooks/useConversationList';
 import { useChannelList } from '../../hooks/useChannelList';
+import { ConversationTitleModal } from './ConversationTitleModal';
 
 interface ConversationListProps {
   open: boolean;
@@ -15,6 +16,10 @@ interface ConversationListProps {
   unreadCounts?: Record<string, number>;
   subscribedChannels?: Set<string>;
   onToggleChannelSubscription?: (slug: string) => void;
+  conversations: ConversationInfo[];
+  loading: boolean;
+  refreshConversations: () => Promise<void> | void;
+  applyConversationMetadata: (id: string, patch: { title?: string | null }) => void;
 }
 
 function formatTime(isoString: string): string {
@@ -62,18 +67,22 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   unreadCounts = {},
   subscribedChannels,
   onToggleChannelSubscription,
+  conversations,
+  loading,
+  refreshConversations,
+  applyConversationMetadata,
 }) => {
-  const { conversations, loading, refresh } = useConversationList();
   const { channels, refresh: refreshChannels } = useChannelList();
   const [channelsExpanded, setChannelsExpanded] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(true);
+  const [titleEditing, setTitleEditing] = useState<ConversationInfo | null>(null);
 
   useEffect(() => {
     if (open) {
-      refresh();
+      refreshConversations();
       refreshChannels();
     }
-  }, [open, refresh, refreshChannels]);
+  }, [open, refreshConversations, refreshChannels]);
 
   const grouped = groupByDate(conversations);
 
@@ -232,34 +241,65 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                       <div className="px-4 pt-3 pb-1 text-xs font-medium text-neutral-500 uppercase tracking-wider">
                         {label}
                       </div>
-                      {items.map((c) => (
-                        <button
-                          key={c.id}
-                          onClick={() => onSelectConversation(c.id)}
-                          data-testid="conversation-item"
-                          className={`w-full text-left px-4 py-2.5 hover:bg-neutral-800/60 transition-colors ${
-                            activeConversationId === c.id ? 'bg-neutral-800/80' : ''
-                          }`}
-                        >
-                          <div className="flex items-start gap-2.5">
-                            <MessageSquare size={14} className="text-neutral-500 mt-0.5 shrink-0" />
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm text-neutral-200 truncate">
-                                {c.preview || 'Empty conversation'}
+                      {items.map((c) => {
+                        const displayLabel = c.title?.trim() || c.preview || 'Empty conversation';
+                        const isActive = activeConversationId === c.id;
+                        return (
+                          <div
+                            key={c.id}
+                            data-testid="conversation-item"
+                            className={`group w-full flex items-center hover:bg-neutral-800/60 transition-colors ${
+                              isActive ? 'bg-neutral-800/80' : ''
+                            }`}
+                          >
+                            <button
+                              onClick={() => onSelectConversation(c.id)}
+                              className="flex-1 text-left px-4 py-2.5"
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <MessageSquare size={14} className="text-neutral-500 mt-0.5 shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm text-neutral-200 truncate">
+                                    {displayLabel}
+                                  </div>
+                                  <div className="text-xs text-neutral-500 mt-0.5">
+                                    {c.message_count} messages · {formatTime(c.updated_at)}
+                                  </div>
+                                </div>
                               </div>
-                              <div className="text-xs text-neutral-500 mt-0.5">
-                                {c.message_count} messages · {formatTime(c.updated_at)}
-                              </div>
-                            </div>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTitleEditing(c);
+                              }}
+                              className="shrink-0 p-2 mr-1 rounded-md text-neutral-500 hover:text-neutral-200 hover:bg-neutral-700/60 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                              title="Rename conversation"
+                              aria-label="Rename conversation"
+                              data-testid={`conversation-rename-${c.id}`}
+                            >
+                              <Pencil size={14} />
+                            </button>
                           </div>
-                        </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   ))}
                 </>
               )}
             </div>
           </motion.div>
+          {titleEditing && (
+            <ConversationTitleModal
+              conversationId={titleEditing.id}
+              initialTitle={titleEditing.title?.trim() || ''}
+              onClose={() => setTitleEditing(null)}
+              onSaved={(newTitle) => {
+                applyConversationMetadata(titleEditing.id, { title: newTitle });
+                setTitleEditing(null);
+              }}
+            />
+          )}
         </>
       )}
     </AnimatePresence>

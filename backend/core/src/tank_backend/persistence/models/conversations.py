@@ -24,3 +24,4 @@ class ConversationRow(Base):
     pid:             Mapped[int] = mapped_column(Integer, nullable=False)
     messages:        Mapped[str] = mapped_column(Text, nullable=False)
     updated_at:      Mapped[float] = mapped_column(Float, nullable=False)
+    title:           Mapped[str | None] = mapped_column(String, nullable=True)

@@ -25,6 +25,7 @@ from ..pipeline.observers import (
     InterruptLatencyObserver,
     LatencyObserver,
     MetricsCollector,
+    TitleGenerationObserver,
     TurnTrackingObserver,
 )
 from ..pipeline.processors import (
@@ -187,6 +188,12 @@ class Assistant:
         self._turn_observer = TurnTrackingObserver(self._bus)
         self._interrupt_observer = InterruptLatencyObserver(self._bus)
         self._metrics_collector = MetricsCollector(self._bus)
+        self._title_observer: TitleGenerationObserver | None = None
+        title_generator = self._app_context.title_generator
+        if title_generator is not None:
+            self._title_observer = TitleGenerationObserver(
+                bus=self._bus, generator=title_generator,
+            )
 
     def _build_pipeline(
         self,
@@ -407,6 +414,9 @@ class Assistant:
     async def start(self) -> None:
         """Start pipeline."""
         self._event_loop = asyncio.get_running_loop()
+
+        if self._title_observer is not None:
+            self._title_observer.set_loop(self._event_loop)
 
         await self._tool_manager.connect_mcp_servers()
 

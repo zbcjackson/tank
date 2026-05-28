@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse, Response
 
 from ..channels.store import ChannelStore
 from ..channels.subscription import ChannelSubscriptionManager
-from ..config import AppConfig, find_config_yaml
+from ..config import AppConfig, ConfigError, find_config_yaml
 from ..config.context import AppContext
 from ..context import create_store
 from ..media import MediaStore
@@ -536,6 +536,27 @@ except Exception:
     logger.warning("Failed to resolve LLM capabilities", exc_info=True)
     _llm_capabilities = None
 
+_title_generator = None
+if _store is not None:
+    try:
+        from ..context.title_generator import TitleGenerator
+        from ..llm.profile import create_llm_from_profile
+
+        try:
+            _title_profile = app_config.get_llm_profile("summarization")
+        except (KeyError, ValueError, ConfigError):
+            _title_profile = app_config.get_llm_profile("default")
+        _title_generator = TitleGenerator(
+            llm=create_llm_from_profile(_title_profile),
+            store=_store,
+        )
+        logger.info(
+            "TitleGenerator initialised with profile=%s", _title_profile.name,
+        )
+    except Exception:
+        logger.warning("Failed to initialise TitleGenerator", exc_info=True)
+        _title_generator = None
+
 app_context = AppContext(
     app_config=app_config,
     registry=_registry,
@@ -544,6 +565,7 @@ app_context = AppContext(
     conversation_store=_store,
     compaction_store=_compaction_store,
     conversation_messages_store=_messages_store,
+    title_generator=_title_generator,
     voiceprint_recognizer=_voiceprint_recognizer,
     channel_store=_channel_store,
     media_store=_media_store,

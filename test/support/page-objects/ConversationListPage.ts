@@ -26,4 +26,23 @@ export class ConversationListPage {
   firstConversationItem(): Locator {
     return this.page.locator('[data-testid="conversation-item"]').first();
   }
+
+  firstRenameButton(): Locator {
+    return this.page
+      .locator('[data-testid="conversation-item"]')
+      .first()
+      .locator('[data-testid^="conversation-rename-"]');
+  }
+
+  titleModal(): Locator {
+    return this.page.locator('[data-testid="conversation-title-modal"]');
+  }
+
+  titleInput(): Locator {
+    return this.page.locator('[data-testid="conversation-title-input"]');
+  }
+
+  titleSaveButton(): Locator {
+    return this.page.locator('[data-testid="conversation-title-save"]');
+  }
 }

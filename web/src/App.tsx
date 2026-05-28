@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useAssistant } from './hooks/useAssistant';
 import { useChannelNotifications } from './hooks/useChannelNotifications';
+import { useConversationList } from './hooks/useConversationList';
 import { VoiceMode } from './components/Assistant/VoiceMode';
 import { ChatMode } from './components/Assistant/ChatMode';
 import { ModeToggle } from './components/Assistant/ModeToggle';
@@ -129,6 +130,25 @@ function AppWithServer({
 }) {
   const backendUrl = server.wsBaseUrl || undefined;
 
+  const conversationList = useConversationList();
+  const conversationListRef = useRef(conversationList);
+  conversationListRef.current = conversationList;
+
+  const handleConversationMetadata = useCallback(
+    (msg: import('./services/websocket').WebsocketMessage) => {
+      const md = msg.metadata || {};
+      const conversationId = md.conversation_id;
+      if (typeof conversationId !== 'string' || !conversationId) return;
+      const patch: { title?: string | null } = {};
+      if ('title' in md) {
+        const t = md.title;
+        patch.title = typeof t === 'string' ? t : null;
+      }
+      conversationListRef.current.applyMetadataUpdate(conversationId, patch);
+    },
+    [],
+  );
+
   const {
     steps,
     mode,
@@ -165,7 +185,7 @@ function AppWithServer({
     stopPtt,
   } = useAssistant(SESSION_ID, wakeWordDetector, (msg) => {
     channelNotificationHandlerRef.current?.(msg);
-  }, backendUrl);
+  }, backendUrl, handleConversationMetadata);
 
   const channelNotifications = useChannelNotifications({
     activeChannelSlug,
@@ -261,6 +281,10 @@ function AppWithServer({
         unreadCounts={channelNotifications.unreadCounts}
         subscribedChannels={channelAudio.subscribedChannels}
         onToggleChannelSubscription={channelAudio.toggleSubscription}
+        conversations={conversationList.conversations}
+        loading={conversationList.loading}
+        refreshConversations={conversationList.refresh}
+        applyConversationMetadata={conversationList.applyMetadataUpdate}
       />
 
       {/* Top-right buttons: settings gear + conversations menu */}

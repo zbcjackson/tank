@@ -178,6 +178,12 @@ export interface ConversationInfo {
   updated_at: string;
   message_count: number;
   preview: string;
+  title?: string | null;
+}
+
+export interface ConversationTitleResponse {
+  conversation_id: string;
+  title: string | null;
 }
 
 export interface HistoryMessage {
@@ -225,6 +231,39 @@ export const conversations = {
     await checkResponse(res, 'Failed to fetch conversation messages');
     const data: ConversationMessagesResponse = await res.json();
     return data.messages;
+  },
+
+  /**
+   * Update a conversation's user-visible title.
+   */
+  async updateTitle(
+    conversationId: string,
+    title: string,
+  ): Promise<ConversationTitleResponse> {
+    const res = await httpFetch(
+      apiUrl(`/api/conversations/${conversationId}`),
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      },
+    );
+    await checkResponse(res, 'Failed to update conversation title');
+    return res.json();
+  },
+
+  /**
+   * Re-run the LLM title generator and persist the result.
+   */
+  async regenerateTitle(
+    conversationId: string,
+  ): Promise<ConversationTitleResponse> {
+    const res = await httpFetch(
+      apiUrl(`/api/conversations/${conversationId}/title/regenerate`),
+      { method: 'POST' },
+    );
+    await checkResponse(res, 'Failed to regenerate conversation title');
+    return res.json();
   },
 };
 

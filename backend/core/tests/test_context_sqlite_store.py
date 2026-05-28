@@ -120,6 +120,39 @@ class TestSqliteConversationStore:
     def test_find_latest_empty(self, store):
         assert store.find_latest() is None
 
+    def test_title_roundtrips_through_save_and_load(self, store, sample_conversation):
+        sample_conversation.title = "Weekend plans"
+        store.save(sample_conversation)
+        loaded = store.load("abc123")
+        assert loaded is not None
+        assert loaded.title == "Weekend plans"
+
+    def test_title_defaults_to_none_when_unset(self, store, sample_conversation):
+        store.save(sample_conversation)
+        loaded = store.load("abc123")
+        assert loaded is not None
+        assert loaded.title is None
+
+    def test_title_is_projected_in_list_conversations(self, store):
+        with_title = ConversationData(
+            id="t",
+            start_time=datetime(2026, 4, 14, 10, 0, 0, tzinfo=timezone.utc),
+            pid=1,
+            messages=[{"role": "system", "content": "a"}],
+            title="Travel ideas",
+        )
+        without_title = ConversationData(
+            id="u",
+            start_time=datetime(2026, 4, 14, 11, 0, 0, tzinfo=timezone.utc),
+            pid=2,
+            messages=[{"role": "system", "content": "b"}],
+        )
+        store.save(with_title)
+        store.save(without_title)
+        by_id = {s.id: s for s in store.list_conversations()}
+        assert by_id["t"].title == "Travel ideas"
+        assert by_id["u"].title is None
+
     def test_close_safe_multiple_times(self, tmp_path):
         s = SqliteConversationStore(tmp_path / "test2.db")
         s.close()

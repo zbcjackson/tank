@@ -52,8 +52,22 @@ class DisplayMessage:
     metadata: dict = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class ConversationMetadataUpdate:
+    """Out-of-band update to a conversation's metadata (e.g. a new title).
+
+    Carried over the same ``ui_message`` bus channel as ``SignalMessage``
+    and ``DisplayMessage`` so the WebSocket forwarder can route it without
+    a separate subscription. The forwarder only emits it on the matching
+    session's socket — see ``api/router.py``.
+    """
+
+    conversation_id: str
+    title: str | None = None
+
+
 # Type alias for messages in the UI queue
-UIMessage = SignalMessage | DisplayMessage
+UIMessage = SignalMessage | DisplayMessage | ConversationMetadataUpdate
 
 
 @dataclass

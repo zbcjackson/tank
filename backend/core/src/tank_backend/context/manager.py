@@ -838,6 +838,11 @@ class ContextManager:
         return self._conversation.id if self._conversation else None
 
     @property
+    def conversation(self) -> ConversationData | None:
+        """Current ConversationData, or ``None`` before set_conversation()."""
+        return self._conversation
+
+    @property
     def session_id(self) -> str | None:
         return self.conversation_id
 

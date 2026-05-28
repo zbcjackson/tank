@@ -56,3 +56,33 @@ When('the user reloads the page', async function (this: TankWorld) {
   const voicePage = new VoiceModePage(this.page);
   await voicePage.container().waitFor({ state: 'visible', timeout: 30000 });
 });
+
+When('the user renames the first conversation to {string}', async function (
+  this: TankWorld,
+  title: string,
+) {
+  const convList = new ConversationListPage(this.page);
+  await convList.firstConversationItem().hover();
+  await convList.firstRenameButton().click({ force: true });
+  await convList.titleModal().waitFor({ state: 'visible', timeout: 5000 });
+  await convList.titleInput().fill(title);
+  await convList.titleSaveButton().click();
+  await convList.titleModal().waitFor({ state: 'hidden', timeout: 5000 });
+});
+
+Then(
+  'the first conversation in the list is titled {string}',
+  async function (this: TankWorld, title: string) {
+    const convList = new ConversationListPage(this.page);
+    const item = convList.firstConversationItem();
+    await item.waitFor({ state: 'visible', timeout: 10000 });
+    await this.page.waitForFunction(
+      ([selector, expected]) => {
+        const node = document.querySelector(selector);
+        return !!node && (node.textContent || '').includes(expected);
+      },
+      ['[data-testid="conversation-item"]', title],
+      { timeout: 10000 },
+    );
+  },
+);

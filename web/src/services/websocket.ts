@@ -1,4 +1,4 @@
-export type MessageType = 'signal' | 'transcript' | 'text' | 'update' | 'input' | 'approval_response' | 'channel_notification' | 'attachment';
+export type MessageType = 'signal' | 'transcript' | 'text' | 'update' | 'input' | 'approval_response' | 'channel_notification' | 'attachment' | 'conversation_metadata_updated';
 
 export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
 

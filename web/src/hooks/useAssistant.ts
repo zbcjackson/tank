@@ -125,6 +125,7 @@ export const useAssistant = (
   wakeWordDetector?: WakeWordDetector | null,
   onChannelNotification?: (msg: WebsocketMessage) => void,
   backendUrl?: string,
+  onConversationMetadata?: (msg: WebsocketMessage) => void,
 ) => {
   const [mode, setMode] = useState<'voice' | 'chat'>('voice');
   const [capabilities, setCapabilities] = useState<Capabilities>(DEFAULT_CAPABILITIES);
@@ -193,6 +194,9 @@ export const useAssistant = (
   const channelNotificationRef = useRef(onChannelNotification);
   channelNotificationRef.current = onChannelNotification;
 
+  const conversationMetadataRef = useRef(onConversationMetadata);
+  conversationMetadataRef.current = onConversationMetadata;
+
   // --- Channel audio (second playback track) ---
   const channelAudioClientRef = useRef<import('../services/websocket').VoiceAssistantClient | null>(null);
   const channelAudio = useChannelAudio({
@@ -208,6 +212,10 @@ export const useAssistant = (
     (msg: WebsocketMessage) => {
       if (msg.type === 'channel_notification') {
         channelNotificationRef.current?.(msg);
+        return;
+      }
+      if (msg.type === 'conversation_metadata_updated') {
+        conversationMetadataRef.current?.(msg);
         return;
       }
       // Let channel audio hook handle its signals first

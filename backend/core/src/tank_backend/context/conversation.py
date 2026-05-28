@@ -28,6 +28,7 @@ class ConversationData:
     pid: int
     messages: list[dict[str, Any]]
     pending_approvals: list[dict[str, Any]] | None = None  # Serialized PendingToolCall list
+    title: str | None = None
 
     @staticmethod
     def new(system_prompt: str) -> ConversationData:
@@ -38,6 +39,7 @@ class ConversationData:
             pid=os.getpid(),
             messages=[{"role": "system", "content": system_prompt}],
             pending_approvals=None,
+            title=None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -50,6 +52,8 @@ class ConversationData:
         }
         if self.pending_approvals is not None:
             result["pending_approvals"] = self.pending_approvals
+        if self.title is not None:
+            result["title"] = self.title
         return result
 
     @staticmethod
@@ -61,6 +65,7 @@ class ConversationData:
             pid=data["pid"],
             messages=data["messages"],
             pending_approvals=data.get("pending_approvals"),
+            title=data.get("title"),
         )
 
 
@@ -73,6 +78,7 @@ class ConversationSummary:
     message_count: int
     updated_at: datetime
     preview: str = ""
+    title: str | None = None
 
 
 @runtime_checkable
