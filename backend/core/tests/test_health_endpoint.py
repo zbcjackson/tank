@@ -1,4 +1,4 @@
-"""Tests for the enhanced /health endpoint."""
+"""Tests for the enhanced /api/health endpoint."""
 
 from unittest.mock import MagicMock, patch
 
@@ -11,23 +11,23 @@ client = TestClient(app)
 
 class TestHealthEndpoint:
     def test_health_basic(self):
-        """GET /health returns 200 with status ok (backward compatible)."""
-        response = client.get("/health")
+        """GET /api/health returns 200 with status ok (backward compatible)."""
+        response = client.get("/api/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
     def test_health_no_detail_ignores_sessions(self):
-        """GET /health without detail=true should not iterate sessions."""
-        response = client.get("/health")
+        """GET /api/health without detail=true should not iterate sessions."""
+        response = client.get("/api/health")
         assert response.status_code == 200
         data = response.json()
         assert "sessions" not in data
 
     @patch("tank_backend.api.server.connection_manager")
     def test_health_detail_no_sessions(self, mock_sm):
-        """GET /health?detail=true with no sessions returns healthy."""
+        """GET /api/health?detail=true with no sessions returns healthy."""
         mock_sm.iter_sessions.return_value = iter([])
-        response = client.get("/health?detail=true")
+        response = client.get("/api/health?detail=true")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
@@ -35,14 +35,14 @@ class TestHealthEndpoint:
 
     @patch("tank_backend.api.server.connection_manager")
     def test_health_detail_healthy_session(self, mock_sm):
-        """GET /health?detail=true with a healthy session returns 200."""
+        """GET /api/health?detail=true with a healthy session returns 200."""
         mock_assistant = MagicMock()
         mock_assistant.health_snapshot.return_value = {
             "pipeline": {"running": True, "is_healthy": True, "queues": [], "processors": []},
         }
         mock_sm.iter_sessions.return_value = iter([("session-1", mock_assistant)])
 
-        response = client.get("/health?detail=true")
+        response = client.get("/api/health?detail=true")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
@@ -50,7 +50,7 @@ class TestHealthEndpoint:
 
     @patch("tank_backend.api.server.connection_manager")
     def test_health_detail_unhealthy_session(self, mock_sm):
-        """GET /health?detail=true with an unhealthy session returns 503."""
+        """GET /api/health?detail=true with an unhealthy session returns 503."""
         mock_assistant = MagicMock()
         mock_assistant.health_snapshot.return_value = {
             "pipeline": {
@@ -70,7 +70,7 @@ class TestHealthEndpoint:
         }
         mock_sm.iter_sessions.return_value = iter([("session-1", mock_assistant)])
 
-        response = client.get("/health?detail=true")
+        response = client.get("/api/health?detail=true")
         assert response.status_code == 503
         data = response.json()
         assert data["status"] == "degraded"
@@ -91,7 +91,7 @@ class TestHealthEndpoint:
             ("s2", unhealthy_asst),
         ])
 
-        response = client.get("/health?detail=true")
+        response = client.get("/api/health?detail=true")
         assert response.status_code == 503
         data = response.json()
         assert data["status"] == "degraded"
@@ -103,7 +103,7 @@ class TestHealthEndpoint:
         mock_assistant.health_snapshot.return_value = {"pipeline": None}
         mock_sm.iter_sessions.return_value = iter([("session-1", mock_assistant)])
 
-        response = client.get("/health?detail=true")
+        response = client.get("/api/health?detail=true")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"

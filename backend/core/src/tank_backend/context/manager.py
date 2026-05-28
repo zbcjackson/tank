@@ -9,10 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any
 
 import tiktoken
@@ -22,7 +20,7 @@ from ..config.parser import ConfigError
 from ..users import is_guest
 from .budget import ContextBudget, resolve_context_window
 from .compaction_store import CompactionStore
-from .compactions import CompactionRecord
+from .compactor import Compactor
 from .conversation import ConversationData
 from .resolver import CompactionMode, ResolvedConversation
 
@@ -109,6 +107,14 @@ class ContextManager:
 
         self._prompt_assembler = PromptAssembler(bus=bus, skill_provider=skill_provider)
 
+        # Compactor encapsulates the 5-phase compaction algorithm.
+        self._compactor = Compactor(
+            budget=self._budget,
+            config=self._config,
+            encoder=self._encoder,
+            compaction_store=self._compaction_store,
+        )
+
     # ------------------------------------------------------------------
     # Budget resolution
     # ------------------------------------------------------------------
@@ -172,6 +178,18 @@ class ContextManager:
                     if self._config.max_history_tokens > 0
                     else None
                 )
+                # Compactor captured the old budget at construction; rebuild
+                # so subsequent compactions use the API-detected one. The
+                # attribute may not exist yet during the first synchronous
+                # _resolve_budget call (which fires _try_api_detect before
+                # the Compactor is built); guard for that.
+                if hasattr(self, "_compactor"):
+                    self._compactor = Compactor(
+                        budget=self._budget,
+                        config=self._config,
+                        encoder=self._encoder,
+                        compaction_store=self._compaction_store,
+                    )
                 logger.info(
                     "Context budget updated via API: %d→%d, "
                     "effective_history=%d (model=%s)",
@@ -417,11 +435,17 @@ class ContextManager:
     # ------------------------------------------------------------------
 
     def _build_augmented_system_prompt(self, base: str, user: str) -> str:
-        """Append memory and preference sections to ``base``.
+        """Append USER.md, memory and preference sections to ``base``.
 
         Sections (in order, each only when non-empty):
+        - ``USER.md`` content (per-user override or default; sanitized)
         - ``KNOWN FACTS ({user})`` — flat memory pool from MemoryService
         - ``USER PREFERENCES ({user})`` — PreferenceStore output
+
+        These three are the **volatile** tier of the system prompt — they
+        change every turn (memory recall) or when the user edits USER.md.
+        Keeping them out of the assembler-cached prompt maximises
+        prompt-prefix cache hits at the LLM provider.
 
         Guests get no augmentation. The block is rebuilt on every turn
         because memory recall is per-turn — caching here would risk
@@ -430,6 +454,9 @@ class ContextManager:
         if is_guest(user):
             return base
         out = base
+        user_md = self._prompt_assembler.load_user_md()
+        if user_md:
+            out += f"\n\n{user_md}"
         if self._memory_facts:
             rendered = "\n".join(f"- {m}" for m in self._memory_facts)
             out += f"\n\nKNOWN FACTS ({user}):\n{rendered}"
@@ -651,183 +678,47 @@ class ContextManager:
                 )
 
     # ------------------------------------------------------------------
-    # Compaction — 5-phase algorithm
+    # Compaction — delegates to :class:`Compactor`
     # ------------------------------------------------------------------
 
     async def compact(self, focus: str | None = None) -> None:
         """Compact conversation if over token budget.
 
-        4-phase algorithm:
-        1. Prune oversized tool results (cheap, no LLM)
-        2. Protect tail by token budget (recent messages kept verbatim)
-        3. Summarize everything before the tail (incremental)
-        4. Sanitize tool_call/tool_result pairs
+        Delegates to :class:`Compactor`, which runs the 5-phase algorithm:
+        prune → protect tail → summarize → sanitize → truncate fallback.
+        After the compactor mutates the conversation, the manager applies
+        the returned counters and persists once.
 
-        After compaction the message list becomes:
-        ``[system_msg, summary_msg, ...tail]``
-
-        When called with an explicit ``focus`` (user-initiated compaction
-        via ``/compact <topic>``), the anti-thrashing guards are bypassed
-        and compaction always runs — the user has asked for it. The focus
-        string is forwarded to the summarizer so the resulting summary
-        biases toward information related to ``focus``.
-
-        Guaranteed safety: Phases 1+2+4 cannot fail. Phase 3 is best-effort —
-        if summarization fails, truncation keeps only the tail (Phase 2).
+        When ``focus`` is set (user-initiated ``/compact <topic>``), the
+        anti-thrashing guards are bypassed and the focus is forwarded to
+        the summarizer.
         """
         if self._compaction_mode == CompactionMode.NON_DESTRUCTIVE:
             return
 
-        forced = focus is not None
-
-        if not forced:
-            # Anti-thrashing: skip if recent compactions were ineffective
-            if self._ineffective_count >= 2:
-                logger.debug(
-                    "Compaction skipped: anti-thrashing guard (%d ineffective)",
-                    self._ineffective_count,
-                )
-                return
-
-            # Anti-thrashing: skip if too many passes in this session
-            if self._compaction_passes >= self._config.max_compaction_passes:
-                logger.debug(
-                    "Compaction skipped: max passes reached (%d)",
-                    self._compaction_passes,
-                )
-                return
-
-        budget = self._budget.effective_history_tokens
-        total = self.count_tokens()
-        if not forced and total <= budget:
-            return
-
-        self._tokens_before_last_compaction = total
-        self._compaction_passes += 1
-        self._last_compaction_at = datetime.now(timezone.utc).isoformat()
-
-        # Narrow once for the rest of compact() — pre-checks have
-        # already returned for the no-conversation cases via
-        # ``count_tokens`` failing earlier (it also requires a loaded
-        # conversation). The explicit narrow keeps the rest of this
-        # method pyright-clean.
         conv = self._require_conversation()
+        result = await self._compactor.compact(
+            conversation=conv,
+            last_user=self._last_user,
+            focus=focus,
+            compaction_passes=self._compaction_passes,
+            ineffective_count=self._ineffective_count,
+            tokens_before_last_compaction=self._tokens_before_last_compaction,
+            summarizer=self._summarizer,
+            flusher=self._flusher,
+        )
 
-        # Phase 1: Prune oversized tool results
-        self._prune_tool_results(budget)
-        total = self.count_tokens()
-        if not forced and total <= budget:
-            self._update_thrashing_state(total)
+        # Apply absolute counter values returned by the compactor.
+        self._compaction_passes = result.new_compaction_passes
+        self._ineffective_count = result.new_ineffective_count
+        self._tokens_before_last_compaction = (
+            result.new_tokens_before_last_compaction
+        )
+        if result.last_compaction_at is not None:
+            self._last_compaction_at = result.last_compaction_at
+
+        if result.persisted_changes:
             self._persist()
-            return
-
-        # Phase 2: Split into to_summarize / tail
-        system_msg = conv.messages[0]
-        rest = conv.messages[1:]
-        tail: list[dict[str, Any]]
-
-        if forced:
-            # User-triggered compaction with focus: pin the tail to the last
-            # ``keep_recent_messages`` so the summarizer always has prior
-            # turns to compress. Without this, an under-budget conversation
-            # would let the token-driven tail eat everything and leave
-            # nothing to summarize.
-            keep = max(self._config.keep_recent_messages, 1)
-            tail = rest[-keep:] if len(rest) >= keep else list(rest)
-        else:
-            tail_budget = self._budget.tail_budget
-            tail = []
-            tail_tokens = 0
-            for msg in reversed(rest):
-                msg_tokens = self.count_tokens([msg])
-                if tail and tail_tokens + msg_tokens > tail_budget * 1.5:
-                    break  # allow 1.5x overshoot to avoid splitting mid-message
-                tail.append(msg)
-                tail_tokens += msg_tokens
-                if tail_tokens >= tail_budget:
-                    break
-            tail.reverse()
-
-            # Hard minimum: always keep last 3 messages
-            if len(tail) < 3 and len(rest) >= 3:
-                tail = rest[-3:]
-
-        # Everything before tail gets summarized
-        tail_start = len(rest) - len(tail)
-        to_summarize = rest[:tail_start]
-
-        if not to_summarize:
-            # Nothing to summarize — just truncate
-            self._truncate(budget)
-            self._update_thrashing_state(self.count_tokens())
-            self._persist()
-            return
-
-        # Pre-compaction flush: try to persist durable facts before the
-        # summarizer compresses them away. Best-effort — failure is
-        # logged but does not block compaction.
-        if self._flusher is not None and self._last_user:
-            try:
-                await self._flusher.flush(
-                    user=self._last_user, messages=to_summarize,
-                )
-            except Exception:
-                logger.warning(
-                    "Pre-compaction flush failed", exc_info=True,
-                )
-
-        # Phase 3: Summarize (incremental)
-        previous_summary = self._extract_previous_summary(to_summarize)
-        if self._summarizer is not None:
-            try:
-                summary_text = await self._summarizer.summarize(
-                    to_summarize,
-                    previous_summary=previous_summary,
-                    focus=focus,
-                )
-                summary_msg: dict[str, Any] = {
-                    "role": "system",
-                    "content": f"Previous conversation summary:\n{summary_text}",
-                    "metadata": {
-                        "type": "compaction_summary",
-                        "compacted_count": len(to_summarize),
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    },
-                }
-                pre_compaction_messages = list(to_summarize)
-                conv.messages = [system_msg, summary_msg] + tail
-                # Phase 4: Sanitize tool pairs
-                self._sanitize_tool_pairs()
-                tokens_after = self.count_tokens()
-                self._record_compaction(
-                    conv=conv,
-                    focus=focus,
-                    tokens_after=tokens_after,
-                    summary_text=summary_text,
-                    pre_compaction_messages=pre_compaction_messages,
-                )
-                self._update_thrashing_state(tokens_after)
-                self._persist()
-                logger.info(
-                    "Context compacted: %d msgs → summary + tail(%d), "
-                    "%d→%d tokens",
-                    len(to_summarize),
-                    len(tail),
-                    self._tokens_before_last_compaction,
-                    tokens_after,
-                )
-                return
-            except Exception:
-                logger.warning(
-                    "Summarization failed, falling back to truncation",
-                    exc_info=True,
-                )
-
-        # Fallback: truncation (Phase 2's tail is always preserved)
-        self._truncate(budget)
-        self._sanitize_tool_pairs()
-        self._update_thrashing_state(self.count_tokens())
-        self._persist()
 
     def schedule_memory_store(
         self, user: str, user_text: str, assistant_response: str
@@ -917,164 +808,6 @@ class ContextManager:
                 total += len(self._encoder.encode(fn.get("arguments", "")))
                 total += 4  # tool call structure overhead
         return total
-
-    # ------------------------------------------------------------------
-    # Compaction helpers — 5-phase internals
-    # ------------------------------------------------------------------
-
-    def _prune_tool_results(self, budget: int) -> int:
-        """Phase 1: Prune oversized tool results in-place.
-
-        Replaces tool result messages exceeding the per-result token limit
-        with a 1-line summary. Returns number of messages pruned.
-        """
-        max_per_result = self._budget.max_tool_result_tokens
-        pruned = 0
-        seen_content: dict[str, int] = {}  # content hash → count (dedup)
-
-        for msg in self._require_conversation().messages:
-            role = msg.get("role")
-            content = msg.get("content", "")
-
-            # Deduplicate identical tool results
-            if role == "tool" and content:
-                content_hash = content[:200]  # cheap hash
-                seen_content[content_hash] = seen_content.get(content_hash, 0) + 1
-                if seen_content[content_hash] > 1:
-                    msg["content"] = "[Duplicate tool result omitted]"
-                    pruned += 1
-                    continue
-
-            # Truncate oversized tool results
-            if role == "tool" and isinstance(content, str):
-                tokens = self.count_tokens([msg])
-                if tokens > max_per_result:
-                    tool_name = msg.get("name", "tool")
-                    truncated = content[:100].replace("\n", " ")
-                    msg["content"] = (
-                        f"[{tool_name}] {truncated}..."
-                        f" (truncated, was {tokens} tokens)"
-                    )
-                    pruned += 1
-
-        if pruned:
-            logger.debug("Phase 1: pruned %d oversized/duplicate tool results", pruned)
-        return pruned
-
-    def _extract_previous_summary(self, messages: list[dict[str, Any]]) -> str | None:
-        """Find an existing compaction summary in messages for incremental update."""
-        for msg in messages:
-            metadata = msg.get("metadata", {})
-            if isinstance(metadata, dict) and metadata.get("type") == "compaction_summary":
-                content = msg.get("content", "")
-                # Strip the "Previous conversation summary:" prefix
-                if content.startswith("Previous conversation summary:\n"):
-                    return content[len("Previous conversation summary:\n"):]
-                if content.startswith("Previous conversation summary: "):
-                    return content[len("Previous conversation summary: "):]
-                return content
-        return None
-
-    def _sanitize_tool_pairs(self) -> None:
-        """Phase 5: Fix orphaned tool_call/tool_result pairs.
-
-        Ensures every tool_call ID has a matching tool result, and vice versa.
-        Removes orphaned tool results and adds cancellation notices for
-        orphaned tool calls.
-        """
-        conv = self._require_conversation()
-        messages = conv.messages
-        tool_call_ids: set[str] = set()
-        tool_result_ids: set[str] = set()
-
-        # Collect all tool call and result IDs
-        for msg in messages:
-            for tc in msg.get("tool_calls", []):
-                tc_id = tc.get("id")
-                if tc_id:
-                    tool_call_ids.add(tc_id)
-            if msg.get("role") == "tool":
-                tool_id = msg.get("tool_call_id")
-                if tool_id:
-                    tool_result_ids.add(tool_id)
-
-        # Remove tool results without matching calls
-        orphan_results = tool_result_ids - tool_call_ids
-        if orphan_results:
-            conv.messages = [
-                msg for msg in messages
-                if msg.get("role") != "tool" or msg.get("tool_call_id") not in orphan_results
-            ]
-            logger.debug("Phase 5: removed %d orphaned tool results", len(orphan_results))
-
-    def _update_thrashing_state(self, tokens_after: int) -> None:
-        """Update anti-thrashing counters based on compaction effectiveness."""
-        if self._tokens_before_last_compaction <= 0:
-            return
-        savings_ratio = 1.0 - (tokens_after / self._tokens_before_last_compaction)
-        if savings_ratio < 0.10:
-            self._ineffective_count += 1
-            logger.debug(
-                "Ineffective compaction (%.0f%% savings, count=%d)",
-                savings_ratio * 100,
-                self._ineffective_count,
-            )
-        else:
-            self._ineffective_count = 0
-
-    def _record_compaction(
-        self,
-        *,
-        conv: ConversationData,
-        focus: str | None,
-        tokens_after: int,
-        summary_text: str,
-        pre_compaction_messages: list[dict[str, Any]],
-    ) -> None:
-        """Persist a CompactionRecord. Failure is non-fatal."""
-        if self._compaction_store is None:
-            return
-        try:
-            parent = self._compaction_store.latest_for_conversation(conv.id)
-            self._compaction_store.save(CompactionRecord(
-                id=uuid.uuid4().hex,
-                conversation_id=conv.id,
-                parent_id=parent.id if parent else None,
-                created_at=datetime.now(timezone.utc),
-                focus=focus,
-                tokens_before=self._tokens_before_last_compaction,
-                tokens_after=tokens_after,
-                compacted_count=len(pre_compaction_messages),
-                summary_text=summary_text,
-                pre_compaction_messages=pre_compaction_messages,
-            ))
-        except Exception:
-            logger.warning("Failed to persist compaction lineage", exc_info=True)
-
-    def _truncate(self, budget: int) -> None:
-        """Drop oldest non-system messages to fit within token budget."""
-        conv = self._require_conversation()
-        system_msg = conv.messages[0]
-        rest = conv.messages[1:]
-
-        system_tokens = self.count_tokens([system_msg])
-        remaining_budget = budget - system_tokens
-        keep_from = len(rest)
-        running = 0
-        for i in range(len(rest) - 1, -1, -1):
-            msg_tokens = self.count_tokens([rest[i]])
-            if running + msg_tokens > remaining_budget:
-                break
-            running += msg_tokens
-            keep_from = i
-
-        old_count = len(conv.messages)
-        conv.messages = [system_msg] + rest[keep_from:]
-        logger.info(
-            "Context truncated: %d → %d messages",
-            old_count,
-            len(conv.messages),
-        )
 
     # ------------------------------------------------------------------
     # Persistence

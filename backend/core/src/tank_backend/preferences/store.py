@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from datetime import date, timedelta
 from pathlib import Path
 
+from ..prompts.sanitizer import sanitize
 from ..users import is_guest
 
 logger = logging.getLogger(__name__)
 
 _STALENESS_DAYS = 90  # Entries older than this are auto-removed
 _PINNED = "pinned"  # Source tier that escapes staleness sweep + cap
+_RENDER_CACHE_TTL_S = 60.0  # Per-user cache for render_for_user output
 
 
 def _slugify(user: str) -> str:
@@ -57,6 +60,12 @@ class PreferenceStore:
     def __init__(self, base_dir: Path, max_entries: int = 20) -> None:
         self._base_dir = base_dir
         self._max_entries = max_entries
+        # Per-user TTL cache for render_for_user(). The render path runs
+        # on every turn (it's part of the system prompt) and reads two
+        # files; mutations are infrequent.  Invalidated on add/reinforce/
+        # remove so cache misses cover the hot path. Hand-edits to
+        # preferences.md are visible after at most ``_RENDER_CACHE_TTL_S``.
+        self._render_cache: dict[str, tuple[float, str]] = {}
 
     def _resolve_user_dir(self, user: str) -> str:
         """Resolve user identifier to a directory name.
@@ -135,6 +144,7 @@ class PreferenceStore:
 
         raw_entries.append((text, source, date.today().isoformat()))
         self._save_raw_entries(user, raw_entries)
+        self._invalidate_render_cache(user)
         logger.info("Preference added for %s: %s [%s]", user, text, source)
         return True
 
@@ -151,6 +161,7 @@ class PreferenceStore:
             if substring_lower in text.lower():
                 raw_entries[i] = (text, source, date.today().isoformat())
                 self._save_raw_entries(user, raw_entries)
+                self._invalidate_render_cache(user)
                 logger.debug("Preference reinforced for %s: %s", user, text)
                 return True
         return False
@@ -165,6 +176,7 @@ class PreferenceStore:
             if substring_lower in text.lower():
                 raw_entries.pop(i)
                 self._save_raw_entries(user, raw_entries)
+                self._invalidate_render_cache(user)
                 logger.info("Preference removed for %s: %s", user, text)
                 return True
         return False
@@ -198,10 +210,34 @@ class PreferenceStore:
         1. Per-user USER.md (explicit overrides, if exists)
         2. Learned preferences.md (pinned first, then inferred/explicit)
 
+        The merged output is run through :func:`sanitize` with ``block=True``
+        because preferences.md and the per-user USER.md are user-editable
+        surfaces — an injection-style payload there should be hard-blocked
+        before it reaches the LLM rather than warned about.
+
+        Output is cached per-user for ``_RENDER_CACHE_TTL_S`` seconds.
+        Mutating methods (:meth:`add_if_new`, :meth:`reinforce`,
+        :meth:`remove`) call :meth:`_invalidate_render_cache` so writes
+        through this API are immediately visible.  Hand-edits made
+        directly to ``preferences.md`` outside the API surface for up to
+        the TTL window — acceptable for a personal voice assistant.
+
         Returns empty string for guest/unidentified users.
         """
         if is_guest(user):
             return ""
+
+        now = time.monotonic()
+        cached = self._render_cache.get(user)
+        if cached is not None and cached[0] > now:
+            return cached[1]
+
+        rendered = self._render_uncached(user)
+        self._render_cache[user] = (now + _RENDER_CACHE_TTL_S, rendered)
+        return rendered
+
+    def _render_uncached(self, user: str) -> str:
+        """Build the rendered preference block from disk (no cache)."""
         parts: list[str] = []
 
         # Per-user USER.md override
@@ -219,7 +255,14 @@ class PreferenceStore:
         if entries:
             parts.append("\n".join(f"- {e}" for e in entries))
 
-        return "\n\n".join(parts)
+        joined = "\n\n".join(parts)
+        if not joined:
+            return ""
+        return sanitize(joined, source_path=str(self._prefs_path(user)), block=True)
+
+    def _invalidate_render_cache(self, user: str) -> None:
+        """Drop the cached render output for ``user``."""
+        self._render_cache.pop(user, None)
 
     # ------------------------------------------------------------------
     # File I/O

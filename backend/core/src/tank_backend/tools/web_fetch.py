@@ -22,6 +22,23 @@ _USER_AGENT = (
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$", re.MULTILINE)
 
 
+def _fence_untrusted(text: str, source: str) -> str:
+    """Wrap externally-fetched text in untrusted-content tags.
+
+    External web content can contain prompt-injection payloads aimed at the
+    LLM that will read the tool result.  Fencing tells instruction-tuned
+    models to treat the wrapped block as data, not instructions.  Empty
+    inputs are returned unchanged so callers don't get tags around nothing.
+    """
+    if not text:
+        return text
+    return (
+        f'<untrusted-data source="{source}">\n'
+        f"{text}\n"
+        f"</untrusted-data>"
+    )
+
+
 @dataclass
 class CacheEntry:
     content: str
@@ -281,7 +298,10 @@ class WebFetchTool(BaseTool):
                             "title": feed_title,
                             "description": feed_data["feed_description"],
                             "entries": feed_data["entries"],
-                            "text_content": self._truncate(markdown_text),
+                            "text_content": _fence_untrusted(
+                                self._truncate(markdown_text),
+                                f"web_fetch:{url}",
+                            ),
                             "status": "success",
                         },
                         ensure_ascii=False,
@@ -416,7 +436,9 @@ class WebFetchTool(BaseTool):
             "og:description", ""
         )
 
-        text_content = self._truncate(markdown_text)
+        text_content = _fence_untrusted(
+            self._truncate(markdown_text), f"web_fetch:{url}",
+        )
 
         response_dict = {
             "url": result.redirected_url or url,
@@ -472,7 +494,10 @@ class WebFetchTool(BaseTool):
                         "url": url,
                         "content_type": "application/pdf",
                         "title": metadata.get("title", ""),
-                        "text_content": self._truncate(markdown_text),
+                        "text_content": _fence_untrusted(
+                            self._truncate(markdown_text),
+                            f"web_fetch:{url}",
+                        ),
                         "status": "success",
                     },
                     ensure_ascii=False,
@@ -507,7 +532,9 @@ class WebFetchTool(BaseTool):
                         "url": url,
                         "content_type": "application/json",
                         "data": data,  # Full structured data for LLM
-                        "text_content": self._truncate(pretty),
+                        "text_content": _fence_untrusted(
+                            self._truncate(pretty), f"web_fetch:{url}",
+                        ),
                         "status": "success",
                     },
                     ensure_ascii=False,
@@ -549,7 +576,9 @@ class WebFetchTool(BaseTool):
                 {
                     "url": url,
                     "content_type": "text/plain",
-                    "text_content": self._truncate(text),
+                    "text_content": _fence_untrusted(
+                        self._truncate(text), f"web_fetch:{url}",
+                    ),
                     "status": "success",
                 },
                 ensure_ascii=False,

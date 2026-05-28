@@ -3,7 +3,7 @@
 A comparison of Tank against four reference agentic harnesses (Claude Code, OpenClaw, Hermes Agent, OpenCode) across five context/memory patterns, and a prioritized backlog of improvements and new features.
 
 > **Created:** 2026-05-23
-> **Last updated:** 2026-05-26 — Phase B shipped (IMP-7, IMP-6, IMP-1, IMP-8); IMP-4 dropped (see §0).
+> **Last updated:** 2026-05-28 — Phase C shipped (IMP-12, IMP-11, IMP-5, IMP-14); IMP-10/13/15 dropped, IMP-16 already shipped pre-doc.
 > **Scope:** `backend/core/src/tank_backend/` — `context/`, `memory/`, `preferences/`, `prompts/`, `agents/`, `llm/`
 > **Reference repos:** `~/src/3rd/{claude-code, openclaw, hermes-agent, opencode}`
 
@@ -90,6 +90,98 @@ Phase B shipped IMP-7, IMP-6, IMP-1, and IMP-8 in that order (lineage first as a
 - New `HybridSearch` orchestrator runs vector (mem0) and keyword (FTS5) in parallel, dedupes by whitespace-normalised lower-cased text, fuses with reciprocal rank fusion (k=60). Cross-strategy hits earn the sum of both RRF scores so dual hits outrank single-strategy hits.
 - `MemoryService.recall()` automatically routes through `HybridSearch` when both stores are wired — drop-in upgrade for callers that already pass through `recall()`. Falls back to vector-only when the messages store is absent.
 - **Trigram caveat:** FTS5 trigram requires queries of ≥3 characters. Two-char Chinese keywords like "明天" alone won't match — most natural queries already satisfy this (e.g. "明天的", "会议室", filenames, identifiers).
+
+---
+
+## 0c. Phase C — Pre-Implementation Survey (2026-05-27)
+
+Re-verified Phase A/B against the codebase: every shipped claim (IMP-1, IMP-2, IMP-3, IMP-6, IMP-7, IMP-8, IMP-9) still matches the deviations in §0/§0b. One footnote worth flagging:
+
+- `backend/core/config.yaml` ships `consolidation.enabled: true`, even though `ConsolidationConfig` defaults to `False`. The doc claim "off by default" is true for code defaults but not for the example config. Either flip the example or update the doc — preference is to leave the config as-is since the example reflects a tuned production install.
+
+Phase C surveys (against `prompts/`, `pipeline/processors/asr_speaker_merger.py`, `plugin/`) turned up three spec adjustments worth recording before implementation:
+
+### IMP-11 (Injection scanner) — narrower than spec
+
+`prompts/sanitizer.py` already exists. It strips invisible Unicode, HTML comments, YAML frontmatter, hard-truncates at 20 KB, and **already runs six injection-pattern regexes** (`_INJECTION_PATTERNS`, lines 44-51) that match "ignore previous instructions", `<|im_start|>`, `[INST]`, etc. Today it *logs a warning on match* but does **not block**. IMP-11's scope therefore shrinks to: (a) expose a public `scan_for_injection(text) -> list[Threat]`, (b) give the assembler a block path that swaps content for `[BLOCKED]` when a threat is found, (c) make this opt-in via `prompts.injection_scanner` so existing logging behaviour stays the default.
+
+### IMP-13 (Plugin compaction hooks) — use the Bus, not `plugin/`
+
+`plugin/` is slot/registry-only (ASR/TTS/SPEAKER discovery + validation). It has no hook surface, and extending it would invent a parallel subscription mechanism that duplicates the Bus. Cleanest seam: `compact()` and `prepare_turn` post `BusMessage(type="experimental.session.compacting"|"experimental.chat.messages.transform", ...)` at hook points. Plugin authors subscribe via existing Bus. Update IMP-13's "Where" accordingly.
+
+### IMP-14 (Speaker-card memory) — emitter doesn't exist yet
+
+The doc reads "ASRSpeakerMerger emits Bus event `speaker_resolved`". Today the merger only posts `fan_in_merged` + `ui_message`. Emitting `speaker_resolved` is **part of** IMP-14, not a precondition. No spec change needed — just calling it out so the implementation order is unambiguous (add emitter first, then card store + subscriber, then `prepare_turn` consumer).
+
+### Phase C scope decision
+
+The doc itself flags IMP-12 (Pluggable ContextEngine) and IMP-16 (Sub-agent coordinator) as "defer unless concrete use case arrives", and IMP-15 (remote URLs) as low-priority for a personal voice assistant. IMP-13 is speculative without a consumer plugin in-tree. **Recommended Phase C scope: IMP-5, IMP-14, IMP-10, IMP-11.** Defer IMP-12, IMP-13, IMP-15, IMP-16 until a concrete consumer surfaces.
+
+---
+
+## 0d. Phase C — Implementation Notes (2026-05-28)
+
+Phase C shipped **IMP-12, IMP-11, IMP-5, IMP-14** in that order (refactor first, then security, then caching shape, then the latency win).  Two scope changes vs §0c happened during user review:
+
+- **IMP-10 (`@imports`) and IMP-15 (remote URLs) — dropped.** Tank is a long-running service heading toward database-backed instructions per user/tenant. File-based imports stop being useful once the source of truth moves out of the filesystem.  Both are out-of-scope and removed from the roadmap.
+- **IMP-12 — re-scoped from "Pluggable ContextEngine" to "Extract Compactor".** The original spec proposed an interface so a second engine could be swapped in. With no second engine on the horizon, the value is in clarity: 1180-line `ContextManager` mixed assembly, compaction, recall, persistence, and turn tracking.  The shipped change extracts compaction into its own module — same outcome (separation of concerns) without the speculative interface.
+- **IMP-13 (Plugin hooks during compaction) — dropped.** No plugin in-tree consumes the proposed hooks; the Bus already gives plugin authors an extension point if one materialises later.
+- **IMP-14 — re-scoped from "Speaker-card memory" to "Preference render TTL cache".** Memory is already per-user (verified during the survey).  The latency win the spec was after — making known facts available without an extra query — collapses to a TTL cache on the per-turn `render_for_user()` hot path.  No bus subscription, no new module.
+- **IMP-16 — already shipped pre-doc.** `agents/runner.py` provides isolated sub-agent execution with depth limits, tool exclusion, and isolated state.  Skills in fork mode already use it.  Marked done.
+
+### IMP-12 (Compactor extraction) — landed as specified
+
+- New module `context/compactor.py` with `Compactor` and `CompactionResult` (a frozen dataclass).
+- Moved `_prune_tool_results`, `_extract_previous_summary`, `_sanitize_tool_pairs`, `_update_thrashing_state`, `_record_compaction`, `_truncate` plus the 5-phase `compact()` body into the new class.
+- `Compactor` is **stateless** between calls.  Anti-thrashing counters live on `ContextManager` and are passed in/out via `CompactionResult`, so existing read paths (`usage_snapshot`) need no changes.
+- `summarizer` and `flusher` are now passed *per call*, not at construction — lets `ContextManager` swap them at runtime (notably in tests) without rebuilding the compactor.
+- `Summarizer` Protocol in `context/conversation.py` widened to declare `previous_summary` and `focus` kwargs (the implementation already accepted them; pyright now agrees).
+- `ContextManager.compact()` shrinks from ~175 lines to ~40: bail on `NON_DESTRUCTIVE`, delegate, apply result, persist once.
+- 13 new unit tests in `tests/test_compactor.py`; the pre-existing `TestCompaction.*` suite passes unchanged.
+
+### IMP-11 (Injection scanning + web_fetch fencing) — narrower than original spec
+
+- `prompts/sanitizer.py`:
+  - Pattern list grew from 6 to 13 (new categories: `deception`, `restriction_bypass`, `exfiltration`, `translate_execute`, `fake_role_markers`, `exfil_curl`, `secret_file_read`).
+  - Invisible-character set extended with the U+E0000–U+E007F Tag block (modern ASCII smuggling).
+  - New `Threat` dataclass and `scan_for_injection(text, source) -> list[Threat]`.
+  - New `block: bool = False` keyword on `sanitize()`.  When `True` and any pattern matches, content is replaced with `[BLOCKED: injection detected in {source} ({pattern_name})]`.  Default stays warn-only.
+- `prompts/assembler.py`: `_load_user_or_default`, `_build_workspace_section`, `get_workspace_rules_for` pass `block=True`.  Defaults still run with the warn-only path.
+- `preferences/store.py`: `render_for_user()` runs its concatenated output through `sanitize(..., block=True)` before returning.
+- `tools/web_fetch.py`: new `_fence_untrusted(text, source)` helper wraps every handler's LLM-visible `text_content` in `<untrusted-data source="web_fetch:{url}">…</untrusted-data>`.  Cache stores fenced output once; cache hits return as-is (no double-wrap).  Structured fields (`title`, `headings`, `links`, `data`, `entries`) stay unwrapped.
+- 38 sanitizer tests, 5 assembler block-mode tests, 4 preference-blocking tests, 5 web_fetch fencing tests.
+
+### IMP-5 (Three-tier cacheable prompt) — landed as specified
+
+- New `TieredPrompt` frozen dataclass exposed from `prompts/__init__.py` with `stable`, `context`, `volatile` fields and a `joined(sep=...)` helper.
+- `PromptAssembler.assemble_tiered() -> TieredPrompt`:
+  - **stable**: BASE + IDENTITY (SOUL.md) + GLOBAL RULES (~/.tank/AGENTS.md) + SKILLS catalog.
+  - **context**: WORKSPACE RULES + SCOPE.
+  - **volatile**: empty from the assembler — `ContextManager` fills this per turn.
+- `assemble()` is now `assemble_tiered().joined()` — backward compatible for sub-agent prompt building (`AgentRunner.run_agent`).
+- New `PromptAssembler.load_user_md()` exposes the sanitised USER.md content for the volatile tier.  `ContextManager._build_augmented_system_prompt` now appends USER.md → KNOWN FACTS → USER PREFERENCES (each only when non-empty, guests skipped).
+- Provider-agnostic shape — no `cache_control` / vendor-specific breakpoints in this drop. The dataclass return type is the seam if/when the LLM client wants to emit them.
+- USER.md migrated from "section 3" to volatile.  Persisted `messages[0]["content"]` is still a single string; the tier separation is a runtime artifact.
+- 10 new tests; existing assembler tests adjusted for USER.md's new home.
+
+### IMP-14 (Preference render TTL cache) — re-scoped from "Speaker cards"
+
+- `PreferenceStore.render_for_user(user)` now caches its output per-user for 60 seconds.
+- Internal `_render_uncached(user)` does the actual file I/O + sanitize so the cache wraps a single helper.
+- `add_if_new`, `reinforce`, `remove` call `_invalidate_render_cache(user)` after persisting so writes through the API are immediately visible.
+- Hand-edits made directly to `~/.tank/users/{slug}/preferences.md` outside the API surface for up to the TTL window — acceptable for a personal voice assistant.
+- Caches `render_for_user` only.  `list_for_user` and `list_pinned` stay uncached so `gather_memory_snapshot()` (introspection) and `PreferenceLearner` always see fresh data.
+- 7 new tests cover cache hit, invalidation on each mutation path, per-user keying, TTL expiry, and guest bypass.
+
+### Verification
+
+All four landed with the project's full verification checklist:
+
+- `cd backend/core && uv run ruff check src/ tests/` — clean
+- `cd backend/core && uv run ruff format --check src/ tests/` — clean
+- `cd backend && uv run pyright <changed files>` — 0 errors, 0 warnings on the files touched (no `# type: ignore`, no `Any`)
+- `cd backend/core && uv run pytest` — 2810 passed, 1 skipped
+- Tank dev-server tail clean (no backend errors / tracebacks)
 
 ---
 
@@ -555,13 +647,15 @@ A suggested 3-phase execution order. Each phase is independently shippable; subs
 - ✅ **IMP-1** Dream consolidation pipeline — 3-phase, 6-factor scoring, daily cron, REST + tool, off by default
 - ✅ **IMP-8** Hybrid memory recall — denormalised `conversation_messages` + FTS5 trigram, RRF fusion in `HybridSearch`
 
-### Phase C — Polish, performance, extensibility (P1/P2) | ~3-4 weeks
-- **IMP-5** Three-tier cacheable prompt — cost/latency win
-- **IMP-14** Speaker-card memory — leverages existing speaker ID
-- **IMP-10** `@imports`, **IMP-11** injection scanner, **IMP-15** remote URLs — small, ship together
-- **IMP-13** Plugin compaction hooks
-- **IMP-12** Pluggable ContextEngine (only if a second engine is on the horizon)
-- **IMP-16** Sub-agent coordinator (defer unless a concrete use case arrives)
+### Phase C — Polish, performance, extensibility (P1/P2) | ✅ SHIPPED (2026-05-28)
+- ✅ **IMP-12** Extract `Compactor` from `ContextManager` (re-scoped from "Pluggable ContextEngine" — see §0d)
+- ✅ **IMP-11** Injection scanning (13 patterns + Tag-block invisibles) + `<untrusted-data>` fencing for `web_fetch` output (see §0d)
+- ✅ **IMP-5** Three-tier cacheable prompt (`TieredPrompt` dataclass, USER.md migrated to volatile tier)
+- ✅ **IMP-14** Preference render TTL cache (re-scoped from "Speaker-card memory" — memory was already per-user; the latency win lives in caching `render_for_user` — see §0d)
+- ❌ **IMP-10** `@imports` — **dropped** (instruction files heading to DB)
+- ❌ **IMP-13** Plugin compaction hooks — **dropped** (no consumer in-tree; Bus is the seam if one appears)
+- ❌ **IMP-15** Remote URL imports — **dropped** (instruction files heading to DB)
+- ✅ **IMP-16** Sub-agent coordinator — **already shipped pre-doc** (`agents/runner.py`)
 
 ---
 
@@ -581,6 +675,7 @@ preferences:
   staleness_days: 90       # existing — does not apply to pinned
   max_entries: 20          # existing — does not apply to pinned
   # IMP-2 pinned_soft_cap_kb deferred until IMP-1 can consolidate oversized pinned sets.
+  # IMP-14 render_cache_ttl_s shipped as a module constant (no config knob).
 consolidation:             # IMP-1
   enabled: true
   min_idle_minutes: 30
@@ -595,15 +690,15 @@ consolidation:             # IMP-1
       consolidation: 0.10
       conceptual: 0.06
 context:
-  cache_tiers: true        # IMP-5
   compaction:
     focus_supported: true  # IMP-3 (shipped)
     pre_flush: true        # IMP-6
     keep_lineage: true     # IMP-7
-prompts:
-  imports_enabled: true    # IMP-10
-  injection_scanner: true  # IMP-11
-  allow_remote: false      # IMP-15 (opt-in)
+# IMP-5 cache_tiers shipped without a config knob — TieredPrompt is the
+# return type; callers opt in by reading the tiers.
+# IMP-10 (@imports), IMP-13 (plugin hooks), IMP-15 (remote URLs) dropped.
+# IMP-11 injection blocking is always-on for user-editable surfaces; no
+# opt-in needed (the warn-only path remains the default for shipped defaults).
 ```
 
 ### What we are NOT doing (and why)

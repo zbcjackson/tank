@@ -207,8 +207,11 @@ async def test_content_truncation(tool):
         result = await tool.execute(url="https://example.com")
 
     data = json.loads(result.content)
-    assert data["text_content"].endswith("... [Content truncated]")
-    assert len(data["text_content"]) <= tool.max_content_length + 30
+    # text_content is wrapped in untrusted-data fencing; truncation marker
+    # appears inside the wrapper.
+    assert "... [Content truncated]" in data["text_content"]
+    assert data["text_content"].startswith("<untrusted-data ")
+    assert data["text_content"].endswith("</untrusted-data>")
 
 
 # --- Headings extraction ---

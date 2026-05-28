@@ -176,7 +176,9 @@ async def test_handle_text_with_prefetched_content(tool):
     assert result.error is False
     data = json.loads(result.content)
     assert data["content_type"] == "text/plain"
-    assert data["text_content"] == "Hello, this is plain text content."
+    # text_content is wrapped in untrusted-data fencing
+    assert "Hello, this is plain text content." in data["text_content"]
+    assert data["text_content"].startswith("<untrusted-data ")
     assert data["status"] == "success"
     assert "Fetched text" in result.display
 
@@ -186,7 +188,9 @@ async def test_handle_text_truncation(tool):
     result = await tool._handle_text("https://example.com/big.txt", content)
 
     data = json.loads(result.content)
-    assert data["text_content"].endswith("... [Content truncated]")
+    # Truncation marker appears inside the fencing wrapper
+    assert "... [Content truncated]" in data["text_content"]
+    assert data["text_content"].endswith("</untrusted-data>")
 
 
 async def test_handle_text_utf8_errors(tool):
@@ -257,7 +261,9 @@ async def test_route_plain_text(tool):
     assert result.error is False
     data = json.loads(result.content)
     assert data["content_type"] == "text/plain"
-    assert data["text_content"] == "Just some plain text."
+    # text_content is wrapped in untrusted-data fencing.
+    assert "Just some plain text." in data["text_content"]
+    assert data["text_content"].startswith("<untrusted-data ")
 
 
 async def test_route_csv(tool):
@@ -391,7 +397,9 @@ async def test_cache_miss_after_different_url(tool):
         result = await tool.execute(url="https://example.com/b")
 
     data = json.loads(result.content)
-    assert data["text_content"] == "second"
+    # Different URLs → different cache entries → second body, not first.
+    assert "second" in data["text_content"]
+    assert "first" not in data["text_content"]
 
 
 async def test_error_results_not_cached(tool):

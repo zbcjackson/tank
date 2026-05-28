@@ -1,16 +1,32 @@
 """PromptAssembler — compiles the final system prompt from multiple sources.
 
-Assembly order:
+Assembly order (joined with ``SECTION_SEPARATOR`` into the final prompt):
+
 1. [BASE]             Security boundaries + platform context (always from defaults)
 2. [IDENTITY]         SOUL.md  (user's ~/.tank/SOUL.md or default)
-3. [USER PREFERENCES] USER.md  (user's ~/.tank/USER.md or default)
-4. [GLOBAL RULES]     AGENTS.md (user's ~/.tank/AGENTS.md or default)
+3. [GLOBAL RULES]     AGENTS.md (user's ~/.tank/AGENTS.md or default)
+4. [SKILLS]           Available skill catalog from SkillManager
 5. [WORKSPACE RULES]  Discovered AGENTS.md chain (root → leaf)
 6. [SCOPE]            Auto-generated active-paths / scope-change notes
-7. [SKILLS]           Available skill catalog from SkillManager
+7. [VOLATILE]         USER.md + memory facts + per-user preferences
+                       (filled in by :class:`ContextManager` per turn)
 
-Priority: more-specific (deeper) workspace rules take precedence over general
-ones.  base.md security boundaries are non-negotiable and cannot be overridden.
+Tiering for prompt-prefix caching:
+
+* **stable**   — sections 1–4. Change only when a default file, SOUL.md,
+  global AGENTS.md, or the skill catalog is edited.
+* **context**  — sections 5–6. Change when the active workspace shifts
+  (a new ``AGENTS.md`` is discovered or an old one falls out of scope).
+* **volatile** — section 7. Rebuilt every turn from per-user data
+  (memory recall, preferences, USER.md).
+
+Callers that want one concatenated string still call :meth:`assemble`;
+callers that want the tiers exposed (for cache breakpoints, debugging,
+or per-tier rebuild logic) call :meth:`assemble_tiered`.
+
+Priority: more-specific (deeper) workspace rules take precedence over
+general ones.  base.md security boundaries are non-negotiable and
+cannot be overridden.
 """
 
 from __future__ import annotations
@@ -43,6 +59,33 @@ class PromptScope:
 
 
 @dataclass(frozen=True)
+class TieredPrompt:
+    """Three-tier breakdown of the system prompt for caching purposes.
+
+    Each tier is a prebuilt string (or empty when no content applies).
+    :meth:`joined` reassembles the full prompt using ``SECTION_SEPARATOR``.
+
+    Attributes:
+        stable: BASE + IDENTITY + GLOBAL RULES + SKILLS.  Changes rarely;
+            ideal for prompt-prefix caching.
+        context: WORKSPACE RULES + SCOPE.  Changes when the active
+            workspace shifts.
+        volatile: USER.md + memory facts + USER PREFERENCES.  Rebuilt
+            every turn by :class:`ContextManager`.  The assembler leaves
+            this empty by default — it has no per-user state.
+    """
+
+    stable: str
+    context: str
+    volatile: str = ""
+
+    def joined(self, sep: str = SECTION_SEPARATOR) -> str:
+        """Concatenate the non-empty tiers with ``sep``."""
+        parts = [p for p in (self.stable, self.context, self.volatile) if p]
+        return sep.join(parts)
+
+
+@dataclass(frozen=True)
 class AssemblerConfig:
     """Configuration for the PromptAssembler."""
 
@@ -60,9 +103,10 @@ class AssemblerConfig:
 class PromptAssembler:
     """Assembles the system prompt from multiple source files.
 
-    Create one instance per session.  Call :meth:`assemble` to get the
-    current system prompt.  The assembler subscribes to the Bus internally
-    (via :class:`AgentsFileResolver`) so workspace ``AGENTS.md`` files are
+    Create one instance per session.  Call :meth:`assemble` for a single
+    string or :meth:`assemble_tiered` for the stable/context/volatile
+    breakdown.  The assembler subscribes to the Bus internally (via
+    :class:`AgentsFileResolver`) so workspace ``AGENTS.md`` files are
     discovered lazily when tools access paths.
     """
 
@@ -94,33 +138,47 @@ class PromptAssembler:
         return self._needs_rebuild or self._resolver.has_new_discovery
 
     def assemble(self) -> str:
-        """Assemble the full system prompt from all sources."""
-        sections: list[str] = []
+        """Assemble the full system prompt as a single string.
 
-        # 1. BASE — always from defaults, never user-overridden
+        Equivalent to ``self.assemble_tiered().joined()``.  Kept for
+        callers that don't need the tier breakdown (e.g. sub-agent
+        prompt building in :class:`AgentRunner`).
+        """
+        return self.assemble_tiered().joined()
+
+    def assemble_tiered(self) -> TieredPrompt:
+        """Assemble the prompt and return it split into stable/context/volatile.
+
+        ``volatile`` is always empty here — :class:`ContextManager` fills
+        it per-turn with USER.md, recalled facts, and preferences.
+        """
+        stable_parts: list[str] = []
+
+        # 1. BASE — always from defaults, never user-overridden.
         base = self._load_default("base.md")
         if base:
-            sections.append(self._fill_platform_context(base))
+            stable_parts.append(self._fill_platform_context(base))
 
         # 2. IDENTITY — SOUL.md
         soul = self._load_user_or_default("SOUL.md")
         if soul:
-            sections.append(soul)
+            stable_parts.append(soul)
 
-        # 3. USER PREFERENCES — USER.md
-        user = self._load_user_or_default("USER.md")
-        if user:
-            sections.append(user)
-
-        # 4. GLOBAL RULES — AGENTS.md
+        # 3. GLOBAL RULES — AGENTS.md (USER.md moved to volatile tier).
         global_agents = self._load_user_or_default("AGENTS.md")
         if global_agents:
-            sections.append(global_agents)
+            stable_parts.append(global_agents)
+
+        # 4. SKILLS — available skill catalog
+        skills_section = self._build_skills_section()
+        if skills_section:
+            stable_parts.append(skills_section)
 
         # 5. WORKSPACE RULES — discovered AGENTS.md chain
+        context_parts: list[str] = []
         workspace_section = self._build_workspace_section()
         if workspace_section:
-            sections.append(workspace_section)
+            context_parts.append(workspace_section)
 
         # 6. SCOPE — active paths and change notes
         current_scope = PromptScope(
@@ -128,25 +186,35 @@ class PromptAssembler:
         )
         scope_section = self._build_scope_section(current_scope)
         if scope_section:
-            sections.append(scope_section)
-
-        # 7. SKILLS — available skill catalog
-        skills_section = self._build_skills_section()
-        if skills_section:
-            sections.append(skills_section)
+            context_parts.append(scope_section)
 
         self._previous_scope = current_scope
         self._resolver.reset_discovery_flag()
         self._needs_rebuild = False
-        self._cached_prompt = SECTION_SEPARATOR.join(sections)
+
+        tiered = TieredPrompt(
+            stable=SECTION_SEPARATOR.join(stable_parts),
+            context=SECTION_SEPARATOR.join(context_parts),
+        )
+        self._cached_prompt = tiered.joined()
 
         logger.info(
-            "System prompt assembled (%d chars, %d sections, workspace_agents=%s)",
-            len(self._cached_prompt),
-            len(sections),
+            "System prompt assembled "
+            "(stable=%d chars, context=%d chars, workspace_agents=%s)",
+            len(tiered.stable),
+            len(tiered.context),
             list(current_scope.workspace_agents) or "none",
         )
-        return self._cached_prompt
+        return tiered
+
+    def load_user_md(self) -> str:
+        """Return the sanitized USER.md content for the volatile tier.
+
+        Goes through the same user-or-default chain + block-mode sanitize
+        used during full assembly.  Returns an empty string when no
+        USER.md exists in either location.
+        """
+        return self._load_user_or_default("USER.md") or ""
 
     def mark_dirty(self) -> None:
         """Force a rebuild on the next :meth:`assemble` call."""
@@ -184,7 +252,7 @@ class PromptAssembler:
             content = self._cache.read(agents_path)
             if content is None:
                 continue
-            sanitized = sanitize(content, source_path=agents_path)
+            sanitized = sanitize(content, source_path=agents_path, block=True)
             if sanitized:
                 parts.append(f"[From {agents_path}]\n{sanitized}")
 
@@ -203,12 +271,16 @@ class PromptAssembler:
         return None
 
     def _load_user_or_default(self, filename: str) -> str | None:
-        """Load from ``~/.tank/`` if it exists, otherwise from defaults."""
+        """Load from ``~/.tank/`` if it exists, otherwise from defaults.
+
+        User-editable content is hard-blocked when an injection pattern
+        matches; defaults run with the warn-only path.
+        """
         user_path = Path(self._config.user_dir) / filename
         content = self._cache.read(user_path)
         if content is not None:
             logger.debug("Loaded user file: %s", user_path)
-            return sanitize(content, source_path=str(user_path))
+            return sanitize(content, source_path=str(user_path), block=True)
 
         defaults_path = Path(self._config.defaults_dir) / filename
         content = self._cache.read(defaults_path)
@@ -239,7 +311,7 @@ class PromptAssembler:
             content = self._cache.read(agents_path)
             if content is None:
                 continue
-            sanitized = sanitize(content, source_path=agents_path)
+            sanitized = sanitize(content, source_path=agents_path, block=True)
             if sanitized:
                 parts.append(f"[From {agents_path}]\n{sanitized}")
 

@@ -79,4 +79,9 @@ class ConversationSummary:
 class Summarizer(Protocol):
     """Protocol for conversation summarization."""
 
-    async def summarize(self, messages: list[dict[str, Any]]) -> str: ...
+    async def summarize(
+        self,
+        messages: list[dict[str, Any]],
+        previous_summary: str | None = None,
+        focus: str | None = None,
+    ) -> str: ...
