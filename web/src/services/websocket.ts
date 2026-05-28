@@ -52,6 +52,8 @@ export interface WebsocketMessage {
 export class VoiceAssistantClient {
   private socket: WebSocket | null = null;
   private url: string;
+  private readonly isTauri: boolean;
+  private tauriUnlisteners: (() => void)[] = [];
 
   // Reconnection state
   private connectionState: ConnectionState = 'idle';
@@ -77,6 +79,7 @@ export class VoiceAssistantClient {
   private heartbeatTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(sessionId: string, baseUrl: string = window.location.host) {
+    this.isTauri = '__TAURI_INTERNALS__' in window;
     if (baseUrl.includes('://')) {
       this.url = `${baseUrl}/ws/${sessionId}`;
     } else {
@@ -100,6 +103,83 @@ export class VoiceAssistantClient {
   }
 
   private attemptConnect() {
+    if (this.isTauri) {
+      this.attemptConnectTauri();
+    } else {
+      this.attemptConnectBrowser();
+    }
+  }
+
+  private async attemptConnectTauri() {
+    if (this.reconnectAttempts === 0) {
+      this.updateConnectionState('connecting');
+    }
+    this.startConnectionTimeout();
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const { listen } = await import('@tauri-apps/api/event');
+
+      // Clean up previous listeners
+      this.tauriUnlisteners.forEach((fn) => fn());
+      this.tauriUnlisteners = [];
+
+      const unOpen = await listen<void>('ws-open', () => {
+        console.log('Tauri WebSocket connected');
+        this.clearConnectionTimeout();
+        this.reconnectAttempts = 0;
+        this.lastError = null;
+        this.updateConnectionState('connected');
+        this.startHeartbeat();
+        this.onOpenCallback?.();
+      });
+
+      const unMessage = await listen<string>('ws-message', (event) => {
+        const msg: WebsocketMessage = JSON.parse(event.payload);
+        if (msg.type === 'signal' && msg.content === 'pong') {
+          this.handlePong(msg);
+          return;
+        }
+        this.onMessageCallback?.(msg);
+      });
+
+      const unBinary = await listen<number[]>('ws-binary', (event) => {
+        const arr = new Uint8Array(event.payload);
+        this.onBinaryMessageCallback?.(arr.buffer);
+      });
+
+      const unClose = await listen<{ code: number; reason: string }>('ws-close', (event) => {
+        console.log('Tauri WebSocket closed', event.payload.code, event.payload.reason);
+        this.clearConnectionTimeout();
+        this.stopHeartbeat();
+        this.tauriUnlisteners.forEach((fn) => fn());
+        this.tauriUnlisteners = [];
+        const errorInfo = this.lastError || this.detectErrorType({ code: event.payload.code, reason: event.payload.reason } as CloseEvent);
+        this.lastError = errorInfo;
+        if (this.shouldReconnect && this.connectionState !== 'failed') {
+          this.scheduleReconnect(errorInfo);
+        }
+      });
+
+      const unError = await listen<string>('ws-error', (event) => {
+        console.error('Tauri WebSocket error:', event.payload);
+        this.lastError = { type: 'network', message: event.payload };
+      });
+
+      this.tauriUnlisteners = [unOpen, unMessage, unBinary, unClose, unError];
+
+      await invoke('ws_connect', { url: this.url });
+    } catch (err) {
+      console.error('[httpClient] Tauri ws_connect failed:', err);
+      this.clearConnectionTimeout();
+      this.lastError = { type: 'network', message: String(err) };
+      if (this.shouldReconnect && this.connectionState !== 'failed') {
+        this.scheduleReconnect(this.lastError);
+      }
+    }
+  }
+
+  private attemptConnectBrowser() {
     if (
       this.socket?.readyState === WebSocket.OPEN ||
       this.socket?.readyState === WebSocket.CONNECTING
@@ -172,12 +252,26 @@ export class VoiceAssistantClient {
   }
 
   sendAudio(data: Int16Array) {
+    if (this.isTauri) {
+      this.sendAudioTauri(data);
+      return;
+    }
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(data.buffer);
     }
   }
 
+  private sendAudioTauri(data: Int16Array) {
+    import('@tauri-apps/api/core').then(({ invoke }) => {
+      invoke('ws_send_binary', { data: Array.from(new Uint8Array(data.buffer)) });
+    }).catch(console.error);
+  }
+
   sendMessage(type: MessageType, content: string, metadata: Record<string, unknown> = {}) {
+    if (this.isTauri) {
+      this.sendMessageTauri(type, content, metadata);
+      return;
+    }
     if (this.socket?.readyState === WebSocket.OPEN) {
       const msg: Partial<WebsocketMessage> = {
         type,
@@ -188,7 +282,18 @@ export class VoiceAssistantClient {
     }
   }
 
+  private sendMessageTauri(type: MessageType, content: string, metadata: Record<string, unknown> = {}) {
+    import('@tauri-apps/api/core').then(({ invoke }) => {
+      const msg: Partial<WebsocketMessage> = { type, content, metadata };
+      invoke('ws_send_text', { message: JSON.stringify(msg) });
+    }).catch(console.error);
+  }
+
   sendInterrupt() {
+    if (this.isTauri) {
+      this.sendMessageTauri('signal', 'interrupt', {});
+      return;
+    }
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify({ type: 'signal', content: 'interrupt', metadata: {} }));
     }
@@ -373,6 +478,10 @@ export class VoiceAssistantClient {
     this.shouldReconnect = true;
     this.lastError = null; // Clear last error on manual reconnect
 
+    // Clean up Tauri listeners
+    this.tauriUnlisteners.forEach((fn) => fn());
+    this.tauriUnlisteners = [];
+
     // Clear all timers
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -394,6 +503,19 @@ export class VoiceAssistantClient {
 
   disconnect() {
     this.shouldReconnect = false; // Prevent auto-reconnect
+
+    // Clean up Tauri listeners
+    this.tauriUnlisteners.forEach((fn) => fn());
+    this.tauriUnlisteners = [];
+
+    if (this.isTauri) {
+      import('@tauri-apps/api/core')
+        .then(({ invoke }) => invoke('ws_disconnect'))
+        .catch(() => {});
+      this.clearConnectionTimeout();
+      this.stopHeartbeat();
+      return;
+    }
 
     // Clear all timers
     if (this.reconnectTimer) {

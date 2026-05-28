@@ -10,11 +10,15 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2.11", features = ["devtools"] }
-tauri-plugin-http = "2"
+tauri-plugin-http = { version = "2", features = ["dangerous-settings"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sys-voice = "0.2"
 nnnoiseless = "0.5"
 tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
+tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
+tungstenite = "0.26"
+native-tls = "0.2"
+futures-util = "0.3"
 rubato = { version = "0.16", features = ["fft_resampler"] }
 log = "0.4"

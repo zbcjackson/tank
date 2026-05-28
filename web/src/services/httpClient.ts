@@ -6,36 +6,32 @@
  * This is the single place where that routing decision lives.
  */
 
-type FetchFn = typeof window.fetch;
+let pluginFetch: ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response>) | null = null;
 
-let cached: FetchFn | null = null;
-
-async function load(): Promise<FetchFn> {
-  if (cached) return cached;
+async function load(): Promise<typeof window.fetch> {
+  if (pluginFetch) return pluginFetch;
   if ('__TAURI_INTERNALS__' in window) {
     try {
       const mod = await import('@tauri-apps/plugin-http');
-      const pluginFetch = mod.fetch;
-      if (typeof pluginFetch !== 'function') {
-        console.error('[httpClient] plugin-http exported fetch is not a function:', typeof pluginFetch);
-        cached = window.fetch.bind(window);
-      } else {
-        console.info('[httpClient] Using Tauri plugin-http (CORS bypass)');
-        cached = pluginFetch as unknown as FetchFn;
+      if (typeof mod.fetch !== 'function') {
+        console.error('[httpClient] plugin-http exported fetch is not a function:', typeof mod.fetch);
+        return window.fetch.bind(window);
       }
+      console.info('[httpClient] Using Tauri plugin-http (CORS bypass)');
+      pluginFetch = (mod.fetch as unknown as typeof window.fetch).bind(null);
+      return pluginFetch;
     } catch (err) {
       console.error(
         '[httpClient] Tauri detected but plugin-http import failed. ' +
           'Falling back to window.fetch (CORS errors likely). Error:',
         err,
       );
-      cached = window.fetch.bind(window);
+      return window.fetch.bind(window);
     }
   } else {
     console.info('[httpClient] Using window.fetch (browser mode)');
-    cached = window.fetch.bind(window);
+    return window.fetch.bind(window);
   }
-  return cached;
 }
 
 export async function httpFetch(
@@ -43,5 +39,13 @@ export async function httpFetch(
   init?: RequestInit,
 ): Promise<Response> {
   const f = await load();
+  const isTauri = pluginFetch !== null;
+
+  // Under Tauri, plugin-http accepts a `danger` option to skip TLS validation.
+  // This is needed for self-signed certs (e.g. development with IP addresses).
+  if (isTauri) {
+    const tauriInit = { ...init, danger: { acceptInvalidCerts: true, acceptInvalidHostnames: true } };
+    return f(input, tauriInit as RequestInit);
+  }
   return f(input, init);
 }

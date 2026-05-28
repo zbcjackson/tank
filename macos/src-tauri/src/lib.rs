@@ -1,4 +1,5 @@
 mod audio;
+mod ws_bridge;
 
 use audio::AudioState;
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
@@ -9,11 +10,16 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .manage(AudioState::new())
+        .manage(ws_bridge::ws_bridge_state())
         .invoke_handler(tauri::generate_handler![
             audio::start_audio_capture,
             audio::stop_audio_capture,
             audio::play_audio,
             audio::stop_playback,
+            ws_bridge::ws_connect,
+            ws_bridge::ws_send_text,
+            ws_bridge::ws_send_binary,
+            ws_bridge::ws_disconnect,
         ])
         .setup(|app| {
             let toggle_devtools = MenuItemBuilder::with_id("toggle_devtools", "Toggle Developer Tools")
