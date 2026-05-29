@@ -11,6 +11,8 @@ from tank_backend.sandbox.backends.bubblewrap import (
 )
 from tank_backend.sandbox.backends.shared import BackendPolicy, NetworkMode
 
+MODULE = "tank_backend.sandbox.backends.bubblewrap"
+
 # ── Policy and argument generation tests ──────────────────────────
 
 
@@ -26,7 +28,6 @@ class TestBuildBwrapArgs:
         assert "--unshare-net" in args
         assert "--die-with-parent" in args
         assert "--chdir" in args
-        assert "/tmp" in args
         assert "bash" in args
         assert "-c" in args
         assert "echo hello" in args
@@ -34,42 +35,37 @@ class TestBuildBwrapArgs:
     def test_read_only_paths(self):
         """Test read-only path bindings."""
         policy = BackendPolicy(
-            read_only_paths=("/usr", "/lib", "/bin"),
+            read_only_paths=("/nonexistent_test_path_ro",),
         )
-        args = _build_bwrap_args(policy, "ls", "/tmp")
+        with patch(f"{MODULE}.os.path.exists", return_value=True):
+            args = _build_bwrap_args(policy, "ls", "/tmp")
 
         assert "--ro-bind" in args
-        # Each path appears twice (source and dest)
-        assert args.count("/usr") == 2
-        assert args.count("/lib") == 2
-        assert args.count("/bin") == 2
+        assert "/nonexistent_test_path_ro" in args
 
     def test_writable_paths(self):
         """Test writable path bindings."""
         policy = BackendPolicy(
-            writable_paths=("/tmp", "/workspace"),
+            writable_paths=("/nonexistent_test_path_rw",),
         )
-        args = _build_bwrap_args(policy, "touch file", "/tmp")
+        with patch(f"{MODULE}.os.path.exists", return_value=True):
+            args = _build_bwrap_args(policy, "touch file", "/tmp")
 
         assert "--bind" in args
-        assert args.count("/tmp") >= 2  # At least source and dest
-        assert args.count("/workspace") == 2
+        assert "/nonexistent_test_path_rw" in args
 
     def test_denied_paths_excluded(self):
         """Test that denied paths are not mounted."""
         policy = BackendPolicy(
-            read_only_paths=("/usr", "/etc"),
-            denied_paths=("/etc",),
+            read_only_paths=("/test_ro",),
+            denied_paths=("/test_ro",),
         )
-        args = _build_bwrap_args(policy, "cat /etc/passwd", "/tmp")
+        with patch(f"{MODULE}.os.path.exists", return_value=True):
+            args = _build_bwrap_args(policy, "cat /etc/passwd", "/tmp")
 
-        # /usr should be mounted
-        assert "/usr" in args
-        # /etc should NOT be mounted (denied)
-        # Count occurrences - should only appear in denied_paths, not in bindings
-        etc_indices = [i for i, arg in enumerate(args) if arg == "/etc"]
-        # If /etc appears, it should not be after --ro-bind or --bind
-        for idx in etc_indices:
+        # /test_ro should NOT be mounted (denied)
+        ro_indices = [i for i, arg in enumerate(args) if arg == "/test_ro"]
+        for idx in ro_indices:
             if idx > 0:
                 assert args[idx - 1] not in ("--ro-bind", "--bind")
 
@@ -140,6 +136,28 @@ class TestBuildBwrapArgs:
         assert args[bash_idx + 1] == "-c"
         assert args[bash_idx + 2] == command
 
+    def test_essential_system_paths_mounted_readonly(self):
+        """Test that essential system dirs are always mounted read-only."""
+        policy = BackendPolicy()
+        with patch(f"{MODULE}.os.path.exists", return_value=True):
+            args = _build_bwrap_args(policy, "echo test", "/tmp")
+
+        # All essential paths should be --ro-bind'ed (source + dest = 2 appearances)
+        for path in ("/usr", "/bin", "/lib", "/lib64", "/etc"):
+            assert args.count(path) == 2, f"{path} not mounted"
+
+    def test_missing_paths_skipped(self):
+        """Test that non-existent host paths are silently skipped."""
+        policy = BackendPolicy(
+            read_only_paths=("/nonexistent_ro",),
+            writable_paths=("/nonexistent_rw",),
+        )
+        with patch(f"{MODULE}.os.path.exists", return_value=False):
+            args = _build_bwrap_args(policy, "echo test", "/tmp")
+
+        assert "/nonexistent_ro" not in args
+        assert "/nonexistent_rw" not in args
+
 
 # ── BubblewrapSandbox class tests ──────────────────────────────────
 
@@ -193,9 +211,6 @@ class TestBubblewrapSandbox:
 
 
 # ── exec_command tests ────────────────────────────────────────────
-
-
-MODULE = "tank_backend.sandbox.backends.bubblewrap"
 
 
 class TestExecCommand:
@@ -441,14 +456,15 @@ class TestBubblewrapIntegration:
     async def test_full_command_flow(self):
         """Test complete command execution flow."""
         policy = BackendPolicy(
-            read_only_paths=("/usr", "/lib"),
+            read_only_paths=("/data",),
             writable_paths=("/tmp",),
             network=NetworkMode.ALLOW_ALL,
             default_timeout=30,
         )
         sandbox = BubblewrapSandbox(policy)
 
-        with patch(f"{MODULE}.subprocess.run") as mock_run:
+        with patch(f"{MODULE}.subprocess.run") as mock_run, \
+             patch(f"{MODULE}.os.path.exists", return_value=True):
             mock_run.return_value = MagicMock(
                 stdout=b"success\n",
                 stderr=b"",

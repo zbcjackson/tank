@@ -19,12 +19,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import subprocess
 
 from ..types import BashResult, ExecResult, ProcessOutput, SandboxCapabilities
 from .shared import BackendPolicy, NetworkMode
 
 logger = logging.getLogger(__name__)
+
+# Essential system directories needed to execute commands.
+# bwrap starts with an empty rootfs — without these, even "bash" cannot run.
+_ESSENTIAL_RO_PATHS = ("/usr", "/bin", "/lib", "/lib64", "/etc")
 
 
 # ── Bubblewrap command builder ────────────────────────────────────
@@ -46,12 +51,17 @@ def _build_bwrap_args(
     # Denied paths are simply not mounted (bwrap denies by default)
     denied_set = set(policy.denied_paths)
 
+    # Essential system directories (read-only) — always present for a working sandbox
+    for path in _ESSENTIAL_RO_PATHS:
+        if path not in denied_set and os.path.exists(path):
+            args.extend(["--ro-bind", path, path])
+
     for path in policy.read_only_paths:
-        if path not in denied_set:
+        if path not in denied_set and os.path.exists(path):
             args.extend(["--ro-bind", path, path])
 
     for path in policy.writable_paths:
-        if path not in denied_set:
+        if path not in denied_set and os.path.exists(path):
             args.extend(["--bind", path, path])
 
     # Always bind essential device nodes
