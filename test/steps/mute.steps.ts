@@ -5,8 +5,8 @@ import { VoiceModePage } from '../support/page-objects/VoiceModePage';
 Given('the listen mode is {string}', async function (this: TankWorld, mode: string) {
   await this.page.locator('[data-testid="listen-mode-settings-button"]').click();
   await this.page.locator(`[data-testid="listen-mode-option-${mode}"]`).click();
-  // Close popover by clicking outside
-  await this.page.locator('[data-testid="voice-mode"]').click({ position: { x: 5, y: 5 } });
+  // Close popover by clicking outside (below the 36px tauri drag region overlay)
+  await this.page.locator('[data-testid="voice-mode"]').click({ position: { x: 5, y: 50 } });
 });
 
 When('the user clicks the mic button', async function (this: TankWorld) {
