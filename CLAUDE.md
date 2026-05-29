@@ -68,7 +68,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ## Project Overview
 
-Tank is a bilingual (Chinese/English) voice assistant monorepo with four sub-projects:
+Tank is a bilingual (Chinese/English) voice assistant which is a service running on a host. It's a monorepo with four sub-projects:
 
 - **`backend/`** — FastAPI server (Python): ASR, TTS, LLM, tools
 - **`cli/`** — Terminal UI client (Python/Textual): audio capture, WebSocket client
