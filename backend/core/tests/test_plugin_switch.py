@@ -8,6 +8,16 @@ from tank_backend.config import AppConfig
 from tank_backend.plugin.manifest import ExtensionManifest
 from tank_backend.plugin.registry import ExtensionRegistry
 
+# AppConfig.from_raw_dict requires a 'default' LLM profile, so every YAML
+# fixture in this file includes one.
+_DEFAULT_LLM = (
+    "llm:\n"
+    "  default:\n"
+    "    api_key: k\n"
+    "    model: m\n"
+    "    base_url: u\n"
+)
+
 # ── FeatureConfig / AppConfig tests ──────────────────────────────────
 
 
@@ -16,7 +26,7 @@ class TestFeatureConfigEnabled:
 
     def test_feature_disabled_when_absent(self, tmp_path):
         yaml = tmp_path / "config.yaml"
-        yaml.write_text("llm:\n  default:\n    api_key: test\n")
+        yaml.write_text(_DEFAULT_LLM)
         config = AppConfig.load(yaml)
 
         cfg = config.get_feature_config("asr")
@@ -25,8 +35,9 @@ class TestFeatureConfigEnabled:
     def test_feature_disabled_when_enabled_false(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text(
-            "asr:\n  enabled: false\n  extension: asr-sherpa:asr\n"
-            "  config:\n    sample_rate: 16000\n"
+            _DEFAULT_LLM
+            + "asr:\n  enabled: false\n  extension: asr-sherpa:asr\n"
+            + "  config:\n    sample_rate: 16000\n",
         )
         config = AppConfig.load(yaml)
 
@@ -36,7 +47,8 @@ class TestFeatureConfigEnabled:
     def test_feature_enabled_with_extension_syntax(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text(
-            "tts:\n  enabled: true\n  extension: tts-edge:tts\n  config:\n    voice_en: Jenny\n"
+            _DEFAULT_LLM
+            + "tts:\n  enabled: true\n  extension: tts-edge:tts\n  config:\n    voice_en: Jenny\n",
         )
         config = AppConfig.load(yaml)
 
@@ -48,7 +60,9 @@ class TestFeatureConfigEnabled:
 
     def test_feature_enabled_with_legacy_plugin_syntax(self, tmp_path):
         yaml = tmp_path / "config.yaml"
-        yaml.write_text("tts:\n  plugin: tts-edge\n  config:\n    voice: test\n")
+        yaml.write_text(
+            _DEFAULT_LLM + "tts:\n  plugin: tts-edge\n  config:\n    voice: test\n",
+        )
         config = AppConfig.load(yaml)
 
         cfg = config.get_feature_config("tts")
@@ -58,7 +72,7 @@ class TestFeatureConfigEnabled:
 
     def test_feature_enabled_defaults_to_true(self, tmp_path):
         yaml = tmp_path / "config.yaml"
-        yaml.write_text("asr:\n  extension: asr-sherpa:asr\n  config: {}\n")
+        yaml.write_text(_DEFAULT_LLM + "asr:\n  extension: asr-sherpa:asr\n  config: {}\n")
         config = AppConfig.load(yaml)
 
         cfg = config.get_feature_config("asr")
@@ -66,7 +80,7 @@ class TestFeatureConfigEnabled:
 
     def test_plugin_derived_from_extension_ref(self, tmp_path):
         yaml = tmp_path / "config.yaml"
-        yaml.write_text("tts:\n  extension: tts-edge:tts\n  config: {}\n")
+        yaml.write_text(_DEFAULT_LLM + "tts:\n  extension: tts-edge:tts\n  config: {}\n")
         config = AppConfig.load(yaml)
 
         cfg = config.get_feature_config("tts")
@@ -78,19 +92,21 @@ class TestIsFeatureEnabled:
 
     def test_returns_true_for_enabled_feature(self, tmp_path):
         yaml = tmp_path / "config.yaml"
-        yaml.write_text("asr:\n  extension: asr-sherpa:asr\n  config: {}\n")
+        yaml.write_text(_DEFAULT_LLM + "asr:\n  extension: asr-sherpa:asr\n  config: {}\n")
         config = AppConfig.load(yaml)
         assert config.is_feature_enabled("asr") is True
 
     def test_returns_false_for_absent_feature(self, tmp_path):
         yaml = tmp_path / "config.yaml"
-        yaml.write_text("llm:\n  default:\n    api_key: x\n")
+        yaml.write_text(_DEFAULT_LLM)
         config = AppConfig.load(yaml)
         assert config.is_feature_enabled("asr") is False
 
     def test_returns_false_for_disabled_feature(self, tmp_path):
         yaml = tmp_path / "config.yaml"
-        yaml.write_text("tts:\n  enabled: false\n  extension: tts-edge:tts\n  config: {}\n")
+        yaml.write_text(
+            _DEFAULT_LLM + "tts:\n  enabled: false\n  extension: tts-edge:tts\n  config: {}\n",
+        )
         config = AppConfig.load(yaml)
         assert config.is_feature_enabled("tts") is False
 
@@ -101,9 +117,10 @@ class TestGetCapabilities:
     def test_all_enabled(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text(
-            "asr:\n  extension: asr-sherpa:asr\n  config: {}\n"
-            "tts:\n  extension: tts-edge:tts\n  config: {}\n"
-            "speaker:\n  extension: speaker-sherpa:speaker_id\n  config: {}\n"
+            _DEFAULT_LLM
+            + "asr:\n  extension: asr-sherpa:asr\n  config: {}\n"
+            + "tts:\n  extension: tts-edge:tts\n  config: {}\n"
+            + "speaker:\n  extension: speaker-sherpa:speaker_id\n  config: {}\n",
         )
         config = AppConfig.load(yaml)
         caps = config.get_capabilities()
@@ -111,7 +128,7 @@ class TestGetCapabilities:
 
     def test_all_disabled(self, tmp_path):
         yaml = tmp_path / "config.yaml"
-        yaml.write_text("llm:\n  default:\n    api_key: x\n")
+        yaml.write_text(_DEFAULT_LLM)
         config = AppConfig.load(yaml)
         caps = config.get_capabilities()
         assert caps == {"asr": False, "tts": False, "speaker_id": False}
@@ -119,8 +136,9 @@ class TestGetCapabilities:
     def test_mixed(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text(
-            "asr:\n  extension: asr-sherpa:asr\n  config: {}\n"
-            "tts:\n  enabled: false\n  extension: tts-edge:tts\n  config: {}\n"
+            _DEFAULT_LLM
+            + "asr:\n  extension: asr-sherpa:asr\n  config: {}\n"
+            + "tts:\n  enabled: false\n  extension: tts-edge:tts\n  config: {}\n",
         )
         config = AppConfig.load(yaml)
         caps = config.get_capabilities()
@@ -223,8 +241,9 @@ class TestAppConfigValidation:
     def test_valid_config_passes(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text(
-            "asr:\n  extension: asr-sherpa:asr\n  config: {}\n"
-            "tts:\n  extension: tts-edge:tts\n  config: {}\n"
+            _DEFAULT_LLM
+            + "asr:\n  extension: asr-sherpa:asr\n  config: {}\n"
+            + "tts:\n  extension: tts-edge:tts\n  config: {}\n",
         )
         reg = self._make_registry([
             ("asr-sherpa", ExtensionManifest(name="asr", type="asr", factory="x:y")),
@@ -237,7 +256,7 @@ class TestAppConfigValidation:
         from tank_backend.plugin.manager import ConfigError
 
         yaml = tmp_path / "config.yaml"
-        yaml.write_text("asr:\n  extension: asr-sherpa:asr\n  config: {}\n")
+        yaml.write_text(_DEFAULT_LLM + "asr:\n  extension: asr-sherpa:asr\n  config: \n")
         reg = self._make_registry()  # empty registry
 
         with pytest.raises(ConfigError, match="not registered"):
@@ -247,7 +266,7 @@ class TestAppConfigValidation:
         from tank_backend.plugin.manager import ConfigError
 
         yaml = tmp_path / "config.yaml"
-        yaml.write_text("asr:\n  extension: wrong-plugin:wrong\n  config: {}\n")
+        yaml.write_text(_DEFAULT_LLM + "asr:\n  extension: wrong-plugin:wrong\n  config: {}\n")
         # Register with type "tts" but slot expects "asr"
         reg = self._make_registry([
             ("wrong-plugin", ExtensionManifest(name="wrong", type="tts", factory="x:y")),
@@ -259,7 +278,8 @@ class TestAppConfigValidation:
     def test_disabled_slot_skips_validation(self, tmp_path):
         yaml = tmp_path / "config.yaml"
         yaml.write_text(
-            "asr:\n  enabled: false\n  extension: nonexistent:ext\n  config: {}\n"
+            _DEFAULT_LLM
+            + "asr:\n  enabled: false\n  extension: nonexistent:ext\n  config: {}\n",
         )
         reg = self._make_registry()  # empty
         # Should not raise — feature is disabled

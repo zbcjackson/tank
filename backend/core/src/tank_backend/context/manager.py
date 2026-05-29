@@ -16,7 +16,6 @@ from typing import Any
 import tiktoken
 
 from ..config.models import ContextConfig
-from ..config.parser import ConfigError
 from ..users import is_guest
 from .budget import ContextBudget, resolve_context_window
 from .compaction_store import CompactionStore
@@ -155,10 +154,7 @@ class ContextManager:
 
     def _try_api_detect(self, model: str) -> None:
         """Background task: query provider API for actual context window."""
-        try:
-            profile = self._app_config.get_llm_profile("default")
-        except (KeyError, ValueError, ConfigError, AttributeError):
-            return
+        profile = self._app_config.get_llm_profile("default")
 
         from .budget import query_model_context_length
 
@@ -223,11 +219,7 @@ class ContextManager:
 
     def _get_model_name(self) -> str:
         """Extract the model name from the default LLM profile."""
-        try:
-            profile = self._app_config.get_llm_profile("default")
-            return profile.model
-        except (KeyError, ValueError, ConfigError, AttributeError):
-            return "unknown"
+        return self._app_config.get_llm_profile("default").model
 
     @property
     def budget(self) -> ContextBudget:
@@ -246,11 +238,7 @@ class ContextManager:
         if not mem_cfg.enabled:
             return None
 
-        try:
-            profile = self._app_config.get_llm_profile("default")
-        except (KeyError, ValueError, ConfigError):
-            logger.warning("No default LLM profile — memory service disabled")
-            return None
+        profile = self._app_config.get_llm_profile("default")
 
         resolved = MemoryConfig(
             enabled=True,
@@ -276,13 +264,7 @@ class ContextManager:
         from ..llm.profile import create_llm_from_profile
         from .summarizer import LLMSummarizer
 
-        try:
-            profile = self._app_config.get_llm_profile("summarization")
-        except (KeyError, ValueError, ConfigError):
-            try:
-                profile = self._app_config.get_llm_profile("default")
-            except (KeyError, ValueError, ConfigError):
-                return None
+        profile = self._app_config.get_llm_profile("summarization")
         llm = create_llm_from_profile(profile)
         return LLMSummarizer(llm, self._config)
 
@@ -313,14 +295,7 @@ class ContextManager:
         from ..llm.profile import create_llm_from_profile
         from ..preferences import PreferenceLearner
 
-        # Try to use "summarization" profile for cheap extraction, fallback to default
-        try:
-            profile = self._app_config.get_llm_profile("summarization")
-        except (KeyError, ValueError, ConfigError):
-            try:
-                profile = self._app_config.get_llm_profile("default")
-            except (KeyError, ValueError, ConfigError):
-                return None
+        profile = self._app_config.get_llm_profile("summarization")
 
         llm = create_llm_from_profile(profile)
         logger.info("Preference learner initialised (model=%s)", profile.model)
@@ -332,7 +307,6 @@ class ContextManager:
         Returns ``None`` when:
         - the feature is disabled via ``context.pre_compaction_flush``
         - neither memory nor preferences are available (nothing to flush to)
-        - no usable LLM profile exists
         """
         if not self._config.pre_compaction_flush:
             return None
@@ -342,15 +316,7 @@ class ContextManager:
         from ..llm.profile import create_llm_from_profile
         from ..memory.flush import MemoryFlusher
 
-        # Reuse the cheap summarization profile when available; fall back
-        # to default. Same precedence the preference learner uses.
-        try:
-            profile = self._app_config.get_llm_profile("summarization")
-        except (KeyError, ValueError, ConfigError):
-            try:
-                profile = self._app_config.get_llm_profile("default")
-            except (KeyError, ValueError, ConfigError):
-                return None
+        profile = self._app_config.get_llm_profile("summarization")
 
         llm = create_llm_from_profile(profile)
         logger.info("Memory flusher initialised (model=%s)", profile.model)

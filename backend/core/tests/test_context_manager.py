@@ -9,13 +9,19 @@ from tank_backend.context.budget import ContextBudget
 from tank_backend.context.conversation import ConversationData
 from tank_backend.context.manager import ContextManager
 from tank_backend.context.resolver import CompactionMode, ResolvedConversation
+from tank_backend.llm.profile import LLMProfile
 
 
 def _make_app_config():
     """Create a mock AppConfig that returns empty sections."""
     cfg = MagicMock()
     cfg.get_section.return_value = {}
-    cfg.get_llm_profile.side_effect = KeyError("no profile")
+    cfg.get_llm_profile.return_value = LLMProfile(
+        name="default",
+        api_key="test",
+        model="gpt-4o",
+        base_url="http://example.test",
+    )
     cfg.memory = MagicMock(enabled=False)
     cfg.preferences = MagicMock(enabled=False)
     return cfg

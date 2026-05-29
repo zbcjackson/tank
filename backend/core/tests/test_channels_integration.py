@@ -424,10 +424,17 @@ class TestChannelContextManager:
 
     @staticmethod
     def _make_app_config():
+        from tank_backend.llm.profile import LLMProfile
+
         cfg = MagicMock()
         cfg.memory.enabled = False
         cfg.preferences.enabled = False
-        cfg.get_llm_profile.side_effect = KeyError("no profile")
+        cfg.get_llm_profile.return_value = LLMProfile(
+            name="default",
+            api_key="test",
+            model="gpt-4o",
+            base_url="http://example.test",
+        )
         return cfg
 
     async def test_prepare_turn_returns_derived_context(

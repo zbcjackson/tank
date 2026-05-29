@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse, Response
 
 from ..channels.store import ChannelStore
 from ..channels.subscription import ChannelSubscriptionManager
-from ..config import AppConfig, ConfigError, find_config_yaml
+from ..config import AppConfig, find_config_yaml
 from ..config.context import AppContext
 from ..context import create_store
 from ..media import MediaStore
@@ -542,10 +542,7 @@ if _store is not None:
         from ..context.title_generator import TitleGenerator
         from ..llm.profile import create_llm_from_profile
 
-        try:
-            _title_profile = app_config.get_llm_profile("summarization")
-        except (KeyError, ValueError, ConfigError):
-            _title_profile = app_config.get_llm_profile("default")
+        _title_profile = app_config.get_llm_profile("summarization")
         _title_generator = TitleGenerator(
             llm=create_llm_from_profile(_title_profile),
             store=_store,

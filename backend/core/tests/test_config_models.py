@@ -165,16 +165,16 @@ class TestAppConfig:
         assert profile.model == "gpt-4"
         assert profile.api_key == "test-key"
 
-    def test_missing_default_llm_profile_raises_on_access(self):
+    def test_missing_default_llm_profile_rejected_at_load(self):
         raw = {"llm": {"custom": {"api_key": "k", "model": "m", "base_url": "u"}}}
-        cfg = AppConfig.from_raw_dict(raw)
         with pytest.raises(ConfigError, match="default"):
-            cfg.get_llm_profile("default")
+            AppConfig.from_raw_dict(raw)
 
-    def test_unknown_llm_profile_raises(self):
+    def test_unknown_llm_profile_falls_back_to_default(self):
         cfg = AppConfig.from_raw_dict(self.MINIMAL_RAW)
-        with pytest.raises(ConfigError, match="nonexistent"):
-            cfg.get_llm_profile("nonexistent")
+        profile = cfg.get_llm_profile("nonexistent")
+        assert profile.name == "default"
+        assert profile.model == "gpt-4"
 
     def test_brain_section_parsed(self):
         raw = {**self.MINIMAL_RAW, "brain": {"max_history_tokens": 32000}}

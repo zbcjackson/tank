@@ -92,10 +92,7 @@ async def _fetch_facts(user_id: str) -> list[str]:
     if not cfg.enabled:
         return []
 
-    try:
-        profile = deps.app_context().app_config.get_llm_profile("default")
-    except (KeyError, ValueError):
-        return []
+    profile = deps.app_context().app_config.get_llm_profile("default")
 
     resolved = MemoryConfig(
         enabled=True,

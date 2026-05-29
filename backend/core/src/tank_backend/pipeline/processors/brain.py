@@ -187,17 +187,8 @@ class Brain(Processor):
         from ...llm.profile import create_llm_from_profile
 
         agents_cfg = app_config.agents
-        llm_profile_name = agents_cfg.llm_profile
-
-        try:
-            llm_profile = app_config.get_llm_profile(llm_profile_name)
-            agent_llm = create_llm_from_profile(llm_profile)
-        except (KeyError, ValueError):
-            logger.warning(
-                "Agent references unknown LLM profile %r — using Brain's LLM",
-                llm_profile_name,
-            )
-            agent_llm = self._llm
+        llm_profile = app_config.get_llm_profile(agents_cfg.llm_profile)
+        agent_llm = create_llm_from_profile(llm_profile)
 
         # Load agent definitions from .tank/agents/ directories
         raw_dirs = agents_cfg.dirs

@@ -153,15 +153,31 @@ llm:
         assert profile.model == "gpt-4"
         assert profile.temperature == 0.3
 
-    def test_get_llm_profile_not_found(self, tmp_path):
+    def test_missing_default_profile_rejected_at_load(self, tmp_path):
         config_file = tmp_path / "config.yaml"
         config_file.write_text("llm: {}")
 
         from tank_backend.config import AppConfig, ConfigError
 
+        with pytest.raises(ConfigError, match="default"):
+            AppConfig.load(config_file)
+
+    def test_get_llm_profile_falls_back_to_default(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("TEST_LLM_KEY", "sk-test")
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text("""
+llm:
+  default:
+    api_key: ${TEST_LLM_KEY}
+    model: gpt-4
+    base_url: https://api.openai.com/v1
+""")
+        from tank_backend.config import AppConfig
+
         app = AppConfig.load(config_file)
-        with pytest.raises(ConfigError, match="not found"):
-            app.get_llm_profile("nonexistent")
+        profile = app.get_llm_profile("nonexistent")
+        assert profile.name == "default"
+        assert profile.model == "gpt-4"
 
     def test_list_llm_profiles(self, tmp_path, monkeypatch):
         monkeypatch.setenv("K1", "v1")
@@ -189,10 +205,20 @@ llm:
 class TestEnvVarInterpolation:
     """Tests for ${VAR} interpolation in AppConfig."""
 
+    # AppConfig.from_raw_dict requires a 'default' LLM profile, so every
+    # test in this class includes one in the YAML.
+    _DEFAULT_LLM = (
+        "llm:\n"
+        "  default:\n"
+        "    api_key: k\n"
+        "    model: m\n"
+        "    base_url: u\n"
+    )
+
     def test_interpolation_replaces_env_var(self, tmp_path, monkeypatch):
         monkeypatch.setenv("MY_SECRET", "resolved-value")
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("key: ${MY_SECRET}")
+        config_file.write_text(self._DEFAULT_LLM + "key: ${MY_SECRET}")
 
         from tank_backend.config import AppConfig
 
@@ -202,7 +228,7 @@ class TestEnvVarInterpolation:
     def test_interpolation_raises_on_missing_env_var(self, tmp_path, monkeypatch):
         monkeypatch.delenv("MISSING_VAR", raising=False)
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("key: ${MISSING_VAR}")
+        config_file.write_text(self._DEFAULT_LLM + "key: ${MISSING_VAR}")
 
         from tank_backend.config import AppConfig
 
@@ -213,7 +239,7 @@ class TestEnvVarInterpolation:
         monkeypatch.setenv("HOST", "example.com")
         monkeypatch.setenv("PORT", "8080")
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("url: http://${HOST}:${PORT}/api")
+        config_file.write_text(self._DEFAULT_LLM + "url: http://${HOST}:${PORT}/api")
 
         from tank_backend.config import AppConfig
 
@@ -222,7 +248,7 @@ class TestEnvVarInterpolation:
 
     def test_no_interpolation_without_dollar_brace(self, tmp_path):
         config_file = tmp_path / "config.yaml"
-        config_file.write_text("key: plain_value")
+        config_file.write_text(self._DEFAULT_LLM + "key: plain_value")
 
         from tank_backend.config import AppConfig
 
@@ -233,8 +259,9 @@ class TestEnvVarInterpolation:
         monkeypatch.setenv("REAL_KEY", "works")
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
-            "# Use ${VAR} syntax for env vars\n"
-            "key: ${REAL_KEY}\n"
+            self._DEFAULT_LLM
+            + "# Use ${VAR} syntax for env vars\n"
+            + "key: ${REAL_KEY}\n",
         )
 
         from tank_backend.config import AppConfig

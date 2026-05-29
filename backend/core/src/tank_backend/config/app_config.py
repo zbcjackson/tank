@@ -160,6 +160,11 @@ class AppConfig:
         """
         try:
             llm_profiles = _parse_llm_profiles(raw.get("llm", {}))
+            if "default" not in llm_profiles:
+                available = list(llm_profiles.keys())
+                raise ConfigError(
+                    f"LLM profile 'default' is required. Available: {available}"
+                )
 
             return cls(
                 llm_profiles=llm_profiles,
@@ -198,16 +203,17 @@ class AppConfig:
     # ── Public accessors ──────────────────────────────────────────
 
     def get_llm_profile(self, name: str = "default") -> LLMProfile:
-        """Return a named LLM profile.
+        """Return a named LLM profile, falling back to ``default``.
 
-        Raises ``ConfigError`` if the profile doesn't exist.
+        ``from_raw_dict`` validates that ``default`` exists, so this method
+        does not raise for AppConfigs constructed through that entry point.
         """
-        if name not in self.llm_profiles:
-            available = list(self.llm_profiles.keys())
-            raise ConfigError(
-                f"LLM profile '{name}' not found. Available: {available}"
-            )
-        return self.llm_profiles[name]
+        profile = self.llm_profiles.get(name)
+        if profile is not None:
+            return profile
+        if name != "default":
+            logger.warning("LLM profile '%s' not found, falling back to 'default'", name)
+        return self.llm_profiles["default"]
 
     def list_llm_profiles(self) -> list[str]:
         return list(self.llm_profiles.keys())

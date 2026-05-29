@@ -472,15 +472,12 @@ class Consolidator:
 def build_consolidator(app_config: Any) -> Consolidator | None:
     """Wire a :class:`Consolidator` from app config.
 
-    Returns ``None`` when:
-    - ``preferences`` is disabled (no store to write into)
-    - no usable LLM profile is available
+    Returns ``None`` when ``preferences`` is disabled (no store to write into).
 
     The mem0 layer is optional — its absence just means scoring uses
     only preference candidates.
     """
     from ..config.models import MemoryConfig
-    from ..config.parser import ConfigError
     from ..llm.profile import create_llm_from_profile
     from ..preferences import PreferenceStore
     from .service import MemoryService
@@ -493,42 +490,31 @@ def build_consolidator(app_config: Any) -> Consolidator | None:
     base_dir = Path(prefs_cfg.base_dir or "~/.tank").expanduser()
     store = PreferenceStore(base_dir, prefs_cfg.max_entries)
 
-    profile_name = cons_cfg.llm_profile
-    try:
-        profile = app_config.get_llm_profile(profile_name)
-    except (KeyError, ValueError, ConfigError):
-        try:
-            profile = app_config.get_llm_profile("default")
-        except (KeyError, ValueError, ConfigError):
-            return None
+    profile = app_config.get_llm_profile(cons_cfg.llm_profile)
     llm = create_llm_from_profile(profile)
 
     memory_service: MemoryService | None = None
     mem_cfg = app_config.memory
     if mem_cfg.enabled:
+        default_profile = app_config.get_llm_profile("default")
+        resolved = MemoryConfig(
+            enabled=True,
+            db_path=mem_cfg.db_path,
+            llm_api_key=mem_cfg.llm_api_key or default_profile.api_key,
+            llm_base_url=mem_cfg.llm_base_url or default_profile.base_url,
+            llm_model=mem_cfg.llm_model or "",
+            embedding_api_key=mem_cfg.embedding_api_key or "",
+            embedding_base_url=mem_cfg.embedding_base_url or "",
+            embedding_model=mem_cfg.embedding_model or "",
+            search_limit=mem_cfg.search_limit,
+        )
         try:
-            default_profile = app_config.get_llm_profile("default")
-        except (KeyError, ValueError, ConfigError):
-            default_profile = None
-        if default_profile is not None:
-            resolved = MemoryConfig(
-                enabled=True,
-                db_path=mem_cfg.db_path,
-                llm_api_key=mem_cfg.llm_api_key or default_profile.api_key,
-                llm_base_url=mem_cfg.llm_base_url or default_profile.base_url,
-                llm_model=mem_cfg.llm_model or "",
-                embedding_api_key=mem_cfg.embedding_api_key or "",
-                embedding_base_url=mem_cfg.embedding_base_url or "",
-                embedding_model=mem_cfg.embedding_model or "",
-                search_limit=mem_cfg.search_limit,
+            memory_service = MemoryService(resolved)
+        except Exception:
+            logger.warning(
+                "build_consolidator: MemoryService init failed",
+                exc_info=True,
             )
-            try:
-                memory_service = MemoryService(resolved)
-            except Exception:
-                logger.warning(
-                    "build_consolidator: MemoryService init failed",
-                    exc_info=True,
-                )
 
     return Consolidator(
         llm=llm,
