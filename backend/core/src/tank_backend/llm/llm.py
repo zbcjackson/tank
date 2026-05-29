@@ -39,7 +39,17 @@ MAX_RETRY_ATTEMPTS = 5
 RETRY_BASE_DELAY = 1.0
 RETRY_MAX_DELAY = 8.0
 
-_CONCURRENT_SAFE_TOOLS = frozenset({"agent"})
+# Tools that are safe to run in parallel when the LLM emits multiple tool
+# calls in one assistant turn. Read-only / pure-query tools belong here;
+# anything that mutates filesystem, shell state, memory, channels, or the
+# approval queue stays sequential.
+_CONCURRENT_SAFE_TOOLS = frozenset({
+    "agent",
+    "file_read", "file_list", "file_search",
+    "web_search", "web_fetch",
+    "get_weather", "get_time", "calculate",
+    "get_user_memory", "get_context_usage",
+})
 
 # Stub inserted into the ``tool`` role message when the tool returned
 # non-text blocks. OpenAI's tool role requires string content, so the
