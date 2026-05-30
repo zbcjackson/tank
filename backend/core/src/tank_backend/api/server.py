@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from ..jobs.store import JobStore
 
 from . import deps
+from .agents import router as agents_router
 from .channels import router as channels_router
 from .conversations import router as conversations_router
 from .jobs import router as jobs_router
@@ -479,6 +480,7 @@ def _wire_routers(app: FastAPI) -> None:
     app.include_router(channels_router)
     app.include_router(usage_router)
     app.include_router(memory_router)
+    app.include_router(agents_router)
 
 
 # ---------------------------------------------------------------------------
@@ -508,6 +510,14 @@ if _store is not None:
     _compaction_store = CompactionStore(_database)
     _messages_store = ConversationMessagesStore(_database)
     logger.info("Compaction + conversation-messages stores initialized on unified DB")
+
+# Phase 2 worker runtime: one row per ``agent`` tool dispatch. Sized
+# alongside the other unified-DB stores so a worker survives a session
+# disconnect and is reachable from any conversation.
+from ..agents.store import WorkerStore  # noqa: E402
+
+_worker_store = WorkerStore(_database)
+logger.info("Worker store initialized on unified DB")
 
 _job_store, _scheduler, _delivery = _init_job_scheduler(
     app_config, (_store, _channel_store), _database,
@@ -569,6 +579,7 @@ app_context = AppContext(
     asr_engine=_asr_engine,
     tts_engine=_tts_engine,
     vad_engine=_vad_engine,
+    worker_store=_worker_store,
     llm_capabilities=_llm_capabilities,
 )
 connection_manager = ConnectionManager(app_context=app_context)

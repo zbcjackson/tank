@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from tank_contracts import ASREngine, TTSEngine
 
     from ..agents.approval import PendingToolCallStore, ToolApprovalPolicy
+    from ..agents.store import WorkerStore
     from ..audio.input.vad import VADEngine
     from ..audio.input.voiceprint import VoiceprintRecognizer
     from ..channels.store import ChannelStore
@@ -52,6 +53,9 @@ class AppContext:
     asr_engine: ASREngine | None = None
     tts_engine: TTSEngine | None = None
     vad_engine: VADEngine | None = None
+    # Phase 2 worker runtime — persists every ``agent`` tool dispatch
+    # so runs are listable/stoppable/resumable across sessions.
+    worker_store: WorkerStore | None = None
     # Resolved once at startup from the default LLM profile. Consumers
     # (``ConnectorManager``, upload endpoint, …) read ``input_modalities``
     # to decide whether to accept multi-modal content before it hits the

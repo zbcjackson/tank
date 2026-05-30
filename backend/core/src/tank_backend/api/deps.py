@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from fastapi import HTTPException
 
 if TYPE_CHECKING:
+    from ..agents.store import WorkerStore
     from ..channels.audio_service import ChannelAudioService
     from ..channels.store import ChannelStore
     from ..channels.subscription import ChannelSubscriptionManager
@@ -134,3 +135,11 @@ def subscription_manager() -> ChannelSubscriptionManager:
 def channel_audio_service() -> ChannelAudioService | None:
     """Return the channel audio service, or None if TTS is disabled."""
     return _channel_audio["v"]
+
+
+def worker_store() -> WorkerStore:
+    """Return the worker store, or raise 503 if unavailable."""
+    s = app_context().worker_store
+    if s is None:
+        raise HTTPException(503, "Worker store not initialised")
+    return s

@@ -167,14 +167,39 @@ class ToolManager:
         """ToolApprovalPolicy for deciding which tools need approval."""
         return self._approval_policy
 
-    def set_agent_runner(self, runner: Any) -> None:
+    def set_agent_runner(
+        self,
+        runner: Any,
+        *,
+        supervisor: Any | None = None,
+    ) -> None:
         """Register the agent tool and wire runner into skills.
 
-        Called by Assistant after construction.
+        Called by Assistant after construction. ``supervisor`` is the
+        Phase 2 ``WorkerSupervisor`` — when provided, the agent tool
+        dispatches through it (persistent worker rows, listable /
+        stoppable / resumable). When omitted (legacy unit tests),
+        the tool falls back to driving ``runner.run_agent`` directly.
+
+        When a supervisor is wired, the companion control tools
+        (``agent_status``, ``agent_stop``, ``list_active_agents``)
+        are registered alongside ``agent`` so the LLM can introspect
+        and manage in-flight workers.
         """
         from ..agents.agent_tool import AgentTool
 
-        self.register_tool(AgentTool(runner))
+        self.register_tool(AgentTool(runner, supervisor=supervisor))
+        if supervisor is not None:
+            from ..agents.worker_tools import (
+                AgentStatusTool,
+                AgentStopTool,
+                ListActiveAgentsTool,
+            )
+
+            store = supervisor.store
+            self.register_tool(AgentStatusTool(store, supervisor))
+            self.register_tool(AgentStopTool(store, supervisor))
+            self.register_tool(ListActiveAgentsTool(store))
         self._skill_group.set_agent_runner(runner)
 
     def set_job_manager(self, job_store: Any, scheduler: Any) -> None:

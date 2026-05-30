@@ -65,6 +65,7 @@ class Brain(Processor):
         messages_store: Any = None,
         media_store: Any = None,
         llm_capabilities: frozenset[str] | None = None,
+        worker_store: Any = None,
     ):
         super().__init__(name="brain")
         self._llm = llm
@@ -73,6 +74,10 @@ class Brain(Processor):
         self._bus = bus
         self._interrupt_event = interrupt_event
         self._tts_enabled = tts_enabled
+        self._worker_store = worker_store
+        # Set when ``_build_agent_graph`` constructs a WorkerSupervisor;
+        # remains ``None`` when no WorkerStore was injected.
+        self._worker_inbox: Any = None
 
         # --- State-machine approval: PendingToolCallStore ---
         from ...agents.approval import PendingToolCallStore
@@ -184,6 +189,7 @@ class Brain(Processor):
 
         from ...agents.definition import load_agent_definitions
         from ...agents.runner import AgentRunner
+        from ...agents.supervisor import WorkerSupervisor
         from ...llm.profile import create_llm_from_profile
 
         agents_cfg = app_config.agents
@@ -207,8 +213,31 @@ class Brain(Processor):
             max_concurrent=agents_cfg.max_concurrent,
         )
 
+        # Phase 2: WorkerSupervisor owns dispatch lifecycle. The
+        # supervisor is optional — if no WorkerStore was injected
+        # (unit tests, stand-alone Brain) we leave it None and
+        # AgentTool falls back to the legacy runner-only path.
+        worker_supervisor: WorkerSupervisor | None = None
+        if self._worker_store is not None:
+            # Reap rows left in 'running' from a prior process.
+            self._worker_store.reap_running_on_startup()
+            worker_supervisor = WorkerSupervisor(
+                runner=runner,
+                store=self._worker_store,
+                bus=self._bus,
+                max_depth=agents_cfg.max_depth,
+                max_concurrent=agents_cfg.max_concurrent,
+            )
+            # Phase 2 step 4: subscribe an inbox observer so terminal
+            # background completions are surfaced into the conversation
+            # at the start of the next user turn.
+            from ...agents.worker_inbox import WorkerInboxObserver
+            self._worker_inbox = WorkerInboxObserver(self._bus)
+
         # Register agent tool in ToolManager
-        self._tool_manager.set_agent_runner(runner)
+        self._tool_manager.set_agent_runner(
+            runner, supervisor=worker_supervisor,
+        )
 
         # Build main agent system prompt with available agent types
         agent_catalog = self._build_agent_catalog(definitions)
@@ -423,6 +452,32 @@ class Brain(Processor):
     # Pipeline processing
     # ------------------------------------------------------------------
 
+    def _surface_worker_inbox(self) -> None:
+        """Inject any queued worker completions as synthetic system messages.
+
+        Called at the top of every NORMAL turn. The completions become
+        part of the conversation history so the LLM sees them in the
+        very next ``prepare_turn`` call. No-op when no inbox is wired
+        or no completions are queued.
+        """
+        inbox = self._worker_inbox
+        if inbox is None:
+            return
+        conv_id = self._context.conversation_id
+        if not conv_id:
+            return
+        completions = inbox.drain(conv_id)
+        if not completions:
+            return
+        for completion in completions:
+            self._context.add_message(
+                "system", completion.to_system_message(),
+            )
+        logger.info(
+            "Brain: surfaced %d worker completion(s) for conversation %s",
+            len(completions), conv_id,
+        )
+
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         """Process a BrainInputEvent and yield AudioOutputRequest for TTS."""
         event: BrainInputEvent = item
@@ -531,6 +586,11 @@ class Brain(Processor):
 
         # --- Memory recall (pre-turn) ---
         await self._context.recall_memory(event.user, event.text)
+
+        # --- Surface background worker completions, if any. Drained
+        # ahead of prepare_turn so the synthetic system messages live
+        # in conversation history alongside the user's turn.
+        self._surface_worker_inbox()
 
         # --- Prepare messages for LLM ---
         # Multi-modal attachments (images, docs) ride on event metadata;

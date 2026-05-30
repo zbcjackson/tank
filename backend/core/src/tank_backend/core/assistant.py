@@ -75,6 +75,7 @@ class Assistant:
         self._compaction_store = app_context.compaction_store
         self._messages_store = app_context.conversation_messages_store
         self._media_store = app_context.media_store
+        self._worker_store = app_context.worker_store
         registry = self._init_config_and_llm(app_context.app_config, registry=app_context.registry)
         self._init_bus()
         self._init_tools()
@@ -223,6 +224,7 @@ class Assistant:
             messages_store=self._messages_store,
             media_store=self._media_store,
             llm_capabilities=self._llm_capabilities.input_modalities,
+            worker_store=self._worker_store,
         )
         builder.add(self.brain)
 

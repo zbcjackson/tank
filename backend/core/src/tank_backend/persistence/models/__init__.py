@@ -15,6 +15,7 @@ from .conversation_messages import ConversationMessageRow
 from .conversations import ConversationRow
 from .jobs import JobRow, JobRunRow
 from .speakers import EmbeddingRow, SpeakerRow
+from .workers import WorkerRunRow
 
 __all__ = [
     "ChannelReadStateRow",
@@ -28,4 +29,5 @@ __all__ = [
     "JobRow",
     "JobRunRow",
     "SpeakerRow",
+    "WorkerRunRow",
 ]
