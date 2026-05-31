@@ -318,7 +318,7 @@ export class AudioProcessor {
     // Wake word engines (OpenWakeWord, Porcupine) manage their own mic capture
     // via getUserMedia, which doesn't exist in Tauri's WKWebView. Skip in
     // Tauri — native audio capture is handled by the platform adapter instead.
-    if (this.platformAdapter) {
+    if (this.platformAdapter?.handlesCapture) {
       console.info('[AudioProcessor] Wake word skipped — platform adapter active (native capture)');
       return;
     }
