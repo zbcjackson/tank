@@ -27,6 +27,8 @@ export class BrowserAudioAdapter implements PlatformAudioAdapter {
   private nextStartTime: number = 0;
   private stopped: boolean = false;
 
+  readonly handlesCapture = false;
+
   /** Ensure AudioContext + AnalyserNode exist (lazy init on first playback). */
   private ensureAudioContext(preferredRate: number) {
     if (!this.audioContext) {

@@ -37,6 +37,14 @@ export interface PlatformAudioAdapter {
 
   /** Release all resources. */
   dispose(): Promise<void>;
+
+  /**
+   * Whether this adapter handles mic capture natively (e.g. Tauri).
+   * When true, AudioProcessor skips getUserMedia/AudioWorklet and relies
+   * on the adapter's startCapture() for audio frames.
+   * When false (browser), AudioProcessor uses its own AudioWorklet pipeline.
+   */
+  readonly handlesCapture: boolean;
 }
 
 /**

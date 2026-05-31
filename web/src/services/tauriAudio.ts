@@ -16,6 +16,8 @@ export class TauriAudioAdapter implements PlatformAudioAdapter {
   private onError?: (error: string) => void;
   private onRmsChange: ((rms: number) => void) | null = null;
 
+  readonly handlesCapture = true;
+
   constructor(onError?: (error: string) => void) {
     this.onError = onError;
   }

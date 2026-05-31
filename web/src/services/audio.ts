@@ -64,8 +64,11 @@ export class AudioProcessor {
   }
 
   async start() {
-    // If a platform adapter exists (e.g. Tauri), use its capture — no VAD
-    if (this.platformAdapter) {
+    // If a platform adapter with native capture exists (e.g. Tauri), use its
+    // capture pipeline — no browser getUserMedia/AudioWorklet/VAD needed.
+    // BrowserAudioAdapter does NOT handle capture (handlesCapture=false), so
+    // we fall through to the AudioWorklet path below.
+    if (this.platformAdapter?.handlesCapture) {
       this.captureHandle = await this.platformAdapter.startCapture((samples: Int16Array) => {
         if (!this.gateSpeech) {
           this.onAudio(samples);
