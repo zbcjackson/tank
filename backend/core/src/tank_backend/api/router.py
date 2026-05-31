@@ -145,6 +145,71 @@ def _ui_msg_to_ws_msg(msg: UIMessage, session_id: str) -> WebsocketMessage | Non
     return None
 
 
+_WORKER_STATUS_MAP = {
+    "started": "calling",
+    "completed": "success",
+    "failed": "error",
+    "cancelled": "error",
+    "timeout": "error",
+}
+
+
+def _worker_event_to_ws_msg(
+    payload: dict[str, Any], session_id: str,
+) -> WebsocketMessage | None:
+    """Convert a worker bus event into an UPDATE WebSocket message.
+
+    Reuses the existing ACTIVITY.TOOL / agent HUD machinery on the frontend.
+    The step_id is stable across events for the same task_id so the frontend
+    upserts the same step (calling → executing → success/error).
+    """
+    event = payload.get("event", "")
+    task_id = payload.get("task_id", "")
+    if not task_id:
+        return None
+
+    status = _WORKER_STATUS_MAP.get(event)
+    if status is None:
+        return None
+
+    description = payload.get("description", "")
+    parent_msg_id = payload.get("parent_msg_id")
+    msg_id = parent_msg_id or f"worker_{task_id}"
+    step_id = f"{msg_id}_tool_0_worker_{task_id}"
+
+    arguments = json.dumps(
+        {"description": description, "background": True},
+        ensure_ascii=False,
+    )
+
+    content = ""
+    if event == "completed":
+        content = payload.get("output", "") or ""
+    elif event in ("failed", "cancelled", "timeout"):
+        content = payload.get("error", "") or event
+
+    is_final = event != "started"
+
+    return WebsocketMessage(
+        type=MessageType.UPDATE,
+        content=content,
+        speaker="Brain",
+        is_user=False,
+        is_final=is_final,
+        msg_id=msg_id,
+        session_id=session_id,
+        metadata={
+            "update_type": "ACTIVITY.TOOL",
+            "step_id": step_id,
+            "name": "agent",
+            "arguments": arguments,
+            "status": status,
+            "turn": 0,
+            "index": 0,
+        },
+    )
+
+
 def _attachment_payload_to_ws_msg(
     payload: dict, session_id: str,
 ) -> WebsocketMessage | None:
@@ -329,6 +394,31 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     assistant._bus.subscribe(  # noqa: SLF001
         "outbound_attachment", on_outbound_attachment,
     )
+
+    # Live push for background worker activity. Converts worker bus events
+    # into UPDATE frames so the frontend HUD shows agent windows in real-time.
+    def on_worker_event(bus_msg: Any) -> None:
+        if not ws_connected:
+            return
+        payload = bus_msg.payload or {}
+        # Only forward events for workers originating from this session.
+        if payload.get("originating_conversation_id") != session_id:
+            return
+        ws_msg = _worker_event_to_ws_msg(payload, session_id)
+        if ws_msg is None:
+            return
+
+        async def _send_worker() -> None:
+            if not ws_connected:
+                return
+            try:
+                await websocket.send_text(ws_msg.model_dump_json())
+            except Exception as e:
+                logger.debug(f"Worker event send error: {e}")
+
+        asyncio.run_coroutine_threadsafe(_send_worker(), loop)
+
+    assistant._bus.subscribe("worker", on_worker_event)  # noqa: SLF001
 
     # Helper for signal handlers to send messages
     async def send_ws_msg(msg: WebsocketMessage) -> None:

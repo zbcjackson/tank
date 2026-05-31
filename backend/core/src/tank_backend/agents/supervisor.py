@@ -411,6 +411,7 @@ class WorkerSupervisor:
             "description": run.description,
             "originating_conversation_id": run.originating_conversation_id,
             "originating_channel": run.originating_channel,
+            "parent_msg_id": run.parent_msg_id,
         }
         if result is not None:
             payload["status"] = result.status
