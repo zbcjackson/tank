@@ -29,9 +29,14 @@ class JobManagementTool(BaseTool):
         return ToolInfo(
             name="manage_jobs",
             description=(
-                "Create, list, update, run, enable, disable, or delete "
-                "scheduled autonomous jobs, or view run history and output. "
-                "Jobs run on a cron schedule without user interaction. "
+                "Manage RECURRING SCHEDULED jobs that fire on a cron "
+                "schedule (e.g. 'every day at 9am', 'every Monday', "
+                "'hourly'). Use this ONLY when the user explicitly wants "
+                "work to repeat on a schedule or run at a specific future "
+                "time. For one-shot work the user wants done NOW (even if "
+                "they say 'in background'), use the `agent` tool with "
+                "run_in_background=True instead. Actions: create, list, "
+                "update, run, enable, disable, delete, history, status. "
                 "Stored in ~/.tank/jobs/."
             ),
             parameters=[

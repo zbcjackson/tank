@@ -296,6 +296,16 @@ class AgentsConfig:
     system_prompt: str = ""
 
 
+@dataclass(frozen=True)
+class NotificationHubConfig:
+    """``notifications:`` section."""
+
+    enabled: bool = True
+    proactive_delivery: bool = True
+    debounce_seconds: float = 3.0
+    max_batch_size: int = 10
+
+
 # ── Skills ────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)

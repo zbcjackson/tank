@@ -420,6 +420,15 @@ class Assistant:
         if self._title_observer is not None:
             self._title_observer.set_loop(self._event_loop)
 
+        # Wire NotificationHub lifecycle (proactive delivery needs the loop,
+        # pipeline, and brain-idle event to schedule injection).
+        if self.brain._notification_hub is not None and self._pipeline is not None:
+            hub = self.brain._notification_hub
+            hub.set_loop(self._event_loop)
+            hub.set_pipeline(self._pipeline)
+            hub.set_brain_idle_event(self._brain_idle_event)
+            hub.set_conversation_id_fn(lambda: self.brain.conversation_id)
+
         await self._tool_manager.connect_mcp_servers()
 
         if self._pipeline is not None:

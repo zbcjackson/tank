@@ -69,8 +69,13 @@ class AgentTool(BaseTool):
         return ToolInfo(
             name="agent",
             description=(
-                "Launch a sub-agent to handle a complex task autonomously. "
-                "The agent gets its own conversation context and tools. "
+                "Launch a sub-agent to handle a complex or time-consuming "
+                "task. Set run_in_background=True to start the task NOW and "
+                "keep talking to the user — the result arrives later as a "
+                "notification. Use this for ANY work that takes more than a "
+                "few seconds (research, multi-step analysis, web scraping, "
+                "planning). This is NOT for scheduled/recurring work — for "
+                "that use manage_jobs. "
                 f"Available types: {agent_list}."
             ),
             parameters=[
@@ -98,7 +103,14 @@ class AgentTool(BaseTool):
                 ToolParameter(
                     name="run_in_background",
                     type="boolean",
-                    description="Run in background for parallel execution",
+                    description=(
+                        "Start the task NOW and return immediately so you "
+                        "can keep talking to the user. The worker runs in "
+                        "the background; its result arrives as a "
+                        "notification when done. Default: false. Set true "
+                        "for time-consuming work, or whenever the user "
+                        "says 'in background' / 'run X for me'."
+                    ),
                     required=False,
                 ),
             ],

@@ -56,10 +56,10 @@ def test_prompt_does_not_promise_a_plan_subagent() -> None:
 def test_prompt_appends_agent_catalog_when_provided() -> None:
     catalog = "- coder: Execute code\n- researcher: Search the web"
     text = _prompt(catalog)
-    assert "Available agents:" in text
+    assert "Available agent types:" in text
     assert catalog in text
 
 
 def test_prompt_omits_catalog_section_when_empty() -> None:
     text = _prompt("")
-    assert "Available agents:" not in text
+    assert "Available agent types:" not in text

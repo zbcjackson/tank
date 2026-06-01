@@ -35,6 +35,7 @@ from .models import (
     JobsConfig,
     MemoryConfig,
     NetworkAccessConfig,
+    NotificationHubConfig,
     PreferenceConfig,
     SandboxConfig,
     SkillsConfig,
@@ -113,6 +114,9 @@ class AppConfig:
 
     # Agent orchestration
     agents: AgentsConfig = field(default_factory=AgentsConfig)
+
+    # Notifications
+    notifications: NotificationHubConfig = field(default_factory=NotificationHubConfig)
 
     # Skills
     skills: SkillsConfig = field(default_factory=SkillsConfig)

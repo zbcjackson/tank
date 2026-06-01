@@ -75,9 +75,9 @@ class Brain(Processor):
         self._interrupt_event = interrupt_event
         self._tts_enabled = tts_enabled
         self._worker_store = worker_store
-        # Set when ``_build_agent_graph`` constructs a WorkerSupervisor;
-        # remains ``None`` when no WorkerStore was injected.
-        self._worker_inbox: Any = None
+        # NotificationHub replaces WorkerInboxObserver (Phase 3).
+        # Set in ``_build_agent_graph`` when WorkerStore is injected.
+        self._notification_hub: Any = None
 
         # --- State-machine approval: PendingToolCallStore ---
         from ...agents.approval import PendingToolCallStore
@@ -228,11 +228,16 @@ class Brain(Processor):
                 max_depth=agents_cfg.max_depth,
                 max_concurrent=agents_cfg.max_concurrent,
             )
-            # Phase 2 step 4: subscribe an inbox observer so terminal
-            # background completions are surfaced into the conversation
-            # at the start of the next user turn.
-            from ...agents.worker_inbox import WorkerInboxObserver
-            self._worker_inbox = WorkerInboxObserver(self._bus)
+            # Phase 3: NotificationHub replaces WorkerInboxObserver.
+            # Subscribes to worker + job_delivery events, provides both
+            # proactive delivery (timer → inject notification turn) and
+            # passive drain (Brain calls drain() at turn start).
+            from ...agents.notification_hub import NotificationHub, NotificationHubConfig
+
+            hub_config = NotificationHubConfig()
+            if app_config is not None:
+                hub_config = getattr(app_config, "notifications", hub_config)
+            self._notification_hub = NotificationHub(self._bus, config=hub_config)
 
         # Register agent tool in ToolManager
         self._tool_manager.set_agent_runner(
@@ -279,30 +284,77 @@ class Brain(Processor):
     def _build_main_agent_prompt(agent_catalog: str) -> str:
         """Build the main agent's system prompt."""
         prompt = (
-            "You have direct access to all tools including file operations, "
-            "shell commands, web search, and more.\n\n"
-            "For requests that benefit from research (multi-step, ambiguous, "
-            "comparative, exploratory), follow this shape:\n"
-            "  1. EXPLORE: gather information using read-only tools. Prefer "
-            "multiple lookups in one turn — they run in parallel.\n"
-            "  2. PLAN:    state your approach in 1-3 lines based on what "
-            "you found. Surface clarifying questions only if they would "
-            "change the plan.\n"
-            "  3. ACT:     execute and deliver.\n"
-            "For simple requests (greetings, one-shot facts, direct "
-            "commands), skip straight to ACT.\n\n"
-            "For simple tasks, handle them directly — don't spawn agents "
-            "unnecessarily.\n\n"
-            "Use the `agent` tool when:\n"
-            "- The task is complex and benefits from a specialist's "
-            "focused context\n"
-            "- You want to run multiple tasks in parallel (call agent "
-            "multiple times in one response)\n"
-            "- The task needs isolation (experimental changes)\n"
-            "- A specific agent has skills relevant to the task\n"
+            "You are the user-facing voice assistant. Your top priority is "
+            "to STAY RESPONSIVE — never block the conversation on long work. "
+            "You have direct access to file operations, shell commands, web "
+            "search, and more.\n\n"
+
+            "## ROUTING DECISION (always do this first)\n\n"
+            "Before taking any action, classify the user's request into one "
+            "of these routes. State your choice in a brief internal thought "
+            "(do NOT speak it aloud), then act:\n\n"
+            "1. DIRECT — you can answer or act with 1-2 fast tool calls "
+            "   (weather, time, simple file read, quick fact). Do it "
+            "   yourself immediately.\n"
+            "2. BACKGROUND — the task needs research, multiple steps, "
+            "   analysis, web scraping, planning, writing, or any work "
+            "   that would take more than ~10 seconds. Dispatch with "
+            "   `agent(run_in_background=True)`, tell the user you've "
+            "   started it, and stay available.\n"
+            "3. SCHEDULED — the user explicitly asks for recurring or "
+            "   future-timed work ('every morning', 'daily at 9am', "
+            "   'hourly'). Use `manage_jobs`.\n\n"
+
+            "Decision signals:\n"
+            "- Multiple web searches needed → BACKGROUND\n"
+            "- 'research' / 'analyze' / 'plan' / 'write' / 'compare' → "
+            "  BACKGROUND\n"
+            "- User says 'in background' / '后台' → BACKGROUND\n"
+            "- Single lookup ('what's the weather', 'what time is it') → "
+            "  DIRECT\n"
+            "- 'every day' / 'hourly' / 'at 9am tomorrow' → SCHEDULED\n"
+            "- If unsure, prefer BACKGROUND — the user stays unblocked "
+            "  and gets a notification when done.\n\n"
+
+            "## BACKGROUND DISPATCH\n\n"
+            "When routing to BACKGROUND:\n"
+            "1. Tell the user briefly what you're starting (1 sentence)\n"
+            "2. Call `agent(prompt=..., run_in_background=True, "
+            "   description=...)`\n"
+            "3. Continue the conversation — don't wait for the result\n\n"
+
+            "When the user says 'in background' / '后台' / 'run X for me', "
+            "they mean: start X NOW as a background worker. Do NOT create "
+            "a scheduled job.\n\n"
+
+            "## SCHEDULED JOBS\n\n"
+            "`manage_jobs` is ONLY for RECURRING or SCHEDULED-FOR-LATER "
+            "work tied to a specific cron schedule. Never use it just "
+            "because the user said 'background'.\n\n"
+
+            "## WHILE WORKERS ARE RUNNING\n\n"
+            "The user can keep talking. If they ask:\n"
+            "- 'is X done?' / 'status?' → call `agent_status(task_id)`\n"
+            "- 'stop X' / 'cancel X' → call `agent_stop(task_id)`\n"
+            "- 'what's running?' → call `list_active_agents`\n\n"
+
+            "## NOTIFICATION TURNS\n\n"
+            "When background notifications arrive (worker completions, job "
+            "results), you will see them as system messages. Summarize "
+            "concisely — this is a voice conversation. Combine multiple "
+            "events into one brief update. If a notification isn't relevant "
+            "to the current topic, mention it briefly and offer to "
+            "elaborate.\n\n"
+
+            "## DIRECT TASKS (EXPLORE / PLAN / ACT)\n\n"
+            "For tasks you handle directly:\n"
+            "1. EXPLORE: gather info with read-only tools (parallel)\n"
+            "2. PLAN: state approach in 1-3 lines\n"
+            "3. ACT: execute and deliver\n"
+            "For simple requests, skip straight to ACT.\n"
         )
         if agent_catalog:
-            prompt += f"\nAvailable agents:\n{agent_catalog}\n"
+            prompt += f"\nAvailable agent types:\n{agent_catalog}\n"
         return prompt
 
     def reset_conversation(self) -> None:
@@ -452,30 +504,30 @@ class Brain(Processor):
     # Pipeline processing
     # ------------------------------------------------------------------
 
-    def _surface_worker_inbox(self) -> None:
-        """Inject any queued worker completions as synthetic system messages.
+    def _surface_notifications(self) -> None:
+        """Inject any queued notifications as synthetic system messages.
 
-        Called at the top of every NORMAL turn. The completions become
+        Called at the top of every NORMAL turn. The notifications become
         part of the conversation history so the LLM sees them in the
-        very next ``prepare_turn`` call. No-op when no inbox is wired
-        or no completions are queued.
+        very next ``prepare_turn`` call. No-op when no hub is wired
+        or no notifications are queued.
         """
-        inbox = self._worker_inbox
-        if inbox is None:
+        hub = self._notification_hub
+        if hub is None:
             return
         conv_id = self._context.conversation_id
         if not conv_id:
             return
-        completions = inbox.drain(conv_id)
-        if not completions:
+        notifications = hub.drain(conv_id)
+        if not notifications:
             return
-        for completion in completions:
+        for notification in notifications:
             self._context.add_message(
-                "system", completion.to_system_message(),
+                "system", notification.to_system_message(),
             )
         logger.info(
-            "Brain: surfaced %d worker completion(s) for conversation %s",
-            len(completions), conv_id,
+            "Brain: surfaced %d notification(s) for conversation %s",
+            len(notifications), conv_id,
         )
 
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
@@ -486,6 +538,12 @@ class Brain(Processor):
         if event.type == InputType.SYSTEM and event.text == "__compact__":
             await self._context.compact()
             yield FlowReturn.OK, None
+            return
+
+        # Handle notification turn (proactive delivery from NotificationHub)
+        if event.type == InputType.SYSTEM and event.text == "__notification__":
+            async for result in self._process_notification_turn(event):
+                yield result
             return
 
         if not event.text or not event.text.strip():
@@ -587,10 +645,10 @@ class Brain(Processor):
         # --- Memory recall (pre-turn) ---
         await self._context.recall_memory(event.user, event.text)
 
-        # --- Surface background worker completions, if any. Drained
+        # --- Surface background notifications, if any. Drained
         # ahead of prepare_turn so the synthetic system messages live
         # in conversation history alongside the user's turn.
-        self._surface_worker_inbox()
+        self._surface_notifications()
 
         # --- Prepare messages for LLM ---
         # Multi-modal attachments (images, docs) ride on event metadata;
@@ -975,6 +1033,88 @@ class Brain(Processor):
         if event.type == "flush":
             return False  # propagate
         return False
+
+    async def _process_notification_turn(
+        self, event: BrainInputEvent,
+    ) -> AsyncIterator[tuple[FlowReturn, Any]]:
+        """Run a proactive notification turn triggered by NotificationHub.
+
+        Drains queued notifications, injects them as system messages,
+        then runs the main ChatAgent so it can summarize/report to the user.
+        """
+        conv_id = self._context.conversation_id
+        if not conv_id or self._notification_hub is None:
+            yield FlowReturn.OK, None
+            return
+
+        notifications = self._notification_hub.drain(conv_id)
+        if not notifications:
+            yield FlowReturn.OK, None
+            return
+
+        self._interrupt_event.clear()
+        started_at = time.time()
+
+        # Inject notifications as system messages
+        for notification in notifications:
+            self._context.add_message("system", notification.to_system_message())
+
+        logger.info(
+            "Brain: notification turn with %d event(s) for %s",
+            len(notifications), conv_id,
+        )
+
+        # Prepare turn with a synthetic user message
+        messages = await self._context.prepare_turn(
+            "system", "[background notifications arrived]",
+        )
+
+        assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
+        language = "zh"
+
+        # Send processing_started signal
+        self._bus.post(BusMessage(
+            type="ui_message",
+            source=self.name,
+            payload=SignalMessage(signal_type="processing_started", msg_id=assistant_msg_id),
+        ))
+
+        try:
+            audio_request = await self._process_via_agents(
+                messages, assistant_msg_id, language, event,
+            )
+
+            elapsed = time.time() - started_at
+            logger.info("Brain notification turn finished: %.3fs", elapsed)
+
+            if audio_request is not None:
+                self._echo_detector.record_tts(audio_request.content)
+                yield FlowReturn.OK, audio_request
+            else:
+                yield FlowReturn.OK, None
+
+        except BrainInterrupted:
+            logger.info("Brain: notification turn interrupted")
+            self._bus.post(BusMessage(
+                type="ui_message",
+                source=self.name,
+                payload=DisplayMessage(
+                    speaker="Brain", text="", is_user=False,
+                    msg_id=assistant_msg_id, is_final=True,
+                ),
+            ))
+            yield FlowReturn.OK, None
+        except Exception as e:
+            logger.error(f"Error in notification turn: {e}", exc_info=True)
+            yield FlowReturn.OK, None
+        finally:
+            self._bus.post(BusMessage(
+                type="ui_message",
+                source=self.name,
+                payload=SignalMessage(
+                    signal_type="processing_ended", msg_id=assistant_msg_id,
+                ),
+            ))
 
     def _on_qos(self, message: BusMessage) -> None:
         """Handle QoS feedback from TTS/playback."""
