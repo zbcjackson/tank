@@ -1041,13 +1041,27 @@ class Brain(Processor):
 
         Drains queued notifications, injects them as system messages,
         then runs the main ChatAgent so it can summarize/report to the user.
+
+        The target conversation_id comes from the event metadata (set by
+        NotificationHub when it injected the event). This ensures
+        notifications are drained from the correct queue even if the user
+        switched conversations between dispatch and delivery.
         """
-        conv_id = self._context.conversation_id
-        if not conv_id or self._notification_hub is None:
+        if self._notification_hub is None:
             yield FlowReturn.OK, None
             return
 
-        notifications = self._notification_hub.drain(conv_id)
+        # Use the conversation_id from the injected event metadata,
+        # falling back to the current conversation if not specified.
+        target_conv_id = (
+            (event.metadata or {}).get("conversation_id")
+            or self._context.conversation_id
+        )
+        if not target_conv_id:
+            yield FlowReturn.OK, None
+            return
+
+        notifications = self._notification_hub.drain(target_conv_id)
         if not notifications:
             yield FlowReturn.OK, None
             return
@@ -1061,7 +1075,7 @@ class Brain(Processor):
 
         logger.info(
             "Brain: notification turn with %d event(s) for %s",
-            len(notifications), conv_id,
+            len(notifications), target_conv_id,
         )
 
         # Prepare turn with a synthetic user message
