@@ -49,7 +49,7 @@ class FakeRunner:
         messages: list[dict[str, Any]],
         parent_agent_id: str | None = None,
         background: bool = False,
-        max_turns: int | None = None,
+        token_budget: int | None = None,
     ) -> AsyncIterator[AgentOutput]:
         self.calls.append({
             "agent_def": agent_def.name,
@@ -70,7 +70,6 @@ def _agent_def(name: str = "researcher") -> AgentDefinition:
         name=name,
         description="test agent",
         system_prompt="be terse",
-        max_turns=5,
     )
 
 

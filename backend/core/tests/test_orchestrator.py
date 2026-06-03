@@ -58,7 +58,6 @@ class TestAgentDefinition:
             description: "Execute code"
             disallowed-tools: [agent]
             skills: [commit]
-            max-turns: 20
             token-budget: 50000
             background: false
             ---
@@ -71,7 +70,6 @@ class TestAgentDefinition:
         assert defn.description == "Execute code"
         assert defn.disallowed_tools == frozenset({"agent"})
         assert defn.skills == ("commit",)
-        assert defn.max_turns == 20
         assert defn.token_budget == 50000
         assert defn.background is False
         assert "coding agent" in defn.system_prompt

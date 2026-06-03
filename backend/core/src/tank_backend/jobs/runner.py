@@ -129,7 +129,6 @@ class AutonomousRunner:
                 async for output in runner.run_agent(
                     agent_def=agent_def,
                     messages=messages,
-                    max_turns=job.max_iterations,
                 ):
                     if output.type == AgentOutputType.TOKEN:
                         output_parts.append(output.content)
@@ -171,5 +170,4 @@ class AutonomousRunner:
             description=f"Autonomous job: {job.name}",
             system_prompt=system_prompt,
             disallowed_tools=frozenset(disallowed),
-            max_turns=job.max_iterations,
         )

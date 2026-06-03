@@ -41,7 +41,7 @@ class FakeRunner:
     ) -> None:
         self.definitions = {
             "coder": AgentDefinition(
-                name="coder", description="d", system_prompt="s", max_turns=5,
+                name="coder", description="d", system_prompt="s",
             ),
         }
         self._events_factory = events_factory
@@ -51,7 +51,7 @@ class FakeRunner:
 
     async def run_agent(
         self, *, agent_def, messages, parent_agent_id=None,
-        background: bool = False, max_turns=None,
+        background: bool = False, token_budget=None,
     ):
         if self._events_factory is not None:
             async for ev in self._events_factory():

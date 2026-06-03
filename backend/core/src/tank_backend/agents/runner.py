@@ -85,7 +85,6 @@ class AgentRunner:
         messages: list[dict[str, Any]],
         parent_agent_id: str | None = None,
         background: bool = False,
-        max_turns: int | None = None,
         token_budget: int | None = None,
     ) -> AsyncIterator[AgentOutput]:
         """Run an agent to completion, yielding all outputs.
@@ -98,7 +97,6 @@ class AgentRunner:
             messages: Initial messages (task description or full conversation).
             parent_agent_id: Parent agent ID for depth tracking.
             background: Run without blocking the parent.
-            max_turns: Override agent_def.max_turns.
             token_budget: Override agent_def.token_budget.
         """
         # --- Depth check ---
@@ -150,7 +148,6 @@ class AgentRunner:
             exclude |= GLOBAL_DISALLOWED_FOR_SUBAGENTS
         exclude_tools = exclude or None
 
-        effective_max_turns = max_turns or agent_def.max_turns
         effective_budget = token_budget or agent_def.token_budget
 
         system_prompt = self._build_sub_agent_prompt(agent_def, messages)
@@ -178,13 +175,12 @@ class AgentRunner:
         )
 
         logger.info(
-            "AgentRunner: starting '%s' (id=%s, depth=%d, max_turns=%d, token_budget=%d, bg=%s)",
-            agent_def.name, agent_id, depth, effective_max_turns, effective_budget, background,
+            "AgentRunner: starting '%s' (id=%s, depth=%d, token_budget=%d, bg=%s)",
+            agent_def.name, agent_id, depth, effective_budget, background,
         )
         self._post_bus_event("agent_started", agent_id, agent_def.name)
 
         start = time.monotonic()
-        turn_count = 0
         tokens_used = 0
 
         try:
@@ -194,11 +190,7 @@ class AgentRunner:
                     tokens_used += output.metadata.get("total_tokens", 0)
                     continue
 
-                # Track turns
-                if output.type == AgentOutputType.TOOL_RESULT:
-                    turn_count += 1
-
-                # Check token budget (primary limit)
+                # Check token budget
                 if effective_budget > 0 and tokens_used >= effective_budget:
                     logger.warning(
                         "Agent '%s' hit token budget (%d/%d tokens)",
@@ -208,19 +200,6 @@ class AgentRunner:
                         type=AgentOutputType.TOKEN,
                         content=f"\n[Agent '{agent_def.name}' reached "
                                 f"token budget ({tokens_used}/{effective_budget} tokens)]",
-                    )
-                    break
-
-                # Check max_turns (safety backstop)
-                if turn_count >= effective_max_turns:
-                    logger.warning(
-                        "Agent '%s' hit max turns (%d)",
-                        agent_def.name, effective_max_turns,
-                    )
-                    yield AgentOutput(
-                        type=AgentOutputType.TOKEN,
-                        content=f"\n[Agent '{agent_def.name}' reached "
-                                f"max turns limit ({effective_max_turns})]",
                     )
                     break
 
@@ -241,8 +220,8 @@ class AgentRunner:
             elapsed = time.monotonic() - start
             tracker.active = False
             logger.info(
-                "AgentRunner: '%s' (id=%s) finished in %.1fs, %d turns",
-                agent_def.name, agent_id, elapsed, turn_count,
+                "AgentRunner: '%s' (id=%s) finished in %.1fs, %d tokens used",
+                agent_def.name, agent_id, elapsed, tokens_used,
             )
             self._post_bus_event("agent_finished", agent_id, agent_def.name)
 

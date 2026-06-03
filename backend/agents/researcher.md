@@ -3,7 +3,6 @@ name: researcher
 description: "Search the web and gather information"
 disallowed-tools: [file_write, file_delete, run_command, persistent_shell, manage_process]
 skills: []
-max-turns: 200
 token-budget: 100000
 ---
 

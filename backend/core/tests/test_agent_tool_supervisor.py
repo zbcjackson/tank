@@ -46,7 +46,6 @@ class FakeRunner:
                 name="coder",
                 description="execute code",
                 system_prompt="be terse",
-                max_turns=5,
             ),
         }
         self._outputs = outputs or [
@@ -64,7 +63,7 @@ class FakeRunner:
         messages: list[dict[str, Any]],
         parent_agent_id: str | None = None,
         background: bool = False,
-        max_turns: int | None = None,
+        token_budget: int | None = None,
     ) -> AsyncIterator[AgentOutput]:
         if self._events_factory is not None:
             async for ev in self._events_factory():

@@ -3,7 +3,6 @@ name: tasker
 description: "Plan and coordinate multi-step tasks"
 disallowed-tools: [file_write, file_delete, run_command, persistent_shell]
 skills: []
-max-turns: 200
 token-budget: 100000
 ---
 

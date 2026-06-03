@@ -42,7 +42,6 @@ class FakeRunner:
                 name="coder",
                 description="execute code",
                 system_prompt="be terse",
-                max_turns=5,
             ),
         }
         self._events_factory = events_factory
@@ -57,7 +56,7 @@ class FakeRunner:
         messages,
         parent_agent_id=None,
         background: bool = False,
-        max_turns=None,
+        token_budget=None,
     ) -> AsyncIterator[AgentOutput]:
         if self._events_factory is not None:
             async for ev in self._events_factory():

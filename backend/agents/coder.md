@@ -3,7 +3,6 @@ name: coder
 description: "Execute code, manage files, run shell commands"
 disallowed-tools: []
 skills: []
-max-turns: 200
 token-budget: 200000
 ---
 
