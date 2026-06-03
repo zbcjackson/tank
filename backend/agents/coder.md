@@ -3,7 +3,8 @@ name: coder
 description: "Execute code, manage files, run shell commands"
 disallowed-tools: []
 skills: []
-max-turns: 25
+max-turns: 200
+token-budget: 200000
 ---
 
 You are a coding agent. Execute commands and modify files to complete tasks.

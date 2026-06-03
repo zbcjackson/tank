@@ -236,6 +236,9 @@ def _translate(
         agent_type = _TOOL_STATUS_MAP.get(status, AgentOutputType.TOOL_CALLING)
         return AgentOutput(type=agent_type, content=content, metadata=metadata)
 
+    if update_type == UpdateType.USAGE:
+        return AgentOutput(type=AgentOutputType.USAGE, content="", metadata=metadata)
+
     return None
 
 

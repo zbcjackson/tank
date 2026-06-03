@@ -3,7 +3,8 @@ name: verifier
 description: "Verify code changes are correct"
 disallowed-tools: [file_write, file_delete, persistent_shell, manage_process, agent]
 background: true
-max-turns: 10
+max-turns: 200
+token-budget: 50000
 ---
 
 You are a verification agent. Check that code changes are correct,

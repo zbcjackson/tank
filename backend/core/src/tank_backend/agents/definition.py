@@ -25,7 +25,8 @@ class AgentDefinition:
     disallowed_tools: frozenset[str] = frozenset()
     skills: tuple[str, ...] = ()
     background: bool = False
-    max_turns: int = 25
+    max_turns: int = 200
+    token_budget: int = 0
     model: str | None = None
 
 
@@ -75,7 +76,8 @@ def parse_agent_file(path: Path) -> AgentDefinition:
         disallowed_tools=disallowed,
         skills=skills,
         background=bool(fm.get("background", False)),
-        max_turns=int(fm.get("max-turns", fm.get("max_turns", 25))),
+        max_turns=int(fm.get("max-turns", fm.get("max_turns", 200))),
+        token_budget=int(fm.get("token-budget", fm.get("token_budget", 0))),
         model=fm.get("model"),
     )
 

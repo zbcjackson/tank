@@ -397,6 +397,61 @@ class LLM:
                 await asyncio.sleep(delay)
         raise last_exc  # type: ignore[misc]
 
+    def _get_iteration_tokens(
+        self,
+        usage: Any,
+        messages: list[Any],
+        content: str,
+        reasoning: str,
+        tool_calls_data: dict[int, dict[str, str]],
+    ) -> int:
+        """Return total tokens for one LLM iteration.
+
+        Uses provider-reported usage when available, falls back to
+        tiktoken estimation for providers that don't support usage
+        reporting in stream chunks.
+        """
+        if usage is not None:
+            return usage.total_tokens
+        # Fallback: estimate with tiktoken
+        return self._estimate_tokens(messages, content, reasoning, tool_calls_data)
+
+    def _estimate_tokens(
+        self,
+        messages: list[Any],
+        content: str,
+        reasoning: str,
+        tool_calls_data: dict[int, dict[str, str]],
+    ) -> int:
+        """Estimate token count using tiktoken when provider doesn't report usage."""
+        enc = self._get_encoder()
+        total = 0
+        # Input: estimate from messages
+        for msg in messages:
+            total += 4  # per-message overhead
+            msg_content = msg.get("content") or "" if isinstance(msg, dict) else ""
+            if isinstance(msg_content, str):
+                total += len(enc.encode(msg_content))
+            for tc in (msg.get("tool_calls", []) if isinstance(msg, dict) else []):
+                fn = tc.get("function", {})
+                total += len(enc.encode(fn.get("name", "")))
+                total += len(enc.encode(fn.get("arguments", "")))
+        # Output: content + reasoning + tool call arguments
+        if content:
+            total += len(enc.encode(content))
+        if reasoning:
+            total += len(enc.encode(reasoning))
+        for tc in tool_calls_data.values():
+            total += len(enc.encode(tc.get("arguments", "")))
+        return total
+
+    def _get_encoder(self) -> Any:
+        """Lazy-initialize tiktoken encoder."""
+        if not hasattr(self, "_encoder"):
+            import tiktoken
+            self._encoder = tiktoken.get_encoding("cl100k_base")
+        return self._encoder
+
     # ------------------------------------------------------------------
     # Streaming chat with tool execution (used by LLMAgent)
     # ------------------------------------------------------------------
@@ -514,10 +569,13 @@ class LLM:
             full_content = ""
             full_reasoning = ""
             tool_calls_data = {}  # index -> {id, name, arguments}
+            iteration_usage = None
 
             stream = await self._create_with_retry(**api_kwargs)
 
             async for chunk in stream:
+                if chunk.usage:
+                    iteration_usage = chunk.usage
                 if not chunk.choices:
                     continue
 
@@ -594,6 +652,19 @@ class LLM:
 
             working_messages.append(assistant_msg)
             yield (UpdateType.MESSAGE, "", {"message": assistant_msg})
+
+            # Yield token usage for budget enforcement
+            iter_tokens = self._get_iteration_tokens(
+                iteration_usage, working_messages, full_content, full_reasoning, tool_calls_data,
+            )
+            yield (UpdateType.USAGE, "", {
+                "prompt_tokens": iteration_usage.prompt_tokens if iteration_usage else 0,
+                "completion_tokens": iteration_usage.completion_tokens if iteration_usage else 0,
+                "total_tokens": iter_tokens,
+                "estimated": iteration_usage is None,
+                "turn": turn,
+            })
+
             if tool_calls_data and tool_executor:
                 from openai.types.chat.chat_completion_message_tool_call import (
                     ChatCompletionMessageToolCall,

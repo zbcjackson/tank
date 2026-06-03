@@ -96,6 +96,8 @@ class AgentGraph:
                     AgentOutputType.TOOL_RESULT,
                 ):
                     tool_calls += 1
+                elif output.type == AgentOutputType.USAGE:
+                    continue  # internal bookkeeping, don't stream to pipeline
 
                 # Stream everything else through (TOKEN, THOUGHT, TOOL_*)
                 yield output

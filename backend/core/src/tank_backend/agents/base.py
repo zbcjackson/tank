@@ -23,6 +23,7 @@ class AgentOutputType(Enum):
     TOOL_CALLING = auto()  # Tool call being assembled
     TOOL_EXECUTING = auto()  # Tool execution in progress
     TOOL_RESULT = auto()  # Tool execution result (success or error)
+    USAGE = auto()  # Token usage report (internal, not streamed to UI)
     HANDOFF = auto()  # Route to another agent
     DONE = auto()  # Agent finished processing
 

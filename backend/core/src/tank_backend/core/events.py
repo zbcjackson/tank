@@ -28,6 +28,7 @@ class UpdateType(Enum):
     TOOL = auto()  # Unified tool step: calling → executing → success/error
     APPROVAL = auto()  # Tool approval request pending user response
     MESSAGE = auto()  # Complete message added to conversation (for persistence)
+    USAGE = auto()  # Token usage report for budget enforcement
 
 
 @dataclass(frozen=True)
