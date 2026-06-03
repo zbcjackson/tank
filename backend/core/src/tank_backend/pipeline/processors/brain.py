@@ -1078,10 +1078,9 @@ class Brain(Processor):
             len(notifications), target_conv_id,
         )
 
-        # Prepare turn with a synthetic user message
-        messages = await self._context.prepare_turn(
-            "system", "[background notifications arrived]",
-        )
+        # Get current messages for LLM without adding a synthetic user message.
+        # The notifications are already injected as system messages above.
+        messages = list(self._context.messages)
 
         assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
         language = "zh"
