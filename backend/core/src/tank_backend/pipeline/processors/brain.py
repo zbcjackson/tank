@@ -1092,16 +1092,13 @@ class Brain(Processor):
         started_at = time.time()
 
         # Inject notifications as system messages
-        if len(notifications) == 1:
-            self._context.add_message("system", notifications[0].to_system_message())
-        else:
-            combined = "\n".join(n.to_system_message() for n in notifications)
-            self._context.add_message(
-                "system",
-                f"[{len(notifications)} background tasks completed. "
-                f"Summarize the key findings for the user in one cohesive response.]\n"
-                f"{combined}",
-            )
+        combined = "\n".join(n.to_system_message() for n in notifications)
+        self._context.add_message(
+            "system",
+            f"[{len(notifications)} background event(s). "
+            f"Summarize the key findings for the user.]\n"
+            f"{combined}",
+        )
 
         logger.info(
             "Brain: notification turn with %d event(s) for %s",

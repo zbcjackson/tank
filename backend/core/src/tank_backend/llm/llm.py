@@ -870,8 +870,10 @@ class LLM:
                             "name": tc["name"], "content": f"Error: {e!s}",
                         })
                         yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
-                # Break out if ask_user was called — worker needs to pause
-                if any(tc["name"] == "ask_user" for tc in tool_calls_data.values()):
+                # Break out if ask_user was called — worker pauses for user input
+                if any(
+                    tc["name"] == "ask_user" for tc in tool_calls_data.values()
+                ):
                     break
                 # Continue loop to get next response after tools
                 continue

@@ -51,13 +51,12 @@ logger = logging.getLogger(__name__)
 _BUS_OUTPUT_MAX_BYTES = 4 * 1024
 
 
-class _AskUserSignal(Exception):
-    """Raised inside _consume_stream when the sub-agent calls ask_user."""
+@dataclass(frozen=True)
+class _AskUserResult:
+    """Returned by _consume_stream when the sub-agent calls ask_user."""
 
-    def __init__(self, question: str, messages: list[dict[str, Any]]) -> None:
-        super().__init__(question)
-        self.question = question
-        self.messages = messages
+    question: str
+    messages: list[dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -288,7 +287,7 @@ class WorkerSupervisor:
         )
 
         try:
-            await asyncio.wait_for(
+            ask_user = await asyncio.wait_for(
                 self._consume_stream(
                     agent_def=agent_def,
                     run=run,
@@ -311,18 +310,6 @@ class WorkerSupervisor:
                 error=error, messages=messages,
             )
             raise
-        except _AskUserSignal as sig:
-            self._store.pause(
-                run.task_id,
-                output="".join(output_chunks),
-                question=sig.question,
-                messages=sig.messages,
-            )
-            self._post_bus_event("waiting", run, question=sig.question)
-            return DispatchResult(
-                task_id=run.task_id, status="waiting",
-                output="".join(output_chunks), error=None,
-            )
         except Exception as e:  # noqa: BLE001 — failure is the result we return
             logger.exception(
                 "Worker '%s' (task=%s) failed",
@@ -331,6 +318,19 @@ class WorkerSupervisor:
             return self._finalize(
                 run=run, status="failed", output="".join(output_chunks),
                 error=f"{type(e).__name__}: {e}", messages=messages,
+            )
+
+        if ask_user is not None:
+            self._store.pause(
+                run.task_id,
+                output="".join(output_chunks),
+                question=ask_user.question,
+                messages=ask_user.messages,
+            )
+            self._post_bus_event("waiting", run, question=ask_user.question)
+            return DispatchResult(
+                task_id=run.task_id, status="waiting",
+                output="".join(output_chunks), error=None,
             )
 
         return self._finalize(
@@ -345,8 +345,12 @@ class WorkerSupervisor:
         run: WorkerRun,
         output_chunks: list[str],
         initial_messages: list[dict[str, Any]] | None = None,
-    ) -> None:
-        """Drain ``runner.run_agent`` into ``output_chunks``."""
+    ) -> _AskUserResult | None:
+        """Drain ``runner.run_agent`` into ``output_chunks``.
+
+        Returns an ``_AskUserResult`` if the sub-agent called ask_user,
+        or ``None`` for a normal completion.
+        """
         messages = initial_messages or [{"role": "user", "content": run.prompt}]
         ask_user_question: str | None = None
         async for event in self._runner.run_agent(
@@ -368,10 +372,11 @@ class WorkerSupervisor:
                 and ask_user_question is not None
             ):
                 turn_messages = event.metadata.get("turn_messages", [])
-                raise _AskUserSignal(
+                return _AskUserResult(
                     question=ask_user_question,
                     messages=messages + turn_messages,
                 )
+        return None
 
     def _finalize(
         self,

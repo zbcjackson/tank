@@ -38,4 +38,4 @@ class AskUserTool(BaseTool):
         question = kwargs["question"]
         options = kwargs.get("options", "")
         display = question + (f" Options: {options}" if options else "")
-        return ToolResult(content="__ASK_USER__", display=display)
+        return ToolResult(content=display, display=display)

@@ -68,7 +68,8 @@ class TestAskUserTool:
     async def test_returns_sentinel_content(self):
         tool = AskUserTool()
         result = await tool.execute(question="Which option?", options="A, B, C")
-        assert result.content == "__ASK_USER__"
+        assert "Which option?" in result.content
+        assert "A, B, C" in result.content
         assert "Which option?" in result.display
         assert "A, B, C" in result.display
 
@@ -76,7 +77,7 @@ class TestAskUserTool:
     async def test_without_options(self):
         tool = AskUserTool()
         result = await tool.execute(question="What city?")
-        assert result.content == "__ASK_USER__"
+        assert result.content == "What city?"
         assert result.display == "What city?"
 
     def test_tool_info(self):
@@ -137,14 +138,14 @@ class TestWorkerStorePauseResume:
 
 
 # ---------------------------------------------------------------------------
-# Supervisor _AskUserSignal + _drive_to_completion tests
+# Supervisor ask_user detection + _drive_to_completion tests
 # ---------------------------------------------------------------------------
 
 
 class TestSupervisorAskUser:
     @pytest.mark.asyncio
     async def test_ask_user_signal_transitions_to_waiting(self, store, bus):
-        """When _consume_stream raises _AskUserSignal, supervisor pauses the worker."""
+        """When _consume_stream detects ask_user, supervisor pauses the worker."""
         runner = MagicMock()
 
         async def fake_run_agent(**kwargs):
@@ -171,7 +172,7 @@ class TestSupervisorAskUser:
                         "role": "tool",
                         "tool_call_id": "tc_1",
                         "name": "ask_user",
-                        "content": "__ASK_USER__",
+                        "content": "Which city?",
                     },
                 ]},
             )
@@ -242,7 +243,7 @@ class TestSupervisorAskUser:
             messages=[
                 {"role": "user", "content": "research"},
                 {"role": "assistant", "content": None, "tool_calls": []},
-                {"role": "tool", "content": "__ASK_USER__"},
+                {"role": "tool", "content": "which city?"},
             ],
         )
 
