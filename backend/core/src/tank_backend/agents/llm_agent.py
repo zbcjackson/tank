@@ -216,7 +216,7 @@ class LLMAgent(Agent):
             self.name, elapsed, len(full_text), tool_call_count,
         )
 
-        yield AgentOutput(type=AgentOutputType.DONE)
+        yield AgentOutput(type=AgentOutputType.DONE, metadata={"turn_messages": turn_messages})
 
 
 def _translate(

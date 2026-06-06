@@ -235,3 +235,81 @@ class ListActiveAgentsTool(BaseTool):
             content=json.dumps({"workers": items}, ensure_ascii=False),
             display=f"{len(items)} active worker(s).",
         )
+
+
+class AgentReplyTool(BaseTool):
+    """Send an answer to a waiting worker, resuming its execution."""
+
+    def __init__(self, store: WorkerStore, supervisor: WorkerSupervisor) -> None:
+        self._store = store
+        self._supervisor = supervisor
+
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="agent_reply",
+            description=(
+                "Send an answer to a worker that asked a question "
+                "(status='waiting'). The worker resumes with your answer."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="task_id",
+                    type="string",
+                    description="The task_id of the waiting worker",
+                    required=True,
+                ),
+                ToolParameter(
+                    name="answer",
+                    type="string",
+                    description="Your answer to the worker's question",
+                    required=True,
+                ),
+            ],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        task_id = kwargs["task_id"]
+        answer = kwargs["answer"]
+
+        run = self._store.get(task_id)
+        if run is None:
+            return ToolResult(
+                content=json.dumps(
+                    {"error": f"task_id '{task_id}' not found"},
+                    ensure_ascii=False,
+                ),
+                display=f"Task {task_id} not found.",
+                error=True,
+            )
+        if run.status != "waiting":
+            return ToolResult(
+                content=json.dumps(
+                    {
+                        "task_id": task_id,
+                        "status": run.status,
+                        "error": f"Worker is '{run.status}', not 'waiting'",
+                    },
+                    ensure_ascii=False,
+                ),
+                display=f"Task {task_id} is '{run.status}', not waiting.",
+                error=True,
+            )
+
+        resumed = await self._supervisor.resume_with_answer(task_id, answer)
+        if not resumed:
+            return ToolResult(
+                content=json.dumps(
+                    {"task_id": task_id, "error": "failed to resume"},
+                    ensure_ascii=False,
+                ),
+                display=f"Failed to resume task {task_id}.",
+                error=True,
+            )
+
+        return ToolResult(
+            content=json.dumps(
+                {"task_id": task_id, "status": "running"},
+                ensure_ascii=False,
+            ),
+            display=f"Resumed worker {task_id} with your answer.",
+        )

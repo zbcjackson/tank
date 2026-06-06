@@ -250,6 +250,17 @@ class AgentRunner:
         """
         parts: list[str] = [agent_def.system_prompt]
 
+        # Inject ask_user guidance so sub-agents know they can pause
+        parts.append(
+            "--- Clarification ---\n"
+            "If you need clarification from the user before you can proceed "
+            "(e.g., choosing between options, missing critical info), call the "
+            "`ask_user` tool with your question. Your execution will pause "
+            "until the user responds. Do NOT write questions in your final "
+            "output — use `ask_user` instead so the system can route the "
+            "question properly and resume your work with the answer."
+        )
+
         # Append workspace rules relevant to paths mentioned in messages
         paths = self._extract_paths_from_messages(messages)
         workspace_rules = self._prompt_assembler.get_workspace_rules_for(paths)

@@ -244,6 +244,19 @@ class Brain(Processor):
             runner, supervisor=worker_supervisor,
         )
 
+        # Register ask_user tool (available to sub-agents only)
+        from ...agents.ask_user_tool import AskUserTool
+
+        self._tool_manager.register_tool(AskUserTool())
+
+        # Register agent_reply tool (available to main agent)
+        if worker_supervisor is not None and self._worker_store is not None:
+            from ...agents.worker_tools import AgentReplyTool
+
+            self._tool_manager.register_tool(
+                AgentReplyTool(store=self._worker_store, supervisor=worker_supervisor),
+            )
+
         # Build main agent system prompt with available agent types
         agent_catalog = self._build_agent_catalog(definitions)
         system_prompt = agents_cfg.system_prompt or None
@@ -251,11 +264,13 @@ class Brain(Processor):
             system_prompt = self._build_main_agent_prompt(agent_catalog)
 
         # Main agent: ALL tools (including agent tool), no exclusions
+        # except ask_user which is only for sub-agents
         main_agent = LLMAgent(
             name="chat",
             llm=agent_llm,
             tool_manager=self._tool_manager,
             system_prompt=system_prompt,
+            exclude_tools={"ask_user"},
             approval_policy=self._tool_manager.approval_policy,
             pending_store=self._pending_store,
             bus=self._bus,
@@ -337,6 +352,13 @@ class Brain(Processor):
             "- 'is X done?' / 'status?' → call `agent_status(task_id)`\n"
             "- 'stop X' / 'cancel X' → call `agent_stop(task_id)`\n"
             "- 'what's running?' → call `list_active_agents`\n\n"
+
+            "## WORKER QUESTIONS\n\n"
+            "When a worker needs clarification, you will see a notification "
+            "like '[Worker ... needs your input: ...]' with a task_id. "
+            "Ask the user the question, then call "
+            "`agent_reply(task_id, answer)` with their response to resume "
+            "the worker.\n\n"
 
             "## NOTIFICATION TURNS\n\n"
             "When background notifications arrive (worker completions, job "
@@ -1070,8 +1092,16 @@ class Brain(Processor):
         started_at = time.time()
 
         # Inject notifications as system messages
-        for notification in notifications:
-            self._context.add_message("system", notification.to_system_message())
+        if len(notifications) == 1:
+            self._context.add_message("system", notifications[0].to_system_message())
+        else:
+            combined = "\n".join(n.to_system_message() for n in notifications)
+            self._context.add_message(
+                "system",
+                f"[{len(notifications)} background tasks completed. "
+                f"Summarize the key findings for the user in one cohesive response.]\n"
+                f"{combined}",
+            )
 
         logger.info(
             "Brain: notification turn with %d event(s) for %s",

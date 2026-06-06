@@ -102,12 +102,14 @@ class TestWorkerEventNormalization:
         assert len(notifications) == 1
         assert "timeout" in notifications[0].summary
 
-    def test_non_terminal_event_ignored(self, bus, hub):
+    def test_started_event_tracked_not_queued(self, bus, hub):
         payload = _worker_payload(event="started")
         bus.post(BusMessage(type="worker", source="test", payload=payload))
         bus.poll()
 
         assert not hub.has_pending("conv_a")
+        # But it should be tracked in pending workers
+        assert "t_1" in hub._pending_workers.get("conv_a", set())
 
     def test_missing_conversation_id_ignored(self, bus, hub):
         payload = _worker_payload(conversation_id="")
@@ -178,6 +180,94 @@ class TestDrainAndHasPending:
         assert len(hub.drain("conv_a")) == 1
         assert len(hub.drain("conv_b")) == 1
 
+    def test_drain_clears_pending_workers(self, bus, hub):
+        # Start a worker
+        bus.post(BusMessage(
+            type="worker", source="test",
+            payload=_worker_payload(event="started", task_id="t_1"),
+        ))
+        bus.poll()
+        assert "t_1" in hub._pending_workers.get("conv_a", set())
+
+        # Complete it
+        bus.post(BusMessage(
+            type="worker", source="test",
+            payload=_worker_payload(event="completed", task_id="t_1"),
+        ))
+        bus.poll()
+
+        # Drain should clear pending_workers too
+        hub.drain("conv_a")
+        assert "conv_a" not in hub._pending_workers
+
+
+class TestCohortTracking:
+    def test_started_events_tracked(self, bus, hub):
+        for i in range(3):
+            bus.post(BusMessage(
+                type="worker", source="test",
+                payload=_worker_payload(event="started", task_id=f"t_{i}"),
+            ))
+        bus.poll()
+
+        assert hub._pending_workers["conv_a"] == {"t_0", "t_1", "t_2"}
+        assert not hub.has_pending("conv_a")
+
+    def test_terminal_event_removes_from_pending(self, bus, hub):
+        # Start 3 workers
+        for i in range(3):
+            bus.post(BusMessage(
+                type="worker", source="test",
+                payload=_worker_payload(event="started", task_id=f"t_{i}"),
+            ))
+        bus.poll()
+
+        # Complete one
+        bus.post(BusMessage(
+            type="worker", source="test",
+            payload=_worker_payload(event="completed", task_id="t_0"),
+        ))
+        bus.poll()
+
+        assert hub._pending_workers["conv_a"] == {"t_1", "t_2"}
+        assert hub.has_pending("conv_a")
+
+    def test_all_workers_complete_marks_cohort_done(self, bus, hub):
+        # Start 2 workers
+        for i in range(2):
+            bus.post(BusMessage(
+                type="worker", source="test",
+                payload=_worker_payload(event="started", task_id=f"t_{i}"),
+            ))
+        bus.poll()
+
+        # Complete both
+        for i in range(2):
+            bus.post(BusMessage(
+                type="worker", source="test",
+                payload=_worker_payload(event="completed", task_id=f"t_{i}"),
+            ))
+        bus.poll()
+
+        # All done — pending_workers set is empty
+        assert hub._pending_workers.get("conv_a") == set()
+        # Notifications are queued
+        assert hub.has_pending("conv_a")
+        notifications = hub.drain("conv_a")
+        assert len(notifications) == 2
+
+    def test_legacy_path_no_started_event(self, bus, hub):
+        """Terminal event without prior started event still works."""
+        bus.post(BusMessage(
+            type="worker", source="test",
+            payload=_worker_payload(event="completed", task_id="t_orphan"),
+        ))
+        bus.poll()
+
+        assert hub.has_pending("conv_a")
+        notifications = hub.drain("conv_a")
+        assert len(notifications) == 1
+
 
 class TestProactiveDeliveryConfig:
     def test_proactive_disabled_does_not_schedule_timer(self, bus):
@@ -188,22 +278,110 @@ class TestProactiveDeliveryConfig:
         bus.post(BusMessage(type="worker", source="test", payload=payload))
         bus.poll()
 
-        # No timer should be scheduled (no loop set either)
-        assert hub._timers == {}
+        # No timers scheduled
+        assert hub._settle_timers == {}
+        assert hub._max_wait_timers == {}
 
-    async def test_proactive_enabled_schedules_timer(self, bus):
-        config = NotificationHubConfig(proactive_delivery=True, debounce_seconds=0.1)
+    @pytest.mark.asyncio
+    async def test_proactive_cohort_done_schedules_settle_timer(self, bus):
+        config = NotificationHubConfig(
+            proactive_delivery=True, settle_seconds=0.1,
+        )
         hub = NotificationHub(bus, config=config)
         loop = asyncio.get_running_loop()
         hub.set_loop(loop)
 
+        # Start and immediately complete (no started event → legacy path)
         payload = _worker_payload()
         bus.post(BusMessage(type="worker", source="test", payload=payload))
         bus.poll()
 
         # Give the run_coroutine_threadsafe a moment to schedule
         await asyncio.sleep(0.05)
-        assert "conv_a" in hub._timers
+        assert "conv_a" in hub._settle_timers
+
+    @pytest.mark.asyncio
+    async def test_proactive_cohort_not_done_schedules_max_wait(self, bus):
+        config = NotificationHubConfig(
+            proactive_delivery=True, settle_seconds=0.1, max_wait_seconds=1.0,
+        )
+        hub = NotificationHub(bus, config=config)
+        loop = asyncio.get_running_loop()
+        hub.set_loop(loop)
+
+        # Start a worker, then complete one of two
+        bus.post(BusMessage(
+            type="worker", source="test",
+            payload=_worker_payload(event="started", task_id="t_0"),
+        ))
+        bus.post(BusMessage(
+            type="worker", source="test",
+            payload=_worker_payload(event="started", task_id="t_1"),
+        ))
+        bus.poll()
+
+        # Complete only t_0
+        bus.post(BusMessage(
+            type="worker", source="test",
+            payload=_worker_payload(event="completed", task_id="t_0"),
+        ))
+        bus.poll()
+
+        await asyncio.sleep(0.05)
+        # Should have max-wait timer, not settle timer
+        assert "conv_a" in hub._max_wait_timers
+        assert "conv_a" not in hub._settle_timers
+
+    @pytest.mark.asyncio
+    async def test_settle_timer_fires_and_delivers(self, bus):
+        config = NotificationHubConfig(
+            proactive_delivery=True, settle_seconds=0.05,
+        )
+        hub = NotificationHub(bus, config=config)
+        loop = asyncio.get_running_loop()
+        hub.set_loop(loop)
+        # No pipeline set → injection won't happen, but timer logic runs
+
+        payload = _worker_payload()
+        bus.post(BusMessage(type="worker", source="test", payload=payload))
+        bus.poll()
+
+        await asyncio.sleep(0.15)
+        # Timer fired (settle_timers should be cleared)
+        assert "conv_a" not in hub._settle_timers
+
+    @pytest.mark.asyncio
+    async def test_max_wait_fires_delivers_partial(self, bus):
+        config = NotificationHubConfig(
+            proactive_delivery=True, settle_seconds=0.5, max_wait_seconds=0.1,
+        )
+        hub = NotificationHub(bus, config=config)
+        loop = asyncio.get_running_loop()
+        hub.set_loop(loop)
+
+        # Start 2 workers
+        for i in range(2):
+            bus.post(BusMessage(
+                type="worker", source="test",
+                payload=_worker_payload(event="started", task_id=f"t_{i}"),
+            ))
+        bus.poll()
+
+        # Complete only 1
+        bus.post(BusMessage(
+            type="worker", source="test",
+            payload=_worker_payload(event="completed", task_id="t_0"),
+        ))
+        bus.poll()
+
+        await asyncio.sleep(0.05)
+        assert "conv_a" in hub._max_wait_timers
+
+        # Wait for max-wait to fire
+        await asyncio.sleep(0.15)
+        # Max-wait fired, pending_workers cleared
+        assert "conv_a" not in hub._pending_workers
+        assert "conv_a" not in hub._max_wait_timers
 
 
 class TestToSystemMessage:

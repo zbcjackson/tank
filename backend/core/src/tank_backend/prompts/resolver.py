@@ -52,7 +52,12 @@ class AgentsFileResolver:
         the filesystem root, collecting every ``AGENTS.md`` found.
         Returns root-first order (general → specific).
         """
-        p = Path(path).expanduser().resolve()
+        if len(path) > 4096:
+            return []
+        try:
+            p = Path(path).expanduser().resolve()
+        except (OSError, ValueError):
+            return []
         if p.is_file():
             p = p.parent
         dir_key = str(p)

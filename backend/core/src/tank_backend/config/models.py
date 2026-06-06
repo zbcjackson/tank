@@ -302,7 +302,8 @@ class NotificationHubConfig:
 
     enabled: bool = True
     proactive_delivery: bool = True
-    debounce_seconds: float = 3.0
+    settle_seconds: float = 1.0
+    max_wait_seconds: float = 60.0
     max_batch_size: int = 10
 
 

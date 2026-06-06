@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 WorkerStatus = Literal[
-    "running", "completed", "failed", "cancelled", "timeout",
+    "running", "waiting", "completed", "failed", "cancelled", "timeout",
 ]
 
 TERMINAL_STATUSES: frozenset[str] = frozenset(
@@ -73,6 +73,7 @@ class WorkerRun:
     completed_at: str | None
     output: str
     error: str | None
+    question: str = ""
     messages: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -104,6 +105,7 @@ def _row_to_run(row: WorkerRunRow) -> WorkerRun:
         completed_at=row.completed_at,
         output=row.output,
         error=row.error,
+        question=row.question or "",
         messages=messages,
     )
 
@@ -206,6 +208,37 @@ class WorkerStore:
             row.error = error
             if messages is not None:
                 row.messages_json = json.dumps(messages)
+        return True
+
+    def pause(
+        self,
+        task_id: str,
+        *,
+        output: str = "",
+        question: str = "",
+        messages: list[dict[str, Any]] | None = None,
+    ) -> bool:
+        """Transition running → waiting. Persists accumulated output, question,
+        and messages for later resumption. Returns False if not found or not running."""
+        with self._db.session() as s:
+            row = s.get(WorkerRunRow, task_id)
+            if row is None or row.status != "running":
+                return False
+            row.status = "waiting"
+            row.output = output
+            row.question = question
+            if messages is not None:
+                row.messages_json = json.dumps(messages)
+        return True
+
+    def resume(self, task_id: str) -> bool:
+        """Transition waiting → running. Returns False if not found or not waiting."""
+        with self._db.session() as s:
+            row = s.get(WorkerRunRow, task_id)
+            if row is None or row.status != "waiting":
+                return False
+            row.status = "running"
+            row.question = None
         return True
 
     def append_output(self, task_id: str, chunk: str) -> bool:

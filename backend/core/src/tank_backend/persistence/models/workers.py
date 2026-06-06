@@ -43,5 +43,6 @@ class WorkerRunRow(Base):
 
     output:                      Mapped[str] = mapped_column(Text, nullable=False, default="")
     error:                       Mapped[str | None] = mapped_column(Text, nullable=True)
+    question:                    Mapped[str | None] = mapped_column(Text, nullable=True)
     # JSON-encoded list of OpenAI messages; populated for resumable runs.
     messages_json:               Mapped[str | None] = mapped_column(Text, nullable=True)
