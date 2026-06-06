@@ -16,6 +16,8 @@ export const markdownComponents = {
   a: (props: React.ComponentProps<'a'>) => (
     <a
       className="text-amber-400 underline underline-offset-2 hover:text-amber-300"
+      target="_blank"
+      rel="noopener noreferrer"
       {...props}
     />
   ),

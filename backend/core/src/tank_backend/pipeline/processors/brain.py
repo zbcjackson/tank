@@ -164,6 +164,9 @@ class Brain(Processor):
         # Track current msg_id for approval notifications from sub-agents
         self._current_msg_id: str = ""
 
+        # Guard: only post title-needed once per session
+        self._title_requested = False
+
         # QoS state: when TTS is overloaded, reduce response aggressiveness
         self._qos_skip_tools = False
         self._bus.subscribe("qos", self._on_qos)
@@ -413,26 +416,21 @@ class Brain(Processor):
         self._maybe_request_title()
 
     def _maybe_request_title(self) -> None:
-        """Post ``conversation_title_needed`` once, after the first turn.
+        """Post ``conversation_title_needed`` once per session for untitled conversations.
 
         The observer wired in ``Assistant`` runs the LLM out-of-band so the
         pipeline never blocks on title generation.
         """
+        if self._title_requested:
+            return
         conv = self._context.conversation
         if conv is None or conv.title:
             return
-        user_count = 0
-        assistant_count = 0
-        for msg in conv.messages:
-            role = msg.get("role")
-            if role == "user":
-                user_count += 1
-            elif role == "assistant":
-                assistant_count += 1
-            if user_count > 1:
-                return
-        if user_count != 1 or assistant_count < 1:
+        has_user = any(m.get("role") == "user" for m in conv.messages)
+        has_assistant = any(m.get("role") == "assistant" for m in conv.messages)
+        if not has_user or not has_assistant:
             return
+        self._title_requested = True
         self._bus.post(BusMessage(
             type="conversation_title_needed",
             source=self.name,

@@ -129,9 +129,25 @@ export const useAssistant = (
 ) => {
   const [mode, setMode] = useState<'voice' | 'chat'>('voice');
   const [capabilities, setCapabilities] = useState<Capabilities>(DEFAULT_CAPABILITIES);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('tank.selectedUserId');
+    } catch {
+      return null;
+    }
+  });
   const [isPttActive, setIsPttActive] = useState(false);
   const [isContinuousMicOn, setIsContinuousMicOn] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (selectedUserId === null) {
+        localStorage.removeItem('tank.selectedUserId');
+      } else {
+        localStorage.setItem('tank.selectedUserId', selectedUserId);
+      }
+    } catch { /* localStorage unavailable */ }
+  }, [selectedUserId]);
 
   const wakeWordAvailable = WAKE_WORD_BUILD_ENABLED;
   const {

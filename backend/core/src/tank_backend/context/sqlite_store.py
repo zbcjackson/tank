@@ -11,6 +11,7 @@ from sqlalchemy import delete, select
 
 from ..persistence import Database
 from ..persistence.models import ConversationRow
+from ..persistence.models.channels import ChannelRow
 from .conversation import ConversationData, ConversationSummary
 from .store import ConversationStore
 
@@ -66,7 +67,13 @@ class SqliteConversationStore(ConversationStore):
                     ConversationRow.messages,
                     ConversationRow.updated_at,
                     ConversationRow.title,
-                ).order_by(ConversationRow.updated_at.desc())
+                )
+                .where(
+                    ConversationRow.conversation_id.not_in(
+                        select(ChannelRow.conversation_id)
+                    )
+                )
+                .order_by(ConversationRow.updated_at.desc())
             ).all()
         return [
             ConversationSummary(

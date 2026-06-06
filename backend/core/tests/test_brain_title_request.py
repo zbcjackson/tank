@@ -69,7 +69,7 @@ class TestMaybeRequestTitle:
 
         assert events == []
 
-    def test_skips_after_second_user_turn(self, brain_with_bus):
+    def test_fires_for_continued_conversation_without_title(self, brain_with_bus):
         brain, bus = brain_with_bus
         events = _collect_title_events(bus)
         brain._context = MagicMock()
@@ -84,7 +84,23 @@ class TestMaybeRequestTitle:
         brain._maybe_request_title()
         bus.poll()
 
-        assert events == []
+        assert len(events) == 1
+        assert events[0].payload["conversation_id"] == "conv-id"
+
+    def test_fires_only_once_per_session(self, brain_with_bus):
+        brain, bus = brain_with_bus
+        events = _collect_title_events(bus)
+        brain._context = MagicMock()
+        brain._context.conversation = _conv([
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello"},
+        ])
+
+        brain._maybe_request_title()
+        brain._maybe_request_title()
+        bus.poll()
+
+        assert len(events) == 1
 
     def test_skips_when_no_assistant_reply_yet(self, brain_with_bus):
         brain, bus = brain_with_bus
