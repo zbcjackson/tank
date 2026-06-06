@@ -161,9 +161,6 @@ Out of scope (deliberately deferred):
   parent worker, not back to the channel directly).
 - Sandbox/worktree isolation for workers (`isolation` parameter
   stays unimplemented).
-- Worker-initiated clarification questions (a worker that needs
-  clarification fails; the future chat-agent split is the right
-  place to wire this).
 - Cross-process supervision. Workers live in the FastAPI process.
   If the process dies, in-flight workers are marked `cancelled`
   on next start and re-runnable via `task_id`.
@@ -531,17 +528,24 @@ Land in this order so each PR is reviewable on its own:
    `core/tests/test_api_agents.py` (4 tests),
    `core/tests/test_brain_worker_inbox.py` (3 tests),
    `core/tests/test_background_agent_flow.py` (3 tests).
-6. **Resume via `task_id`** — deferred. The schema and store already
+6. **Worker-initiated clarification (`ask_user` / `agent_reply`).** 
+   Workers can pause mid-execution to ask the user a question. The
+   worker calls `ask_user(question=...)` → supervisor transitions to
+   `status="waiting"` → NotificationHub delivers the question →
+   ChatAgent calls `agent_reply(task_id, answer)` → worker resumes
+   with full message history + answer. ✓ Shipped —
+   `core/tests/test_worker_pause_resume.py` (17 tests).
+7. **Resume via `task_id`** — deferred. The schema and store already
    support it (`messages_json`, no terminal status guard yet); the
    piece left is wiring `task_id` through `AgentTool` so the LLM
    can extend a prior worker's context. Useful but not gating any
    user-visible flow today.
-7. **Worker-initiated channel delivery for non-voice channels** —
+8. **Worker-initiated channel delivery for non-voice channels** —
    deferred. Today completions land in the conversation via the
    inbox observer, which covers chat-mode users. A connector
    outbound observer (Telegram/Discord/Slack) is the next
    independent PR.
-8. **Voice flush rules** — only needed if/when we want the assistant
+9. **Voice flush rules** — only needed if/when we want the assistant
    to *spontaneously* announce completions instead of waiting for
    the next user turn. Deliberately not implemented.
 
@@ -578,10 +582,10 @@ becomes `dispatch_task` in spirit), `agent_status`, `agent_stop`,
 `remember`). Workers get everything else.
 
 **Question-back path.** Workers can park themselves
-(`status="awaiting_clarification"`) and post a question event. The
+(`status="waiting"`) and post a question event. The
 chat agent surfaces it; the user's answer becomes a resume input.
-This is the pattern Phase 2 deliberately defers — Phase 3 is the
-right place to wire it.
+This pattern is already implemented in Phase 2 via `ask_user` /
+`agent_reply` — Phase 3 inherits it unchanged.
 
 **Cancel-by-description.** The chat agent uses
 `list_active_agents()` plus a fuzzy-match step against the task
@@ -685,13 +689,28 @@ breaking the schema.
 
 ### Worker-initiated clarification questions
 
-A worker that needs information from the user could post a
+~~A worker that needs information from the user could post a
 `clarification_needed` event, park itself, and resume on receipt
 of an answer. Phase 2 deliberately omits this because routing the
 question through the conversational layer is fundamentally a
 chat-agent responsibility (the chat agent decides *when* to
 surface the question — not during the user's own monologue, not
-during a TTS playback). Phase 3 is the right home.
+during a TTS playback). Phase 3 is the right home.~~
+
+**Implemented in Phase 2** (step 6 in the sequencing above). The
+terminate-and-resume pattern avoids coroutine serialization:
+
+1. Sub-agent calls `ask_user(question=...)` tool.
+2. `LLM.chat_stream()` breaks the tool loop after executing it.
+3. `WorkerSupervisor._consume_stream()` detects the tool result,
+   returns an `_AskUserResult` to `_drive_to_completion`.
+4. Supervisor transitions to `status="waiting"`, persists full
+   message history via `WorkerStore.pause()`.
+5. Bus event → `NotificationHub` queues and delivers the question.
+6. ChatAgent calls `agent_reply(task_id, answer)`.
+7. Supervisor appends the answer to messages, transitions back to
+   `running`, re-dispatches via `_drive_to_completion` with the
+   accumulated messages. The LLM sees full history and continues.
 
 ### Mixture-of-workers (parallel research with synthesis)
 

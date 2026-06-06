@@ -4,7 +4,7 @@ This document describes Tank's agent orchestration system — how the main agent
 
 ## Architecture Overview
 
-Tank uses a single main agent with access to ALL tools. For complex tasks, the main agent spawns sub-agents via the `agent` tool. Sub-agents are defined as markdown files and run through the same `AgentRunner.run_agent()` execution path.
+Tank uses a single main agent with access to ALL tools. For complex tasks, the main agent spawns sub-agents via the `agent` tool. Sub-agents are defined as markdown files and run through the `WorkerSupervisor` → `AgentRunner.run_agent()` execution path.
 
 ```
 User message
@@ -13,10 +13,12 @@ User message
       → Main LLMAgent (all tools including `agent`)
         ├─ Handles simple tasks directly (weather, time, chat, file ops, shell)
         ├─ Spawns sub-agents via `agent` tool for complex/isolated tasks
-        │    → AgentRunner.run_agent()
-        │      → LLMAgent with filtered tools + own system prompt
-        │      → Approval inherited from parent
-        │      → Outputs streamed via Bus
+        │    → WorkerSupervisor.run_foreground / run_background
+        │      → AgentRunner.run_agent()
+        │        → LLMAgent with filtered tools + own system prompt
+        │        → Approval inherited from parent
+        │        → Outputs streamed via Bus
+        │    → Terminal result surfaced via NotificationHub
         └─ Synthesizes results into a response
           → Streamed to TTS
 ```
@@ -31,8 +33,112 @@ Key files:
 | `agents/agent_tool.py` | `AgentTool` — the `agent` tool for spawning sub-agents |
 | `agents/definition.py` | `AgentDefinition` — model + loader from markdown files |
 | `agents/graph.py` | `AgentGraph` — orchestrator loop, streams outputs |
+| `agents/store.py` | `WorkerStore` — SQLite-backed persistence for worker runs |
+| `agents/supervisor.py` | `WorkerSupervisor` — lifecycle owner for all worker dispatches |
+| `agents/notification_hub.py` | `NotificationHub` — cohort-aware delivery of worker results |
+| `agents/worker_tools.py` | `agent_status`, `agent_stop`, `list_active_agents`, `agent_reply` |
+| `agents/ask_user_tool.py` | `AskUserTool` — sub-agent tool to pause and ask questions |
 | `agents/approval.py` | `ApprovalManager`, `ToolApprovalPolicy` |
 | `llm/llm.py` | `LLM.chat_stream()` — streaming with tool execution loop |
+
+## Worker Runtime (Phase 2)
+
+Every `agent(...)` dispatch goes through the `WorkerSupervisor`, which persists a `WorkerRunRow` in SQLite and drives the agent to completion. Workers survive WebSocket disconnects and report results to the originating conversation.
+
+### Worker Lifecycle
+
+```
+agent(prompt, subagent_type, run_in_background=False)
+  → AgentTool.execute()
+    → WorkerSupervisor.run_foreground() or .run_background()
+      → WorkerStore.create(status="running")
+      → _drive_to_completion()
+        → _consume_stream() drains AgentRunner output
+        → On success: WorkerStore.finish(status="completed")
+        → On failure: WorkerStore.finish(status="failed")
+        → On ask_user: WorkerStore.pause(status="waiting")
+      → Bus event posted → NotificationHub delivers result
+```
+
+### Worker Statuses
+
+| Status | Meaning |
+|--------|---------|
+| `running` | Worker is actively executing |
+| `waiting` | Worker paused, awaiting user clarification via `agent_reply` |
+| `completed` | Worker finished successfully |
+| `failed` | Worker hit an error |
+| `cancelled` | Worker was stopped via `agent_stop` or supervisor shutdown |
+| `timeout` | Worker exceeded its time limit |
+
+### Foreground vs Background
+
+- **Foreground** (`run_in_background=False`): caller blocks until the worker completes. Result returned as the `agent` tool's output.
+- **Background** (`run_in_background=True`): caller gets `{task_id, status: "running"}` immediately. The worker runs as an `asyncio.Task`. Terminal result delivered via `NotificationHub` on the next user turn or proactively.
+
+### Tool Surface
+
+```python
+agent(
+    prompt: str,
+    subagent_type: str = "coder",
+    description: str = "",
+    run_in_background: bool = False,
+)
+
+agent_status(task_id, wait: bool = False, timeout_ms: int = 60000)
+agent_stop(task_id)
+list_active_agents()
+agent_reply(task_id, answer)  # resume a waiting worker
+```
+
+### NotificationHub (Cohort-Aware Delivery)
+
+When background workers complete, `NotificationHub` queues notifications per conversation and delivers them:
+
+- **Cohort tracking**: tracks in-flight workers per conversation. Waits for all workers in a cohort to finish before delivering (avoids partial results).
+- **Proactive delivery**: injects a synthetic `__notification__` event into the pipeline when the brain is idle, triggering a notification turn.
+- **Passive fallback**: Brain calls `hub.drain(conversation_id)` at the start of each user turn, injecting queued notifications as system messages.
+- **Question delivery**: `waiting` events bypass cohort wait and deliver immediately (high priority).
+
+## Worker Pause-and-Ask
+
+Sub-agents can pause mid-execution to ask the user a question. This uses a terminate-and-resume pattern — the worker's full message history is persisted to the database, and execution restarts with the accumulated context plus the user's answer.
+
+### Flow
+
+```
+Sub-agent LLM calls ask_user(question="Which option?")
+  → AskUserTool.execute() returns ToolResult(content=question)
+  → LLM.chat_stream() breaks the tool loop (no further LLM calls)
+  → LLMAgent.run() finishes, yields DONE with turn_messages in metadata
+  → WorkerSupervisor._consume_stream() detects ask_user in TOOL_RESULT events
+  → Returns _AskUserResult to _drive_to_completion()
+  → WorkerStore.pause(task_id, messages=full_history, question=...)
+  → Bus event "waiting" posted
+  → NotificationHub queues high-priority notification
+  → Brain surfaces question to user on next turn
+
+User answers (via ChatAgent calling agent_reply):
+  → AgentReplyTool.execute(task_id, answer)
+  → WorkerSupervisor.resume_with_answer(task_id, answer)
+    → Appends answer to persisted messages
+    → WorkerStore.resume(task_id) → status back to "running"
+    → Re-dispatches _drive_to_completion with accumulated messages
+    → LLM sees full history + answer, continues naturally
+```
+
+### Detection Mechanism
+
+The `ask_user` tool is detected by its tool name in the event stream metadata (`event.metadata.get("name") == "ask_user"`). There is no magic sentinel string — the tool returns the question text as its content.
+
+Two components collaborate:
+1. **`llm.py`** — breaks the tool iteration loop after executing any tool named `ask_user`, so the agent run ends cleanly.
+2. **`supervisor._consume_stream`** — watches for `TOOL_RESULT` events with `name="ask_user"`, captures the question, and returns it via `_AskUserResult` when `DONE` arrives.
+
+### Sub-Agent Prompt Injection
+
+`AgentRunner._build_sub_agent_prompt()` appends clarification guidance to every sub-agent's system prompt, instructing them to call `ask_user` instead of writing questions as text output.
 
 ## How It Works
 
@@ -42,25 +148,27 @@ The main agent has access to every registered tool — file operations, shell co
 
 - Simple tasks (weather, time, calculations, quick file reads): handle directly
 - Complex tasks (multi-step coding, research, planning): spawn a sub-agent
-- Parallel tasks: call `agent` multiple times in one response
+- Parallel tasks: call `agent` multiple times with `run_in_background=True`
 
 ### Sub-Agents via `agent` Tool
 
 When the LLM calls `agent(prompt="...", subagent_type="coder")`:
 
 1. `AgentTool.execute()` looks up the agent definition
-2. Calls `AgentRunner.run_agent()` which:
+2. Calls `WorkerSupervisor.run_foreground()` which:
    - Checks depth limit (max 3 levels deep)
    - Checks concurrent agent limit (max 5)
-   - Creates an `LLMAgent` with the definition's system prompt
-   - Filters tools: all tools minus `disallowed_tools` minus global disallowed set
-   - Passes `approval_manager` and `approval_policy` (inherited from parent)
-   - Streams all `AgentOutput` items back
+   - Creates a `WorkerRunRow` in the database
+   - Calls `AgentRunner.run_agent()`:
+     - Creates an `LLMAgent` with the definition's system prompt + ask_user guidance
+     - Filters tools: all tools minus `disallowed_tools` minus global disallowed set, plus `ask_user`
+     - Passes `approval_manager` and `approval_policy` (inherited from parent)
+     - Streams all `AgentOutput` items back
 3. The result text is returned to the main agent as the tool result
 
 ### Agent Definitions
 
-Agents are defined as markdown files with YAML frontmatter in `.tank/agents/`:
+Agents are defined as markdown files with YAML frontmatter in `backend/agents/`:
 
 ```yaml
 # backend/agents/coder.md
@@ -94,6 +202,7 @@ Sub-agents use a **disallowed tools** pattern (not an allowlist):
 1. Start with ALL registered tools
 2. Remove the agent definition's `disallowed_tools`
 3. For sub-agents, also remove global disallowed set: `agent`, `use_skill`, `list_skills`, `create_skill`, `install_skill`
+4. Add `ask_user` (available to sub-agents only, excluded from the main ChatAgent)
 
 This means sub-agents can't spawn further sub-agents by default (the `agent` tool is globally disallowed for sub-agents).
 
@@ -158,14 +267,20 @@ agents:
     - ~/.tank/agents         # user-level agent definitions
   max_depth: 3               # max sub-agent nesting depth
   max_concurrent: 5          # max parallel background agents
+
+notifications:
+  enabled: true
+  proactive_delivery: true
+  settle_seconds: 1.0        # wait after cohort settles before delivering
+  max_wait_seconds: 60.0     # safety net — deliver even if workers still in-flight
 ```
 
 ### Limits
 
 | Limit | Default | Where |
 |-------|---------|-------|
-| Max agent depth | 3 | `AgentRunner` |
-| Max concurrent agents | 5 | `AgentRunner` |
+| Max agent depth | 3 | `WorkerSupervisor` |
+| Max concurrent agents | 5 | `WorkerSupervisor` |
 | Max turns per agent | 25 | `AgentDefinition.max_turns` |
 | AgentGraph iterations | 5 | `AgentGraph` |
 | LLM tool iterations | 10 | `LLM.chat_stream()` |
@@ -177,10 +292,14 @@ agents:
 
 2. **Sub-agents can't spawn sub-agents by default.** The `agent` tool is in the global disallowed set for sub-agents. This prevents infinite recursion. To allow it, remove `agent` from a specific agent definition's `disallowed_tools` — but be careful with depth limits.
 
-3. **Agent definitions are loaded at startup.** Changes to `.tank/agents/*.md` files require a server restart (or hot-reload via watchfiles). The definitions are not re-scanned per request.
+3. **Agent definitions are loaded at startup.** Changes to `backend/agents/*.md` files require a server restart (or hot-reload via watchfiles). The definitions are not re-scanned per request.
 
 4. **Concurrent execution requires the `agent` tool to be concurrent-safe.** Currently, `agent` tool calls run sequentially unless `run_in_background=true` is set. The `_CONCURRENT_PREFIXES` in `llm.py` controls which tools run in parallel.
 
 5. **Approval timeout is silent.** If the user doesn't respond within 120s, the approval request times out and the tool call fails. The agent sees a timeout error.
 
 6. **Langfuse tracing uses `name` and `metadata` kwargs only.** The Langfuse v4 SDK's `OpenAiArgsExtractor` only extracts `name`, `metadata`, `trace_id`, `parent_observation_id` from kwargs. Other keys (`tags`, `session_id`) leak through to the OpenAI API and cause errors.
+
+7. **`ask_user` is sub-agent only.** The main ChatAgent does NOT have `ask_user` — it talks to the user directly. Only workers dispatched via `agent(...)` get this tool injected.
+
+8. **Worker pause persists full message history.** When a worker calls `ask_user`, all messages up to that point (including the ask_user tool call and result) are serialized to `messages_json` in the database. On resume, the LLM sees the complete conversation history.
