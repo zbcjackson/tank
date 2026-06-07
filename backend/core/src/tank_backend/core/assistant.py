@@ -194,6 +194,7 @@ class Assistant:
         if title_generator is not None:
             self._title_observer = TitleGenerationObserver(
                 bus=self._bus, generator=title_generator,
+                on_title_generated=self._on_title_generated,
             )
 
     def _build_pipeline(
@@ -630,6 +631,12 @@ class Assistant:
 
     def _on_playback_ended(self, _message: BusMessage) -> None:
         self._playback_active = False
+
+    def _on_title_generated(self, conversation_id: str, title: str) -> None:
+        """Sync title into the in-memory conversation to prevent overwrite on next persist."""
+        conv = self.brain._context.conversation
+        if conv is not None and conv.id == conversation_id:
+            conv.title = title
 
     def _set_brain_idle_event(self, idle: bool) -> None:
         """Thread-safe set/clear of the asyncio brain idle event."""

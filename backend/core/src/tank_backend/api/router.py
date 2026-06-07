@@ -88,7 +88,9 @@ def _resolve_user_name(user_id: str | None) -> str:
     return speaker.name if speaker else "Guest"
 
 
-def _ui_msg_to_ws_msg(msg: UIMessage, session_id: str) -> WebsocketMessage | None:
+def _ui_msg_to_ws_msg(
+    msg: UIMessage, session_id: str, conversation_id: str | None = None,
+) -> WebsocketMessage | None:
     """Convert a UIMessage to a WebsocketMessage."""
     if isinstance(msg, SignalMessage):
         return WebsocketMessage(
@@ -101,7 +103,7 @@ def _ui_msg_to_ws_msg(msg: UIMessage, session_id: str) -> WebsocketMessage | Non
     if isinstance(msg, ConversationMetadataUpdate):
         # Scope to the matching session so a title generated for one
         # conversation never leaks into another open tab's sidebar.
-        if msg.conversation_id != session_id:
+        if msg.conversation_id != conversation_id:
             return None
         metadata: dict[str, Any] = {"conversation_id": msg.conversation_id}
         if msg.title is not None:
@@ -308,8 +310,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     def on_ui_message(msg: UIMessage) -> None:
         if not ws_connected:
             return
-        ws_msg = _ui_msg_to_ws_msg(msg, session_id)
+        ws_msg = _ui_msg_to_ws_msg(msg, session_id, assistant.brain.conversation_id)
         if ws_msg is None:
+            return
             return
 
         async def _send() -> None:

@@ -12,7 +12,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from ...core.events import ConversationMetadataUpdate
 from ..bus import Bus, BusMessage
@@ -31,10 +32,12 @@ class TitleGenerationObserver:
         bus: Bus,
         generator: TitleGenerator,
         loop: asyncio.AbstractEventLoop | None = None,
+        on_title_generated: Callable[[str, str], Any] | None = None,
     ) -> None:
         self._bus = bus
         self._generator = generator
         self._loop = loop
+        self._on_title_generated = on_title_generated
         bus.subscribe("conversation_title_needed", self._on_message)
 
     def set_loop(self, loop: asyncio.AbstractEventLoop) -> None:
@@ -70,6 +73,8 @@ class TitleGenerationObserver:
             return
         if not title:
             return
+        if self._on_title_generated is not None:
+            self._on_title_generated(conversation_id, title)
         self._bus.post(BusMessage(
             type="ui_message",
             source="title_generator",
