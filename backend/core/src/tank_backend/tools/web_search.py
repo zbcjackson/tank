@@ -6,7 +6,7 @@ import requests
 
 from ..policy.credentials import ServiceCredentialManager
 from ..policy.verdict import AccessLevel
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,9 @@ class WebSearchTool(BaseTool):
     ):
         self._credentials = credential_manager
         self._network_policy = network_policy
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="web", idempotent=True, requires_network=True)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(

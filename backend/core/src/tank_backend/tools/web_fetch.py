@@ -9,7 +9,7 @@ from typing import Any
 from urllib.parse import urlparse, urlunparse
 
 from ..policy.verdict import AccessLevel
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +106,9 @@ class WebFetchTool(BaseTool):
         self._browser_crawler: Any = None
         self._network_policy = network_policy
         self._cache = ResponseCache(max_size=50, ttl_seconds=900)
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="web", idempotent=True, requires_network=True)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(

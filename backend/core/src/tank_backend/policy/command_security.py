@@ -250,13 +250,18 @@ def _extract_find_inner_commands(segment: str) -> list[str]:
 class CommandSecurityPolicy:
     """Evaluates shell commands for safety.
 
-    Three-layer evaluation:
+    Four-layer evaluation:
     1. Dangerous patterns (regex) — hard-block, cannot be overridden
-    2. Safe command allowlist — auto-approve known-safe commands
-    3. Unknown → require approval
+    2. Durable approvals — previously approved commands auto-allow
+    3. Safe command allowlist — auto-approve known-safe commands
+    4. Unknown → require approval
     """
 
-    def __init__(self, config: CommandSecurityConfig) -> None:
+    def __init__(
+        self,
+        config: CommandSecurityConfig,
+        approval_store: Any | None = None,
+    ) -> None:
         extra_safe = config.extra_safe_commands or ()
         safe = SAFE_COMMANDS | frozenset(extra_safe)
 
@@ -273,6 +278,7 @@ class CommandSecurityPolicy:
         self._git_safe_subcommands = GIT_SAFE_SUBCOMMANDS
         self._always_require = always_require
         self._llm_config = config.llm_evaluation
+        self._approval_store = approval_store
 
         # Pre-compile dangerous patterns
         self._dangerous: tuple[tuple[re.Pattern[str], str], ...] = tuple(
@@ -454,6 +460,14 @@ class CommandSecurityPolicy:
             return PolicyVerdict(
                 level=AccessLevel.ALLOW,
                 reason=f"safe command: {base}",
+                policy="command",
+            )
+
+        # Durable approvals — previously approved by user
+        if self._approval_store is not None and self._approval_store.has(base):
+            return PolicyVerdict(
+                level=AccessLevel.ALLOW,
+                reason=f"previously approved: {base}",
                 policy="command",
             )
 

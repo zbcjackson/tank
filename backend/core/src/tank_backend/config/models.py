@@ -250,6 +250,19 @@ class CommandSecurityConfig:
 
 
 @dataclass(frozen=True)
+class ToolGuardrailsConfig:
+    """``tool_guardrails:`` section — loop detection thresholds."""
+
+    enabled: bool = True
+    exact_repeat_warn_after: int = 2
+    exact_repeat_block_after: int = 4
+    same_tool_fail_warn_after: int = 3
+    same_tool_fail_block_after: int = 6
+    no_progress_warn_after: int = 3
+    no_progress_block_after: int = 5
+
+
+@dataclass(frozen=True)
 class MountConfig:
     """A single mount specification in sandbox config."""
 

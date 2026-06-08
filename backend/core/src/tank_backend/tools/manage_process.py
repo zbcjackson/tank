@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Any
 
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +16,9 @@ class ManageProcessTool(BaseTool):
 
     def __init__(self, sandbox: Any) -> None:
         self._sandbox = sandbox
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="command", idempotent=False)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(

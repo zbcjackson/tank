@@ -513,6 +513,14 @@ class LLM:
         turn = 0
         rejected_tools: set[str] = set()
 
+        # Tool loop guardrails — detect repeated failures / no-progress
+        from ..agents.guardrails import (
+            ToolCallGuardrailController,
+            ToolCallSignature,
+        )
+
+        guardrail = ToolCallGuardrailController()
+
         for _iteration in range(MAX_TOOL_ITERATIONS):
             turn += 1
             logger.debug(f"LLM Stream iteration {turn} with {len(working_messages)} messages")
@@ -752,6 +760,20 @@ class LLM:
                                 _tool_result_to_llm(result)
                             )
 
+                            # --- Guardrail check (concurrent path) ---
+                            sig = ToolCallSignature.from_call(tc["name"], tc["arguments"])
+                            decision = guardrail.record_result(
+                                sig,
+                                failed=is_error,
+                                result_content=llm_content if not is_error else "",
+                                idempotent=tc["name"] in _CONCURRENT_SAFE_TOOLS,
+                            )
+                            if decision.should_block:
+                                rejected_tools.add(tc["name"])
+                                llm_content = f"{llm_content}\n\n[GUARDRAIL] {decision.reason}"
+                            elif decision.should_warn:
+                                llm_content = f"{llm_content}\n\n[GUARDRAIL] {decision.reason}"
+
                             yield (
                                 UpdateType.TOOL, ui_display,
                                 {
@@ -824,6 +846,20 @@ class LLM:
                         llm_content, ui_display, follow_up_blocks = (
                             _tool_result_to_llm(result)
                         )
+
+                        # --- Guardrail check ---
+                        sig = ToolCallSignature.from_call(tc["name"], tc["arguments"])
+                        decision = guardrail.record_result(
+                            sig,
+                            failed=is_error,
+                            result_content=llm_content if not is_error else "",
+                            idempotent=tc["name"] in _CONCURRENT_SAFE_TOOLS,
+                        )
+                        if decision.should_block:
+                            rejected_tools.add(tc["name"])
+                            llm_content = f"{llm_content}\n\n[GUARDRAIL] {decision.reason}"
+                        elif decision.should_warn:
+                            llm_content = f"{llm_content}\n\n[GUARDRAIL] {decision.reason}"
 
                         yield (
                             UpdateType.TOOL, ui_display,

@@ -28,6 +28,8 @@ def make_approval_id() -> str:
 
 
 # Tools that use command-level security evaluation via CommandSecurityPolicy.
+# Legacy frozensets kept for backward compatibility; ToolApprovalPolicy
+# prefers tool_metadata lookups when available.
 COMMAND_TOOLS: frozenset[str] = frozenset({
     "run_command",
     "persistent_shell",
@@ -45,7 +47,6 @@ WEB_TOOLS: frozenset[str] = frozenset({
 })
 
 
-
 class ToolApprovalPolicy:
     """Evaluates tool calls and returns a three-way PolicyVerdict.
 
@@ -54,6 +55,11 @@ class ToolApprovalPolicy:
     - File tools → FileAccessPolicy
     - Web tools → NetworkAccessPolicy
     - All other tools → ALLOW
+
+    When ``tool_metadata`` is provided (from ToolManager), the policy
+    routes by ``ToolMetadata.category`` instead of the hardcoded sets.
+    The legacy frozensets serve as fallback for tools registered without
+    metadata (MCP tools, dynamically added tools).
     """
 
     def __init__(
@@ -62,25 +68,42 @@ class ToolApprovalPolicy:
         file_policy: Any | None = None,
         network_policy: Any | None = None,
         llm: Any | None = None,
+        tool_metadata: dict[str, Any] | None = None,
     ) -> None:
         self._command_policy = command_policy
         self._file_policy = file_policy
         self._network_policy = network_policy
         self._llm = llm
+        self._tool_metadata = tool_metadata or {}
+
+    def _get_category(self, tool_name: str) -> str:
+        """Resolve the category for a tool, preferring metadata over hardcoded sets."""
+        meta = self._tool_metadata.get(tool_name)
+        if meta is not None:
+            return meta.category
+        # Fallback to legacy frozensets
+        if tool_name in COMMAND_TOOLS:
+            return "command"
+        if tool_name in FILE_TOOLS:
+            return "file"
+        if tool_name in WEB_TOOLS:
+            return "web"
+        return "general"
 
     def evaluate(
         self, tool_name: str, tool_args: dict[str, Any] | None = None,
     ) -> PolicyVerdict:
         """Evaluate synchronously."""
         args = tool_args or {}
+        category = self._get_category(tool_name)
 
-        if tool_name in COMMAND_TOOLS:
+        if category == "command":
             return self._evaluate_command(args)
 
-        if tool_name in FILE_TOOLS:
+        if category == "file":
             return self._evaluate_file(tool_name, args)
 
-        if tool_name in WEB_TOOLS:
+        if category == "web":
             return self._evaluate_network(tool_name, args)
 
         return PolicyVerdict(
@@ -94,14 +117,15 @@ class ToolApprovalPolicy:
     ) -> PolicyVerdict:
         """Evaluate asynchronously (with optional LLM for unknown commands)."""
         args = tool_args or {}
+        category = self._get_category(tool_name)
 
-        if tool_name in COMMAND_TOOLS:
+        if category == "command":
             return await self._evaluate_command_async(args)
 
-        if tool_name in FILE_TOOLS:
+        if category == "file":
             return self._evaluate_file(tool_name, args)
 
-        if tool_name in WEB_TOOLS:
+        if category == "web":
             return self._evaluate_network(tool_name, args)
 
         return PolicyVerdict(

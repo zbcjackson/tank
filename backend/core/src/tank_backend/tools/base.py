@@ -72,6 +72,31 @@ class ToolInfo(BaseModel):
     parameters: list[ToolParameter]
 
 
+@dataclass(frozen=True, slots=True)
+class ToolMetadata:
+    """Declarative metadata for policy routing and guardrails.
+
+    Tools override :meth:`BaseTool.get_metadata` to declare their
+    category (used by :class:`ToolApprovalPolicy` to route to the
+    correct security policy) and behavioral hints (idempotency,
+    resource requirements).
+
+    Attributes:
+        category: Policy routing key. One of ``"command"``,
+                  ``"file"``, ``"web"``, or ``"general"`` (default).
+        idempotent: True for read-only / pure-query tools that
+                    produce the same result for the same inputs.
+                    Used by guardrails to detect no-progress loops.
+        requires_network: Hint that the tool makes outbound requests.
+        requires_filesystem: Hint that the tool accesses the filesystem.
+    """
+
+    category: str = "general"
+    idempotent: bool = False
+    requires_network: bool = False
+    requires_filesystem: bool = False
+
+
 # Phase 18: name of the reserved keyword argument that
 # ``ToolManager.execute_tool`` injects when a tool's signature opts
 # in to platform context. Tools that accept ``ctx: ToolContext``
@@ -110,16 +135,32 @@ class ToolContext:
                      ``None`` when the manager hasn't been told about
                      a session yet (offline tool execution from CLI,
                      unit tests).
+        bus:         Message bus for emitting events. Tools can use
+                     this to post progress or domain-specific events.
+                     ``None`` when running outside the pipeline.
     """
 
     media_store: Any = None
     session_id: str | None = None
+    bus: Any = None
 
 
 class BaseTool(ABC):
     @abstractmethod
     def get_info(self) -> ToolInfo:
         pass
+
+    def get_metadata(self) -> ToolMetadata:
+        """Return declarative metadata for policy routing and guardrails.
+
+        Override in subclasses to declare category, idempotency, etc.
+        Default: general category, mutable, no special requirements.
+        """
+        return ToolMetadata()
+
+    def is_available(self) -> bool:
+        """Return False to skip registration (missing env var, disabled config, etc.)."""
+        return True
 
     @abstractmethod
     async def execute(self, **kwargs: Any) -> "ToolResult | str":

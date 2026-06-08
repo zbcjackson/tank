@@ -16,6 +16,7 @@ from .base import (
     ToolContext,
     ToolGroup,
     ToolInfo,
+    ToolMetadata,
     ToolResult,
 )
 
@@ -37,6 +38,7 @@ class ToolManager:
         media_store: Any = None,
     ) -> None:
         self.tools: dict[str, BaseTool] = {}
+        self.tool_metadata: dict[str, ToolMetadata] = {}
         self._groups: list[ToolGroup] = []
         self._bus = bus
         # Phase 18: session-scoped resources tools opt into via the
@@ -75,7 +77,19 @@ class ToolManager:
         from ..agents.approval import ToolApprovalPolicy
         from ..policy.command_security import CommandSecurityPolicy
 
-        command_policy = CommandSecurityPolicy(app_config.command_security)
+        # Durable command approvals (if database is available)
+        command_approval_store = None
+        if hasattr(app_config, '_database') and app_config._database is not None:
+            from ..policy.command_approvals import CommandApprovalStore
+            try:
+                command_approval_store = CommandApprovalStore(app_config._database)
+            except Exception as e:
+                logger.warning("Failed to create CommandApprovalStore: %s", e)
+
+        command_policy = CommandSecurityPolicy(
+            app_config.command_security,
+            approval_store=command_approval_store,
+        )
 
         # Create dedicated LLM for command security evaluation (if configured)
         command_llm = None
@@ -105,6 +119,7 @@ class ToolManager:
             file_policy=self._file_policy,
             network_policy=self._network_policy,
             llm=command_llm,
+            tool_metadata=self.tool_metadata,
         )
 
         # --- Register tool groups ---
@@ -260,8 +275,13 @@ class ToolManager:
     # ------------------------------------------------------------------
 
     def register_tool(self, tool: BaseTool) -> None:
+        if not tool.is_available():
+            info = tool.get_info()
+            logger.info(f"Skipping unavailable tool: {info.name}")
+            return
         info = tool.get_info()
         self.tools[info.name] = tool
+        self.tool_metadata[info.name] = tool.get_metadata()
         logger.info(f"Registered tool: {info.name}")
 
     def get_tool_info(self) -> list[ToolInfo]:
@@ -385,6 +405,7 @@ class ToolManager:
         injected[TOOL_CONTEXT_KWARG] = ToolContext(
             media_store=self._media_store,
             session_id=self._session_id,
+            bus=self._bus,
         )
         return injected
 

@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,9 @@ class RunCommandTool(BaseTool):
 
     def __init__(self, sandbox: Any) -> None:
         self._sandbox = sandbox
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="command", idempotent=False)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(

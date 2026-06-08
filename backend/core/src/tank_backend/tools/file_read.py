@@ -10,7 +10,7 @@ from typing import Any
 
 from ..policy.file_access import FileAccessPolicy
 from ..policy.verdict import AccessLevel
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,9 @@ class FileReadTool(BaseTool):
         policy: FileAccessPolicy,
     ) -> None:
         self._policy = policy
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="file", idempotent=True, requires_filesystem=True)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(

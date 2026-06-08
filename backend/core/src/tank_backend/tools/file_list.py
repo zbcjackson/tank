@@ -16,7 +16,7 @@ from typing import Any
 
 from ..policy.file_access import FileAccessPolicy
 from ..policy.verdict import AccessLevel
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 from .ripgrep import find_rg_binary, run_rg_files
 
 logger = logging.getLogger(__name__)
@@ -43,6 +43,9 @@ class FileListTool(BaseTool):
             logger.info(
                 "file_list: ripgrep not found, using Python fallback",
             )
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="file", idempotent=True, requires_filesystem=True)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(

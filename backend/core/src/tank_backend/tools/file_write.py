@@ -11,7 +11,7 @@ from typing import Any
 from ..policy.backup import BackupManager
 from ..policy.file_access import FileAccessPolicy
 from ..policy.verdict import AccessLevel
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,9 @@ class FileWriteTool(BaseTool):
     ) -> None:
         self._policy = policy
         self._backup = backup
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="file", idempotent=False, requires_filesystem=True)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
