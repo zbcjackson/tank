@@ -51,6 +51,7 @@ class AgentRunner:
         resolver: Any = None,
         max_depth: int = MAX_AGENT_DEPTH,
         max_concurrent: int = MAX_CONCURRENT_AGENTS,
+        toolsets_config: Any = None,
     ) -> None:
         self._llm = llm
         self._tool_manager = tool_manager
@@ -62,6 +63,7 @@ class AgentRunner:
         self._max_depth = max_depth
         self._max_concurrent = max_concurrent
         self._active_agents: dict[str, _AgentTracker] = {}
+        self._toolsets_config = toolsets_config
 
         # Create own PromptAssembler for sub-agent prompt building
         from ..prompts.assembler import PromptAssembler
@@ -141,11 +143,17 @@ class AgentRunner:
         )
         self._active_agents[agent_id] = tracker
 
-        # Resolve tools: all tools minus disallowed
+        # Resolve tools: all tools minus disallowed, filtered by toolset
         exclude = set(agent_def.disallowed_tools)
         if parent_agent_id is not None:
             # Sub-agents get global disallowed tools
             exclude |= GLOBAL_DISALLOWED_FOR_SUBAGENTS
+
+        # Toolset profile: if specified, compute a tool_filter (allowlist)
+        tool_filter: list[str] | None = None
+        if agent_def.toolset:
+            tool_filter = self._resolve_toolset(agent_def.toolset)
+
         exclude_tools = exclude or None
 
         effective_budget = token_budget or agent_def.token_budget
@@ -157,6 +165,7 @@ class AgentRunner:
             llm=self._llm,
             tool_manager=self._tool_manager,
             system_prompt=system_prompt,
+            tool_filter=tool_filter,
             exclude_tools=exclude_tools,
             approval_policy=self._approval_policy,
             resolver=self._resolver,
@@ -237,6 +246,25 @@ class AgentRunner:
         if tracker is None:
             return 1
         return tracker.depth + 1
+
+    def _resolve_toolset(self, toolset_name: str) -> list[str] | None:
+        """Resolve a toolset profile name to a tool allowlist.
+
+        Returns None if the profile is empty (= all tools) or not found.
+        """
+        if not toolset_name:
+            return None
+        config = getattr(self, '_toolsets_config', None)
+        if config is None:
+            logger.warning("Toolset '%s' requested but no toolsets config available", toolset_name)
+            return None
+        profile = config.profiles.get(toolset_name)
+        if profile is None:
+            logger.warning("Toolset profile '%s' not found in config", toolset_name)
+            return None
+        if not profile.tools:
+            return None  # Empty tools list = all tools
+        return list(profile.tools)
 
     def _build_sub_agent_prompt(
         self,

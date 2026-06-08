@@ -39,6 +39,7 @@ from .models import (
     PreferenceConfig,
     SandboxConfig,
     SkillsConfig,
+    ToolsetsConfig,
 )
 from .parser import ConfigError, parse_section
 
@@ -111,6 +112,7 @@ class AppConfig:
     file_access: FileAccessConfig = field(default_factory=FileAccessConfig)
     command_security: CommandSecurityConfig = field(default_factory=CommandSecurityConfig)
     audit: AuditConfig = field(default_factory=AuditConfig)
+    toolsets: ToolsetsConfig = field(default_factory=ToolsetsConfig)
 
     # Agent orchestration
     agents: AgentsConfig = field(default_factory=AgentsConfig)

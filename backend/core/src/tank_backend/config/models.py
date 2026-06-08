@@ -299,6 +299,40 @@ class SandboxConfig:
 # ── Agent orchestration ──────────────────────────────────────────
 
 @dataclass(frozen=True)
+class ToolsetProfileConfig:
+    """A single named toolset profile under ``toolsets.profiles``."""
+
+    tools: tuple[str, ...] = ()
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class ToolsetsConfig:
+    """``toolsets:`` section — named tool subsets for agents and jobs.
+
+    Profiles define named sets of allowed tools. Agents and jobs reference
+    a profile by name via ``toolset: <name>`` in their definition. The
+    special profile ``"all"`` means "no filtering" (default behavior).
+
+    Example config.yaml::
+
+        toolsets:
+          profiles:
+            safe:
+              description: "Read-only tools"
+              tools: [file_read, file_list, file_search, web_search, calculate, get_time]
+            research:
+              description: "Web and file research"
+              tools: [file_read, file_list, file_search, web_search, web_fetch, calculate]
+            full:
+              description: "All tools (default)"
+              tools: []  # empty = all tools
+    """
+
+    profiles: dict[str, ToolsetProfileConfig] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class AgentsConfig:
     """``agents:`` section."""
 

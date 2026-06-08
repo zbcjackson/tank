@@ -23,6 +23,7 @@ class AgentDefinition:
     description: str
     system_prompt: str
     disallowed_tools: frozenset[str] = frozenset()
+    toolset: str = ""  # Named toolset profile (empty = all tools)
     skills: tuple[str, ...] = ()
     background: bool = False
     token_budget: int = 0
@@ -73,6 +74,7 @@ def parse_agent_file(path: Path) -> AgentDefinition:
         description=description,
         system_prompt=body,
         disallowed_tools=disallowed,
+        toolset=fm.get("toolset", ""),
         skills=skills,
         background=bool(fm.get("background", False)),
         token_budget=int(fm.get("token-budget", fm.get("token_budget", 0))),
