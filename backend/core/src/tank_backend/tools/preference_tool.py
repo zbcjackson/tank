@@ -6,7 +6,7 @@ import json
 from typing import TYPE_CHECKING
 
 from ..users import is_guest
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 if TYPE_CHECKING:
     from ..preferences.store import PreferenceStore
@@ -18,6 +18,9 @@ class PreferenceTool(BaseTool):
     The ``user`` parameter is auto-filled by the agent from conversation
     context (``AgentState.metadata["user"]``).
     """
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(idempotent=False)
 
     def __init__(self, store: PreferenceStore) -> None:
         self._store = store

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from .base import BaseTool, ToolInfo, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolResult
 
 if TYPE_CHECKING:
     from ..context.manager import ContextManager
@@ -19,6 +19,9 @@ class GetContextUsageTool(BaseTool):
     tokens have we used?" by calling a tool instead of relying on
     regex pattern matching of the user's utterance.
     """
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(idempotent=True)
 
     def __init__(self, context_manager: ContextManager) -> None:
         self._context = context_manager

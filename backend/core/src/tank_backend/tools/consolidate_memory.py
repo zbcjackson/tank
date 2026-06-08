@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ..users import is_guest
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 if TYPE_CHECKING:
     from ..memory.consolidator import Consolidator
@@ -20,6 +20,9 @@ class ConsolidateMemoryTool(BaseTool):
     LLM client and mem0 connection are cheap to wire). ``user`` is
     auto-filled by the agent from the conversation context.
     """
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(idempotent=False)
 
     def __init__(
         self,

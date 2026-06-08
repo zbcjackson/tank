@@ -6,7 +6,7 @@ import json
 import logging
 from typing import Any
 
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,9 @@ class UseSkillTool(BaseTool):
     def __init__(self, manager: Any, agent_runner: Any = None) -> None:
         self._manager = manager
         self._agent_runner = agent_runner  # Set later via set_agent_runner()
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(idempotent=False)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -163,6 +166,9 @@ class ListSkillsTool(BaseTool):
 
     def __init__(self, manager: Any) -> None:
         self._manager = manager
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(idempotent=True)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(

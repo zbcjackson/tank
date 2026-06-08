@@ -6,7 +6,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 if TYPE_CHECKING:
     from ..jobs.scheduler import CronScheduler
@@ -24,6 +24,9 @@ class JobManagementTool(BaseTool):
     def __init__(self, job_store: JobStore, scheduler: CronScheduler) -> None:
         self._store = job_store
         self._scheduler = scheduler
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(idempotent=False)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(

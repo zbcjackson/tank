@@ -38,7 +38,7 @@ import logging
 from typing import Any
 
 from ..core.content import ImageBlock, TextBlock
-from .base import BaseTool, ToolContext, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolContext, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +126,9 @@ def _init_matplotlib_backend() -> None:
 
 class ChartTool(BaseTool):
     """Render a bar / line / pie chart and return it as an ImageBlock."""
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(idempotent=True)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(

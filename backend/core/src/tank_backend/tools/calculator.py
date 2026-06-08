@@ -3,12 +3,15 @@ import json
 import logging
 import operator as op
 
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
 
 class CalculatorTool(BaseTool):
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(idempotent=True)
+
     def get_info(self) -> ToolInfo:
         return ToolInfo(
             name="calculate",

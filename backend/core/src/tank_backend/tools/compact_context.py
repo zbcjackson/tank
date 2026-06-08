@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 if TYPE_CHECKING:
     from ..context.manager import ContextManager
@@ -20,6 +20,9 @@ class CompactContextTool(BaseTool):
     to that topic; anti-thrashing guards are bypassed because the user
     explicitly requested compaction.
     """
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(idempotent=False)
 
     def __init__(self, context_manager: ContextManager) -> None:
         self._context = context_manager

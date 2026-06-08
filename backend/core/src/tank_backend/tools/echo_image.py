@@ -32,7 +32,7 @@ import logging
 from urllib.parse import urlparse
 
 from ..core.content import ImageBlock, TextBlock
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +72,9 @@ def _guess_mime(url: str) -> str:
 
 class EchoImageTool(BaseTool):
     """Echo an image URL back to the user as an inline attachment."""
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(idempotent=True, requires_network=True)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(

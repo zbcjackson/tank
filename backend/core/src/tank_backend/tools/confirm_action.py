@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Any
 
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +15,9 @@ class ConfirmActionTool(BaseTool):
     Only available in CONFIRMING mode (tool_filter=["confirm_action"]).
     Bypasses ApprovalGateExecutor — calls ToolManager directly.
     """
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(idempotent=False)
 
     def __init__(
         self,

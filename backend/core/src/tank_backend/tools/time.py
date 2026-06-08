@@ -2,12 +2,15 @@ import datetime
 import json
 import logging
 
-from .base import BaseTool, ToolInfo, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolResult
 
 logger = logging.getLogger(__name__)
 
 
 class TimeTool(BaseTool):
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(idempotent=True)
+
     def get_info(self) -> ToolInfo:
         return ToolInfo(name="get_time", description="Get current time and date", parameters=[])
 

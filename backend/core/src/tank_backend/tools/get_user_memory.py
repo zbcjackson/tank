@@ -6,7 +6,7 @@ import json
 from typing import TYPE_CHECKING
 
 from ..users import is_guest
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 if TYPE_CHECKING:
     from ..context.manager import ContextManager
@@ -21,6 +21,9 @@ class GetUserMemoryTool(BaseTool):
     conversation context (the same pattern preference_tool /
     remember tools use).
     """
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(idempotent=True)
 
     def __init__(self, context_manager: ContextManager) -> None:
         self._context = context_manager

@@ -5,7 +5,7 @@ from typing import Any
 
 import requests
 
-from .base import BaseTool, ToolInfo, ToolParameter, ToolResult
+from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 logger = logging.getLogger("WeatherTool")
 
@@ -48,6 +48,9 @@ _WMO_CONDITIONS: dict[int, str] = {
 
 
 class WeatherTool(BaseTool):
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(idempotent=True, requires_network=True)
+
     def get_info(self) -> ToolInfo:
         return ToolInfo(
             name="get_weather",
