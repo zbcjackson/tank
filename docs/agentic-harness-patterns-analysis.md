@@ -199,19 +199,21 @@ Comparative analysis of Tank vs. OpenClaw, Hermes Agent, and Open Code across fo
 
 ## Priority & Implementation Plan
 
-### Phase 1: Quick Wins (Low effort, High/Medium impact)
+> **Status**: Phase 1, Phase 2, and toolset profiles are implemented (3 commits).
+> Remaining: Phase 3 (hook system) and Phase 4 (advanced).
 
-1. **2.2 Tool idempotency classification** — Tag each tool as `idempotent` or `mutating` via a new `ToolInfo` field. Foundation for guardrails.
-2. **3.1 Tool metadata annotations** — Extend `ToolInfo` with `risk_level`, `idempotent`, `category`. Move hardcoded category sets from `approval.py` to self-declarations.
-3. **1.3 Conditional tool registration** — Add optional `is_available()` method to `BaseTool`. ToolManager skips tools that return False.
-4. **3.2 Extend ToolContext** — Add `bus`, `abort_signal`, and `metadata_callback` to the existing `ToolContext` dataclass.
+### Phase 1: Quick Wins — DONE ✓
 
-### Phase 2: Core Infrastructure (Medium effort, High impact)
+1. ✓ **Tool idempotency classification** — `ToolMetadata.idempotent` on every tool.
+2. ✓ **Tool metadata annotations** — `ToolMetadata` dataclass with `category`, `idempotent`, `requires_network`, `requires_filesystem`. `ToolApprovalPolicy` routes by metadata.
+3. ✓ **Conditional tool registration** — `BaseTool.is_available()`. ToolManager skips unavailable tools.
+4. ✓ **Extend ToolContext** — Added `bus` field.
 
-5. **2.1 Tool loop guardrails** — Port Hermes `ToolCallGuardrailController` pattern. Track tool call signatures (name + args hash), warn after 2 identical failures, block after 5. Wire into `LLMAgent` or the `ApprovalGateExecutor` layer.
-6. **1.1 Durable command approval persistence** — Extend the existing `DynamicAllowlistStore` pattern (or create a sibling `CommandApprovalStore`) to persist approved command patterns. Load on startup, match against new commands in `CommandSecurityPolicy`.
-7. **2.3 Safe-bin argument validation** — For high-risk safe-list entries (python, curl, make), add argument pattern checks. Use the existing `_evaluate_segment` dispatch point.
-8. **4.4 Hook configuration** — Add `hooks:` section to config.yaml. Parse into `HookSpec` dataclasses at startup.
+### Phase 2: Core Infrastructure — DONE ✓
+
+5. ✓ **Tool loop guardrails** — `ToolCallGuardrailController` with exact-repeat, same-tool, and no-progress detection. Wired into `llm.py` chat_stream.
+6. ✓ **Durable command approval persistence** — `CommandApprovalStore` (ORM-backed), migration, integrated into `CommandSecurityPolicy._evaluate_segment()`.
+7. ✓ **Composable toolset profiles** — `ToolsetsConfig` in config.yaml, `AgentDefinition.toolset`, `AgentRunner._resolve_toolset()`.
 
 ### Phase 3: Full Hook System (High effort, High impact)
 
