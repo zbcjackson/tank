@@ -6,6 +6,7 @@ from .interrupt_latency import InterruptLatencyObserver
 from .latency import LatencyObserver
 from .metrics_collector import MetricsCollector
 from .title_generation import TitleGenerationObserver
+from .token_usage import TokenUsageObserver
 from .turn_tracking import TurnTrackingObserver
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "LatencyObserver",
     "MetricsCollector",
     "TitleGenerationObserver",
+    "TokenUsageObserver",
     "TurnTrackingObserver",
 ]
