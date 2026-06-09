@@ -215,18 +215,19 @@ Comparative analysis of Tank vs. OpenClaw, Hermes Agent, and Open Code across fo
 6. ✓ **Durable command approval persistence** — `CommandApprovalStore` (ORM-backed), migration, integrated into `CommandSecurityPolicy._evaluate_segment()`.
 7. ✓ **Composable toolset profiles** — `ToolsetsConfig` in config.yaml, `AgentDefinition.toolset`, `AgentRunner._resolve_toolset()`.
 
-### Phase 3: Full Hook System (High effort, High impact)
+### Phase 3: Full Hook System — PARTIALLY DONE
 
-9. **4.1 Hook system for tool calls** — Shell subprocess bridge with JSON stdin/stdout protocol. `pre_tool_call` fires before `ApprovalGateExecutor.execute_openai_tool_call()`. `post_tool_call` fires after tool returns. Consent system via on-disk allowlist.
+9. ✓ **4.1 Hook system for tool calls** — `HookManager` with `pre_tool_call` (blocking) and `post_tool_call` (fire-and-forget). JSON wire protocol, regex matcher, timeout protection.
 10. **4.2 pre_llm_call hook** — Context injection before `LLM.chat_stream()` calls.
 11. **4.3 Session lifecycle hooks** — Fire on session boundaries. Piggyback on existing Bus events.
-12. **1.2 Composable toolset profiles** — Named tool subsets in config.yaml, referenced by agent definitions and jobs.
+12. ✓ **1.2 Composable toolset profiles** — `ToolsetsConfig` in config.yaml, `AgentDefinition.toolset`, `AgentRunner._resolve_toolset()`.
 
 ### Phase 4: Advanced (Future)
 
 13. **4.6 Cost/usage hook** — Post-LLM call cost Bus message. Observer pattern (no subprocess).
 14. **2.4 Configurable guardrail thresholds** — Expose in config.yaml.
 15. **4.5 Hook consent/allowlist** — Persistent approval for shell hooks.
+16. ✓ **2.3 Safe-bin argument validation** — Per-command regex patterns for python, node, curl, pip, npm, etc.
 
 ---
 
