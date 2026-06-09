@@ -43,14 +43,13 @@ def test_slack_bolt_silenced_to_critical() -> None:
     )
 
 
-def test_discord_client_silenced_to_error() -> None:
-    """discord.py emits ``PyNaCl is not installed`` / ``davey is
-    not installed`` WARNINGs on every connect. Tank doesn't need
-    those libs (voice rooms are unsupported); the warnings were
-    never actionable."""
+def test_discord_client_silenced_to_critical() -> None:
+    """discord.py emits noisy reconnection tracebacks at ERROR level
+    when the network is flaky. These are handled internally by discord.py
+    via exponential backoff — not actionable for operators."""
     import tank_backend.api.server  # noqa: F401
 
-    assert logging.getLogger("discord.client").level == logging.ERROR
+    assert logging.getLogger("discord.client").level == logging.CRITICAL
 
 
 def test_discord_gateway_silenced_to_warning() -> None:

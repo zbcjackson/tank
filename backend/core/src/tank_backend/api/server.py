@@ -83,9 +83,10 @@ logging.getLogger("slack_bolt.AsyncApp").setLevel(logging.CRITICAL)
 # installed`` and ``davey is not installed`` because Tank doesn't
 # need voice-channel support (those libs are only needed for voice
 # rooms, not the bot's text/file-upload path we use). Bumping to
-# ERROR removes the on-every-reconnect repetition without hiding
-# real Discord-side failures.
-logging.getLogger("discord.client").setLevel(logging.ERROR)
+# CRITICAL suppresses the noisy reconnection tracebacks that flood
+# the log when the network is flaky — discord.py handles reconnection
+# internally via exponential backoff, so these are informational only.
+logging.getLogger("discord.client").setLevel(logging.CRITICAL)
 # Discord's gateway shard loggers also chatter at INFO/WARNING with
 # heartbeat noise that's only useful when actively debugging the
 # gateway. Bump them to WARNING so the gateway stays observable

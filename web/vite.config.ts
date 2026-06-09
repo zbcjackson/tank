@@ -46,6 +46,16 @@ export default defineConfig({
       '/ws': {
         target: 'ws://localhost:8000',
         ws: true,
+        // Suppress noisy "socket ended by the other party" errors
+        // that flood the console when the backend restarts or the
+        // WebSocket disconnects during dev. The client reconnects
+        // automatically — these are not actionable.
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+          proxy.on('proxyReqWs', (_proxyReq, _req, socket) => {
+            socket.on('error', () => {});
+          });
+        },
       },
     },
   },
