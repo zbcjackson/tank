@@ -130,6 +130,107 @@ _SHELLS_WITH_DASH_C: frozenset[str] = frozenset({
 
 
 # ---------------------------------------------------------------------------
+# Safe-bin argument validation
+# ---------------------------------------------------------------------------
+
+# Commands in the safe list that can escape safety with certain arguments.
+# Each entry maps a command to a tuple of (pattern, description) where
+# pattern is a regex that, if matched against the full segment, triggers
+# REQUIRE_APPROVAL instead of auto-allow.
+
+_SAFE_BIN_RISKY_ARGS: dict[str, tuple[tuple[re.Pattern[str], str], ...]] = {}
+
+
+def _build_safe_bin_risky_args() -> dict[str, tuple[tuple[re.Pattern[str], str], ...]]:
+    """Build compiled regex patterns for safe-bin argument validation."""
+    _PY_DANGEROUS = (
+        r"\s+-c\s+.*(?:import\s+(?:os|subprocess|shutil|sys)"
+        r"|open\(|exec\(|eval\(|__import__|rm\s|remove\()"
+    )
+    _NODE_DANGEROUS = (
+        r"\s+(?:-e|--eval)\s+.*(?:require\(['\"]"
+        r"(?:child_process|fs|net)['\"]|unlink|rmdir|exec\()"
+    )
+    raw: dict[str, list[tuple[str, str]]] = {
+        "python": [
+            (_PY_DANGEROUS, "python -c with dangerous operations"),
+            (r"\s+-m\s+http\.server\b", "python http.server exposes filesystem"),
+        ],
+        "python3": [
+            (_PY_DANGEROUS, "python3 -c with dangerous operations"),
+            (r"\s+-m\s+http\.server\b", "python3 http.server exposes filesystem"),
+        ],
+        "node": [
+            (_NODE_DANGEROUS, "node -e with dangerous operations"),
+        ],
+        "ruby": [
+            (
+                r"\s+-e\s+.*(?:File\.delete|FileUtils\.rm|system\(|`)",
+                "ruby -e with dangerous operations",
+            ),
+        ],
+        "perl": [
+            (r"\s+-e\s+.*(?:unlink|system|exec|`)", "perl -e with dangerous operations"),
+        ],
+        "curl": [
+            (r"\s+(-[^\s]*o|--output)\s+", "curl with output file can overwrite files"),
+            (r"\|\s*(?:sh|bash|zsh)", "curl piped to shell is dangerous"),
+        ],
+        "wget": [
+            (
+                r"\s+(-[^\s]*O|--output-document)\s+(?!/dev/null)",
+                "wget with output file can overwrite files",
+            ),
+        ],
+        "pip": [
+            (r"\s+install\s+", "pip install can execute arbitrary setup.py code"),
+        ],
+        "pip3": [
+            (r"\s+install\s+", "pip3 install can execute arbitrary setup.py code"),
+        ],
+        "npm": [
+            (r"\s+install\b", "npm install can execute lifecycle scripts"),
+            (r"\s+exec\b", "npm exec runs arbitrary packages"),
+        ],
+        "cargo": [
+            (r"\s+install\b", "cargo install compiles and installs binaries"),
+        ],
+        "make": [
+            (r"\s+-f\s+/", "make with absolute Makefile path"),
+        ],
+    }
+    compiled: dict[str, tuple[tuple[re.Pattern[str], str], ...]] = {}
+    for cmd, patterns in raw.items():
+        compiled[cmd] = tuple(
+            (re.compile(pat, re.IGNORECASE), desc) for pat, desc in patterns
+        )
+    return compiled
+
+
+_SAFE_BIN_RISKY_ARGS = _build_safe_bin_risky_args()
+
+
+def _check_safe_command_args(base: str, segment: str) -> PolicyVerdict | None:
+    """Check if a safe command's arguments escape its safety boundary.
+
+    Returns a REQUIRE_APPROVAL verdict if risky args are detected,
+    or None if the command is safe to auto-allow.
+    """
+    patterns = _SAFE_BIN_RISKY_ARGS.get(base)
+    if patterns is None:
+        return None
+
+    for pattern, description in patterns:
+        if pattern.search(segment):
+            return PolicyVerdict(
+                level=AccessLevel.REQUIRE_APPROVAL,
+                reason=f"safe command with risky args: {description}",
+                policy="command",
+            )
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Command parsing helpers
 # ---------------------------------------------------------------------------
 
@@ -455,8 +556,11 @@ class CommandSecurityPolicy:
             if inner_verdict is not None:
                 return inner_verdict
 
-        # Safe allowlist
+        # Safe allowlist — with argument validation for high-risk commands
         if base in self._safe_commands:
+            risky = _check_safe_command_args(base, segment)
+            if risky is not None:
+                return risky
             return PolicyVerdict(
                 level=AccessLevel.ALLOW,
                 reason=f"safe command: {base}",
