@@ -504,7 +504,13 @@ class Brain(Processor):
     def new_conversation(self) -> str:
         """Start a fresh conversation. Returns the new conversation ID."""
         self.reset_conversation()
-        return self._context.conversation_id or ""
+        conv_id = self._context.conversation_id or ""
+        self._bus.post(BusMessage(
+            type="lifecycle",
+            source=self.name,
+            payload={"event": "session_start", "session_id": conv_id},
+        ))
+        return conv_id
 
     @property
     def conversation_id(self) -> str | None:
@@ -513,6 +519,14 @@ class Brain(Processor):
 
     def close(self) -> None:
         """Cleanup — close context manager."""
+        self._bus.post(BusMessage(
+            type="lifecycle",
+            source=self.name,
+            payload={
+                "event": "session_end",
+                "session_id": self._context.conversation_id,
+            },
+        ))
         self._context.close()
 
     @property
@@ -662,6 +676,17 @@ class Brain(Processor):
         started_at = time.time()
         logger.info("Brain start processing %s (%s) at %.3f", event.text, event.user, started_at)
 
+        # --- Lifecycle hook: turn_start ---
+        self._bus.post(BusMessage(
+            type="lifecycle",
+            source=self.name,
+            payload={
+                "event": "turn_start",
+                "user": event.user,
+                "session_id": self._context.conversation_id,
+            },
+        ))
+
         # --- Memory recall (pre-turn) ---
         await self._context.recall_memory(event.user, event.text)
 
@@ -720,6 +745,18 @@ class Brain(Processor):
                     "latency_s": elapsed,
                     "user": event.user,
                     "text_length": len(event.text),
+                },
+            ))
+
+            # --- Lifecycle hook: turn_end ---
+            self._bus.post(BusMessage(
+                type="lifecycle",
+                source=self.name,
+                payload={
+                    "event": "turn_end",
+                    "user": event.user,
+                    "session_id": self._context.conversation_id,
+                    "latency_s": elapsed,
                 },
             ))
 
