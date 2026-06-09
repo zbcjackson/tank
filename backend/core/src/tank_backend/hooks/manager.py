@@ -151,6 +151,38 @@ class HookManager:
 
         return HookDecision.allow()
 
+    async def run_pre_llm_call(
+        self,
+        *,
+        session_id: str = "",
+    ) -> str:
+        """Run all pre_llm_call hooks and collect injected context.
+
+        Each hook can return ``{context: "..."}`` to inject text into
+        the system prompt for the current LLM call. Multiple hooks'
+        context strings are joined with newlines.
+
+        Returns the combined context string (empty if no hooks inject anything).
+        """
+        hooks = self.get_hooks_for_event("pre_llm_call")
+        if not hooks:
+            return ""
+
+        payload = {
+            "hook_event_name": "pre_llm_call",
+            "session_id": session_id,
+        }
+
+        parts: list[str] = []
+        for hook in hooks:
+            result = await self._execute_hook(hook, payload)
+            if result is not None:
+                ctx = result.get("context", "")
+                if ctx:
+                    parts.append(ctx)
+
+        return "\n".join(parts)
+
     async def run_post_tool_call(
         self,
         tool_name: str,

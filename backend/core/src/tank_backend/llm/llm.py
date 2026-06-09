@@ -543,6 +543,21 @@ class LLM:
                 if refreshed is not None:
                     working_messages[0] = {"role": "system", "content": refreshed}
 
+            # --- pre_llm_call hook: inject context ---
+            if hook_manager is not None:
+                injected = await hook_manager.run_pre_llm_call(
+                    session_id=session_id or "",
+                )
+                if injected:
+                    # Append hook-injected context to the system message
+                    sys_msg = working_messages[0]
+                    if isinstance(sys_msg, dict) and sys_msg.get("role") == "system":
+                        existing = sys_msg.get("content", "")
+                        working_messages[0] = {
+                            "role": "system",
+                            "content": f"{existing}\n\n{injected}",
+                        }
+
             api_kwargs = {
                 "model": self.model,
                 "messages": working_messages,
