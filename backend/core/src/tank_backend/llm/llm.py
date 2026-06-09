@@ -468,6 +468,7 @@ class LLM:
         media_store: Any = None,
         session_id: str | None = None,
         hook_manager: Any = None,
+        guardrail_config: Any = None,
     ) -> AsyncGenerator[tuple[UpdateType, str, dict[str, Any]], None]:
         """Stream chat completion with automatic tool call handling.
 
@@ -520,7 +521,7 @@ class LLM:
             ToolCallSignature,
         )
 
-        guardrail = ToolCallGuardrailController()
+        guardrail = ToolCallGuardrailController(config=guardrail_config)
 
         for _iteration in range(MAX_TOOL_ITERATIONS):
             turn += 1
