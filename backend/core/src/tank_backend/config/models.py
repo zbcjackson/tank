@@ -263,6 +263,24 @@ class ToolGuardrailsConfig:
 
 
 @dataclass(frozen=True)
+class HookConfig:
+    """A single hook definition under ``hooks:``."""
+
+    event: str = ""  # "pre_tool_call" | "post_tool_call"
+    command: str = ""
+    matcher: str = ""  # Regex on tool name (empty = all)
+    timeout: float = 5.0
+    enabled: bool = True
+
+
+@dataclass(frozen=True)
+class HooksConfig:
+    """``hooks:`` section — user-defined shell hook scripts."""
+
+    hooks: tuple[HookConfig, ...] = ()
+
+
+@dataclass(frozen=True)
 class MountConfig:
     """A single mount specification in sandbox config."""
 

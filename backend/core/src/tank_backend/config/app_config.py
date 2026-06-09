@@ -32,6 +32,7 @@ from .models import (
     EchoGuardConfig,
     FileAccessConfig,
     HealthMonitorConfig,
+    HooksConfig,
     JobsConfig,
     MemoryConfig,
     NetworkAccessConfig,
@@ -113,6 +114,7 @@ class AppConfig:
     command_security: CommandSecurityConfig = field(default_factory=CommandSecurityConfig)
     audit: AuditConfig = field(default_factory=AuditConfig)
     toolsets: ToolsetsConfig = field(default_factory=ToolsetsConfig)
+    hooks: HooksConfig = field(default_factory=HooksConfig)
 
     # Agent orchestration
     agents: AgentsConfig = field(default_factory=AgentsConfig)
