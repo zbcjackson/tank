@@ -62,9 +62,14 @@ class HookManager:
     execution path (in ``llm.py`` or ``ApprovalGateExecutor``).
     """
 
-    def __init__(self, hooks: list[HookSpec] | None = None) -> None:
+    def __init__(
+        self,
+        hooks: list[HookSpec] | None = None,
+        allowlist: Any = None,
+    ) -> None:
         self._hooks = hooks or []
         self._matchers: dict[str, Any] = {}
+        self._allowlist = allowlist  # HookAllowlist or None (skip consent)
         self._compile_matchers()
 
     @classmethod
@@ -108,12 +113,25 @@ class HookManager:
     def get_hooks_for_event(
         self, event: str, tool_name: str = "",
     ) -> list[HookSpec]:
-        """Return all enabled hooks matching an event and tool name."""
-        return [
-            h for h in self._hooks
-            if h.enabled and h.event == event
-            and self._matches_tool(h, tool_name)
-        ]
+        """Return all enabled hooks matching an event, tool name, and allowlist."""
+        from .allowlist import HookIdentity
+
+        result = []
+        for h in self._hooks:
+            if not h.enabled or h.event != event:
+                continue
+            if not self._matches_tool(h, tool_name):
+                continue
+            # Consent check: skip hooks not in the allowlist
+            if self._allowlist is not None:
+                identity = HookIdentity(event=h.event, command=h.command)
+                if not self._allowlist.is_allowed(identity):
+                    logger.debug(
+                        "Hook skipped (not in allowlist): %s", h.command,
+                    )
+                    continue
+            result.append(h)
+        return result
 
     async def run_pre_tool_call(
         self,
