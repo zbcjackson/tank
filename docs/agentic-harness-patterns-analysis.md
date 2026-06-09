@@ -199,8 +199,7 @@ Comparative analysis of Tank vs. OpenClaw, Hermes Agent, and Open Code across fo
 
 ## Priority & Implementation Plan
 
-> **Status**: Phase 1, Phase 2, and toolset profiles are implemented (3 commits).
-> Remaining: Phase 3 (hook system) and Phase 4 (advanced).
+> **Status**: All phases complete. 15 commits, 52 files, 2800+ lines.
 
 ### Phase 1: Quick Wins — DONE ✓
 
@@ -222,11 +221,11 @@ Comparative analysis of Tank vs. OpenClaw, Hermes Agent, and Open Code across fo
 11. ✓ **4.3 Session lifecycle hooks** — `session_start`, `session_end`, `turn_start`, `turn_end` posted to Bus as `lifecycle` messages.
 12. ✓ **1.2 Composable toolset profiles** — `ToolsetsConfig` in config.yaml, `AgentDefinition.toolset`, `AgentRunner._resolve_toolset()`.
 
-### Phase 4: Advanced (Future)
+### Phase 4: Advanced — DONE ✓
 
-13. **4.6 Cost/usage hook** — Post-LLM call cost Bus message. Observer pattern (no subprocess).
-14. **2.4 Configurable guardrail thresholds** — Expose in config.yaml.
-15. **4.5 Hook consent/allowlist** — Persistent approval for shell hooks.
+13. ✓ **4.6 Cost/usage hook** — `TokenUsageObserver` Bus observer: accumulates tokens, posts `token_usage` and `token_budget_exceeded` events.
+14. ✓ **2.4 Configurable guardrail thresholds** — `ToolGuardrailsConfig` in AppConfig, passed to controller via `guardrail_config` param in `chat_stream`.
+15. ✓ **4.5 Hook consent/allowlist** — `HookAllowlist` with JSON persistence to `~/.tank/hook-allowlist.json`. HookManager checks allowlist before executing.
 16. ✓ **2.3 Safe-bin argument validation** — Per-command regex patterns for python, node, curl, pip, npm, etc.
 
 ---
