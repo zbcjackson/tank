@@ -467,6 +467,7 @@ class LLM:
         system_prompt_fn: Callable[[], str | None] | None = None,
         media_store: Any = None,
         session_id: str | None = None,
+        hook_manager: Any = None,
     ) -> AsyncGenerator[tuple[UpdateType, str, dict[str, Any]], None]:
         """Stream chat completion with automatic tool call handling.
 
@@ -817,6 +818,36 @@ class LLM:
                 # --- Run remaining tools sequentially ---
                 for idx, tc in sequential_items:
                     try:
+                        # --- Pre-tool hook ---
+                        if hook_manager is not None:
+                            import json as _json
+
+                            try:
+                                tc_args = _json.loads(tc["arguments"]) if tc["arguments"] else {}
+                            except (ValueError, TypeError):
+                                tc_args = {}
+                            hook_decision = await hook_manager.run_pre_tool_call(
+                                tc["name"], tc_args,
+                                session_id=session_id or "",
+                            )
+                            if hook_decision.blocked:
+                                # Hook blocked the call — return error to LLM
+                                blocked_content = f"BLOCKED by hook: {hook_decision.reason}"
+                                yield (
+                                    UpdateType.TOOL, blocked_content,
+                                    {
+                                        "index": idx, "name": tc["name"],
+                                        "arguments": tc["arguments"],
+                                        "status": "error", "turn": turn,
+                                    },
+                                )
+                                working_messages.append({
+                                    "role": "tool", "tool_call_id": tc["id"],
+                                    "name": tc["name"], "content": blocked_content,
+                                })
+                                yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
+                                continue
+
                         yield (
                             UpdateType.TOOL, "",
                             {
@@ -876,6 +907,20 @@ class LLM:
                             "name": tc["name"], "content": llm_content,
                         })
                         yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
+
+                        # --- Post-tool hook ---
+                        if hook_manager is not None:
+                            try:
+                                tc_args = _json.loads(tc["arguments"]) if tc["arguments"] else {}
+                            except (ValueError, TypeError):
+                                tc_args = {}
+                            await hook_manager.run_post_tool_call(
+                                tc["name"], tc_args,
+                                result_content=llm_content,
+                                error=is_error,
+                                session_id=session_id or "",
+                            )
+
                         if follow_up_blocks:
                             # Phase 19 refactor: keep ``media://``
                             # URIs as-is in persisted history; the
