@@ -215,11 +215,11 @@ Comparative analysis of Tank vs. OpenClaw, Hermes Agent, and Open Code across fo
 6. ✓ **Durable command approval persistence** — `CommandApprovalStore` (ORM-backed), migration, integrated into `CommandSecurityPolicy._evaluate_segment()`.
 7. ✓ **Composable toolset profiles** — `ToolsetsConfig` in config.yaml, `AgentDefinition.toolset`, `AgentRunner._resolve_toolset()`.
 
-### Phase 3: Full Hook System — PARTIALLY DONE
+### Phase 3: Full Hook System — DONE ✓
 
 9. ✓ **4.1 Hook system for tool calls** — `HookManager` with `pre_tool_call` (blocking) and `post_tool_call` (fire-and-forget). JSON wire protocol, regex matcher, timeout protection.
-10. **4.2 pre_llm_call hook** — Context injection before `LLM.chat_stream()` calls.
-11. **4.3 Session lifecycle hooks** — Fire on session boundaries. Piggyback on existing Bus events.
+10. ✓ **4.2 pre_llm_call hook** — Context injection before `LLM.chat_stream()` calls. Scripts return `{context: "..."}`.
+11. ✓ **4.3 Session lifecycle hooks** — `session_start`, `session_end`, `turn_start`, `turn_end` posted to Bus as `lifecycle` messages.
 12. ✓ **1.2 Composable toolset profiles** — `ToolsetsConfig` in config.yaml, `AgentDefinition.toolset`, `AgentRunner._resolve_toolset()`.
 
 ### Phase 4: Advanced (Future)
