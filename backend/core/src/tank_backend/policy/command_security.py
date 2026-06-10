@@ -271,8 +271,153 @@ def _extract_base_command(segment: str) -> str:
 
 
 def _split_compound(command: str) -> list[str]:
-    """Split a compound command into individual segments."""
-    return [s.strip() for s in _COMPOUND_RE.split(command) if s.strip()]
+    """Split a compound command into individual segments, respecting quotes and heredocs.
+
+    Shell operators (``&&``, ``||``, ``;``, ``|``) inside single quotes,
+    double quotes, or heredoc bodies are NOT treated as separators.
+
+    Heredoc detection: when ``<<'MARKER'``, ``<<"MARKER"``, or ``<<MARKER``
+    is encountered, everything until a line matching ``MARKER`` is consumed
+    as part of the current segment.
+    """
+    segments: list[str] = []
+    current: list[str] = []
+    i = 0
+    n = len(command)
+
+    while i < n:
+        ch = command[i]
+
+        # Skip over single-quoted strings entirely
+        if ch == "'":
+            j = command.find("'", i + 1)
+            if j == -1:
+                # Unterminated quote — take rest as-is
+                current.append(command[i:])
+                i = n
+            else:
+                current.append(command[i:j + 1])
+                i = j + 1
+            continue
+
+        # Skip over double-quoted strings entirely
+        if ch == '"':
+            j = i + 1
+            while j < n:
+                if command[j] == '\\' and j + 1 < n:
+                    j += 2  # skip escaped char
+                elif command[j] == '"':
+                    break
+                else:
+                    j += 1
+            current.append(command[i:j + 1])
+            i = j + 1
+            continue
+
+        # Heredoc detection: <<'MARKER', <<"MARKER", <<MARKER, <<-MARKER
+        if ch == '<' and i + 1 < n and command[i + 1] == '<':
+            heredoc_end = _consume_heredoc(command, i)
+            if heredoc_end > i:
+                current.append(command[i:heredoc_end])
+                i = heredoc_end
+                continue
+
+        # Check for compound operators at current position
+        rest = command[i:]
+        matched_op = None
+        for op in ('&&', '||', '|'):
+            if rest.startswith(op):
+                # '||' must be checked before '|', and '&&' before anything
+                # Ensure '|' doesn't match the start of '||'
+                if op == '|' and rest.startswith('||'):
+                    continue
+                matched_op = op
+                break
+
+        # Check for unescaped semicolons
+        if matched_op is None and ch == ';' and (i == 0 or command[i - 1] != '\\'):
+            matched_op = ';'
+
+        if matched_op is not None:
+            seg = ''.join(current).strip()
+            if seg:
+                segments.append(seg)
+            current = []
+            i += len(matched_op)
+            continue
+
+        current.append(ch)
+        i += 1
+
+    seg = ''.join(current).strip()
+    if seg:
+        segments.append(seg)
+
+    return segments
+
+
+def _consume_heredoc(command: str, start: int) -> int:
+    """Consume a heredoc starting at ``<<`` and return the end position.
+
+    Handles ``<<'MARKER'``, ``<<"MARKER"``, ``<<MARKER``, and ``<<-MARKER``.
+    Returns ``start`` (unchanged) if the pattern doesn't look like a heredoc.
+    """
+    n = len(command)
+    i = start + 2  # skip past <<
+
+    # Optional - for <<- (strip tabs in body — doesn't matter for our purpose)
+    if i < n and command[i] == '-':
+        i += 1
+
+    # Skip whitespace between << and marker
+    while i < n and command[i] == ' ':
+        i += 1
+
+    if i >= n:
+        return start
+
+    # Extract the marker (may be quoted)
+    quote_char = ''
+    if command[i] in ("'", '"'):
+        quote_char = command[i]
+        i += 1
+
+    marker_start = i
+    while i < n and command[i] not in ('\n', ' ', '\t'):
+        if quote_char and command[i] == quote_char:
+            break
+        i += 1
+
+    marker = command[marker_start:i]
+    if not marker:
+        return start
+
+    # Skip past closing quote if present
+    if quote_char and i < n and command[i] == quote_char:
+        i += 1
+
+    # Now find the terminating line: a line containing only the marker
+    # Search for \nMARKER\n or \nMARKER at end of string
+    search_from = i
+    while True:
+        nl_pos = command.find('\n', search_from)
+        if nl_pos == -1:
+            # No newline found — take rest as heredoc body
+            return n
+
+        line_start = nl_pos + 1
+        line_end = command.find('\n', line_start)
+        if line_end == -1:
+            line_end = n
+
+        line = command[line_start:line_end].strip()
+        if line == marker:
+            # Consume up to and including the marker line
+            return line_end
+
+        search_from = line_end + 1 if line_end < n else n
+        if search_from >= n:
+            return n
 
 
 def _get_git_subcommand(segment: str) -> str | None:
