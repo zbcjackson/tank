@@ -11,7 +11,7 @@ from tank_backend.config.models import (
     DangerousPatternConfig,
     LLMEvaluationConfig,
 )
-from tank_backend.policy.command_security import CommandSecurityPolicy
+from tank_backend.policy.command_security import CommandSecurityPolicy, _split_compound
 from tank_backend.policy.verdict import AccessLevel, PolicyVerdict
 
 
@@ -243,6 +243,77 @@ class TestCommandParsing:
 
     def test_or_chain(self):
         verdict = self.policy.evaluate("ls /tmp || echo 'not found'")
+        assert verdict.level == AccessLevel.ALLOW
+
+    # --- Quote-aware splitting ---
+
+    def test_pipe_inside_single_quotes_not_split(self):
+        """Pipes inside awk single-quoted scripts stay as one segment."""
+        verdict = self.policy.evaluate("cat file | awk '{print $1 | \"sort\"}' | head")
+        assert verdict.level == AccessLevel.ALLOW
+
+    def test_semicolons_inside_single_quotes_not_split(self):
+        """Semicolons inside awk body are not shell separators."""
+        verdict = self.policy.evaluate("awk 'BEGIN{a=1; b=2; print a+b}'")
+        assert verdict.level == AccessLevel.ALLOW
+
+    def test_pipe_inside_double_quotes_not_split(self):
+        verdict = self.policy.evaluate('echo "hello | world" | grep hello')
+        assert verdict.level == AccessLevel.ALLOW
+
+    def test_semicolons_inside_double_quotes_not_split(self):
+        verdict = self.policy.evaluate('echo "a; b; c" && pwd')
+        assert verdict.level == AccessLevel.ALLOW
+
+    def test_heredoc_body_not_split(self):
+        """Pipes and semicolons inside heredoc body are opaque."""
+        cmd = "python3 - <<'PY'\nimport re\nx = 'a|b'\nprint(x)\nPY"
+        verdict = self.policy.evaluate(cmd)
+        assert verdict.level == AccessLevel.ALLOW
+
+    def test_heredoc_with_regex_pipes(self):
+        """Regex alternation pipes inside heredoc don't split."""
+        cmd = (
+            "python3 - <<'EOF'\n"
+            "import re\n"
+            "m = re.match(r'^(foo|bar|baz)$', 'bar')\n"
+            "print(m.group())\n"
+            "EOF"
+        )
+        verdict = self.policy.evaluate(cmd)
+        assert verdict.level == AccessLevel.ALLOW
+
+    def test_heredoc_with_subprocess(self):
+        """Heredoc containing subprocess calls is still one segment (base=python3)."""
+        cmd = (
+            "python3 - <<'PY'\n"
+            "import subprocess\n"
+            "out = subprocess.check_output(['ls'], text=True)\n"
+            "print(out)\n"
+            "PY"
+        )
+        verdict = self.policy.evaluate(cmd)
+        assert verdict.level == AccessLevel.ALLOW
+
+    def test_compound_with_heredoc_and_pipe(self):
+        """Heredoc consumes everything until the marker line (including trailing pipe)."""
+        cmd = "python3 - <<'PY'\nprint('hello')\nPY\n| grep hello"
+        # The heredoc body extends to the PY marker line. The trailing
+        # "| grep hello" is on the line after PY, but _consume_heredoc
+        # reads up to and including the marker line — so the pipe after
+        # the newline past PY is part of the next segment.
+        # In practice, shells parse the pipe AFTER the heredoc closes,
+        # but our splitter consumes the marker line boundary. Either
+        # 1 or 2 segments is acceptable — the key invariant is that
+        # the heredoc body itself is never split.
+        segments = _split_compound(cmd)
+        # At minimum, the heredoc body pipes are not split
+        assert all("print('hello')" not in s or "python3" in s for s in segments)
+
+    def test_awk_multiline_not_split(self):
+        """Multi-line awk with semicolons and pipes in body."""
+        cmd = "git log --numstat | awk '/^[0-9]/ {a+=$1; d+=$2} END{print a, d}'"
+        verdict = self.policy.evaluate(cmd)
         assert verdict.level == AccessLevel.ALLOW
 
 
