@@ -248,6 +248,48 @@ command_security:
 #     base_url: ""             # empty = use provider default
 #     timeout: 3               # seconds, fail-safe to require_approval
 
+# Tool guardrails — loop detection for repeated tool failures.
+# Prevents the LLM from retrying failing tools indefinitely.
+# Thresholds control when warnings are injected and when tools are blocked.
+tool_guardrails:
+  enabled: true
+#   exact_repeat_warn_after: 2   # same tool + same args fails N times → warn
+#   exact_repeat_block_after: 4  # same tool + same args fails N times → block
+#   same_tool_fail_warn_after: 3 # same tool (any args) fails N times → warn
+#   same_tool_fail_block_after: 6
+#   no_progress_warn_after: 3    # idempotent tool returns identical results → warn
+#   no_progress_block_after: 5
+
+# Toolset profiles — named tool subsets for agent/job scoping.
+# Agents reference a profile by name via `toolset: <name>` in their definition.
+# Empty tools list = all tools (no filtering).
+# toolsets:
+#   profiles:
+#     safe:
+#       description: "Read-only tools"
+#       tools: [file_read, file_list, file_search, web_search, calculate, get_time]
+#     research:
+#       description: "Web and file research"
+#       tools: [file_read, file_list, file_search, web_search, web_fetch, calculate]
+#     full:
+#       description: "All tools (default)"
+#       tools: []
+
+# Hooks — user-defined shell scripts that fire on tool lifecycle events.
+# pre_tool_call can block execution; post_tool_call is fire-and-forget.
+# pre_llm_call can inject context into the system prompt.
+# Scripts receive JSON on stdin; see docs/agentic-harness-features.md for protocol.
+# hooks:
+#   hooks:
+#     - event: pre_tool_call
+#       command: ~/.tank/hooks/audit.sh
+#       matcher: "run_command|persistent_shell"  # regex on tool name (empty = all)
+#       timeout: 3.0
+#     - event: post_tool_call
+#       command: ~/.tank/hooks/log-tools.sh
+#     - event: pre_llm_call
+#       command: ~/.tank/hooks/inject-context.sh
+
 # Tools — optional API keys for tool plugins
 tools:
   serper_api_key: ${SERPER_API_KEY:-}
