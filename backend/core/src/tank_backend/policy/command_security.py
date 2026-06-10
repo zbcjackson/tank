@@ -271,14 +271,15 @@ def _extract_base_command(segment: str) -> str:
 
 
 def _split_compound(command: str) -> list[str]:
-    """Split a compound command into individual segments, respecting quotes and heredocs.
+    """Split a shell command on unquoted operators (&&, ||, ;, |).
 
-    Shell operators (``&&``, ``||``, ``;``, ``|``) inside single quotes,
-    double quotes, or heredoc bodies are NOT treated as separators.
+    Only handles shell-level quoting (single quotes, double quotes,
+    heredocs). Does NOT attempt to parse the content of quoted regions
+    or heredoc bodies — those belong to whatever language the user is
+    invoking (python, awk, perl, etc.) and are opaque to us.
 
-    Heredoc detection: when ``<<'MARKER'``, ``<<"MARKER"``, or ``<<MARKER``
-    is encountered, everything until a line matching ``MARKER`` is consumed
-    as part of the current segment.
+    The resulting segments are the top-level shell pipeline/list members.
+    Each segment is then evaluated independently by ``_evaluate_segment``.
     """
     segments: list[str] = []
     current: list[str] = []
@@ -288,11 +289,10 @@ def _split_compound(command: str) -> list[str]:
     while i < n:
         ch = command[i]
 
-        # Skip over single-quoted strings entirely
+        # Single-quoted string: everything until the next unescaped '
         if ch == "'":
             j = command.find("'", i + 1)
             if j == -1:
-                # Unterminated quote — take rest as-is
                 current.append(command[i:])
                 i = n
             else:
@@ -300,12 +300,12 @@ def _split_compound(command: str) -> list[str]:
                 i = j + 1
             continue
 
-        # Skip over double-quoted strings entirely
+        # Double-quoted string: respects backslash escapes
         if ch == '"':
             j = i + 1
             while j < n:
                 if command[j] == '\\' and j + 1 < n:
-                    j += 2  # skip escaped char
+                    j += 2
                 elif command[j] == '"':
                     break
                 else:
@@ -314,7 +314,7 @@ def _split_compound(command: str) -> list[str]:
             i = j + 1
             continue
 
-        # Heredoc detection: <<'MARKER', <<"MARKER", <<MARKER, <<-MARKER
+        # Heredoc: <<MARKER ... MARKER (body is opaque)
         if ch == '<' and i + 1 < n and command[i + 1] == '<':
             heredoc_end = _consume_heredoc(command, i)
             if heredoc_end > i:
@@ -322,20 +322,16 @@ def _split_compound(command: str) -> list[str]:
                 i = heredoc_end
                 continue
 
-        # Check for compound operators at current position
+        # Shell operators
         rest = command[i:]
         matched_op = None
-        for op in ('&&', '||', '|'):
-            if rest.startswith(op):
-                # '||' must be checked before '|', and '&&' before anything
-                # Ensure '|' doesn't match the start of '||'
-                if op == '|' and rest.startswith('||'):
-                    continue
-                matched_op = op
-                break
-
-        # Check for unescaped semicolons
-        if matched_op is None and ch == ';' and (i == 0 or command[i - 1] != '\\'):
+        if rest.startswith('&&'):
+            matched_op = '&&'
+        elif rest.startswith('||'):
+            matched_op = '||'
+        elif ch == '|' and not rest.startswith('||'):
+            matched_op = '|'
+        elif ch == ';' and (i == 0 or command[i - 1] != '\\'):
             matched_op = ';'
 
         if matched_op is not None:
@@ -609,7 +605,12 @@ class CommandSecurityPolicy:
     async def _llm_evaluate(self, command: str, llm: Any) -> PolicyVerdict:
         """Call LLM to assess an unknown command's safety.
 
-        Returns ALLOW on "SAFE", DENY on "UNSAFE", REQUIRE_APPROVAL on error.
+        Returns ALLOW on "SAFE", REQUIRE_APPROVAL on "UNSAFE" (so the user
+        can still approve), REQUIRE_APPROVAL on error.
+
+        Note: the LLM never returns DENY — only the dangerous-pattern regex
+        hard-blocks. LLM uncertainty should always give the user a chance to
+        approve rather than silently blocking.
         """
         prompt = (
             "You are a security reviewer for an AI assistant that runs shell commands. "
@@ -642,10 +643,10 @@ class CommandSecurityPolicy:
                     reason=f"LLM approved: {command}",
                     policy="command",
                 )
-            logger.info("LLM denied command: %s (response: %s)", command, answer)
+            logger.info("LLM flagged command as unsafe: %s (response: %s)", command, answer)
             return PolicyVerdict(
-                level=AccessLevel.DENY,
-                reason=f"LLM denied: {command}",
+                level=AccessLevel.REQUIRE_APPROVAL,
+                reason=f"LLM flagged as unsafe (requires approval): {command}",
                 policy="command",
             )
         except Exception as e:

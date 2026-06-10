@@ -480,12 +480,12 @@ class TestLLMEvaluation:
         mock_llm.complete.assert_called_once()
 
     async def test_llm_returns_unsafe(self, policy_with_llm):
-        """LLM returning UNSAFE should require approval."""
+        """LLM returning UNSAFE should require approval (not hard deny)."""
         mock_llm = AsyncMock()
         mock_llm.complete = AsyncMock(return_value="UNSAFE")
         verdict = await policy_with_llm.evaluate_async("docker rm container1", llm=mock_llm)
-        assert verdict.level != AccessLevel.ALLOW
-        assert "LLM denied" in verdict.reason
+        assert verdict.level == AccessLevel.REQUIRE_APPROVAL
+        assert "unsafe" in verdict.reason.lower()
 
     async def test_llm_error_fails_safe(self, policy_with_llm):
         """LLM errors should fail-safe to require approval."""
