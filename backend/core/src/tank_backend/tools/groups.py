@@ -370,13 +370,14 @@ class ComputerUseToolGroup(ToolGroup):
             return self._create_linux_tools(profile)
 
     def _create_macos_tools(self, profile: Any) -> list[BaseTool]:
-        """Create tools using macOS-native APIs (screencapture + cliclick/CGEvent)."""
+        """Create tools using macOS-native APIs (screencapture + CGEvent)."""
         try:
-            import subprocess
-            subprocess.run(["screencapture", "-h"], capture_output=True, timeout=3)
-            # screencapture always exists on macOS, just verify it's callable
-        except (FileNotFoundError, Exception):
-            logger.info("ComputerUseToolGroup: screencapture not found, skipping")
+            import Quartz  # noqa: F401
+        except ImportError:
+            logger.info(
+                "ComputerUseToolGroup: pyobjc-framework-Quartz not installed, skipping. "
+                "Install with: pip install pyobjc-framework-Quartz"
+            )
             return []
 
         from .computer_use_macos import (

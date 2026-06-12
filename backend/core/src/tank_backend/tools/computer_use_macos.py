@@ -9,13 +9,13 @@ Provides six tools that let the main ChatAgent control the host desktop:
   - mouse_move: move cursor without clicking
 
 macOS implementation uses:
-  - Screenshot: screencapture CLI (built-in, works without permissions on own screen)
-  - Input: cliclick (lightweight, no accessibility permission needed for basic clicks)
-    OR AppleScript/CGEvent via pyobjc (needs Accessibility permission)
+  - Screenshot: screencapture CLI (built-in, no extra permissions)
+  - Input: CGEvent via pyobjc-framework-Quartz (one-time Accessibility permission)
+  - App control: AppleScript for activate/launch (built-in osascript)
 
-The screenshot tool calls a dedicated vision LLM (configured via the
-``computer_use`` LLM profile) to interpret what's on screen. Action
-tools use platform-native APIs.
+Requires: pip install pyobjc-framework-Quartz
+One-time setup: Grant Accessibility permission to Terminal/iTerm2 in
+  System Settings → Privacy & Security → Accessibility
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ import base64
 import logging
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -72,118 +73,51 @@ def _capture_screenshot_macos() -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Input injection (macOS) — multiple backends
+# Input injection via CGEvent (pyobjc-framework-Quartz)
 # ---------------------------------------------------------------------------
 
-def _cliclick_available() -> bool:
-    """Check if cliclick is installed (brew install cliclick)."""
-    try:
-        r = subprocess.run(["cliclick", "-V"], capture_output=True, timeout=3)
-        return r.returncode == 0
-    except FileNotFoundError:
-        return False
-
-
-def _run_cliclick(*args: str) -> None:
-    """Run a cliclick command."""
-    result = subprocess.run(
-        ["cliclick", *args],
-        capture_output=True, text=True, timeout=5,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"cliclick failed: {result.stderr.strip()}")
-
-
 def _click_macos(x: int, y: int, button: str = "left", clicks: int = 1) -> None:
-    """Click at coordinates on macOS."""
-    if _cliclick_available():
-        # cliclick commands: c: = click, rc: = right-click, dc: = double-click
-        if clicks == 2:
-            cmd = f"dc:{x},{y}"
-        elif button == "right":
-            cmd = f"rc:{x},{y}"
-        else:
-            cmd = f"c:{x},{y}"
-        _run_cliclick(cmd)
-        # Additional clicks beyond 2
-        for _ in range(max(0, clicks - 2)):
-            _run_cliclick(f"c:{x},{y}")
-    else:
-        _click_applescript(x, y, button, clicks)
+    """Click at coordinates using CGEvent."""
+    import Quartz
 
+    point = Quartz.CGPointMake(x, y)
 
-def _click_applescript(x: int, y: int, button: str = "left", clicks: int = 1) -> None:
-    """Click using CGEvent via subprocess python call (needs Accessibility permission)."""
-    script = f"""
-import Quartz
-import time
-
-point = Quartz.CGPointMake({x}, {y})
-"""
     if button == "right":
-        script += f"""
-for _ in range({clicks}):
-    down = Quartz.CGEventCreateMouseEvent(
-        None, Quartz.kCGEventRightMouseDown, point, Quartz.kCGMouseButtonRight)
-    up = Quartz.CGEventCreateMouseEvent(
-        None, Quartz.kCGEventRightMouseUp, point, Quartz.kCGMouseButtonRight)
-    Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
-    time.sleep(0.05)
-    Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-    time.sleep(0.05)
-"""
-    elif clicks == 2:
-        script += """
-down = Quartz.CGEventCreateMouseEvent(
-    None, Quartz.kCGEventLeftMouseDown, point, Quartz.kCGMouseButtonLeft)
-up = Quartz.CGEventCreateMouseEvent(
-    None, Quartz.kCGEventLeftMouseUp, point, Quartz.kCGMouseButtonLeft)
-Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
-time.sleep(0.02)
-Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-time.sleep(0.05)
-down2 = Quartz.CGEventCreateMouseEvent(
-    None, Quartz.kCGEventLeftMouseDown, point, Quartz.kCGMouseButtonLeft)
-Quartz.CGEventSetIntegerValueField(down2, Quartz.kCGMouseEventClickState, 2)
-up2 = Quartz.CGEventCreateMouseEvent(
-    None, Quartz.kCGEventLeftMouseUp, point, Quartz.kCGMouseButtonLeft)
-Quartz.CGEventSetIntegerValueField(up2, Quartz.kCGMouseEventClickState, 2)
-Quartz.CGEventPost(Quartz.kCGHIDEventTap, down2)
-time.sleep(0.02)
-Quartz.CGEventPost(Quartz.kCGHIDEventTap, up2)
-"""
+        down_type = Quartz.kCGEventRightMouseDown
+        up_type = Quartz.kCGEventRightMouseUp
+        btn = Quartz.kCGMouseButtonRight
+    elif button == "middle":
+        down_type = Quartz.kCGEventOtherMouseDown
+        up_type = Quartz.kCGEventOtherMouseUp
+        btn = Quartz.kCGMouseButtonCenter
     else:
-        script += f"""
-for _ in range({clicks}):
-    down = Quartz.CGEventCreateMouseEvent(
-        None, Quartz.kCGEventLeftMouseDown, point, Quartz.kCGMouseButtonLeft)
-    up = Quartz.CGEventCreateMouseEvent(
-        None, Quartz.kCGEventLeftMouseUp, point, Quartz.kCGMouseButtonLeft)
-    Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
-    time.sleep(0.02)
-    Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
-    time.sleep(0.05)
-"""
-    result = subprocess.run(
-        ["python3", "-c", script],
-        capture_output=True, text=True, timeout=5,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"CGEvent click failed: {result.stderr.strip()}")
+        down_type = Quartz.kCGEventLeftMouseDown
+        up_type = Quartz.kCGEventLeftMouseUp
+        btn = Quartz.kCGMouseButtonLeft
+
+    for i in range(clicks):
+        down = Quartz.CGEventCreateMouseEvent(None, down_type, point, btn)
+        up = Quartz.CGEventCreateMouseEvent(None, up_type, point, btn)
+        # Set click count for double/triple click recognition
+        Quartz.CGEventSetIntegerValueField(
+            down, Quartz.kCGMouseEventClickState, i + 1,
+        )
+        Quartz.CGEventSetIntegerValueField(
+            up, Quartz.kCGMouseEventClickState, i + 1,
+        )
+        Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+        time.sleep(0.02)
+        Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+        if i < clicks - 1:
+            time.sleep(0.05)
 
 
 def _type_macos(text: str) -> None:
-    """Type text on macOS."""
-    if _cliclick_available():
-        # cliclick t: types text
-        _run_cliclick(f"t:{text}")
-    else:
-        _type_applescript(text)
+    """Type text using CGEvent key events.
 
-
-def _type_applescript(text: str) -> None:
-    """Type text using AppleScript System Events."""
-    # Escape for AppleScript
+    For reliability with Unicode and special characters, we use
+    AppleScript keystroke which handles encoding natively.
+    """
     escaped = text.replace("\\", "\\\\").replace('"', '\\"')
     script = f'tell application "System Events" to keystroke "{escaped}"'
     result = subprocess.run(
@@ -191,69 +125,87 @@ def _type_applescript(text: str) -> None:
         capture_output=True, text=True, timeout=10,
     )
     if result.returncode != 0:
-        raise RuntimeError(f"osascript keystroke failed: {result.stderr.strip()}")
+        raise RuntimeError(f"keystroke failed: {result.stderr.strip()}")
+
+
+# Key name → macOS virtual keycode mapping
+_KEYCODE_MAP: dict[str, int] = {
+    "return": 36, "enter": 36, "tab": 48, "space": 49,
+    "escape": 53, "esc": 53, "backspace": 51, "delete": 117,
+    "up": 126, "down": 125, "left": 123, "right": 124,
+    "home": 115, "end": 119, "pageup": 116, "pagedown": 121,
+    "f1": 122, "f2": 120, "f3": 99, "f4": 118,
+    "f5": 96, "f6": 97, "f7": 98, "f8": 100,
+    "f9": 101, "f10": 109, "f11": 103, "f12": 111,
+    "a": 0, "b": 11, "c": 8, "d": 2, "e": 14, "f": 3,
+    "g": 5, "h": 4, "i": 34, "j": 38, "k": 40, "l": 37,
+    "m": 46, "n": 45, "o": 31, "p": 35, "q": 12, "r": 15,
+    "s": 1, "t": 17, "u": 32, "v": 9, "w": 13, "x": 7,
+    "y": 16, "z": 6,
+    "0": 29, "1": 18, "2": 19, "3": 20, "4": 21,
+    "5": 23, "6": 22, "7": 26, "8": 28, "9": 25,
+    "-": 27, "=": 24, "[": 33, "]": 30, "\\": 42,
+    ";": 41, "'": 39, ",": 43, ".": 47, "/": 44, "`": 50,
+}
+
+# Modifier key → CGEvent flag mapping
+_MODIFIER_FLAGS: dict[str, int] = {
+    "cmd": 0x100000,      # kCGEventFlagMaskCommand
+    "command": 0x100000,
+    "ctrl": 0x40000,      # kCGEventFlagMaskControl
+    "control": 0x40000,
+    "alt": 0x80000,       # kCGEventFlagMaskAlternate
+    "option": 0x80000,
+    "shift": 0x20000,     # kCGEventFlagMaskShift
+}
 
 
 def _key_macos(keys: list[str]) -> None:
-    """Press key combination on macOS using cliclick or AppleScript."""
-    if _cliclick_available():
-        # cliclick kp: presses a key, kd:/ku: for modifiers
-        # Map key names to cliclick key names
-        cliclick_map = {
-            "enter": "return", "return": "return",
-            "tab": "tab", "escape": "escape", "esc": "escape",
-            "space": "space", "backspace": "delete", "delete": "fwd-delete",
-            "up": "arrow-up", "down": "arrow-down",
-            "left": "arrow-left", "right": "arrow-right",
-            "f1": "f1", "f2": "f2", "f3": "f3", "f4": "f4",
-            "f5": "f5", "f6": "f6", "f7": "f7", "f8": "f8",
-            "f9": "f9", "f10": "f10", "f11": "f11", "f12": "f12",
-        }
-        modifier_map = {
-            "cmd": "command", "command": "command",
-            "ctrl": "control", "control": "control",
-            "alt": "option", "option": "option",
-            "shift": "shift",
-        }
+    """Press key combination using CGEvent."""
+    import Quartz
 
-        if len(keys) == 1:
-            key = cliclick_map.get(keys[0].lower(), keys[0].lower())
-            _run_cliclick(f"kp:{key}")
+    modifiers: list[str] = []
+    main_key: str | None = None
+
+    for k in keys:
+        if k.lower() in _MODIFIER_FLAGS:
+            modifiers.append(k.lower())
         else:
-            # Modifiers + key combination
-            modifiers = []
-            main_key = None
-            for k in keys:
-                if k.lower() in modifier_map:
-                    modifiers.append(modifier_map[k.lower()])
-                else:
-                    main_key = cliclick_map.get(k.lower(), k.lower())
+            main_key = k.lower()
 
-            if main_key is None:
-                main_key = modifiers.pop() if modifiers else "return"
+    if main_key is None:
+        # All modifiers, no main key — treat last modifier as the key
+        if modifiers:
+            main_key = modifiers.pop()
+        else:
+            return
 
-            # cliclick: kd:modifier kp:key ku:modifier
-            cmds = (
-                [f"kd:{m}" for m in modifiers]
-                + [f"kp:{main_key}"]
-                + [f"ku:{m}" for m in modifiers]
-            )
-            _run_cliclick(*cmds)
-    else:
+    keycode = _KEYCODE_MAP.get(main_key)
+    if keycode is None:
+        # Fall back to AppleScript for unknown keys
         _key_applescript(keys)
+        return
+
+    # Combine modifier flags
+    flags = 0
+    for m in modifiers:
+        flags |= _MODIFIER_FLAGS[m]
+
+    # Create and post key events
+    down = Quartz.CGEventCreateKeyboardEvent(None, keycode, True)
+    up = Quartz.CGEventCreateKeyboardEvent(None, keycode, False)
+    if flags:
+        Quartz.CGEventSetFlags(down, flags)
+        Quartz.CGEventSetFlags(up, flags)
+
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+    time.sleep(0.02)
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
 
 
 def _key_applescript(keys: list[str]) -> None:
-    """Press key combo using AppleScript."""
-    # Map to AppleScript key codes
-    applescript_keycodes = {
-        "return": 36, "enter": 36, "tab": 48, "space": 49,
-        "escape": 53, "esc": 53, "backspace": 51, "delete": 117,
-        "up": 126, "down": 125, "left": 123, "right": 124,
-        "f1": 122, "f2": 120, "f3": 99, "f4": 118,
-        "f5": 96, "f6": 97, "f7": 98, "f8": 100,
-    }
-    modifier_applescript = {
+    """Fallback: press key combo using AppleScript for unmapped keys."""
+    modifier_map = {
         "cmd": "command down", "command": "command down",
         "ctrl": "control down", "control": "control down",
         "alt": "option down", "option": "option down",
@@ -263,27 +215,29 @@ def _key_applescript(keys: list[str]) -> None:
     modifiers = []
     main_key = None
     for k in keys:
-        if k.lower() in modifier_applescript:
-            modifiers.append(modifier_applescript[k.lower()])
+        if k.lower() in modifier_map:
+            modifiers.append(modifier_map[k.lower()])
         else:
             main_key = k.lower()
 
     if main_key is None:
         return
 
-    modifier_str = ", ".join(modifiers) if modifiers else ""
-
-    if main_key in applescript_keycodes:
-        keycode = applescript_keycodes[main_key]
+    modifier_str = ", ".join(modifiers)
+    if main_key in _KEYCODE_MAP and len(main_key) > 1:
+        # Named key — use key code
+        keycode = _KEYCODE_MAP[main_key]
         if modifier_str:
             script = (
                 f'tell application "System Events" to key code'
                 f' {keycode} using {{{modifier_str}}}'
             )
         else:
-            script = f'tell application "System Events" to key code {keycode}'
+            script = (
+                f'tell application "System Events" to key code {keycode}'
+            )
     else:
-        # Single character
+        # Character key
         if modifier_str:
             script = (
                 f'tell application "System Events" to keystroke'
@@ -303,46 +257,29 @@ def _key_applescript(keys: list[str]) -> None:
 
 
 def _scroll_macos(amount: int, x: int | None = None, y: int | None = None) -> None:
-    """Scroll on macOS."""
+    """Scroll using CGEvent."""
+    import Quartz
+
     if x is not None and y is not None:
         _move_macos(x, y)
+        time.sleep(0.05)
 
-    if _cliclick_available():
-        # cliclick doesn't have scroll. Use CGEvent approach.
-        pass
-
-    # Use CGEvent for scroll (works without cliclick)
-    script = f"""
-import Quartz
-evt = Quartz.CGEventCreateScrollWheelEvent(None, Quartz.kCGScrollEventUnitLine, 1, {amount})
-Quartz.CGEventPost(Quartz.kCGHIDEventTap, evt)
-"""
-    result = subprocess.run(
-        ["python3", "-c", script],
-        capture_output=True, text=True, timeout=5,
+    # kCGScrollEventUnitLine: positive = up, negative = down
+    event = Quartz.CGEventCreateScrollWheelEvent(
+        None, Quartz.kCGScrollEventUnitLine, 1, amount,
     )
-    if result.returncode != 0:
-        raise RuntimeError(f"CGEvent scroll failed: {result.stderr.strip()}")
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
 
 
 def _move_macos(x: int, y: int) -> None:
-    """Move mouse cursor on macOS."""
-    if _cliclick_available():
-        _run_cliclick(f"m:{x},{y}")
-    else:
-        script = f"""
-import Quartz
-point = Quartz.CGPointMake({x}, {y})
-evt = Quartz.CGEventCreateMouseEvent(
-    None, Quartz.kCGEventMouseMoved, point, Quartz.kCGMouseButtonLeft)
-Quartz.CGEventPost(Quartz.kCGHIDEventTap, evt)
-"""
-        result = subprocess.run(
-            ["python3", "-c", script],
-            capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"CGEvent move failed: {result.stderr.strip()}")
+    """Move mouse cursor using CGEvent."""
+    import Quartz
+
+    point = Quartz.CGPointMake(x, y)
+    event = Quartz.CGEventCreateMouseEvent(
+        None, Quartz.kCGEventMouseMoved, point, Quartz.kCGMouseButtonLeft,
+    )
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
 
 
 # ---------------------------------------------------------------------------
@@ -364,8 +301,8 @@ class ScreenshotTool(BaseTool):
             description=(
                 "Capture a screenshot of the computer screen and analyze it "
                 "using a vision model. Pass a task/question describing what "
-                "you want to know about the screen (e.g. 'Find the Spark app "
-                "icon and give me its coordinates', 'What app is currently "
+                "you want to know about the screen (e.g. 'Find the search "
+                "field and give me its coordinates', 'What app is currently "
                 "in the foreground?'). Returns the vision model's analysis "
                 "including coordinates of UI elements when requested."
             ),
