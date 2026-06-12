@@ -53,6 +53,9 @@ dependencies = [
     # boots stay fast. Pinned to a recent enough version that
     # ``matplotlib.use("Agg")`` works without a fallback warning.
     "matplotlib>=3.8.0",
+    # Computer-use tools: macOS input injection via Quartz CGEvent.
+    # Only needed on macOS — harmless to list on Linux (install skipped).
+    "pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'",
 ]
 
 [project.scripts]
