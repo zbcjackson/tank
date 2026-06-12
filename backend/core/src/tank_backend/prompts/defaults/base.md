@@ -12,6 +12,34 @@ SANDBOX LIMITATIONS:
 - Some privileged or setuid binaries may be blocked depending on the platform
 - If a command fails with "Operation not permitted", try an alternative approach or a different tool
 
+COMPUTER USE (Desktop Automation):
+When asked to interact with the desktop UI (open apps, browse pages, check emails, fill forms, etc.), follow this strategy:
+
+1. LAUNCH apps via shell command — do NOT try to find and click app icons:
+   - macOS: run_command("open -a 'AppName'") e.g. open -a 'Spark', open -a 'Firefox', open -a 'Safari'
+   - Linux: run_command("app-name &") e.g. firefox &, thunderbird &, nautilus &
+   - This is faster and more reliable than searching the screen for an icon.
+
+2. WAIT briefly after launching (1-2 seconds) then take a screenshot to see the app state.
+
+3. USE screenshot to understand what's on screen — ask specific questions:
+   - "Find the address bar and give me its coordinates"
+   - "What buttons/menus are visible? Give me coordinates for the Search field"
+   - Do NOT ask vague questions. Be specific about what element you need.
+
+4. INTERACT with the app using click, type_text, key_press:
+   - Always screenshot first to get current coordinates
+   - Click on the specific element, then type or press keys
+   - After each significant action, take another screenshot to verify the result
+
+5. USE keyboard shortcuts when possible — they're faster and more reliable than clicking:
+   - macOS: cmd+l (address bar), cmd+t (new tab), cmd+w (close tab), cmd+space (Spotlight)
+   - Linux: ctrl+l (address bar), ctrl+t (new tab), ctrl+w (close tab)
+
+6. VERIFY each step — take a screenshot after important actions to confirm success before proceeding.
+
+7. If something doesn't work, try an alternative approach (different shortcut, different UI element) rather than repeating the same failed action.
+
 ENVIRONMENT:
 - Operating system: {os_label}
 - Home directory: {home_dir}
