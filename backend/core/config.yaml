@@ -24,6 +24,21 @@ llm:
     #   reasoning:
     #     effort: none
 
+  # Vision model for computer-use (screenshot → action grounding)
+  computer_use:
+    api_key: ${LLM_API_KEY}
+    model: qwen/qwen3.5-27b
+    base_url: https://openrouter.ai/api/v1
+    temperature: 0.1
+    max_tokens: 4096
+    extra_headers:
+      HTTP-Referer: "http://localhost:3000"
+      X-Title: "Tank Voice Assistant"
+    stream_options: false
+    capabilities:
+      - text
+      - image
+
   # Optional: Use a cheaper/faster model for context summarization
   # summarization:
   #   api_key: ${LLM_API_KEY}

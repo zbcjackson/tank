@@ -342,3 +342,46 @@ class ConsolidationToolGroup(ToolGroup):
             return build_consolidator(app_config)
 
         return [ConsolidateMemoryTool(factory)]
+
+
+class ComputerUseToolGroup(ToolGroup):
+    """Screenshot + mouse/keyboard automation tools for host UI control.
+
+    Requires the ``computer_use`` LLM profile and ``mss``/``pyautogui``
+    packages. Fails gracefully (returns no tools) when either is missing.
+    """
+
+    def __init__(self, app_config: Any) -> None:
+        self._app_config = app_config
+
+    def create_tools(self) -> list[BaseTool]:
+        try:
+            import mss  # noqa: F401
+            import pyautogui  # noqa: F401
+        except (ImportError, Exception):
+            logger.info("ComputerUseToolGroup: mss/pyautogui unavailable, skipping")
+            return []
+
+        try:
+            profile = self._app_config.get_llm_profile("computer_use")
+        except Exception:
+            logger.info("ComputerUseToolGroup: no 'computer_use' LLM profile, skipping")
+            return []
+
+        from .computer_use import (
+            ClickTool,
+            KeyPressTool,
+            MouseMoveTool,
+            ScreenshotTool,
+            ScrollTool,
+            TypeTextTool,
+        )
+
+        return [
+            ScreenshotTool(profile),
+            ClickTool(),
+            TypeTextTool(),
+            KeyPressTool(),
+            ScrollTool(),
+            MouseMoveTool(),
+        ]

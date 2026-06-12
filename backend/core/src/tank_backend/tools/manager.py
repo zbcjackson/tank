@@ -124,6 +124,7 @@ class ToolManager:
 
         # --- Register tool groups ---
         from .groups import (
+            ComputerUseToolGroup,
             DefaultToolGroup,
             FileToolGroup,
             SandboxToolGroup,
@@ -151,6 +152,8 @@ class ToolManager:
                 self._credential_manager, self._network_policy,
             )
         )
+
+        self._register_group(ComputerUseToolGroup(app_config))
 
         self._skill_group = SkillToolGroup(
             config=app_config.skills,

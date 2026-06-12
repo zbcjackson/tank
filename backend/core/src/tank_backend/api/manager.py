@@ -207,13 +207,25 @@ class ConnectionManager:
         await assistant.stop()
 
     async def close_session(self, session_id: str) -> None:
-        """Stop and remove assistant instance, cancel any idle timer."""
+        """Stop and remove assistant instance, cancel any idle timer.
+
+        If the brain is still active (processing a request), defer the
+        close until it finishes — prevents killing in-flight LLM calls
+        and tool executions when the WebSocket briefly disconnects.
+        """
         self._cancel_idle_timer(session_id)
         self._ws_refcount.pop(session_id, None)
         self._session_meta.pop(session_id, None)
-        assistant = self._sessions.pop(session_id, None)
+        assistant = self._sessions.get(session_id)
         if assistant is None:
+            self._sessions.pop(session_id, None)
             return
+        if assistant._brain_active:
+            logger.info(
+                f"Session {session_id}: brain active, deferring close"
+            )
+            await assistant.wait_for_idle(timeout=600.0)
+        self._sessions.pop(session_id, None)
         await assistant.stop()
         logger.info(f"Closed session: {session_id}")
 

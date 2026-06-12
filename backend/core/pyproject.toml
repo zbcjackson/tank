@@ -53,6 +53,10 @@ dependencies = [
     # boots stay fast. Pinned to a recent enough version that
     # ``matplotlib.use("Agg")`` works without a fallback warning.
     "matplotlib>=3.8.0",
+    # Computer-use tools: screenshot capture + mouse/keyboard automation.
+    # Deferred imports — server boots fine without them if not needed.
+    "mss>=9.0.0",
+    "pyautogui>=0.9.54",
 ]
 
 [project.scripts]
