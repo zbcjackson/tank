@@ -58,6 +58,10 @@ def _build_seatbelt_profile(policy: BackendPolicy) -> str:
         "(allow mach-register)",
         "(allow signal (target self))",
         "",
+        ";; --- app launching and AppleEvents (computer-use tools) ---",
+        "(allow lsopen)",
+        "(allow apple-event-send)",
+        "",
         ";; --- filesystem: allow-read-default, deny-write-default ---",
         "(allow file-read*)",
     ]
