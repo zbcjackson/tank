@@ -53,8 +53,27 @@ Always respond concisely. Focus on actionable information."""
 # Screenshot capture (macOS)
 # ---------------------------------------------------------------------------
 
+def _get_display_scale_factor() -> int:
+    """Get the Retina scale factor (1 for non-Retina, 2 for Retina)."""
+    import Quartz
+
+    main_display = Quartz.CGMainDisplayID()
+    # Pixel width vs point width gives the scale factor
+    pixel_width = Quartz.CGDisplayPixelsWide(main_display)
+    mode = Quartz.CGDisplayCopyDisplayMode(main_display)
+    point_width = Quartz.CGDisplayModeGetWidth(mode)
+    if point_width and pixel_width > point_width:
+        return pixel_width // point_width
+    return 1
+
+
 def _capture_screenshot_macos() -> bytes:
-    """Capture the screen using macOS screencapture CLI and return PNG bytes."""
+    """Capture the screen and return PNG bytes scaled to point-resolution.
+
+    macOS screencapture produces Retina (2x) images, but CGEvent uses
+    point coordinates. We resize the screenshot to match point-space
+    so the vision model returns coordinates that map directly to CGEvent.
+    """
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
         tmp_path = f.name
 
@@ -65,11 +84,36 @@ def _capture_screenshot_macos() -> bytes:
         )
         if result.returncode != 0:
             raise RuntimeError(f"screencapture failed: {result.stderr}")
+
+        scale = _get_display_scale_factor()
+        if scale > 1:
+            # Downscale to point-resolution so vision model coordinates
+            # map directly to CGEvent points
+            result2 = subprocess.run(
+                ["sips", "--resampleHeightWidthMax", "0",
+                 "--resampleWidth",
+                 str(_get_point_width()),
+                 tmp_path],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result2.returncode != 0:
+                # sips failed, try reading raw and let vision model deal with it
+                logger.warning("sips resize failed, using raw Retina screenshot")
+
         png_bytes = Path(tmp_path).read_bytes()
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
     return png_bytes
+
+
+def _get_point_width() -> int:
+    """Get the main display width in points."""
+    import Quartz
+
+    main_display = Quartz.CGMainDisplayID()
+    mode = Quartz.CGDisplayCopyDisplayMode(main_display)
+    return Quartz.CGDisplayModeGetWidth(mode)
 
 
 # ---------------------------------------------------------------------------
