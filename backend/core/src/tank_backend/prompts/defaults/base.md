@@ -16,8 +16,9 @@ COMPUTER USE (Desktop Automation):
 When asked to interact with the desktop UI (open apps, browse pages, check emails, fill forms, etc.), follow this strategy:
 
 1. LAUNCH apps via shell command — do NOT try to find and click app icons:
-   - macOS: run_command("open -a 'AppName'") e.g. open -a 'Spark', open -a 'Firefox', open -a 'Safari'
+   - macOS: run_command("osascript -e 'tell application \"AppName\" to activate'") e.g. "Arc", "Spark", "Safari"
    - Linux: run_command("app-name &") e.g. firefox &, thunderbird &, nautilus &
+   - On macOS, osascript is preferred over "open -a" because it bypasses sandbox restrictions and brings the app to the foreground.
    - This is faster and more reliable than searching the screen for an icon.
 
 2. WAIT briefly after launching (1-2 seconds) then take a screenshot to see the app state.
