@@ -45,6 +45,14 @@ PRINCIPLES:
 - When typing into fields: click the field first, then use cmd+a to select all
   existing text before typing (avoids appending to old content).
 
+TOOL CALL FORMAT (CRITICAL):
+- click: pass x and y as SEPARATE integer parameters: click(x=180, y=168)
+  NEVER pass coordinates as an array. x and y are always separate arguments.
+- type_text: pass the text string: type_text(text="hello")
+- key_press: pass the key combo string: key_press(keys="cmd+c")
+- scroll: pass amount and position: scroll(amount=-3, x=400, y=300)
+- launch_app: pass app name: launch_app(app_name="Safari")
+
 LAUNCHING APPS:
 - Use launch_app("AppName") to open and bring an app to the foreground.
 - Wait briefly after launching before taking a screenshot.
