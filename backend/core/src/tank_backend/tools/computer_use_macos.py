@@ -43,16 +43,19 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def _get_display_scale_factor() -> int:
-    """Get the Retina scale factor (1 for non-Retina, 2 for Retina)."""
+    """Get the Retina scale factor (1 for non-Retina, 2 for Retina).
+
+    Compares the backing store pixel width (what screencapture produces)
+    to the point width (what CGEvent uses for coordinates).
+    """
     import Quartz
 
     main_display = Quartz.CGMainDisplayID()
-    # Pixel width vs point width gives the scale factor
-    pixel_width = Quartz.CGDisplayPixelsWide(main_display)
     mode = Quartz.CGDisplayCopyDisplayMode(main_display)
+    backing_width = Quartz.CGDisplayModeGetPixelWidth(mode)
     point_width = Quartz.CGDisplayModeGetWidth(mode)
-    if point_width and pixel_width > point_width:
-        return pixel_width // point_width
+    if point_width and backing_width > point_width:
+        return backing_width // point_width
     return 1
 
 
