@@ -410,6 +410,13 @@ class ClickTool(BaseTool):
     async def execute(
         self, x: int, y: int, button: str = "left", clicks: int = 1,
     ) -> ToolResult:
+        # Handle models that pass coordinates as a list: {'x': [180, 168]}
+        if isinstance(x, list):
+            if len(x) >= 2:
+                x, y = int(x[0]), int(x[1])
+            else:
+                return ToolResult(content="click: need both x and y coordinates", error=True)
+
         try:
             await asyncio.to_thread(_click_macos, x, y, button, clicks)
         except Exception as e:
