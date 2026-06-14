@@ -41,6 +41,7 @@ from .models import (
     SandboxConfig,
     SkillsConfig,
     ToolGuardrailsConfig,
+    ToolsetProfileConfig,
     ToolsetsConfig,
 )
 from .parser import ConfigError, parse_section
@@ -194,6 +195,7 @@ class AppConfig:
                 command_security=parse_section(CommandSecurityConfig, raw.get("command_security")),
                 audit=parse_section(AuditConfig, raw.get("audit")),
                 agents=parse_section(AgentsConfig, raw.get("agents")),
+                toolsets=_parse_toolsets(raw.get("toolsets")),
                 skills=parse_section(SkillsConfig, raw.get("skills")),
                 jobs=parse_section(JobsConfig, raw.get("jobs")),
                 channels=parse_section(ChannelsConfig, raw.get("channels")),
@@ -278,6 +280,21 @@ def _parse_llm_profiles(llm_raw: dict[str, Any]) -> dict[str, LLMProfile]:
             logger.warning("Skipping invalid LLM profile '%s'", name)
 
     return profiles
+
+
+def _parse_toolsets(raw: dict[str, Any] | None) -> ToolsetsConfig:
+    if not raw:
+        return ToolsetsConfig()
+    profiles_raw = raw.get("profiles", {})
+    profiles: dict[str, ToolsetProfileConfig] = {}
+    for name, data in (profiles_raw or {}).items():
+        if not isinstance(data, dict):
+            continue
+        tools = tuple(data.get("tools", []))
+        profiles[name] = ToolsetProfileConfig(
+            tools=tools, description=data.get("description", ""),
+        )
+    return ToolsetsConfig(profiles=profiles)
 
 
 def _parse_feature(raw: dict[str, Any], name: str) -> FeatureConfig:

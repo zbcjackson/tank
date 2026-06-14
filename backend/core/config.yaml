@@ -278,8 +278,11 @@ tool_guardrails:
 # Toolset profiles — named tool subsets for agent/job scoping.
 # Agents reference a profile by name via `toolset: <name>` in their definition.
 # Empty tools list = all tools (no filtering).
-# toolsets:
-#   profiles:
+toolsets:
+  profiles:
+    computer_use:
+      description: "Desktop automation tools"
+      tools: [screenshot, click, type_text, key_press, scroll, mouse_move, launch_app]
 #     safe:
 #       description: "Read-only tools"
 #       tools: [file_read, file_list, file_search, web_search, calculate, get_time]

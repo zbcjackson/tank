@@ -214,6 +214,8 @@ class Brain(Processor):
             definitions=definitions,
             max_depth=agents_cfg.max_depth,
             max_concurrent=agents_cfg.max_concurrent,
+            toolsets_config=app_config.toolsets,
+            app_config=app_config,
         )
 
         # Phase 2: WorkerSupervisor owns dispatch lifecycle. The

@@ -37,17 +37,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_VISION_SYSTEM_PROMPT = """\
-You are a GUI grounding agent. You see a screenshot of a macOS computer screen.
-
-Your job:
-1. Describe what you see relevant to the user's task.
-2. When asked to locate a UI element, output its pixel coordinates as (x, y).
-3. Be precise with coordinates — they will be used for mouse clicks.
-4. If you cannot find what's requested, say so clearly.
-
-Always respond concisely. Focus on actionable information."""
-
 
 # ---------------------------------------------------------------------------
 # Screenshot capture (macOS)
@@ -331,7 +320,7 @@ def _move_macos(x: int, y: int) -> None:
 # ---------------------------------------------------------------------------
 
 class ScreenshotTool(BaseTool):
-    """Capture a screenshot and analyze it with the vision LLM."""
+    """Capture a screenshot and return it as an image block."""
 
     def __init__(self, profile: LLMProfile) -> None:
         self._profile = profile
@@ -343,30 +332,24 @@ class ScreenshotTool(BaseTool):
         return ToolInfo(
             name="screenshot",
             description=(
-                "Capture a screenshot of the computer screen and analyze it "
-                "using a vision model. Pass a task/question describing what "
-                "you want to know about the screen (e.g. 'Find the search "
-                "field and give me its coordinates', 'What app is currently "
-                "in the foreground?'). Returns the vision model's analysis "
-                "including coordinates of UI elements when requested."
+                "Capture a screenshot of the current screen. Returns the image "
+                "directly. The calling agent (if vision-capable) can analyze "
+                "it to identify UI elements and their coordinates."
             ),
             parameters=[
                 ToolParameter(
                     name="task",
                     type="string",
                     description=(
-                        "What to look for or analyze on the screen. Be specific "
-                        "about what element you need coordinates for."
+                        "Optional context about what you're looking for on screen. "
+                        "Helps you focus your analysis of the returned image."
                     ),
-                    required=True,
+                    required=False,
                 ),
             ],
         )
 
-    async def execute(self, task: str) -> ToolResult:
-        if not task:
-            return ToolResult(content="screenshot: 'task' is required", error=True)
-
+    async def execute(self, task: str = "") -> ToolResult:
         try:
             png_bytes = await asyncio.to_thread(_capture_screenshot_macos)
         except Exception as e:
@@ -379,40 +362,14 @@ class ScreenshotTool(BaseTool):
         b64 = base64.b64encode(png_bytes).decode()
         data_url = f"data:image/png;base64,{b64}"
 
-        from openai.types.chat import ChatCompletionMessageParam
-
-        from ..llm.profile import create_llm_from_profile
-
-        llm = create_llm_from_profile(self._profile)
-
-        messages: list[ChatCompletionMessageParam] = [
-            {"role": "system", "content": _VISION_SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image_url", "image_url": {"url": data_url, "detail": "high"}},
-                    {"type": "text", "text": task},
-                ],
-            },
-        ]
-
-        try:
-            response = await llm.complete(messages)
-        except Exception as e:
-            return ToolResult(
-                content=f"screenshot: vision LLM call failed: {e}",
-                display="Vision analysis failed",
-                error=True,
-            )
-
         content = [
-            TextBlock(text=response),
-            ImageBlock(source=data_url, mime_type="image/png", detail="low"),
+            TextBlock(text=f"Screenshot captured. {task}" if task else "Screenshot captured."),
+            ImageBlock(source=data_url, mime_type="image/png", detail="high"),
         ]
 
         return ToolResult(
             content=content,
-            display=f"Screenshot analyzed: {response[:100]}",
+            display="Screenshot captured",
         )
 
 
@@ -615,4 +572,51 @@ class MouseMoveTool(BaseTool):
         return ToolResult(
             content=f"Moved cursor to ({x}, {y})",
             display=f"Cursor → ({x}, {y})",
+        )
+
+
+class LaunchAppTool(BaseTool):
+    """Launch a macOS application by name."""
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="general")
+
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="launch_app",
+            description=(
+                "Launch a macOS application by name and bring it to the foreground. "
+                "Use this before taking screenshots to interact with an app."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="app_name",
+                    type="string",
+                    description='Application name (e.g. "Safari", "Spark Desktop", "Arc")',
+                    required=True,
+                ),
+            ],
+        )
+
+    async def execute(self, app_name: str) -> ToolResult:
+        if not app_name:
+            return ToolResult(content="launch_app: 'app_name' is required", error=True)
+
+        try:
+            result = await asyncio.to_thread(
+                subprocess.run,
+                ["open", "-a", app_name],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode != 0:
+                return ToolResult(
+                    content=f"launch_app: failed to open '{app_name}': {result.stderr.strip()}",
+                    error=True,
+                )
+        except Exception as e:
+            return ToolResult(content=f"launch_app: failed: {e}", error=True)
+
+        return ToolResult(
+            content=f"Launched '{app_name}' and brought it to the foreground.",
+            display=f"Launched {app_name}",
         )

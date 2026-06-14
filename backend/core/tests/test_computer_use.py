@@ -56,9 +56,15 @@ class TestScreenshotTool:
     @pytest.mark.asyncio
     async def test_missing_task(self, fake_profile):
         tool = ScreenshotTool(fake_profile)
-        result = await tool.execute(task="")
-        assert result.error is True
-        assert "required" in result.content
+        fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+
+        with patch(
+            "tank_backend.tools.computer_use._capture_screenshot",
+            return_value=fake_png,
+        ):
+            result = await tool.execute(task="")
+        assert result.error is False
+        assert "Screenshot captured." in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_screenshot_capture_failure(self, fake_profile):
@@ -76,51 +82,30 @@ class TestScreenshotTool:
         tool = ScreenshotTool(fake_profile)
         fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
 
-        mock_llm = MagicMock()
-        mock_llm.complete = AsyncMock(return_value="Button is at (200, 300)")
-
-        with (
-            patch(
-                "tank_backend.tools.computer_use._capture_screenshot",
-                return_value=fake_png,
-            ),
-            patch(
-                "tank_backend.llm.profile.create_llm_from_profile",
-                return_value=mock_llm,
-            ),
+        with patch(
+            "tank_backend.tools.computer_use._capture_screenshot",
+            return_value=fake_png,
         ):
             result = await tool.execute(task="find the button")
 
         assert result.error is False
-        assert "200, 300" in result.content[0].text
-        mock_llm.complete.assert_called_once()
-        messages = mock_llm.complete.call_args[0][0]
-        assert messages[0]["role"] == "system"
-        assert messages[1]["role"] == "user"
-        assert messages[1]["content"][0]["type"] == "image_url"
+        assert "Screenshot captured." in result.content[0].text
+        assert "find the button" in result.content[0].text
+        assert result.content[1].source.startswith("data:image/png;base64,")
 
     @pytest.mark.asyncio
-    async def test_vision_llm_failure(self, fake_profile):
+    async def test_screenshot_no_task(self, fake_profile):
         tool = ScreenshotTool(fake_profile)
         fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
 
-        mock_llm = MagicMock()
-        mock_llm.complete = AsyncMock(side_effect=RuntimeError("API error"))
-
-        with (
-            patch(
-                "tank_backend.tools.computer_use._capture_screenshot",
-                return_value=fake_png,
-            ),
-            patch(
-                "tank_backend.llm.profile.create_llm_from_profile",
-                return_value=mock_llm,
-            ),
+        with patch(
+            "tank_backend.tools.computer_use._capture_screenshot",
+            return_value=fake_png,
         ):
-            result = await tool.execute(task="find the button")
+            result = await tool.execute()
 
-        assert result.error is True
-        assert "vision LLM call failed" in result.content
+        assert result.error is False
+        assert result.content[0].text == "Screenshot captured."
 
 
 # ---------------------------------------------------------------------------

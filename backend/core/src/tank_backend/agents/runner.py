@@ -52,6 +52,7 @@ class AgentRunner:
         max_depth: int = MAX_AGENT_DEPTH,
         max_concurrent: int = MAX_CONCURRENT_AGENTS,
         toolsets_config: Any = None,
+        app_config: Any = None,
     ) -> None:
         self._llm = llm
         self._tool_manager = tool_manager
@@ -64,6 +65,7 @@ class AgentRunner:
         self._max_concurrent = max_concurrent
         self._active_agents: dict[str, _AgentTracker] = {}
         self._toolsets_config = toolsets_config
+        self._app_config = app_config
 
         # Create own PromptAssembler for sub-agent prompt building
         from ..prompts.assembler import PromptAssembler
@@ -160,9 +162,19 @@ class AgentRunner:
 
         system_prompt = self._build_sub_agent_prompt(agent_def, messages)
 
+        # Resolve LLM: use agent-specific model profile if declared
+        if agent_def.model and self._app_config is not None:
+            from ..llm.profile import create_llm_from_profile
+
+            agent_llm = create_llm_from_profile(
+                self._app_config.get_llm_profile(agent_def.model)
+            )
+        else:
+            agent_llm = self._llm
+
         agent = LLMAgent(
             name=f"agent_{agent_def.name}",
-            llm=self._llm,
+            llm=agent_llm,
             tool_manager=self._tool_manager,
             system_prompt=system_prompt,
             tool_filter=tool_filter,

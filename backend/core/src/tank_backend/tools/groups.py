@@ -383,6 +383,7 @@ class ComputerUseToolGroup(ToolGroup):
         from .computer_use_macos import (
             ClickTool,
             KeyPressTool,
+            LaunchAppTool,
             MouseMoveTool,
             ScreenshotTool,
             ScrollTool,
@@ -396,6 +397,7 @@ class ComputerUseToolGroup(ToolGroup):
             KeyPressTool(),
             ScrollTool(),
             MouseMoveTool(),
+            LaunchAppTool(),
         ]
 
     def _create_linux_tools(self, profile: Any) -> list[BaseTool]:
