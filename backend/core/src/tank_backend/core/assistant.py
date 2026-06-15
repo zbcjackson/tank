@@ -462,8 +462,10 @@ class Assistant:
 
         Waits for the brain to finish its current turn before stopping,
         so in-flight LLM responses and tool executions complete gracefully.
+        If the brain doesn't become idle within a reasonable timeout,
+        proceed with forced shutdown anyway.
         """
-        await self.wait_for_idle(timeout=600.0)
+        await self.wait_for_idle(timeout=30.0)
 
         self.shutdown_signal.stop()
 
