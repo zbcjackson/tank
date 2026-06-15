@@ -361,11 +361,27 @@ class ScreenshotTool(BaseTool):
                 error=True,
             )
 
+        # Get the actual image dimensions to tell the model
+        import io
+
+        from PIL import Image
+        img = Image.open(io.BytesIO(png_bytes))
+        width, height = img.width, img.height
+
         b64 = base64.b64encode(png_bytes).decode()
         data_url = f"data:image/png;base64,{b64}"
 
+        dimension_note = (
+            f"Screenshot captured ({width}x{height} pixels). "
+            f"Coordinate system: x ranges from 0 (left) to {width} (right), "
+            f"y ranges from 0 (top) to {height} (bottom). "
+            f"When you identify an element's position, give coordinates in this "
+            f"{width}x{height} pixel space."
+        )
+        text = f"{dimension_note} {task}" if task else dimension_note
+
         content = [
-            TextBlock(text=f"Screenshot captured. {task}" if task else "Screenshot captured."),
+            TextBlock(text=text),
             ImageBlock(source=data_url, mime_type="image/png", detail="high"),
         ]
 
