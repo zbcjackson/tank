@@ -148,19 +148,40 @@ def _click_macos(x: int, y: int, button: str = "left", clicks: int = 1) -> None:
 
 
 def _type_macos(text: str) -> None:
-    """Type text using CGEvent key events.
+    """Type text on macOS.
 
-    For reliability with Unicode and special characters, we use
-    AppleScript keystroke which handles encoding natively.
+    For ASCII-only text, uses AppleScript keystroke (fast, reliable).
+    For text containing non-ASCII (Chinese, emoji, etc.), uses clipboard
+    paste (pbcopy + cmd+v) to bypass IME interference.
     """
-    escaped = text.replace("\\", "\\\\").replace('"', '\\"')
-    script = f'tell application "System Events" to keystroke "{escaped}"'
-    result = subprocess.run(
-        ["osascript", "-e", script],
-        capture_output=True, text=True, timeout=10,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"keystroke failed: {result.stderr.strip()}")
+    if all(ord(c) < 128 for c in text):
+        # Pure ASCII — use keystroke directly
+        escaped = text.replace("\\", "\\\\").replace('"', '\\"')
+        script = f'tell application "System Events" to keystroke "{escaped}"'
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"keystroke failed: {result.stderr.strip()}")
+    else:
+        # Non-ASCII — paste via clipboard to bypass IME
+        proc = subprocess.run(
+            ["pbcopy"],
+            input=text, capture_output=True, text=True, timeout=5,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"pbcopy failed: {proc.stderr.strip()}")
+        # Cmd+V to paste
+        import Quartz
+        src = Quartz.CGEventSourceCreate(Quartz.kCGEventSourceStateHIDSystemState)
+        down = Quartz.CGEventCreateKeyboardEvent(src, 9, True)  # 9 = 'v'
+        up = Quartz.CGEventCreateKeyboardEvent(src, 9, False)
+        Quartz.CGEventSetFlags(down, Quartz.kCGEventFlagMaskCommand)
+        Quartz.CGEventSetFlags(up, Quartz.kCGEventFlagMaskCommand)
+        Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+        Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+        time.sleep(0.1)
 
 
 # Key name → macOS virtual keycode mapping
