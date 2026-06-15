@@ -82,8 +82,7 @@ def _capture_screenshot_macos() -> bytes:
             # Downscale to point-resolution so vision model coordinates
             # map directly to CGEvent points
             result2 = subprocess.run(
-                ["sips", "--resampleHeightWidthMax", "0",
-                 "--resampleWidth",
+                ["sips", "--resampleWidth",
                  str(_get_point_width()),
                  tmp_path],
                 capture_output=True, text=True, timeout=10,
@@ -419,6 +418,15 @@ class ClickTool(BaseTool):
                 x, y = int(x[0]), int(x[1])
             else:
                 return ToolResult(content="click: need both x and y coordinates", error=True)
+
+        # Handle models that pass coordinates as strings: {'x': '380', 'y': '310'}
+        try:
+            x, y = int(x), int(y)
+        except (ValueError, TypeError):
+            return ToolResult(
+                content=f"click: x and y must be integers, got x={x!r}, y={y!r}",
+                error=True,
+            )
 
         try:
             await asyncio.to_thread(_click_macos, x, y, button, clicks)
