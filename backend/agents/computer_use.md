@@ -3,6 +3,7 @@ name: computer_use
 description: "Desktop GUI automation specialist with vision"
 model: computer_use
 toolset: computer_use
+background: true
 token-budget: 100000
 ---
 

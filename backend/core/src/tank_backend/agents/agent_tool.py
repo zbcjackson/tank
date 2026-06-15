@@ -140,7 +140,7 @@ class AgentTool(BaseTool):
                 agent_type=agent_type,
                 prompt=prompt,
                 description=description,
-                background=bool(background),
+                background=bool(background) or agent_def.background,
                 originating_conversation_id=originating_conversation_id,
             )
         return await self._execute_via_runner(
@@ -148,7 +148,7 @@ class AgentTool(BaseTool):
             agent_type=agent_type,
             prompt=prompt,
             description=description,
-            background=background,
+            background=background or agent_def.background,
         )
 
     # ------------------------------------------------------------------
