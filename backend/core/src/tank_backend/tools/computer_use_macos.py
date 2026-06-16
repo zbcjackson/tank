@@ -403,7 +403,7 @@ class ScreenshotTool(BaseTool):
 
         content = [
             TextBlock(text=text),
-            ImageBlock(source=data_url, mime_type="image/png", detail="high"),
+            ImageBlock(source=data_url, mime_type="image/png", detail="low"),
         ]
 
         return ToolResult(
