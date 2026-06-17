@@ -300,8 +300,6 @@ export const VoiceMode = ({
         />
       </div>
 
-      {/* Bottom hint */}
-      <div className="hud-hint">drag windows · they close on completion</div>
     </motion.div>
   );
 };
