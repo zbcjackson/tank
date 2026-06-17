@@ -41,9 +41,11 @@ PLANNING GUIDELINES:
 PRINCIPLES:
 - Always verify after acting — screenshot to confirm each step succeeded.
 - Use keyboard shortcuts when faster (cmd+l for address bar, cmd+t for new tab,
-  tab to move between form fields, enter to submit).
+  tab to move between form fields).
 - When typing into fields: click the field first, then use cmd+a to select all
   existing text before typing (avoids appending to old content).
+- To SEND messages in chat apps (WeChat, etc.), press Enter after typing.
+  Use shift+enter if you need a newline without sending.
 
 TOOL CALL FORMAT:
 - click: click(x=500, y=300) — normalized 0-1000 coordinates

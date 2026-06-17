@@ -247,9 +247,12 @@ def _key_macos(keys: list[str]) -> None:
     for m in modifiers:
         flags |= _MODIFIER_FLAGS[m]
 
-    # Create and post key events
-    down = Quartz.CGEventCreateKeyboardEvent(None, keycode, True)
-    up = Quartz.CGEventCreateKeyboardEvent(None, keycode, False)
+    # Create events with a proper HID source so apps recognize them
+    src = Quartz.CGEventSourceCreate(
+        Quartz.kCGEventSourceStateHIDSystemState,
+    )
+    down = Quartz.CGEventCreateKeyboardEvent(src, keycode, True)
+    up = Quartz.CGEventCreateKeyboardEvent(src, keycode, False)
     if flags:
         Quartz.CGEventSetFlags(down, flags)
         Quartz.CGEventSetFlags(up, flags)
