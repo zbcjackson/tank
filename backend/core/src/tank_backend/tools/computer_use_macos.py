@@ -339,6 +339,23 @@ def _move_macos(x: int, y: int) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Coordinate conversion: normalized (0-1000) → pixel
+# ---------------------------------------------------------------------------
+
+# Last known screen point dimensions for normalized→pixel conversion.
+# Updated each time a screenshot is captured.
+_screen_point_size: tuple[int, int] = (1920, 1080)
+
+
+def _normalized_to_pixel(x: int, y: int) -> tuple[int, int]:
+    """Convert normalized 0-1000 coordinates to pixel coordinates."""
+    screen_w, screen_h = _screen_point_size
+    px = int(x * screen_w / 1000)
+    py = int(y * screen_h / 1000)
+    return px, py
+
+
+# ---------------------------------------------------------------------------
 # Tool classes
 # ---------------------------------------------------------------------------
 
@@ -373,6 +390,8 @@ class ScreenshotTool(BaseTool):
         )
 
     async def execute(self, task: str = "") -> ToolResult:
+        global _screen_point_size
+
         try:
             png_bytes = await asyncio.to_thread(_capture_screenshot_macos)
         except Exception as e:
@@ -382,22 +401,25 @@ class ScreenshotTool(BaseTool):
                 error=True,
             )
 
-        # Get the actual image dimensions to tell the model
+        # Get the actual image dimensions and update the module-level cache
         import io
 
         from PIL import Image
         img = Image.open(io.BytesIO(png_bytes))
         width, height = img.width, img.height
+        _screen_point_size = (width, height)
 
         b64 = base64.b64encode(png_bytes).decode()
         data_url = f"data:image/png;base64,{b64}"
 
         dimension_note = (
-            f"Screenshot captured ({width}x{height} pixels). "
-            f"Coordinate system: x ranges from 0 (left) to {width} (right), "
-            f"y ranges from 0 (top) to {height} (bottom). "
-            f"When you identify an element's position, give coordinates in this "
-            f"{width}x{height} pixel space."
+            "Screenshot captured. "
+            "When reporting element positions, use NORMALIZED coordinates "
+            "on a 0-1000 scale where (0, 0) is the top-left corner and "
+            "(1000, 1000) is the bottom-right corner. "
+            "For example, the center of the screen is (500, 500). "
+            "All coordinate tools (click, scroll, mouse_move) expect this "
+            "0-1000 normalized format."
         )
         text = f"{dimension_note} {task}" if task else dimension_note
 
@@ -422,13 +444,19 @@ class ClickTool(BaseTool):
         return ToolInfo(
             name="click",
             description=(
-                "Click the mouse at the specified screen coordinates. "
+                "Click the mouse at the specified coordinates (normalized 0-1000 scale). "
                 "Use 'screenshot' first to find the coordinates of the "
                 "element you want to click."
             ),
             parameters=[
-                ToolParameter(name="x", type="integer", description="X coordinate (pixels)"),
-                ToolParameter(name="y", type="integer", description="Y coordinate (pixels)"),
+                ToolParameter(
+                    name="x", type="integer",
+                    description="X coordinate (0-1000, 0=left, 1000=right)",
+                ),
+                ToolParameter(
+                    name="y", type="integer",
+                    description="Y coordinate (0-1000, 0=top, 1000=bottom)",
+                ),
                 ToolParameter(
                     name="button",
                     type="string",
@@ -465,12 +493,18 @@ class ClickTool(BaseTool):
                 error=True,
             )
 
+        # Convert normalized 0-1000 coordinates to pixel coordinates
+        px, py = _normalized_to_pixel(x, y)
+
         try:
-            await asyncio.to_thread(_click_macos, x, y, button, clicks)
+            await asyncio.to_thread(_click_macos, px, py, button, clicks)
         except Exception as e:
             return ToolResult(content=f"click: failed: {e}", error=True)
         return ToolResult(
-            content=f"Clicked {button} button at ({x}, {y}), clicks={clicks}",
+            content=(
+                f"Clicked {button} button at normalized ({x}, {y}) "
+                f"→ pixel ({px}, {py}), clicks={clicks}"
+            ),
             display=f"Clicked ({x}, {y})",
         )
 
@@ -564,8 +598,8 @@ class ScrollTool(BaseTool):
             name="scroll",
             description=(
                 "Scroll the mouse wheel. Positive amount scrolls up, "
-                "negative scrolls down. Optionally specify (x, y) to "
-                "move the cursor there first."
+                "negative scrolls down. Optionally specify (x, y) in "
+                "normalized 0-1000 coordinates to move the cursor there first."
             ),
             parameters=[
                 ToolParameter(
@@ -576,13 +610,13 @@ class ScrollTool(BaseTool):
                 ToolParameter(
                     name="x",
                     type="integer",
-                    description="X coordinate to scroll at",
+                    description="X coordinate (0-1000) to scroll at",
                     required=False,
                 ),
                 ToolParameter(
                     name="y",
                     type="integer",
-                    description="Y coordinate to scroll at",
+                    description="Y coordinate (0-1000) to scroll at",
                     required=False,
                 ),
             ],
@@ -591,8 +625,13 @@ class ScrollTool(BaseTool):
     async def execute(
         self, amount: int, x: int | None = None, y: int | None = None,
     ) -> ToolResult:
+        # Convert normalized coordinates to pixel if provided
+        px, py = None, None
+        if x is not None and y is not None:
+            px, py = _normalized_to_pixel(int(x), int(y))
+
         try:
-            await asyncio.to_thread(_scroll_macos, amount, x, y)
+            await asyncio.to_thread(_scroll_macos, amount, px, py)
         except Exception as e:
             return ToolResult(content=f"scroll: failed: {e}", error=True)
         direction = "up" if amount > 0 else "down"
@@ -612,20 +651,38 @@ class MouseMoveTool(BaseTool):
     def get_info(self) -> ToolInfo:
         return ToolInfo(
             name="mouse_move",
-            description="Move the mouse cursor to the specified coordinates without clicking.",
+            description=(
+                "Move the mouse cursor to the specified coordinates "
+                "(normalized 0-1000 scale) without clicking."
+            ),
             parameters=[
-                ToolParameter(name="x", type="integer", description="X coordinate (pixels)"),
-                ToolParameter(name="y", type="integer", description="Y coordinate (pixels)"),
+                ToolParameter(
+                    name="x", type="integer",
+                    description="X coordinate (0-1000, 0=left, 1000=right)",
+                ),
+                ToolParameter(
+                    name="y", type="integer",
+                    description="Y coordinate (0-1000, 0=top, 1000=bottom)",
+                ),
             ],
         )
 
     async def execute(self, x: int, y: int) -> ToolResult:
         try:
-            await asyncio.to_thread(_move_macos, x, y)
+            x, y = int(x), int(y)
+        except (ValueError, TypeError):
+            return ToolResult(
+                content=f"mouse_move: invalid coordinates x={x!r}, y={y!r}",
+                error=True,
+            )
+
+        px, py = _normalized_to_pixel(x, y)
+        try:
+            await asyncio.to_thread(_move_macos, px, py)
         except Exception as e:
             return ToolResult(content=f"mouse_move: failed: {e}", error=True)
         return ToolResult(
-            content=f"Moved cursor to ({x}, {y})",
+            content=f"Moved cursor to normalized ({x}, {y}) → pixel ({px}, {py})",
             display=f"Cursor → ({x}, {y})",
         )
 
