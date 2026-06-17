@@ -217,49 +217,14 @@ _MODIFIER_FLAGS: dict[str, int] = {
 
 
 def _key_macos(keys: list[str]) -> None:
-    """Press key combination using CGEvent."""
-    import Quartz
+    """Press key combination via AppleScript System Events.
 
-    modifiers: list[str] = []
-    main_key: str | None = None
-
-    for k in keys:
-        if k.lower() in _MODIFIER_FLAGS:
-            modifiers.append(k.lower())
-        else:
-            main_key = k.lower()
-
-    if main_key is None:
-        # All modifiers, no main key — treat last modifier as the key
-        if modifiers:
-            main_key = modifiers.pop()
-        else:
-            return
-
-    keycode = _KEYCODE_MAP.get(main_key)
-    if keycode is None:
-        # Fall back to AppleScript for unknown keys
-        _key_applescript(keys)
-        return
-
-    # Combine modifier flags
-    flags = 0
-    for m in modifiers:
-        flags |= _MODIFIER_FLAGS[m]
-
-    # Create events with a proper HID source so apps recognize them
-    src = Quartz.CGEventSourceCreate(
-        Quartz.kCGEventSourceStateHIDSystemState,
-    )
-    down = Quartz.CGEventCreateKeyboardEvent(src, keycode, True)
-    up = Quartz.CGEventCreateKeyboardEvent(src, keycode, False)
-    if flags:
-        Quartz.CGEventSetFlags(down, flags)
-        Quartz.CGEventSetFlags(up, flags)
-
-    Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
-    time.sleep(0.02)
-    Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+    AppleScript 'key code' goes through the full Cocoa event chain
+    (performKeyEquivalent → keyDown → insertText), which is how real
+    keyboard presses are handled. CGEvent injection bypasses parts of
+    this chain, causing some apps (WeChat, etc.) to misinterpret keys.
+    """
+    _key_applescript(keys)
 
 
 def _key_applescript(keys: list[str]) -> None:
