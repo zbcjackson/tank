@@ -152,6 +152,12 @@ def _tool_result_to_llm(
         display = (result[:200] + "...") if len(result) > 200 else result
         return result, display, []
 
+    if isinstance(result, dict):
+        import json
+        content = json.dumps(result, ensure_ascii=False)
+        display = (content[:200] + "...") if len(content) > 200 else content
+        return content, display, []
+
     # Should not happen — tools should return ToolResult or str
     logger.warning("Tool returned unexpected type %s, converting to string", type(result))
     content = str(result)
