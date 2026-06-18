@@ -109,8 +109,11 @@ class TestBackgroundAgentFlow:
             ctx=ctx,
         )
 
-        assert dispatch["status"] == "running"
-        task_id = dispatch["task_id"]
+        import json
+        dispatch_data = json.loads(dispatch.content)
+
+        assert dispatch_data["status"] == "running"
+        task_id = dispatch_data["task_id"]
         assert task_id.startswith("t_")
 
         # Wait for the worker to complete; the supervisor will post
@@ -152,7 +155,9 @@ class TestBackgroundAgentFlow:
             prompt="x", subagent_type="coder",
             description="probe", run_in_background=True, ctx=ctx,
         )
-        await supervisor.wait(dispatch["task_id"], timeout=1.0)
+        import json
+        dispatch_data = json.loads(dispatch.content)
+        await supervisor.wait(dispatch_data["task_id"], timeout=1.0)
 
         pending = inbox.drain("conv_b")
         assert len(pending) == 1
@@ -188,7 +193,9 @@ class TestBackgroundAgentFlow:
             prompt="x", subagent_type="coder",
             run_in_background=True, ctx=ctx,
         )
-        task_id = dispatch["task_id"]
+        import json
+        dispatch_data = json.loads(dispatch.content)
+        task_id = dispatch_data["task_id"]
         await running.wait()
 
         assert supervisor.stop(task_id) is True

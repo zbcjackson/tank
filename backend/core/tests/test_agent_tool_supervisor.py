@@ -120,13 +120,14 @@ class TestSupervisorReturnShape:
             description="greet",
         )
 
-        # Legacy keys — these must not regress.
-        assert result["agent_type"] == "coder"
-        assert result["description"] == "greet"
-        assert result["message"] == "hello world"
-        # New keys layered on top.
-        assert result["status"] == "completed"
-        assert result["task_id"].startswith("t_")
+        # Result is now a ToolResult with JSON content
+        import json
+        data = json.loads(result.content)
+        assert data["agent_type"] == "coder"
+        assert data["description"] == "greet"
+        assert data["message"] == "hello world"
+        assert data["status"] == "completed"
+        assert data["task_id"].startswith("t_")
 
     @pytest.mark.asyncio
     async def test_no_text_output_falls_back_to_legacy_message(
@@ -138,8 +139,10 @@ class TestSupervisorReturnShape:
         sup = _make_supervisor(runner, store)
         tool = AgentTool(runner, supervisor=sup)  # type: ignore[arg-type]
         result = await tool.execute(prompt="x", subagent_type="coder")
+        import json
+        data = json.loads(result.content)
         assert (
-            result["message"]
+            data["message"]
             == "Agent 'coder' completed (no text output)."
         )
 
@@ -151,8 +154,10 @@ class TestSupervisorReturnShape:
         sup = _make_supervisor(runner, store)
         tool = AgentTool(runner, supervisor=sup)  # type: ignore[arg-type]
         result = await tool.execute(prompt="x", subagent_type="nonexistent")
-        assert "error" in result
-        assert "nonexistent" in result["error"]
+        import json
+        data = json.loads(result.content)
+        assert "error" in data
+        assert "nonexistent" in data["error"]
         # And it returned without dispatching — no row was created.
         assert store.count_active() == 0
 
@@ -176,10 +181,12 @@ class TestFailureMapping:
         tool = AgentTool(runner, supervisor=sup)  # type: ignore[arg-type]
         result = await tool.execute(prompt="x", subagent_type="coder")
 
-        assert result["agent_type"] == "coder"
-        assert "error" in result
-        assert "max concurrent" in result["error"]
-        assert "Cannot spawn agent 'coder'" in result["message"]
+        import json
+        data = json.loads(result.content)
+        assert data["agent_type"] == "coder"
+        assert "error" in data
+        assert "max concurrent" in data["error"]
+        assert "Cannot spawn agent 'coder'" in data["message"]
         # Pre-existing rows untouched; no new dispatch row created.
         assert store.count_active() == 3
 
@@ -195,8 +202,10 @@ class TestFailureMapping:
         sup = _make_supervisor(runner, store, max_depth=0)
         tool = AgentTool(runner, supervisor=sup)  # type: ignore[arg-type]
         result = await tool.execute(prompt="x", subagent_type="coder")
-        assert "error" in result
-        assert "max depth" in result["error"]
+        import json
+        data = json.loads(result.content)
+        assert "error" in data
+        assert "max depth" in data["error"]
 
     @pytest.mark.asyncio
     async def test_runner_exception_surfaces_failure_in_message(
@@ -212,10 +221,12 @@ class TestFailureMapping:
         result = await tool.execute(prompt="x", subagent_type="coder")
 
         # The LLM sees a structured failure rather than an exception.
-        assert result["status"] == "failed"
-        assert "kaboom" in result["message"]
-        assert "Partial output" in result["message"]
-        assert "part" in result["message"]
+        import json
+        data = json.loads(result.content)
+        assert data["status"] == "failed"
+        assert "kaboom" in data["message"]
+        assert "Partial output" in data["message"]
+        assert "part" in data["message"]
 
 
 # ----------------------------------------------------------------------
@@ -239,7 +250,9 @@ class TestOriginatingConversationCapture:
             subagent_type="coder",
             **{TOOL_CONTEXT_KWARG: ctx},
         )
-        row = store.get(result["task_id"])
+        import json
+        data = json.loads(result.content)
+        row = store.get(data["task_id"])
         assert row is not None
         assert row.originating_conversation_id == "conv_xyz"
 
@@ -251,7 +264,9 @@ class TestOriginatingConversationCapture:
         sup = _make_supervisor(runner, store)
         tool = AgentTool(runner, supervisor=sup)  # type: ignore[arg-type]
         result = await tool.execute(prompt="x", subagent_type="coder")
-        row = store.get(result["task_id"])
+        import json
+        data = json.loads(result.content)
+        row = store.get(data["task_id"])
         assert row is not None
         assert row.originating_conversation_id is None
 
@@ -301,11 +316,10 @@ class TestLegacyFallback:
         tool = AgentTool(runner)  # type: ignore[arg-type] — no supervisor
 
         result = await tool.execute(prompt="x", subagent_type="coder")
-        assert result["agent_type"] == "coder"
-        assert result["message"] == "legacy path"
-        # Legacy path doesn't add task_id / status keys.
-        assert "task_id" not in result
-        assert "status" not in result
+        import json
+        data = json.loads(result.content)
+        assert data["agent_type"] == "coder"
+        assert data["message"] == "legacy path"
 
 
 # ----------------------------------------------------------------------

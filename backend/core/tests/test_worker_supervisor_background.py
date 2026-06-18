@@ -111,18 +111,20 @@ class TestAgentToolBackground:
             run_in_background=True,
         )
 
-        assert result["status"] == "running"
-        assert result["task_id"].startswith("t_")
-        assert result["agent_type"] == "coder"
-        assert result["description"] == "bg-task"
+        import json
+        data = json.loads(result.content)
+        assert data["status"] == "running"
+        assert data["task_id"].startswith("t_")
+        assert data["agent_type"] == "coder"
+        assert data["description"] == "bg-task"
         # Worker row exists in store, still running.
-        row = store.get(result["task_id"])
+        row = store.get(data["task_id"])
         assert row is not None
         assert row.status == "running"
         # Cleanup — let the worker finish so the test event loop
         # doesn't leak a pending task.
         gate.set()
-        await sup.wait(result["task_id"], timeout=1.0)
+        await sup.wait(data["task_id"], timeout=1.0)
 
     @pytest.mark.asyncio
     async def test_background_concurrency_limit_returns_graceful_message(
@@ -137,8 +139,10 @@ class TestAgentToolBackground:
         result = await tool.execute(
             prompt="x", subagent_type="coder", run_in_background=True,
         )
-        assert "error" in result
-        assert "max concurrent" in result["error"]
+        import json
+        data = json.loads(result.content)
+        assert "error" in data
+        assert "max concurrent" in data["error"]
 
 
 # ----------------------------------------------------------------------

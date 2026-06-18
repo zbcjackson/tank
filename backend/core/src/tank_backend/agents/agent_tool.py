@@ -21,6 +21,7 @@ production paths always go through the supervisor.
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -29,6 +30,7 @@ from ..tools.base import (
     ToolContext,
     ToolInfo,
     ToolParameter,
+    ToolResult,
 )
 from .base import AgentOutputType
 from .runner import AgentRunner
@@ -116,7 +118,7 @@ class AgentTool(BaseTool):
             ],
         )
 
-    async def execute(self, *, ctx: ToolContext | None = None, **kwargs: Any) -> dict[str, Any]:
+    async def execute(self, *, ctx: ToolContext | None = None, **kwargs: Any) -> ToolResult:
         agent_type = kwargs.get("subagent_type", "coder")
         prompt: str = kwargs["prompt"]
         background = kwargs.get("run_in_background", False)
@@ -126,13 +128,13 @@ class AgentTool(BaseTool):
         agent_def = self._runner.get_definition(agent_type)
         if agent_def is None:
             available = sorted(self._runner.definitions.keys())
-            return {
-                "error": f"Agent type '{agent_type}' not found",
-                "message": (
-                    f"Agent type '{agent_type}' not found. "
-                    f"Available: {', '.join(available)}"
-                ),
-            }
+            return ToolResult(
+                content=json.dumps({
+                    "error": f"Agent type '{agent_type}' not found",
+                    "available": available,
+                }, ensure_ascii=False),
+                error=True,
+            )
 
         if self._supervisor is not None:
             return await self._execute_via_supervisor(
@@ -164,7 +166,7 @@ class AgentTool(BaseTool):
         description: str,
         background: bool,
         originating_conversation_id: str | None,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         assert self._supervisor is not None  # noqa: S101
         try:
             if background:
@@ -178,17 +180,20 @@ class AgentTool(BaseTool):
                     "AgentTool: '%s' dispatched in background (task=%s)",
                     agent_type, task_id,
                 )
-                return {
-                    "agent_type": agent_type,
-                    "description": description,
-                    "task_id": task_id,
-                    "status": "running",
-                    "message": (
-                        f"Agent '{agent_type}' dispatched in background. "
-                        f"task_id={task_id}. Use agent_status(task_id) to "
-                        f"check progress or agent_stop(task_id) to cancel."
-                    ),
-                }
+                return ToolResult(
+                    content=json.dumps({
+                        "agent_type": agent_type,
+                        "description": description,
+                        "task_id": task_id,
+                        "status": "running",
+                        "message": (
+                            f"Agent '{agent_type}' dispatched in background. "
+                            f"task_id={task_id}. Use agent_status(task_id) to "
+                            f"check progress or agent_stop(task_id) to cancel."
+                        ),
+                    }, ensure_ascii=False),
+                    display=f"Agent '{agent_type}' dispatched (task={task_id})",
+                )
             result = await self._supervisor.run_foreground(
                 agent_def=agent_def,
                 prompt=prompt,
@@ -216,13 +221,16 @@ class AgentTool(BaseTool):
             "AgentTool: '%s' %s (task=%s, %d chars)",
             agent_type, result.status, result.task_id, len(result.output),
         )
-        return {
-            "agent_type": agent_type,
-            "description": description,
-            "task_id": result.task_id,
-            "status": result.status,
-            "message": message,
-        }
+        return ToolResult(
+            content=json.dumps({
+                "agent_type": agent_type,
+                "description": description,
+                "task_id": result.task_id,
+                "status": result.status,
+                "message": message,
+            }, ensure_ascii=False),
+            display=f"Agent '{agent_type}' {result.status}",
+        )
 
     @staticmethod
     def _format_failure_message(*, agent_type: str, result: Any) -> str:
@@ -235,12 +243,15 @@ class AgentTool(BaseTool):
         return f"{prefix}."
 
     @staticmethod
-    def _limit_error(agent_type: str, detail: str) -> dict[str, Any]:
-        return {
-            "agent_type": agent_type,
-            "error": detail,
-            "message": f"Cannot spawn agent '{agent_type}': {detail}",
-        }
+    def _limit_error(agent_type: str, detail: str) -> ToolResult:
+        return ToolResult(
+            content=json.dumps({
+                "agent_type": agent_type,
+                "error": detail,
+                "message": f"Cannot spawn agent '{agent_type}': {detail}",
+            }, ensure_ascii=False),
+            error=True,
+        )
 
     # ------------------------------------------------------------------
     # Legacy runner path — unit tests that construct AgentTool directly.
@@ -254,7 +265,7 @@ class AgentTool(BaseTool):
         prompt: str,
         description: str,
         background: bool,
-    ) -> dict[str, Any]:
+    ) -> ToolResult:
         messages: list[dict[str, Any]] = [
             {"role": "user", "content": prompt},
         ]
@@ -280,8 +291,11 @@ class AgentTool(BaseTool):
             agent_type, len(full_text), tool_calls,
         )
 
-        return {
-            "agent_type": agent_type,
-            "description": description,
-            "message": full_text or f"Agent '{agent_type}' completed (no text output).",
-        }
+        return ToolResult(
+            content=json.dumps({
+                "agent_type": agent_type,
+                "description": description,
+                "message": full_text or f"Agent '{agent_type}' completed (no text output).",
+            }, ensure_ascii=False),
+            display=f"Agent '{agent_type}' completed",
+        )

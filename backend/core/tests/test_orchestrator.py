@@ -286,7 +286,9 @@ class TestAgentTool:
 
         tool = AgentTool(runner)
         result = await tool.execute(prompt="hello", subagent_type="nonexistent")
-        assert "error" in result
+        import json
+        data = json.loads(result.content)
+        assert "error" in data
 
     @pytest.mark.asyncio()
     async def test_execute_coder(self) -> None:
@@ -310,5 +312,7 @@ class TestAgentTool:
 
         tool = AgentTool(runner)
         result = await tool.execute(prompt="write hello world", subagent_type="coder")
-        assert "message" in result
-        assert result["agent_type"] == "coder"
+        import json
+        data = json.loads(result.content)
+        assert "message" in data
+        assert data["agent_type"] == "coder"
