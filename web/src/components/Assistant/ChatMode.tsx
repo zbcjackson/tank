@@ -79,14 +79,16 @@ export const ChatMode = ({
     return undefined;
   }, [messages]);
 
+  const isActive = assistantStatus !== 'idle';
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
-        behavior: 'smooth',
+        behavior: isActive ? 'instant' : 'smooth',
       });
     }
-  }, [messages, assistantStatus]);
+  }, [messages, isActive]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
