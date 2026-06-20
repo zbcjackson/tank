@@ -152,6 +152,7 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
       if (metadataType === 'THOUGHT') activityType = 'thinking';
       else if (metadataType === 'TOOL') activityType = 'tool';
       else if (metadataType === 'APPROVAL') activityType = 'approval';
+      else if (metadataType === 'WORKER_ACTIVITY') activityType = 'tool';
 
       if (msg.type === 'transcript') activityType = 'text';
 
@@ -206,6 +207,46 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
               },
             ];
           }
+        }
+
+        // --- WORKER ACTIVITY (per-tool updates inside a background worker) ---
+        if (metadataType === 'WORKER_ACTIVITY') {
+          const toolName = (msg.metadata?.tool_name as string) || '';
+          const toolStatus = (msg.metadata?.tool_status as string) || 'calling';
+          const isDone = toolStatus === 'success' || toolStatus === 'error';
+
+          // Find the target step: first try exact step_id match (background workers),
+          // then fall back to finding any running agent tool step in the same message
+          // (foreground workers have a different step_id format).
+          let targetIdx = existingIdx;
+          if (targetIdx < 0) {
+            targetIdx = updated.findIndex(
+              (s) =>
+                s.msgId === msgId &&
+                s.type === 'tool' &&
+                s.role === 'assistant' &&
+                (s.content as ToolContent).name === 'agent' &&
+                (s.content as ToolContent).status !== 'success' &&
+                (s.content as ToolContent).status !== 'error',
+            );
+          }
+
+          if (targetIdx > -1) {
+            const existing = updated[targetIdx].content as ToolContent;
+            const activities = [...(existing.activities ?? [])];
+            const actIdx = activities.findIndex((a) => a.name === toolName);
+            if (actIdx > -1) {
+              activities[actIdx] = { ...activities[actIdx], done: isDone };
+            } else if (toolName) {
+              activities.push({ name: toolName, done: isDone });
+            }
+            updated[targetIdx] = {
+              ...updated[targetIdx],
+              content: { ...existing, activities },
+            };
+            return updated;
+          }
+          return prev;
         }
 
         // --- TOOL ACTIVITIES ---

@@ -6,10 +6,12 @@ import { EnrollmentBanner } from './EnrollmentBanner';
 import { UserSelector } from './UserSelector';
 import { AttachmentChips } from './AttachmentChips';
 import { PttButton } from './PttButton';
+import { BackgroundTaskOverlay } from './BackgroundTaskOverlay';
 import type { Step } from '../../types/message';
 import { ActivityIndicator } from './ActivityIndicator';
 import type { AssistantStatus } from '../../hooks/useAssistant';
 import { useUpload } from '../../hooks/useUpload';
+import { useActiveBackgroundTasks } from '../../hooks/useActiveBackgroundTasks';
 
 const CHAT_BG_STYLE = { background: '#0a0a0a' };
 const EMPTY_STATE_STYLE = {
@@ -71,6 +73,7 @@ export const ChatMode = ({
   const [enrollmentKey, setEnrollmentKey] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const { attachments, upload, remove, clear } = useUpload(sessionId);
+  const backgroundTasks = useActiveBackgroundTasks(messages);
 
   const lastUserSpeaker = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -209,7 +212,9 @@ export const ChatMode = ({
       />
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 pb-4 scrollbar-thin">
+      <div className="relative flex-1 overflow-hidden">
+        <BackgroundTaskOverlay tasks={backgroundTasks} />
+        <div ref={scrollRef} className="h-full overflow-y-auto px-6 pb-4 scrollbar-thin">
         {messages.length === 0 && (
           <div
             data-testid="empty-state"
@@ -273,6 +278,7 @@ export const ChatMode = ({
               </div>
             );
           })}
+        </div>
         </div>
       </div>
 

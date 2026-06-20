@@ -190,7 +190,7 @@ function bodyFor(
     kind: 'agent',
     subagentType: deriveSubagentType(tc),
     task: deriveSubagentTask(tc),
-    activities: [],
+    activities: tc.activities ?? [],
     summary: tc.result ?? '',
     summaryStreaming: streaming && !tc.result,
   };
@@ -290,11 +290,16 @@ export function useHudWindows({
     // First-run snapshot: every step that already exists when the hook
     // mounts is treated as history. Otherwise switching chat → voice flashes
     // windows for in-progress steps that were already streaming under chat.
+    // Exception: actively-running agent steps should still get HUD windows
+    // so background workers are visible after mode switch.
     if (!didMountRef.current) {
       didMountRef.current = true;
       for (const step of steps) {
         const classified = classifyStep(step);
-        if (classified) disposedIdsRef.current.add(classified.id);
+        if (!classified) continue;
+        // Keep active agent steps alive across mode switch
+        if (classified.type === 'agent' && isStepActive(classified.type, step)) continue;
+        disposedIdsRef.current.add(classified.id);
       }
     }
 

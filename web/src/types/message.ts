@@ -7,6 +7,7 @@ export interface ToolContent {
   arguments: string;
   status: string;
   result?: string;
+  activities?: Array<{ name: string; done: boolean }>;
 }
 
 export interface ApprovalContent {

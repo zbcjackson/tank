@@ -361,12 +361,18 @@ class WorkerSupervisor:
         ):
             if event.type == AgentOutputType.TOKEN:
                 output_chunks.append(event.content)
-            elif (
-                event.type == AgentOutputType.TOOL_RESULT
-                and event.metadata.get("name") == "ask_user"
-                and event.metadata.get("status") == "success"
+            elif event.type in (
+                AgentOutputType.TOOL_CALLING,
+                AgentOutputType.TOOL_EXECUTING,
+                AgentOutputType.TOOL_RESULT,
             ):
-                ask_user_question = event.content
+                self._post_activity_event(run, event)
+                if (
+                    event.type == AgentOutputType.TOOL_RESULT
+                    and event.metadata.get("name") == "ask_user"
+                    and event.metadata.get("status") == "success"
+                ):
+                    ask_user_question = event.content
             elif (
                 event.type == AgentOutputType.DONE
                 and ask_user_question is not None
@@ -472,6 +478,28 @@ class WorkerSupervisor:
             type="worker",
             source="worker_supervisor",
             payload=payload,
+        ))
+
+    def _post_activity_event(self, run: WorkerRun, event: Any) -> None:
+        """Post a lightweight bus event for a tool call inside a worker."""
+        if self._bus is None:
+            return
+        tool_name = event.metadata.get("name", "")
+        tool_status = event.metadata.get("status", "calling")
+        logger.info(
+            "Worker activity: task=%s tool=%s status=%s originating=%s",
+            run.task_id, tool_name, tool_status, run.originating_conversation_id,
+        )
+        self._bus.post(BusMessage(
+            type="worker_activity",
+            source="worker_supervisor",
+            payload={
+                "task_id": run.task_id,
+                "originating_conversation_id": run.originating_conversation_id,
+                "parent_msg_id": run.parent_msg_id,
+                "tool_name": tool_name,
+                "tool_status": tool_status,
+            },
         ))
 
     # ------------------------------------------------------------------

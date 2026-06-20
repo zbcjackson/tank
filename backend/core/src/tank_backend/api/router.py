@@ -147,6 +147,42 @@ def _ui_msg_to_ws_msg(
     return None
 
 
+def _worker_activity_to_ws_msg(
+    payload: dict[str, Any], session_id: str,
+) -> WebsocketMessage | None:
+    """Convert a worker_activity bus event into an UPDATE WebSocket message.
+
+    These lightweight frames let the frontend accumulate per-tool activity
+    on the parent agent HUD window without waiting for terminal events.
+    """
+    task_id = payload.get("task_id", "")
+    if not task_id:
+        return None
+
+    tool_name = payload.get("tool_name", "")
+    tool_status = payload.get("tool_status", "calling")
+    parent_msg_id = payload.get("parent_msg_id")
+    msg_id = parent_msg_id or f"worker_{task_id}"
+    step_id = f"{msg_id}_tool_0_worker_{task_id}"
+
+    return WebsocketMessage(
+        type=MessageType.UPDATE,
+        content="",
+        speaker="Brain",
+        is_user=False,
+        is_final=False,
+        msg_id=msg_id,
+        session_id=session_id,
+        metadata={
+            "update_type": "ACTIVITY.WORKER_ACTIVITY",
+            "step_id": step_id,
+            "task_id": task_id,
+            "tool_name": tool_name,
+            "tool_status": tool_status,
+        },
+    )
+
+
 _WORKER_STATUS_MAP = {
     "started": "calling",
     "completed": "success",
@@ -404,9 +440,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         if not ws_connected:
             return
         payload = bus_msg.payload or {}
-        # Only forward events for workers originating from this session.
-        if payload.get("originating_conversation_id") != session_id:
-            return
         ws_msg = _worker_event_to_ws_msg(payload, session_id)
         if ws_msg is None:
             return
@@ -422,6 +455,27 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         asyncio.run_coroutine_threadsafe(_send_worker(), loop)
 
     assistant._bus.subscribe("worker", on_worker_event)  # noqa: SLF001
+
+    # Live push for per-tool activity inside background workers.
+    def on_worker_activity(bus_msg: Any) -> None:
+        if not ws_connected:
+            return
+        payload = bus_msg.payload or {}
+        ws_msg = _worker_activity_to_ws_msg(payload, session_id)
+        if ws_msg is None:
+            return
+
+        async def _send_activity() -> None:
+            if not ws_connected:
+                return
+            try:
+                await websocket.send_text(ws_msg.model_dump_json())
+            except Exception as e:
+                logger.debug(f"Worker activity send error: {e}")
+
+        asyncio.run_coroutine_threadsafe(_send_activity(), loop)
+
+    assistant._bus.subscribe("worker_activity", on_worker_activity)  # noqa: SLF001
 
     # Helper for signal handlers to send messages
     async def send_ws_msg(msg: WebsocketMessage) -> None:
