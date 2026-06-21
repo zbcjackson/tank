@@ -179,6 +179,7 @@ def _worker_activity_to_ws_msg(
             "task_id": task_id,
             "tool_name": tool_name,
             "tool_status": tool_status,
+            "tool_args": payload.get("tool_args", ""),
         },
     )
 

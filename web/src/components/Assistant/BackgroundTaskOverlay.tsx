@@ -21,10 +21,10 @@ export const BackgroundTaskOverlay = ({ tasks }: BackgroundTaskOverlayProps) => 
           animate="visible"
           exit="exit"
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none"
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 pointer-events-none"
         >
-          <div className="bg-black/70 backdrop-blur-sm border border-white/10 rounded-xl px-3 py-2.5 min-w-[140px] max-w-[180px]">
-            <div className="space-y-2">
+          <div className="bg-black/70 backdrop-blur-sm border border-white/10 rounded-r-xl px-3 py-2.5 min-w-[180px] max-w-[260px]">
+            <div className="space-y-2.5">
               {tasks.map((task) => (
                 <TaskRow key={task.stepId} task={task} />
               ))}
@@ -57,13 +57,20 @@ const TaskRow = ({ task }: { task: BackgroundTask }) => {
         </div>
       )}
       {latestActivity && (
-        <div className="flex items-center gap-1.5 pl-3">
-          <span className="text-[10px] font-mono text-white/50 truncate">
-            {latestActivity.name}
-          </span>
-          <span className={`text-[10px] shrink-0 ${latestActivity.done ? 'text-emerald-400' : 'text-purple-400'}`}>
-            {latestActivity.done ? '✓' : '⟳'}
-          </span>
+        <div className="pl-3 space-y-0.5">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-mono text-white/60 truncate">
+              {latestActivity.name}
+            </span>
+            <span className={`text-[10px] shrink-0 ${latestActivity.done ? 'text-emerald-400' : 'text-purple-400'}`}>
+              {latestActivity.done ? '✓' : '⟳'}
+            </span>
+          </div>
+          {latestActivity.detail && (
+            <div className="text-[9px] font-mono text-white/35 truncate">
+              {latestActivity.detail}
+            </div>
+          )}
         </div>
       )}
     </div>

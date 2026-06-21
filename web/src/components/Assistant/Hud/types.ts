@@ -41,7 +41,7 @@ export type HudWindowBody =
       kind: 'agent';
       subagentType: string;
       task: string;
-      activities: Array<{ name: string; done: boolean }>;
+      activities: Array<{ name: string; done: boolean; detail?: string }>;
       summary: string;
       summaryStreaming: boolean;
     }

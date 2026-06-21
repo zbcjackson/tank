@@ -486,6 +486,10 @@ class WorkerSupervisor:
             return
         tool_name = event.metadata.get("name", "")
         tool_status = event.metadata.get("status", "calling")
+        # Include arguments for detail display (truncated to avoid flooding)
+        tool_args = event.metadata.get("arguments", "")
+        if len(tool_args) > 200:
+            tool_args = tool_args[:200]
         logger.info(
             "Worker activity: task=%s tool=%s status=%s originating=%s",
             run.task_id, tool_name, tool_status, run.originating_conversation_id,
@@ -499,6 +503,7 @@ class WorkerSupervisor:
                 "parent_msg_id": run.parent_msg_id,
                 "tool_name": tool_name,
                 "tool_status": tool_status,
+                "tool_args": tool_args,
             },
         ))
 

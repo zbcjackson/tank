@@ -109,7 +109,12 @@ export const HudWindowBodyView = ({ body, streamingState }: HudWindowBodyViewPro
               {body.activities.map((a, i) => (
                 <div key={i} className="hud-activity-list__item">
                   <span className="hud-activity-list__bullet">◦</span>
-                  <span className="hud-activity-list__name">{a.name}</span>
+                  <span className="hud-activity-list__name">
+                    {a.name}
+                    {a.detail && (
+                      <span className="hud-activity-list__detail"> — {a.detail}</span>
+                    )}
+                  </span>
                   <span
                     className={
                       a.done

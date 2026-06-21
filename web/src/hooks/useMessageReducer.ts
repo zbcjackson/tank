@@ -6,6 +6,35 @@ import type { Step, StepType, ToolContent, ApprovalContent, ImageContent, Messag
 import type { WeatherData } from '../components/Assistant/WeatherCard';
 
 /**
+ * Extract a short human-readable detail string from tool arguments.
+ * Shows the most relevant argument value (query, command, path, etc.)
+ */
+function deriveActivityDetail(_toolName: string, argsStr: string): string {
+  if (!argsStr) return '';
+  try {
+    const parsed: unknown = JSON.parse(argsStr);
+    if (!parsed || typeof parsed !== 'object') return argsStr.slice(0, 80);
+    const obj = parsed as Record<string, unknown>;
+    // Pick the most informative field based on common tool patterns
+    const candidates = ['query', 'command', 'url', 'path', 'file_path', 'search', 'text', 'prompt'];
+    for (const key of candidates) {
+      if (typeof obj[key] === 'string' && obj[key]) {
+        return (obj[key] as string).slice(0, 80);
+      }
+    }
+    // Fall back to first string value
+    for (const val of Object.values(obj)) {
+      if (typeof val === 'string' && val.length > 0) {
+        return val.slice(0, 80);
+      }
+    }
+  } catch {
+    // partial JSON — show raw truncated
+  }
+  return argsStr.slice(0, 80);
+}
+
+/**
  * Parse weather tool result string into structured data.
  * Returns null if the content doesn't match the expected format.
  */
@@ -234,11 +263,13 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
           if (targetIdx > -1) {
             const existing = updated[targetIdx].content as ToolContent;
             const activities = [...(existing.activities ?? [])];
-            const actIdx = activities.findIndex((a) => a.name === toolName);
+            const toolArgs = (msg.metadata?.tool_args as string) || '';
+            const detail = deriveActivityDetail(toolName, toolArgs);
+            const actIdx = activities.findIndex((a) => a.name === toolName && !a.done);
             if (actIdx > -1) {
-              activities[actIdx] = { ...activities[actIdx], done: isDone };
+              activities[actIdx] = { ...activities[actIdx], done: isDone, detail };
             } else if (toolName) {
-              activities.push({ name: toolName, done: isDone });
+              activities.push({ name: toolName, done: isDone, detail });
             }
             updated[targetIdx] = {
               ...updated[targetIdx],

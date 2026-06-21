@@ -5,7 +5,7 @@ export interface BackgroundTask {
   stepId: string;
   agentType: string;
   description: string;
-  activities: Array<{ name: string; done: boolean }>;
+  activities: Array<{ name: string; done: boolean; detail?: string }>;
 }
 
 function isBackgroundWorker(step: Step): boolean {

@@ -569,6 +569,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.hud-activity-list__detail {
+  color: var(--hud-text-dim);
+  opacity: 0.6;
+  font-size: 0.85em;
+}
 .hud-activity-list__check {
   margin-left: auto;
   color: var(--hud-c-done);
