@@ -434,15 +434,15 @@ export function useHudWindows({
     }
 
     // If user went idle entirely (no active session), trigger close on anything
-    // still hanging around — EXCEPT response windows, which are governed
-    // solely by the audio gate above. PROCESSING_ENDED commonly flips
-    // isActive=false before the first audio chunk arrives; closing the
-    // response window here would race the audio and cut it visually short.
+    // still hanging around — EXCEPT response windows (governed by audio gate)
+    // and agent windows that are still running (background workers survive
+    // the main conversation going idle).
     if (!isActive) {
       for (const [id, entry] of entries) {
         if (entry.descriptor.closing) continue;
         if (entry.lingerTimer !== null) continue;
         if (entry.descriptor.type === 'response') continue;
+        if (entry.descriptor.type === 'agent' && entry.descriptor.state === 'running') continue;
         entry.lingerTimer = window.setTimeout(() => {
           const e = entries.get(id);
           if (!e) return;
