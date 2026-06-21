@@ -588,7 +588,13 @@ class Brain(Processor):
             return
 
         # --- Self-echo text detection (safety net) ---
-        if self._echo_config.enabled and self._echo_detector.is_echo(event.text):
+        # Only audio (ASR) input can echo the assistant's own TTS. Typed text
+        # from ChatMode never travels through the mic, so skip the guard for it.
+        if (
+            event.type == InputType.AUDIO
+            and self._echo_config.enabled
+            and self._echo_detector.is_echo(event.text)
+        ):
             self._bus.post(BusMessage(
                 type="echo_discarded",
                 source=self.name,

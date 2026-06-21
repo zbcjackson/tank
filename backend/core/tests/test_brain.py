@@ -136,3 +136,52 @@ class TestBrain:
         assert len(results) == 1
         assert results[0] == (FlowReturn.OK, None)
         mock_llm.chat_stream.assert_not_called()
+
+    async def test_brain_discards_self_echo_from_audio(self, brain, bus):
+        """Audio (ASR) transcripts that echo recent TTS should be discarded."""
+        echo_text = "the weather today is sunny and warm with a gentle breeze blowing"
+        brain._echo_detector.record_tts(echo_text)
+
+        discarded = []
+        bus.subscribe("echo_discarded", lambda msg: discarded.append(msg))
+
+        event = BrainInputEvent(
+            type=InputType.AUDIO,
+            text=echo_text,
+            user="User",
+            language="en",
+            confidence=None,
+        )
+
+        results = await _collect(brain, event)
+        bus.poll()
+
+        assert results[0] == (FlowReturn.OK, None)
+        assert len(discarded) == 1
+        assert discarded[0].payload["reason"] == "self_echo"
+
+    async def test_brain_does_not_apply_echo_guard_to_text_input(
+        self, brain, bus, mock_context
+    ):
+        """Typed text (ChatMode) never travels through the mic, so the echo
+        guard must not discard it even if it matches recent TTS."""
+        brain._tool_manager.get_openai_tools.return_value = []
+        echo_text = "the weather today is sunny and warm with a gentle breeze blowing"
+        brain._echo_detector.record_tts(echo_text)
+
+        discarded = []
+        bus.subscribe("echo_discarded", lambda msg: discarded.append(msg))
+
+        event = BrainInputEvent(
+            type=InputType.TEXT,
+            text=echo_text,
+            user="User",
+            language="en",
+            confidence=None,
+        )
+
+        await _collect(brain, event)
+        bus.poll()
+
+        assert len(discarded) == 0
+        mock_context.prepare_turn.assert_called_once()
