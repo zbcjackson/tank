@@ -1,5 +1,6 @@
 ---
 name: researcher
+model: planning
 description: "Search the web and gather information"
 disallowed-tools: [file_write, file_delete, run_command, persistent_shell, manage_process]
 skills: []

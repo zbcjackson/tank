@@ -1,5 +1,6 @@
 ---
 name: tasker
+model: planning
 description: "Plan and coordinate multi-step tasks"
 disallowed-tools: [file_write, file_delete, run_command, persistent_shell]
 skills: []

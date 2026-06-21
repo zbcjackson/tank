@@ -24,6 +24,20 @@ llm:
     #   reasoning:
     #     effort: none
 
+  # Planning model for subagents (coder, researcher, tasker, verifier).
+  # A strong general-purpose model with good tool-use and instruction-following —
+  # better at multi-step agentic work than the fast `default` chat model.
+  planning:
+    api_key: ${LLM_API_KEY}
+    model: openai/gpt-5.4
+    base_url: https://openrouter.ai/api/v1
+    temperature: 0.3
+    max_tokens: 20000
+    extra_headers:
+      HTTP-Referer: "http://localhost:3000"
+      X-Title: "Tank Voice Assistant"
+    stream_options: true
+
   # Vision model for computer-use (screenshot → action grounding)
   computer_use:
     api_key: ${LLM_API_KEY}

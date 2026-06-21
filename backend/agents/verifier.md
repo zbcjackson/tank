@@ -1,5 +1,6 @@
 ---
 name: verifier
+model: planning
 description: "Verify code changes are correct"
 disallowed-tools: [file_write, file_delete, persistent_shell, manage_process, agent]
 background: true

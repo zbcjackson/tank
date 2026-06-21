@@ -1,5 +1,6 @@
 ---
 name: coder
+model: planning
 description: "Execute code, manage files, run shell commands"
 disallowed-tools: []
 skills: []
