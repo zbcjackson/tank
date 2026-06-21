@@ -58,40 +58,40 @@ class TestSelfEchoDetector:
 
     def test_exact_echo_detected(self):
         det = self._make_detector(similarity_threshold=0.6)
-        det.record_tts("The weather today is sunny and warm")
-        assert det.is_echo("The weather today is sunny and warm") is True
+        det.record_tts("The weather today is sunny and warm outside in the park")
+        assert det.is_echo("The weather today is sunny and warm outside in the park") is True
 
     def test_partial_echo_detected(self):
         det = self._make_detector(similarity_threshold=0.6)
-        det.record_tts("The weather today is sunny and warm")
-        # 4/5 tokens overlap = 0.8 > 0.6
-        assert det.is_echo("weather today is sunny") is True
+        det.record_tts("The weather today is sunny and warm outside in the park nearby")
+        # 10/11 tokens overlap = 0.91 > 0.6
+        assert det.is_echo("weather today is sunny and warm outside in the park") is True
 
     def test_different_text_not_echo(self):
         det = self._make_detector(similarity_threshold=0.6)
-        det.record_tts("The weather today is sunny and warm")
-        assert det.is_echo("Can you play some music please") is False
+        det.record_tts("The weather today is sunny and warm outside in the park")
+        assert det.is_echo("Can you play some music please for me right now thanks") is False
 
     def test_low_overlap_not_echo(self):
         det = self._make_detector(similarity_threshold=0.6)
-        det.record_tts("The weather today is sunny and warm")
-        # 1/4 tokens overlap = 0.25 < 0.6
-        assert det.is_echo("today I want pizza") is False
+        det.record_tts("The weather today is sunny and warm outside in the park")
+        # 1/10 tokens overlap = 0.1 < 0.6
+        assert det.is_echo("today I want pizza for lunch please and some drinks") is False
 
     def test_disabled_config(self):
         det = self._make_detector(enabled=False)
-        det.record_tts("hello world")
-        assert det.is_echo("hello world") is False
+        det.record_tts("hello world this is a test of the echo guard system")
+        assert det.is_echo("hello world this is a test of the echo guard system") is False
 
     def test_window_eviction(self):
         det = self._make_detector(window_seconds=0.1)
-        det.record_tts("hello world foo bar baz")
+        det.record_tts("hello world foo bar baz qux quux corge grault garply")
         time.sleep(0.15)
         # Entry should be evicted
-        assert det.is_echo("hello world foo bar baz") is False
+        assert det.is_echo("hello world foo bar baz qux quux corge grault garply") is False
 
     def test_multiple_tts_entries(self):
-        det = self._make_detector(similarity_threshold=0.5)
+        det = self._make_detector(similarity_threshold=0.5, min_transcript_tokens=2)
         det.record_tts("first sentence here")
         det.record_tts("second sentence there")
         # "first here" overlaps with first entry: 2/2 = 1.0
@@ -101,9 +101,9 @@ class TestSelfEchoDetector:
 
     def test_clear(self):
         det = self._make_detector()
-        det.record_tts("hello world foo bar baz")
+        det.record_tts("hello world foo bar baz qux quux corge grault garply")
         det.clear()
-        assert det.is_echo("hello world foo bar baz") is False
+        assert det.is_echo("hello world foo bar baz qux quux corge grault garply") is False
 
     def test_empty_transcript(self):
         det = self._make_detector()
@@ -116,6 +116,36 @@ class TestSelfEchoDetector:
         det.record_tts("")
         det.record_tts("   ")
         assert len(det._recent_tts) == 0
+
+    def test_short_transcript_not_flagged_as_echo(self):
+        """Short user responses (e.g. picking an option) should not be
+        flagged as echo even if all tokens overlap with TTS window."""
+        det = self._make_detector(similarity_threshold=0.6, min_transcript_tokens=4)
+        det.record_tts("Would you like option A or option B")
+        # User says "option A" — 2 tokens, all overlap, but too short to be echo
+        assert det.is_echo("option A") is False
+        # User says "option B please" — 3 tokens, still below threshold
+        assert det.is_echo("option B please") is False
+
+    def test_long_transcript_still_detected_as_echo(self):
+        """Transcripts at or above min_transcript_tokens are still checked."""
+        det = self._make_detector(similarity_threshold=0.6, min_transcript_tokens=4)
+        det.record_tts("Would you like option A or option B")
+        # 5 tokens, 5/5 overlap = 1.0 >= 0.6 → echo
+        assert det.is_echo("would you like option A") is True
+
+    def test_min_transcript_tokens_default(self):
+        """Default min_transcript_tokens is 10."""
+        det = self._make_detector()
+        det.record_tts(
+            "the weather is sunny and warm today so we should go outside"
+        )
+        # 5 tokens, all overlap — below default min of 10
+        assert det.is_echo("sunny and warm today so") is False
+        # 10 unique tokens, all overlap — meets min, 10/10 = 1.0 >= 0.6 → echo
+        assert det.is_echo(
+            "weather is sunny and warm today so we should go"
+        ) is True
 
 
 # ── EchoGuardConfig defaults ────────────────────────────────────────────────
@@ -345,13 +375,13 @@ class TestBrainEchoGuard:
         )
 
     async def test_echo_guard_discards_self_echo(self):
-        config = EchoGuardConfig(similarity_threshold=0.5)
+        config = EchoGuardConfig(similarity_threshold=0.5, min_transcript_tokens=4)
         brain = self._make_brain(echo_config=config)
 
         # Record TTS text
         brain._echo_detector.record_tts("the weather is sunny and warm today")
 
-        # ASR produces similar text
+        # ASR produces similar text (6 tokens, above min of 4)
         event = self._make_event("the weather is sunny and warm")
 
         results = []
@@ -366,7 +396,7 @@ class TestBrainEchoGuard:
     async def test_echo_guard_passes_different_text(self):
         from tank_backend.core.events import UpdateType
 
-        config = EchoGuardConfig(similarity_threshold=0.5)
+        config = EchoGuardConfig(similarity_threshold=0.5, min_transcript_tokens=4)
         brain = self._make_brain(echo_config=config)
 
         brain._echo_detector.record_tts("the weather is sunny and warm today")
@@ -391,7 +421,7 @@ class TestBrainEchoGuard:
         messages = []
         bus.subscribe("echo_discarded", lambda m: messages.append(m))
 
-        config = EchoGuardConfig(similarity_threshold=0.5)
+        config = EchoGuardConfig(similarity_threshold=0.5, min_transcript_tokens=4)
         brain = self._make_brain(bus=bus, echo_config=config)
 
         brain._echo_detector.record_tts("the weather is sunny and warm today")

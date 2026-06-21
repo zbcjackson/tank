@@ -60,6 +60,7 @@ echo_guard:
   self_echo_detection:
     similarity_threshold: 0.6 # discard if >60% token overlap with recent TTS
     window_seconds: 10.0 # compare against last 10s of TTS text
+    min_transcript_tokens: 10 # skip detection for short responses (e.g. picking an option)
 
 #asr:
 #  enabled: true

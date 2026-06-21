@@ -69,6 +69,9 @@ class SelfEchoDetector:
         if not transcript_tokens:
             return False
 
+        if len(transcript_tokens) < self._config.min_transcript_tokens:
+            return False
+
         # Build combined token set from all recent TTS entries
         tts_tokens: set[str] = set()
         for entry in self._recent_tts:

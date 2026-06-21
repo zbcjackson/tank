@@ -38,6 +38,7 @@ class EchoGuardConfig:
     vad_threshold_during_playback: float = 0.85
     similarity_threshold: float = 0.6
     window_seconds: float = 10.0
+    min_transcript_tokens: int = 10
 
 
 @dataclass(frozen=True)
