@@ -267,10 +267,11 @@ class SkillToolGroup(ToolGroup):
             return {"added": [], "removed": [], "updated": []}
         return self._manager.reload()
 
-    def set_agent_runner(self, runner: Any) -> None:
-        """Wire AgentRunner into UseSkillTool for fork-mode execution."""
+    def set_agent_runner(self, runner: Any, *, supervisor: Any = None) -> None:
+        """Wire AgentRunner and optional WorkerSupervisor into UseSkillTool."""
         if self._use_skill_tool is not None:
             self._use_skill_tool._agent_runner = runner
+            self._use_skill_tool._supervisor = supervisor
 
 
 class PreferencesToolGroup(ToolGroup):

@@ -218,7 +218,7 @@ class ToolManager:
             self.register_tool(AgentStatusTool(store, supervisor))
             self.register_tool(AgentStopTool(store, supervisor))
             self.register_tool(ListActiveAgentsTool(store))
-        self._skill_group.set_agent_runner(runner)
+        self._skill_group.set_agent_runner(runner, supervisor=supervisor)
 
     def set_job_manager(self, job_store: Any, scheduler: Any) -> None:
         """Register the job management tool for conversational job setup.

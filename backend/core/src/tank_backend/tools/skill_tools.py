@@ -6,9 +6,21 @@ import json
 import logging
 from typing import Any
 
-from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
+from .base import BaseTool, ToolContext, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 
 logger = logging.getLogger(__name__)
+
+# Common baseline tools available to every forked skill agent, regardless of
+# what the skill itself declares in ``allowed-tools``. Read-only + web.
+SKILL_FORK_BASELINE_TOOLS: frozenset[str] = frozenset({
+    "file_read", "file_list", "file_search",
+    "get_time", "calculate", "web_search", "web_fetch",
+})
+
+# Tools that forked skill agents must never have (prevent recursion/meta).
+_SKILL_FORK_DISALLOWED: frozenset[str] = frozenset({
+    "agent", "use_skill", "list_skills", "create_skill", "install_skill",
+})
 
 
 class UseSkillTool(BaseTool):
@@ -20,15 +32,19 @@ class UseSkillTool(BaseTool):
     result.  The LLM reads them and follows them in subsequent turns of the
     same ``chat_stream`` loop.
 
-    **fork**: Uses ``AgentRunner.run_agent()`` to create a sub-agent with
-    the skill instructions as its system prompt.  The sub-agent gets all
-    execution tools, approval, and UI streaming — same as any other agent.
-    Auto-escalates to fork when ``allowed_tools`` is non-empty.
+    **fork**: Uses ``WorkerSupervisor`` (or ``AgentRunner`` fallback) to create
+    a sub-agent with the skill instructions as its system prompt.  The
+    sub-agent gets the skill's declared tools + a baseline set, approval, and
+    UI streaming — same as any other worker.  Auto-escalates to fork when
+    ``allowed_tools`` is non-empty.
     """
 
-    def __init__(self, manager: Any, agent_runner: Any = None) -> None:
+    def __init__(
+        self, manager: Any, agent_runner: Any = None, supervisor: Any = None,
+    ) -> None:
         self._manager = manager
         self._agent_runner = agent_runner  # Set later via set_agent_runner()
+        self._supervisor = supervisor      # Set later via set_agent_runner()
 
     def get_metadata(self) -> ToolMetadata:
         return ToolMetadata(idempotent=False)
@@ -57,7 +73,9 @@ class UseSkillTool(BaseTool):
             ],
         )
 
-    async def execute(self, **kwargs: Any) -> ToolResult | str:
+    async def execute(
+        self, *, ctx: ToolContext | None = None, **kwargs: Any,
+    ) -> ToolResult | str:
         skill_name: str = kwargs["skill"]
         args: str = kwargs.get("args", "")
 
@@ -74,7 +92,10 @@ class UseSkillTool(BaseTool):
 
         # Auto-escalate to fork when the skill needs tools
         if context == "fork" or allowed_tools:
-            return await self._execute_fork(result)
+            originating_conversation_id = (
+                ctx.session_id if ctx is not None else None
+            )
+            return await self._execute_fork(result, originating_conversation_id)
 
         return self._execute_inline(result)
 
@@ -93,10 +114,15 @@ class UseSkillTool(BaseTool):
             f"--- END SKILL INSTRUCTIONS ---"
         )
 
-    async def _execute_fork(self, invoke_result: dict[str, Any]) -> ToolResult:
-        """Fork mode: run skill via AgentRunner as a dynamic sub-agent."""
+    async def _execute_fork(
+        self,
+        invoke_result: dict[str, Any],
+        originating_conversation_id: str | None,
+    ) -> ToolResult:
+        """Fork mode: run skill as a managed worker via WorkerSupervisor."""
         name = invoke_result["skill_name"]
         instructions = invoke_result["instructions"]
+        allowed_tools: list[str] = invoke_result.get("allowed_tools", [])
 
         if self._agent_runner is None:
             logger.warning(
@@ -104,10 +130,13 @@ class UseSkillTool(BaseTool):
                 "not available — falling back to inline",
                 name,
             )
-            return self._execute_inline(invoke_result)
+            inline = self._execute_inline(invoke_result)
+            return ToolResult(content=inline, display=inline)
 
-        from ..agents.base import AgentOutputType
         from ..agents.definition import AgentDefinition
+
+        # Build the allowlist: baseline + skill-declared tools
+        tool_allowlist = tuple(SKILL_FORK_BASELINE_TOOLS | set(allowed_tools))
 
         # Create a dynamic agent definition from the skill
         skill_agent_def = AgentDefinition(
@@ -120,11 +149,124 @@ class UseSkillTool(BaseTool):
                 f"the commands using the tools available to you.\n\n"
                 f"{instructions}"
             ),
-            disallowed_tools=frozenset({
-                "agent", "use_skill", "list_skills",
-                "create_skill", "install_skill",
-            }),
+            disallowed_tools=_SKILL_FORK_DISALLOWED,
+            tool_filter=tool_allowlist,
         )
+
+        # Supervisor path (production): persistence, ask_user, bus events
+        if self._supervisor is not None:
+            return await self._execute_fork_via_supervisor(
+                skill_agent_def=skill_agent_def,
+                name=name,
+                instructions=instructions,
+                originating_conversation_id=originating_conversation_id,
+            )
+
+        # Fallback path: direct runner (legacy tests, no supervisor wired)
+        return await self._execute_fork_via_runner(
+            skill_agent_def=skill_agent_def,
+            name=name,
+            instructions=instructions,
+        )
+
+    async def _execute_fork_via_supervisor(
+        self,
+        *,
+        skill_agent_def: Any,
+        name: str,
+        instructions: str,
+        originating_conversation_id: str | None,
+    ) -> ToolResult:
+        """Dispatch through WorkerSupervisor — gets ask_user/resume for free."""
+        from ..agents.supervisor import (
+            ConcurrencyLimitExceeded,
+            DepthLimitExceeded,
+        )
+
+        # Register the dynamic def so resume_with_answer can rebuild it
+        self._agent_runner.definitions[skill_agent_def.name] = skill_agent_def
+
+        try:
+            result = await self._supervisor.run_foreground(
+                agent_def=skill_agent_def,
+                prompt=instructions,
+                description=f"skill: {name}",
+                originating_conversation_id=originating_conversation_id,
+            )
+        except (DepthLimitExceeded, ConcurrencyLimitExceeded) as e:
+            return ToolResult(
+                content=json.dumps({
+                    "skill_name": name,
+                    "error": str(e),
+                    "message": f"Cannot fork skill '{name}': {e}",
+                }, ensure_ascii=False),
+                error=True,
+            )
+
+        if result.status == "completed":
+            output = result.output or f"Skill '{name}' completed (no output)."
+            return ToolResult(
+                content=json.dumps({
+                    "skill_name": name,
+                    "status": "completed",
+                    "task_id": result.task_id,
+                    "output": result.output,
+                }, ensure_ascii=False),
+                display=output,
+            )
+
+        if result.status == "waiting":
+            # The skill agent called ask_user — it's paused waiting for input.
+            # Tell the chat agent about the question so it can relay to the user
+            # and call agent_reply(task_id, answer) to resume.
+            return ToolResult(
+                content=json.dumps({
+                    "skill_name": name,
+                    "status": "waiting",
+                    "task_id": result.task_id,
+                    "partial_output": result.output,
+                    "message": (
+                        f"Skill '{name}' is waiting for user input. "
+                        f"task_id={result.task_id}. Ask the user the question, "
+                        f"then call agent_reply(task_id=\"{result.task_id}\", "
+                        f"answer=<user's response>) to resume the skill."
+                    ),
+                }, ensure_ascii=False),
+                display=(
+                    f"Skill '{name}' waiting for input (task={result.task_id})"
+                ),
+            )
+
+        # failed / cancelled / timeout
+        partial = result.output.strip() if result.output else ""
+        error_msg = f"Skill '{name}' {result.status}"
+        if result.error:
+            error_msg += f": {result.error}"
+        if partial:
+            error_msg += f"\n\nPartial output:\n{partial}"
+
+        return ToolResult(
+            content=json.dumps({
+                "skill_name": name,
+                "status": result.status,
+                "task_id": result.task_id,
+                "error": result.error,
+                "partial_output": result.output,
+                "message": error_msg,
+            }, ensure_ascii=False),
+            display=f"Skill '{name}' {result.status}",
+            error=True,
+        )
+
+    async def _execute_fork_via_runner(
+        self,
+        *,
+        skill_agent_def: Any,
+        name: str,
+        instructions: str,
+    ) -> ToolResult:
+        """Fallback: direct AgentRunner.run_agent() when no supervisor."""
+        from ..agents.base import AgentOutputType
 
         messages: list[dict[str, Any]] = [
             {"role": "user", "content": instructions},
@@ -146,14 +288,14 @@ class UseSkillTool(BaseTool):
                 tool_calls += 1
 
         logger.info(
-            "UseSkillTool fork: '%s' completed (%d chars, %d tool events)",
+            "UseSkillTool fork (runner): '%s' completed (%d chars, %d tool events)",
             name, len(full_text), tool_calls,
         )
 
         return ToolResult(
             content=json.dumps({
                 "skill_name": name,
-                "status": "forked",
+                "status": "completed",
                 "output": full_text,
                 "tool_calls": tool_calls,
             }, ensure_ascii=False),

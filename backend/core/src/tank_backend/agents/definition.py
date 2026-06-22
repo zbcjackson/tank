@@ -24,6 +24,7 @@ class AgentDefinition:
     system_prompt: str
     disallowed_tools: frozenset[str] = frozenset()
     toolset: str = ""  # Named toolset profile (empty = all tools)
+    tool_filter: tuple[str, ...] | None = None  # Inline allowlist; None = use toolset/all
     skills: tuple[str, ...] = ()
     background: bool = False
     token_budget: int = 0

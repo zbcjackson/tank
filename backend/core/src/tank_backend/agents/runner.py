@@ -151,9 +151,11 @@ class AgentRunner:
             # Sub-agents get global disallowed tools
             exclude |= GLOBAL_DISALLOWED_FOR_SUBAGENTS
 
-        # Toolset profile: if specified, compute a tool_filter (allowlist)
+        # Inline allowlist takes priority, then named toolset profile
         tool_filter: list[str] | None = None
-        if agent_def.toolset:
+        if agent_def.tool_filter is not None:
+            tool_filter = list(agent_def.tool_filter)
+        elif agent_def.toolset:
             tool_filter = self._resolve_toolset(agent_def.toolset)
 
         exclude_tools = exclude or None
