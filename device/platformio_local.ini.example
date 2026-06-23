@@ -1,0 +1,18 @@
+; Machine-specific PlatformIO overrides.
+; Copy this file to platformio_local.ini and adjust for your setup.
+;
+; Find your device port:
+;   macOS:  ls /dev/cu.usb*
+;   Linux:  ls /dev/ttyACM* /dev/ttyUSB*
+;
+; The CoreS3's built-in USB-CDC typically shows up as:
+;   macOS:  /dev/cu.usbmodem<serial_number>  (long alphanumeric suffix)
+;   Linux:  /dev/ttyACM0
+
+[env:cores3]
+; monitor_port = /dev/cu.usbmodem405NTYT641462
+; upload_port = /dev/cu.usbmodem405NTYT641462
+
+[env:pyramid]
+; monitor_port = /dev/cu.usbmodemXXXXX
+; upload_port = /dev/cu.usbmodemXXXXX
