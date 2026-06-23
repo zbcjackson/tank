@@ -74,6 +74,7 @@ Tank is a bilingual (Chinese/English) voice assistant which is a service running
 - **`cli/`** — Terminal UI client (Python/Textual): audio capture, WebSocket client
 - **`web/`** — Web frontend (TypeScript/React): browser audio, WebSocket client
 - **`macos/`** — Native macOS app (Tauri 2/Rust): wraps web/ as a native .app
+- **`device/`** — ESP32-S3 firmware (C++/ESP-IDF): M5Stack hardware voice client
 
 ## Required Reading
 
@@ -106,6 +107,10 @@ Then read the docs for the sub-project(s) you are working on:
 - @macos/DEVELOPMENT.md [macos/DEVELOPMENT.md](macos/DEVELOPMENT.md)
 - @macos/TESTING.md [macos/TESTING.md](macos/TESTING.md)
 
+**Device** (`device/`):
+- @device/ARCHITECTURE.md [device/ARCHITECTURE.md](device/ARCHITECTURE.md)
+- @device/DEVELOPMENT.md [device/DEVELOPMENT.md](device/DEVELOPMENT.md)
+
 > Tip: If you start a session from inside a sub-project directory (e.g. `cd backend && claude`), that directory's CLAUDE.md will be loaded automatically with its own `@` imports — no need to read the others.
 
 ## Quick Reference
@@ -116,6 +121,7 @@ Then read the docs for the sub-project(s) you are working on:
 | `cli/`      | Python     | uv              | `uv run pytest`   |
 | `web/`      | TypeScript | pnpm            | `pnpm test`        |
 | `macos/`    | Rust       | pnpm + Cargo    | `cargo test`       |
+| `device/`   | C++        | uv + PlatformIO | `uv run pio run`   |
 
 ## Cross-cutting Principles
 

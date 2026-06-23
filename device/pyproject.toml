@@ -1,0 +1,9 @@
+[project]
+name = "tank-device"
+version = "0.1.0"
+description = "Tank Voice Assistant - ESP32-S3 Device Client"
+requires-python = ">=3.10"
+dependencies = ["platformio>=6.1,<7"]
+
+[dependency-groups]
+dev = []
