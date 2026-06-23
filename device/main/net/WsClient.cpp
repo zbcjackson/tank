@@ -21,6 +21,7 @@ bool WsClient::connect() {
     config.task_stack = CONFIG_NET_TASK_STACK;
     config.task_prio = CONFIG_NET_TASK_PRIORITY;
     config.ping_interval_sec = 10;
+    config.network_timeout_ms = 10000;
     config.reconnect_timeout_ms = CONFIG_WS_RECONNECT_MS;
 
     client_ = esp_websocket_client_init(&config);
@@ -55,7 +56,7 @@ bool WsClient::sendAudio(const int16_t* pcm, size_t samples) {
     if (!connected_ || !client_) return false;
 
     int len = samples * sizeof(int16_t);
-    int sent = esp_websocket_client_send_bin(client_, (const char*)pcm, len, pdMS_TO_TICKS(100));
+    int sent = esp_websocket_client_send_bin(client_, (const char*)pcm, len, pdMS_TO_TICKS(1000));
     return sent == len;
 }
 
