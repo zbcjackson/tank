@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../BoardHAL.h"
+#include "es7210.h"
 
 class Cores3HAL : public BoardHAL {
 public:
@@ -21,6 +22,7 @@ private:
     bool axp2101SetVoltage(uint8_t reg, int voltage_mv);
     bool axp2101EnableLDO(uint8_t voltage_reg);
 
+    es7210_dev_handle_t es7210_handle_ = nullptr;
     uint8_t volume_ = 70;
     uint8_t mic_gain_ = 50;
 };

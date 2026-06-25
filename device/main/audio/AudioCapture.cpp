@@ -37,14 +37,13 @@ bool AudioCapture::init(QueueHandle_t mic_queue) {
         return false;
     }
 
-    // Standard I2S with 32-bit slot width produces BCLK = 16000 × 32 × 2 = 1.024MHz
-    // This matches ES7210 TDM timing and gives clean audio data.
-    // We read 16-bit data from the left 32-bit slot.
+    // Standard I2S Philips, 16-bit mono, left slot.
+    // ES7210 configured with TDM disabled outputs MIC1 on left, MIC2 on right.
+    // MCLK = 16000 × 256 = 4.096MHz, BCLK = 16000 × 16 × 2 = 512kHz.
     i2s_std_config_t std_cfg = {};
     std_cfg.clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(CONFIG_MIC_SAMPLE_RATE);
     std_cfg.clk_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
     std_cfg.slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
-    std_cfg.slot_cfg.slot_bit_width = I2S_SLOT_BIT_WIDTH_32BIT;
     std_cfg.slot_cfg.slot_mask = I2S_STD_SLOT_LEFT;
     std_cfg.gpio_cfg.bclk = (gpio_num_t)I2S_BCK_PIN;
     std_cfg.gpio_cfg.ws = (gpio_num_t)I2S_WS_PIN;
@@ -110,12 +109,6 @@ void AudioCapture::captureTask(void* arg) {
 
         // Track peak amplitude
         for (size_t i = 0; i < bytes_read / sizeof(int16_t); i++) {
-            // Software gain: amplify by 64× to compensate for 32-bit slot attenuation
-            int32_t amplified = (int32_t)frame[i] * 64;
-            if (amplified > 32767) amplified = 32767;
-            if (amplified < -32768) amplified = -32768;
-            frame[i] = (int16_t)amplified;
-
             int16_t abs_val = frame[i] > 0 ? frame[i] : -frame[i];
             if (abs_val > max_sample) max_sample = abs_val;
         }

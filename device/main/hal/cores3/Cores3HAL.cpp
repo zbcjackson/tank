@@ -4,6 +4,7 @@
 
 #include "driver/i2c.h"
 #include "driver/i2s_std.h"
+#include "es7210.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -225,79 +226,36 @@ bool Cores3HAL::initIOExpander() {
 }
 
 bool Cores3HAL::initMicCodec() {
-    // ES7210 initialization based on esp-bsp/components/es7210 driver
-    // Slave mode, I2S standard format, 16-bit, 16kHz, MCLK=4.096MHz (256×fs)
     ESP_LOGI(TAG, "Initializing ES7210 mic codec at 0x%02X", CORES3_ES7210_ADDR);
 
-    auto wr = [](uint8_t reg, uint8_t val) -> esp_err_t {
-        uint8_t data[] = {reg, val};
-        return i2c_master_write_to_device(I2C_NUM_0, CORES3_ES7210_ADDR, data, 2, pdMS_TO_TICKS(100));
-    };
+    // Use the esp-bsp es7210 component for proper codec initialization
+    es7210_i2c_config_t i2c_cfg = {};
+    i2c_cfg.i2c_port = I2C_NUM_0;
+    i2c_cfg.i2c_addr = CORES3_ES7210_ADDR;
 
-    // Software reset
-    esp_err_t err = wr(0x00, 0xFF);
+    esp_err_t err = es7210_new_codec(&i2c_cfg, &es7210_handle_);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "ES7210 reset failed: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "ES7210 handle creation failed: %s", esp_err_to_name(err));
         return false;
     }
-    vTaskDelay(pdMS_TO_TICKS(20));
-    wr(0x00, 0x32);  // Exit reset (BSP uses 0x32)
 
-    // Initialization timing
-    wr(0x09, 0x30);  // TIME_CONTROL0: chip state cycle
-    wr(0x0A, 0x30);  // TIME_CONTROL1: power up state cycle
+    // Configure: 16kHz, 16-bit, standard I2S, NO TDM, 24dB gain
+    es7210_codec_config_t codec_cfg = {};
+    codec_cfg.sample_rate_hz = 16000;
+    codec_cfg.mclk_ratio = 256;
+    codec_cfg.i2s_format = ES7210_I2S_FMT_I2S;
+    codec_cfg.bit_width = ES7210_I2S_BITS_16B;
+    codec_cfg.mic_bias = ES7210_MIC_BIAS_2V87;
+    codec_cfg.mic_gain = ES7210_MIC_GAIN_15DB;
+    codec_cfg.flags.tdm_enable = 0;
 
-    // HPF config for ADC1-4
-    wr(0x23, 0x2A);  // ADC12_HPF1
-    wr(0x22, 0x0A);  // ADC12_HPF2
-    wr(0x21, 0x2A);  // ADC34_HPF1
-    wr(0x20, 0x0A);  // ADC34_HPF2
+    err = es7210_config_codec(es7210_handle_, &codec_cfg);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "ES7210 config failed: %s", esp_err_to_name(err));
+        return false;
+    }
 
-    // I2S format: 16-bit I2S standard with TDM enabled
-    // TDM mode + 32-bit I2S slot width produces correct BCLK for clean audio
-    wr(0x11, 0x60);  // SDP_INTERFACE1: 16-bit I2S standard format
-    wr(0x12, 0x02);  // SDP_INTERFACE2: TDM enabled for I2S mode
-
-    // Analog power config
-    wr(0x40, 0xC3);  // ANALOG: vdda=3.3V, VMID select
-    wr(0x41, 0x70);  // MIC12_BIAS: 2.87V
-    wr(0x42, 0x70);  // MIC34_BIAS: 2.87V
-
-    // MIC gain: 3dB analog + 64× software gain in AudioCapture
-    // Raw peak ~35 in quiet room → ~2240 after software gain
-    wr(0x43, 0x11);  // MIC1_GAIN: enable (0x10) + gain 0x01 (3dB)
-    wr(0x44, 0x11);  // MIC2_GAIN: enable (0x10) + gain 0x01 (3dB)
-    wr(0x45, 0x00);  // MIC3_GAIN: disabled
-    wr(0x46, 0x00);  // MIC4_GAIN: disabled
-
-    // Power on MIC1-4
-    wr(0x47, 0x08);  // MIC1_POWER
-    wr(0x48, 0x08);  // MIC2_POWER
-    wr(0x49, 0x08);  // MIC3_POWER
-    wr(0x4A, 0x08);  // MIC4_POWER
-
-    // Clock config for MCLK=4.096MHz, LRCK=16kHz
-    // From coeff table: adc_div=0x01, dll=1, doubler=1, osr=0x20, lrckh=0x01, lrckl=0x00
-    wr(0x07, 0x20);  // OSR
-    wr(0x02, 0xC1);  // MAINCLK: adc_div=1 | doubler<<6=0x40 | dll<<7=0x80 = 0xC1
-    wr(0x04, 0x01);  // LRCK_DIVH
-    wr(0x05, 0x00);  // LRCK_DIVL
-
-    // Slave mode (ESP32 is master)
-    wr(0x08, 0x00);  // MODE_CONFIG: slave mode
-
-    // Power down DLL (use doubler instead per coeff table)
-    wr(0x06, 0x04);  // POWER_DOWN: DLL power down
-
-    // Power on MIC1-4 bias & ADC1-4 & PGA1-4
-    wr(0x4B, 0x0F);  // MIC12_POWER: bias+ADC+PGA power on
-    wr(0x4C, 0x00);  // MIC34_POWER: power OFF (not used in stereo mode)
-
-    // Enable device
-    wr(0x00, 0x71);  // Soft reset to apply all settings
-    wr(0x00, 0x41);  // Resume normal operation
-
-    ESP_LOGI(TAG, "ES7210 mic codec initialized (slave, I2S 16-bit, 16kHz, 24dB)");
+    ESP_LOGI(TAG, "ES7210 initialized (16kHz, 16-bit, I2S, no TDM, 24dB gain)");
     return true;
 }
 
