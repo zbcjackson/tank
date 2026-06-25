@@ -254,7 +254,7 @@ bool Cores3HAL::initMicCodec() {
     wr(0x20, 0x0A);  // ADC34_HPF2
 
     // I2S format: 16-bit I2S standard with TDM enabled
-    // With TDM, data is spread across 4 slots — ESP32 reads slot 0 (MIC1)
+    // TDM mode + 32-bit I2S slot width produces correct BCLK for clean audio
     wr(0x11, 0x60);  // SDP_INTERFACE1: 16-bit I2S standard format
     wr(0x12, 0x02);  // SDP_INTERFACE2: TDM enabled for I2S mode
 
@@ -263,11 +263,12 @@ bool Cores3HAL::initMicCodec() {
     wr(0x41, 0x70);  // MIC12_BIAS: 2.87V
     wr(0x42, 0x70);  // MIC34_BIAS: 2.87V
 
-    // MIC gain: 3dB (low gain — proven to give peak=256-319 in quiet room)
+    // MIC gain: 3dB analog + 64× software gain in AudioCapture
+    // Raw peak ~35 in quiet room → ~2240 after software gain
     wr(0x43, 0x11);  // MIC1_GAIN: enable (0x10) + gain 0x01 (3dB)
     wr(0x44, 0x11);  // MIC2_GAIN: enable (0x10) + gain 0x01 (3dB)
-    wr(0x45, 0x11);  // MIC3_GAIN
-    wr(0x46, 0x11);  // MIC4_GAIN
+    wr(0x45, 0x00);  // MIC3_GAIN: disabled
+    wr(0x46, 0x00);  // MIC4_GAIN: disabled
 
     // Power on MIC1-4
     wr(0x47, 0x08);  // MIC1_POWER
@@ -290,7 +291,7 @@ bool Cores3HAL::initMicCodec() {
 
     // Power on MIC1-4 bias & ADC1-4 & PGA1-4
     wr(0x4B, 0x0F);  // MIC12_POWER: bias+ADC+PGA power on
-    wr(0x4C, 0x0F);  // MIC34_POWER: bias+ADC+PGA power on
+    wr(0x4C, 0x00);  // MIC34_POWER: power OFF (not used in stereo mode)
 
     // Enable device
     wr(0x00, 0x71);  // Soft reset to apply all settings
