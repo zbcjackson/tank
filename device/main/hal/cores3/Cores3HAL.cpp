@@ -73,22 +73,7 @@ bool Cores3HAL::initI2C() {
 
     ESP_LOGI(TAG, "I2C initialized (SDA=%d, SCL=%d)", CORES3_I2C_SDA_PIN, CORES3_I2C_SCL_PIN);
 
-    // I2C bus scan to verify which devices respond
-    ESP_LOGI(TAG, "I2C bus scan:");
-    int found = 0;
-    for (uint8_t addr = 0x08; addr < 0x78; addr++) {
-        i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-        i2c_master_start(cmd);
-        i2c_master_write_byte(cmd, (addr << 1) | 0, true);
-        i2c_master_stop(cmd);
-        esp_err_t ret = i2c_master_cmd_begin(I2C_NUM_0, cmd, pdMS_TO_TICKS(50));
-        i2c_cmd_link_delete(cmd);
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "  Found device at 0x%02X", addr);
-            found++;
-        }
-    }
-    ESP_LOGI(TAG, "I2C scan complete: %d devices found", found);
+    return true;
 
     return true;
 }
