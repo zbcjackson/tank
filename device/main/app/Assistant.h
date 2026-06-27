@@ -52,5 +52,8 @@ private:
     TaskHandle_t ws_send_task_ = nullptr;
     TaskHandle_t ui_task_ = nullptr;
 
+    // Push-to-talk: mic frames only stream while the button is held.
+    volatile bool talking_ = false;
+
     bool running_ = false;
 };

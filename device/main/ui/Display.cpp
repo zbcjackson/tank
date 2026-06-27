@@ -1,8 +1,11 @@
 #include "Display.h"
 #include "esp_log.h"
 
-// Stub implementation — logs to serial.
-// Will be replaced with LCD driver in Phase 4.
+#if defined(TARGET_CORES3)
+#include "Cores3Display.h"
+#endif
+
+// Serial stub — logs to console. Used when no board display is available.
 
 static const char* TAG = "Display";
 
@@ -40,7 +43,11 @@ public:
     }
 };
 
-// Factory — returns serial stub for now
+// Factory — board-specific display, falling back to the serial stub.
 Display* createDisplay() {
+#if defined(TARGET_CORES3)
+    return new Cores3Display();
+#else
     return new SerialDisplay();
+#endif
 }

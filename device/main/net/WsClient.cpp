@@ -9,7 +9,8 @@
 static const char* TAG = "WsClient";
 
 bool WsClient::init(const char* host, int port, const char* session_id) {
-    snprintf(uri_, sizeof(uri_), "ws://%s:%d/ws/%s", host, port, session_id);
+    snprintf(uri_, sizeof(uri_), "ws://%s:%d/ws/%s?output_rate=%d",
+             host, port, session_id, CONFIG_SPK_SAMPLE_RATE);
     ESP_LOGI(TAG, "WebSocket URI: %s", uri_);
     return true;
 }
@@ -17,11 +18,15 @@ bool WsClient::init(const char* host, int port, const char* session_id) {
 bool WsClient::connect() {
     esp_websocket_client_config_t config = {};
     config.uri = uri_;
-    config.buffer_size = 4096;
+    config.buffer_size = CONFIG_TANK_WS_BUFFER_SIZE;
     config.task_stack = CONFIG_NET_TASK_STACK;
     config.task_prio = CONFIG_NET_TASK_PRIORITY;
     config.ping_interval_sec = 10;
-    config.network_timeout_ms = 10000;
+    config.network_timeout_ms = CONFIG_WS_NETWORK_TIMEOUT_MS;
+    config.pingpong_timeout_sec = CONFIG_WS_PINGPONG_TIMEOUT_S;
+    // Don't drop the link if a single PONG is late — the backend can be busy
+    // streaming audio. Liveness is still bounded by network_timeout_ms.
+    config.disable_pingpong_discon = true;
     config.reconnect_timeout_ms = CONFIG_WS_RECONNECT_MS;
 
     client_ = esp_websocket_client_init(&config);
@@ -78,6 +83,10 @@ bool WsClient::sendJson(const char* type, const char* content) {
 
 bool WsClient::sendInterrupt() {
     return sendJson("signal", "interrupt");
+}
+
+bool WsClient::sendEndOfUtterance() {
+    return sendJson("signal", "end_of_utterance");
 }
 
 void WsClient::eventHandler(void* arg, esp_event_base_t base, int32_t id, void* data) {

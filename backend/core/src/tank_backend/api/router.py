@@ -32,6 +32,25 @@ logger = logging.getLogger("ApiRouter")
 router = APIRouter()
 
 
+def _resample_pcm16(data: bytes, src_rate: int, dst_rate: int) -> bytes:
+    """Resample int16 mono PCM from src_rate to dst_rate via linear interpolation.
+
+    Used to adapt TTS output (e.g. 24kHz) to a client's requested rate (e.g. a
+    hardware device fixed at 16kHz). Returns the original bytes if rates match
+    or the buffer is empty.
+    """
+    if src_rate == dst_rate or not data:
+        return data
+    src = np.frombuffer(data, dtype=np.int16)
+    if src.size == 0:
+        return data
+    dst_len = max(1, round(src.size * dst_rate / src_rate))
+    # Sample positions in the source signal for each output sample.
+    src_idx = np.linspace(0, src.size - 1, num=dst_len)
+    resampled = np.interp(src_idx, np.arange(src.size), src.astype(np.float32))
+    return resampled.astype(np.int16).tobytes()
+
+
 def _parse_attachments(
     raw: list[Any],
     session_id: str,
@@ -332,8 +351,35 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await websocket.accept()
     logger.info(f"WebSocket connected: {session_id}")
 
+    # Optional client-requested output sample rate (e.g. hardware device fixed
+    # at 16kHz). When set, TTS audio is resampled per-chunk before sending.
+    # Other clients (web/CLI) omit it and receive native TTS rate.
+    output_rate_raw = websocket.query_params.get("output_rate")
+    output_rate: int | None = None
+    if output_rate_raw:
+        try:
+            output_rate = int(output_rate_raw)
+        except ValueError:
+            logger.warning("Invalid output_rate query param: %r", output_rate_raw)
+
     ws_connected = True
     loop = asyncio.get_running_loop()
+
+    # Serialize all sends. Without this, a frame pushed from one task (audio,
+    # text, worker events) can call the transport's drain() concurrently with
+    # another send — or with the library's auto-PONG reply to a client ping —
+    # which trips an AssertionError in the websockets legacy protocol and
+    # drops the connection. The lock guarantees one send completes before the
+    # next begins.
+    send_lock = asyncio.Lock()
+
+    async def _locked_send_text(text: str) -> None:
+        async with send_lock:
+            await websocket.send_text(text)
+
+    async def _locked_send_bytes(payload: bytes) -> None:
+        async with send_lock:
+            await websocket.send_bytes(payload)
 
     assistant, is_new = await deps.connection_manager().get_or_create_assistant(session_id)
 
@@ -356,7 +402,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             if not ws_connected:
                 return
             try:
-                await websocket.send_text(ws_msg.model_dump_json())
+                await _locked_send_text(ws_msg.model_dump_json())
             except Exception as e:
                 logger.debug(f"Send error: {e}")
 
@@ -375,13 +421,18 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         if not ws_connected:
             return
 
-        frame = encode_audio_frame(chunk.data, chunk.sample_rate, chunk.channels)
+        data = chunk.data
+        out_rate = chunk.sample_rate
+        if output_rate is not None and output_rate != chunk.sample_rate:
+            data = _resample_pcm16(chunk.data, chunk.sample_rate, output_rate)
+            out_rate = output_rate
+        frame = encode_audio_frame(data, out_rate, chunk.channels)
 
         async def _send_chunk() -> None:
             if not ws_connected:
                 return
             try:
-                await websocket.send_bytes(frame)
+                await _locked_send_bytes(frame)
             except Exception as e:
                 logger.debug(f"Audio send error: {e}")
 
@@ -425,7 +476,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             if not ws_connected:
                 return
             try:
-                await websocket.send_text(ws_msg.model_dump_json())
+                await _locked_send_text(ws_msg.model_dump_json())
             except Exception as e:
                 logger.debug(f"Attachment send error: {e}")
 
@@ -449,7 +500,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             if not ws_connected:
                 return
             try:
-                await websocket.send_text(ws_msg.model_dump_json())
+                await _locked_send_text(ws_msg.model_dump_json())
             except Exception as e:
                 logger.debug(f"Worker event send error: {e}")
 
@@ -470,7 +521,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             if not ws_connected:
                 return
             try:
-                await websocket.send_text(ws_msg.model_dump_json())
+                await _locked_send_text(ws_msg.model_dump_json())
             except Exception as e:
                 logger.debug(f"Worker activity send error: {e}")
 
@@ -482,7 +533,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     async def send_ws_msg(msg: WebsocketMessage) -> None:
         if ws_connected:
             try:
-                await websocket.send_text(msg.model_dump_json())
+                await _locked_send_text(msg.model_dump_json())
             except Exception as e:
                 logger.debug(f"Send error: {e}")
 
@@ -500,16 +551,16 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             session_id=session_id,
             metadata=ready_metadata,
         )
-        await websocket.send_text(ready_msg.model_dump_json())
+        await _locked_send_text(ready_msg.model_dump_json())
 
         # Register sender for cross-session broadcast (channel notifications)
         async def _broadcast_send(json_str: str) -> None:
             if ws_connected:
-                await websocket.send_text(json_str)
+                await _locked_send_text(json_str)
 
         async def _binary_send(data: bytes) -> None:
             if ws_connected:
-                await websocket.send_bytes(data)
+                await _locked_send_bytes(data)
 
         deps.connection_manager().register_sender(session_id, _broadcast_send)
         deps.connection_manager().register_binary_sender(session_id, _binary_send)

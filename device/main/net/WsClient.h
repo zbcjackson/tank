@@ -40,6 +40,9 @@ public:
     /// Send interrupt signal.
     bool sendInterrupt();
 
+    /// Send end-of-utterance signal (push-to-talk release).
+    bool sendEndOfUtterance();
+
     /// Returns true if connected and ready.
     bool isConnected() const { return connected_; }
 

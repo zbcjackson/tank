@@ -183,6 +183,21 @@ bool Cores3Display::pollTouch() {
     return false;
 }
 
+bool Cores3Display::pollPressed() {
+    // Read FT6336U touch status. Any active touch point = button held.
+    uint8_t data[1] = {};
+    uint8_t reg = 0x02;  // Touch status register (touch count in low nibble)
+
+    esp_err_t err = i2c_master_write_read_device(
+        I2C_NUM_0, CORES3_TOUCH_ADDR,
+        &reg, 1, data, sizeof(data),
+        pdMS_TO_TICKS(10)
+    );
+
+    if (err != ESP_OK) return false;
+    return (data[0] & 0x0F) > 0;
+}
+
 // ─── Drawing primitives ─────────────────────────────────────────────────────
 
 void Cores3Display::drawHeader(const char* text, uint16_t color) {

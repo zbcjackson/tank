@@ -15,6 +15,9 @@ public:
     void showError(const char* error) override;
     void clear() override;
 
+    /// Poll whether the screen is currently being touched (push-to-talk held).
+    bool pollPressed() override;
+
     /// Poll touch input. Call from UI task loop.
     /// Returns true if a touch event was handled.
     bool pollTouch();

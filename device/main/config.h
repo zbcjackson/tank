@@ -24,18 +24,28 @@
 #define CONFIG_SESSION_ID        "device_001"
 #endif
 
+// ─── Interaction mode ─────────────────────────────────────────────────────────
+// Push-to-talk: mic only streams while the on-screen button is held; release
+// sends end_of_utterance. Set to 0 for continuous (always-streaming) mode.
+// A runtime mode-switching setting page is planned for later.
+#ifndef CONFIG_PUSH_TO_TALK
+#define CONFIG_PUSH_TO_TALK      1
+#endif
+
 // ─── Audio ──────────────────────────────────────────────────────────────────
 #define CONFIG_MIC_SAMPLE_RATE   16000
 #define CONFIG_MIC_CHANNELS      1
 #define CONFIG_MIC_BITS          16
 #define CONFIG_MIC_FRAME_MS      20   // 20ms per frame = 320 samples at 16kHz
 
-#define CONFIG_SPK_SAMPLE_RATE   24000  // Server sends 24kHz TTS audio
+#define CONFIG_SPK_SAMPLE_RATE   16000  // Unified with mic rate (full-duplex shared clock)
 #define CONFIG_SPK_CHANNELS      1
 #define CONFIG_SPK_BITS          16
+#define CONFIG_SPK_FRAME_MS      20   // 20ms per playback frame
 
 // Frame size in bytes: sample_rate * channels * (bits/8) * (frame_ms/1000)
 #define CONFIG_MIC_FRAME_BYTES   (CONFIG_MIC_SAMPLE_RATE * CONFIG_MIC_CHANNELS * (CONFIG_MIC_BITS / 8) * CONFIG_MIC_FRAME_MS / 1000)
+#define CONFIG_SPK_FRAME_BYTES   (CONFIG_SPK_SAMPLE_RATE * CONFIG_SPK_CHANNELS * (CONFIG_SPK_BITS / 8) * CONFIG_SPK_FRAME_MS / 1000)
 
 // ─── Queues ─────────────────────────────────────────────────────────────────
 #define CONFIG_MIC_QUEUE_LEN     10   // ~200ms of mic audio buffered
@@ -62,3 +72,6 @@
 // ─── Reconnection ───────────────────────────────────────────────────────────
 #define CONFIG_WIFI_RETRY_MAX    10
 #define CONFIG_WS_RECONNECT_MS   3000
+#define CONFIG_WS_NETWORK_TIMEOUT_MS  30000
+#define CONFIG_WS_PINGPONG_TIMEOUT_S  30
+#define CONFIG_TANK_WS_BUFFER_SIZE    8192

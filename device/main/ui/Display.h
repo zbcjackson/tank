@@ -27,4 +27,8 @@ public:
 
     /// Clear the display.
     virtual void clear() = 0;
+
+    /// Poll whether the push-to-talk button is currently pressed.
+    /// Returns false on displays without touch input (e.g. serial stub).
+    virtual bool pollPressed() { return false; }
 };

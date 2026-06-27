@@ -26,7 +26,7 @@ bool Assistant::init() {
 
     // Create queues
     mic_queue_ = xQueueCreate(CONFIG_MIC_QUEUE_LEN, CONFIG_MIC_FRAME_BYTES);
-    spk_queue_ = xQueueCreate(CONFIG_SPK_QUEUE_LEN, 960);  // 480 samples × 2 bytes
+    spk_queue_ = xQueueCreate(CONFIG_SPK_QUEUE_LEN, CONFIG_SPK_FRAME_BYTES);
     event_queue_ = xQueueCreate(CONFIG_EVENT_QUEUE_LEN, sizeof(WsMessage));
 
     if (!mic_queue_ || !spk_queue_ || !event_queue_) {
@@ -48,7 +48,7 @@ bool Assistant::init() {
         ESP_LOGE(TAG, "Audio capture init failed");
         return false;
     }
-    if (!playback_.init(spk_queue_)) {
+    if (!playback_.init(spk_queue_, capture_.getTxChannel())) {
         ESP_LOGE(TAG, "Audio playback init failed");
         return false;
     }
@@ -117,10 +117,24 @@ void Assistant::onWiFiDisconnected() {
 }
 
 void Assistant::onWsAudio(const int16_t* pcm, size_t samples, uint32_t sample_rate) {
-    // Push audio to playback queue
-    // Note: frame size must match what playback expects
-    if (spk_queue_) {
-        xQueueSend(spk_queue_, pcm, 0);  // Non-blocking, drop if full
+    if (!spk_queue_) return;
+
+    constexpr size_t FRAME_SAMPLES = CONFIG_SPK_SAMPLE_RATE * CONFIG_SPK_FRAME_MS / 1000;  // 320
+    size_t offset = 0;
+
+    // Split incoming audio into fixed-size queue frames
+    while (offset + FRAME_SAMPLES <= samples) {
+        xQueueSend(spk_queue_, pcm + offset, 0);
+        offset += FRAME_SAMPLES;
+    }
+
+    // Handle remaining samples: pad with silence and queue
+    if (offset < samples) {
+        int16_t tail[FRAME_SAMPLES];
+        size_t remaining = samples - offset;
+        memcpy(tail, pcm + offset, remaining * sizeof(int16_t));
+        memset(tail + remaining, 0, (FRAME_SAMPLES - remaining) * sizeof(int16_t));
+        xQueueSend(spk_queue_, tail, 0);
     }
 
     if (session_.getState() != Session::State::SPEAKING) {
@@ -156,6 +170,12 @@ void Assistant::wsSendTask(void* arg) {
     while (self->running_) {
         // Wait for a mic frame
         if (xQueueReceive(self->mic_queue_, frame, pdMS_TO_TICKS(100)) == pdTRUE) {
+#if CONFIG_PUSH_TO_TALK
+            // Push-to-talk: only stream while the button is held.
+            if (!self->talking_) {
+                continue;
+            }
+#endif
             if (self->ws_.isConnected()) {
                 size_t samples = CONFIG_MIC_SAMPLE_RATE * CONFIG_MIC_FRAME_MS / 1000;
                 self->ws_.sendAudio(frame, samples);
@@ -171,10 +191,30 @@ void Assistant::uiTask(void* arg) {
     auto* self = static_cast<Assistant*>(arg);
 
     WsMessage msg;
+    bool was_pressed = false;
     ESP_LOGI(TAG, "UI task started");
 
     while (self->running_) {
-        if (xQueueReceive(self->event_queue_, &msg, pdMS_TO_TICKS(100)) == pdTRUE) {
+#if CONFIG_PUSH_TO_TALK
+        // Poll push-to-talk button and detect press/release transitions.
+        bool pressed = self->display_->pollPressed();
+        if (pressed && !was_pressed) {
+            // Press: interrupt any ongoing playback and start streaming mic.
+            self->ws_.sendInterrupt();
+            self->talking_ = true;
+            self->session_.setState(Session::State::LISTENING);
+            self->display_->showStatus("Listening...");
+        } else if (!pressed && was_pressed) {
+            // Release: stop streaming and force-finalize the utterance.
+            self->talking_ = false;
+            self->ws_.sendEndOfUtterance();
+            self->session_.setState(Session::State::PROCESSING);
+            self->display_->showStatus("Processing...");
+        }
+        was_pressed = pressed;
+#endif
+
+        if (xQueueReceive(self->event_queue_, &msg, pdMS_TO_TICKS(20)) == pdTRUE) {
             if (strcmp(msg.type, "signal") == 0) {
                 if (strcmp(msg.content, "ready") == 0) {
                     self->display_->showStatus("Ready");
