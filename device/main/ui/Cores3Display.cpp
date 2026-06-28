@@ -93,8 +93,28 @@ bool Cores3Display::initLCD() {
 }
 
 bool Cores3Display::initTouch() {
-    // FT6336U touch controller on I2C (already initialized by HAL)
-    ESP_LOGI(TAG, "Touch controller at 0x%02X (on shared I2C bus)", CORES3_TOUCH_ADDR);
+    // FT6336U touch controller on the shared I2C bus (reset is driven by the
+    // AW9523 expander in the HAL). Put it in polling mode and verify it answers.
+    ESP_LOGI(TAG, "Initializing FT6336U touch at 0x%02X", CORES3_TOUCH_ADDR);
+
+    // Device mode = normal (reg 0x00 = 0x00)
+    uint8_t dev_mode[] = {0x00, 0x00};
+    i2c_master_write_to_device(I2C_NUM_0, CORES3_TOUCH_ADDR, dev_mode, 2, pdMS_TO_TICKS(100));
+
+    // INT mode = polling (reg 0xA4 = 0x00)
+    uint8_t int_mode[] = {0xA4, 0x00};
+    i2c_master_write_to_device(I2C_NUM_0, CORES3_TOUCH_ADDR, int_mode, 2, pdMS_TO_TICKS(100));
+
+    // Read chip vendor ID (reg 0xA8) as a presence check.
+    uint8_t reg = 0xA8;
+    uint8_t vendor = 0;
+    esp_err_t err = i2c_master_write_read_device(
+        I2C_NUM_0, CORES3_TOUCH_ADDR, &reg, 1, &vendor, 1, pdMS_TO_TICKS(100));
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "FT6336U not responding: %s", esp_err_to_name(err));
+    } else {
+        ESP_LOGI(TAG, "FT6336U vendor ID = 0x%02X", vendor);
+    }
     return true;
 }
 
@@ -194,8 +214,22 @@ bool Cores3Display::pollPressed() {
         pdMS_TO_TICKS(10)
     );
 
-    if (err != ESP_OK) return false;
-    return (data[0] & 0x0F) > 0;
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Touch read failed: %s", esp_err_to_name(err));
+        return false;
+    }
+    uint8_t count = data[0] & 0x0F;
+    if (count > 0) {
+        ESP_LOGI(TAG, "Touch detected: count=%d (reg0x02=0x%02X)", count, data[0]);
+    }
+    return count > 0;
+}
+
+void Cores3Display::showTalkState(bool listening) {
+    // Full-width color bar at the bottom — visible without a font renderer.
+    // Green = listening (PTT held), dark = idle.
+    uint16_t color = listening ? COLOR_GREEN : COLOR_DARK_BG;
+    fillRect(0, BUTTON_AREA_Y, SCREEN_W, BUTTON_H, color);
 }
 
 // ─── Drawing primitives ─────────────────────────────────────────────────────

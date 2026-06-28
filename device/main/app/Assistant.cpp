@@ -24,13 +24,21 @@ bool Assistant::init() {
     }
     display_->showStatus("Initializing...");
 
-    // Create queues
+    // Create queues / stream buffers
     mic_queue_ = xQueueCreate(CONFIG_MIC_QUEUE_LEN, CONFIG_MIC_FRAME_BYTES);
-    spk_queue_ = xQueueCreate(CONFIG_SPK_QUEUE_LEN, CONFIG_SPK_FRAME_BYTES);
+    // Speaker stream: 256KB buffer holds ~8s of 16kHz mono 16-bit audio.
+    // Allocated from PSRAM (CoreS3 has 8MB). Absorbs full TTS responses
+    // without dropping data from the non-blocking WS callback.
+    spk_stream_ = xStreamBufferCreateWithCaps(256 * 1024, CONFIG_SPK_FRAME_BYTES, MALLOC_CAP_SPIRAM);
+    if (!spk_stream_) {
+        // Fallback to internal RAM with smaller buffer if PSRAM unavailable
+        ESP_LOGW(TAG, "PSRAM stream buffer failed, using 64KB internal");
+        spk_stream_ = xStreamBufferCreate(64 * 1024, CONFIG_SPK_FRAME_BYTES);
+    }
     event_queue_ = xQueueCreate(CONFIG_EVENT_QUEUE_LEN, sizeof(WsMessage));
 
-    if (!mic_queue_ || !spk_queue_ || !event_queue_) {
-        ESP_LOGE(TAG, "Failed to create queues");
+    if (!mic_queue_ || !spk_stream_ || !event_queue_) {
+        ESP_LOGE(TAG, "Failed to create queues/buffers");
         return false;
     }
 
@@ -48,7 +56,7 @@ bool Assistant::init() {
         ESP_LOGE(TAG, "Audio capture init failed");
         return false;
     }
-    if (!playback_.init(spk_queue_, capture_.getTxChannel())) {
+    if (!playback_.init(spk_stream_, capture_.getTxChannel())) {
         ESP_LOGE(TAG, "Audio playback init failed");
         return false;
     }
@@ -117,25 +125,13 @@ void Assistant::onWiFiDisconnected() {
 }
 
 void Assistant::onWsAudio(const int16_t* pcm, size_t samples, uint32_t sample_rate) {
-    if (!spk_queue_) return;
+    if (!spk_stream_) return;
 
-    constexpr size_t FRAME_SAMPLES = CONFIG_SPK_SAMPLE_RATE * CONFIG_SPK_FRAME_MS / 1000;  // 320
-    size_t offset = 0;
-
-    // Split incoming audio into fixed-size queue frames
-    while (offset + FRAME_SAMPLES <= samples) {
-        xQueueSend(spk_queue_, pcm + offset, 0);
-        offset += FRAME_SAMPLES;
-    }
-
-    // Handle remaining samples: pad with silence and queue
-    if (offset < samples) {
-        int16_t tail[FRAME_SAMPLES];
-        size_t remaining = samples - offset;
-        memcpy(tail, pcm + offset, remaining * sizeof(int16_t));
-        memset(tail + remaining, 0, (FRAME_SAMPLES - remaining) * sizeof(int16_t));
-        xQueueSend(spk_queue_, tail, 0);
-    }
+    // Write raw PCM bytes into the stream buffer. Non-blocking: if the buffer
+    // is full, excess bytes are silently dropped (backpressure from playback
+    // consuming at real-time rate means this rarely happens with a 32KB buffer).
+    size_t bytes = samples * sizeof(int16_t);
+    xStreamBufferSend(spk_stream_, pcm, bytes, 0);
 
     if (session_.getState() != Session::State::SPEAKING) {
         session_.setState(Session::State::SPEAKING);
@@ -163,7 +159,8 @@ void Assistant::onWsMessage(const WsMessage& msg) {
 void Assistant::wsSendTask(void* arg) {
     auto* self = static_cast<Assistant*>(arg);
 
-    int16_t frame[CONFIG_MIC_SAMPLE_RATE * CONFIG_MIC_FRAME_MS / 1000];
+    constexpr size_t SAMPLES = CONFIG_MIC_SAMPLE_RATE * CONFIG_MIC_FRAME_MS / 1000;
+    int16_t frame[SAMPLES];
 
     ESP_LOGI(TAG, "WS send task started");
 
@@ -171,16 +168,37 @@ void Assistant::wsSendTask(void* arg) {
         // Wait for a mic frame
         if (xQueueReceive(self->mic_queue_, frame, pdMS_TO_TICKS(100)) == pdTRUE) {
 #if CONFIG_PUSH_TO_TALK
-            // Push-to-talk: only stream while the button is held.
-            if (!self->talking_) {
-                continue;
+            if (self->talking_) {
+                // Button held — stream live mic audio.
+                if (self->ws_.isConnected()) {
+                    self->ws_.sendAudio(frame, SAMPLES);
+                }
+            } else if (self->flush_frames_ > 0) {
+                // Released — drain the bounded tail captured at release time so
+                // the end of speech isn't clipped.
+                if (self->ws_.isConnected()) {
+                    self->ws_.sendAudio(frame, SAMPLES);
+                }
+                self->flush_frames_--;
+            }
+            // else: idle — discard mic frames so the backend only sees held
+            // utterances.
+#else
+            if (self->ws_.isConnected()) {
+                self->ws_.sendAudio(frame, SAMPLES);
             }
 #endif
+        }
+
+#if CONFIG_PUSH_TO_TALK
+        // After the tail has fully drained, finalize the utterance once.
+        if (self->eou_pending_ && !self->talking_ && self->flush_frames_ == 0) {
+            self->eou_pending_ = false;
             if (self->ws_.isConnected()) {
-                size_t samples = CONFIG_MIC_SAMPLE_RATE * CONFIG_MIC_FRAME_MS / 1000;
-                self->ws_.sendAudio(frame, samples);
+                self->ws_.sendEndOfUtterance();
             }
         }
+#endif
     }
 
     ESP_LOGI(TAG, "WS send task stopped");
@@ -200,15 +218,30 @@ void Assistant::uiTask(void* arg) {
         bool pressed = self->display_->pollPressed();
         if (pressed && !was_pressed) {
             // Press: interrupt any ongoing playback and start streaming mic.
+            ESP_LOGI(TAG, "PTT pressed — start streaming");
             self->ws_.sendInterrupt();
+            // Drop any audio still queued/buffered from a previous reply so the
+            // new turn starts clean (no stale tail, no partial-frame glitch).
+            self->playback_.flush();
+            // Resume mic capture (was paused during playback).
+            self->capture_.resume();
             self->talking_ = true;
             self->session_.setState(Session::State::LISTENING);
+            self->display_->showTalkState(true);
             self->display_->showStatus("Listening...");
         } else if (!pressed && was_pressed) {
-            // Release: stop streaming and force-finalize the utterance.
+            // Release: stop accepting new audio, but hand the frames already
+            // buffered in the mic queue to wsSendTask so the tail of speech is
+            // flushed before end_of_utterance. wsSendTask sends the signal once
+            // the bounded tail drains.
+            self->flush_frames_ = uxQueueMessagesWaiting(self->mic_queue_);
+            ESP_LOGI(TAG, "PTT released — flushing %d frames then EOU", self->flush_frames_);
+            self->eou_pending_ = true;
             self->talking_ = false;
-            self->ws_.sendEndOfUtterance();
+            // Pause mic capture so I2S RX doesn't contend with TX during playback.
+            self->capture_.pause();
             self->session_.setState(Session::State::PROCESSING);
+            self->display_->showTalkState(false);
             self->display_->showStatus("Processing...");
         }
         was_pressed = pressed;

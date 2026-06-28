@@ -6,8 +6,8 @@
 
 static const char* TAG = "AudioPlayback";
 
-bool AudioPlayback::init(QueueHandle_t spk_queue, i2s_chan_handle_t tx_channel) {
-    spk_queue_ = spk_queue;
+bool AudioPlayback::init(StreamBufferHandle_t spk_stream, i2s_chan_handle_t tx_channel) {
+    spk_stream_ = spk_stream;
     tx_chan_ = tx_channel;
 
     if (!tx_chan_) {
@@ -24,7 +24,8 @@ void AudioPlayback::start() {
     if (running_) return;
     running_ = true;
 
-    i2s_channel_enable(tx_chan_);
+    // Don't enable TX here — enable on first audio data, disable when idle.
+    // This prevents DMA from replaying stale buffer contents during silence.
 
     xTaskCreatePinnedToCore(
         playbackTask, "audio_playback",
@@ -47,11 +48,9 @@ void AudioPlayback::stop() {
 }
 
 void AudioPlayback::flush() {
-    // Drain the queue — discard all buffered audio
-    constexpr size_t FRAME_SAMPLES = CONFIG_SPK_SAMPLE_RATE * CONFIG_SPK_FRAME_MS / 1000;
-    int16_t discard[FRAME_SAMPLES];
-    while (xQueueReceive(spk_queue_, discard, 0) == pdTRUE) {
-        // discard
+    // Reset the stream buffer — discards all buffered audio instantly.
+    if (spk_stream_) {
+        xStreamBufferReset(spk_stream_);
     }
     playing_ = false;
 }
@@ -68,16 +67,28 @@ void AudioPlayback::playbackTask(void* arg) {
              (int)FRAME_SAMPLES, (int)frame_bytes);
 
     while (self->running_) {
-        // Wait up to 50ms for audio data
-        if (xQueueReceive(self->spk_queue_, frame, pdMS_TO_TICKS(50)) == pdTRUE) {
-            self->playing_ = true;
+        // Block until a full frame of audio is available (or timeout).
+        size_t received = xStreamBufferReceive(
+            self->spk_stream_, frame, frame_bytes, pdMS_TO_TICKS(50));
 
-            esp_err_t err = i2s_channel_write(self->tx_chan_, frame, frame_bytes, &bytes_written, pdMS_TO_TICKS(100));
-            if (err != ESP_OK) {
-                ESP_LOGW(TAG, "I2S write error: %s", esp_err_to_name(err));
+        if (received > 0) {
+            // Got audio data — enable TX if not already playing.
+            if (!self->playing_) {
+                i2s_channel_enable(self->tx_chan_);
+                self->playing_ = true;
             }
+
+            // Pad partial frames with silence so I2S gets a full write.
+            if (received < frame_bytes) {
+                memset((uint8_t*)frame + received, 0, frame_bytes - received);
+            }
+
+            i2s_channel_write(self->tx_chan_, frame, frame_bytes, &bytes_written, pdMS_TO_TICKS(100));
         } else {
+            // Timeout — no more audio. Disable TX to stop DMA from replaying
+            // stale buffer contents (the "repeating garbled sound" artifact).
             if (self->playing_) {
+                i2s_channel_disable(self->tx_chan_);
                 self->playing_ = false;
             }
         }

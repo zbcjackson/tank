@@ -31,4 +31,8 @@ public:
     /// Poll whether the push-to-talk button is currently pressed.
     /// Returns false on displays without touch input (e.g. serial stub).
     virtual bool pollPressed() { return false; }
+
+    /// Show a full-screen color cue for push-to-talk state (no font needed).
+    /// Default is a no-op for displays without a framebuffer.
+    virtual void showTalkState(bool /*listening*/) {}
 };

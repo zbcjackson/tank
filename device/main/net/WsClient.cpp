@@ -118,12 +118,70 @@ void WsClient::eventHandler(void* arg, esp_event_base_t base, int32_t id, void* 
 }
 
 void WsClient::handleData(esp_websocket_event_data_t* event_data) {
-    if (event_data->op_code == 0x02) {
-        // Binary frame — audio data
-        parseAudioFrame((const uint8_t*)event_data->data_ptr, event_data->data_len);
-    } else if (event_data->op_code == 0x01) {
-        // Text frame — JSON message
-        parseJsonMessage(event_data->data_ptr, event_data->data_len);
+    // esp_websocket_client delivers payloads exceeding buffer_size in multiple
+    // WEBSOCKET_EVENT_DATA callbacks. Each has:
+    //   payload_len    = total frame payload length
+    //   payload_offset = byte offset of this chunk within the payload
+    //   data_len       = bytes in this chunk
+    // We must reassemble before parsing.
+
+    const int total = event_data->payload_len;
+    const int offset = event_data->payload_offset;
+    const int chunk_len = event_data->data_len;
+
+    // Single-event frame (common case: payload fits in buffer) — parse directly.
+    if (offset == 0 && chunk_len == total) {
+        if (event_data->op_code == 0x02) {
+            parseAudioFrame((const uint8_t*)event_data->data_ptr, chunk_len);
+        } else if (event_data->op_code == 0x01) {
+            parseJsonMessage(event_data->data_ptr, chunk_len);
+        }
+        return;
+    }
+
+    // Multi-event (fragmented) frame — accumulate into reassembly buffer.
+    if (offset == 0) {
+        // First fragment: allocate buffer for the full payload.
+        free(frag_buf_);
+        frag_buf_ = (uint8_t*)malloc(total);
+        frag_len_ = total;
+        frag_pos_ = 0;
+        if (!frag_buf_) {
+            ESP_LOGE(TAG, "Failed to alloc %d bytes for fragmented frame", total);
+            frag_len_ = 0;
+            return;
+        }
+    }
+
+    if (!frag_buf_ || offset != frag_pos_) {
+        // Out-of-order or missing first fragment — discard.
+        ESP_LOGW(TAG, "Fragment out of order: offset=%d expected=%d", offset, frag_pos_);
+        free(frag_buf_);
+        frag_buf_ = nullptr;
+        frag_len_ = 0;
+        frag_pos_ = 0;
+        return;
+    }
+
+    // Copy this chunk into the reassembly buffer.
+    int copy_len = chunk_len;
+    if (frag_pos_ + copy_len > frag_len_) {
+        copy_len = frag_len_ - frag_pos_;
+    }
+    memcpy(frag_buf_ + frag_pos_, event_data->data_ptr, copy_len);
+    frag_pos_ += copy_len;
+
+    // Final fragment: parse the complete reassembled payload.
+    if (frag_pos_ >= frag_len_) {
+        if (event_data->op_code == 0x02) {
+            parseAudioFrame(frag_buf_, frag_len_);
+        } else if (event_data->op_code == 0x01) {
+            parseJsonMessage((const char*)frag_buf_, frag_len_);
+        }
+        free(frag_buf_);
+        frag_buf_ = nullptr;
+        frag_len_ = 0;
+        frag_pos_ = 0;
     }
 }
 

@@ -63,4 +63,11 @@ private:
     MessageCallback on_message_;
     bool connected_ = false;
     char uri_[256] = {};
+
+    // Reassembly buffer for fragmented WebSocket binary frames.
+    // esp_websocket_client delivers payloads exceeding buffer_size in multiple
+    // events; we accumulate fragments until the full payload is received.
+    uint8_t* frag_buf_ = nullptr;
+    int frag_len_ = 0;       // total expected payload length
+    int frag_pos_ = 0;       // bytes received so far
 };

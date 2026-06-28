@@ -2,17 +2,17 @@
 
 #include "driver/i2s_std.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
+#include "freertos/stream_buffer.h"
 #include <cstdint>
 
-/// Plays audio from a queue to I2S speaker output.
+/// Plays audio from a stream buffer to I2S speaker output.
 /// Receives its TX channel handle from AudioCapture (shared full-duplex bus).
 class AudioPlayback {
 public:
     /// Initialize playback with a pre-created I2S TX channel.
-    /// @param spk_queue FreeRTOS queue to pull audio frames from.
+    /// @param spk_stream StreamBuffer to read PCM audio bytes from.
     /// @param tx_channel I2S TX channel handle (owned by AudioCapture).
-    bool init(QueueHandle_t spk_queue, i2s_chan_handle_t tx_channel);
+    bool init(StreamBufferHandle_t spk_stream, i2s_chan_handle_t tx_channel);
 
     /// Start the playback task (pinned to audio core).
     void start();
@@ -20,7 +20,7 @@ public:
     /// Stop playback (does not delete I2S channel — AudioCapture owns it).
     void stop();
 
-    /// Flush all buffered audio (on interrupt).
+    /// Flush all buffered audio (on interrupt/new PTT press).
     void flush();
 
     /// Returns true if currently outputting audio.
@@ -29,7 +29,7 @@ public:
 private:
     static void playbackTask(void* arg);
 
-    QueueHandle_t spk_queue_ = nullptr;
+    StreamBufferHandle_t spk_stream_ = nullptr;
     i2s_chan_handle_t tx_chan_ = nullptr;
     TaskHandle_t task_ = nullptr;
     bool running_ = false;

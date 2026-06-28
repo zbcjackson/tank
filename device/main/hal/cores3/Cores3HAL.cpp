@@ -224,14 +224,14 @@ bool Cores3HAL::initMicCodec() {
         return false;
     }
 
-    // Configure: 16kHz, 16-bit, standard I2S, NO TDM, 24dB gain
+    // Configure: 16kHz, 16-bit, standard I2S, NO TDM, 30dB gain
     es7210_codec_config_t codec_cfg = {};
     codec_cfg.sample_rate_hz = 16000;
     codec_cfg.mclk_ratio = 256;
     codec_cfg.i2s_format = ES7210_I2S_FMT_I2S;
     codec_cfg.bit_width = ES7210_I2S_BITS_16B;
     codec_cfg.mic_bias = ES7210_MIC_BIAS_2V87;
-    codec_cfg.mic_gain = ES7210_MIC_GAIN_15DB;
+    codec_cfg.mic_gain = ES7210_MIC_GAIN_30DB;
     codec_cfg.flags.tdm_enable = 0;
 
     err = es7210_config_codec(es7210_handle_, &codec_cfg);
@@ -240,31 +240,53 @@ bool Cores3HAL::initMicCodec() {
         return false;
     }
 
-    ESP_LOGI(TAG, "ES7210 initialized (16kHz, 16-bit, I2S, no TDM, 24dB gain)");
+    ESP_LOGI(TAG, "ES7210 initialized (16kHz, 16-bit, I2S, no TDM, 30dB gain)");
     return true;
 }
 
 bool Cores3HAL::initAmpCodec() {
-    // AW88298 initialization — Class-D amplifier with I2S input
+    // AW88298 initialization — Class-D amplifier with I2S input.
+    // The AW88298 has 16-bit registers transmitted MSB-first (big-endian).
+    // Sequence and values follow the M5Unified CoreS3 reference.
     ESP_LOGI(TAG, "Initializing AW88298 amplifier at 0x%02X", CORES3_AW88298_ADDR);
 
-    // Basic init: enable amp, set volume
-    struct { uint8_t reg; uint8_t val; } init_seq[] = {
-        {0x02, 0x00},  // Power on
-        {0x61, 0x03},  // I2S config: 16-bit, standard
-        {0x04, 0x08},  // Volume (will be overridden by setVolume)
+    // Encode the speaker sample rate into the I2S control register (0x06).
+    // rate_tbl maps (sr+1102)/2205 buckets to the register's low nibble.
+    static const uint8_t rate_tbl[] = {4, 5, 6, 8, 10, 11, 15, 20, 22, 44};
+    size_t idx = 0;
+    size_t rate = (CONFIG_SPK_SAMPLE_RATE + 1102) / 2205;
+    while (idx < sizeof(rate_tbl) && rate > rate_tbl[idx]) {
+        idx++;
+    }
+    if (idx >= sizeof(rate_tbl)) idx = sizeof(rate_tbl) - 1;
+    uint16_t reg06 = (uint16_t)(idx | 0x14C0);  // I2SBCK=0 (16*2 BCK mode)
+
+    struct { uint8_t reg; uint16_t val; } init_seq[] = {
+        {0x61, 0x0673},  // boost mode disabled
+        {0x04, 0x4040},  // I2SEN=1 AMPPD=0 PWDN=0 (power up)
+        {0x05, 0x0008},  // SYSCTRL2: RMSE=0 HAGCE=0 HDCCE=0 HMUTE=0 (unmute)
+        {0x06, reg06},   // I2S rate config (sample-rate dependent)
+        {0x0C, 0x0064},  // volume (full); refined by setVolume below
     };
 
     for (auto& cmd : init_seq) {
-        uint8_t data[] = {cmd.reg, cmd.val};
-        esp_err_t err = i2c_master_write_to_device(I2C_NUM_0, CORES3_AW88298_ADDR, data, 2, pdMS_TO_TICKS(100));
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "AW88298 reg 0x%02X write failed: %s", cmd.reg, esp_err_to_name(err));
+        if (!aw88298WriteReg(cmd.reg, cmd.val)) {
+            ESP_LOGW(TAG, "AW88298 reg 0x%02X write failed", cmd.reg);
         }
     }
 
+    ESP_LOGI(TAG, "AW88298 initialized (rate=%d, reg0x06=0x%04X)",
+             CONFIG_SPK_SAMPLE_RATE, reg06);
     setVolume(volume_);
     return true;
+}
+
+bool Cores3HAL::aw88298WriteReg(uint8_t reg, uint16_t value) {
+    // AW88298 expects the 16-bit value MSB-first on the wire.
+    uint8_t data[] = {reg, (uint8_t)(value >> 8), (uint8_t)(value & 0xFF)};
+    esp_err_t err = i2c_master_write_to_device(
+        I2C_NUM_0, CORES3_AW88298_ADDR, data, sizeof(data), pdMS_TO_TICKS(100));
+    return err == ESP_OK;
 }
 
 bool Cores3HAL::initI2S() {
@@ -279,10 +301,12 @@ bool Cores3HAL::initI2S() {
 
 void Cores3HAL::setVolume(uint8_t volume) {
     volume_ = volume;
-    // AW88298 volume register (0x04): 0=max, 0xFF=mute
-    uint8_t hw_vol = (100 - volume) * 255 / 100;
-    uint8_t data[] = {0x04, hw_vol};
-    i2c_master_write_to_device(I2C_NUM_0, CORES3_AW88298_ADDR, data, 2, pdMS_TO_TICKS(100));
+    // AW88298 register 0x0C is the output level. The M5Unified reference uses
+    // the fixed value 0x0064 for full volume; the exact dB-per-step encoding
+    // isn't documented here, so we use that verified value rather than a
+    // guessed attenuation formula (which risked distorting output).
+    // TODO: implement fine-grained volume from the AW88298 datasheet if needed.
+    aw88298WriteReg(0x0C, 0x0064);
 }
 
 void Cores3HAL::setMicGain(uint8_t gain) {

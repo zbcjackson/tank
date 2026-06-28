@@ -49,7 +49,7 @@
 
 // ─── Queues ─────────────────────────────────────────────────────────────────
 #define CONFIG_MIC_QUEUE_LEN     10   // ~200ms of mic audio buffered
-#define CONFIG_SPK_QUEUE_LEN     20   // ~400ms of playback buffered
+#define CONFIG_SPK_QUEUE_LEN     50   // ~1000ms of playback buffered (absorbs TTS burst delivery)
 #define CONFIG_EVENT_QUEUE_LEN   16
 
 // ─── Tasks ──────────────────────────────────────────────────────────────────

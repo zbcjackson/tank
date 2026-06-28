@@ -21,6 +21,7 @@ private:
 
     bool axp2101SetVoltage(uint8_t reg, int voltage_mv);
     bool axp2101EnableLDO(uint8_t voltage_reg);
+    bool aw88298WriteReg(uint8_t reg, uint16_t value);
 
     es7210_dev_handle_t es7210_handle_ = nullptr;
     uint8_t volume_ = 70;

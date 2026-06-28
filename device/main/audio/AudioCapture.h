@@ -19,6 +19,10 @@ public:
     /// Stop capture and release I2S resources.
     void stop();
 
+    /// Pause/resume I2S RX channel (for PTT: disable mic during playback).
+    void pause();
+    void resume();
+
     /// Get the TX channel handle (for AudioPlayback to use).
     /// Only valid after init() succeeds.
     i2s_chan_handle_t getTxChannel() const { return tx_chan_; }
