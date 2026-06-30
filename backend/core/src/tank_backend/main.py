@@ -45,11 +45,12 @@ def _run_server(args: argparse.Namespace) -> None:
             reload=True,
             reload_dirs=["."],
             reload_includes=["*.py", "config.yaml", ".env"],
+            ws="websockets-sansio",
         )
     else:
         from tank_backend.api.server import app
 
-        uvicorn.run(app, host=args.host, port=args.port)
+        uvicorn.run(app, host=args.host, port=args.port, ws="websockets-sansio")
 
 
 def _handle_backup(args: argparse.Namespace) -> None:

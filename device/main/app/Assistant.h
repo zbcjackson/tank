@@ -6,6 +6,9 @@
 #include "audio/AudioCapture.h"
 #include "audio/AudioPlayback.h"
 #include "ui/Display.h"
+#include "hal/BoardHAL.h"
+#include "settings/NvsSettings.h"
+#include "settings/SerialConfig.h"
 #include "config.h"
 
 #include "freertos/FreeRTOS.h"
@@ -17,7 +20,8 @@
 class Assistant {
 public:
     /// Initialize all components and create queues.
-    bool init();
+    /// @param hal Board hardware abstraction (for volume control, etc.)
+    bool init(BoardHAL* hal);
 
     /// Start all tasks — begins streaming audio and processing messages.
     void start();
@@ -44,6 +48,9 @@ private:
     AudioCapture capture_;
     AudioPlayback playback_;
     Display* display_ = nullptr;
+    BoardHAL* hal_ = nullptr;
+    NvsSettings nvs_;
+    SerialConfig serial_config_;
 
     // Queues
     QueueHandle_t mic_queue_ = nullptr;   // AudioCapture → ws_send
@@ -54,15 +61,8 @@ private:
     TaskHandle_t ws_send_task_ = nullptr;
     TaskHandle_t ui_task_ = nullptr;
 
-    // Push-to-talk: mic frames stream only while the button is held. wsSendTask
-    // owns the release transition — it flushes the queued tail (bounded by
-    // flush_frames_ captured at release) and sends end_of_utterance so the end
-    // of speech isn't clipped.
+    // Push-to-talk state
     volatile bool talking_ = false;
-
-    // Speaker stream: backend TTS audio is written as a byte stream (non-blocking)
-    // from the WebSocket callback; the playback task reads fixed-size frames from it.
-    // 32KB buffer ≈ 1s of 16kHz mono 16-bit audio, absorbs TTS delivery bursts.
     volatile bool eou_pending_ = false;
     volatile int flush_frames_ = 0;
 

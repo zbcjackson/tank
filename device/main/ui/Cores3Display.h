@@ -1,10 +1,19 @@
 #pragma once
 
 #include "Display.h"
+#include "hal/BoardHAL.h"
+#include "settings/NvsSettings.h"
+#include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_ops.h"
+#include "lvgl.h"
 #include <cstdint>
 
+// Forward declarations for screen classes
+class MainScreen;
+class SettingsScreen;
+
 /// CoreS3 display implementation — 320×240 IPS LCD with capacitive touch.
-/// Uses direct SPI writes via ESP-IDF LCD driver (no LVGL for simplicity).
+/// Uses LVGL via esp_lvgl_port for rendering.
 class Cores3Display : public Display {
 public:
     bool init() override;
@@ -15,42 +24,72 @@ public:
     void showError(const char* error) override;
     void clear() override;
 
-    /// Poll whether the screen is currently being touched (push-to-talk held).
+    /// Poll whether the PTT button is currently pressed (LVGL event-driven).
     bool pollPressed() override;
 
-    /// Full-width color bar showing PTT state (green=listening, dark=idle).
+    /// Visual PTT state (delegated to MainScreen).
     void showTalkState(bool listening) override;
 
-    /// Poll touch input. Call from UI task loop.
-    /// Returns true if a touch event was handled.
-    bool pollTouch();
+    /// Set the BoardHAL pointer for volume control from settings.
+    void setHAL(BoardHAL* hal) { hal_ = hal; }
 
-    /// Touch action callbacks.
-    using ActionCallback = void(*)();
-    void onMuteToggle(ActionCallback cb) { on_mute_ = cb; }
-    void onInterrupt(ActionCallback cb) { on_interrupt_ = cb; }
+    /// Set the NVS settings pointer (for settings screen).
+    void setNvsSettings(NvsSettings* nvs) { nvs_ = nvs; }
 
-private:
-    void drawHeader(const char* text, uint16_t color);
-    void drawTextArea(const char* text, uint16_t color, int y_offset);
-    void drawButton(int x, int y, int w, int h, const char* label, uint16_t color);
-    void fillRect(int x, int y, int w, int h, uint16_t color);
-    void drawString(int x, int y, const char* text, uint16_t color);
+    /// Set playback pointer for software volume control.
+    void setPlayback(class AudioPlayback* pb) { playback_ = pb; }
 
-    bool initLCD();
-    bool initTouch();
+    /// Navigate to settings screen.
+    void showSettings();
 
-    ActionCallback on_mute_ = nullptr;
-    ActionCallback on_interrupt_ = nullptr;
+    /// Navigate back to main screen.
+    void showMain();
 
-    bool thinking_ = false;
-    bool muted_ = false;
+    /// Actual screen loads — called via lv_async_call (not from event ctx).
+    void loadSettingsScreen();
+    void loadMainScreen();
 
-    // Touch zones (y-regions for simple layout)
-    static constexpr int HEADER_H = 30;
-    static constexpr int TEXT_AREA_H = 150;
-    static constexpr int BUTTON_AREA_Y = 190;
-    static constexpr int BUTTON_H = 40;
+    /// Get current volume from settings screen (for NVS persist from uiTask).
+    uint8_t getSettingsVolume() const;
+
+    /// Check and clear volume-dirty flag (uiTask calls this to persist NVS).
+    bool consumeVolumeDirty() {
+        if (volume_dirty_) { volume_dirty_ = false; return true; }
+        return false;
+    }
+
+    /// Update activity indicator state.
+    void setActivityState(int state);
+
     static constexpr int SCREEN_W = 320;
     static constexpr int SCREEN_H = 240;
+
+private:
+    bool initLCD();
+    bool initTouch();
+    bool initLVGL();
+
+    static void touchReadCb(lv_indev_t* indev, lv_indev_data_t* data);
+
+    // Hardware handles (stored for LVGL port)
+    esp_lcd_panel_handle_t panel_handle_ = nullptr;
+    esp_lcd_panel_io_handle_t io_handle_ = nullptr;
+    lv_display_t* lv_display_ = nullptr;
+    lv_indev_t* lv_touch_ = nullptr;
+
+    // Screens
+    MainScreen* main_screen_ = nullptr;
+    SettingsScreen* settings_screen_ = nullptr;
+
+    // HAL reference for volume control
+    BoardHAL* hal_ = nullptr;
+
+    // NVS settings
+    NvsSettings* nvs_ = nullptr;
+
+    // Audio playback for software volume
+    class AudioPlayback* playback_ = nullptr;
+
+    // Flag: volume was changed in settings, needs NVS persist from uiTask.
+    volatile bool volume_dirty_ = false;
 };

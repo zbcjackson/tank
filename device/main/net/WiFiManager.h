@@ -19,6 +19,9 @@ public:
     /// Disconnect and stop WiFi.
     void disconnect();
 
+    /// Reconfigure WiFi with new credentials and reconnect.
+    bool reconfigure(const char* ssid, const char* password);
+
     /// Returns true if connected with IP assigned.
     bool isConnected() const { return connected_; }
 

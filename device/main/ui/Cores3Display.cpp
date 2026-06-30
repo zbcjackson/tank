@@ -1,4 +1,8 @@
 #include "Cores3Display.h"
+#include "screens/MainScreen.h"
+#include "screens/SettingsScreen.h"
+#include "settings/NvsSettings.h"
+#include "app/Session.h"
 #include "hal/cores3/Cores3Pins.h"
 #include "config.h"
 
@@ -9,31 +13,68 @@
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_vendor.h"
 #include "esp_lcd_panel_ops.h"
+#include "esp_lvgl_port.h"
+#include "esp_timer.h"
 #include <cstring>
-#include <cstdio>
 
 static const char* TAG = "Cores3Display";
 
-// Color constants (RGB565)
-static constexpr uint16_t COLOR_BLACK   = 0x0000;
-static constexpr uint16_t COLOR_WHITE   = 0xFFFF;
-static constexpr uint16_t COLOR_BLUE    = 0x001F;
-static constexpr uint16_t COLOR_GREEN   = 0x07E0;
-static constexpr uint16_t COLOR_RED     = 0xF800;
-static constexpr uint16_t COLOR_GRAY    = 0x7BEF;
-static constexpr uint16_t COLOR_DARK_BG = 0x1082;  // Dark gray background
-static constexpr uint16_t COLOR_USER    = 0x34DF;  // Light blue
-static constexpr uint16_t COLOR_ASSIST  = 0xFFFF;  // White
+// Static instance pointer so the static touch callback can reach the screens.
+static Cores3Display* s_self = nullptr;
 
-static esp_lcd_panel_handle_t panel_handle = nullptr;
+// Timer callback: wake the esp_lvgl_port task so it polls our custom indev.
+// Without this, the port task only reads indevs on LVGL_PORT_EVENT_TOUCH which
+// is only set by esp_lcd_touch drivers — our raw I2C indev would never be read.
+static void touch_poll_timer_cb(void* arg) {
+    (void)arg;
+    lvgl_port_task_wake(LVGL_PORT_EVENT_TOUCH, nullptr);
+}
 
 bool Cores3Display::init() {
+    s_self = this;
     if (!initLCD()) return false;
     if (!initTouch()) return false;
+    if (!initLVGL()) return false;
 
-    clear();
-    drawHeader("Tank Device", COLOR_WHITE);
+    // Create screens
+    main_screen_ = new MainScreen();
+    settings_screen_ = new SettingsScreen();
+
+    // Lock LVGL before creating UI objects
+    lvgl_port_lock(0);
+
+    // Create main screen
+    lv_obj_t* main_scr = lv_obj_create(nullptr);
+    main_screen_->create(main_scr);
+
+    // Create settings screen (not loaded yet)
+    lv_obj_t* settings_scr = lv_obj_create(nullptr);
+    settings_screen_->create(settings_scr);
+
+    // Set initial volume from NVS (can't read NVS from LVGL task later, so do it now).
+    if (nvs_) {
+        uint8_t vol = nvs_->getVolume();
+        settings_screen_->setInitialVolume(vol);
+    }
+
+    // Wire navigation callbacks
+    main_screen_->onSettingsTap([](void* ctx) {
+        auto* self = static_cast<Cores3Display*>(ctx);
+        self->showSettings();
+    }, this);
+
+    settings_screen_->onBack([](void* ctx) {
+        auto* self = static_cast<Cores3Display*>(ctx);
+        self->showMain();
+    }, this);
+
+    // Load main screen
+    lv_scr_load(main_scr);
+
+    lvgl_port_unlock();
+
     showStatus("Initializing...");
+    ESP_LOGI(TAG, "LVGL display initialized");
     return true;
 }
 
@@ -47,7 +88,7 @@ bool Cores3Display::initLCD() {
     bus_cfg.sclk_io_num = 36;
     bus_cfg.quadwp_io_num = -1;
     bus_cfg.quadhd_io_num = -1;
-    bus_cfg.max_transfer_sz = SCREEN_W * SCREEN_H * 2;
+    bus_cfg.max_transfer_sz = SCREEN_W * 40 * 2;  // 40 lines for partial rendering
 
     esp_err_t err = spi_bus_initialize(SPI2_HOST, &bus_cfg, SPI_DMA_CH_AUTO);
     if (err != ESP_OK) {
@@ -56,45 +97,42 @@ bool Cores3Display::initLCD() {
     }
 
     // Panel IO
-    esp_lcd_panel_io_handle_t io_handle = nullptr;
     esp_lcd_panel_io_spi_config_t io_config = {};
     io_config.dc_gpio_num = CORES3_LCD_DC_PIN;
     io_config.cs_gpio_num = CORES3_LCD_CS_PIN;
-    io_config.pclk_hz = 40 * 1000 * 1000;  // 40 MHz
+    io_config.pclk_hz = 40 * 1000 * 1000;
     io_config.lcd_cmd_bits = 8;
     io_config.lcd_param_bits = 8;
     io_config.spi_mode = 0;
     io_config.trans_queue_depth = 10;
 
-    err = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_config, &io_handle);
+    err = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_config, &io_handle_);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "LCD panel IO init failed: %s", esp_err_to_name(err));
         return false;
     }
 
-    // Panel driver
+    // Panel driver (ILI9342C is ST7789-compatible)
     esp_lcd_panel_dev_config_t panel_config = {};
     panel_config.reset_gpio_num = CORES3_LCD_RST_PIN;
     panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
     panel_config.bits_per_pixel = 16;
 
-    err = esp_lcd_new_panel_st7789(io_handle, &panel_config, &panel_handle);
+    err = esp_lcd_new_panel_st7789(io_handle_, &panel_config, &panel_handle_);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "LCD panel init failed: %s", esp_err_to_name(err));
         return false;
     }
 
-    esp_lcd_panel_reset(panel_handle);
-    esp_lcd_panel_init(panel_handle);
-    esp_lcd_panel_disp_on_off(panel_handle, true);
+    esp_lcd_panel_reset(panel_handle_);
+    esp_lcd_panel_init(panel_handle_);
+    esp_lcd_panel_disp_on_off(panel_handle_, true);
 
     ESP_LOGI(TAG, "LCD initialized");
     return true;
 }
 
 bool Cores3Display::initTouch() {
-    // FT6336U touch controller on the shared I2C bus (reset is driven by the
-    // AW9523 expander in the HAL). Put it in polling mode and verify it answers.
     ESP_LOGI(TAG, "Initializing FT6336U touch at 0x%02X", CORES3_TOUCH_ADDR);
 
     // Device mode = normal (reg 0x00 = 0x00)
@@ -105,7 +143,7 @@ bool Cores3Display::initTouch() {
     uint8_t int_mode[] = {0xA4, 0x00};
     i2c_master_write_to_device(I2C_NUM_0, CORES3_TOUCH_ADDR, int_mode, 2, pdMS_TO_TICKS(100));
 
-    // Read chip vendor ID (reg 0xA8) as a presence check.
+    // Verify presence via vendor ID (reg 0xA8)
     uint8_t reg = 0xA8;
     uint8_t vendor = 0;
     esp_err_t err = i2c_master_write_read_device(
@@ -118,161 +156,231 @@ bool Cores3Display::initTouch() {
     return true;
 }
 
-void Cores3Display::clear() {
-    fillRect(0, 0, SCREEN_W, SCREEN_H, COLOR_DARK_BG);
-}
+bool Cores3Display::initLVGL() {
+    ESP_LOGI(TAG, "Initializing LVGL via esp_lvgl_port");
 
-void Cores3Display::showStatus(const char* status) {
-    // Status bar below header
-    fillRect(0, HEADER_H, SCREEN_W, 20, COLOR_DARK_BG);
-    drawString(10, HEADER_H + 4, status, COLOR_GRAY);
-}
-
-void Cores3Display::showUserText(const char* text) {
-    // User text in the upper portion of text area
-    fillRect(0, HEADER_H + 20, SCREEN_W, 50, COLOR_DARK_BG);
-
-    char buf[128];
-    snprintf(buf, sizeof(buf), "> %s", text);
-    drawString(10, HEADER_H + 24, buf, COLOR_USER);
-}
-
-void Cores3Display::showAssistantText(const char* text) {
-    // Assistant text in the lower portion of text area
-    fillRect(0, HEADER_H + 70, SCREEN_W, TEXT_AREA_H - 70, COLOR_DARK_BG);
-    drawString(10, HEADER_H + 74, text, COLOR_ASSIST);
-}
-
-void Cores3Display::showThinking(bool active) {
-    thinking_ = active;
-    if (active) {
-        fillRect(0, HEADER_H + 70, SCREEN_W, 20, COLOR_DARK_BG);
-        drawString(10, HEADER_H + 74, "Thinking...", COLOR_GRAY);
+    // Initialize LVGL port (creates the LVGL task).
+    // Allocate a generous 32KB stack from PSRAM: lv_scr_load(), lv_label word-
+    // wrapping on long responses, and refresh() all need deep stack. The 7KB
+    // default stack overflows on screen-switch; 16KB overflows on long text.
+    lvgl_port_cfg_t lvgl_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+    lvgl_cfg.task_stack = 49152;  // 48KB from PSRAM — generous for deep call chains
+    lvgl_cfg.task_stack_caps = MALLOC_CAP_SPIRAM | MALLOC_CAP_DEFAULT;
+    esp_err_t err = lvgl_port_init(&lvgl_cfg);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "LVGL port init failed: %s", esp_err_to_name(err));
+        return false;
     }
+
+    // Add display
+    const lvgl_port_display_cfg_t disp_cfg = {
+        .io_handle = io_handle_,
+        .panel_handle = panel_handle_,
+        .buffer_size = SCREEN_W * 40,  // 40 lines partial rendering
+        .double_buffer = true,
+        .hres = SCREEN_W,
+        .vres = SCREEN_H,
+        .monochrome = false,
+        .rotation = {
+            .swap_xy = false,
+            .mirror_x = false,
+            .mirror_y = false,
+        },
+        .flags = {
+            .buff_dma = false,
+            .buff_spiram = true,
+            .sw_rotate = false,
+            .full_refresh = false,
+            .direct_mode = false,
+        },
+    };
+
+    lv_display_ = lvgl_port_add_disp(&disp_cfg);
+    if (!lv_display_) {
+        ESP_LOGE(TAG, "Failed to add LVGL display");
+        return false;
+    }
+
+    // Add touch input device (custom read callback).
+    // Use LV_INDEV_MODE_EVENT — the esp_lvgl_port task calls lv_indev_read()
+    // directly when LVGL_PORT_EVENT_TOUCH is received. We fire that event from
+    // a periodic timer (20ms) to ensure the indev is polled regularly.
+    // In event mode, lv_timer_handler() does NOT read the indev on its own,
+    // avoiding the double-read that breaks the press→release state machine.
+    lvgl_port_lock(0);
+    lv_touch_ = lv_indev_create();
+    lv_indev_set_type(lv_touch_, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(lv_touch_, touchReadCb);
+    lv_indev_set_display(lv_touch_, lv_display_);
+    lv_indev_set_mode(lv_touch_, LV_INDEV_MODE_EVENT);
+    lvgl_port_unlock();
+
+    // Periodic timer to wake the esp_lvgl_port task so it calls lv_indev_read().
+    esp_timer_handle_t touch_timer = nullptr;
+    esp_timer_create_args_t timer_args = {};
+    timer_args.callback = touch_poll_timer_cb;
+    timer_args.name = "touch_poll";
+    esp_timer_create(&timer_args, &touch_timer);
+    esp_timer_start_periodic(touch_timer, 20 * 1000);  // 20ms
+
+    ESP_LOGI(TAG, "LVGL initialized (display + touch)");
+    return true;
 }
 
-void Cores3Display::showError(const char* error) {
-    fillRect(0, HEADER_H + 70, SCREEN_W, 20, COLOR_DARK_BG);
-    drawString(10, HEADER_H + 74, error, COLOR_RED);
-}
+// ─── Touch read callback for LVGL ──────────────────────────────────────────
 
-bool Cores3Display::pollTouch() {
-    // Read touch data from FT6336U
-    uint8_t data[7] = {};
-    uint8_t reg = 0x02;  // Touch status register
+void Cores3Display::touchReadCb(lv_indev_t* indev, lv_indev_data_t* data) {
+    (void)indev;
+
+    // Read FT6336U touch data via I2C
+    uint8_t touch_data[7] = {};
+    uint8_t reg = 0x02;
 
     esp_err_t err = i2c_master_write_read_device(
         I2C_NUM_0, CORES3_TOUCH_ADDR,
-        &reg, 1, data, sizeof(data),
-        pdMS_TO_TICKS(10)
-    );
-
-    if (err != ESP_OK) return false;
-
-    uint8_t touch_count = data[0] & 0x0F;
-    if (touch_count == 0) return false;
-
-    // Parse first touch point
-    uint16_t x = ((data[1] & 0x0F) << 8) | data[2];
-    uint16_t y = ((data[3] & 0x0F) << 8) | data[4];
-
-    // Check button zones
-    if (y >= BUTTON_AREA_Y && y < BUTTON_AREA_Y + BUTTON_H) {
-        if (x < SCREEN_W / 2) {
-            // Left button: mute toggle
-            muted_ = !muted_;
-            if (on_mute_) on_mute_();
-
-            // Visual feedback
-            uint16_t color = muted_ ? COLOR_RED : COLOR_GREEN;
-            const char* label = muted_ ? "MUTED" : "MIC ON";
-            drawButton(10, BUTTON_AREA_Y, SCREEN_W / 2 - 20, BUTTON_H, label, color);
-            return true;
-        } else {
-            // Right button: interrupt
-            if (on_interrupt_) on_interrupt_();
-
-            // Visual feedback
-            drawButton(SCREEN_W / 2 + 10, BUTTON_AREA_Y, SCREEN_W / 2 - 20, BUTTON_H, "STOP", COLOR_RED);
-            vTaskDelay(pdMS_TO_TICKS(200));
-            drawButton(SCREEN_W / 2 + 10, BUTTON_AREA_Y, SCREEN_W / 2 - 20, BUTTON_H, "INTERRUPT", COLOR_GRAY);
-            return true;
-        }
-    }
-
-    return false;
-}
-
-bool Cores3Display::pollPressed() {
-    // Read FT6336U touch status. Any active touch point = button held.
-    uint8_t data[1] = {};
-    uint8_t reg = 0x02;  // Touch status register (touch count in low nibble)
-
-    esp_err_t err = i2c_master_write_read_device(
-        I2C_NUM_0, CORES3_TOUCH_ADDR,
-        &reg, 1, data, sizeof(data),
+        &reg, 1, touch_data, sizeof(touch_data),
         pdMS_TO_TICKS(10)
     );
 
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Touch read failed: %s", esp_err_to_name(err));
-        return false;
+        data->state = LV_INDEV_STATE_RELEASED;
+        return;
     }
-    uint8_t count = data[0] & 0x0F;
-    if (count > 0) {
-        ESP_LOGI(TAG, "Touch detected: count=%d (reg0x02=0x%02X)", count, data[0]);
+
+    uint8_t touch_count = touch_data[0] & 0x0F;
+    if (touch_count > 0) {
+        uint16_t x = ((touch_data[1] & 0x0F) << 8) | touch_data[2];
+        uint16_t y = ((touch_data[3] & 0x0F) << 8) | touch_data[4];
+
+        if (s_self && s_self->main_screen_) {
+            s_self->main_screen_->updatePTTFromTouch(true, x, y);
+        }
+
+        data->point.x = x;
+        data->point.y = y;
+        data->state = LV_INDEV_STATE_PRESSED;
+    } else {
+        // No touch — clear PTT immediately (level-based = can't get stuck).
+        if (s_self && s_self->main_screen_) {
+            s_self->main_screen_->updatePTTFromTouch(false, 0, 0);
+        }
+
+        data->state = LV_INDEV_STATE_RELEASED;
     }
-    return count > 0;
+}
+
+// ─── Display interface implementation ───────────────────────────────────────
+
+// Helper: try to lock LVGL with a short timeout. If the LVGL port task is busy
+// rendering or processing touch, we skip this update rather than block the
+// uiTask (which would starve touch polling and cause the "stuck" feel).
+// The uiTask loops every 20ms, so skipped updates are retried immediately.
+static inline bool tryLock() { return lvgl_port_lock(10); }
+
+void Cores3Display::showStatus(const char* status) {
+    if (!tryLock()) return;
+    if (main_screen_) main_screen_->setStatus(status);
+    lvgl_port_unlock();
+}
+
+void Cores3Display::showUserText(const char* text) {
+    if (!tryLock()) return;
+    if (main_screen_) main_screen_->setUserText(text);
+    lvgl_port_unlock();
+}
+
+void Cores3Display::showAssistantText(const char* text) {
+    if (!tryLock()) return;
+    if (main_screen_) {
+        main_screen_->setAssistantText(text);
+        main_screen_->setActivityState((int)Session::State::SPEAKING);
+    }
+    lvgl_port_unlock();
+}
+
+void Cores3Display::showThinking(bool active) {
+    if (!tryLock()) return;
+    if (main_screen_) main_screen_->setThinking(active);
+    lvgl_port_unlock();
+}
+
+void Cores3Display::showError(const char* error) {
+    if (!tryLock()) return;
+    if (main_screen_) main_screen_->setError(error);
+    lvgl_port_unlock();
+}
+
+void Cores3Display::clear() {
+    // LVGL manages rendering — nothing to do
+}
+
+bool Cores3Display::pollPressed() {
+    // Driven by LVGL button events on the PTT button.
+    // No lock needed — reads a volatile bool.
+    if (main_screen_) {
+        return main_screen_->isPTTPressed();
+    }
+    return false;
 }
 
 void Cores3Display::showTalkState(bool listening) {
-    // Full-width color bar at the bottom — visible without a font renderer.
-    // Green = listening (PTT held), dark = idle.
-    uint16_t color = listening ? COLOR_GREEN : COLOR_DARK_BG;
-    fillRect(0, BUTTON_AREA_Y, SCREEN_W, BUTTON_H, color);
+    if (!tryLock()) return;
+    if (main_screen_) main_screen_->setPTTState(listening);
+    lvgl_port_unlock();
 }
 
-// ─── Drawing primitives ─────────────────────────────────────────────────────
-
-void Cores3Display::drawHeader(const char* text, uint16_t color) {
-    fillRect(0, 0, SCREEN_W, HEADER_H, COLOR_BLACK);
-    drawString(10, 8, text, color);
+void Cores3Display::setActivityState(int state) {
+    if (!tryLock()) return;
+    if (main_screen_) main_screen_->setActivityState(state);
+    lvgl_port_unlock();
 }
 
-void Cores3Display::drawButton(int x, int y, int w, int h, const char* label, uint16_t color) {
-    fillRect(x, y, w, h, color);
-    // Center label (approximate)
-    int text_x = x + (w - strlen(label) * 8) / 2;
-    int text_y = y + (h - 12) / 2;
-    drawString(text_x, text_y, label, COLOR_BLACK);
+// Async screen-load trampolines. lv_scr_load() must NOT be called from inside
+// a button event callback — LVGL is mid-iteration over the current screen's
+// objects and swapping the screen out corrupts its state (freeze). lv_async_call
+// defers the load to the start of the next lv_timer_handler cycle, after event
+// processing has finished.
+static void loadSettingsAsync(void* arg) {
+    auto* self = static_cast<Cores3Display*>(arg);
+    self->loadSettingsScreen();
 }
 
-void Cores3Display::fillRect(int x, int y, int w, int h, uint16_t color) {
-    if (!panel_handle) return;
+static void loadMainAsync(void* arg) {
+    auto* self = static_cast<Cores3Display*>(arg);
+    self->loadMainScreen();
+}
 
-    // Allocate buffer for one row and fill repeatedly
-    uint16_t* line = (uint16_t*)heap_caps_malloc(w * sizeof(uint16_t), MALLOC_CAP_DMA);
-    if (!line) return;
-
-    for (int i = 0; i < w; i++) {
-        line[i] = color;
+void Cores3Display::loadSettingsScreen() {
+    if (settings_screen_) {
+        settings_screen_->setHAL(hal_);
+        settings_screen_->setNvsSettings(nvs_);
+        settings_screen_->setPlayback(playback_);
+        settings_screen_->refresh();
+        lv_scr_load(settings_screen_->getScreen());
     }
-
-    for (int row = y; row < y + h; row++) {
-        esp_lcd_panel_draw_bitmap(panel_handle, x, row, x + w, row + 1, line);
-    }
-
-    heap_caps_free(line);
 }
 
-void Cores3Display::drawString(int x, int y, const char* text, uint16_t color) {
-    // Simple character rendering — placeholder for a proper font engine.
-    // In production, use LVGL or a bitmap font library.
-    // For now, this logs to serial (the LCD rendering would need a font table).
-    ESP_LOGD(TAG, "Draw @(%d,%d): %s", x, y, text);
+void Cores3Display::loadMainScreen() {
+    if (main_screen_) {
+        // Mark volume dirty so the uiTask persists it to NVS from its own context.
+        volume_dirty_ = true;
+        lv_scr_load(main_screen_->getScreen());
+    }
+}
 
-    // TODO: Implement bitmap font rendering or integrate LVGL.
-    // For Phase 4 MVP, the serial stub (Display.cpp) provides the output,
-    // and this file provides the framework for real LCD rendering.
-    (void)x; (void)y; (void)text; (void)color;
+uint8_t Cores3Display::getSettingsVolume() const {
+    if (settings_screen_) {
+        return settings_screen_->getVolume();
+    }
+    return 70;
+}
+
+void Cores3Display::showSettings() {
+    // Called from the gear button's LVGL event callback — defer the actual
+    // screen load so we don't swap screens mid-event-processing.
+    lv_async_call(loadSettingsAsync, this);
+}
+
+void Cores3Display::showMain() {
+    lv_async_call(loadMainAsync, this);
 }

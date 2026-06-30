@@ -57,6 +57,21 @@ void WsClient::disconnect() {
     connected_ = false;
 }
 
+bool WsClient::reconfigure(const char* host, int port, const char* session_id) {
+    ESP_LOGI(TAG, "Reconfiguring WebSocket: %s:%d", host, port);
+
+    // Disconnect existing connection
+    disconnect();
+
+    // Rebuild URI
+    snprintf(uri_, sizeof(uri_), "ws://%s:%d/ws/%s?output_rate=%d",
+             host, port, session_id, CONFIG_SPK_SAMPLE_RATE);
+    ESP_LOGI(TAG, "New WebSocket URI: %s", uri_);
+
+    // Reconnect
+    return connect();
+}
+
 bool WsClient::sendAudio(const int16_t* pcm, size_t samples) {
     if (!connected_ || !client_) return false;
 

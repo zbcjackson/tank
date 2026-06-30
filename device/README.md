@@ -38,7 +38,7 @@ uv run pio device monitor
 
 ## Configuration
 
-Edit `main/config.h` before building:
+Compile-time defaults live in `main/config.h` (used on first boot before anything is saved):
 
 ```c
 #define CONFIG_WIFI_SSID      "YOUR_SSID"
@@ -47,7 +47,25 @@ Edit `main/config.h` before building:
 #define CONFIG_BACKEND_PORT   8000
 ```
 
-Future: WiFi credentials will be configurable via BLE provisioning or touch-screen setup.
+### Runtime configuration
+
+**Volume** — adjust on-device via the Settings screen (tap the gear icon, then the
+`-` / `+` buttons). The level is saved to NVS and restored on the next boot.
+
+**Network** — configure WiFi and backend over the USB serial monitor using AT
+commands. Values are saved to NVS; `AT+SAVE` reboots the device to apply them:
+
+```
+AT+SSID=MyNetwork      # set WiFi SSID
+AT+PASS=secret         # set WiFi password
+AT+HOST=192.168.1.50   # set backend host
+AT+PORT=8000           # set backend port
+AT+INFO                # print current config (password masked)
+AT+SAVE                # reboot and apply
+AT+RESET               # factory reset (erase NVS, reboot)
+```
+
+NVS-stored values override the `config.h` defaults.
 
 ## Architecture
 

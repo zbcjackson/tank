@@ -29,9 +29,9 @@ extern "C" void app_main(void) {
         while (true) { vTaskDelay(pdMS_TO_TICKS(1000)); }
     }
 
-    // Initialize and start the assistant
+    // Initialize and start the assistant (pass HAL for volume control)
     static Assistant assistant;
-    if (!assistant.init()) {
+    if (!assistant.init(hal)) {
         ESP_LOGE(TAG, "Assistant init failed, halting");
         while (true) { vTaskDelay(pdMS_TO_TICKS(1000)); }
     }

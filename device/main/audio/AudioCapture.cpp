@@ -91,6 +91,12 @@ void AudioCapture::start() {
     if (running_) return;
     running_ = true;
 
+    // In continuous (non-PTT) mode nothing calls resume(), so unpause here.
+    // In PTT mode we stay paused until the first button press.
+#if !CONFIG_PUSH_TO_TALK
+    paused_ = false;
+#endif
+
     i2s_channel_enable(rx_chan_);
 
     xTaskCreatePinnedToCore(
@@ -100,15 +106,16 @@ void AudioCapture::start() {
 }
 
 void AudioCapture::pause() {
-    if (rx_chan_) {
-        i2s_channel_disable(rx_chan_);
-    }
+    // Gate frame queuing rather than disabling the I2S RX channel. On the
+    // shared full-duplex channel, toggling RX enable/disable is fragile —
+    // re-enabling after a pause could fail and silently kill mic input
+    // (symptom: first PTT works, later ones send no audio). The channel runs
+    // continuously; we just stop pushing frames to the send queue.
+    paused_ = true;
 }
 
 void AudioCapture::resume() {
-    if (rx_chan_) {
-        i2s_channel_enable(rx_chan_);
-    }
+    paused_ = false;
 }
 
 void AudioCapture::stop() {
@@ -164,9 +171,11 @@ void AudioCapture::captureTask(void* arg) {
             max_sample = 0;
         }
 
-        // Push to queue for WebSocket transmission
-        if (xQueueSend(self->mic_queue_, frame, 0) != pdTRUE) {
-            // Queue full — drop frame
+        // Push to queue for WebSocket transmission (skip while paused).
+        if (!self->paused_) {
+            if (xQueueSend(self->mic_queue_, frame, 0) != pdTRUE) {
+                // Queue full — drop frame
+            }
         }
     }
 

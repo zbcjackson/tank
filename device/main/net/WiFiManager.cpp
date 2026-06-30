@@ -60,6 +60,31 @@ void WiFiManager::disconnect() {
     esp_wifi_stop();
 }
 
+bool WiFiManager::reconfigure(const char* ssid, const char* password) {
+    ESP_LOGI(TAG, "Reconfiguring WiFi: SSID=%s", ssid);
+
+    // Disconnect current connection
+    esp_wifi_disconnect();
+    connected_ = false;
+
+    // Update STA config
+    wifi_config_t wifi_config = {};
+    strncpy((char*)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
+    strncpy((char*)wifi_config.sta.password, password, sizeof(wifi_config.sta.password) - 1);
+    wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+
+    esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "WiFi set_config failed: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    // Reconnect with new credentials
+    retry_count_ = 0;
+    esp_wifi_connect();
+    return true;
+}
+
 void WiFiManager::eventHandler(void* arg, esp_event_base_t base, int32_t id, void* data) {
     auto* self = static_cast<WiFiManager*>(arg);
 

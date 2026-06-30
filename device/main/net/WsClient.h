@@ -31,6 +31,9 @@ public:
     /// Disconnect and clean up.
     void disconnect();
 
+    /// Reconfigure with new host/port and reconnect.
+    bool reconfigure(const char* host, int port, const char* session_id);
+
     /// Send binary audio frame (raw Int16 PCM, no header).
     bool sendAudio(const int16_t* pcm, size_t samples);
 

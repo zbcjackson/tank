@@ -1,6 +1,10 @@
 # Build output
 .pio/
 
+# ESP-IDF managed components (downloaded dependencies, like node_modules)
+managed_components/
+dependencies.lock
+
 # Environment config (contains secrets)
 .env
 

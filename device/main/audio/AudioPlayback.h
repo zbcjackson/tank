@@ -23,6 +23,9 @@ public:
     /// Flush all buffered audio (on interrupt/new PTT press).
     void flush();
 
+    /// Set software volume (0–100). Applied as PCM scaling before I2S output.
+    void setVolume(uint8_t vol) { volume_ = vol; }
+
     /// Returns true if currently outputting audio.
     bool isPlaying() const { return playing_; }
 
@@ -34,4 +37,5 @@ private:
     TaskHandle_t task_ = nullptr;
     bool running_ = false;
     bool playing_ = false;
+    volatile uint8_t volume_ = 70;
 };

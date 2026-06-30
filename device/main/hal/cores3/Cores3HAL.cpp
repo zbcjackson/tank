@@ -300,13 +300,13 @@ bool Cores3HAL::initI2S() {
 }
 
 void Cores3HAL::setVolume(uint8_t volume) {
+    if (volume > 100) volume = 100;
     volume_ = volume;
-    // AW88298 register 0x0C is the output level. The M5Unified reference uses
-    // the fixed value 0x0064 for full volume; the exact dB-per-step encoding
-    // isn't documented here, so we use that verified value rather than a
-    // guessed attenuation formula (which risked distorting output).
-    // TODO: implement fine-grained volume from the AW88298 datasheet if needed.
-    aw88298WriteReg(0x0C, 0x0064);
+    // AW88298 register 0x0C controls output volume. The M5Unified reference
+    // uses 0x0064 (100) for full volume, so map 0–100% linearly to 0x00–0x64.
+    // 0 = mute, 0x64 = the verified full level (no over-drive / clipping).
+    uint16_t hw_vol = (uint16_t)((uint32_t)volume * 0x64 / 100);
+    aw88298WriteReg(0x0C, hw_vol);
 }
 
 void Cores3HAL::setMicGain(uint8_t gain) {

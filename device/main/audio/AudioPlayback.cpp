@@ -24,8 +24,9 @@ void AudioPlayback::start() {
     if (running_) return;
     running_ = true;
 
-    // Don't enable TX here — enable on first audio data, disable when idle.
-    // This prevents DMA from replaying stale buffer contents during silence.
+    // TX channel is already enabled by AudioCapture::start() as part of the
+    // full-duplex pair. We never disable it — disabling TX on the shared I2S
+    // peripheral kills the clock that RX (mic) depends on.
 
     xTaskCreatePinnedToCore(
         playbackTask, "audio_playback",
@@ -41,10 +42,7 @@ void AudioPlayback::stop() {
         vTaskDelay(pdMS_TO_TICKS(50));
         task_ = nullptr;
     }
-    if (tx_chan_) {
-        i2s_channel_disable(tx_chan_);
-        tx_chan_ = nullptr;  // Don't delete — AudioCapture owns the channel
-    }
+    // Don't disable TX — AudioCapture owns the channel and the shared clock.
 }
 
 void AudioPlayback::flush() {
@@ -72,25 +70,40 @@ void AudioPlayback::playbackTask(void* arg) {
             self->spk_stream_, frame, frame_bytes, pdMS_TO_TICKS(50));
 
         if (received > 0) {
-            // Got audio data — enable TX if not already playing.
-            if (!self->playing_) {
-                i2s_channel_enable(self->tx_chan_);
-                self->playing_ = true;
-            }
+            self->playing_ = true;
 
             // Pad partial frames with silence so I2S gets a full write.
             if (received < frame_bytes) {
                 memset((uint8_t*)frame + received, 0, frame_bytes - received);
             }
 
+            // Software volume: scale PCM samples before I2S output.
+            // M5Unified uses this approach — the AW88298 hardware register
+            // sets a fixed analog gain, actual volume is PCM multiplication.
+            uint8_t vol = self->volume_;
+            if (vol < 100) {
+                for (size_t i = 0; i < FRAME_SAMPLES; i++) {
+                    frame[i] = (int16_t)((int32_t)frame[i] * vol / 100);
+                }
+            }
+
             i2s_channel_write(self->tx_chan_, frame, frame_bytes, &bytes_written, pdMS_TO_TICKS(100));
         } else {
-            // Timeout — no more audio. Disable TX to stop DMA from replaying
-            // stale buffer contents (the "repeating garbled sound" artifact).
+            // Timeout — no more audio. Write silence to keep the TX DMA fed
+            // (prevents stale-buffer replay). We NEVER disable the TX channel
+            // because it shares the I2S clock with RX (mic). Disabling TX
+            // permanently kills mic input until a full device reset.
             if (self->playing_) {
-                i2s_channel_disable(self->tx_chan_);
+                memset(frame, 0, frame_bytes);
+                // Write a few silence frames to flush the DMA pipeline and
+                // ramp the DAC to zero (prevents the stop "pop").
+                for (int i = 0; i < 3; i++) {
+                    i2s_channel_write(self->tx_chan_, frame, frame_bytes,
+                                      &bytes_written, pdMS_TO_TICKS(100));
+                }
                 self->playing_ = false;
             }
+            // TX stays enabled, outputting zeros from the idle DMA buffers.
         }
     }
 

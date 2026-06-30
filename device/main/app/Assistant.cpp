@@ -1,7 +1,9 @@
 #include "Assistant.h"
+#include "ui/Cores3Display.h"
 #include "config.h"
 
 #include "esp_log.h"
+#include "nvs_flash.h"
 #include <cstring>
 
 static const char* TAG = "Assistant";
@@ -9,27 +11,51 @@ static const char* TAG = "Assistant";
 // Forward declare display factory
 extern Display* createDisplay();
 
-bool Assistant::init() {
+bool Assistant::init(BoardHAL* hal) {
     ESP_LOGI(TAG, "Initializing Tank Device Client");
+    hal_ = hal;
+
+    // Initialize NVS up front so we can read saved settings before WiFi init.
+    // (WiFiManager::init also calls nvs_flash_init, but it is idempotent.)
+    esp_err_t nvs_err = nvs_flash_init();
+    if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES || nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        nvs_flash_erase();
+        nvs_flash_init();
+    }
+    nvs_.init();
 
     // Session
     session_.init();
     session_.setState(Session::State::IDLE);
 
-    // Display (serial stub for now)
+    // Display
     display_ = createDisplay();
+
+    // Wire HAL and NVS to display if it's a Cores3Display
+#ifdef TARGET_CORES3
+    auto* cores3_disp = static_cast<Cores3Display*>(display_);
+    cores3_disp->setHAL(hal_);
+    cores3_disp->setNvsSettings(&nvs_);
+    cores3_disp->setPlayback(&playback_);
+#endif
+
     if (!display_->init()) {
         ESP_LOGE(TAG, "Display init failed");
         return false;
     }
     display_->showStatus("Initializing...");
 
+    // Apply saved volume (software scaling in playback task)
+    uint8_t vol = nvs_.getVolume();
+    playback_.setVolume(vol);
+    ESP_LOGI(TAG, "Volume set to %d%%", vol);
+
     // Create queues / stream buffers
     mic_queue_ = xQueueCreate(CONFIG_MIC_QUEUE_LEN, CONFIG_MIC_FRAME_BYTES);
-    // Speaker stream: 256KB buffer holds ~8s of 16kHz mono 16-bit audio.
-    // Allocated from PSRAM (CoreS3 has 8MB). Absorbs full TTS responses
-    // without dropping data from the non-blocking WS callback.
-    spk_stream_ = xStreamBufferCreateWithCaps(256 * 1024, CONFIG_SPK_FRAME_BYTES, MALLOC_CAP_SPIRAM);
+    // Speaker stream: 512KB buffer holds ~16s of 16kHz mono 16-bit audio.
+    // Allocated from PSRAM (CoreS3 has 8MB). Must be large enough to absorb
+    // full TTS responses without blocking the WebSocket callback for too long.
+    spk_stream_ = xStreamBufferCreateWithCaps(512 * 1024, CONFIG_SPK_FRAME_BYTES, MALLOC_CAP_SPIRAM);
     if (!spk_stream_) {
         // Fallback to internal RAM with smaller buffer if PSRAM unavailable
         ESP_LOGW(TAG, "PSRAM stream buffer failed, using 64KB internal");
@@ -42,8 +68,25 @@ bool Assistant::init() {
         return false;
     }
 
+    // Resolve WiFi + backend config from NVS, falling back to compile-time defaults.
+    char wifi_ssid[64] = {};
+    char wifi_pass[64] = {};
+    char backend_host[128] = {};
+
+    if (!nvs_.getWifiSSID(wifi_ssid, sizeof(wifi_ssid))) {
+        strncpy(wifi_ssid, CONFIG_WIFI_SSID, sizeof(wifi_ssid) - 1);
+    }
+    if (!nvs_.getWifiPassword(wifi_pass, sizeof(wifi_pass))) {
+        strncpy(wifi_pass, CONFIG_WIFI_PASSWORD, sizeof(wifi_pass) - 1);
+    }
+    if (!nvs_.getBackendHost(backend_host, sizeof(backend_host))) {
+        strncpy(backend_host, CONFIG_BACKEND_HOST, sizeof(backend_host) - 1);
+    }
+    int backend_port = nvs_.getBackendPort();
+    ESP_LOGI(TAG, "WiFi SSID=%s, backend=%s:%d", wifi_ssid, backend_host, backend_port);
+
     // WebSocket client
-    ws_.init(CONFIG_BACKEND_HOST, CONFIG_BACKEND_PORT, session_.getId());
+    ws_.init(backend_host, backend_port, session_.getId());
     ws_.onAudio([this](const int16_t* pcm, size_t samples, uint32_t sr) {
         onWsAudio(pcm, samples, sr);
     });
@@ -61,14 +104,18 @@ bool Assistant::init() {
         return false;
     }
 
-    // WiFi
+    // WiFi callbacks — register BEFORE init so onConnected isn't missed if the
+    // connection comes up quickly.
     wifi_.onConnected([this]() { onWiFiConnected(); });
     wifi_.onDisconnected([this]() { onWiFiDisconnected(); });
 
-    if (!wifi_.init(CONFIG_WIFI_SSID, CONFIG_WIFI_PASSWORD)) {
+    if (!wifi_.init(wifi_ssid, wifi_pass)) {
         ESP_LOGE(TAG, "WiFi init failed");
         return false;
     }
+
+    // Serial config handler
+    serial_config_.init(&nvs_, &wifi_, &ws_);
 
     ESP_LOGI(TAG, "Initialization complete");
     display_->showStatus("Connecting WiFi...");
@@ -83,7 +130,7 @@ void Assistant::start() {
     capture_.start();
     playback_.start();
 
-    // Start WS send task (reads from mic_queue, sends to backend)
+    // Start WS send task
     xTaskCreatePinnedToCore(
         wsSendTask, "ws_send",
         CONFIG_NET_TASK_STACK, this,
@@ -98,6 +145,9 @@ void Assistant::start() {
         CONFIG_UI_TASK_PRIORITY, &ui_task_,
         CONFIG_UI_TASK_CORE
     );
+
+    // Start serial config listener
+    serial_config_.start();
 
     ESP_LOGI(TAG, "All tasks started");
 }
@@ -127,11 +177,11 @@ void Assistant::onWiFiDisconnected() {
 void Assistant::onWsAudio(const int16_t* pcm, size_t samples, uint32_t sample_rate) {
     if (!spk_stream_) return;
 
-    // Write raw PCM bytes into the stream buffer. Non-blocking: if the buffer
-    // is full, excess bytes are silently dropped (backpressure from playback
-    // consuming at real-time rate means this rarely happens with a 32KB buffer).
     size_t bytes = samples * sizeof(int16_t);
-    xStreamBufferSend(spk_stream_, pcm, bytes, 0);
+    // Use a short blocking timeout so we don't drop frames when the buffer is
+    // temporarily full (causes audible glitches/blasts on long responses).
+    // The playback task drains ~32KB/s; a 50ms wait lets it clear one frame.
+    xStreamBufferSend(spk_stream_, pcm, bytes, pdMS_TO_TICKS(50));
 
     if (session_.getState() != Session::State::SPEAKING) {
         session_.setState(Session::State::SPEAKING);
@@ -165,24 +215,18 @@ void Assistant::wsSendTask(void* arg) {
     ESP_LOGI(TAG, "WS send task started");
 
     while (self->running_) {
-        // Wait for a mic frame
         if (xQueueReceive(self->mic_queue_, frame, pdMS_TO_TICKS(100)) == pdTRUE) {
 #if CONFIG_PUSH_TO_TALK
             if (self->talking_) {
-                // Button held — stream live mic audio.
                 if (self->ws_.isConnected()) {
                     self->ws_.sendAudio(frame, SAMPLES);
                 }
             } else if (self->flush_frames_ > 0) {
-                // Released — drain the bounded tail captured at release time so
-                // the end of speech isn't clipped.
                 if (self->ws_.isConnected()) {
                     self->ws_.sendAudio(frame, SAMPLES);
                 }
                 self->flush_frames_--;
             }
-            // else: idle — discard mic frames so the backend only sees held
-            // utterances.
 #else
             if (self->ws_.isConnected()) {
                 self->ws_.sendAudio(frame, SAMPLES);
@@ -191,7 +235,6 @@ void Assistant::wsSendTask(void* arg) {
         }
 
 #if CONFIG_PUSH_TO_TALK
-        // After the tail has fully drained, finalize the utterance once.
         if (self->eou_pending_ && !self->talking_ && self->flush_frames_ == 0) {
             self->eou_pending_ = false;
             if (self->ws_.isConnected()) {
@@ -214,31 +257,29 @@ void Assistant::uiTask(void* arg) {
 
     while (self->running_) {
 #if CONFIG_PUSH_TO_TALK
-        // Poll push-to-talk button and detect press/release transitions.
+        // Poll PTT button (LVGL event-driven via pollPressed)
         bool pressed = self->display_->pollPressed();
         if (pressed && !was_pressed) {
-            // Press: interrupt any ongoing playback and start streaming mic.
             ESP_LOGI(TAG, "PTT pressed — start streaming");
             self->ws_.sendInterrupt();
-            // Drop any audio still queued/buffered from a previous reply so the
-            // new turn starts clean (no stale tail, no partial-frame glitch).
             self->playback_.flush();
-            // Resume mic capture (was paused during playback).
             self->capture_.resume();
+            // Small delay to let the capture task's current iteration finish
+            // (it may have a stale frame mid-push from before pause took effect).
+            vTaskDelay(pdMS_TO_TICKS(25));
+            // Now drain any stale frames that accumulated.
+            xQueueReset(self->mic_queue_);
             self->talking_ = true;
             self->session_.setState(Session::State::LISTENING);
             self->display_->showTalkState(true);
             self->display_->showStatus("Listening...");
+            // Clear stale text from last turn so it doesn't flash at start.
+            self->display_->showAssistantText("");
         } else if (!pressed && was_pressed) {
-            // Release: stop accepting new audio, but hand the frames already
-            // buffered in the mic queue to wsSendTask so the tail of speech is
-            // flushed before end_of_utterance. wsSendTask sends the signal once
-            // the bounded tail drains.
             self->flush_frames_ = uxQueueMessagesWaiting(self->mic_queue_);
             ESP_LOGI(TAG, "PTT released — flushing %d frames then EOU", self->flush_frames_);
             self->eou_pending_ = true;
             self->talking_ = false;
-            // Pause mic capture so I2S RX doesn't contend with TX during playback.
             self->capture_.pause();
             self->session_.setState(Session::State::PROCESSING);
             self->display_->showTalkState(false);
@@ -266,6 +307,19 @@ void Assistant::uiTask(void* arg) {
                 self->display_->showError(msg.content);
             }
         }
+
+        // Persist volume to NVS from uiTask context (not LVGL task, which
+        // crashes on flash writes). The dirty flag is set when leaving settings.
+#ifdef TARGET_CORES3
+        {
+            auto* d = static_cast<Cores3Display*>(self->display_);
+            if (d->consumeVolumeDirty()) {
+                uint8_t vol = d->getSettingsVolume();
+                self->nvs_.setVolume(vol);
+                ESP_LOGI(TAG, "Volume persisted to NVS: %d%%", vol);
+            }
+        }
+#endif
     }
 
     ESP_LOGI(TAG, "UI task stopped");
