@@ -424,57 +424,57 @@ jobs:
 #   output_dir: ~/.tank/jobs/output
 #   seed_path: ~/.tank/jobs/seed.yaml
 
-connectors:
-  - instance: my-telegram-bot
-    extension: connector-telegram:connector
-    config:
-      bot_token: ${TELEGRAM_BOT_TOKEN}
-      allowlist:
-        default: deny # "allow" (default) or "deny"
-        rules:
-          - external_ids: ["tg:user:6081184568"]
-            policy: allow
-            reason: "me"
-      unauthorized_reply: |
-        Sorry, this bot is invite-only.
-  - instance: my-slack-bot
-    extension: connector-slack:connector
-    config:
-      bot_token: ${SLACK_BOT_TOKEN}
-      app_token: ${SLACK_APP_TOKEN}
-      allowlist:
-        default: require_approval # "allow" (default) or "deny"
-        admin_external_ids:
-          - "slack:user:U02V3Q18N"
-      unauthorized_reply: |
-        Sorry, this bot is invite-only.
-  - instance: my-discord-bot
-    extension: connector-discord:connector
-    config:
-      bot_token: ${DISCORD_BOT_TOKEN}
-      allowlist:
-        default: deny # "allow" (default) or "deny"
-        rules:
-          - external_ids: ["discord:user:705359397051957338"]
-            policy: allow
-            reason: "me"
-      unauthorized_reply: |
-        Sorry, this bot is invite-only.
-  - instance: my-feishu-bot
-    extension: connector-feishu:connector
-    config:
-      app_id: ${FEISHU_APP_ID}
-      app_secret: ${FEISHU_APP_SECRET}
-      allowlist:
-        default: deny # "allow" (default) or "deny"
-        rules:
-          - external_ids: ["feishu:user:ou_b5253cab92f28a83f30d18434a5f3427"]
-            policy: allow
-            reason: "me"
-      unauthorized_reply: |
-        Sorry, this bot is invite-only.
-  - instance: my-wechat
-    extension: connector-wechat:connector
-    config:
-      account_id: ${WECHAT_ACCOUNT_ID}
-      token: ${WECHAT_TOKEN}
+#connectors:
+#  - instance: my-telegram-bot
+#    extension: connector-telegram:connector
+#    config:
+#      bot_token: ${TELEGRAM_BOT_TOKEN}
+#      allowlist:
+#        default: deny # "allow" (default) or "deny"
+#        rules:
+#          - external_ids: ["tg:user:6081184568"]
+#            policy: allow
+#            reason: "me"
+#      unauthorized_reply: |
+#        Sorry, this bot is invite-only.
+#  - instance: my-slack-bot
+#    extension: connector-slack:connector
+#    config:
+#      bot_token: ${SLACK_BOT_TOKEN}
+#      app_token: ${SLACK_APP_TOKEN}
+#      allowlist:
+#        default: require_approval # "allow" (default) or "deny"
+#        admin_external_ids:
+#          - "slack:user:U02V3Q18N"
+#      unauthorized_reply: |
+#        Sorry, this bot is invite-only.
+#  - instance: my-discord-bot
+#    extension: connector-discord:connector
+#    config:
+#      bot_token: ${DISCORD_BOT_TOKEN}
+#      allowlist:
+#        default: deny # "allow" (default) or "deny"
+#        rules:
+#          - external_ids: ["discord:user:705359397051957338"]
+#            policy: allow
+#            reason: "me"
+#      unauthorized_reply: |
+#        Sorry, this bot is invite-only.
+#  - instance: my-feishu-bot
+#    extension: connector-feishu:connector
+#    config:
+#      app_id: ${FEISHU_APP_ID}
+#      app_secret: ${FEISHU_APP_SECRET}
+#      allowlist:
+#        default: deny # "allow" (default) or "deny"
+#        rules:
+#          - external_ids: ["feishu:user:ou_b5253cab92f28a83f30d18434a5f3427"]
+#            policy: allow
+#            reason: "me"
+#      unauthorized_reply: |
+#        Sorry, this bot is invite-only.
+#  - instance: my-wechat
+#    extension: connector-wechat:connector
+#    config:
+#      account_id: ${WECHAT_ACCOUNT_ID}
+#      token: ${WECHAT_TOKEN}
