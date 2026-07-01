@@ -243,6 +243,11 @@ void Cores3Display::touchReadCb(lv_indev_t* indev, lv_indev_data_t* data) {
     );
 
     if (err != ESP_OK) {
+        // I2C read failed (bus contention with audio codec). Treat as "no
+        // touch" so PTT can't get stuck ON — a stuck PTT streams audio forever.
+        if (s_self && s_self->main_screen_) {
+            s_self->main_screen_->updatePTTFromTouch(false, 0, 0);
+        }
         data->state = LV_INDEV_STATE_RELEASED;
         return;
     }
@@ -324,7 +329,11 @@ bool Cores3Display::pollPressed() {
 }
 
 void Cores3Display::showTalkState(bool listening) {
-    if (!tryLock()) return;
+    // Use a longer lock timeout (200ms) than other UI updates — the PTT
+    // highlight is important and infrequent, so it must not be dropped when
+    // the LVGL task is busy rendering a response (which would leave the button
+    // stuck green after release).
+    if (!lvgl_port_lock(200)) return;
     if (main_screen_) main_screen_->setPTTState(listening);
     lvgl_port_unlock();
 }

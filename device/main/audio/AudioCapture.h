@@ -40,5 +40,5 @@ private:
     i2s_chan_handle_t tx_chan_ = nullptr;
     bool running_ = false;
     bool muted_ = false;
-    volatile bool paused_ = true;  // Start paused — PTT press calls resume()
+    volatile bool paused_ = false;  // Capture always runs; PTT gating is in wsSendTask
 };

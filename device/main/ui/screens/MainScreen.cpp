@@ -136,11 +136,6 @@ void MainScreen::create(lv_obj_t* parent) {
     ESP_LOGI(TAG, "Main screen created");
 }
 
-void MainScreen::setDebugTouch(int x, int y) {
-    (void)x; (void)y;
-    // Debug label removed — kept method signature for touch callback compatibility.
-}
-
 void MainScreen::updatePTTFromTouch(bool touching, int x, int y) {
     // PTT button region: centered 300px wide (x: 10–310), 64px tall at bottom
     // with -8px offset (y: 168–232 on a 240px screen).
@@ -239,24 +234,16 @@ void MainScreen::setPTTState(bool pressed) {
     if (!ptt_btn_ || !ptt_label_) return;
     if (pressed) {
         lv_label_set_text(ptt_label_, "Listening...");
+        // Explicitly set the active color — the button no longer uses LVGL's
+        // LV_STATE_PRESSED (PTT is driven by level-based touch, not LVGL events).
+        lv_obj_set_style_bg_color(ptt_btn_, COLOR_PTT_ACTIVE, 0);
     } else {
         lv_label_set_text(ptt_label_, "Hold to Talk");
+        lv_obj_set_style_bg_color(ptt_btn_, COLOR_PTT_IDLE, 0);
     }
 }
 
 // ─── Event callbacks ────────────────────────────────────────────────────────
-
-void MainScreen::pttPressedCb(lv_event_t* e) {
-    auto* self = static_cast<MainScreen*>(lv_event_get_user_data(e));
-    self->ptt_pressed_ = true;
-    ESP_LOGI(TAG, "PTT pressed");
-}
-
-void MainScreen::pttReleasedCb(lv_event_t* e) {
-    auto* self = static_cast<MainScreen*>(lv_event_get_user_data(e));
-    self->ptt_pressed_ = false;
-    ESP_LOGI(TAG, "PTT released");
-}
 
 void MainScreen::settingsCb(lv_event_t* e) {
     auto* self = static_cast<MainScreen*>(lv_event_get_user_data(e));

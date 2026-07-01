@@ -30,9 +30,6 @@ public:
     /// Visual PTT state (button color).
     void setPTTState(bool pressed);
 
-    /// Debug: show raw touch coordinates on screen (for diagnosing touch).
-    void setDebugTouch(int x, int y);
-
     /// Level-based PTT: update pressed state from the current raw touch.
     /// @param touching true if the panel is being touched right now
     /// @param x,y raw touch coordinates (only valid when touching)
@@ -54,8 +51,6 @@ public:
     }
 
 private:
-    static void pttPressedCb(lv_event_t* e);
-    static void pttReleasedCb(lv_event_t* e);
     static void settingsCb(lv_event_t* e);
 
     lv_obj_t* screen_ = nullptr;
@@ -66,7 +61,6 @@ private:
     lv_obj_t* ptt_btn_ = nullptr;
     lv_obj_t* ptt_label_ = nullptr;
     lv_obj_t* settings_btn_ = nullptr;
-    lv_obj_t* debug_label_ = nullptr;
 
     volatile bool ptt_pressed_ = false;
 

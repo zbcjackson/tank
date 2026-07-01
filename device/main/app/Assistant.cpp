@@ -178,10 +178,11 @@ void Assistant::onWsAudio(const int16_t* pcm, size_t samples, uint32_t sample_ra
     if (!spk_stream_) return;
 
     size_t bytes = samples * sizeof(int16_t);
-    // Use a short blocking timeout so we don't drop frames when the buffer is
-    // temporarily full (causes audible glitches/blasts on long responses).
-    // The playback task drains ~32KB/s; a 50ms wait lets it clear one frame.
-    xStreamBufferSend(spk_stream_, pcm, bytes, pdMS_TO_TICKS(50));
+    // Block until space is available. The playback task drains at 32KB/s, so
+    // even a full 512KB buffer clears in ~16s. Using portMAX_DELAY ensures no
+    // frames are ever dropped — the WebSocket callback just waits, creating
+    // natural backpressure. This eliminates the blast noise on long responses.
+    xStreamBufferSend(spk_stream_, pcm, bytes, portMAX_DELAY);
 
     if (session_.getState() != Session::State::SPEAKING) {
         session_.setState(Session::State::SPEAKING);
@@ -221,27 +222,42 @@ void Assistant::wsSendTask(void* arg) {
                 if (self->ws_.isConnected()) {
                     self->ws_.sendAudio(frame, SAMPLES);
                 }
-            } else if (self->flush_frames_ > 0) {
+            } else if (self->eou_pending_ && self->drain_frames_ > 0) {
+                // Draining the tail of speech (queued + DMA pipeline frames).
                 if (self->ws_.isConnected()) {
                     self->ws_.sendAudio(frame, SAMPLES);
                 }
-                self->flush_frames_--;
+                self->drain_frames_--;
+                if (self->drain_frames_ == 0) {
+                    // All speech frames sent — finalize the utterance.
+                    self->eou_pending_ = false;
+                    if (self->ws_.isConnected()) {
+                        self->ws_.sendEndOfUtterance();
+                        ESP_LOGI(TAG, "EOU sent (drain complete)");
+                    }
+                }
             }
+            // else: not talking and not draining — discard frame (silence/echo).
 #else
             if (self->ws_.isConnected()) {
                 self->ws_.sendAudio(frame, SAMPLES);
             }
 #endif
-        }
-
+        } else {
 #if CONFIG_PUSH_TO_TALK
-        if (self->eou_pending_ && !self->talking_ && self->flush_frames_ == 0) {
-            self->eou_pending_ = false;
-            if (self->ws_.isConnected()) {
-                self->ws_.sendEndOfUtterance();
+            // Queue timeout — if still draining, all frames have been consumed.
+            // Send EOU now (handles case where queue empties before drain_frames_
+            // reaches zero, e.g. if DMA was mostly empty).
+            if (self->eou_pending_) {
+                self->eou_pending_ = false;
+                self->drain_frames_ = 0;
+                if (self->ws_.isConnected()) {
+                    self->ws_.sendEndOfUtterance();
+                    ESP_LOGI(TAG, "EOU sent (queue empty)");
+                }
             }
-        }
 #endif
+        }
     }
 
     ESP_LOGI(TAG, "WS send task stopped");
@@ -259,15 +275,29 @@ void Assistant::uiTask(void* arg) {
 #if CONFIG_PUSH_TO_TALK
         // Poll PTT button (LVGL event-driven via pollPressed)
         bool pressed = self->display_->pollPressed();
+        // Ignore presses while audio is playing. The FT6336U touch controller
+        // reports phantom touches during playback (speaker amp coupling on the
+        // shared board), which would start a spurious PTT session and stream the
+        // speaker echo back to the backend. In PTT mode the user doesn't talk
+        // over the response, so gating on playback is safe.
+        if (self->playback_.isPlaying()) {
+            pressed = false;
+        }
         if (pressed && !was_pressed) {
             ESP_LOGI(TAG, "PTT pressed — start streaming");
             self->ws_.sendInterrupt();
             self->playback_.flush();
-            self->capture_.resume();
-            // Small delay to let the capture task's current iteration finish
-            // (it may have a stale frame mid-push from before pause took effect).
-            vTaskDelay(pdMS_TO_TICKS(25));
-            // Now drain any stale frames that accumulated.
+            // If the previous turn's EOU hasn't been sent yet, force it now.
+            if (self->eou_pending_) {
+                self->eou_pending_ = false;
+                self->drain_frames_ = 0;
+                if (self->ws_.isConnected()) {
+                    self->ws_.sendEndOfUtterance();
+                }
+            }
+            // No discard window — capture runs continuously so the DMA always
+            // holds fresh audio (ambient/silence), not stale speech from a
+            // previous turn. Discarding would clip the start of the user's speech.
             xQueueReset(self->mic_queue_);
             self->talking_ = true;
             self->session_.setState(Session::State::LISTENING);
@@ -276,14 +306,16 @@ void Assistant::uiTask(void* arg) {
             // Clear stale text from last turn so it doesn't flash at start.
             self->display_->showAssistantText("");
         } else if (!pressed && was_pressed) {
-            self->flush_frames_ = uxQueueMessagesWaiting(self->mic_queue_);
-            ESP_LOGI(TAG, "PTT released — flushing %d frames then EOU", self->flush_frames_);
-            self->eou_pending_ = true;
+            // Drain the I2S DMA pipeline latency only — the ~120ms of audio
+            // captured BEFORE release but not yet read from the DMA ring buffer.
+            // 8 frames = 160ms covers that without capturing speech the user
+            // says AFTER releasing (which would bleed into the next turn).
+            self->drain_frames_ = 8;
             self->talking_ = false;
-            self->capture_.pause();
-            self->session_.setState(Session::State::PROCESSING);
+            self->eou_pending_ = true;
             self->display_->showTalkState(false);
             self->display_->showStatus("Processing...");
+            self->session_.setState(Session::State::PROCESSING);
         }
         was_pressed = pressed;
 #endif

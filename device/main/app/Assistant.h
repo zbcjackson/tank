@@ -64,7 +64,7 @@ private:
     // Push-to-talk state
     volatile bool talking_ = false;
     volatile bool eou_pending_ = false;
-    volatile int flush_frames_ = 0;
+    volatile int drain_frames_ = 0;  // Frames to drain after release before EOU
 
     bool running_ = false;
 };

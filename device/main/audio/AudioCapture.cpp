@@ -118,6 +118,8 @@ void AudioCapture::resume() {
     paused_ = false;
 }
 
+
+
 void AudioCapture::stop() {
     running_ = false;
     if (rx_chan_) {
@@ -171,7 +173,9 @@ void AudioCapture::captureTask(void* arg) {
             max_sample = 0;
         }
 
-        // Push to queue for WebSocket transmission (skip while paused).
+        // Push to queue for WebSocket transmission. The capture task always
+        // runs; the wsSendTask decides what actually gets sent based on PTT
+        // state (talking_ / drain_frames_).
         if (!self->paused_) {
             if (xQueueSend(self->mic_queue_, frame, 0) != pdTRUE) {
                 // Queue full — drop frame
