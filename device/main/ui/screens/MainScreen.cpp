@@ -2,7 +2,6 @@
 #include "app/Session.h"
 #include "esp_log.h"
 #include <cstring>
-#include <cstdio>
 
 static const char* TAG = "MainScreen";
 
@@ -96,24 +95,6 @@ void MainScreen::create(lv_obj_t* parent) {
     lv_obj_set_style_text_font(activity_label_, &lv_font_montserrat_18, 0);
     lv_obj_align(activity_label_, LV_ALIGN_CENTER, 12, 0);
 
-    // ─── Text area (88px) — non-interactive ──────────────────────────────────
-    lv_obj_t* text_area = lv_obj_create(screen_);
-    lv_obj_set_size(text_area, 300, 88);
-    lv_obj_set_pos(text_area, 10, 90);
-    lv_obj_set_style_bg_opa(text_area, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(text_area, 0, 0);
-    lv_obj_set_style_pad_all(text_area, 4, 0);
-    lv_obj_set_scrollbar_mode(text_area, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_clear_flag(text_area, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_clear_flag(text_area, LV_OBJ_FLAG_CLICKABLE);
-
-    text_label_ = lv_label_create(text_area);
-    lv_label_set_long_mode(text_label_, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(text_label_, 290);
-    lv_label_set_text(text_label_, "");
-    lv_obj_set_style_text_color(text_label_, COLOR_TEXT, 0);
-    lv_obj_set_style_text_font(text_label_, &lv_font_montserrat_16, 0);
-
     // ─── PTT Button (64px) — direct child of screen ──────────────────────────
     ptt_btn_ = lv_btn_create(screen_);
     lv_obj_set_size(ptt_btn_, 300, 64);
@@ -195,24 +176,6 @@ void MainScreen::setActivityState(int state) {
     }
 }
 
-void MainScreen::setAssistantText(const char* text) {
-    if (text_label_) {
-        // Reset color to normal (may have been red from a prior error)
-        lv_obj_set_style_text_color(text_label_, COLOR_TEXT, 0);
-        lv_label_set_text(text_label_, text);
-    }
-}
-
-void MainScreen::setUserText(const char* text) {
-    // Show user text briefly in the text area with prefix
-    if (text_label_) {
-        lv_obj_set_style_text_color(text_label_, COLOR_TEXT, 0);
-        char buf[256];
-        snprintf(buf, sizeof(buf), "> %s", text);
-        lv_label_set_text(text_label_, buf);
-    }
-}
-
 void MainScreen::setThinking(bool active) {
     if (active) {
         setActivityState((int)Session::State::PROCESSING);
@@ -223,11 +186,10 @@ void MainScreen::setThinking(bool active) {
 }
 
 void MainScreen::setError(const char* text) {
+    // Error text itself is not shown on screen (no text area); the red
+    // activity indicator signals the error state. Details go to the log.
+    (void)text;
     setActivityState((int)Session::State::ERROR);
-    if (text_label_) {
-        lv_obj_set_style_text_color(text_label_, COLOR_RED, 0);
-        lv_label_set_text(text_label_, text);
-    }
 }
 
 void MainScreen::setPTTState(bool pressed) {

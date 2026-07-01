@@ -289,15 +289,16 @@ void Cores3Display::showStatus(const char* status) {
 }
 
 void Cores3Display::showUserText(const char* text) {
-    if (!tryLock()) return;
-    if (main_screen_) main_screen_->setUserText(text);
-    lvgl_port_unlock();
+    // Transcribed text is not rendered on screen; the activity indicator
+    // reflects state instead. Kept for the Display interface / logging.
+    (void)text;
 }
 
 void Cores3Display::showAssistantText(const char* text) {
+    // Reply text is not rendered on screen; show the speaking state instead.
+    (void)text;
     if (!tryLock()) return;
     if (main_screen_) {
-        main_screen_->setAssistantText(text);
         main_screen_->setActivityState((int)Session::State::SPEAKING);
     }
     lvgl_port_unlock();

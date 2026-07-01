@@ -3,7 +3,7 @@
 #include "lvgl.h"
 #include <cstdint>
 
-/// Main screen: PTT button, activity indicator, settings gear, text area.
+/// Main screen: PTT button, activity indicator, settings gear.
 class MainScreen {
 public:
     /// Create all LVGL objects on the given screen.
@@ -15,16 +15,10 @@ public:
     /// Update activity indicator (state enum from Session.h).
     void setActivityState(int state);
 
-    /// Update assistant response text.
-    void setAssistantText(const char* text);
-
-    /// Update user transcript text.
-    void setUserText(const char* text);
-
     /// Show/hide thinking indicator.
     void setThinking(bool active);
 
-    /// Show error text.
+    /// Enter error state (shows red activity indicator; text is logged only).
     void setError(const char* text);
 
     /// Visual PTT state (button color).
@@ -57,7 +51,6 @@ private:
     lv_obj_t* status_label_ = nullptr;
     lv_obj_t* activity_dot_ = nullptr;
     lv_obj_t* activity_label_ = nullptr;
-    lv_obj_t* text_label_ = nullptr;
     lv_obj_t* ptt_btn_ = nullptr;
     lv_obj_t* ptt_label_ = nullptr;
     lv_obj_t* settings_btn_ = nullptr;
