@@ -82,8 +82,15 @@ class SherpaASRStream(ASRStream):
         self._last_text = ""
 
     def start(self) -> None:
-        """Start a new recognition session."""
-        self._recognizer.reset(self._stream)
+        """Start a new recognition session.
+
+        Creates a FRESH stream rather than reset()-ing the old one. After a
+        prior utterance called input_finished(), the stream's decoder state
+        can't be fully cleared by reset() — trailing tokens from the previous
+        utterance survive and bleed into this one. A new stream guarantees
+        zero carryover.
+        """
+        self._stream = self._recognizer.create_stream()
         self._session_active = True
         self._last_text = ""
         logger.debug("Sherpa: Session started")
@@ -111,17 +118,35 @@ class SherpaASRStream(ASRStream):
         return text
 
     def stop(self) -> str:
-        """Stop the session and return final transcript."""
+        """Stop the session and return final transcript.
+
+        Flushes the streaming decoder before reading the result. The online
+        recognizer decodes with a lag behind the fed audio, so on an abrupt
+        stop (e.g. push-to-talk release) the last ~200-400ms of audio is still
+        pending. We signal end-of-input and drain all remaining decode steps so
+        the final tokens are emitted now — otherwise they survive the reset and
+        bleed into the next session's transcript.
+        """
         if not self._session_active:
             logger.warning("Sherpa: stop called without active session")
             return ""
 
         self._session_active = False
 
+        # Pad with a short tail of silence, mark input finished, and drain the
+        # decoder so trailing tokens are flushed before we read the result.
+        import numpy as np
+        tail_silence = np.zeros(int(self._sample_rate * 0.3), dtype=np.float32)
+        self._stream.accept_waveform(self._sample_rate, tail_silence)
+        self._stream.input_finished()
+        while self._recognizer.is_ready(self._stream):
+            self._recognizer.decode_stream(self._stream)
+
         text = self._recognizer.get_result(self._stream).text.strip()
         final_text = text or self._last_text
 
-        self._recognizer.reset(self._stream)
+        # No reset() here — start() creates a fresh stream for the next
+        # utterance, so this (now input-finished) stream is simply discarded.
         self._last_text = ""
 
         logger.debug(
