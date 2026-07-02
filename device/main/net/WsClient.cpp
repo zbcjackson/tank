@@ -28,6 +28,7 @@ bool WsClient::connect() {
     // streaming audio. Liveness is still bounded by network_timeout_ms.
     config.disable_pingpong_discon = true;
     config.reconnect_timeout_ms = CONFIG_WS_RECONNECT_MS;
+    config.enable_close_reconnect = true;
 
     client_ = esp_websocket_client_init(&config);
     if (!client_) {
@@ -112,11 +113,25 @@ void WsClient::eventHandler(void* arg, esp_event_base_t base, int32_t id, void* 
         case WEBSOCKET_EVENT_CONNECTED:
             ESP_LOGI(TAG, "WebSocket connected");
             self->connected_ = true;
+            if (self->on_connected_) {
+                self->on_connected_();
+            }
             break;
 
         case WEBSOCKET_EVENT_DISCONNECTED:
             ESP_LOGW(TAG, "WebSocket disconnected");
             self->connected_ = false;
+            if (self->on_disconnected_) {
+                self->on_disconnected_();
+            }
+            break;
+
+        case WEBSOCKET_EVENT_CLOSED:
+            ESP_LOGW(TAG, "WebSocket closed by server");
+            self->connected_ = false;
+            if (self->on_disconnected_) {
+                self->on_disconnected_();
+            }
             break;
 
         case WEBSOCKET_EVENT_DATA:

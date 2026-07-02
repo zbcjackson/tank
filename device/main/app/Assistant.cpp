@@ -93,6 +93,8 @@ bool Assistant::init(BoardHAL* hal) {
     ws_.onMessage([this](const WsMessage& msg) {
         onWsMessage(msg);
     });
+    ws_.onConnected([this]() { onWsConnected(); });
+    ws_.onDisconnected([this]() { onWsDisconnected(); });
 
     // Audio
     if (!capture_.init(mic_queue_)) {
@@ -172,6 +174,30 @@ void Assistant::onWiFiDisconnected() {
     ESP_LOGW(TAG, "WiFi disconnected");
     session_.setState(Session::State::CONNECTING);
     display_->showStatus("WiFi lost, reconnecting...");
+}
+
+void Assistant::onWsConnected() {
+    // Fired on initial connect and on every automatic reconnect (backend
+    // restart, transient network drop). The esp_websocket_client library
+    // handles the reconnect loop; we just resync UI/session state here.
+    // The backend sends a "ready" signal after connect, which drives the
+    // READY transition — this just gives immediate feedback in the meantime.
+    ESP_LOGI(TAG, "WebSocket connected");
+    session_.setState(Session::State::CONNECTING);
+    display_->showStatus("Connected, waiting...");
+}
+
+void Assistant::onWsDisconnected() {
+    // Backend restarted or the link dropped. The library will keep retrying
+    // (reconnect_timeout_ms). Reset transient turn state so a stale utterance
+    // doesn't finalize against the new connection, and stop any playback.
+    ESP_LOGW(TAG, "WebSocket disconnected, awaiting reconnect");
+    talking_ = false;
+    eou_pending_ = false;
+    drain_frames_ = 0;
+    playback_.flush();
+    session_.setState(Session::State::CONNECTING);
+    display_->showStatus("Reconnecting to Tank...");
 }
 
 void Assistant::onWsAudio(const int16_t* pcm, size_t samples, uint32_t sample_rate) {

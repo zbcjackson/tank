@@ -21,6 +21,7 @@ class WsClient {
 public:
     using AudioCallback = std::function<void(const int16_t* pcm, size_t samples, uint32_t sample_rate)>;
     using MessageCallback = std::function<void(const WsMessage& msg)>;
+    using StateCallback = std::function<void()>;
 
     /// Initialize WebSocket client (does not connect yet).
     bool init(const char* host, int port, const char* session_id);
@@ -55,6 +56,14 @@ public:
     /// Set callback for incoming JSON messages.
     void onMessage(MessageCallback cb) { on_message_ = cb; }
 
+    /// Set callback fired when the WebSocket connects (or reconnects).
+    /// Called from the esp_websocket_client task context.
+    void onConnected(StateCallback cb) { on_connected_ = cb; }
+
+    /// Set callback fired when the WebSocket disconnects.
+    /// Called from the esp_websocket_client task context.
+    void onDisconnected(StateCallback cb) { on_disconnected_ = cb; }
+
 private:
     static void eventHandler(void* arg, esp_event_base_t base, int32_t id, void* data);
     void handleData(esp_websocket_event_data_t* event_data);
@@ -64,6 +73,8 @@ private:
     esp_websocket_client_handle_t client_ = nullptr;
     AudioCallback on_audio_;
     MessageCallback on_message_;
+    StateCallback on_connected_;
+    StateCallback on_disconnected_;
     bool connected_ = false;
     char uri_[256] = {};
 

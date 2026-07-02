@@ -35,6 +35,8 @@ public:
 private:
     void onWiFiConnected();
     void onWiFiDisconnected();
+    void onWsConnected();
+    void onWsDisconnected();
     void onWsAudio(const int16_t* pcm, size_t samples, uint32_t sample_rate);
     void onWsMessage(const WsMessage& msg);
 
