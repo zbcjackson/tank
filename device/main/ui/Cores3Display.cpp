@@ -190,6 +190,7 @@ bool Cores3Display::initLVGL() {
             .buff_dma = false,
             .buff_spiram = true,
             .sw_rotate = false,
+            .swap_bytes = true,
             .full_refresh = false,
             .direct_mode = false,
         },

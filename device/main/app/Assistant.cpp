@@ -180,11 +180,13 @@ void Assistant::onWsConnected() {
     // Fired on initial connect and on every automatic reconnect (backend
     // restart, transient network drop). The esp_websocket_client library
     // handles the reconnect loop; we just resync UI/session state here.
-    // The backend sends a "ready" signal after connect, which drives the
-    // READY transition — this just gives immediate feedback in the meantime.
-    ESP_LOGI(TAG, "WebSocket connected");
+    // The backend sends a "ready" signal after the pipeline is built,
+    // which drives the READY transition. Pipeline init takes 2-4s on
+    // first connect (ASR/TTS/MCP loading); reattach to an existing
+    // session is instant.
+    ESP_LOGI(TAG, "WebSocket connected, awaiting pipeline ready");
     session_.setState(Session::State::CONNECTING);
-    display_->showStatus("Connected, waiting...");
+    display_->showStatus("Loading...");
 }
 
 void Assistant::onWsDisconnected() {
