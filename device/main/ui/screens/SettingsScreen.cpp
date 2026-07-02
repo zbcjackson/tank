@@ -1,6 +1,7 @@
 #include "SettingsScreen.h"
 #include "settings/NvsSettings.h"
 #include "audio/AudioPlayback.h"
+#include "config.h"
 #include "esp_log.h"
 #include <cstdio>
 
@@ -114,14 +115,6 @@ void SettingsScreen::create(lv_obj_t* parent) {
     lv_obj_set_style_text_font(net_host_label_, &lv_font_montserrat_16, 0);
     lv_obj_set_pos(net_host_label_, 12, 192);
 
-    lv_obj_t* hint = lv_label_create(screen_);
-    lv_label_set_long_mode(hint, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(hint, 296);
-    lv_label_set_text(hint, "Configure via serial: AT+SSID / PASS / HOST / PORT");
-    lv_obj_set_style_text_color(hint, COLOR_MUTED, 0);
-    lv_obj_set_style_text_font(hint, &lv_font_montserrat_16, 0);
-    lv_obj_set_pos(hint, 12, 216);
-
     ESP_LOGI(TAG, "Settings screen created");
 }
 
@@ -138,14 +131,14 @@ void SettingsScreen::refresh() {
         if (nvs_->getWifiSSID(buf, sizeof(buf))) {
             lv_label_set_text_fmt(net_ssid_label_, "SSID: %s", buf);
         } else {
-            lv_label_set_text(net_ssid_label_, "SSID: (default)");
+            lv_label_set_text_fmt(net_ssid_label_, "SSID: %s", CONFIG_WIFI_SSID);
         }
 
         if (nvs_->getBackendHost(buf, sizeof(buf))) {
             uint16_t port = nvs_->getBackendPort();
             lv_label_set_text_fmt(net_host_label_, "Host: %s:%d", buf, port);
         } else {
-            lv_label_set_text(net_host_label_, "Host: (default)");
+            lv_label_set_text_fmt(net_host_label_, "Host: %s:%d", CONFIG_BACKEND_HOST, CONFIG_BACKEND_PORT);
         }
     }
 }
