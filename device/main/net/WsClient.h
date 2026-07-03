@@ -66,7 +66,12 @@ public:
 
 private:
     static void eventHandler(void* arg, esp_event_base_t base, int32_t id, void* data);
+
+public:
+    // Public for integration testing (handleData drives the routing logic)
     void handleData(esp_websocket_event_data_t* event_data);
+
+private:
     void parseJsonMessage(const char* data, int len);
     void parseAudioFrame(const uint8_t* data, int len);
 

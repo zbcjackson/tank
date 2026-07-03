@@ -27,7 +27,12 @@ public:
 
 private:
     static void task(void* arg);
+
+public:
+    // Public for testability (called by task() internally)
     void processLine(char* line);
+
+private:
     void printInfo();
 
     NvsSettings* nvs_ = nullptr;

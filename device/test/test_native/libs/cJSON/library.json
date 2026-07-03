@@ -1,0 +1,7 @@
+{
+  "name": "cJSON",
+  "version": "1.7.18",
+  "build": {
+    "srcFilter": ["+<cJSON.c>"]
+  }
+}

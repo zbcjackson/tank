@@ -4,6 +4,7 @@ set(SOURCES
     "app/Session.cpp"
     "net/WiFiManager.cpp"
     "net/WsClient.cpp"
+    "net/WsProtocol.cpp"
     "audio/AudioCapture.cpp"
     "audio/AudioPlayback.cpp"
     "ui/Display.cpp"

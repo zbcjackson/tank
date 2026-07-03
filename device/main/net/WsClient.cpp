@@ -1,4 +1,5 @@
 #include "WsClient.h"
+#include "WsProtocol.h"
 #include "config.h"
 
 #include "esp_log.h"
@@ -216,71 +217,29 @@ void WsClient::handleData(esp_websocket_event_data_t* event_data) {
 }
 
 void WsClient::parseAudioFrame(const uint8_t* data, int len) {
-    if (len < AUDIO_FRAME_HEADER_SIZE) {
-        ESP_LOGW(TAG, "Audio frame too short: %d bytes", len);
+    AudioFrameHeader hdr = {};
+    if (!parseAudioFrameHeader(data, len, &hdr)) {
+        ESP_LOGW(TAG, "Invalid audio frame: len=%d", len);
         return;
     }
-
-    // Parse header: magic(2) + sample_rate(4) + channels(2), little-endian
-    uint16_t magic = data[0] | (data[1] << 8);
-    if (magic != AUDIO_FRAME_MAGIC) {
-        ESP_LOGW(TAG, "Invalid audio magic: 0x%04X", magic);
-        return;
-    }
-
-    uint32_t sample_rate = data[2] | (data[3] << 8) | (data[4] << 16) | (data[5] << 24);
-    // uint16_t channels = data[6] | (data[7] << 8);  // Currently always 1
 
     const int16_t* pcm = (const int16_t*)(data + AUDIO_FRAME_HEADER_SIZE);
     size_t pcm_bytes = len - AUDIO_FRAME_HEADER_SIZE;
     size_t samples = pcm_bytes / sizeof(int16_t);
 
     if (on_audio_) {
-        on_audio_(pcm, samples, sample_rate);
+        on_audio_(pcm, samples, hdr.sample_rate);
     }
 }
 
 void WsClient::parseJsonMessage(const char* data, int len) {
-    // Null-terminate for cJSON (data may not be terminated)
-    char* buf = (char*)malloc(len + 1);
-    if (!buf) return;
-    memcpy(buf, data, len);
-    buf[len] = '\0';
-
-    cJSON* root = cJSON_Parse(buf);
-    if (!root) {
-        ESP_LOGW(TAG, "JSON parse failed: %.*s", len > 100 ? 100 : len, buf);
-        free(buf);
+    WsMessage msg = {};
+    if (!parseWsJsonMessage(data, len, &msg)) {
+        ESP_LOGW(TAG, "JSON parse failed: %.*s", len > 100 ? 100 : len, data);
         return;
     }
-
-    WsMessage msg = {};
-
-    cJSON* type = cJSON_GetObjectItem(root, "type");
-    if (type && cJSON_IsString(type)) {
-        strncpy(msg.type, type->valuestring, sizeof(msg.type) - 1);
-    }
-
-    cJSON* content = cJSON_GetObjectItem(root, "content");
-    if (content && cJSON_IsString(content)) {
-        strncpy(msg.content, content->valuestring, sizeof(msg.content) - 1);
-    }
-
-    cJSON* msg_id = cJSON_GetObjectItem(root, "msg_id");
-    if (msg_id && cJSON_IsString(msg_id)) {
-        strncpy(msg.msg_id, msg_id->valuestring, sizeof(msg.msg_id) - 1);
-    }
-
-    cJSON* is_user = cJSON_GetObjectItem(root, "is_user");
-    msg.is_user = is_user && cJSON_IsTrue(is_user);
-
-    cJSON* is_final = cJSON_GetObjectItem(root, "is_final");
-    msg.is_final = is_final && cJSON_IsTrue(is_final);
 
     if (on_message_) {
         on_message_(msg);
     }
-
-    cJSON_Delete(root);
-    free(buf);
 }
