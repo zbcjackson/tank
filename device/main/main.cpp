@@ -10,6 +10,7 @@ static const char* TAG = "main";
 // Factory defined in HAL compilation unit
 extern BoardHAL* createBoardHAL();
 
+#ifndef DEVICE_TEST
 extern "C" void app_main(void) {
     ESP_LOGI(TAG, "=== Tank Device Client ===");
     ESP_LOGI(TAG, "Build target: %s",
@@ -41,3 +42,4 @@ extern "C" void app_main(void) {
     // Main task done — FreeRTOS tasks handle everything from here
     ESP_LOGI(TAG, "Main task complete, running on FreeRTOS tasks");
 }
+#endif // DEVICE_TEST
