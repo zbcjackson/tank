@@ -109,7 +109,9 @@ Then read the docs for the sub-project(s) you are working on:
 
 **Device** (`device/`):
 - @device/ARCHITECTURE.md [device/ARCHITECTURE.md](device/ARCHITECTURE.md)
+- @device/FEATURES.md [device/FEATURES.md](device/FEATURES.md)
 - @device/DEVELOPMENT.md [device/DEVELOPMENT.md](device/DEVELOPMENT.md)
+- @device/TESTING.md [device/TESTING.md](device/TESTING.md)
 
 > Tip: If you start a session from inside a sub-project directory (e.g. `cd backend && claude`), that directory's CLAUDE.md will be loaded automatically with its own `@` imports — no need to read the others.
 

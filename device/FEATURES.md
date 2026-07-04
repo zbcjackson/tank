@@ -1,0 +1,168 @@
+# Device Client Features
+
+This document describes what the Tank device firmware does and how each feature
+is implemented. For component wiring and task layout, see
+[ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Feature Summary
+
+| Feature | Status | Where |
+|---------|--------|-------|
+| WiFi connect + auto-reconnect | ✅ | `net/WiFiManager` |
+| WebSocket transport (binary audio + JSON) | ✅ | `net/WsClient`, `net/WsProtocol` |
+| Microphone capture (I2S → PCM → WS) | ✅ | `audio/AudioCapture` |
+| Speaker playback (WS → PCM → I2S) | ✅ | `audio/AudioPlayback` |
+| Push-to-talk interaction | ✅ | `app/Assistant` (UI + ws_send tasks) |
+| Continuous listening mode | ✅ | `app/Assistant` (compile-time toggle) |
+| Interruption (barge-in) | ✅ | `app/Assistant`, `WsClient::sendInterrupt` |
+| LCD status/transcript UI | ✅ | `ui/Display` + per-board impls |
+| Volume control + persistence | ✅ | `ui/screens/SettingsScreen`, `NvsSettings` |
+| Runtime network config (serial AT) | ✅ | `settings/SerialConfig`, `NvsSettings` |
+| Session state machine | ✅ | `app/Session` |
+| Bitmap font / rich text rendering | ⬜ planned | — |
+| Pyramid LED ring animations | ⬜ planned | `hal/pyramid` |
+
+## Voice Conversation
+
+The core loop streams audio both directions over one WebSocket:
+
+```
+[Mic] → I2S → capture_task → mic_queue → ws_send_task → WebSocket → [Backend]
+[Backend] → WebSocket → ws_recv → spk_stream → playback_task → I2S → [Speaker]
+                                → event_queue → ui_task → [Display]
+```
+
+- **Capture**: `AudioCapture` reads 20 ms frames (320 samples @ 16 kHz mono
+  Int16) from the I2S mic via DMA and pushes them to `mic_queue`.
+- **Uplink**: `ws_send_task` pulls frames and sends them as raw Int16 PCM binary
+  frames (no header) to the backend.
+- **Downlink**: the backend sends TTS audio as binary frames with an 8-byte
+  header (magic `0x544B` + sample_rate + channels) followed by Int16 PCM.
+  `WsClient` parses the header, reassembles fragmented frames, and hands PCM to
+  `AudioPlayback` via a byte stream buffer.
+- **Playback backpressure**: `onWsAudio` writes to the speaker stream buffer with
+  `portMAX_DELAY`, so the WebSocket callback blocks until space frees up rather
+  than dropping frames. This is deliberate — dropping frames caused audible blast
+  noise on long responses.
+
+## Interaction Modes
+
+Selected at compile time via `CONFIG_PUSH_TO_TALK` in `main/config.h`
+(a runtime settings page is planned).
+
+### Push-to-talk (default, `CONFIG_PUSH_TO_TALK=1`)
+
+The mic streams only while the on-screen button is held:
+
+1. **Press** → send `interrupt`, flush any pending playback, reset `mic_queue`,
+   set `talking_ = true`, state → `LISTENING`, show the talk cue.
+   Capture runs continuously, so the DMA already holds fresh ambient audio —
+   there is no discard window that would clip the start of speech.
+2. **Hold** → `ws_send_task` forwards every mic frame while `talking_` is set.
+3. **Release** → set `talking_ = false`, `eou_pending_ = true`,
+   `drain_frames_ = 8`, state → `PROCESSING`. The send task keeps forwarding the
+   tail frames still queued in the DMA/pipeline, then sends `end_of_utterance`.
+   If the queue empties before the drain counter reaches zero, EOU is sent
+   immediately on the next queue timeout.
+4. Frames received while neither talking nor draining are discarded (silence/echo).
+
+**Phantom-touch guard**: the FT6336U touch controller reports spurious touches
+during playback (speaker-amp coupling on the shared board). The UI task ignores
+button presses while `AudioPlayback::isPlaying()` is true. In PTT mode the user
+does not talk over the response, so gating on playback is safe.
+
+### Continuous (`CONFIG_PUSH_TO_TALK=0`)
+
+The send task forwards every captured frame whenever the WebSocket is connected.
+The backend's own VAD/echo-guard handles endpointing. No on-device PTT gating.
+
+## Interruption (Barge-in)
+
+On PTT press (or any new user turn), `WsClient::sendInterrupt()` sends
+`{"type":"signal","content":"interrupt"}` and `AudioPlayback::flush()` drops
+buffered TTS so the response stops immediately.
+
+## Display / UI
+
+`Display` is an abstract interface implemented per board
+(`Cores3Display`, `PyramidDisplay`) plus a serial-only stub fallback. It exposes:
+
+- `showStatus` — connection/mode text ("Connecting…", "Listening…", …)
+- `showUserText` / `showAssistantText` — transcript + streamed response
+- `showThinking` — processing indicator
+- `showError` — error text
+- `showTalkState` — full-screen color cue for PTT (works without a font)
+- `pollPressed` — polls the touch PTT button (false on non-touch displays)
+
+Server `update`, `transcript`, and `text` messages are routed to the UI task via
+`event_queue`; the task renders them and drives per-turn text clearing.
+
+`MainScreen` and `SettingsScreen` (`ui/screens/`) provide the primary view and a
+volume settings page.
+
+## Session State Machine
+
+`Session` tracks connection/turn state:
+
+```
+IDLE → CONNECTING → READY → LISTENING → PROCESSING → SPEAKING
+  ↑                   ↑                                  │
+  └───── ERROR ◄──────┴─────────────────────────────────┘
+```
+
+Transitions are driven by WiFi events, WebSocket connect/disconnect, PTT
+press/release, and server `signal` messages (`ready`, `processing_started`,
+`processing_ended`).
+
+## Networking & Resilience
+
+- **WiFi**: `WiFiManager` connects on boot and auto-reconnects on drop
+  (`CONFIG_WIFI_RETRY_MAX`). On loss, state → `CONNECTING` and the UI shows
+  "WiFi lost, reconnecting…".
+- **WebSocket**: `esp_websocket_client` owns the reconnect loop
+  (`CONFIG_WS_RECONNECT_MS`, `CONFIG_WS_NETWORK_TIMEOUT_MS`,
+  `CONFIG_WS_PINGPONG_TIMEOUT_S`). `onConnected`/`onDisconnected` callbacks resync
+  UI/session state. On disconnect, transient turn state (`talking_`,
+  `eou_pending_`, `drain_frames_`) is reset so a stale utterance can't leak into
+  the next connection.
+- **Fragment reassembly**: binary payloads larger than the WS buffer arrive in
+  multiple events; `WsClient` accumulates fragments until the full payload lands.
+
+## Configuration & Persistence
+
+Two layers, NVS overriding compile-time defaults:
+
+- **Compile-time defaults** (`main/config.h`): WiFi SSID/password, backend
+  host/port, session ID, audio rates/frame sizes, queue lengths, task
+  cores/priorities/stacks, and reconnection timings. Network defaults can also be
+  injected at build time via env vars (`TANK_WIFI_SSID`, etc., see
+  `inject_env.py`).
+- **NVS** (`NvsSettings`, namespace `tank_cfg`): volume (0–100), WiFi
+  credentials, backend host/port. `hasNetworkConfig()` decides whether to use
+  saved creds or the `config.h` defaults on boot.
+
+### Runtime configuration (serial AT commands)
+
+`SerialConfig` runs a task reading UART0 line-by-line and applies changes to NVS:
+
+```
+AT+SSID=<value>   Set WiFi SSID
+AT+PASS=<value>   Set WiFi password
+AT+HOST=<value>   Set backend host
+AT+PORT=<value>   Set backend port
+AT+INFO           Print current config (password masked)
+AT+SAVE           Save and reconnect
+AT+RESET          Factory reset (erase NVS, reboot)
+```
+
+### Volume
+
+Adjusted on-device via `SettingsScreen` (gear icon → `-` / `+`). The level is
+applied to the amplifier through the HAL and saved to NVS, restored on next boot.
+
+## Hardware Abstraction
+
+`BoardHAL` isolates board differences (codec init, I2C, volume, mic gain, pins)
+behind one interface, selected at compile time (`-DTARGET_CORES3` /
+`-DTARGET_PYRAMID`). See [ARCHITECTURE.md](ARCHITECTURE.md#hardware-abstraction)
+for the layout and DEVELOPMENT.md for adding a new target.
