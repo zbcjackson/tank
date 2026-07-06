@@ -13,7 +13,6 @@ is implemented. For component wiring and task layout, see
 | Microphone capture (I2S → PCM → WS) | ✅ | `audio/AudioCapture` |
 | Speaker playback (WS → PCM → I2S) | ✅ | `audio/AudioPlayback` |
 | Push-to-talk interaction | ✅ | `app/Assistant` (UI + ws_send tasks) |
-| Continuous listening mode | ✅ | `app/Assistant` (compile-time toggle) |
 | On-device wake word ("Hi ESP") | ✅ | `audio/WakeWordDetector` (esp-sr WakeNet9) |
 | Interruption (barge-in) | ✅ | `app/Assistant`, `WsClient::sendInterrupt` |
 | LCD status/transcript UI | ✅ | `ui/Display` + per-board impls |
@@ -46,12 +45,17 @@ The core loop streams audio both directions over one WebSocket:
   than dropping frames. This is deliberate — dropping frames caused audible blast
   noise on long responses.
 
-## Interaction Modes
+## Interaction
 
-Selected at compile time via `CONFIG_PUSH_TO_TALK` in `main/config.h`
-(a runtime settings page is planned).
+The device always supports two ways to start a turn, at any time — no build-time
+mode selection. The user can hold the on-screen push-to-talk button, or say the
+wake word "Hi ESP" hands-free. Both share the same turn state; they differ only
+in how the turn ends: a button turn ends on release, a wake turn ends on
+trailing silence. A `wake_turn_` flag records how the current turn began so the
+send task ends it the right way. Pressing the button during a wake turn hands
+control to the button (the turn then ends on release).
 
-### Push-to-talk (default, `CONFIG_PUSH_TO_TALK=1`)
+### Push-to-talk
 
 The mic streams only while the on-screen button is held:
 
@@ -69,19 +73,15 @@ The mic streams only while the on-screen button is held:
 
 **Phantom-touch guard**: the FT6336U touch controller reports spurious touches
 during playback (speaker-amp coupling on the shared board). The UI task ignores
-button presses while `AudioPlayback::isPlaying()` is true. In PTT mode the user
-does not talk over the response, so gating on playback is safe.
+button presses while `AudioPlayback::isPlaying()` is true. The user does not
+press the button to talk over the response, so gating it on playback is safe.
+The wake word can still barge in during playback (it has its own echo
+suppression); only the button is gated — a limitation of the hardware touch
+controller.
 
-### Continuous (`CONFIG_PUSH_TO_TALK=0`)
-
-The send task forwards every captured frame whenever the WebSocket is connected.
-The backend's own VAD/echo-guard handles endpointing. No on-device PTT gating.
-
-### Wake word (`CONFIG_WAKE_WORD=1`, requires `CONFIG_PUSH_TO_TALK=0`)
+### Wake word
 
 An on-device wake word engine listens while idle and opens a turn hands-free.
-The two flags are mutually exclusive (a `#error` guards this) — there is no
-button to gate streaming.
 
 - **Engine**: Espressif [esp-sr](https://github.com/espressif/esp-sr) WakeNet9,
   running the bundled stock word **"Hi ESP"** (`CONFIG_SR_WN_WN9_HIESP`). No
@@ -103,7 +103,11 @@ button to gate streaming.
      `talking_ = true`, state → `LISTENING`.
   3. **Streaming** → forward every frame while watching `audio/SilenceDetector`
      (energy-based). The turn ends on ~800ms of trailing silence after speech,
-     or a 15s max-listen cap, whichever comes first.
+     or a 15s max-listen cap, whichever comes first. It also ends immediately if
+     the assistant's response starts playing first (the backend endpointed on
+     its own VAD) — with no AEC, continuing to stream would send speaker echo
+     back and the loud echo would keep `SilenceDetector` from ever seeing
+     silence, hanging the turn until the cap.
   4. **End** → send `end_of_utterance`, state → `PROCESSING`.
   5. **Response** → backend streams audio, playback runs. Once playback finishes
      and the echo hangover + energy gate pass, state → `READY`.

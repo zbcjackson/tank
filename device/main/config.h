@@ -24,25 +24,13 @@
 #define CONFIG_SESSION_ID        "device_001"
 #endif
 
-// ─── Interaction mode ─────────────────────────────────────────────────────────
-// Push-to-talk: mic only streams while the on-screen button is held; release
-// sends end_of_utterance. Set to 0 for continuous (always-streaming) mode.
-// A runtime mode-switching setting page is planned for later.
-#ifndef CONFIG_PUSH_TO_TALK
-#define CONFIG_PUSH_TO_TALK      0
-#endif
-
-// Wake word: an on-device WakeNet engine (esp-sr, stock "Hi ESP") listens
-// while idle. On detection the device sends `interrupt` + `wake`, streams the
-// utterance, and ends the turn on trailing silence (SilenceDetector). Mutually
-// exclusive with push-to-talk — there is no button to gate streaming.
-#ifndef CONFIG_WAKE_WORD
-#define CONFIG_WAKE_WORD         1
-#endif
-
-#if CONFIG_WAKE_WORD && CONFIG_PUSH_TO_TALK
-#error "CONFIG_WAKE_WORD and CONFIG_PUSH_TO_TALK are mutually exclusive — set CONFIG_PUSH_TO_TALK=0 to use wake-word mode."
-#endif
+// ─── Interaction ──────────────────────────────────────────────────────────────
+// The device always supports two ways to start a turn, at any time:
+//   - Wake word: an on-device WakeNet engine (esp-sr, stock "Hi ESP") listens
+//     while idle. On detection the device sends `interrupt` + `wake`, streams
+//     the utterance, and ends the turn on trailing silence (SilenceDetector).
+//   - Push-to-talk: the on-screen button streams while held; release sends
+//     `end_of_utterance`.
 
 // ─── Wake word turn-end (SilenceDetector) ─────────────────────────────────────
 // Units are 20ms mic frames. Defaults: ~800ms trailing silence ends the turn,

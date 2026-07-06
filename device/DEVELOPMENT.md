@@ -98,16 +98,11 @@ All audio constants are in `main/config.h`:
 - `CONFIG_SPK_SAMPLE_RATE` — speaker playback rate (24000 to match server TTS)
 - `CONFIG_MIC_FRAME_MS` — capture frame duration (20ms default)
 
-### Enable on-device wake word
+### On-device wake word
 
-Wake-word mode replaces push-to-talk with a hands-free "Hi ESP" trigger
-(esp-sr WakeNet9). It is mutually exclusive with PTT. Set both flags in
-`main/config.h`:
-
-```c
-#define CONFIG_PUSH_TO_TALK  0
-#define CONFIG_WAKE_WORD     1
-```
+The device always supports both the on-screen push-to-talk button and the
+hands-free "Hi ESP" wake word (esp-sr WakeNet9) — there is no build-time mode
+selection to configure.
 
 The WakeNet model is flashed to the `model` partition automatically on
 `pio run -t upload` (generated as `srmodels.bin`). Turn-end sensitivity is tuned

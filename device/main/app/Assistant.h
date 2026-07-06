@@ -51,9 +51,7 @@ private:
     WsClient ws_;
     AudioCapture capture_;
     AudioPlayback playback_;
-#if CONFIG_WAKE_WORD
     WakeWordDetector wake_word_;
-#endif
     Display* display_ = nullptr;
     BoardHAL* hal_ = nullptr;
     NvsSettings nvs_;
@@ -72,6 +70,9 @@ private:
     volatile bool talking_ = false;
     volatile bool eou_pending_ = false;
     volatile int drain_frames_ = 0;  // Frames to drain after release before EOU
+    // How the current turn started: true = wake-word (ends on trailing silence),
+    // false = PTT/none (ends on button release). Only meaningful while talking_.
+    volatile bool wake_turn_ = false;
 
     bool running_ = false;
 };

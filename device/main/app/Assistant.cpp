@@ -107,13 +107,12 @@ bool Assistant::init(BoardHAL* hal) {
         return false;
     }
 
-#if CONFIG_WAKE_WORD
     // Load the on-device wake word model. If it fails, log and continue — the
-    // device still connects, it just won't wake on speech.
+    // device still connects, it just won't wake on speech (the PTT button and
+    // any other trigger still work).
     if (!wake_word_.init()) {
-        ESP_LOGE(TAG, "Wake word init failed — wake-word mode inactive");
+        ESP_LOGE(TAG, "Wake word init failed — wake word inactive");
     }
-#endif
 
     // WiFi callbacks — register BEFORE init so onConnected isn't missed if the
     // connection comes up quickly.
@@ -206,6 +205,7 @@ void Assistant::onWsDisconnected() {
     talking_ = false;
     eou_pending_ = false;
     drain_frames_ = 0;
+    wake_turn_ = false;
     playback_.flush();
     session_.setState(Session::State::CONNECTING);
     display_->showStatus("Reconnecting to Tank...");
@@ -251,7 +251,6 @@ void Assistant::wsSendTask(void* arg) {
     constexpr size_t SAMPLES = CONFIG_MIC_SAMPLE_RATE * CONFIG_MIC_FRAME_MS / 1000;
     int16_t frame[SAMPLES];
 
-#if CONFIG_WAKE_WORD
     SilenceDetector silence({
         CONFIG_WAKE_SPEECH_RMS,
         CONFIG_WAKE_SILENCE_FRAMES,
@@ -263,19 +262,52 @@ void Assistant::wsSendTask(void* arg) {
     int64_t last_playing_us = 0;
     // Track playback→idle edge to reset display to "Ready" once.
     bool was_playing = false;
-#endif
 
     ESP_LOGI(TAG, "WS send task started");
 
     while (self->running_) {
         if (xQueueReceive(self->mic_queue_, frame, pdMS_TO_TICKS(100)) == pdTRUE) {
-#if CONFIG_PUSH_TO_TALK
             if (self->talking_) {
-                if (self->ws_.isConnected()) {
-                    self->ws_.sendAudio(frame, SAMPLES);
+                if (self->wake_turn_ && self->playback_.isPlaying()) {
+                    // The assistant's response has started playing before our
+                    // SilenceDetector closed the turn (the backend endpointed on
+                    // its own VAD). This board has no AEC, so continuing to stream
+                    // would send the speaker echo back to the backend, and the
+                    // loud echo would stop SilenceDetector from ever seeing
+                    // silence — hanging the turn until the 15s cap. Close the
+                    // wake turn and stop streaming; onWsAudio already moved the
+                    // session to SPEAKING, and the idle branch resets to Ready
+                    // once playback ends.
+                    self->talking_ = false;
+                    self->wake_turn_ = false;
+                    if (self->ws_.isConnected()) {
+                        self->ws_.sendEndOfUtterance();
+                    }
+                    ESP_LOGI(TAG, "EOU sent (assistant responding)");
+                    self->display_->showTalkState(false);
+                } else {
+                    // Streaming the utterance (started by PTT press or wake word).
+                    if (self->ws_.isConnected()) {
+                        self->ws_.sendAudio(frame, SAMPLES);
+                    }
+                    // Only wake-initiated turns end on trailing silence. PTT turns
+                    // end on button release (uiTask), so skip silence for them.
+                    if (self->wake_turn_ && silence.update(frame, SAMPLES)) {
+                        self->talking_ = false;
+                        self->wake_turn_ = false;
+                        if (self->ws_.isConnected()) {
+                            self->ws_.sendEndOfUtterance();
+                        }
+                        ESP_LOGI(TAG, "EOU sent (%s)",
+                                 silence.endedByCap() ? "max-listen cap" : "silence");
+                        self->session_.setState(Session::State::PROCESSING);
+                        self->display_->showTalkState(false);
+                        self->display_->showStatus("Processing...");
+                    }
                 }
-            } else if (self->eou_pending_ && self->drain_frames_ > 0) {
-                // Draining the tail of speech (queued + DMA pipeline frames).
+            }
+            else if (self->eou_pending_ && self->drain_frames_ > 0) {
+                // Draining the tail of PTT speech (queued + DMA pipeline frames).
                 if (self->ws_.isConnected()) {
                     self->ws_.sendAudio(frame, SAMPLES);
                 }
@@ -289,26 +321,7 @@ void Assistant::wsSendTask(void* arg) {
                     }
                 }
             }
-            // else: not talking and not draining — discard frame (silence/echo).
-#elif CONFIG_WAKE_WORD
-            if (self->talking_) {
-                // Streaming the utterance. Forward every frame and watch for the
-                // trailing silence (or max-listen cap) that ends the turn.
-                if (self->ws_.isConnected()) {
-                    self->ws_.sendAudio(frame, SAMPLES);
-                }
-                if (silence.update(frame, SAMPLES)) {
-                    self->talking_ = false;
-                    if (self->ws_.isConnected()) {
-                        self->ws_.sendEndOfUtterance();
-                    }
-                    ESP_LOGI(TAG, "EOU sent (%s)",
-                             silence.endedByCap() ? "max-listen cap" : "silence");
-                    self->session_.setState(Session::State::PROCESSING);
-                    self->display_->showTalkState(false);
-                    self->display_->showStatus("Processing...");
-                }
-            } else if (!self->ws_.isConnected()) {
+            else if (!self->ws_.isConnected()) {
                 // Not connected yet: skip WakeNet entirely. There is nowhere to
                 // send the `wake` signal, and running inference on Core 1 here
                 // starves WiFi/DHCP and the WS handshake during connection —
@@ -367,6 +380,7 @@ void Assistant::wsSendTask(void* arg) {
                         self->ws_.sendJson("signal", "wake");
                         silence.reset();
                         self->talking_ = true;
+                        self->wake_turn_ = true;
                         self->session_.setState(Session::State::LISTENING);
                         self->display_->showTalkState(true);
                         self->display_->showStatus("Listening...");
@@ -374,16 +388,10 @@ void Assistant::wsSendTask(void* arg) {
                     }
                 }
             }
-#else
-            if (self->ws_.isConnected()) {
-                self->ws_.sendAudio(frame, SAMPLES);
-            }
-#endif
         } else {
-#if CONFIG_PUSH_TO_TALK
-            // Queue timeout — if still draining, all frames have been consumed.
-            // Send EOU now (handles case where queue empties before drain_frames_
-            // reaches zero, e.g. if DMA was mostly empty).
+            // Queue timeout — if a PTT turn is still draining, all frames have
+            // been consumed. Send EOU now (handles the case where the queue
+            // empties before drain_frames_ reaches zero, e.g. a mostly-empty DMA).
             if (self->eou_pending_) {
                 self->eou_pending_ = false;
                 self->drain_frames_ = 0;
@@ -392,18 +400,15 @@ void Assistant::wsSendTask(void* arg) {
                     ESP_LOGI(TAG, "EOU sent (queue empty)");
                 }
             }
-#endif
         }
 
-#if CONFIG_WAKE_WORD
-        // Wake-word mode runs WakeNet inference inline in this task (priority 18,
-        // Core 1). The mic queue is almost always non-empty, so xQueueReceive
-        // rarely blocks — without an explicit yield this task starves the
-        // lower-priority UI task and the event loop that processes the WiFi
-        // "connected" callback on the same core, freezing the UI on "Connecting
-        // WiFi". A 1-tick yield frees Core 1 while frames buffer in the queue.
+        // WakeNet inference runs inline in this task (priority 18, Core 1). The
+        // mic queue is almost always non-empty, so xQueueReceive rarely blocks —
+        // without an explicit yield this task starves the lower-priority UI task
+        // and the event loop that processes the WiFi "connected" callback on the
+        // same core, freezing the UI on "Connecting WiFi". A 1-tick yield frees
+        // Core 1 while frames buffer in the queue.
         vTaskDelay(1);
-#endif
     }
 
     ESP_LOGI(TAG, "WS send task stopped");
@@ -418,14 +423,14 @@ void Assistant::uiTask(void* arg) {
     ESP_LOGI(TAG, "UI task started");
 
     while (self->running_) {
-#if CONFIG_PUSH_TO_TALK
         // Poll PTT button (LVGL event-driven via pollPressed)
         bool pressed = self->display_->pollPressed();
         // Ignore presses while audio is playing. The FT6336U touch controller
         // reports phantom touches during playback (speaker amp coupling on the
         // shared board), which would start a spurious PTT session and stream the
-        // speaker echo back to the backend. In PTT mode the user doesn't talk
-        // over the response, so gating on playback is safe.
+        // speaker echo back to the backend. The user doesn't press the button to
+        // talk over the response, so gating on playback is safe. (Wake word can
+        // still barge in during playback — it has its own echo suppression.)
         if (self->playback_.isPlaying()) {
             pressed = false;
         }
@@ -446,6 +451,9 @@ void Assistant::uiTask(void* arg) {
             // previous turn. Discarding would clip the start of the user's speech.
             xQueueReset(self->mic_queue_);
             self->talking_ = true;
+            // A button-initiated turn ends on release, not trailing silence —
+            // even if a wake-word turn was already active when the user pressed.
+            self->wake_turn_ = false;
             self->session_.setState(Session::State::LISTENING);
             self->display_->showTalkState(true);
             self->display_->showStatus("Listening...");
@@ -464,7 +472,6 @@ void Assistant::uiTask(void* arg) {
             self->session_.setState(Session::State::PROCESSING);
         }
         was_pressed = pressed;
-#endif
 
         if (xQueueReceive(self->event_queue_, &msg, pdMS_TO_TICKS(20)) == pdTRUE) {
             if (strcmp(msg.type, "signal") == 0) {

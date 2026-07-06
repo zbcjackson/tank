@@ -91,12 +91,6 @@ void AudioCapture::start() {
     if (running_) return;
     running_ = true;
 
-    // In continuous (non-PTT) mode nothing calls resume(), so unpause here.
-    // In PTT mode we stay paused until the first button press.
-#if !CONFIG_PUSH_TO_TALK
-    paused_ = false;
-#endif
-
     i2s_channel_enable(rx_chan_);
 
     xTaskCreatePinnedToCore(
