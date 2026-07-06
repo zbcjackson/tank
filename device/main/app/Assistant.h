@@ -5,6 +5,8 @@
 #include "net/WsClient.h"
 #include "audio/AudioCapture.h"
 #include "audio/AudioPlayback.h"
+#include "audio/WakeWordDetector.h"
+#include "audio/SilenceDetector.h"
 #include "ui/Display.h"
 #include "hal/BoardHAL.h"
 #include "settings/NvsSettings.h"
@@ -49,6 +51,9 @@ private:
     WsClient ws_;
     AudioCapture capture_;
     AudioPlayback playback_;
+#if CONFIG_WAKE_WORD
+    WakeWordDetector wake_word_;
+#endif
     Display* display_ = nullptr;
     BoardHAL* hal_ = nullptr;
     NvsSettings nvs_;

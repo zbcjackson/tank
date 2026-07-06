@@ -14,6 +14,7 @@ is implemented. For component wiring and task layout, see
 | Speaker playback (WS → PCM → I2S) | ✅ | `audio/AudioPlayback` |
 | Push-to-talk interaction | ✅ | `app/Assistant` (UI + ws_send tasks) |
 | Continuous listening mode | ✅ | `app/Assistant` (compile-time toggle) |
+| On-device wake word ("Hi ESP") | ✅ | `audio/WakeWordDetector` (esp-sr WakeNet9) |
 | Interruption (barge-in) | ✅ | `app/Assistant`, `WsClient::sendInterrupt` |
 | LCD status/transcript UI | ✅ | `ui/Display` + per-board impls |
 | Volume control + persistence | ✅ | `ui/screens/SettingsScreen`, `NvsSettings` |
@@ -75,6 +76,51 @@ does not talk over the response, so gating on playback is safe.
 
 The send task forwards every captured frame whenever the WebSocket is connected.
 The backend's own VAD/echo-guard handles endpointing. No on-device PTT gating.
+
+### Wake word (`CONFIG_WAKE_WORD=1`, requires `CONFIG_PUSH_TO_TALK=0`)
+
+An on-device wake word engine listens while idle and opens a turn hands-free.
+The two flags are mutually exclusive (a `#error` guards this) — there is no
+button to gate streaming.
+
+- **Engine**: Espressif [esp-sr](https://github.com/espressif/esp-sr) WakeNet9,
+  running the bundled stock word **"Hi ESP"** (`CONFIG_SR_WN_WN9_HIESP`). No
+  custom-model cost. `audio/WakeWordDetector` wraps the `esp_srmodel` /
+  `esp_wn_iface` C API; `audio/FrameChunker` re-buffers the 320-sample (20ms)
+  capture frames into WakeNet's native chunk size (480 samples).
+- **Model storage**: flashed to a dedicated `model` data partition (1MB, see
+  `partitions_*.csv`) as `srmodels.bin`. `idf.py`/`pio run -t upload` flashes it
+  alongside the app; only the WakeNet model is included (MultiNet stays at its
+  `NONE` default), so the payload is ~0.5MB.
+- **Flow** (all in `ws_send_task`):
+  1. **Idle** → each mic frame is fed to `WakeWordDetector`. Detection is
+     suppressed while: (a) the WebSocket isn't connected yet (frees Core 1 for
+     WiFi/DHCP), (b) the speaker is playing, (c) the 700ms echo hangover after
+     playback stops, or (d) the mic frame energy is still above the speech
+     threshold (residual room echo).
+  2. **Detected** → send `interrupt`, flush playback, send `wake` signal (the
+     backend compacts the session and replies `conversation_ready`), set
+     `talking_ = true`, state → `LISTENING`.
+  3. **Streaming** → forward every frame while watching `audio/SilenceDetector`
+     (energy-based). The turn ends on ~800ms of trailing silence after speech,
+     or a 15s max-listen cap, whichever comes first.
+  4. **End** → send `end_of_utterance`, state → `PROCESSING`.
+  5. **Response** → backend streams audio, playback runs. Once playback finishes
+     and the echo hangover + energy gate pass, state → `READY`.
+- **Echo suppression** (`CONFIG_WAKE_ECHO_HANGOVER_MS`): this board has no
+  hardware AEC (ES7210 + AW88298 share an I2S bus but no echo cancellation
+  path). Detection is suppressed during playback plus a fixed hangover, and
+  also gates on mic frame energy dropping below the speech threshold — so
+  the assistant's own TTS response can't self-trigger a new turn.
+- **Turn-end tuning** (`main/config.h`): `CONFIG_WAKE_SPEECH_RMS`,
+  `CONFIG_WAKE_SILENCE_FRAMES`, `CONFIG_WAKE_MIN_SPEECH_FRAMES`,
+  `CONFIG_WAKE_MAX_FRAMES` (all in 20ms frame units).
+- **Memory**: WakeNet's runtime buffers compete with the WebSocket task for
+  internal DRAM. `CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y` moves WiFi/LWIP
+  buffers to PSRAM, freeing internal RAM for task stacks.
+
+If the model fails to load at boot, the device logs the error and continues to
+connect normally — it just won't wake on speech.
 
 ## Interruption (Barge-in)
 

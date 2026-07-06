@@ -12,6 +12,12 @@ CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_QUAD=y
 CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_SPIRAM_USE_CAPS_ALLOC=y
+# Move WiFi/LWIP buffers to PSRAM to free internal DRAM. In wake-word mode
+# esp-sr/WakeNet consumes enough internal RAM that the WebSocket task's
+# xTaskCreate failed ("Error create websocket task"), leaving the UI stuck on
+# "Connecting to Tank". This is a targeted move (WiFi/LWIP only) that keeps the
+# caps-based allocator so DMA descriptors (I2S audio, LCD) stay in internal RAM.
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 
 # I2S
 CONFIG_I2S_ISR_IRAM_SAFE=y
@@ -40,3 +46,12 @@ CONFIG_LV_FONT_MONTSERRAT_20=y
 CONFIG_LV_FONT_MONTSERRAT_24=y
 CONFIG_LV_FONT_MONTSERRAT_28=y
 CONFIG_LV_FONT_DEFAULT_MONTSERRAT_18=y
+
+# esp-sr wake word — WakeNet9, stock "Hi ESP", loaded from the `model` partition.
+# Force MultiNet (command recognition) OFF so only the WakeNet model is flashed,
+# keeping the partition small (~0.5MB). Without these explicit NONEs esp-sr packs
+# a ~3.4MB Chinese MultiNet model that overflows the model partition.
+CONFIG_MODEL_IN_FLASH=y
+CONFIG_SR_WN_WN9_HIESP=y
+CONFIG_SR_MN_CN_NONE=y
+CONFIG_SR_MN_EN_NONE=y

@@ -2,5 +2,6 @@
 # Tank Device - 16MB flash partition table
 nvs,      data, nvs,     0x9000,   0x6000,
 phy_init, data, phy,     0xf000,   0x1000,
-factory,  app,  factory, 0x10000,  0xF00000,
+factory,  app,  factory, 0x10000,  0xE00000,
+model,    data, spiffs,  0xE10000, 0x100000,
 storage,  data, spiffs,  0xF10000, 0xF0000,

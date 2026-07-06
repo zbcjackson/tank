@@ -44,7 +44,7 @@ The device firmware is a C++ application built on ESP-IDF v5.3+ that turns M5Sta
 |------|------|----------|---------|
 | `audio_capture` | 0 | 22 | I2S DMA read → mic_queue |
 | `audio_playback` | 0 | 22 | spk_queue → I2S DMA write |
-| `ws_send` | 1 | 18 | mic_queue → WebSocket binary |
+| `ws_send` | 1 | 18 | mic_queue → WebSocket binary; in wake-word mode also runs WakeNet detection + silence-based turn end |
 | `ws_recv` | 1 | 18 | WebSocket → spk_queue / event_queue |
 | `ui` | 1 | 5 | event_queue → display updates |
 
@@ -75,6 +75,8 @@ Follows the same protocol as web/CLI clients:
 **Client → Server:**
 - Binary frames: raw Int16 PCM, 16kHz, mono (mic audio)
 - JSON: `{"type":"signal","content":"interrupt"}`
+- JSON: `{"type":"signal","content":"end_of_utterance"}` (PTT release / wake-word turn end)
+- JSON: `{"type":"signal","content":"wake"}` (wake-word mode, on local detection)
 - JSON: `{"type":"input","content":"text message"}`
 
 **Server → Client:**

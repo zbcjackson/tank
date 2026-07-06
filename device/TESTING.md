@@ -8,7 +8,7 @@ There are two independent test layers:
 
 | Layer | Where it runs | Framework | Hardware needed | Count |
 |-------|---------------|-----------|-----------------|-------|
-| **Native** | Host machine (x86/ARM) | GoogleTest + GMock | No | 66 cases / 7 suites |
+| **Native** | Host machine (x86/ARM) | GoogleTest + GMock | No | 77 cases / 8 suites |
 | **On-device** | ESP32-S3 (CoreS3) | Unity | Yes (USB) | 25 cases / 1 binary |
 
 Native tests are the day-to-day safety net (fast, deterministic, no hardware).
@@ -41,6 +41,7 @@ uv run pio test -e native -f test_native/test_session
 | `test_nvs_settings` | 17 | NVS-backed settings — volume, WiFi creds, host/port, defaults, factory reset |
 | `test_serial_config` | 15 | AT command parsing — `AT+SSID`, `AT+PASS`, `AT+HOST`, `AT+PORT`, `AT+RESET`, invalid input |
 | `test_ws_routing` | 8 | Integration: `WsClient::handleData` binary/text routing + fragment reassembly |
+| `test_wake_word` | 11 | `FrameChunker` re-chunking (partials, boundaries, drain, reset) + `SilenceDetector` turn-end (silence-after-speech, speech floor, max cap) |
 | `test_mocks` | 2 | Smoke test for the GMock `Display` / `BoardHAL` headers |
 
 ### How it works

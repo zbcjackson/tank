@@ -29,8 +29,38 @@
 // sends end_of_utterance. Set to 0 for continuous (always-streaming) mode.
 // A runtime mode-switching setting page is planned for later.
 #ifndef CONFIG_PUSH_TO_TALK
-#define CONFIG_PUSH_TO_TALK      1
+#define CONFIG_PUSH_TO_TALK      0
 #endif
+
+// Wake word: an on-device WakeNet engine (esp-sr, stock "Hi ESP") listens
+// while idle. On detection the device sends `interrupt` + `wake`, streams the
+// utterance, and ends the turn on trailing silence (SilenceDetector). Mutually
+// exclusive with push-to-talk — there is no button to gate streaming.
+#ifndef CONFIG_WAKE_WORD
+#define CONFIG_WAKE_WORD         1
+#endif
+
+#if CONFIG_WAKE_WORD && CONFIG_PUSH_TO_TALK
+#error "CONFIG_WAKE_WORD and CONFIG_PUSH_TO_TALK are mutually exclusive — set CONFIG_PUSH_TO_TALK=0 to use wake-word mode."
+#endif
+
+// ─── Wake word turn-end (SilenceDetector) ─────────────────────────────────────
+// Units are 20ms mic frames. Defaults: ~800ms trailing silence ends the turn,
+// at least ~200ms of speech must occur first, and a 15s cap prevents a noisy
+// room from streaming forever.
+#define CONFIG_WAKE_SPEECH_RMS       800   // frame RMS above this counts as speech
+#define CONFIG_WAKE_SILENCE_FRAMES   40    // 40 × 20ms = 800ms trailing silence
+#define CONFIG_WAKE_MIN_SPEECH_FRAMES 10   // 10 × 20ms = 200ms speech floor
+#define CONFIG_WAKE_MAX_FRAMES       750   // 750 × 20ms = 15s hard cap
+
+// Echo hangover: this board has no acoustic echo cancellation and the speaker
+// couples strongly into the mic, so the assistant's own TTS can self-trigger
+// WakeNet. Suppress detection while playback is active AND for this long after
+// it goes quiet, to cover the acoustic tail + I2S DMA drain. Frames captured
+// during this window are dropped from the detector so a partial match spanning
+// the boundary can't complete.
+#define CONFIG_WAKE_ECHO_HANGOVER_MS 700
+
 
 // ─── Audio ──────────────────────────────────────────────────────────────────
 #define CONFIG_MIC_SAMPLE_RATE   16000

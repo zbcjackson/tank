@@ -98,6 +98,24 @@ All audio constants are in `main/config.h`:
 - `CONFIG_SPK_SAMPLE_RATE` — speaker playback rate (24000 to match server TTS)
 - `CONFIG_MIC_FRAME_MS` — capture frame duration (20ms default)
 
+### Enable on-device wake word
+
+Wake-word mode replaces push-to-talk with a hands-free "Hi ESP" trigger
+(esp-sr WakeNet9). It is mutually exclusive with PTT. Set both flags in
+`main/config.h`:
+
+```c
+#define CONFIG_PUSH_TO_TALK  0
+#define CONFIG_WAKE_WORD     1
+```
+
+The WakeNet model is flashed to the `model` partition automatically on
+`pio run -t upload` (generated as `srmodels.bin`). Turn-end sensitivity is tuned
+via the `CONFIG_WAKE_*` constants (frame counts / RMS threshold) in `config.h`.
+To change the wake word itself, adjust the `CONFIG_SR_WN_*` option in
+`sdkconfig.defaults` (a custom word requires Espressif's paid customization
+service).
+
 ### Store WiFi credentials in NVS
 
 For production, store credentials in non-volatile storage instead of hardcoding:

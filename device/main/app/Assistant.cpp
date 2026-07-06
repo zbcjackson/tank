@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "nvs_flash.h"
 #include <cstring>
 
@@ -105,6 +106,14 @@ bool Assistant::init(BoardHAL* hal) {
         ESP_LOGE(TAG, "Audio playback init failed");
         return false;
     }
+
+#if CONFIG_WAKE_WORD
+    // Load the on-device wake word model. If it fails, log and continue — the
+    // device still connects, it just won't wake on speech.
+    if (!wake_word_.init()) {
+        ESP_LOGE(TAG, "Wake word init failed — wake-word mode inactive");
+    }
+#endif
 
     // WiFi callbacks — register BEFORE init so onConnected isn't missed if the
     // connection comes up quickly.
@@ -223,7 +232,8 @@ void Assistant::onWsMessage(const WsMessage& msg) {
 
     // Handle state transitions
     if (strcmp(msg.type, "signal") == 0) {
-        if (strcmp(msg.content, "ready") == 0) {
+        if (strcmp(msg.content, "ready") == 0 ||
+            strcmp(msg.content, "conversation_ready") == 0) {
             session_.setState(Session::State::READY);
         } else if (strcmp(msg.content, "processing_started") == 0) {
             session_.setState(Session::State::PROCESSING);
@@ -240,6 +250,20 @@ void Assistant::wsSendTask(void* arg) {
 
     constexpr size_t SAMPLES = CONFIG_MIC_SAMPLE_RATE * CONFIG_MIC_FRAME_MS / 1000;
     int16_t frame[SAMPLES];
+
+#if CONFIG_WAKE_WORD
+    SilenceDetector silence({
+        CONFIG_WAKE_SPEECH_RMS,
+        CONFIG_WAKE_SILENCE_FRAMES,
+        CONFIG_WAKE_MIN_SPEECH_FRAMES,
+        CONFIG_WAKE_MAX_FRAMES,
+    });
+    // Timestamp (µs) of the last frame during which playback was active. Used
+    // to hold off wake detection through the echo hangover window.
+    int64_t last_playing_us = 0;
+    // Track playback→idle edge to reset display to "Ready" once.
+    bool was_playing = false;
+#endif
 
     ESP_LOGI(TAG, "WS send task started");
 
@@ -266,6 +290,90 @@ void Assistant::wsSendTask(void* arg) {
                 }
             }
             // else: not talking and not draining — discard frame (silence/echo).
+#elif CONFIG_WAKE_WORD
+            if (self->talking_) {
+                // Streaming the utterance. Forward every frame and watch for the
+                // trailing silence (or max-listen cap) that ends the turn.
+                if (self->ws_.isConnected()) {
+                    self->ws_.sendAudio(frame, SAMPLES);
+                }
+                if (silence.update(frame, SAMPLES)) {
+                    self->talking_ = false;
+                    if (self->ws_.isConnected()) {
+                        self->ws_.sendEndOfUtterance();
+                    }
+                    ESP_LOGI(TAG, "EOU sent (%s)",
+                             silence.endedByCap() ? "max-listen cap" : "silence");
+                    self->session_.setState(Session::State::PROCESSING);
+                    self->display_->showTalkState(false);
+                    self->display_->showStatus("Processing...");
+                }
+            } else if (!self->ws_.isConnected()) {
+                // Not connected yet: skip WakeNet entirely. There is nowhere to
+                // send the `wake` signal, and running inference on Core 1 here
+                // starves WiFi/DHCP and the WS handshake during connection —
+                // which left the UI stuck on "Connecting WiFi". Drop buffered
+                // audio; the loop-end delay yields the core.
+                self->wake_word_.reset();
+            } else {
+                // Idle and connected. Suppress wake detection while the speaker
+                // is active, through the fixed hangover window, AND until the
+                // mic level drops below the speech threshold — so residual echo
+                // from the assistant's response can't self-trigger WakeNet.
+                const int64_t now_us = esp_timer_get_time();
+                const bool playing_now = self->playback_.isPlaying();
+                if (playing_now) {
+                    last_playing_us = now_us;
+                    was_playing = true;
+                }
+                const bool in_hangover =
+                    (now_us - last_playing_us) <
+                    ((int64_t)CONFIG_WAKE_ECHO_HANGOVER_MS * 1000);
+
+                // Compute frame energy to gate detection on actual silence.
+                // Reuse SilenceDetector's static RMS method isn't accessible,
+                // so inline a quick energy check against the speech threshold.
+                int32_t energy = 0;
+                for (size_t i = 0; i < SAMPLES; i++) {
+                    int32_t s = frame[i];
+                    energy += (s * s) >> 16;
+                }
+                const bool frame_is_loud =
+                    (energy / (int32_t)SAMPLES) >
+                    ((int32_t)CONFIG_WAKE_SPEECH_RMS * CONFIG_WAKE_SPEECH_RMS >> 16);
+
+                // Suppress if: still in hangover, OR the hangover just ended but
+                // the mic is still loud (echo tail reverberating in the room).
+                const bool suppress = in_hangover ||
+                    (last_playing_us > 0 && frame_is_loud);
+
+                // Response finished: playback stopped, hangover passed, room
+                // quiet. Reset the display to "Ready" once (the backend sends no
+                // end-of-audio signal, so the device closes the turn itself).
+                if (was_playing && !playing_now && !suppress) {
+                    was_playing = false;
+                    self->session_.setState(Session::State::READY);
+                    self->display_->showStatus("Ready");
+                    self->display_->showThinking(false);
+                }
+
+                if (suppress) {
+                    self->wake_word_.reset();
+                } else {
+                    if (self->wake_word_.feed(frame, SAMPLES)) {
+                        ESP_LOGI(TAG, "Wake word detected");
+                        self->ws_.sendInterrupt();
+                        self->playback_.flush();
+                        self->ws_.sendJson("signal", "wake");
+                        silence.reset();
+                        self->talking_ = true;
+                        self->session_.setState(Session::State::LISTENING);
+                        self->display_->showTalkState(true);
+                        self->display_->showStatus("Listening...");
+                        self->display_->showAssistantText("");
+                    }
+                }
+            }
 #else
             if (self->ws_.isConnected()) {
                 self->ws_.sendAudio(frame, SAMPLES);
@@ -286,6 +394,16 @@ void Assistant::wsSendTask(void* arg) {
             }
 #endif
         }
+
+#if CONFIG_WAKE_WORD
+        // Wake-word mode runs WakeNet inference inline in this task (priority 18,
+        // Core 1). The mic queue is almost always non-empty, so xQueueReceive
+        // rarely blocks — without an explicit yield this task starves the
+        // lower-priority UI task and the event loop that processes the WiFi
+        // "connected" callback on the same core, freezing the UI on "Connecting
+        // WiFi". A 1-tick yield frees Core 1 while frames buffer in the queue.
+        vTaskDelay(1);
+#endif
     }
 
     ESP_LOGI(TAG, "WS send task stopped");
@@ -350,7 +468,8 @@ void Assistant::uiTask(void* arg) {
 
         if (xQueueReceive(self->event_queue_, &msg, pdMS_TO_TICKS(20)) == pdTRUE) {
             if (strcmp(msg.type, "signal") == 0) {
-                if (strcmp(msg.content, "ready") == 0) {
+                if (strcmp(msg.content, "ready") == 0 ||
+                    strcmp(msg.content, "conversation_ready") == 0) {
                     self->display_->showStatus("Ready");
                 } else if (strcmp(msg.content, "processing_started") == 0) {
                     self->display_->showThinking(true);

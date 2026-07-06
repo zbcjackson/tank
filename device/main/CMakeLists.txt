@@ -7,6 +7,9 @@ set(SOURCES
     "net/WsProtocol.cpp"
     "audio/AudioCapture.cpp"
     "audio/AudioPlayback.cpp"
+    "audio/FrameChunker.cpp"
+    "audio/SilenceDetector.cpp"
+    "audio/WakeWordDetector.cpp"
     "ui/Display.cpp"
     "ui/Cores3Display.cpp"
     "ui/PyramidDisplay.cpp"
@@ -39,4 +42,5 @@ idf_component_register(
         esp_lcd
         es7210
         esp_lvgl_port
+        esp-sr
 )
