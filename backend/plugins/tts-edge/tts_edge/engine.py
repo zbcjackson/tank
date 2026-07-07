@@ -11,7 +11,7 @@ from io import BytesIO
 
 import edge_tts
 from pydub import AudioSegment
-from tank_contracts.tts import AudioChunk, TTSEngine
+from tank_contracts.tts import AudioChunk, TTSEngine, select_voice
 
 logger = logging.getLogger(__name__)
 
@@ -42,13 +42,18 @@ class EdgeTTSEngine(TTSEngine):
     """TTS engine using Microsoft Edge TTS. Decodes MP3 stream to PCM."""
 
     def __init__(self, config: dict):
-        self._voice_en = config.get("voice_en", "en-US-JennyNeural")
-        self._voice_zh = config.get("voice_zh", "zh-CN-XiaoxiaoNeural")
+        default_en = "en-US-JennyNeural"
+        default_zh = "zh-CN-XiaoxiaoNeural"
+        # New config: `voices` map. Legacy `voice_en`/`voice_zh` still honored.
+        self._voices: dict[str, str] = {
+            "en": config.get("voice_en", default_en),
+            "zh": config.get("voice_zh", default_zh),
+            **(config.get("voices") or {}),
+        }
+        self._default_voice = config.get("default_voice", self._voices.get("en", default_en))
 
     def _voice_for_language(self, language: str) -> str:
-        if language.startswith("zh") or language == "chinese":
-            return self._voice_zh
-        return self._voice_en
+        return select_voice(language, self._voices, self._default_voice)
 
     async def _generate_stream_ffmpeg(
         self,

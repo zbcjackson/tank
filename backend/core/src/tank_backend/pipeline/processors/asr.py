@@ -51,11 +51,15 @@ class ASRProcessor(Processor):
         asr_stream: ASRStream,
         bus: Bus | None = None,
         user: str = "User",
+        preferred_language: str = "zh",
+        languages: tuple[str, ...] = ("zh", "en"),
     ) -> None:
         super().__init__(name="asr")
         self._asr = asr_stream
         self._bus = bus
         self._user = user
+        self._preferred_language = preferred_language
+        self._languages = languages
 
         # Streaming state
         self._partial_text: str = ""
@@ -266,11 +270,19 @@ class ASRProcessor(Processor):
                     else msg_id
                 )
 
+                # Use engine-reported language if available, else detect from text
+                from ...core.language import detect_language
+                lang = self._asr.detected_language or detect_language(
+                    final_text,
+                    candidates=self._languages,
+                    preferred=self._preferred_language,
+                ).language
+
                 event = BrainInputEvent(
                     type=InputType.AUDIO,
                     text=final_text,
                     user=self._user,
-                    language="zh",
+                    language=lang,
                     confidence=None,
                     metadata={"msg_id": msg_id, "utterance_id": utterance_id},
                 )

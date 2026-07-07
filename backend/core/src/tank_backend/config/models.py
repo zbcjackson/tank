@@ -46,6 +46,8 @@ class AssistantConfig:
     """``assistant:`` section."""
 
     speech_interrupt_enabled: bool = True
+    preferred_language: str = "zh"
+    languages: tuple[str, ...] = ("zh", "en")
 
 
 # ── Persistence ──────────────────────────────────────────────────

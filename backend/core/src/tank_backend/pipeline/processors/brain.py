@@ -75,6 +75,16 @@ class Brain(Processor):
         self._interrupt_event = interrupt_event
         self._tts_enabled = tts_enabled
         self._worker_store = worker_store
+
+        # Language config — used to detect the response language for TTS voice
+        # selection, with a preferred fallback when detection is low-confidence.
+        _asst = getattr(app_config, "assistant", None)
+        self._preferred_language: str = (
+            getattr(_asst, "preferred_language", None) or "zh"
+        )
+        self._languages: tuple[str, ...] = tuple(
+            getattr(_asst, "languages", None) or ("zh", "en")
+        )
         # NotificationHub replaces WorkerInboxObserver (Phase 3).
         # Set in ``_build_agent_graph`` when WorkerStore is injected.
         self._notification_hub: Any = None
@@ -616,7 +626,7 @@ class Brain(Processor):
 
             # Generate Assistant Message ID
             assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
-            language = "zh"
+            language = self._preferred_language
 
             # Send processing_started signal
             self._bus.post(BusMessage(
@@ -716,7 +726,7 @@ class Brain(Processor):
 
         # Generate Assistant Message ID
         assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
-        language = "zh"
+        language = self._preferred_language
 
         # Generate trace ID for observability linking
         trace_id = generate_trace_id(self._context.conversation_id or "unknown")
@@ -895,6 +905,15 @@ class Brain(Processor):
                 full_response_text, msg_id,
             )
 
+            # Detect response language for TTS voice selection
+            if full_response_text.strip():
+                from ...core.language import detect_language
+                language = detect_language(
+                    full_response_text,
+                    candidates=self._languages,
+                    preferred=self._preferred_language,
+                ).language
+
             if full_response_text.strip():
                 self._bus.post(BusMessage(
                     type="outbound_voice",
@@ -1057,6 +1076,14 @@ class Brain(Processor):
             ))
 
             if full_response_text:
+                # Detect response language for TTS voice selection
+                from ...core.language import detect_language
+                language = detect_language(
+                    full_response_text,
+                    candidates=self._languages,
+                    preferred=self._preferred_language,
+                ).language
+
                 turn_messages = state.metadata.get("turn_messages", [])
                 self._finish_turn(turn_messages)
                 if self._tts_enabled:
@@ -1153,7 +1180,7 @@ class Brain(Processor):
         messages = list(self._context.messages)
 
         assistant_msg_id = f"assistant_{uuid.uuid4().hex[:8]}"
-        language = "zh"
+        language = self._preferred_language
 
         # Send processing_started signal
         self._bus.post(BusMessage(

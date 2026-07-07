@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING
 
 import httpx
-from tank_contracts.tts import AudioChunk, TTSEngine
+from tank_contracts.tts import AudioChunk, TTSEngine, select_voice
 
 if TYPE_CHECKING:
     from .server import CosyVoiceServer
@@ -57,8 +57,14 @@ class CosyVoiceTTSEngine(TTSEngine):
         # Local-server settings (only used when provider == "local")
         self._base_url = config.get("base_url", "http://localhost:50000").rstrip("/")
         self._mode = config.get("mode", "sft")
-        self._spk_id_en = config.get("spk_id_en", "英文女")
-        self._spk_id_zh = config.get("spk_id_zh", "中文女")
+        # New config: `voices` map. Legacy `spk_id_en`/`spk_id_zh` still honored.
+        default_en = config.get("spk_id_en", "英文女")
+        self._voices: dict[str, str] = {
+            "en": default_en,
+            "zh": config.get("spk_id_zh", "中文女"),
+            **(config.get("voices") or {}),
+        }
+        self._default_voice = config.get("default_voice", default_en)
         self._timeout_s = float(config.get("timeout_s", DEFAULT_TIMEOUT_S))
 
         # zero_shot / instruct2 mode settings
@@ -74,9 +80,7 @@ class CosyVoiceTTSEngine(TTSEngine):
         self._client: httpx.AsyncClient | None = None
 
     def _spk_id_for_language(self, language: str) -> str:
-        if language.startswith("zh") or language == "chinese":
-            return self._spk_id_zh
-        return self._spk_id_en
+        return select_voice(language, self._voices, self._default_voice)
 
     def _get_client(self) -> httpx.AsyncClient:
         """Lazily create and reuse a single httpx client for connection pooling."""

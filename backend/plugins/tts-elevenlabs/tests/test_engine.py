@@ -122,6 +122,7 @@ async def test_voice_selection():
     engine = create_engine(config)
 
     assert engine._voice_for_language("en") == "en_voice"
-    assert engine._voice_for_language("english") == "en_voice"
     assert engine._voice_for_language("zh") == "zh_voice"
-    assert engine._voice_for_language("chinese") == "zh_voice"
+    assert engine._voice_for_language("zh-CN") == "zh_voice"
+    # Non-ISO names fall back to the default voice
+    assert engine._voice_for_language("chinese") == "en_voice"

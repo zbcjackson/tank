@@ -261,7 +261,12 @@ class Assistant:
                 else None
             ),
         )
-        asr_proc = ASRProcessor(asr_stream=asr_stream, bus=self._bus)
+        asr_proc = ASRProcessor(
+            asr_stream=asr_stream,
+            bus=self._bus,
+            preferred_language=self._app_config.assistant.preferred_language,
+            languages=self._app_config.assistant.languages,
+        )
 
         voiceprint_recognizer = self._voiceprint_recognizer
         if voiceprint_recognizer is not None:
@@ -489,6 +494,24 @@ class Assistant:
         """Push an audio frame into the pipeline (entry point for mic data)."""
         if self._pipeline is not None:
             self._pipeline.push(frame)
+
+    def set_capture_format(self, sample_rate: int = 16000, channels: int = 1) -> None:
+        """Record the client's actual capture format (declared on connect).
+
+        Inbound binary PCM is resampled/downmixed to 16 kHz mono in the router
+        before reaching the pipeline. Clients that capture at the pipeline's
+        native 16 kHz mono (device, CLI) never send this, so the defaults hold.
+        """
+        self._capture_sample_rate = sample_rate
+        self._capture_channels = channels
+
+    @property
+    def capture_sample_rate(self) -> int:
+        return getattr(self, "_capture_sample_rate", 16000)
+
+    @property
+    def capture_channels(self) -> int:
+        return getattr(self, "_capture_channels", 1)
 
     def process_input(
         self,

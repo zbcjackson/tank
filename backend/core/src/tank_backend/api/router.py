@@ -570,8 +570,18 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             if "bytes" in data:
                 # Binary: push audio into pipeline
+                raw = data["bytes"]
+                cap_rate = assistant.capture_sample_rate
+                cap_ch = assistant.capture_channels
+                # Downmix stereo → mono if needed
+                if cap_ch > 1:
+                    samples = np.frombuffer(raw, dtype=np.int16).reshape(-1, cap_ch)
+                    raw = samples[:, 0].tobytes()
+                # Resample to 16kHz if client captures at a different rate
+                if cap_rate != 16000:
+                    raw = _resample_pcm16(raw, cap_rate, 16000)
                 pcm_data = (
-                    np.frombuffer(data["bytes"], dtype=np.int16).astype(np.float32)
+                    np.frombuffer(raw, dtype=np.int16).astype(np.float32)
                     / 32768.0
                 )
                 frame = AudioFrame(

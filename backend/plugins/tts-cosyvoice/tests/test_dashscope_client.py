@@ -129,7 +129,7 @@ def test_client_defaults():
     """Default model and voice are set when not specified."""
     client = DashScopeClient({"dashscope_api_key": "key"})
     assert client._model == "cosyvoice-v3-flash"
-    assert client._voice_en == "longanyang"
+    assert client._default_voice == "longanyang"
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +145,8 @@ def test_voice_for_chinese():
     })
     assert client.voice_for_language("zh") == "zh_voice"
     assert client.voice_for_language("zh-CN") == "zh_voice"
-    assert client.voice_for_language("chinese") == "zh_voice"
+    # Non-ISO name falls back to default
+    assert client.voice_for_language("chinese") == "en_voice"
 
 
 def test_voice_for_english():

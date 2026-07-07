@@ -56,6 +56,7 @@ dependencies = [
     # Computer-use tools: macOS input injection via Quartz CGEvent.
     # Only needed on macOS — harmless to list on Linux (install skipped).
     "pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'",
+    "lingua-language-detector>=2.0.0",
 ]
 
 [project.scripts]

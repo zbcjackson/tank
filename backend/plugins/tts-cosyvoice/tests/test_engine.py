@@ -59,7 +59,8 @@ def test_spk_id_for_chinese(cosyvoice_config):
     engine = create_engine(cosyvoice_config)
     assert engine._spk_id_for_language("zh") == "中文女"
     assert engine._spk_id_for_language("zh-CN") == "中文女"
-    assert engine._spk_id_for_language("chinese") == "中文女"
+    # Non-ISO name falls back to default
+    assert engine._spk_id_for_language("chinese") == "英文女"
 
 
 def test_spk_id_for_english(cosyvoice_config):

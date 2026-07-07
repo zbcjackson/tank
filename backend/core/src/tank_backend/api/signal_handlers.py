@@ -134,6 +134,34 @@ async def handle_end_of_utterance(
     assistant.end_utterance()
 
 
+@register("audio_format")
+async def handle_audio_format(
+    assistant: Assistant,
+    msg: WebsocketMessage,
+    session_id: str,
+    send_fn: SendFn,
+) -> None:
+    """Client declares its actual capture sample rate + channel count.
+
+    Browsers often ignore the requested 16 kHz AudioContext rate and capture
+    at the hardware rate (e.g. 32/48 kHz). Without this, the backend would
+    treat that audio as 16 kHz, pitching it down and wrecking recognition.
+    The router resamples inbound PCM to 16 kHz mono using these values.
+    """
+    meta = msg.metadata or {}
+    try:
+        rate = int(meta.get("sample_rate", 16000))
+        channels = int(meta.get("channels", 1))
+    except (TypeError, ValueError):
+        logger.warning("Invalid audio_format metadata: %r", meta)
+        return
+    logger.info(
+        "Client audio_format: %s (sample_rate=%d, channels=%d)",
+        session_id, rate, channels,
+    )
+    assistant.set_capture_format(sample_rate=rate, channels=channels)
+
+
 @register("ping")
 async def handle_ping(
     assistant: Assistant,

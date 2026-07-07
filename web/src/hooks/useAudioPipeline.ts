@@ -164,6 +164,18 @@ export function useAudioPipeline({
         await adapterReadyRef.current;
       }
       await processor.start();
+
+      // Declare the actual capture rate so the backend can resample to the
+      // pipeline's required 16 kHz. Browsers often ignore the requested rate
+      // and capture at 32/48 kHz; only signal when it actually differs.
+      const rate = processor.getSampleRate();
+      if (rate && rate !== 16000) {
+        clientRef.current?.sendMessage('signal', 'audio_format', {
+          sample_rate: rate,
+          channels: 1,
+        });
+      }
+
       setAudioReady(true);
     };
 

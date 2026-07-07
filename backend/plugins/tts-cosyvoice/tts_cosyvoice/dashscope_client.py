@@ -13,7 +13,7 @@ import uuid
 from collections.abc import AsyncIterator, Callable
 
 import websockets
-from tank_contracts.tts import AudioChunk
+from tank_contracts.tts import AudioChunk, select_voice
 
 logger = logging.getLogger(__name__)
 
@@ -43,17 +43,21 @@ class DashScopeClient:
     def __init__(self, config: dict) -> None:
         self._api_key: str = config["dashscope_api_key"]
         self._model: str = config.get("dashscope_model", DEFAULT_MODEL)
-        self._voice_en: str = config.get("dashscope_voice_en", DEFAULT_VOICE)
-        self._voice_zh: str = config.get("dashscope_voice_zh", DEFAULT_VOICE)
         region = config.get("dashscope_region", "intl")
         self._ws_url: str = _WS_URLS.get(region, _WS_URLS["intl"])
         self._sample_rate: int = int(config.get("sample_rate", DEFAULT_SAMPLE_RATE))
+        # New config: `voices` map. Legacy `dashscope_voice_en/zh` still honored.
+        default_voice = config.get("dashscope_voice_en", DEFAULT_VOICE)
+        self._voices: dict[str, str] = {
+            "en": default_voice,
+            "zh": config.get("dashscope_voice_zh", DEFAULT_VOICE),
+            **(config.get("voices") or {}),
+        }
+        self._default_voice = config.get("default_voice", default_voice)
 
     def voice_for_language(self, language: str) -> str:
         """Pick a voice name based on the detected language."""
-        if language.startswith("zh") or language == "chinese":
-            return self._voice_zh
-        return self._voice_en
+        return select_voice(language, self._voices, self._default_voice)
 
     async def stream(
         self,

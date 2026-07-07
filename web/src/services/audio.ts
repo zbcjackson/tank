@@ -23,6 +23,12 @@ export class AudioProcessor {
   private gateSpeech = true;
   private muted = false;
 
+  // Actual capture sample rate. Browsers often ignore the requested 16 kHz
+  // AudioContext rate and capture at the hardware rate (32/48 kHz). We read
+  // it back after start() so the backend can resample to the pipeline's
+  // required 16 kHz. null until start() runs.
+  private capturedSampleRate: number | null = null;
+
   // VAD gate — utterance-level, controlled by MicVAD callbacks
   private vadOpen = false;
   private micVad: MicVAD | null = null;
@@ -112,6 +118,10 @@ export class AudioProcessor {
     )({
       sampleRate: 16000,
     });
+
+    // Read back the actual rate the browser gave us — it may differ from the
+    // requested 16 kHz (common on Linux where hardware rates are fixed).
+    this.capturedSampleRate = this.audioContext.sampleRate;
 
     await this.audioContext.audioWorklet.addModule('/audio-processor.js');
     if (this.disposed) {
@@ -275,6 +285,15 @@ export class AudioProcessor {
 
   isMuted(): boolean {
     return this.muted;
+  }
+
+  /**
+   * Returns the actual capture sample rate after start(), or null if not yet
+   * started. Browsers may ignore the requested 16 kHz and capture at the
+   * hardware rate (32/48 kHz). The backend uses this to resample correctly.
+   */
+  getSampleRate(): number | null {
+    return this.capturedSampleRate;
   }
 
   /**

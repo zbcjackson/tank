@@ -86,6 +86,17 @@ class ASRStream(ABC):
         """
         return True
 
+    @property
+    def detected_language(self) -> str | None:
+        """ISO 639-1 language detected during ``stop()``, or None.
+
+        Multilingual engines (e.g. Whisper) that perform acoustic language
+        identification override this to report the spoken language. Engines
+        that only transcribe text return None (the default), in which case
+        the caller falls back to text-based detection on the transcript.
+        """
+        return None
+
 
 class ASREngine(ABC):
     """Abstract process-global ASR engine.

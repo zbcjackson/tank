@@ -12,7 +12,7 @@ import logging
 from collections.abc import AsyncIterator, Callable
 
 import websockets
-from tank_contracts.tts import AudioChunk, TTSEngine
+from tank_contracts.tts import AudioChunk, TTSEngine, select_voice
 
 logger = logging.getLogger("ElevenLabsTTS")
 
@@ -31,17 +31,21 @@ class ElevenLabsTTSEngine(TTSEngine):
 
     def __init__(self, config: dict) -> None:
         self._api_key: str = config["api_key"]
-        self._voice_id: str = config["voice_id"]
-        self._voice_id_zh: str = config.get("voice_id_zh", self._voice_id)
+        default_voice: str = config["voice_id"]
         self._model_id: str = config.get("model_id", DEFAULT_MODEL)
         self._sample_rate: int = int(config.get("sample_rate", DEFAULT_SAMPLE_RATE))
         self._stability: float = float(config.get("stability", 0.5))
         self._similarity_boost: float = float(config.get("similarity_boost", 0.75))
+        # New config: `voices` map. Legacy `voice_id`/`voice_id_zh` still honored.
+        self._voices: dict[str, str] = {
+            "en": default_voice,
+            "zh": config.get("voice_id_zh", default_voice),
+            **(config.get("voices") or {}),
+        }
+        self._default_voice = config.get("default_voice", default_voice)
 
     def _voice_for_language(self, language: str) -> str:
-        if language.startswith("zh") or language == "chinese":
-            return self._voice_id_zh
-        return self._voice_id
+        return select_voice(language, self._voices, self._default_voice)
 
     async def generate_stream(
         self,

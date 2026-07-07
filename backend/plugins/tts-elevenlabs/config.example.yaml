@@ -2,9 +2,14 @@ tts:
   plugin: tts-elevenlabs
   config:
     api_key: ${ELEVENLABS_API_KEY}
-    voice_id: "ulmOxiH84jmsJurmeFBi" # Replace with your voice ID
-    voice_id_zh: "ulmOxiH84jmsJurmeFBi" # Optional: separate voice for Chinese
+    voice_id: "ulmOxiH84jmsJurmeFBi" # Default voice (used for English)
     model_id: eleven_flash_v2_5 # eleven_flash_v2_5 (fastest) or eleven_turbo_v2_5
     sample_rate: 24000
     stability: 0.5
     similarity_boost: 0.75
+    # Language → voice map (add more languages as needed)
+    voices:
+      en: "ulmOxiH84jmsJurmeFBi"
+      zh: "ulmOxiH84jmsJurmeFBi" # Replace with a Chinese voice ID
+    default_voice: "ulmOxiH84jmsJurmeFBi"
+    # Legacy format still supported: voice_id / voice_id_zh

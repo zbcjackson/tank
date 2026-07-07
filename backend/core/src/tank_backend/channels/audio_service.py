@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from tank_contracts import encode_audio_frame
 
+from ..core.language import detect_language
 from ..pipeline.processors.tts_normalizer import normalize_for_tts
 
 if TYPE_CHECKING:
@@ -22,16 +23,8 @@ logger = logging.getLogger(__name__)
 
 
 def _detect_language(text: str) -> str:
-    """Detect language from text content.
-
-    Returns "zh" if any CJK character is present, otherwise "en".
-    Matches the heuristic used by tts-cosyvoice and Tank's interactive path,
-    which hardcodes "zh" as the primary language.
-    """
-    for c in text:
-        if "一" <= c <= "鿿":
-            return "zh"
-    return "en"
+    """Detect language from text content using the shared lingua-based utility."""
+    return detect_language(text).language
 
 
 class ChannelAudioService:

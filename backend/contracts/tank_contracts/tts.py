@@ -60,3 +60,16 @@ class TTSEngine(ABC):
         If is_interrupted() becomes True, stop yielding and return.
         """
         ...
+
+
+def select_voice(language: str, voices: dict[str, str], default: str) -> str:
+    """Map a detected language (ISO 639-1, possibly regional like 'zh-CN') to a voice.
+
+    Lookup order:
+    1. Exact match (e.g. "en" → voices["en"])
+    2. Prefix match (e.g. "zh-CN" → voices["zh"])
+    3. Default voice
+    """
+    if not language or language == "auto":
+        return default
+    return voices.get(language) or voices.get(language.split("-")[0]) or default
