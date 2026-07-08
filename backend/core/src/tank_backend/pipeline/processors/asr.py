@@ -9,6 +9,8 @@ import time
 import uuid
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 from ..bus import Bus, BusMessage
 from ..event import PipelineEvent
 from ..processor import FlowReturn, Processor
@@ -53,6 +55,8 @@ class ASRProcessor(Processor):
         user: str = "User",
         preferred_language: str = "zh",
         languages: tuple[str, ...] = ("zh", "en"),
+        pipeline_sample_rate: int = 16000,
+        asr_sample_rate: int = 16000,
     ) -> None:
         super().__init__(name="asr")
         self._asr = asr_stream
@@ -60,6 +64,11 @@ class ASRProcessor(Processor):
         self._user = user
         self._preferred_language = preferred_language
         self._languages = languages
+        # When the ASR engine needs a different rate than the pipeline wire
+        # rate, resample each frame before feeding the recognizer.
+        self._pipeline_sample_rate = pipeline_sample_rate
+        self._asr_sample_rate = asr_sample_rate
+        self._needs_resample = pipeline_sample_rate != asr_sample_rate
 
         # Streaming state
         self._partial_text: str = ""
@@ -73,6 +82,20 @@ class ASRProcessor(Processor):
         self._streaming_msg_id = None
         self._streaming_started_at = None
         self._speech_detected_sent = False
+
+    def _to_asr_rate(self, pcm: np.ndarray) -> np.ndarray:
+        """Resample float32 PCM from the pipeline rate to the ASR rate.
+
+        No-op when the two rates match (the common case). Uses linear
+        interpolation, matching the router's inbound resampler.
+        """
+        if not self._needs_resample or len(pcm) == 0:
+            return pcm
+        n_out = round(len(pcm) * self._asr_sample_rate / self._pipeline_sample_rate)
+        if n_out <= 0:
+            return pcm[:0]
+        src_idx = np.linspace(0, len(pcm) - 1, n_out)
+        return np.interp(src_idx, np.arange(len(pcm)), pcm).astype(np.float32)
 
     def _post_speech_start(self, timestamp_s: float | None = None) -> None:
         """Post speech_start to bus (triggers interrupt in assistant)."""
@@ -219,7 +242,7 @@ class ASRProcessor(Processor):
                 yield FlowReturn.OK, None
                 return
 
-            text = self._asr.process_pcm(item.pcm)
+            text = self._asr.process_pcm(self._to_asr_rate(item.pcm))
 
             if text and text != self._partial_text:
                 self._partial_text = text
@@ -249,7 +272,7 @@ class ASRProcessor(Processor):
                 # Batch mode: transcribe full utterance
                 started_at = time.time()
                 self._asr.start()
-                self._asr.process_pcm(item.utterance_pcm)
+                self._asr.process_pcm(self._to_asr_rate(item.utterance_pcm))
                 final_text = await self._stop_with_timeout()
                 elapsed = time.time() - started_at
                 # For batch mode, create msg_id and post speech_start now

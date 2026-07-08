@@ -69,7 +69,7 @@ export class AudioProcessor {
     this.platformAdapter = adapter;
   }
 
-  async start() {
+  async start(targetSampleRate = 16000) {
     // If a platform adapter with native capture exists (e.g. Tauri), use its
     // capture pipeline — no browser getUserMedia/AudioWorklet/VAD needed.
     // BrowserAudioAdapter does NOT handle capture (handlesCapture=false), so
@@ -116,11 +116,11 @@ export class AudioProcessor {
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
     )({
-      sampleRate: 16000,
+      sampleRate: targetSampleRate,
     });
 
     // Read back the actual rate the browser gave us — it may differ from the
-    // requested 16 kHz (common on Linux where hardware rates are fixed).
+    // requested rate (common on Linux where hardware rates are fixed).
     this.capturedSampleRate = this.audioContext.sampleRate;
 
     await this.audioContext.audioWorklet.addModule('/audio-processor.js');

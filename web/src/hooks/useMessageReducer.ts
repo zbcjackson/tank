@@ -110,6 +110,7 @@ export function attachmentMessageToSteps(msg: WebsocketMessage): Step[] {
 interface MessageReducerCallbacks {
   dispatchStatus: (event: StatusEvent) => void;
   onCapabilities: (caps: Capabilities) => void;
+  onPipelineSampleRate?: (rate: number) => void;
   onResumedConversation?: (conversationId: string) => void;
 }
 
@@ -136,6 +137,10 @@ export function useMessageReducer(callbacks: MessageReducerCallbacks) {
           const caps = msg.metadata?.capabilities as Capabilities | undefined;
           if (caps) {
             callbacks.onCapabilities(caps);
+          }
+          const rate = msg.metadata?.pipeline_sample_rate;
+          if (typeof rate === 'number' && rate > 0) {
+            callbacks.onPipelineSampleRate?.(rate);
           }
           const conversationId = msg.metadata?.conversation_id;
           if (typeof conversationId === 'string' && conversationId) {

@@ -541,6 +541,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         # Send 'ready' signal with capabilities and active conversation
         ready_metadata: dict[str, Any] = {
             "capabilities": assistant.capabilities,
+            "pipeline_sample_rate": assistant.pipeline_sample_rate,
         }
         conv_id = assistant.brain.conversation_id
         if conv_id:
@@ -573,19 +574,20 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 raw = data["bytes"]
                 cap_rate = assistant.capture_sample_rate
                 cap_ch = assistant.capture_channels
+                pipeline_rate = assistant.pipeline_sample_rate
                 # Downmix stereo → mono if needed
                 if cap_ch > 1:
                     samples = np.frombuffer(raw, dtype=np.int16).reshape(-1, cap_ch)
                     raw = samples[:, 0].tobytes()
-                # Resample to 16kHz if client captures at a different rate
-                if cap_rate != 16000:
-                    raw = _resample_pcm16(raw, cap_rate, 16000)
+                # Resample to the pipeline rate if the client captures differently
+                if cap_rate != pipeline_rate:
+                    raw = _resample_pcm16(raw, cap_rate, pipeline_rate)
                 pcm_data = (
                     np.frombuffer(raw, dtype=np.int16).astype(np.float32)
                     / 32768.0
                 )
                 frame = AudioFrame(
-                    pcm=pcm_data, sample_rate=16000, timestamp_s=time.time()
+                    pcm=pcm_data, sample_rate=pipeline_rate, timestamp_s=time.time()
                 )
                 assistant.push_audio(frame)
 

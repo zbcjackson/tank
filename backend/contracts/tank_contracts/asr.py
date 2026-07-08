@@ -124,6 +124,17 @@ class ASREngine(ABC):
         """
         ...
 
+    @property
+    def sample_rate(self) -> int:
+        """Audio sample rate (Hz) this engine's streams require.
+
+        The pipeline reads this to know what rate to feed the ASR stream
+        and resamples upstream audio to match when it differs from the
+        pipeline's wire rate. Engines that require a specific rate override
+        this; the default matches the historical 16 kHz assumption.
+        """
+        return 16000
+
     async def transcribe_once(
         self,
         pcm: np.ndarray,

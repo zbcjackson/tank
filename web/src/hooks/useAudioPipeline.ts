@@ -16,6 +16,8 @@ import type { ConversationState } from './useConversationSession';
 interface UseAudioPipelineArgs {
   sessionId: string;
   capabilities: Capabilities;
+  /** Pipeline wire rate declared by the backend in the "ready" signal. */
+  pipelineSampleRate: number;
   conversationStateRef: React.RefObject<ConversationState>;
   onMessage: (msg: WebsocketMessage) => void;
   onBinaryMessage?: (data: ArrayBuffer) => void;
@@ -40,6 +42,7 @@ interface UseAudioPipelineArgs {
 export function useAudioPipeline({
   sessionId,
   capabilities,
+  pipelineSampleRate,
   conversationStateRef,
   onMessage,
   onBinaryMessage,
@@ -163,13 +166,13 @@ export function useAudioPipeline({
       if (adapterReadyRef.current) {
         await adapterReadyRef.current;
       }
-      await processor.start();
+      await processor.start(pipelineSampleRate);
 
       // Declare the actual capture rate so the backend can resample to the
-      // pipeline's required 16 kHz. Browsers often ignore the requested rate
-      // and capture at 32/48 kHz; only signal when it actually differs.
+      // pipeline's wire rate. Browsers often ignore the requested rate and
+      // capture at 32/48 kHz; only signal when it actually differs.
       const rate = processor.getSampleRate();
-      if (rate && rate !== 16000) {
+      if (rate && rate !== pipelineSampleRate) {
         clientRef.current?.sendMessage('signal', 'audio_format', {
           sample_rate: rate,
           channels: 1,
@@ -184,6 +187,9 @@ export function useAudioPipeline({
       setConnectionState('failed');
       setConnectionMetadata({ error: 'Failed to start audio processor' });
     });
+    // pipelineSampleRate is read from the closure at start time; the ready
+    // signal that sets it always arrives before capabilities.asr flips true.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [capabilities.asr]);
 
   return {

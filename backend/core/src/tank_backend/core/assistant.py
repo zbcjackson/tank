@@ -49,6 +49,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("Assistant")
 
+# The pipeline's wire rate is constrained by Silero VAD (only 8k or 16k).
+# All inbound audio is resampled to this rate before entering the pipeline.
+# Clients receive this in the "ready" signal so they know what to capture at.
+PIPELINE_SAMPLE_RATE = 16000
+
 
 class Assistant:
     """Pipeline-based voice assistant orchestrator.
@@ -249,8 +254,14 @@ class Assistant:
         from ..audio.input.vad import VADEngine
 
         vad_engine = self._app_context.vad_engine or VADEngine()
-        vad_stream = vad_engine.create_stream(cfg=SegmenterConfig(), sample_rate=16000)
+        vad_stream = vad_engine.create_stream(
+            cfg=SegmenterConfig(), sample_rate=PIPELINE_SAMPLE_RATE
+        )
         asr_stream = asr_engine.create_stream()
+
+        # The ASR engine declares the rate it needs. When it differs from the
+        # pipeline wire rate (set by VAD), the ASR processor resamples.
+        self._asr_sample_rate = asr_engine.sample_rate
 
         self._vad_processor = VADProcessor(
             vad_stream=vad_stream,
@@ -266,6 +277,8 @@ class Assistant:
             bus=self._bus,
             preferred_language=self._app_config.assistant.preferred_language,
             languages=self._app_config.assistant.languages,
+            pipeline_sample_rate=PIPELINE_SAMPLE_RATE,
+            asr_sample_rate=self._asr_sample_rate,
         )
 
         voiceprint_recognizer = self._voiceprint_recognizer
@@ -512,6 +525,15 @@ class Assistant:
     @property
     def capture_channels(self) -> int:
         return getattr(self, "_capture_channels", 1)
+
+    @property
+    def pipeline_sample_rate(self) -> int:
+        """The pipeline's wire rate — inbound audio is resampled to this.
+
+        Exposed to clients via the 'ready' signal so they capture at the
+        right rate (or declare their actual rate for backend resampling).
+        """
+        return PIPELINE_SAMPLE_RATE
 
     def process_input(
         self,

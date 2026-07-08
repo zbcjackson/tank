@@ -129,6 +129,7 @@ export const useAssistant = (
 ) => {
   const [mode, setMode] = useState<'voice' | 'chat'>('voice');
   const [capabilities, setCapabilities] = useState<Capabilities>(DEFAULT_CAPABILITIES);
+  const [pipelineSampleRate, setPipelineSampleRate] = useState<number>(16000);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(() => {
     try {
       return localStorage.getItem('tank.selectedUserId');
@@ -185,6 +186,9 @@ export const useAssistant = (
       onCapabilities: (caps: Capabilities) => {
         setCapabilities(caps);
         if (!caps.asr) setMode('chat');
+      },
+      onPipelineSampleRate: (rate: number) => {
+        setPipelineSampleRate(rate);
       },
       onResumedConversation: (conversationId: string) => {
         fetchConversationMessages(conversationId)
@@ -267,6 +271,7 @@ export const useAssistant = (
   } = useAudioPipeline({
     sessionId,
     capabilities,
+    pipelineSampleRate,
     conversationStateRef,
     onMessage: wrappedHandleMessage,
     onBinaryMessage: handleBinaryMessage,

@@ -224,6 +224,11 @@ class SherpaASREngine(ASREngine):
         """Create a fresh per-utterance recognition stream."""
         return SherpaASRStream(self)
 
+    @property
+    def sample_rate(self) -> int:
+        """The sample rate this engine's model was configured for."""
+        return self._sample_rate
+
     def close(self) -> None:
         """Release engine-level resources (no-op for local model)."""
         logger.info("Sherpa: Engine closed")
