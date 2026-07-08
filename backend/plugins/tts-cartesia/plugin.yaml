@@ -1,0 +1,8 @@
+name: tts-cartesia
+display_name: Cartesia Sonic TTS
+description: Cartesia Sonic realtime streaming TTS plugin
+
+extensions:
+  - name: tts
+    type: tts
+    factory: tts_cartesia:create_engine

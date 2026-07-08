@@ -1,0 +1,13 @@
+tts:
+  enabled: true
+  extension: tts-hume:tts
+  config:
+    api_key: ${HUME_API_KEY}
+    # Octave adapts emotion automatically from the text. `description` shapes
+    # the persona / emotional baseline (voice design by prompt).
+    description: "A warm, calm assistant with natural, empathetic delivery."
+    # Optional predefined voice (by name or id) from your Hume account:
+    # voice_name: "Ito"
+    # voices: { en: "Ito", zh: "Ito" }
+    # default_voice: "Ito"
+    sample_rate: 24000

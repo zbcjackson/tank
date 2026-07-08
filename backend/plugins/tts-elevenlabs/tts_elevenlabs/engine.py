@@ -36,6 +36,10 @@ class ElevenLabsTTSEngine(TTSEngine):
         self._sample_rate: int = int(config.get("sample_rate", DEFAULT_SAMPLE_RATE))
         self._stability: float = float(config.get("stability", 0.5))
         self._similarity_boost: float = float(config.get("similarity_boost", 0.75))
+        # v3 / expressive controls (optional; omitted from the payload when unset).
+        self._style = config.get("style")
+        self._use_speaker_boost = config.get("use_speaker_boost")
+        self._speed = config.get("speed")
         # New config: `voices` map. Legacy `voice_id`/`voice_id_zh` still honored.
         self._voices: dict[str, str] = {
             "en": default_voice,
@@ -61,14 +65,23 @@ class ElevenLabsTTSEngine(TTSEngine):
         url += f"?model_id={self._model_id}"
         url += f"&output_format=pcm_{self._sample_rate}"
 
+        # Build voice_settings, including optional v3/expressive controls.
+        voice_settings: dict = {
+            "stability": self._stability,
+            "similarity_boost": self._similarity_boost,
+        }
+        if self._style is not None:
+            voice_settings["style"] = float(self._style)
+        if self._use_speaker_boost is not None:
+            voice_settings["use_speaker_boost"] = bool(self._use_speaker_boost)
+        if self._speed is not None:
+            voice_settings["speed"] = float(self._speed)
+
         async with websockets.connect(url) as ws:
             # 1. Send initialisation message (includes API key + voice settings)
             init_msg = json.dumps({
                 "text": " ",
-                "voice_settings": {
-                    "stability": self._stability,
-                    "similarity_boost": self._similarity_boost,
-                },
+                "voice_settings": voice_settings,
                 "xi-api-key": self._api_key,
             })
             await ws.send(init_msg)

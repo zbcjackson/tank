@@ -1,6 +1,7 @@
 """Test ElevenLabs TTS plugin."""
 
 import base64
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -63,6 +64,41 @@ async def test_generate_stream_basic():
         assert len(chunks) == 2
         # Verify 3 sends: init, text+flush, close
         assert mock_ws.send.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_v3_emotion_voice_settings_passthrough():
+    """v3/expressive config keys flow into the init voice_settings message."""
+    config = {
+        "api_key": "test_key",
+        "voice_id": "test_voice",
+        "model_id": "eleven_v3",
+        "style": 0.7,
+        "use_speaker_boost": True,
+        "speed": 1.1,
+    }
+    engine = create_engine(config)
+
+    audio_b64 = base64.b64encode(b"\x00\x01" * 10).decode("ascii")
+    messages = [f'{{"audio": "{audio_b64}", "isFinal": true}}']
+
+    mock_ws = AsyncMock()
+    mock_ws.send = AsyncMock()
+    mock_ws.__aiter__ = lambda self: _async_iter(messages).__aiter__()
+    mock_connect = AsyncMock()
+    mock_connect.__aenter__ = AsyncMock(return_value=mock_ws)
+    mock_connect.__aexit__ = AsyncMock(return_value=None)
+
+    with patch("tts_elevenlabs.engine.websockets.connect", return_value=mock_connect):
+        [c async for c in engine.generate_stream("hi", language="en")]
+
+    # The model_id is in the URL; voice_settings carry the expressive controls.
+    init_payload = json.loads(mock_ws.send.call_args_list[0][0][0])
+    vs = init_payload["voice_settings"]
+    assert vs["style"] == 0.7
+    assert vs["use_speaker_boost"] is True
+    assert vs["speed"] == 1.1
+    assert vs["stability"] == 0.5
 
 
 @pytest.mark.asyncio

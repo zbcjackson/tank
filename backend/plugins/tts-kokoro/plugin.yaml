@@ -1,0 +1,8 @@
+name: tts-kokoro
+display_name: Kokoro TTS
+description: Local offline Kokoro-82M in-process TTS plugin (CPU)
+
+extensions:
+  - name: tts
+    type: tts
+    factory: tts_kokoro:create_engine

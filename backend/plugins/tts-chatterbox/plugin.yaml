@@ -1,0 +1,8 @@
+name: tts-chatterbox
+display_name: Chatterbox TTS
+description: Local offline Chatterbox in-process TTS plugin (CPU, emotional)
+
+extensions:
+  - name: tts
+    type: tts
+    factory: tts_chatterbox:create_engine

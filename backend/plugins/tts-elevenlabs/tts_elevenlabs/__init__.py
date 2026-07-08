@@ -11,10 +11,14 @@ def create_engine(config: dict) -> ElevenLabsTTSEngine:
             - api_key: ElevenLabs API key (required)
             - voice_id: Default voice ID (required)
             - voice_id_zh: Chinese voice ID (optional, falls back to voice_id)
-            - model_id: Model to use (default: eleven_flash_v2_5)
+            - model_id: Model to use (default: eleven_flash_v2_5;
+              also eleven_turbo_v2_5, eleven_v3)
             - sample_rate: Output sample rate (default: 24000)
             - stability: Voice stability 0-1 (default: 0.5)
             - similarity_boost: Similarity boost 0-1 (default: 0.75)
+            - style: Expressive style 0-1 (optional; v3/expressive models)
+            - use_speaker_boost: Speaker boost (optional, bool)
+            - speed: Speaking rate multiplier (optional)
 
     Returns:
         ElevenLabsTTSEngine instance

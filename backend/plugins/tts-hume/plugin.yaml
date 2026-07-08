@@ -1,0 +1,8 @@
+name: tts-hume
+display_name: Hume Octave TTS
+description: Hume Octave emotionally-expressive streaming TTS plugin
+
+extensions:
+  - name: tts
+    type: tts
+    factory: tts_hume:create_engine

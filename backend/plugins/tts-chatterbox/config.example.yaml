@@ -1,0 +1,18 @@
+# Chatterbox (Resemble AI) — local, offline. Best local emotional quality.
+#
+# Heavy deps are NOT installed by default. To use this engine:
+#   uv pip install chatterbox-tts
+# Notes:
+#   - device: cpu works with NO GPU, but synthesis is SLOW (several seconds per
+#     utterance). Set device: cuda once you have an NVIDIA GPU.
+#   - MIT licensed. All generated audio carries a Perth neural watermark.
+#   - First run downloads the model from HuggingFace to the local cache.
+tts:
+  enabled: true
+  extension: tts-chatterbox:tts
+  config:
+    device: cpu
+    exaggeration: 0.5     # emotion intensity; raise (~0.7) for dramatic delivery
+    cfg_weight: 0.5       # lower (~0.3) improves pacing for fast speech
+    # voice_prompt_path: /path/to/reference_voice.wav   # optional voice cloning
+    sample_rate: 24000    # emitted rate follows model.sr

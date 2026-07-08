@@ -1,0 +1,14 @@
+tts:
+  enabled: true
+  extension: tts-cartesia:tts
+  config:
+    api_key: ${CARTESIA_API_KEY}
+    model_id: sonic-3
+    # Cartesia voice UUIDs (from your Cartesia dashboard) per language.
+    voices:
+      en: "a0e99841-438c-4a64-b679-ae501e7d6091"
+      zh: "a0e99841-438c-4a64-b679-ae501e7d6091"
+    default_voice: "a0e99841-438c-4a64-b679-ae501e7d6091"
+    sample_rate: 24000
+    # emotion: []            # optional Cartesia emotion controls
+    # cartesia_version: "2026-03-01"

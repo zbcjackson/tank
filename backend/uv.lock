@@ -25,9 +25,13 @@ members = [
     "speaker-sherpa",
     "tank-backend",
     "tank-contracts",
+    "tts-cartesia",
+    "tts-chatterbox",
     "tts-cosyvoice",
     "tts-edge",
     "tts-elevenlabs",
+    "tts-hume",
+    "tts-kokoro",
 ]
 
 [manifest.dependency-groups]
@@ -6456,6 +6460,61 @@ wheels = [
 ]
 
 [[package]]
+name = "tts-cartesia"
+version = "0.1.0"
+source = { editable = "plugins/tts-cartesia" }
+dependencies = [
+    { name = "tank-contracts" },
+    { name = "websockets" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "tank-contracts", editable = "contracts" },
+    { name = "websockets", specifier = ">=13.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23.0" },
+]
+
+[[package]]
+name = "tts-chatterbox"
+version = "0.1.0"
+source = { editable = "plugins/tts-chatterbox" }
+dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "tank-contracts" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "numpy", specifier = ">=1.24.0" },
+    { name = "tank-contracts", editable = "contracts" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23.0" },
+]
+
+[[package]]
 name = "tts-cosyvoice"
 version = "0.1.0"
 source = { editable = "plugins/tts-cosyvoice" }
@@ -6545,6 +6604,61 @@ dev = [
 requires-dist = [
     { name = "tank-contracts", editable = "contracts" },
     { name = "websockets", specifier = ">=13.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23.0" },
+]
+
+[[package]]
+name = "tts-hume"
+version = "0.1.0"
+source = { editable = "plugins/tts-hume" }
+dependencies = [
+    { name = "tank-contracts" },
+    { name = "websockets" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "tank-contracts", editable = "contracts" },
+    { name = "websockets", specifier = ">=13.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23.0" },
+]
+
+[[package]]
+name = "tts-kokoro"
+version = "0.1.0"
+source = { editable = "plugins/tts-kokoro" }
+dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "tank-contracts" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "numpy", specifier = ">=1.24.0" },
+    { name = "tank-contracts", editable = "contracts" },
 ]
 
 [package.metadata.requires-dev]

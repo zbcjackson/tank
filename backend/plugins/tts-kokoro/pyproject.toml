@@ -1,0 +1,25 @@
+[project]
+name = "tts-kokoro"
+version = "0.1.0"
+description = "Local offline Kokoro-82M in-process TTS plugin for Tank Voice Assistant"
+requires-python = ">=3.10"
+# Heavy model deps (kokoro, soundfile, torch) are intentionally NOT declared
+# here — they are imported lazily at runtime. Install them only to use this
+# engine: `uv pip install kokoro soundfile` (+ espeak-ng system package).
+dependencies = [
+    "numpy>=1.24.0",
+    "tank-contracts",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+tank-contracts = { workspace = true }

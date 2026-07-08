@@ -1,0 +1,18 @@
+# Kokoro-82M — local, offline, CPU. Fast and natural, English-focused.
+#
+# Heavy deps are NOT installed by default. To use this engine:
+#   uv pip install kokoro>=0.9.4 soundfile
+#   plus the espeak-ng system package (e.g. apt-get install espeak-ng)
+#   Chinese needs: uv pip install "misaki[zh]"  (quality limited; CosyVoice
+#   remains the better local bilingual pick)
+tts:
+  enabled: true
+  extension: tts-kokoro:tts
+  config:
+    # language → Kokoro voice preset
+    voices:
+      en: af_heart
+      zh: zf_xiaobei
+    default_voice: af_heart
+    speed: 1.0
+    sample_rate: 24000
