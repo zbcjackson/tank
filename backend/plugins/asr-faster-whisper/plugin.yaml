@@ -1,0 +1,8 @@
+name: asr-faster-whisper
+display_name: Faster-Whisper ASR
+description: Local offline Faster-Whisper (CTranslate2) batch ASR plugin
+
+extensions:
+  - name: asr
+    type: asr
+    factory: asr_faster_whisper:create_engine

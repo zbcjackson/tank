@@ -1,0 +1,7 @@
+asr:
+  enabled: true
+  extension: asr-assemblyai:asr
+  config:
+    api_key: ${ASSEMBLYAI_API_KEY}
+    speech_model: universal-3-5-pro
+    sample_rate: 16000

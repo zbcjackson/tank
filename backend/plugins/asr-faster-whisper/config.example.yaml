@@ -1,0 +1,12 @@
+# Faster-Whisper — local, offline batch ASR.
+# On first start the model is downloaded from HuggingFace to the local cache.
+asr:
+  enabled: true
+  extension: asr-faster-whisper:asr
+  config:
+    model_size: base          # tiny | base | small | medium | large-v3
+    device: cpu               # cpu | cuda
+    compute_type: int8        # int8 (cpu) | float16 (cuda)
+    language: ""              # empty for auto-detect, or ISO code like "en"/"zh"
+    beam_size: 5
+    sample_rate: 16000

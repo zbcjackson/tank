@@ -1,0 +1,8 @@
+name: asr-deepgram
+display_name: Deepgram ASR
+description: Deepgram Nova-3 realtime streaming ASR plugin
+
+extensions:
+  - name: asr
+    type: asr
+    factory: asr_deepgram:create_engine

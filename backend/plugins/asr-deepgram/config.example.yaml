@@ -1,0 +1,8 @@
+asr:
+  enabled: true
+  extension: asr-deepgram:asr
+  config:
+    api_key: ${DEEPGRAM_API_KEY}
+    model: nova-3
+    language: en        # ISO code like "en", or "multi" for multilingual
+    sample_rate: 16000

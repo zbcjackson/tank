@@ -1,0 +1,8 @@
+name: asr-assemblyai
+display_name: AssemblyAI ASR
+description: AssemblyAI Universal-Streaming realtime ASR plugin
+
+extensions:
+  - name: asr
+    type: asr
+    factory: asr_assemblyai:create_engine
