@@ -122,26 +122,18 @@ asr:
 
 tts:
   enabled: true
-  extension: tts-elevenlabs:tts
+  extension: tts-cartesia:tts
   config:
-    api_key: ${ELEVENLABS_API_KEY}
-    voice_id: "ulmOxiH84jmsJurmeFBi" # Default voice (used for English)
-    model_id: eleven_v3
-    sample_rate: 24000
-    stability: 0.5
-    similarity_boost: 0.75
-    # Expressive controls (optional; best with eleven_v3):
-    # style: 0.5            # 0-1, higher = more stylistic/emotional variation
-    # use_speaker_boost: true
-    # speed: 1.0
-    # For eleven_v3, put emotion audio tags inline in the text the LLM produces,
-    # e.g. "[whispers] hello [laughs]". No API parameter needed.
-    # Language → voice map (add more languages as needed)
+    api_key: ${CARTESIA_API_KEY}
+    model_id: sonic-3
+    # Cartesia voice UUIDs (from your Cartesia dashboard) per language.
     voices:
-      en: "ulmOxiH84jmsJurmeFBi"
-      zh: "9DMBSOAnMDPiFAsz1ZGK" # Replace with a Chinese voice ID
-    default_voice: "ulmOxiH84jmsJurmeFBi"
-    # Legacy format still supported: voice_id / voice_id_zh
+      en: "a0e99841-438c-4a64-b679-ae501e7d6091"
+      zh: "a0e99841-438c-4a64-b679-ae501e7d6091"
+    default_voice: "a0e99841-438c-4a64-b679-ae501e7d6091"
+    sample_rate: 24000
+    # emotion: []            # optional Cartesia emotion controls
+    # cartesia_version: "2026-03-01"
 
 
 speaker:
