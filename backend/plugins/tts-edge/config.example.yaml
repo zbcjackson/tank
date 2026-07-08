@@ -1,5 +1,6 @@
 tts:
-  plugin: tts-edge
+  enabled: true
+  extension: tts-edge:tts
   config:
     # Language → voice map (add more languages as needed)
     voices:

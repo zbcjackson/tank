@@ -1,0 +1,7 @@
+asr:
+  enabled: true
+  extension: asr-sherpa:asr
+  config:
+    model_dir: ../models/sherpa-onnx-zipformer-en-zh
+    num_threads: 4
+    sample_rate: 16000

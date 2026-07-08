@@ -41,6 +41,7 @@ Configure in `backend/core/config.yaml`:
 
 ```yaml
 tts:
+  enabled: true
   extension: tts-edge:tts
   config:
     voice_en: en-US-JennyNeural
@@ -207,7 +208,8 @@ See [Microsoft Edge TTS Voice Gallery](https://speech.microsoft.com/portal/voice
 2. Update `core/config.yaml`:
    ```yaml
    tts:
-     plugin: tts-edge
+     enabled: true
+     extension: tts-edge:tts
      config:
        voice_en: en-US-AriaNeural  # New voice
        voice_zh: zh-CN-XiaoxiaoNeural

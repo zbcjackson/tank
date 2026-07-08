@@ -1,24 +1,26 @@
-# Alternative: CosyVoice TTS with auto-managed Docker container
-# tts:
-#   plugin: tts-cosyvoice
-#   config:
-#     docker: true                       # auto-manage Docker container
-#     docker_image: tank-cosyvoice:latest
-#     docker_container: tank-cosyvoice
-#     port: 50000
-#     model_dir: iic/CosyVoice-300M-SFT
-#     mode: sft                          # "sft", "zero_shot", or "instruct2"
-#     spk_id_en: 英文女
-#     spk_id_zh: 中文女
-#     sample_rate: 22050
-#     timeout_s: 120
-#     # zero_shot mode only:
-#     # prompt_text: "Hello, this is a test."
-#     # prompt_wav_path: /path/to/prompt.wav
+# CosyVoice TTS with auto-managed Docker container
+tts:
+  enabled: true
+  extension: tts-cosyvoice:tts
+  config:
+    docker: true                       # auto-manage Docker container
+    docker_image: tank-cosyvoice:latest
+    docker_container: tank-cosyvoice
+    port: 50000
+    model_dir: iic/CosyVoice-300M-SFT
+    mode: sft                          # "sft", "zero_shot", or "instruct2"
+    spk_id_en: 英文女
+    spk_id_zh: 中文女
+    sample_rate: 22050
+    timeout_s: 120
+    # zero_shot mode only:
+    # prompt_text: "Hello, this is a test."
+    # prompt_wav_path: /path/to/prompt.wav
 
 # Alternative: CosyVoice2-0.5B with instruct2 mode (voice cloning + style)
 # tts:
-#   plugin: tts-cosyvoice
+#   enabled: true
+#   extension: tts-cosyvoice:tts
 #   config:
 #     docker: true
 #     docker_image: tank-cosyvoice:latest
@@ -31,7 +33,8 @@
 
 # Alternative: CosyVoice TTS with manual server (no Docker)
 # tts:
-#   plugin: tts-cosyvoice
+#   enabled: true
+#   extension: tts-cosyvoice:tts
 #   config:
 #     docker: false
 #     base_url: http://my-gpu-server:50000

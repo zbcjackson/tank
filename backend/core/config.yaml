@@ -84,14 +84,21 @@ echo_guard:
 #    model: fun-asr-realtime-2026-02-28
 #    sample_rate: 16000
 
+#asr:
+#  enabled: true
+#  extension: asr-sherpa:asr
+#  config:
+#    model_dir: ../models/sherpa-onnx-zipformer-en-zh
+#    num_threads: 4
+#    sample_rate: 16000
+
 asr:
   enabled: true
-  extension: asr-sherpa:asr
+  extension: asr-elevenlabs:asr
   config:
-    model_dir: ../models/sherpa-onnx-zipformer-en-zh
-    num_threads: 4
+    api_key: ${ELEVENLABS_API_KEY}
+    language_code: "" # Empty for auto-detect, or ISO code like "en" or "zh"
     sample_rate: 16000
-
 #tts:
 #  enabled: true
 #  extension: tts-cosyvoice:tts

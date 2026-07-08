@@ -1,5 +1,6 @@
 asr:
-  plugin: asr-elevenlabs
+  enabled: true
+  extension: asr-elevenlabs:asr
   config:
     api_key: ${ELEVENLABS_API_KEY}
     language_code: "" # Empty for auto-detect, or ISO code like "en" or "zh"

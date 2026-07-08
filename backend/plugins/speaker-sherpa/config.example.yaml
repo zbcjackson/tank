@@ -1,0 +1,9 @@
+speaker:
+  enabled: true
+  extension: speaker-sherpa:speaker_id
+  config:
+    model_path: ../models/speaker/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx
+    num_threads: 1
+    provider: cpu
+    threshold: 0.6
+    default_user: Unknown

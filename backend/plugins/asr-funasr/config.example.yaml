@@ -1,0 +1,21 @@
+# FunASR ASR — DashScope cloud mode
+asr:
+  enabled: true
+  extension: asr-funasr:asr
+  config:
+    api_key: ${DASHSCOPE_API_KEY}
+    model: fun-asr-realtime-2026-02-28
+    sample_rate: 16000
+
+# Alternative: FunASR self-hosted mode (WebSocket server)
+# asr:
+#   enabled: true
+#   extension: asr-funasr:asr
+#   config:
+#     host: localhost
+#     port: 10095
+#     mode: 2pass          # "online", "offline", or "2pass"
+#     sample_rate: 16000
+#     chunk_size: "5,10,5"
+#     hotwords: ""
+#     itn: true

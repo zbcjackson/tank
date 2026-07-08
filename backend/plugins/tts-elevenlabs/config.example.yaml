@@ -1,5 +1,6 @@
 tts:
-  plugin: tts-elevenlabs
+  enabled: true
+  extension: tts-elevenlabs:tts
   config:
     api_key: ${ELEVENLABS_API_KEY}
     voice_id: "ulmOxiH84jmsJurmeFBi" # Default voice (used for English)
