@@ -224,7 +224,10 @@ bool Cores3HAL::initMicCodec() {
         return false;
     }
 
-    // Configure: 16kHz, 16-bit, standard I2S, NO TDM, 30dB gain
+    // Configure: 16kHz, 16-bit, 30dB gain. TDM is enabled for the AEC build so
+    // the ES7210 puts all 4 ADC channels on the single SDOUT line in time slots
+    // — this exposes MIC3 (the speaker echo reference, schematic net AEC_P/N)
+    // which standard I2S can't reach (it only carries MIC1/MIC2 as L/R).
     es7210_codec_config_t codec_cfg = {};
     codec_cfg.sample_rate_hz = 16000;
     codec_cfg.mclk_ratio = 256;
@@ -232,7 +235,11 @@ bool Cores3HAL::initMicCodec() {
     codec_cfg.bit_width = ES7210_I2S_BITS_16B;
     codec_cfg.mic_bias = ES7210_MIC_BIAS_2V87;
     codec_cfg.mic_gain = ES7210_MIC_GAIN_30DB;
+#if CONFIG_AEC_ENABLE && CONFIG_AEC_HW_REF
+    codec_cfg.flags.tdm_enable = 1;   // needed only to reach MIC3 (analog echo ref)
+#else
     codec_cfg.flags.tdm_enable = 0;
+#endif
 
     err = es7210_config_codec(es7210_handle_, &codec_cfg);
     if (err != ESP_OK) {
@@ -240,7 +247,8 @@ bool Cores3HAL::initMicCodec() {
         return false;
     }
 
-    ESP_LOGI(TAG, "ES7210 initialized (16kHz, 16-bit, I2S, no TDM, 30dB gain)");
+    ESP_LOGI(TAG, "ES7210 initialized (16kHz, 16-bit, I2S, TDM=%d, 30dB gain)",
+             (int)codec_cfg.flags.tdm_enable);
     return true;
 }
 

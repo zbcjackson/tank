@@ -87,6 +87,19 @@ void AudioPlayback::playbackTask(void* arg) {
                 }
             }
 
+#if CONFIG_AEC_ENABLE && !CONFIG_AEC_HW_REF
+            // Software AEC reference: copy the exact PCM going to the speaker
+            // (post-volume) so the AFE can subtract the echo. Non-blocking — if
+            // the AFE feed task hasn't drained it, drop the oldest by resetting;
+            // a lagging reference is worse than a short gap.
+            if (self->ref_stream_) {
+                if (xStreamBufferSpacesAvailable(self->ref_stream_) < frame_bytes) {
+                    xStreamBufferReset(self->ref_stream_);
+                }
+                xStreamBufferSend(self->ref_stream_, frame, frame_bytes, 0);
+            }
+#endif
+
             i2s_channel_write(self->tx_chan_, frame, frame_bytes, &bytes_written, pdMS_TO_TICKS(100));
         } else {
             // Timeout — no more audio. Write silence to keep the TX DMA fed

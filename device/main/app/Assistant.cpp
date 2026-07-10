@@ -6,6 +6,10 @@
 #include "esp_timer.h"
 #include "nvs_flash.h"
 #include <cstring>
+#if CONFIG_AEC_ENABLE
+#include "audio/AecDiag.h"
+#include <cmath>
+#endif
 
 static const char* TAG = "Assistant";
 
@@ -52,7 +56,7 @@ bool Assistant::init(BoardHAL* hal) {
     ESP_LOGI(TAG, "Volume set to %d%%", vol);
 
     // Create queues / stream buffers
-    mic_queue_ = xQueueCreate(CONFIG_MIC_QUEUE_LEN, CONFIG_MIC_FRAME_BYTES);
+    mic_queue_ = xQueueCreate(CONFIG_MIC_QUEUE_LEN, CONFIG_MIC_QUEUE_ITEM_BYTES);
     // Speaker stream: 512KB buffer holds ~16s of 16kHz mono 16-bit audio.
     // Allocated from PSRAM (CoreS3 has 8MB). Must be large enough to absorb
     // full TTS responses without blocking the WebSocket callback for too long.
@@ -68,6 +72,28 @@ bool Assistant::init(BoardHAL* hal) {
         ESP_LOGE(TAG, "Failed to create queues/buffers");
         return false;
     }
+
+#if CONFIG_AEC_ENABLE
+    // Echo-cancelled mono audio: AFE fetch task → ws_send. Same 20ms frame size
+    // as a single mic channel (AFE output is single-channel).
+    clean_queue_ = xQueueCreate(CONFIG_MIC_QUEUE_LEN, CONFIG_MIC_FRAME_BYTES);
+    if (!clean_queue_) {
+        ESP_LOGE(TAG, "Failed to create clean audio queue");
+        return false;
+    }
+#if !CONFIG_AEC_HW_REF
+    // Software echo reference: playback writes each speaker frame here; the AFE
+    // feed task pairs it with the mic. Hold ~200ms so a brief scheduling lag
+    // between playback and feed doesn't starve the reference.
+    ref_stream_ = xStreamBufferCreate(CONFIG_MIC_FRAME_BYTES * CONFIG_MIC_QUEUE_LEN,
+                                      CONFIG_MIC_FRAME_BYTES);
+    if (!ref_stream_) {
+        ESP_LOGE(TAG, "Failed to create AEC reference stream");
+        return false;
+    }
+    playback_.setRefStream(ref_stream_);
+#endif
+#endif
 
     // Resolve WiFi + backend config from NVS, falling back to compile-time defaults.
     char wifi_ssid[64] = {};
@@ -107,12 +133,20 @@ bool Assistant::init(BoardHAL* hal) {
         return false;
     }
 
-    // Load the on-device wake word model. If it fails, log and continue — the
+    // Load the on-device speech front end. If it fails, log and continue — the
     // device still connects, it just won't wake on speech (the PTT button and
     // any other trigger still work).
+#if CONFIG_AEC_ENABLE
+    // AFE integrates AEC + VAD + WakeNet. It uses the hardware echo reference
+    // (ES7210 MIC3) so wake detection works even during playback.
+    if (!afe_.init()) {
+        ESP_LOGE(TAG, "AFE init failed — wake word + AEC inactive");
+    }
+#else
     if (!wake_word_.init()) {
         ESP_LOGE(TAG, "Wake word init failed — wake word inactive");
     }
+#endif
 
     // WiFi callbacks — register BEFORE init so onConnected isn't missed if the
     // connection comes up quickly.
@@ -140,6 +174,23 @@ void Assistant::start() {
     capture_.start();
     playback_.start();
 
+#if CONFIG_AEC_ENABLE
+    // AFE feed task on the audio core (near capture); fetch task on the net core
+    // (it hands clean audio to ws_send and raises wake events).
+    xTaskCreatePinnedToCore(
+        afeFeedTask, "afe_feed",
+        CONFIG_AUDIO_TASK_STACK, this,
+        CONFIG_AUDIO_TASK_PRIORITY - 1, &afe_feed_task_,
+        CONFIG_AUDIO_TASK_CORE
+    );
+    xTaskCreatePinnedToCore(
+        afeFetchTask, "afe_fetch",
+        CONFIG_NET_TASK_STACK, this,
+        CONFIG_NET_TASK_PRIORITY, &afe_fetch_task_,
+        CONFIG_NET_TASK_CORE
+    );
+#endif
+
     // Start WS send task
     xTaskCreatePinnedToCore(
         wsSendTask, "ws_send",
@@ -155,6 +206,18 @@ void Assistant::start() {
         CONFIG_UI_TASK_PRIORITY, &ui_task_,
         CONFIG_UI_TASK_CORE
     );
+
+#if CONFIG_AEC_ENABLE && CONFIG_AEC_TEST_TONE
+    // Boot self-test: play a 1kHz tone out the speaker for ~3s so the AEC path
+    // has a known, room-coupled echo to cancel. A JTAG read of g_aec_diag during
+    // this window shows ref_peak rising (MIC3 wired) and erle_db (echo removed).
+    xTaskCreatePinnedToCore(
+        testToneTask, "aec_tone",
+        CONFIG_AUDIO_TASK_STACK, this,
+        CONFIG_UI_TASK_PRIORITY, nullptr,
+        CONFIG_AUDIO_TASK_CORE
+    );
+#endif
 
     // Start serial config listener
     serial_config_.start();
@@ -244,6 +307,314 @@ void Assistant::onWsMessage(const WsMessage& msg) {
 }
 
 // ─── Tasks ──────────────────────────────────────────────────────────────────
+
+#if CONFIG_AEC_ENABLE
+// Builds the interleaved [mic, ref] stream the AFE expects and feeds it in
+// AFE-sized chunks. The mic frame comes from the capture queue every 20ms; the
+// reference comes from one of two sources depending on build config:
+//   - HW ref: capture already interleaved [mic, ref] from the TDM MIC3 slot.
+//   - SW ref (default): pair the mono mic frame with the matching playback frame
+//     drained from ref_stream_; substitute silence when nothing is playing
+//     (silence is the correct "speaker quiet" reference).
+void Assistant::afeFeedTask(void* arg) {
+    auto* self = static_cast<Assistant*>(arg);
+
+    if (!self->afe_.ready()) {
+        ESP_LOGE(TAG, "AFE not ready — feed task exiting");
+        vTaskDelete(nullptr);
+        return;
+    }
+
+    constexpr size_t CAP_SAMPLES = CONFIG_MIC_SAMPLE_RATE * CONFIG_MIC_FRAME_MS / 1000;
+    constexpr size_t CH = CONFIG_AFE_TOTAL_CH;
+
+    // Frame buffers live on the heap, not the task stack — together they exceed
+    // the 4KB audio-task stack and would overflow it (caught as a stack-overflow
+    // panic in afeFeedTask otherwise).
+    const int feed_total = self->afe_.feedChunkTotal();
+    auto* interleaved = static_cast<int16_t*>(malloc(CAP_SAMPLES * CH * sizeof(int16_t)));
+    auto* feed_buf = static_cast<int16_t*>(malloc(feed_total * sizeof(int16_t)));
+#if CONFIG_AEC_HW_REF
+    auto* cap_frame = static_cast<int16_t*>(malloc(CAP_SAMPLES * CH * sizeof(int16_t)));
+    if (!interleaved || !feed_buf || !cap_frame) {
+#else
+    auto* mic_frame = static_cast<int16_t*>(malloc(CAP_SAMPLES * sizeof(int16_t)));
+    auto* ref_frame = static_cast<int16_t*>(malloc(CAP_SAMPLES * sizeof(int16_t)));
+    if (!interleaved || !feed_buf || !mic_frame || !ref_frame) {
+#endif
+        ESP_LOGE(TAG, "AFE feed buffer alloc failed");
+        vTaskDelete(nullptr);
+        return;
+    }
+    size_t fill = 0;
+
+    ESP_LOGI(TAG, "AFE feed task started (frame=%d, feed_total=%d, %s ref)",
+             (int)(CAP_SAMPLES * CH), feed_total,
+             CONFIG_AEC_HW_REF ? "HW" : "SW");
+
+    while (self->running_) {
+#if CONFIG_AEC_HW_REF
+        if (xQueueReceive(self->mic_queue_, cap_frame, pdMS_TO_TICKS(100)) != pdTRUE) {
+            continue;
+        }
+        memcpy(interleaved, cap_frame, CAP_SAMPLES * CH * sizeof(int16_t));
+#else
+        if (xQueueReceive(self->mic_queue_, mic_frame, pdMS_TO_TICKS(100)) != pdTRUE) {
+            continue;
+        }
+        // Pull the matching playback reference. If less than a full frame is
+        // available (speaker idle or mid-gap), pad the remainder with silence.
+        size_t got = 0;
+        if (self->ref_stream_) {
+            got = xStreamBufferReceive(self->ref_stream_, ref_frame,
+                                       CAP_SAMPLES * sizeof(int16_t), 0);
+        }
+        size_t got_samples = got / sizeof(int16_t);
+        if (got_samples < CAP_SAMPLES) {
+            memset(ref_frame + got_samples, 0,
+                   (CAP_SAMPLES - got_samples) * sizeof(int16_t));
+        }
+        // Interleave: [mic0, ref0, mic1, ref1, ...] (mic first, reference last).
+        for (size_t i = 0; i < CAP_SAMPLES; i++) {
+            interleaved[i * CH + 0] = mic_frame[i];
+            interleaved[i * CH + 1] = ref_frame[i];
+        }
+#endif
+
+#if CONFIG_AEC_DIAG
+        // Sample raw mic/ref power so a JTAG read of g_aec_diag shows whether the
+        // reference carries the speaker signal and how much echo AEC removes.
+        aecDiagInput(interleaved, CAP_SAMPLES, CH, 0, 1);
+#endif
+
+        // Append to the feed buffer, flushing a full chunk whenever it fills.
+        size_t src = 0;
+        const size_t avail = CAP_SAMPLES * CH;
+        while (src < avail) {
+            size_t take = feed_total - fill;
+            if (take > avail - src) take = avail - src;
+            memcpy(feed_buf + fill, interleaved + src, take * sizeof(int16_t));
+            fill += take;
+            src += take;
+            if (fill == (size_t)feed_total) {
+                self->afe_.feed(feed_buf);
+                fill = 0;
+            }
+        }
+    }
+
+    free(feed_buf);
+    free(interleaved);
+#if CONFIG_AEC_HW_REF
+    free(cap_frame);
+#else
+    free(mic_frame);
+    free(ref_frame);
+#endif
+    ESP_LOGI(TAG, "AFE feed task stopped");
+    vTaskDelete(nullptr);
+}
+
+// Blocks on AFE fetch, dispatching echo-cancelled audio to the clean queue and
+// raising a wake event when WakeNet fires. With AEC the reference is subtracted
+// before WakeNet, so detection works during playback — no echo hangover needed.
+void Assistant::afeFetchTask(void* arg) {
+    auto* self = static_cast<Assistant*>(arg);
+
+    if (!self->afe_.ready()) {
+        ESP_LOGE(TAG, "AFE not ready — fetch task exiting");
+        vTaskDelete(nullptr);
+        return;
+    }
+
+    constexpr size_t FRAME_SAMPLES = CONFIG_MIC_SAMPLE_RATE * CONFIG_MIC_FRAME_MS / 1000;
+    int16_t out_frame[FRAME_SAMPLES];
+    size_t out_fill = 0;
+
+    ESP_LOGI(TAG, "AFE fetch task started");
+
+    while (self->running_) {
+        AfeProcessor::FetchResult r = self->afe_.fetch();
+        if (!r.valid) {
+            vTaskDelay(1);
+            continue;
+        }
+
+        // Diagnostics: sample post-AEC output power for ERLE measurement.
+        aecDiagOutput(r.data, r.samples);
+
+        if (r.wake_detected && !self->talking_) {
+            // Raise the wake edge for wsSendTask to open the turn. Don't touch
+            // session/WS state from here — keep all turn control in one task.
+            self->wake_pending_ = true;
+        }
+
+        // Re-chunk the AFE output (its fetch chunk may differ from 20ms) into
+        // 320-sample frames for the clean queue.
+        int consumed = 0;
+        while (consumed < r.samples) {
+            size_t take = FRAME_SAMPLES - out_fill;
+            if (take > (size_t)(r.samples - consumed)) take = r.samples - consumed;
+            memcpy(out_frame + out_fill, r.data + consumed, take * sizeof(int16_t));
+            out_fill += take;
+            consumed += take;
+            if (out_fill == FRAME_SAMPLES) {
+                // Only queue while a turn is active; otherwise drop (the clean
+                // stream is continuous but we only uplink during talking_).
+                if (self->talking_) {
+                    xQueueSend(self->clean_queue_, out_frame, 0);
+                }
+                out_fill = 0;
+            }
+        }
+    }
+
+    ESP_LOGI(TAG, "AFE fetch task stopped");
+    vTaskDelete(nullptr);
+}
+
+#if CONFIG_AEC_TEST_TONE
+// Boot self-test: generate a 1kHz sine tone at ~50% amplitude for 3 seconds,
+// push it through the speaker stream. This gives the AEC a known echo to cancel
+// while the mic is picking it up — halt over JTAG and read g_aec_diag.
+void Assistant::testToneTask(void* arg) {
+    auto* self = static_cast<Assistant*>(arg);
+
+    // Wait briefly for the AFE pipeline to spin up (needs a few feed cycles to
+    // initialize its filter coefficients).
+    vTaskDelay(pdMS_TO_TICKS(500));
+
+    g_aec_diag.tone_playing = true;
+    ESP_LOGI(TAG, "AEC test tone: playing 1kHz for 3s");
+
+    constexpr int SAMPLE_RATE = CONFIG_SPK_SAMPLE_RATE;
+    constexpr int TONE_HZ = 1000;
+    constexpr int DURATION_MS = 6000;
+    constexpr int FRAME_MS = CONFIG_SPK_FRAME_MS;
+    constexpr int FRAME_SAMPLES = SAMPLE_RATE * FRAME_MS / 1000;
+    constexpr int TOTAL_FRAMES = DURATION_MS / FRAME_MS;
+    constexpr int16_t AMPLITUDE = 16000;  // ~50% of full scale
+
+    int16_t frame[FRAME_SAMPLES];
+    int sample_idx = 0;
+    const float w = 2.0f * (float)M_PI * TONE_HZ / SAMPLE_RATE;
+
+    for (int f = 0; f < TOTAL_FRAMES; f++) {
+        for (int i = 0; i < FRAME_SAMPLES; i++) {
+            frame[i] = (int16_t)(AMPLITUDE * sinf(w * sample_idx));
+            sample_idx++;
+        }
+        // Push into the speaker stream buffer — AudioPlayback reads from here.
+        xStreamBufferSend(self->spk_stream_, frame,
+                          FRAME_SAMPLES * sizeof(int16_t), pdMS_TO_TICKS(50));
+    }
+
+    g_aec_diag.tone_playing = false;
+    ESP_LOGI(TAG, "AEC test tone: done. Read g_aec_diag over JTAG.");
+    vTaskDelete(nullptr);
+}
+#endif
+
+// AEC build: mic uplink comes from the echo-cancelled clean_queue_; wake events
+// come from afeFetchTask via wake_pending_. No inline WakeNet, no echo hangover.
+void Assistant::wsSendTask(void* arg) {
+    auto* self = static_cast<Assistant*>(arg);
+
+    constexpr size_t SAMPLES = CONFIG_MIC_SAMPLE_RATE * CONFIG_MIC_FRAME_MS / 1000;
+    int16_t frame[SAMPLES];
+
+    SilenceDetector silence({
+        CONFIG_WAKE_SPEECH_RMS,
+        CONFIG_WAKE_SILENCE_FRAMES,
+        CONFIG_WAKE_MIN_SPEECH_FRAMES,
+        CONFIG_WAKE_MAX_FRAMES,
+    });
+    bool was_playing = false;
+
+    ESP_LOGI(TAG, "WS send task started (AEC)");
+
+    while (self->running_) {
+        // Open a wake turn on the edge raised by afeFetchTask. AEC removes the
+        // speaker echo, so this is safe to fire even during playback (barge-in).
+        if (self->wake_pending_) {
+            self->wake_pending_ = false;
+            if (self->ws_.isConnected() && !self->talking_) {
+                ESP_LOGI(TAG, "Wake word detected (AFE)");
+                self->ws_.sendInterrupt();
+                self->playback_.flush();
+                self->ws_.sendJson("signal", "wake");
+                silence.reset();
+                xQueueReset(self->clean_queue_);
+                self->talking_ = true;
+                self->wake_turn_ = true;
+                self->session_.setState(Session::State::LISTENING);
+                self->display_->showTalkState(true);
+                self->display_->showStatus("Listening...");
+                self->display_->showAssistantText("");
+            }
+        }
+
+        if (xQueueReceive(self->clean_queue_, frame, pdMS_TO_TICKS(100)) == pdTRUE) {
+            if (self->talking_) {
+                if (self->ws_.isConnected()) {
+                    self->ws_.sendAudio(frame, SAMPLES);
+                }
+                // Wake turns end on trailing silence (measured on the clean,
+                // echo-cancelled signal — so the assistant's own playback no
+                // longer keeps the turn alive). PTT turns end on release.
+                if (self->wake_turn_ && silence.update(frame, SAMPLES)) {
+                    self->talking_ = false;
+                    self->wake_turn_ = false;
+                    if (self->ws_.isConnected()) {
+                        self->ws_.sendEndOfUtterance();
+                    }
+                    ESP_LOGI(TAG, "EOU sent (%s)",
+                             silence.endedByCap() ? "max-listen cap" : "silence");
+                    self->session_.setState(Session::State::PROCESSING);
+                    self->display_->showTalkState(false);
+                    self->display_->showStatus("Processing...");
+                }
+            } else if (self->eou_pending_ && self->drain_frames_ > 0) {
+                // Drain the PTT tail still in flight through the AFE pipeline.
+                if (self->ws_.isConnected()) {
+                    self->ws_.sendAudio(frame, SAMPLES);
+                }
+                self->drain_frames_--;
+                if (self->drain_frames_ == 0) {
+                    self->eou_pending_ = false;
+                    if (self->ws_.isConnected()) {
+                        self->ws_.sendEndOfUtterance();
+                        ESP_LOGI(TAG, "EOU sent (drain complete)");
+                    }
+                }
+            }
+        } else if (self->eou_pending_) {
+            // Clean queue drained before the counter hit zero — finalize now.
+            self->eou_pending_ = false;
+            self->drain_frames_ = 0;
+            if (self->ws_.isConnected()) {
+                self->ws_.sendEndOfUtterance();
+                ESP_LOGI(TAG, "EOU sent (queue empty)");
+            }
+        }
+
+        // Reset the display to "Ready" once the assistant's playback finishes.
+        const bool playing_now = self->playback_.isPlaying();
+        if (playing_now) {
+            was_playing = true;
+        } else if (was_playing && !self->talking_) {
+            was_playing = false;
+            self->session_.setState(Session::State::READY);
+            self->display_->showStatus("Ready");
+            self->display_->showThinking(false);
+        }
+    }
+
+    ESP_LOGI(TAG, "WS send task stopped");
+    vTaskDelete(nullptr);
+}
+
+#else  // !CONFIG_AEC_ENABLE — original inline-WakeNet + echo-hangover path
 
 void Assistant::wsSendTask(void* arg) {
     auto* self = static_cast<Assistant*>(arg);
@@ -415,6 +786,8 @@ void Assistant::wsSendTask(void* arg) {
     vTaskDelete(nullptr);
 }
 
+#endif  // CONFIG_AEC_ENABLE
+
 void Assistant::uiTask(void* arg) {
     auto* self = static_cast<Assistant*>(arg);
 
@@ -449,7 +822,14 @@ void Assistant::uiTask(void* arg) {
             // No discard window — capture runs continuously so the DMA always
             // holds fresh audio (ambient/silence), not stale speech from a
             // previous turn. Discarding would clip the start of the user's speech.
+#if CONFIG_AEC_ENABLE
+            // The uplink reads from the echo-cancelled clean queue; reset that.
+            // Leave mic_queue_/AFE pipeline running so the AEC filter stays
+            // converged (a reset would drop its adaptation state).
+            xQueueReset(self->clean_queue_);
+#else
             xQueueReset(self->mic_queue_);
+#endif
             self->talking_ = true;
             // A button-initiated turn ends on release, not trailing silence —
             // even if a wake-word turn was already active when the user pressed.

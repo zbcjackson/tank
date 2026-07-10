@@ -7,6 +7,8 @@ set(SOURCES
     "net/WsProtocol.cpp"
     "audio/AudioCapture.cpp"
     "audio/AudioPlayback.cpp"
+    "audio/AfeProcessor.cpp"
+    "audio/AecDiag.cpp"
     "audio/FrameChunker.cpp"
     "audio/SilenceDetector.cpp"
     "audio/WakeWordDetector.cpp"

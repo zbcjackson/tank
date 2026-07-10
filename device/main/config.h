@@ -56,6 +56,42 @@
 #define CONFIG_MIC_BITS          16
 #define CONFIG_MIC_FRAME_MS      20   // 20ms per frame = 320 samples at 16kHz
 
+// ─── AEC (CoreS3 only) ────────────────────────────────────────────────────────
+// The AFE (esp-sr Audio Front End) does acoustic echo cancellation: given the
+// mic signal and a reference of what the speaker is playing, it subtracts the
+// echo. It needs that reference from somewhere. Two sources:
+//
+//   Software reference (CONFIG_AEC_HW_REF=0, default): AudioPlayback copies each
+//   frame it sends to the speaker into a ring buffer; the AFE feed path pairs
+//   the live mic frame with the matching playback frame as the reference. This
+//   is the digital signal *before* the amp — no extra wiring, works on any unit.
+//   The mic stays on the simple standard-I2S mono path.
+//
+//   Hardware reference (CONFIG_AEC_HW_REF=1): the CoreS3 schematic wires the amp
+//   output (AW88298) through a 150K attenuator (R40/R42, nets AEC_P/AEC_N) into
+//   the ES7210's MIC3 ADC. Reading MIC3 needs 4-slot TDM (standard I2S exposes
+//   only MIC1/MIC2). Verified on 2026-07-09: R40/R42 are NOT populated on this
+//   board — MIC3 reads noise floor during playback (ref_peak_hold ≈ mic noise,
+//   erle ≈ 2dB). Only enable this if you solder the resistors. See
+//   [[cores3-aec-hardware-reference]].
+//
+// AEC is CoreS3-only: the Pyramid has a different codec chain (ES8311 + AW87559)
+// and keeps the standard mono capture + WakeNet + echo-hangover path.
+#if defined(TARGET_CORES3)
+#define CONFIG_AEC_ENABLE          1     // Build the AFE echo-cancellation path
+#else
+#define CONFIG_AEC_ENABLE          0
+#endif
+#define CONFIG_AEC_HW_REF          0     // 1 = analog MIC3 ref via TDM (needs R40/R42 soldered)
+#define CONFIG_AEC_DIAG            1     // Update JTAG-readable g_aec_diag (mic/ref/out power, ERLE)
+#define CONFIG_AEC_TEST_TONE       0     // 1 = play a 1kHz tone at boot to self-test AEC (diagnostic)
+#define CONFIG_AEC_TDM_SLOTS       4     // (HW ref only) ES7210 emits 4 TDM slots (MIC1..MIC4)
+#define CONFIG_AEC_MIC_SLOT        0     // (HW ref only) Slot 0 = MIC1 (physical microphone)
+#define CONFIG_AEC_REF_SLOT        2     // (HW ref only) Slot 2 = MIC3 (speaker echo reference)
+#define CONFIG_AFE_MIC_NUM         1     // Physical microphones fed to the AFE
+#define CONFIG_AFE_REF_NUM         1     // Reference channels fed to the AFE
+#define CONFIG_AFE_TOTAL_CH        (CONFIG_AFE_MIC_NUM + CONFIG_AFE_REF_NUM)
+
 #define CONFIG_SPK_SAMPLE_RATE   16000  // Unified with mic rate (full-duplex shared clock)
 #define CONFIG_SPK_CHANNELS      1
 #define CONFIG_SPK_BITS          16
@@ -64,6 +100,16 @@
 // Frame size in bytes: sample_rate * channels * (bits/8) * (frame_ms/1000)
 #define CONFIG_MIC_FRAME_BYTES   (CONFIG_MIC_SAMPLE_RATE * CONFIG_MIC_CHANNELS * (CONFIG_MIC_BITS / 8) * CONFIG_MIC_FRAME_MS / 1000)
 #define CONFIG_SPK_FRAME_BYTES   (CONFIG_SPK_SAMPLE_RATE * CONFIG_SPK_CHANNELS * (CONFIG_SPK_BITS / 8) * CONFIG_SPK_FRAME_MS / 1000)
+
+// Bytes per mic_queue item. With the hardware reference the capture task pushes
+// an interleaved [mic, ref] TDM frame (CONFIG_AFE_TOTAL_CH channels); with the
+// software reference (default) it pushes a plain mono mic frame and the feed
+// task pairs it with the buffered playback reference.
+#if CONFIG_AEC_ENABLE && CONFIG_AEC_HW_REF
+#define CONFIG_MIC_QUEUE_ITEM_BYTES  (CONFIG_MIC_FRAME_BYTES * CONFIG_AFE_TOTAL_CH)
+#else
+#define CONFIG_MIC_QUEUE_ITEM_BYTES  (CONFIG_MIC_FRAME_BYTES)
+#endif
 
 // ─── Queues ─────────────────────────────────────────────────────────────────
 #define CONFIG_MIC_QUEUE_LEN     10   // ~200ms of mic audio buffered

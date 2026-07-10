@@ -4,9 +4,18 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include <cstdint>
+#include "config.h"
 
-/// Captures audio from I2S microphone and pushes Int16 PCM frames to a queue.
+/// Captures audio from the I2S microphone and pushes Int16 PCM frames to a queue.
 /// Also owns the full-duplex I2S bus (creates both TX and RX channel handles).
+///
+/// Two capture modes, selected at compile time:
+///   - Standard (default): single mono channel, one 20ms mic frame per queue item
+///     (CONFIG_MIC_FRAME_BYTES).
+///   - AEC/TDM (CONFIG_AEC_ENABLE): reads the ES7210 in 4-slot TDM, keeps slot 0
+///     (MIC1) and slot 2 (MIC3 = speaker echo reference), and pushes them
+///     interleaved as [mic, ref, mic, ref, ...] — one queue item is
+///     CONFIG_MIC_FRAME_BYTES * CONFIG_AFE_TOTAL_CH bytes, ready for AFE feed().
 class AudioCapture {
 public:
     /// Initialize I2S in full-duplex mode (creates both TX+RX channels on I2S_NUM_0).
