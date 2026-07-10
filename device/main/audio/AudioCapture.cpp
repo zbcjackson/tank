@@ -34,6 +34,13 @@ bool AudioCapture::init(QueueHandle_t mic_queue) {
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
     chan_cfg.dma_desc_num = 8;
     chan_cfg.dma_frame_num = 320;
+    // Emit silence (not the stale DMA buffer) on a TX underrun. Without this,
+    // when the playback task can't refill the DMA ring in time — a late network
+    // chunk or a brief task preemption mid-response — the hardware replays the
+    // last DMA buffers, which is heard as repeating noise a few words into the
+    // reply. auto_clear zeros the buffer after each send, so an underrun is at
+    // most a short silence gap.
+    chan_cfg.auto_clear = true;
 
     esp_err_t err = i2s_new_channel(&chan_cfg, &tx_chan_, &rx_chan_);
     if (err != ESP_OK) {
