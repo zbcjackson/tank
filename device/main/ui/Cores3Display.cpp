@@ -30,6 +30,15 @@ static void touch_poll_timer_cb(void* arg) {
     lvgl_port_task_wake(LVGL_PORT_EVENT_TOUCH, nullptr);
 }
 
+// LVGL timer callback: polls the coordinate-based settings-gear flag and loads
+// the settings screen. Runs inside lv_timer_handler (the LVGL task context) —
+// the only safe place to call lv_scr_load. Calling lv_scr_load from the uiTask
+// deadlocks LVGL; scheduling it via lv_async_call from the uiTask never flushes.
+static void settings_poll_lv_timer_cb(lv_timer_t* t) {
+    (void)t;
+    if (s_self) s_self->pollSettingsFromLvglTask();
+}
+
 bool Cores3Display::init() {
     s_self = this;
     if (!initLCD()) return false;
@@ -57,16 +66,18 @@ bool Cores3Display::init() {
         settings_screen_->setInitialVolume(vol);
     }
 
-    // Wire navigation callbacks
-    main_screen_->onSettingsTap([](void* ctx) {
-        auto* self = static_cast<Cores3Display*>(ctx);
-        self->showSettings();
-    }, this);
-
+    // Wire navigation callback (back button on settings screen still uses LVGL
+    // events since it's the only button on that screen and works reliably alone).
+    // The gear on the main screen uses coordinate-based detection: the touch
+    // callback sets a flag, and settings_poll_lv_timer_cb (below) loads the
+    // screen from the LVGL task context — the only place lv_scr_load is safe.
     settings_screen_->onBack([](void* ctx) {
         auto* self = static_cast<Cores3Display*>(ctx);
         self->showMain();
     }, this);
+
+    // LVGL timer to poll the gear-tap flag from the LVGL task context (10ms).
+    lv_timer_create(settings_poll_lv_timer_cb, 10, nullptr);
 
     // Load main screen
     lv_scr_load(main_scr);
@@ -88,7 +99,7 @@ bool Cores3Display::initLCD() {
     bus_cfg.sclk_io_num = 36;
     bus_cfg.quadwp_io_num = -1;
     bus_cfg.quadhd_io_num = -1;
-    bus_cfg.max_transfer_sz = SCREEN_W * 40 * 2;  // 40 lines for partial rendering
+    bus_cfg.max_transfer_sz = SCREEN_W * 10 * 2;  // 10 lines for partial rendering
 
     esp_err_t err = spi_bus_initialize(SPI2_HOST, &bus_cfg, SPI_DMA_CH_AUTO);
     if (err != ESP_OK) {
@@ -104,7 +115,9 @@ bool Cores3Display::initLCD() {
     io_config.lcd_cmd_bits = 8;
     io_config.lcd_param_bits = 8;
     io_config.spi_mode = 0;
-    io_config.trans_queue_depth = 10;
+    // Espressif's SPI LCD note recommends a shallow queue (2-4) — fewer queued
+    // transactions means fewer temp-buffer copies during a full-screen refresh.
+    io_config.trans_queue_depth = 4;
 
     err = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_config, &io_handle_);
     if (err != ESP_OK) {
@@ -172,11 +185,21 @@ bool Cores3Display::initLVGL() {
         return false;
     }
 
-    // Add display
+    // Add display.
+    // Draw buffers MUST live in internal DMA-capable RAM, not PSRAM: the
+    // ESP32-S3 SPI master cannot DMA directly from PSRAM, so with a PSRAM buffer
+    // the driver falls back to allocating a temp internal-SRAM buffer and copying
+    // per transaction. On a full-screen redraw (screen swap) that fallback fails
+    // under memory pressure — "spi transmit (queue) color failed" — and the LVGL
+    // flush never completes, freezing the UI. buff_dma=true + buff_spiram=false
+    // places the buffers in internal DMA RAM and removes the fallback entirely.
+    // 10 lines × 320 × 2 bytes × 2 buffers ≈ 12.8KB internal RAM. Kept small so
+    // internal DMA RAM stays available for the WebSocket task and other tasks
+    // (a larger buffer starves xTaskCreate for the websocket client → ESP_FAIL).
     const lvgl_port_display_cfg_t disp_cfg = {
         .io_handle = io_handle_,
         .panel_handle = panel_handle_,
-        .buffer_size = SCREEN_W * 40,  // 40 lines partial rendering
+        .buffer_size = SCREEN_W * 10,  // 10 lines partial rendering (internal RAM)
         .double_buffer = true,
         .hres = SCREEN_W,
         .vres = SCREEN_H,
@@ -187,8 +210,8 @@ bool Cores3Display::initLVGL() {
             .mirror_y = false,
         },
         .flags = {
-            .buff_dma = false,
-            .buff_spiram = true,
+            .buff_dma = true,
+            .buff_spiram = false,
             .sw_rotate = false,
             .swap_bytes = true,
             .full_refresh = false,
@@ -248,6 +271,7 @@ void Cores3Display::touchReadCb(lv_indev_t* indev, lv_indev_data_t* data) {
         // touch" so PTT can't get stuck ON — a stuck PTT streams audio forever.
         if (s_self && s_self->main_screen_) {
             s_self->main_screen_->updatePTTFromTouch(false, 0, 0);
+            s_self->main_screen_->updateHeaderButtonsFromTouch(false, 0, 0);
         }
         data->state = LV_INDEV_STATE_RELEASED;
         return;
@@ -258,8 +282,13 @@ void Cores3Display::touchReadCb(lv_indev_t* indev, lv_indev_data_t* data) {
         uint16_t x = ((touch_data[1] & 0x0F) << 8) | touch_data[2];
         uint16_t y = ((touch_data[3] & 0x0F) << 8) | touch_data[4];
 
+        // This callback runs during LVGL's input-read phase. It must ONLY report
+        // input state and set lightweight flags — never mutate the widget tree
+        // or load screens here (that corrupts LVGL state and freezes the UI).
+        // Header taps set flags consumed by the uiTask (see handleTouchRequests).
         if (s_self && s_self->main_screen_) {
             s_self->main_screen_->updatePTTFromTouch(true, x, y);
+            s_self->main_screen_->updateHeaderButtonsFromTouch(true, x, y);
         }
 
         data->point.x = x;
@@ -269,6 +298,7 @@ void Cores3Display::touchReadCb(lv_indev_t* indev, lv_indev_data_t* data) {
         // No touch — clear PTT immediately (level-based = can't get stuck).
         if (s_self && s_self->main_screen_) {
             s_self->main_screen_->updatePTTFromTouch(false, 0, 0);
+            s_self->main_screen_->updateHeaderButtonsFromTouch(false, 0, 0);
         }
 
         data->state = LV_INDEV_STATE_RELEASED;
@@ -330,6 +360,15 @@ bool Cores3Display::pollPressed() {
     return false;
 }
 
+bool Cores3Display::consumeNewConversationRequest() {
+    // Set by the new-conversation button's LVGL CLICKED callback; polled by the
+    // ws_send task. No lock needed — poll-and-clear of a volatile bool.
+    if (main_screen_) {
+        return main_screen_->consumeNewConvRequest();
+    }
+    return false;
+}
+
 void Cores3Display::showTalkState(bool listening) {
     // Use a longer lock timeout (200ms) than other UI updates — the PTT
     // highlight is important and infrequent, so it must not be dropped when
@@ -386,10 +425,16 @@ uint8_t Cores3Display::getSettingsVolume() const {
     return 70;
 }
 
-void Cores3Display::showSettings() {
-    // Called from the gear button's LVGL event callback — defer the actual
-    // screen load so we don't swap screens mid-event-processing.
-    lv_async_call(loadSettingsAsync, this);
+void Cores3Display::pollSettingsFromLvglTask() {
+    // Runs from settings_poll_lv_timer_cb, i.e. inside lv_timer_handler in the
+    // LVGL task. Mirrors the back button's approach: schedule via lv_async_call
+    // so the actual lv_scr_load runs at the START of the next lv_timer_handler
+    // cycle (before timer iteration), not mid-iteration (which freezes).
+    // lv_async_call scheduled from the LVGL task flushes reliably — unlike from
+    // the uiTask, which never flushes in this LV_INDEV_MODE_EVENT setup.
+    if (main_screen_ && main_screen_->consumeSettingsRequest()) {
+        lv_async_call(loadSettingsAsync, this);
+    }
 }
 
 void Cores3Display::showMain() {

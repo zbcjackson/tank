@@ -159,3 +159,64 @@ sudo usermod -aG dialout $USER
 - Verify backend is running: `curl http://<host>:8000/health`
 - Check `CONFIG_BACKEND_HOST` is the correct LAN IP (not localhost)
 - Firewall: ensure port 8000 is accessible from the device's network
+
+## CoreS3 UI / LVGL gotchas
+
+The CoreS3 touch UI (`main/ui/Cores3Display.cpp`, `main/ui/screens/`) has three
+hard-won constraints. Violating any of them presents as a "frozen UI" or "dead
+button" that is hard to diagnose because unrelated tasks (audio streaming) keep
+running. Read these before touching the display code.
+
+### UI freezes on screen switch — SPI DMA can't reach PSRAM
+
+**Symptom:** The UI freezes the first time a full-screen redraw happens (e.g.
+switching to the settings screen). Serial shows:
+```
+E lcd_panel.io.spi: panel_io_spi_tx_color(...): spi transmit (queue) color failed
+E lcd_panel.st7789: panel_st7789_draw_bitmap(...): io tx color failed
+```
+Partial updates (small status-text redraws) work fine; only a full repaint hangs.
+
+**Root cause:** The ESP32-S3 SPI master **cannot DMA directly from PSRAM**. If
+the LVGL draw buffers are in PSRAM (`buff_spiram = true`), the driver falls back
+to allocating a temporary internal-SRAM buffer and copying per transaction. On a
+full-screen swap that allocation fails under memory pressure (WiFi holds internal
+RAM), the flush never completes, and the LVGL port task blocks forever.
+
+**Fix:** Keep LVGL draw buffers in **internal DMA-capable RAM**, not PSRAM:
+```cpp
+.flags = { .buff_dma = true, .buff_spiram = false, ... }
+```
+Keep the buffer small (10 lines × 320 × 2 bytes × double buffer ≈ 12.8 KB) —
+internal DMA RAM is scarce, and a larger buffer starves `xTaskCreate` for the
+WebSocket client (`E websocket_client: Error create websocket task`). Also keep
+`spi_bus_config_t.max_transfer_sz` in sync with the buffer size and
+`trans_queue_depth` shallow (2–4). See Espressif's SPI LCD note:
+https://docs.espressif.com/projects/esp-techpedia/en/latest/esp-friends/advanced-development/lcd-application-note/spi-qspi-summary.html
+
+### `lv_scr_load` must run in the LVGL task context
+
+**Symptom:** Screen navigation either freezes the UI or silently does nothing.
+
+**Root cause:** `lv_scr_load` may only be called from the LVGL task. From another
+task (e.g. `uiTask`) it deadlocks; `lv_async_call` scheduled from another task is
+not reliably flushed in our `LV_INDEV_MODE_EVENT` setup.
+
+**Fix:** Trigger screen loads only from an LVGL-task context — either an LVGL
+event callback (the settings **back** button) or an `lv_timer` callback (the
+gear, via `pollSettingsFromLvglTask`, which the touch handler flags).
+
+### Header buttons use coordinate-based touch, and fire on release
+
+**Symptom:** With more than one `lv_btn` on a screen, clicks stop registering; or
+a button that switches screens freezes the UI when tapped.
+
+**Root cause:** LVGL click/edge events are unreliable on this FT6336U panel (the
+same reason PTT is level-based). And triggering a screen swap on touch-*press*
+(finger still down) leaves LVGL's input device pointing at an object on the
+now-inactive old screen → freeze on the next input read.
+
+**Fix:** Header buttons (gear, new-conversation) are plain non-clickable
+containers; taps are detected by coordinates in
+`MainScreen::updateHeaderButtonsFromTouch` and fire on **release**, like a real
+click. Only PTT (which does not switch screens) may act on press.

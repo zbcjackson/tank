@@ -30,6 +30,9 @@ public:
     /// Visual PTT state (delegated to MainScreen).
     void showTalkState(bool listening) override;
 
+    /// Poll-and-clear the new-conversation button tap (delegated to MainScreen).
+    bool consumeNewConversationRequest() override;
+
     /// Set the BoardHAL pointer for volume control from settings.
     void setHAL(BoardHAL* hal) { hal_ = hal; }
 
@@ -39,13 +42,13 @@ public:
     /// Set playback pointer for software volume control.
     void setPlayback(class AudioPlayback* pb) { playback_ = pb; }
 
-    /// Navigate to settings screen.
-    void showSettings();
-
-    /// Navigate back to main screen.
+    /// Navigate back to main screen (called from the settings back-button event
+    /// callback, so it defers via lv_async_call).
     void showMain();
 
-    /// Actual screen loads — called via lv_async_call (not from event ctx).
+    /// Actual screen loads. loadSettingsScreen is called from the LVGL timer
+    /// callback (pollSettingsFromLvglTask); loadMainScreen via lv_async_call
+    /// from the back-button event callback. Both run in the LVGL task context.
     void loadSettingsScreen();
     void loadMainScreen();
 
@@ -57,6 +60,12 @@ public:
         if (volume_dirty_) { volume_dirty_ = false; return true; }
         return false;
     }
+
+    /// Poll settings-gear tap (coordinate-based flag set by the touch callback)
+    /// and load settings if requested. Called only from an LVGL timer callback
+    /// (LVGL task context) — the sole place lv_scr_load is safe. Public so the
+    /// static timer trampoline can reach it.
+    void pollSettingsFromLvglTask();
 
     /// Update activity indicator state.
     void setActivityState(int state);

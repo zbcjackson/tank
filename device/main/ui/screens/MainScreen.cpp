@@ -53,20 +53,42 @@ void MainScreen::create(lv_obj_t* parent) {
 
     // Settings gear button — direct child of SCREEN (not header) so the
     // container can't intercept the click. Placed over the header's right edge.
-    settings_btn_ = lv_btn_create(screen_);
+    // Taps are detected by coordinates in updateHeaderButtonsFromTouch (LVGL
+    // click events are unreliable on this panel — see updatePTTFromTouch), so
+    // this is a plain non-clickable container used only for the glyph.
+    settings_btn_ = lv_obj_create(screen_);
     lv_obj_set_size(settings_btn_, 60, 44);
     lv_obj_set_pos(settings_btn_, 260, 0);
     lv_obj_set_style_bg_opa(settings_btn_, LV_OPA_TRANSP, 0);
     lv_obj_set_style_shadow_width(settings_btn_, 0, 0);
     lv_obj_set_style_border_width(settings_btn_, 0, 0);
-    lv_obj_add_flag(settings_btn_, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(settings_btn_, settingsCb, LV_EVENT_CLICKED, this);
+    lv_obj_set_style_pad_all(settings_btn_, 0, 0);
+    lv_obj_clear_flag(settings_btn_, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(settings_btn_, LV_OBJ_FLAG_CLICKABLE);
 
     lv_obj_t* gear_label = lv_label_create(settings_btn_);
     lv_label_set_text(gear_label, LV_SYMBOL_SETTINGS);
     lv_obj_set_style_text_color(gear_label, COLOR_TEXT, 0);
     lv_obj_set_style_text_font(gear_label, &lv_font_montserrat_24, 0);
     lv_obj_center(gear_label);
+
+    // New-conversation button — mirrors the gear, sits just to its left.
+    // Tap detection is coordinate-based (same as PTT and gear).
+    new_conv_btn_ = lv_obj_create(screen_);
+    lv_obj_set_size(new_conv_btn_, 60, 44);
+    lv_obj_set_pos(new_conv_btn_, 200, 0);
+    lv_obj_set_style_bg_opa(new_conv_btn_, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_shadow_width(new_conv_btn_, 0, 0);
+    lv_obj_set_style_border_width(new_conv_btn_, 0, 0);
+    lv_obj_set_style_pad_all(new_conv_btn_, 0, 0);
+    lv_obj_clear_flag(new_conv_btn_, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(new_conv_btn_, LV_OBJ_FLAG_CLICKABLE);
+
+    lv_obj_t* new_conv_label = lv_label_create(new_conv_btn_);
+    lv_label_set_text(new_conv_label, LV_SYMBOL_PLUS);
+    lv_obj_set_style_text_color(new_conv_label, COLOR_TEXT, 0);
+    lv_obj_set_style_text_font(new_conv_label, &lv_font_montserrat_24, 0);
+    lv_obj_center(new_conv_label);
 
     // ─── Activity indicator (40px) — non-interactive ────────────────────────
     lv_obj_t* activity_area = lv_obj_create(screen_);
@@ -207,9 +229,39 @@ void MainScreen::setPTTState(bool pressed) {
 
 // ─── Event callbacks ────────────────────────────────────────────────────────
 
-void MainScreen::settingsCb(lv_event_t* e) {
-    auto* self = static_cast<MainScreen*>(lv_event_get_user_data(e));
-    if (self->settings_cb_) {
-        self->settings_cb_(self->settings_ctx_);
+void MainScreen::updateHeaderButtonsFromTouch(bool touching, int x, int y) {
+    // Detect taps on the gear (x: 260-320) and new-conversation (x: 200-260)
+    // header buttons (y: 0-44) by coordinates — LVGL click events are unreliable
+    // on this panel (same reason PTT is level-based).
+    //
+    // Fire on RELEASE, not press: the request must be raised only when the
+    // finger lifts. The gear triggers a screen swap, and swapping screens while
+    // a touch is still down leaves LVGL's indev pointing at a deleted/inactive
+    // object on the old screen and freezes the UI. Releasing first (like a real
+    // click) means the swap runs with the indev idle. We latch which button the
+    // press began on and fire it only if the finger lifts.
+    if (touching) {
+        if (!header_touch_down_) {
+            header_touch_down_ = true;
+            pending_header_btn_ = 0;  // 0 = none, 1 = gear, 2 = new-conversation
+            if (y <= 44) {
+                if (x >= 260 && x <= 320) {
+                    pending_header_btn_ = 1;
+                } else if (x >= 200 && x < 260) {
+                    pending_header_btn_ = 2;
+                }
+            }
+        }
+    } else {
+        if (header_touch_down_) {
+            // Falling edge — complete the "click".
+            if (pending_header_btn_ == 1) {
+                settings_requested_ = true;
+            } else if (pending_header_btn_ == 2) {
+                new_conv_requested_ = true;
+            }
+            pending_header_btn_ = 0;
+        }
+        header_touch_down_ = false;
     }
 }

@@ -296,7 +296,8 @@ void Assistant::onWsMessage(const WsMessage& msg) {
     // Handle state transitions
     if (strcmp(msg.type, "signal") == 0) {
         if (strcmp(msg.content, "ready") == 0 ||
-            strcmp(msg.content, "conversation_ready") == 0) {
+            strcmp(msg.content, "conversation_ready") == 0 ||
+            strcmp(msg.content, "conversation_created") == 0) {
             session_.setState(Session::State::READY);
         } else if (strcmp(msg.content, "processing_started") == 0) {
             session_.setState(Session::State::PROCESSING);
@@ -853,10 +854,30 @@ void Assistant::uiTask(void* arg) {
         }
         was_pressed = pressed;
 
+        // New-conversation button: tell the backend to start a fresh
+        // conversation (empty history). Stop any current response first and
+        // clear transient turn state so nothing leaks into the new session.
+        if (self->display_->consumeNewConversationRequest() && self->ws_.isConnected()) {
+            ESP_LOGI(TAG, "New conversation requested");
+            // Stop any current response and clear transient turn state so nothing
+            // leaks into the fresh conversation.
+            self->ws_.sendInterrupt();
+            self->playback_.flush();
+            self->talking_ = false;
+            self->eou_pending_ = false;
+            self->drain_frames_ = 0;
+            self->wake_turn_ = false;
+            self->ws_.sendJson("signal", "new_conversation");
+            // Status feedback; the backend's conversation_created reply flips it
+            // back to "Ready". (Transcript text isn't rendered on this display.)
+            self->display_->showStatus("New conversation");
+        }
+
         if (xQueueReceive(self->event_queue_, &msg, pdMS_TO_TICKS(20)) == pdTRUE) {
             if (strcmp(msg.type, "signal") == 0) {
                 if (strcmp(msg.content, "ready") == 0 ||
-                    strcmp(msg.content, "conversation_ready") == 0) {
+                    strcmp(msg.content, "conversation_ready") == 0 ||
+                    strcmp(msg.content, "conversation_created") == 0) {
                     self->display_->showStatus("Ready");
                 } else if (strcmp(msg.content, "processing_started") == 0) {
                     self->display_->showThinking(true);
@@ -879,6 +900,9 @@ void Assistant::uiTask(void* arg) {
 #ifdef TARGET_CORES3
         {
             auto* d = static_cast<Cores3Display*>(self->display_);
+            // Gear-tap → settings navigation is handled by an LVGL timer
+            // (pollSettingsFromLvglTask), not here — lv_scr_load must run in the
+            // LVGL task context.
             if (d->consumeVolumeDirty()) {
                 uint8_t vol = d->getSettingsVolume();
                 self->nvs_.setVolume(vol);

@@ -35,4 +35,9 @@ public:
     /// Show a full-screen color cue for push-to-talk state (no font needed).
     /// Default is a no-op for displays without a framebuffer.
     virtual void showTalkState(bool /*listening*/) {}
+
+    /// Poll-and-clear: returns true once if the user tapped the "new
+    /// conversation" button since the last call. Default false on displays
+    /// without such a button (serial stub, Pyramid).
+    virtual bool consumeNewConversationRequest() { return false; }
 };
