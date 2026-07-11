@@ -1,8 +1,13 @@
 """Deepgram Nova-3 realtime streaming ASR engine.
 
 Uses the Deepgram WebSocket STT API (``/v1/listen``). A background asyncio loop
-maintains the persistent WebSocket connection; the synchronous ``process_pcm``
-interface bridges into it.
+maintains the WebSocket connection; the synchronous ``process_pcm`` interface
+bridges into it.
+
+Connection lifecycle (lazy connect + idle close): the socket is not opened
+until the first session ``start()``, is kept warm across back-to-back turns,
+and is closed after ``idle_close_secs`` with no active session (reopened lazily
+on the next ``start()``). This avoids idle re-connect churn and idle billing.
 
 Note: the engine holds a single shared WebSocket — ``create_stream()`` returns
 a thin stream that routes to it. Concurrent utterances race on the same
@@ -25,6 +30,11 @@ from tank_contracts import ASREngine, ASRStream
 logger = logging.getLogger("DeepgramASR")
 
 WS_URL = "wss://api.deepgram.com/v1/listen"
+
+# How long to wait for the socket to come up when a session starts.
+_CONNECT_TIMEOUT_S = 5.0
+# Default idle window before the warm socket is closed.
+_DEFAULT_IDLE_CLOSE_S = 30.0
 
 
 class _DeepgramASRStream(ASRStream):
@@ -60,11 +70,13 @@ class DeepgramASREngine(ASREngine):
         model: str = "nova-3",
         language: str = "en",
         sample_rate: int = 16000,
+        idle_close_secs: float = _DEFAULT_IDLE_CLOSE_S,
     ) -> None:
         self._api_key = api_key
         self._model = model
         self._language = language
         self._sample_rate = sample_rate
+        self._idle_close_secs = idle_close_secs
 
         # Latest transcript state (updated from WS receive loop)
         self._partial_text = ""
@@ -78,8 +90,15 @@ class DeepgramASREngine(ASREngine):
         self._connected = threading.Event()
         self._running = False
 
+        # Set once the background loop has created its asyncio primitives.
+        self._loop_ready = threading.Event()
+        # asyncio.Event (created in the loop) that requests a connection.
+        self._connect_request: asyncio.Event | None = None
+
         # Session state
         self._session_active = False
+        # Monotonic timestamp of last session activity, for idle close.
+        self._last_activity = time.monotonic()
 
         self._start_background_loop()
 
@@ -99,18 +118,22 @@ class DeepgramASREngine(ASREngine):
     # ------------------------------------------------------------------
 
     def _start_background_loop(self) -> None:
+        """Start the background thread. Does NOT open the socket — that
+        happens lazily on the first session ``start()``."""
         self._running = True
         self._thread = threading.Thread(
             target=self._run_loop, daemon=True, name="deepgram-asr"
         )
         self._thread.start()
-        # Wait for the connection to be established (up to 10s)
-        if not self._connected.wait(timeout=10):
-            logger.warning("Deepgram ASR: WebSocket connection timed out")
+        # Wait until the loop's asyncio primitives exist so start() is safe.
+        if not self._loop_ready.wait(timeout=5):
+            logger.warning("Deepgram ASR: background loop failed to start")
 
     def _run_loop(self) -> None:
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
+        self._connect_request = asyncio.Event()
+        self._loop_ready.set()
         try:
             self._loop.run_until_complete(self._ws_lifecycle())
         except Exception:
@@ -119,14 +142,18 @@ class DeepgramASREngine(ASREngine):
             self._loop.close()
 
     async def _ws_lifecycle(self) -> None:
-        """Connect, receive messages, reconnect on failure."""
+        """Wait for a connect request, connect, receive, then idle-close."""
+        assert self._connect_request is not None
         while self._running:
+            await self._connect_request.wait()
+            self._connect_request.clear()
+            if not self._running:
+                break
             try:
                 await self._connect_and_receive()
             except Exception:
-                logger.exception("Deepgram ASR WebSocket error, reconnecting in 2s")
+                logger.exception("Deepgram ASR WebSocket error")
                 self._connected.clear()
-                await asyncio.sleep(2)
 
     async def _connect_and_receive(self) -> None:
         params = urlencode({
@@ -147,13 +174,29 @@ class DeepgramASREngine(ASREngine):
             self._connected.set()
             logger.info("Deepgram ASR: WebSocket connected")
 
-            async for raw in ws:
-                msg = json.loads(raw)
-                self._handle_message(msg)
+            idle_task = asyncio.create_task(self._idle_watchdog(ws))
+            try:
+                async for raw in ws:
+                    msg = json.loads(raw)
+                    self._handle_message(msg)
+            finally:
+                idle_task.cancel()
 
         # Connection closed
         self._ws = None
         self._connected.clear()
+        logger.info("Deepgram ASR: WebSocket closed")
+
+    async def _idle_watchdog(self, ws: websockets.ClientConnection) -> None:
+        """Close the socket after ``idle_close_secs`` with no active session."""
+        while self._running:
+            await asyncio.sleep(1.0)
+            if self._session_active:
+                continue
+            if time.monotonic() - self._last_activity > self._idle_close_secs:
+                logger.info("Deepgram ASR: idle timeout, closing socket")
+                await ws.close()
+                return
 
     def _handle_message(self, msg: dict) -> None:
         """Parse a Deepgram ``Results`` message and update transcript state."""
@@ -186,12 +229,25 @@ class DeepgramASREngine(ASREngine):
     # Session helpers (called by the per-stream wrapper)
     # ------------------------------------------------------------------
 
+    def _request_connect(self) -> None:
+        """Ask the background loop to open a connection (thread-safe)."""
+        loop = self._loop
+        req = self._connect_request
+        if loop is not None and req is not None:
+            loop.call_soon_threadsafe(req.set)
+
     def _start_session(self) -> None:
-        """Start a new recognition session."""
+        """Start a new recognition session, connecting the socket if needed."""
         with self._lock:
             self._partial_text = ""
             self._committed_text = ""
         self._session_active = True
+        self._last_activity = time.monotonic()
+
+        if not self._connected.is_set():
+            self._request_connect()
+            if not self._connected.wait(timeout=_CONNECT_TIMEOUT_S):
+                logger.warning("Deepgram ASR: connect timed out at session start")
         logger.debug("Deepgram: Session started")
 
     def _process_pcm(self, pcm: np.ndarray) -> str:
@@ -199,6 +255,8 @@ class DeepgramASREngine(ASREngine):
         if not self._session_active:
             logger.warning("Deepgram: process_pcm called without active session")
             return ""
+
+        self._last_activity = time.monotonic()
 
         # Capture references to avoid TOCTOU race with the background thread
         ws = self._ws
@@ -223,6 +281,7 @@ class DeepgramASREngine(ASREngine):
             return ""
 
         self._session_active = False
+        self._last_activity = time.monotonic()
 
         # Ask Deepgram to flush any buffered audio into a final result.
         ws = self._ws
@@ -259,12 +318,17 @@ class DeepgramASREngine(ASREngine):
         self._running = False
         ws = self._ws
         loop = self._loop
-        if ws is not None and loop is not None:
-            # CloseStream tells Deepgram to finish and close gracefully.
-            asyncio.run_coroutine_threadsafe(
-                ws.send(json.dumps({"type": "CloseStream"})), loop
-            )
-            asyncio.run_coroutine_threadsafe(ws.close(), loop)
+        if loop is not None:
+            # Wake the lifecycle loop so it observes _running == False.
+            req = self._connect_request
+            if req is not None:
+                loop.call_soon_threadsafe(req.set)
+            if ws is not None:
+                # CloseStream tells Deepgram to finish and close gracefully.
+                asyncio.run_coroutine_threadsafe(
+                    ws.send(json.dumps({"type": "CloseStream"})), loop
+                )
+                asyncio.run_coroutine_threadsafe(ws.close(), loop)
         if self._thread is not None:
             self._thread.join(timeout=5)
             self._thread = None

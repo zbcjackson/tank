@@ -12,6 +12,8 @@ def create_engine(config: dict) -> DeepgramASREngine:
             - model: Deepgram model (default: nova-3)
             - language: ISO language code or "multi" (default: en)
             - sample_rate: Audio sample rate (default: 16000)
+            - idle_close_secs: Idle seconds before the warm socket is closed
+              (default: 30.0)
 
     Returns:
         DeepgramASREngine instance
@@ -21,6 +23,7 @@ def create_engine(config: dict) -> DeepgramASREngine:
         model=config.get("model", "nova-3"),
         language=config.get("language", "en"),
         sample_rate=config.get("sample_rate", 16000),
+        idle_close_secs=config.get("idle_close_secs", 30.0),
     )
 
 

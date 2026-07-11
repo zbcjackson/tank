@@ -28,7 +28,8 @@ def test_create_engine_factory():
             "sample_rate": 8000,
         })
         mock_init.assert_called_once_with(
-            api_key="my_key", model="nova-3", language="multi", sample_rate=8000
+            api_key="my_key", model="nova-3", language="multi", sample_rate=8000,
+            idle_close_secs=30.0,
         )
 
 
@@ -90,3 +91,27 @@ def test_detected_language_is_none():
     engine = _make_engine()
     stream = engine.create_stream()
     assert stream.detected_language is None
+
+
+def test_start_requests_connection_when_disconnected():
+    """Lazy connect: start() asks the loop to connect if the socket is down."""
+    engine = _make_engine()
+    engine._connected.clear()
+    with patch.object(engine, "_request_connect") as req, \
+         patch(f"{MODULE}._CONNECT_TIMEOUT_S", 0.01):
+        engine._start_session()
+        req.assert_called_once()
+    assert engine._session_active
+
+
+def test_start_skips_connect_when_already_connected():
+    engine = _make_engine()
+    engine._connected.set()
+    with patch.object(engine, "_request_connect") as req:
+        engine._start_session()
+        req.assert_not_called()
+
+
+def test_create_engine_defaults_idle_close_secs():
+    engine = _make_engine()
+    assert engine._idle_close_secs == 30.0
