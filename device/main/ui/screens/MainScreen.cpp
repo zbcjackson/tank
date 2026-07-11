@@ -37,12 +37,22 @@ void MainScreen::create(lv_obj_t* parent) {
     lv_obj_clear_flag(header, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(header, LV_OBJ_FLAG_CLICKABLE);
 
-    // Title
-    lv_obj_t* title = lv_label_create(header);
-    lv_label_set_text(title, "Tank");
-    lv_obj_set_style_text_color(title, COLOR_GOLD, 0);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_20, 0);
-    lv_obj_align(title, LV_ALIGN_LEFT_MID, 12, 0);
+    // Title — replaced with call button (phone icon)
+    call_btn_ = lv_obj_create(screen_);
+    lv_obj_set_size(call_btn_, 60, 44);
+    lv_obj_set_pos(call_btn_, 0, 0);
+    lv_obj_set_style_bg_opa(call_btn_, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_shadow_width(call_btn_, 0, 0);
+    lv_obj_set_style_border_width(call_btn_, 0, 0);
+    lv_obj_set_style_pad_all(call_btn_, 0, 0);
+    lv_obj_clear_flag(call_btn_, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(call_btn_, LV_OBJ_FLAG_CLICKABLE);
+
+    lv_obj_t* call_icon = lv_label_create(call_btn_);
+    lv_label_set_text(call_icon, LV_SYMBOL_CALL);
+    lv_obj_set_style_text_color(call_icon, COLOR_GOLD, 0);
+    lv_obj_set_style_text_font(call_icon, &lv_font_montserrat_24, 0);
+    lv_obj_center(call_icon);
 
     // Status label (center)
     status_label_ = lv_label_create(header);
@@ -230,9 +240,10 @@ void MainScreen::setPTTState(bool pressed) {
 // ─── Event callbacks ────────────────────────────────────────────────────────
 
 void MainScreen::updateHeaderButtonsFromTouch(bool touching, int x, int y) {
-    // Detect taps on the gear (x: 260-320) and new-conversation (x: 200-260)
-    // header buttons (y: 0-44) by coordinates — LVGL click events are unreliable
-    // on this panel (same reason PTT is level-based).
+    // Detect taps on the gear (x: 260-320), new-conversation (x: 200-260),
+    // and call button (x: 0-60) header buttons (y: 0-44) by coordinates —
+    // LVGL click events are unreliable on this panel (same reason PTT is
+    // level-based).
     //
     // Fire on RELEASE, not press: the request must be raised only when the
     // finger lifts. The gear triggers a screen swap, and swapping screens while
@@ -243,12 +254,14 @@ void MainScreen::updateHeaderButtonsFromTouch(bool touching, int x, int y) {
     if (touching) {
         if (!header_touch_down_) {
             header_touch_down_ = true;
-            pending_header_btn_ = 0;  // 0 = none, 1 = gear, 2 = new-conversation
+            pending_header_btn_ = 0;  // 0 = none, 1 = gear, 2 = new-conversation, 3 = call
             if (y <= 44) {
                 if (x >= 260 && x <= 320) {
                     pending_header_btn_ = 1;
                 } else if (x >= 200 && x < 260) {
                     pending_header_btn_ = 2;
+                } else if (x >= 0 && x < 60) {
+                    pending_header_btn_ = 3;
                 }
             }
         }
@@ -259,6 +272,8 @@ void MainScreen::updateHeaderButtonsFromTouch(bool touching, int x, int y) {
                 settings_requested_ = true;
             } else if (pending_header_btn_ == 2) {
                 new_conv_requested_ = true;
+            } else if (pending_header_btn_ == 3) {
+                call_requested_ = true;
             }
             pending_header_btn_ = 0;
         }

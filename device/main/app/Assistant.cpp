@@ -269,6 +269,7 @@ void Assistant::onWsDisconnected() {
     eou_pending_ = false;
     drain_frames_ = 0;
     wake_turn_ = false;
+    call_mode_ = false;
     playback_.flush();
     session_.setState(Session::State::CONNECTING);
     display_->showStatus("Reconnecting to Tank...");
@@ -560,10 +561,11 @@ void Assistant::wsSendTask(void* arg) {
                 if (self->ws_.isConnected()) {
                     self->ws_.sendAudio(frame, SAMPLES);
                 }
-                // Wake turns end on trailing silence (measured on the clean,
-                // echo-cancelled signal — so the assistant's own playback no
-                // longer keeps the turn alive). PTT turns end on release.
-                if (self->wake_turn_ && silence.update(frame, SAMPLES)) {
+                // In call mode: stream unconditionally, no silence detection or
+                // EOU — the backend's VAD handles endpointing. Barge-in works
+                // because AEC removes speaker echo from the clean signal.
+                // Wake/PTT turns: end on trailing silence or button release.
+                if (!self->call_mode_ && self->wake_turn_ && silence.update(frame, SAMPLES)) {
                     self->talking_ = false;
                     self->wake_turn_ = false;
                     if (self->ws_.isConnected()) {
@@ -600,6 +602,10 @@ void Assistant::wsSendTask(void* arg) {
         }
 
         // Reset the display to "Ready" once the assistant's playback finishes.
+        // In call mode, talking_ stays true so this edge never fires — the
+        // session cycles between LISTENING/PROCESSING/SPEAKING driven by server
+        // signals and onWsAudio. After playback ends in call mode, revert to
+        // LISTENING (the mic is still streaming).
         const bool playing_now = self->playback_.isPlaying();
         if (playing_now) {
             was_playing = true;
@@ -608,6 +614,9 @@ void Assistant::wsSendTask(void* arg) {
             self->session_.setState(Session::State::READY);
             self->display_->showStatus("Ready");
             self->display_->showThinking(false);
+        } else if (was_playing && self->call_mode_) {
+            was_playing = false;
+            self->session_.setState(Session::State::LISTENING);
         }
     }
 
@@ -797,8 +806,52 @@ void Assistant::uiTask(void* arg) {
     ESP_LOGI(TAG, "UI task started");
 
     while (self->running_) {
+        // ─── Call mode handling ─────────────────────────────────────────────
+        // Enter call mode: LVGL timer detected the call button tap and set the
+        // flag. We handle the audio/session logic here in the uiTask.
+        if (self->display_->consumeCallModeRequest() && self->ws_.isConnected()) {
+            ESP_LOGI(TAG, "Call mode entered");
+            self->ws_.sendInterrupt();
+            self->playback_.flush();
+            if (self->eou_pending_) {
+                self->eou_pending_ = false;
+                self->drain_frames_ = 0;
+                if (self->ws_.isConnected()) {
+                    self->ws_.sendEndOfUtterance();
+                }
+            }
+            self->ws_.sendJson("signal", "wake");
+#if CONFIG_AEC_ENABLE
+            xQueueReset(self->clean_queue_);
+#else
+            xQueueReset(self->mic_queue_);
+#endif
+            self->call_mode_ = true;
+            self->talking_ = true;
+            self->wake_turn_ = false;
+            self->session_.setState(Session::State::LISTENING);
+        }
+
+        // Exit call mode: hang-up button tapped.
+        if (self->display_->consumeHangupRequest()) {
+            ESP_LOGI(TAG, "Call mode exited (hang up)");
+            if (self->ws_.isConnected()) {
+                self->ws_.sendEndOfUtterance();
+                self->ws_.sendInterrupt();
+            }
+            self->playback_.flush();
+            self->call_mode_ = false;
+            self->talking_ = false;
+            self->eou_pending_ = false;
+            self->drain_frames_ = 0;
+            self->wake_turn_ = false;
+            self->session_.setState(Session::State::READY);
+            self->display_->showStatus("Ready");
+        }
+
+        // ─── PTT handling (skipped in call mode) ────────────────────────────
         // Poll PTT button (LVGL event-driven via pollPressed)
-        bool pressed = self->display_->pollPressed();
+        bool pressed = self->call_mode_ ? false : self->display_->pollPressed();
         // Ignore presses while audio is playing. The FT6336U touch controller
         // reports phantom touches during playback (speaker amp coupling on the
         // shared board), which would start a spurious PTT session and stream the
@@ -857,7 +910,7 @@ void Assistant::uiTask(void* arg) {
         // New-conversation button: tell the backend to start a fresh
         // conversation (empty history). Stop any current response first and
         // clear transient turn state so nothing leaks into the new session.
-        if (self->display_->consumeNewConversationRequest() && self->ws_.isConnected()) {
+        if (!self->call_mode_ && self->display_->consumeNewConversationRequest() && self->ws_.isConnected()) {
             ESP_LOGI(TAG, "New conversation requested");
             // Stop any current response and clear transient turn state so nothing
             // leaks into the fresh conversation.

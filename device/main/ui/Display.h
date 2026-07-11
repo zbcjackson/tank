@@ -40,4 +40,14 @@ public:
     /// conversation" button since the last call. Default false on displays
     /// without such a button (serial stub, Pyramid).
     virtual bool consumeNewConversationRequest() { return false; }
+
+    /// Poll-and-clear: returns true once if the user tapped the call button to
+    /// enter continuous talking (call) mode. The display handles its own UI
+    /// navigation; this only signals the audio/session logic to open the mic.
+    /// Default false on displays without a call button (serial stub, Pyramid).
+    virtual bool consumeCallModeRequest() { return false; }
+
+    /// Poll-and-clear: returns true once if the user tapped the hang-up button
+    /// to exit call mode. Default false on displays without a call UI.
+    virtual bool consumeHangupRequest() { return false; }
 };

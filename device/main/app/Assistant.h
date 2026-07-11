@@ -101,6 +101,9 @@ private:
     // How the current turn started: true = wake-word (ends on trailing silence),
     // false = PTT/none (ends on button release). Only meaningful while talking_.
     volatile bool wake_turn_ = false;
+    // Call mode: mic streams continuously, backend VAD handles endpointing.
+    // Set/cleared by uiTask on call-button/hang-up tap.
+    volatile bool call_mode_ = false;
 
     bool running_ = false;
 };

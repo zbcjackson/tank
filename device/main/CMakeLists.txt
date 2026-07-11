@@ -28,6 +28,7 @@ endif()
 list(APPEND SOURCES
     "ui/screens/MainScreen.cpp"
     "ui/screens/SettingsScreen.cpp"
+    "ui/screens/CallScreen.cpp"
 )
 
 idf_component_register(

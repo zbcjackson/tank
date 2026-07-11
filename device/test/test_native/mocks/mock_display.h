@@ -17,4 +17,7 @@ public:
     MOCK_METHOD(void, clear, (), (override));
     MOCK_METHOD(bool, pollPressed, (), (override));
     MOCK_METHOD(void, showTalkState, (bool listening), (override));
+    MOCK_METHOD(bool, consumeNewConversationRequest, (), (override));
+    MOCK_METHOD(bool, consumeCallModeRequest, (), (override));
+    MOCK_METHOD(bool, consumeHangupRequest, (), (override));
 };

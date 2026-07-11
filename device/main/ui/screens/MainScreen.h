@@ -61,6 +61,12 @@ public:
         return false;
     }
 
+    /// Poll-and-clear: returns true once if the call button was tapped.
+    bool consumeCallRequest() {
+        if (call_requested_) { call_requested_ = false; return true; }
+        return false;
+    }
+
 private:
     lv_obj_t* screen_ = nullptr;
     lv_obj_t* status_label_ = nullptr;
@@ -70,13 +76,15 @@ private:
     lv_obj_t* ptt_label_ = nullptr;
     lv_obj_t* settings_btn_ = nullptr;
     lv_obj_t* new_conv_btn_ = nullptr;
+    lv_obj_t* call_btn_ = nullptr;
 
     volatile bool ptt_pressed_ = false;
     volatile bool new_conv_requested_ = false;
     volatile bool settings_requested_ = false;
+    volatile bool call_requested_ = false;
     // Edge tracking for coordinate-based header taps: true while a touch that
     // began inside a header button is still down. The request fires on release
     // (finger up), so the button the press started on is latched here until then.
     bool header_touch_down_ = false;
-    int pending_header_btn_ = 0;  // 0 = none, 1 = gear, 2 = new-conversation
+    int pending_header_btn_ = 0;  // 0 = none, 1 = gear, 2 = new-conversation, 3 = call
 };

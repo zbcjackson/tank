@@ -1,6 +1,7 @@
 #include "Cores3Display.h"
 #include "screens/MainScreen.h"
 #include "screens/SettingsScreen.h"
+#include "screens/CallScreen.h"
 #include "settings/NvsSettings.h"
 #include "app/Session.h"
 #include "hal/cores3/Cores3Pins.h"
@@ -36,7 +37,10 @@ static void touch_poll_timer_cb(void* arg) {
 // deadlocks LVGL; scheduling it via lv_async_call from the uiTask never flushes.
 static void settings_poll_lv_timer_cb(lv_timer_t* t) {
     (void)t;
-    if (s_self) s_self->pollSettingsFromLvglTask();
+    if (s_self) {
+        s_self->pollSettingsFromLvglTask();
+        s_self->pollCallFromLvglTask();
+    }
 }
 
 bool Cores3Display::init() {
@@ -48,6 +52,7 @@ bool Cores3Display::init() {
     // Create screens
     main_screen_ = new MainScreen();
     settings_screen_ = new SettingsScreen();
+    call_screen_ = new CallScreen();
 
     // Lock LVGL before creating UI objects
     lvgl_port_lock(0);
@@ -60,6 +65,10 @@ bool Cores3Display::init() {
     lv_obj_t* settings_scr = lv_obj_create(nullptr);
     settings_screen_->create(settings_scr);
 
+    // Create call screen (not loaded yet)
+    lv_obj_t* call_scr = lv_obj_create(nullptr);
+    call_screen_->create(call_scr);
+
     // Set initial volume from NVS (can't read NVS from LVGL task later, so do it now).
     if (nvs_) {
         uint8_t vol = nvs_->getVolume();
@@ -71,12 +80,15 @@ bool Cores3Display::init() {
     // The gear on the main screen uses coordinate-based detection: the touch
     // callback sets a flag, and settings_poll_lv_timer_cb (below) loads the
     // screen from the LVGL task context — the only place lv_scr_load is safe.
+    // The call button and hang-up button follow the same flag→timer→async_call
+    // pattern.
     settings_screen_->onBack([](void* ctx) {
         auto* self = static_cast<Cores3Display*>(ctx);
         self->showMain();
     }, this);
 
-    // LVGL timer to poll the gear-tap flag from the LVGL task context (10ms).
+    // LVGL timer to poll the gear-tap and call-button flags from the LVGL
+    // task context (10ms).
     lv_timer_create(settings_poll_lv_timer_cb, 10, nullptr);
 
     // Load main screen
@@ -273,6 +285,9 @@ void Cores3Display::touchReadCb(lv_indev_t* indev, lv_indev_data_t* data) {
             s_self->main_screen_->updatePTTFromTouch(false, 0, 0);
             s_self->main_screen_->updateHeaderButtonsFromTouch(false, 0, 0);
         }
+        if (s_self && s_self->call_screen_ && s_self->call_screen_active_) {
+            s_self->call_screen_->updateHangupFromTouch(false, 0, 0);
+        }
         data->state = LV_INDEV_STATE_RELEASED;
         return;
     }
@@ -285,8 +300,11 @@ void Cores3Display::touchReadCb(lv_indev_t* indev, lv_indev_data_t* data) {
         // This callback runs during LVGL's input-read phase. It must ONLY report
         // input state and set lightweight flags — never mutate the widget tree
         // or load screens here (that corrupts LVGL state and freezes the UI).
-        // Header taps set flags consumed by the uiTask (see handleTouchRequests).
-        if (s_self && s_self->main_screen_) {
+        if (s_self && s_self->call_screen_active_ && s_self->call_screen_) {
+            // Call screen active: route touch to hang-up detection only.
+            s_self->call_screen_->updateHangupFromTouch(true, x, y);
+        } else if (s_self && s_self->main_screen_) {
+            // Main screen: PTT + header buttons.
             s_self->main_screen_->updatePTTFromTouch(true, x, y);
             s_self->main_screen_->updateHeaderButtonsFromTouch(true, x, y);
         }
@@ -295,8 +313,10 @@ void Cores3Display::touchReadCb(lv_indev_t* indev, lv_indev_data_t* data) {
         data->point.y = y;
         data->state = LV_INDEV_STATE_PRESSED;
     } else {
-        // No touch — clear PTT immediately (level-based = can't get stuck).
-        if (s_self && s_self->main_screen_) {
+        // No touch — clear both screens' touch state (level-based = can't get stuck).
+        if (s_self && s_self->call_screen_active_ && s_self->call_screen_) {
+            s_self->call_screen_->updateHangupFromTouch(false, 0, 0);
+        } else if (s_self && s_self->main_screen_) {
             s_self->main_screen_->updatePTTFromTouch(false, 0, 0);
             s_self->main_screen_->updateHeaderButtonsFromTouch(false, 0, 0);
         }
@@ -329,7 +349,9 @@ void Cores3Display::showAssistantText(const char* text) {
     // Reply text is not rendered on screen; show the speaking state instead.
     (void)text;
     if (!tryLock()) return;
-    if (main_screen_) {
+    if (call_screen_active_ && call_screen_) {
+        call_screen_->setActivityState((int)Session::State::SPEAKING);
+    } else if (main_screen_) {
         main_screen_->setActivityState((int)Session::State::SPEAKING);
     }
     lvgl_port_unlock();
@@ -337,7 +359,11 @@ void Cores3Display::showAssistantText(const char* text) {
 
 void Cores3Display::showThinking(bool active) {
     if (!tryLock()) return;
-    if (main_screen_) main_screen_->setThinking(active);
+    if (call_screen_active_ && call_screen_) {
+        call_screen_->setActivityState(active ? (int)Session::State::PROCESSING : (int)Session::State::LISTENING);
+    } else if (main_screen_) {
+        main_screen_->setThinking(active);
+    }
     lvgl_port_unlock();
 }
 
@@ -381,7 +407,11 @@ void Cores3Display::showTalkState(bool listening) {
 
 void Cores3Display::setActivityState(int state) {
     if (!tryLock()) return;
-    if (main_screen_) main_screen_->setActivityState(state);
+    if (call_screen_active_ && call_screen_) {
+        call_screen_->setActivityState(state);
+    } else if (main_screen_) {
+        main_screen_->setActivityState(state);
+    }
     lvgl_port_unlock();
 }
 
@@ -439,4 +469,49 @@ void Cores3Display::pollSettingsFromLvglTask() {
 
 void Cores3Display::showMain() {
     lv_async_call(loadMainAsync, this);
+}
+
+bool Cores3Display::consumeCallModeRequest() {
+    if (call_mode_entered_) {
+        call_mode_entered_ = false;
+        return true;
+    }
+    return false;
+}
+
+bool Cores3Display::consumeHangupRequest() {
+    if (call_mode_exited_) {
+        call_mode_exited_ = false;
+        return true;
+    }
+    return false;
+}
+
+static void loadCallScreenAsync(void* arg) {
+    auto* self = static_cast<Cores3Display*>(arg);
+    self->loadCallScreen();
+}
+
+void Cores3Display::loadCallScreen() {
+    if (call_screen_) {
+        call_screen_active_ = true;
+        call_screen_->setActivityState((int)Session::State::LISTENING);
+        lv_scr_load(call_screen_->getScreen());
+    }
+}
+
+void Cores3Display::pollCallFromLvglTask() {
+    // Enter call mode: main screen call button tapped.
+    if (!call_screen_active_ && main_screen_ && main_screen_->consumeCallRequest()) {
+        lv_async_call(loadCallScreenAsync, this);
+        // Signal the uiTask to open the mic / start streaming.
+        call_mode_entered_ = true;
+    }
+    // Exit call mode: call screen hang-up button tapped → navigate back to main.
+    if (call_screen_active_ && call_screen_ && call_screen_->consumeHangupRequest()) {
+        call_screen_active_ = false;
+        lv_async_call(loadMainAsync, this);
+        // Signal the uiTask to close the mic / stop streaming.
+        call_mode_exited_ = true;
+    }
 }

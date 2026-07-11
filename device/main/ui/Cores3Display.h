@@ -11,6 +11,7 @@
 // Forward declarations for screen classes
 class MainScreen;
 class SettingsScreen;
+class CallScreen;
 
 /// CoreS3 display implementation — 320×240 IPS LCD with capacitive touch.
 /// Uses LVGL via esp_lvgl_port for rendering.
@@ -33,6 +34,12 @@ public:
     /// Poll-and-clear the new-conversation button tap (delegated to MainScreen).
     bool consumeNewConversationRequest() override;
 
+    /// Poll-and-clear the call-mode button tap (delegated to MainScreen).
+    bool consumeCallModeRequest() override;
+
+    /// Poll-and-clear the hang-up button tap (delegated to CallScreen).
+    bool consumeHangupRequest() override;
+
     /// Set the BoardHAL pointer for volume control from settings.
     void setHAL(BoardHAL* hal) { hal_ = hal; }
 
@@ -51,6 +58,7 @@ public:
     /// from the back-button event callback. Both run in the LVGL task context.
     void loadSettingsScreen();
     void loadMainScreen();
+    void loadCallScreen();
 
     /// Get current volume from settings screen (for NVS persist from uiTask).
     uint8_t getSettingsVolume() const;
@@ -67,8 +75,14 @@ public:
     /// static timer trampoline can reach it.
     void pollSettingsFromLvglTask();
 
+    /// Poll call-button and hang-up taps. Called from the same LVGL timer.
+    void pollCallFromLvglTask();
+
     /// Update activity indicator state.
     void setActivityState(int state);
+
+    /// Whether the call screen is currently active (for routing activity updates).
+    bool isCallScreenActive() const { return call_screen_active_; }
 
     static constexpr int SCREEN_W = 320;
     static constexpr int SCREEN_H = 240;
@@ -89,6 +103,7 @@ private:
     // Screens
     MainScreen* main_screen_ = nullptr;
     SettingsScreen* settings_screen_ = nullptr;
+    CallScreen* call_screen_ = nullptr;
 
     // HAL reference for volume control
     BoardHAL* hal_ = nullptr;
@@ -101,4 +116,12 @@ private:
 
     // Flag: volume was changed in settings, needs NVS persist from uiTask.
     volatile bool volume_dirty_ = false;
+
+    // Flag: call screen is the active screen (for routing touch + activity).
+    bool call_screen_active_ = false;
+
+    // Flags consumed by the uiTask for audio/session logic. Set by the LVGL
+    // timer when it actually navigates (so navigation and logic stay in sync).
+    volatile bool call_mode_entered_ = false;
+    volatile bool call_mode_exited_ = false;
 };
