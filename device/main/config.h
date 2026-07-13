@@ -61,19 +61,32 @@
 // mic signal and a reference of what the speaker is playing, it subtracts the
 // echo. It needs that reference from somewhere. Two sources:
 //
-//   Software reference (CONFIG_AEC_HW_REF=0, default): AudioPlayback copies each
-//   frame it sends to the speaker into a ring buffer; the AFE feed path pairs
-//   the live mic frame with the matching playback frame as the reference. This
-//   is the digital signal *before* the amp — no extra wiring, works on any unit.
-//   The mic stays on the simple standard-I2S mono path.
+//   Software reference (CONFIG_AEC_HW_REF=0, default — verified working end to
+//   end): AudioPlayback copies each frame it sends to the speaker into a ring
+//   buffer; the AFE feed path pairs the live mic frame with the matching playback
+//   frame as the reference. This is the digital signal *before* the amp — no
+//   extra wiring, works on any unit. The mic stays on the simple standard-I2S
+//   mono path. ERLE ~17 dB: strong enough for wake-word rejection, but residual
+//   echo can retrigger the backend VAD, so in call mode the mic is muted while
+//   the assistant is speaking (no full-duplex barge-in on this path).
 //
 //   Hardware reference (CONFIG_AEC_HW_REF=1): the CoreS3 schematic wires the amp
 //   output (AW88298) through a 150K attenuator (R40/R42, nets AEC_P/AEC_N) into
 //   the ES7210's MIC3 ADC. Reading MIC3 needs 4-slot TDM (standard I2S exposes
-//   only MIC1/MIC2). Verified on 2026-07-09: R40/R42 are NOT populated on this
-//   board — MIC3 reads noise floor during playback (ref_peak_hold ≈ mic noise,
-//   erle ≈ 2dB). Only enable this if you solder the resistors. See
-//   [[cores3-aec-hardware-reference]].
+//   only MIC1/MIC2). IN THEORY the reference is the true acoustic echo, so AEC
+//   would be strong enough for full-duplex barge-in.
+//   DO NOT ENABLE ON THIS UNIT — proven broken (2026-07-13). Enabling it killed
+//   transcription in both PTT and call mode. On-device AEC diag showed the slot-2
+//   "reference" channel tracks the MIC channel almost exactly on every frame,
+//   INCLUDING when nothing is playing (e.g. mic_peak=1452/ref_peak=1596,
+//   mic_peak=862/ref_peak=816). A real echo reference reads ~silence when the
+//   speaker is idle. So slot 2 is NOT a speaker tap — it carries a mic-correlated
+//   signal. The AFE, told "ch1 is echo", sees ref≈mic, decides the user's voice
+//   IS the echo, and cancels it → output ≈ 0 → nothing reaches ASR. The earlier
+//   "~29 dB ERLE" boot-tone reading was self-cancellation of a mic against a
+//   near-identical mic while the tone played — it does NOT indicate usable AEC.
+//   Conclusion: MIC3 hardware reference is not usable here; software reference is
+//   the only working path. See [[cores3-aec-hardware-reference]].
 //
 // AEC is CoreS3-only: the Pyramid has a different codec chain (ES8311 + AW87559)
 // and keeps the standard mono capture + WakeNet + echo-hangover path.
@@ -82,7 +95,7 @@
 #else
 #define CONFIG_AEC_ENABLE          0
 #endif
-#define CONFIG_AEC_HW_REF          0     // 1 = analog MIC3 ref via TDM (needs R40/R42 soldered)
+#define CONFIG_AEC_HW_REF          0     // 1 = analog MIC3 ref via TDM. BROKEN on this unit (ref≈mic), see above. Keep 0.
 #define CONFIG_AEC_DIAG            1     // Update JTAG-readable g_aec_diag (mic/ref/out power, ERLE)
 #define CONFIG_AEC_TEST_TONE       0     // 1 = play a 1kHz tone at boot to self-test AEC (diagnostic)
 #define CONFIG_AEC_TDM_SLOTS       4     // (HW ref only) ES7210 emits 4 TDM slots (MIC1..MIC4)

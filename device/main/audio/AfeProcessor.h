@@ -17,6 +17,14 @@
 /// processed output frame ready. This mirrors the esp-sr reference design.
 class AfeProcessor {
 public:
+    /// Which esp-sr front-end to instantiate:
+    ///   SR — Speech Recognition (esp_afe_sr_v1): AEC + VAD + WakeNet. Used for
+    ///        PTT/wake turns so "Hi ESP" works. AEC is comparatively weak.
+    ///   VC — Voice Communication (esp_afe_vc_v1): AEC + VAD, NO WakeNet, but a
+    ///        stronger AEC suited to full-duplex. Used in call mode where turn
+    ///        boundaries come from the backend VAD (wake word not needed).
+    enum class Type { SR, VC };
+
     struct FetchResult {
         const int16_t* data = nullptr;  // Echo-cancelled mono audio (owned by AFE)
         int samples = 0;                // Samples in `data`
@@ -25,7 +33,8 @@ public:
         bool valid = false;            // false if fetch failed / AFE not ready
     };
 
-    bool init();
+    /// @param type Which front-end to build (SR = wakenet, VC = strong AEC).
+    bool init(Type type = Type::SR);
     void destroy();
 
     /// Number of samples PER CHANNEL that feed() expects per call.

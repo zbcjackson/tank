@@ -63,7 +63,16 @@ private:
     AudioCapture capture_;
     AudioPlayback playback_;
 #if CONFIG_AEC_ENABLE
-    AfeProcessor afe_;
+    // Two AFE front-ends, both resident. afe_sr_ (WakeNet) drives PTT/wake turns;
+    // afe_vc_ (stronger AEC, no WakeNet) drives call mode for full-duplex barge-in.
+    // active_afe_ points at whichever the feed/fetch tasks currently use; it is
+    // flipped (single aligned-pointer store, atomic on Xtensa) on call enter/exit.
+    // afe_vc_ready_ is false if VC init failed — then call mode falls back to the
+    // SR AFE + playback mute.
+    AfeProcessor afe_sr_;
+    AfeProcessor afe_vc_;
+    AfeProcessor* volatile active_afe_ = nullptr;
+    bool afe_vc_ready_ = false;
 #else
     WakeWordDetector wake_word_;
 #endif

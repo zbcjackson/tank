@@ -9,21 +9,26 @@
 
 static const char* TAG = "AfeProcessor";
 
-bool AfeProcessor::init() {
-    // Load the speech models flashed to the "model" partition (same partition
-    // WakeWordDetector used). The AFE resolves its WakeNet model by name from
-    // this list.
-    auto* models = esp_srmodel_init("model");
-    models_ = models;
-    if (!models) {
-        ESP_LOGE(TAG, "esp_srmodel_init failed — no model partition?");
-        return false;
-    }
+bool AfeProcessor::init(Type type) {
+    // WakeNet model is only needed for the SR front-end. The VC front-end has no
+    // WakeNet, so it doesn't need the model list at all.
+    char* wn_model = nullptr;
+    if (type == Type::SR) {
+        // Load the speech models flashed to the "model" partition (same partition
+        // WakeWordDetector used). The AFE resolves its WakeNet model by name from
+        // this list.
+        auto* models = esp_srmodel_init("model");
+        models_ = models;
+        if (!models) {
+            ESP_LOGE(TAG, "esp_srmodel_init failed — no model partition?");
+            return false;
+        }
 
-    char* wn_model = esp_srmodel_filter(models, ESP_WN_PREFIX, NULL);
-    if (!wn_model) {
-        ESP_LOGE(TAG, "No WakeNet model found in partition");
-        return false;
+        wn_model = esp_srmodel_filter(models, ESP_WN_PREFIX, NULL);
+        if (!wn_model) {
+            ESP_LOGE(TAG, "No WakeNet model found in partition");
+            return false;
+        }
     }
 
     afe_config_t cfg = AFE_CONFIG_DEFAULT();
@@ -39,16 +44,30 @@ bool AfeProcessor::init() {
     cfg.aec_init = true;
     cfg.se_init = false;   // MASE speech-enhancement needs a ≥2-mic array; we have 1
     cfg.vad_init = true;
-    cfg.wakenet_init = true;
-    cfg.wakenet_model_name = wn_model;
-    cfg.wakenet_mode = DET_MODE_90;   // single-mic detection (not the 2CH default)
+
+    if (type == Type::SR) {
+        // Speech Recognition front-end: WakeNet on, voice-communication off.
+        cfg.wakenet_init = true;
+        cfg.wakenet_model_name = wn_model;
+        cfg.wakenet_mode = DET_MODE_90;   // single-mic detection (not the 2CH default)
+        cfg.voice_communication_init = false;
+    } else {
+        // Voice Communication front-end: stronger AEC, no WakeNet. Turn boundaries
+        // in call mode come from the backend VAD, so wake word isn't needed.
+        // AGC left off so the uplink level matches the SR path (avoid surprising
+        // the backend ASR with a different gain).
+        cfg.wakenet_init = false;
+        cfg.wakenet_model_name = nullptr;
+        cfg.voice_communication_init = true;
+        cfg.voice_communication_agc_init = false;
+    }
 
     cfg.afe_mode = SR_MODE_LOW_COST;
     cfg.afe_perferred_core = CONFIG_AUDIO_TASK_CORE;   // keep AFE work off Core 1 (net/UI)
     cfg.afe_perferred_priority = 5;
     cfg.memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
 
-    auto* iface = &ESP_AFE_SR_HANDLE;
+    auto* iface = (type == Type::VC) ? &ESP_AFE_VC_HANDLE : &ESP_AFE_SR_HANDLE;
     afe_iface_ = iface;
 
     auto* data = iface->create_from_config(&cfg);
@@ -68,8 +87,9 @@ bool AfeProcessor::init() {
         return false;
     }
 
-    ESP_LOGI(TAG, "AFE ready: model=%s, feed chunk=%d samples/ch, channels=%d, AEC on",
-             wn_model, feed_chunk_samples_, feed_channels_);
+    ESP_LOGI(TAG, "AFE ready: type=%s, model=%s, feed chunk=%d samples/ch, channels=%d, AEC on",
+             type == Type::VC ? "VC" : "SR",
+             wn_model ? wn_model : "(none)", feed_chunk_samples_, feed_channels_);
     return true;
 }
 
