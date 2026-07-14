@@ -49,6 +49,9 @@ private:
     static void wsSendTask(void* arg);
     static void uiTask(void* arg);
 #if CONFIG_AEC_ENABLE
+    // Create the VC AFE on first call-mode entry. Deferred from boot so its
+    // internal-DRAM footprint doesn't starve esp_wifi_init() (boot loop).
+    void ensureVcAfe();
     static void afeFeedTask(void* arg);   // mic_queue → afe.feed()
     static void afeFetchTask(void* arg);  // afe.fetch() → wake/VAD + clean_queue
 #if CONFIG_AEC_TEST_TONE
@@ -63,16 +66,22 @@ private:
     AudioCapture capture_;
     AudioPlayback playback_;
 #if CONFIG_AEC_ENABLE
-    // Two AFE front-ends, both resident. afe_sr_ (WakeNet) drives PTT/wake turns;
-    // afe_vc_ (stronger AEC, no WakeNet) drives call mode for full-duplex barge-in.
-    // active_afe_ points at whichever the feed/fetch tasks currently use; it is
-    // flipped (single aligned-pointer store, atomic on Xtensa) on call enter/exit.
-    // afe_vc_ready_ is false if VC init failed — then call mode falls back to the
-    // SR AFE + playback mute.
+    // Two AFE front-ends. afe_sr_ (WakeNet) drives PTT/wake turns and is created
+    // at boot. afe_vc_ (stronger AEC, no WakeNet) drives call mode for full-duplex
+    // barge-in; it is created LAZILY on first call-mode entry (see ensureVcAfe)
+    // so its internal-DRAM footprint doesn't starve esp_wifi_init() at boot, then
+    // kept resident and reused by later calls. active_afe_ points at whichever the
+    // feed/fetch tasks currently use; it is flipped (single aligned-pointer store,
+    // atomic on Xtensa) on call enter/exit. afe_vc_ready_ is false until VC is
+    // successfully created — until then (or if creation fails) call mode falls
+    // back to the SR AFE + playback mute.
     AfeProcessor afe_sr_;
     AfeProcessor afe_vc_;
     AfeProcessor* volatile active_afe_ = nullptr;
     bool afe_vc_ready_ = false;
+    // True once afe_vc_ creation has been attempted (success or failure), so the
+    // one-shot lazy init in ensureVcAfe() doesn't retry a known-failed alloc.
+    bool afe_vc_attempted_ = false;
 #else
     WakeWordDetector wake_word_;
 #endif

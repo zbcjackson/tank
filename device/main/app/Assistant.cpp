@@ -138,21 +138,19 @@ bool Assistant::init(BoardHAL* hal) {
     // device still connects, it just won't wake on speech (the PTT button and
     // any other trigger still work).
 #if CONFIG_AEC_ENABLE
-    // Two AFE front-ends. SR (WakeNet + AEC) is the default, used for PTT/wake.
-    // VC (stronger AEC, no WakeNet) is switched in for call mode so the user can
-    // barge in over the assistant without the mic echoing playback back.
+    // Two AFE front-ends. SR (WakeNet + AEC) is created now — it's the default,
+    // used for PTT/wake. VC (stronger AEC, no WakeNet) is created lazily on the
+    // first call-mode entry (ensureVcAfe), NOT here: allocating it at boot
+    // consumes enough internal DRAM that the subsequent esp_wifi_init() fails
+    // with ESP_ERR_NO_MEM and aborts (boot loop). By first call, WiFi is already
+    // up, so the allocation no longer contends with the WiFi driver's buffers.
     if (!afe_sr_.init(AfeProcessor::Type::SR)) {
         ESP_LOGE(TAG, "SR AFE init failed — wake word + AEC inactive");
     }
     active_afe_ = &afe_sr_;
 
-    afe_vc_ready_ = afe_vc_.init(AfeProcessor::Type::VC);
-    if (!afe_vc_ready_) {
-        ESP_LOGW(TAG, "VC AFE init failed — call mode will fall back to SR + mute");
-    }
-    ESP_LOGI(TAG, "AFE init: SR=%s VC=%s, free PSRAM=%u",
+    ESP_LOGI(TAG, "AFE init: SR=%s VC=deferred, free PSRAM=%u",
              afe_sr_.ready() ? "ok" : "FAIL",
-             afe_vc_ready_ ? "ok" : "FAIL",
              (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 #else
     if (!wake_word_.init()) {
@@ -327,6 +325,30 @@ void Assistant::onWsMessage(const WsMessage& msg) {
 // ─── Tasks ──────────────────────────────────────────────────────────────────
 
 #if CONFIG_AEC_ENABLE
+// Lazily create the VC (Voice Communication) AFE on the first call-mode entry.
+// Deferred from boot on purpose: allocating VC's internal-DRAM buffers before
+// esp_wifi_init() runs starved the WiFi driver of RX buffers → ESP_ERR_NO_MEM →
+// abort → boot loop. By the first call, WiFi is already initialized, so the
+// allocation no longer contends with it.
+//
+// One-shot: afe_vc_attempted_ guards against retrying a known-failed alloc on
+// every call entry. Once created, VC is kept resident and reused by later calls.
+// Runs on the UI task (core 1); the caller flips active_afe_ only after this
+// returns, so the feed/fetch tasks never see a half-built VC.
+void Assistant::ensureVcAfe() {
+    if (afe_vc_attempted_) {
+        return;
+    }
+    afe_vc_attempted_ = true;
+    afe_vc_ready_ = afe_vc_.init(AfeProcessor::Type::VC);
+    if (afe_vc_ready_) {
+        ESP_LOGI(TAG, "VC AFE created (lazy), free PSRAM=%u",
+                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    } else {
+        ESP_LOGW(TAG, "VC AFE init failed — call mode falls back to SR + mute");
+    }
+}
+
 // Builds the interleaved [mic, ref] stream the AFE expects and feeds it in
 // AFE-sized chunks. The mic frame comes from the capture queue every 20ms; the
 // reference comes from one of two sources depending on build config:
@@ -420,6 +442,25 @@ void Assistant::afeFeedTask(void* arg) {
         if (afe != fed_afe) {
             fill = 0;
             fed_afe = afe;
+            // VC is created lazily (after this task started), so it may not have
+            // been accounted for when feed_buf was sized. If the now-active AFE
+            // needs a larger chunk than the buffer holds, grow it. Rare (only on
+            // call enter/exit), so the realloc cost is irrelevant.
+            const int need = afe->feedChunkTotal();
+            if (need > feed_cap) {
+                auto* grown = static_cast<int16_t*>(
+                    realloc(feed_buf, (size_t)need * sizeof(int16_t)));
+                if (grown) {
+                    feed_buf = grown;
+                    feed_cap = need;
+                } else {
+                    ESP_LOGE(TAG, "feed_buf regrow failed (%d→%d) — keeping SR",
+                             feed_cap, need);
+                    // Can't safely feed the larger AFE; stay on SR this iteration.
+                    afe = &self->afe_sr_;
+                    fed_afe = afe;
+                }
+            }
         }
         const size_t feed_total = (size_t)afe->feedChunkTotal();
 
@@ -889,9 +930,14 @@ void Assistant::uiTask(void* arg) {
             }
             self->ws_.sendJson("signal", "wake");
 #if CONFIG_AEC_ENABLE
-            // Switch to the VC front-end for stronger AEC → full-duplex barge-in.
-            // The feed/fetch tasks pick this up on their next iteration; the
-            // clean-queue reset below drops any SR-era frames still in flight.
+            // Create the VC front-end on first use (deferred from boot to keep
+            // WiFi init from OOMing), then switch to it for stronger AEC →
+            // full-duplex barge-in. The feed/fetch tasks pick up the new
+            // active_afe_ on their next iteration; the clean-queue reset below
+            // drops any SR-era frames still in flight. If VC is unavailable
+            // (init failed), stay on SR — the send task mutes the uplink during
+            // playback as a fallback.
+            self->ensureVcAfe();
             if (self->afe_vc_ready_) {
                 self->active_afe_ = &self->afe_vc_;
             }
