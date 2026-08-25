@@ -4,7 +4,6 @@
 
 #include "esp_log.h"
 #include "esp_timer.h"
-#include "esp_heap_caps.h"
 #include "nvs_flash.h"
 #include <cstring>
 #if CONFIG_AEC_ENABLE
@@ -138,20 +137,11 @@ bool Assistant::init(BoardHAL* hal) {
     // device still connects, it just won't wake on speech (the PTT button and
     // any other trigger still work).
 #if CONFIG_AEC_ENABLE
-    // Two AFE front-ends. SR (WakeNet + AEC) is created now — it's the default,
-    // used for PTT/wake. VC (stronger AEC, no WakeNet) is created lazily on the
-    // first call-mode entry (ensureVcAfe), NOT here: allocating it at boot
-    // consumes enough internal DRAM that the subsequent esp_wifi_init() fails
-    // with ESP_ERR_NO_MEM and aborts (boot loop). By first call, WiFi is already
-    // up, so the allocation no longer contends with the WiFi driver's buffers.
-    if (!afe_sr_.init(AfeProcessor::Type::SR)) {
-        ESP_LOGE(TAG, "SR AFE init failed — wake word + AEC inactive");
+    // AFE integrates AEC + VAD + WakeNet. It uses the hardware echo reference
+    // (ES7210 MIC3) so wake detection works even during playback.
+    if (!afe_.init()) {
+        ESP_LOGE(TAG, "AFE init failed — wake word + AEC inactive");
     }
-    active_afe_ = &afe_sr_;
-
-    ESP_LOGI(TAG, "AFE init: SR=%s VC=deferred, free PSRAM=%u",
-             afe_sr_.ready() ? "ok" : "FAIL",
-             (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 #else
     if (!wake_word_.init()) {
         ESP_LOGE(TAG, "Wake word init failed — wake word inactive");
@@ -280,10 +270,6 @@ void Assistant::onWsDisconnected() {
     drain_frames_ = 0;
     wake_turn_ = false;
     call_mode_ = false;
-#if CONFIG_AEC_ENABLE
-    // Return to the SR front-end so wake word works after reconnect.
-    active_afe_ = &afe_sr_;
-#endif
     playback_.flush();
     session_.setState(Session::State::CONNECTING);
     display_->showStatus("Reconnecting to Tank...");
@@ -325,30 +311,6 @@ void Assistant::onWsMessage(const WsMessage& msg) {
 // ─── Tasks ──────────────────────────────────────────────────────────────────
 
 #if CONFIG_AEC_ENABLE
-// Lazily create the VC (Voice Communication) AFE on the first call-mode entry.
-// Deferred from boot on purpose: allocating VC's internal-DRAM buffers before
-// esp_wifi_init() runs starved the WiFi driver of RX buffers → ESP_ERR_NO_MEM →
-// abort → boot loop. By the first call, WiFi is already initialized, so the
-// allocation no longer contends with it.
-//
-// One-shot: afe_vc_attempted_ guards against retrying a known-failed alloc on
-// every call entry. Once created, VC is kept resident and reused by later calls.
-// Runs on the UI task (core 1); the caller flips active_afe_ only after this
-// returns, so the feed/fetch tasks never see a half-built VC.
-void Assistant::ensureVcAfe() {
-    if (afe_vc_attempted_) {
-        return;
-    }
-    afe_vc_attempted_ = true;
-    afe_vc_ready_ = afe_vc_.init(AfeProcessor::Type::VC);
-    if (afe_vc_ready_) {
-        ESP_LOGI(TAG, "VC AFE created (lazy), free PSRAM=%u",
-                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-    } else {
-        ESP_LOGW(TAG, "VC AFE init failed — call mode falls back to SR + mute");
-    }
-}
-
 // Builds the interleaved [mic, ref] stream the AFE expects and feeds it in
 // AFE-sized chunks. The mic frame comes from the capture queue every 20ms; the
 // reference comes from one of two sources depending on build config:
@@ -359,7 +321,7 @@ void Assistant::ensureVcAfe() {
 void Assistant::afeFeedTask(void* arg) {
     auto* self = static_cast<Assistant*>(arg);
 
-    if (!self->afe_sr_.ready()) {
+    if (!self->afe_.ready()) {
         ESP_LOGE(TAG, "AFE not ready — feed task exiting");
         vTaskDelete(nullptr);
         return;
@@ -371,15 +333,9 @@ void Assistant::afeFeedTask(void* arg) {
     // Frame buffers live on the heap, not the task stack — together they exceed
     // the 4KB audio-task stack and would overflow it (caught as a stack-overflow
     // panic in afeFeedTask otherwise).
-    // feed_buf is sized to the LARGER of the two AFEs' chunk sizes so switching
-    // active_afe_ mid-stream can never overflow it. The active chunk total is
-    // re-read every loop (cheap) so the flush boundary matches the live AFE.
-    int feed_cap = self->afe_sr_.feedChunkTotal();
-    if (self->afe_vc_ready_ && self->afe_vc_.feedChunkTotal() > feed_cap) {
-        feed_cap = self->afe_vc_.feedChunkTotal();
-    }
+    const int feed_total = self->afe_.feedChunkTotal();
     auto* interleaved = static_cast<int16_t*>(malloc(CAP_SAMPLES * CH * sizeof(int16_t)));
-    auto* feed_buf = static_cast<int16_t*>(malloc(feed_cap * sizeof(int16_t)));
+    auto* feed_buf = static_cast<int16_t*>(malloc(feed_total * sizeof(int16_t)));
 #if CONFIG_AEC_HW_REF
     auto* cap_frame = static_cast<int16_t*>(malloc(CAP_SAMPLES * CH * sizeof(int16_t)));
     if (!interleaved || !feed_buf || !cap_frame) {
@@ -393,10 +349,9 @@ void Assistant::afeFeedTask(void* arg) {
         return;
     }
     size_t fill = 0;
-    AfeProcessor* fed_afe = self->active_afe_;  // AFE the accumulator is filling for
 
-    ESP_LOGI(TAG, "AFE feed task started (frame=%d, feed_cap=%d, %s ref)",
-             (int)(CAP_SAMPLES * CH), feed_cap,
+    ESP_LOGI(TAG, "AFE feed task started (frame=%d, feed_total=%d, %s ref)",
+             (int)(CAP_SAMPLES * CH), feed_total,
              CONFIG_AEC_HW_REF ? "HW" : "SW");
 
     while (self->running_) {
@@ -434,36 +389,6 @@ void Assistant::afeFeedTask(void* arg) {
         aecDiagInput(interleaved, CAP_SAMPLES, CH, 0, 1);
 #endif
 
-        // Snapshot the active AFE for this iteration. If it changed since we
-        // started accumulating a chunk, drop the partial chunk — feeding SR-era
-        // samples into VC (or vice-versa) would desync the pipeline. Also re-read
-        // the flush boundary from the live AFE (VC and SR may differ).
-        AfeProcessor* afe = self->active_afe_;
-        if (afe != fed_afe) {
-            fill = 0;
-            fed_afe = afe;
-            // VC is created lazily (after this task started), so it may not have
-            // been accounted for when feed_buf was sized. If the now-active AFE
-            // needs a larger chunk than the buffer holds, grow it. Rare (only on
-            // call enter/exit), so the realloc cost is irrelevant.
-            const int need = afe->feedChunkTotal();
-            if (need > feed_cap) {
-                auto* grown = static_cast<int16_t*>(
-                    realloc(feed_buf, (size_t)need * sizeof(int16_t)));
-                if (grown) {
-                    feed_buf = grown;
-                    feed_cap = need;
-                } else {
-                    ESP_LOGE(TAG, "feed_buf regrow failed (%d→%d) — keeping SR",
-                             feed_cap, need);
-                    // Can't safely feed the larger AFE; stay on SR this iteration.
-                    afe = &self->afe_sr_;
-                    fed_afe = afe;
-                }
-            }
-        }
-        const size_t feed_total = (size_t)afe->feedChunkTotal();
-
         // Append to the feed buffer, flushing a full chunk whenever it fills.
         size_t src = 0;
         const size_t avail = CAP_SAMPLES * CH;
@@ -473,8 +398,8 @@ void Assistant::afeFeedTask(void* arg) {
             memcpy(feed_buf + fill, interleaved + src, take * sizeof(int16_t));
             fill += take;
             src += take;
-            if (fill == feed_total) {
-                afe->feed(feed_buf);
+            if (fill == (size_t)feed_total) {
+                self->afe_.feed(feed_buf);
                 fill = 0;
             }
         }
@@ -498,7 +423,7 @@ void Assistant::afeFeedTask(void* arg) {
 void Assistant::afeFetchTask(void* arg) {
     auto* self = static_cast<Assistant*>(arg);
 
-    if (!self->afe_sr_.ready()) {
+    if (!self->afe_.ready()) {
         ESP_LOGE(TAG, "AFE not ready — fetch task exiting");
         vTaskDelete(nullptr);
         return;
@@ -511,7 +436,7 @@ void Assistant::afeFetchTask(void* arg) {
     ESP_LOGI(TAG, "AFE fetch task started");
 
     while (self->running_) {
-        AfeProcessor::FetchResult r = self->active_afe_->fetch();
+        AfeProcessor::FetchResult r = self->afe_.fetch();
         if (!r.valid) {
             vTaskDelay(1);
             continue;
@@ -609,13 +534,10 @@ void Assistant::wsSendTask(void* arg) {
     bool was_playing = false;
     // Call-mode playback mute hangover (frames). The software-reference AEC
     // (~17 dB) can't fully cancel echo, so in call mode we drop the uplink while
-    // the assistant plays. Two effects require a hangover rather than a bare
-    // isPlaying() check:
-    //   1. playing_ briefly drops to false in the network gaps BETWEEN TTS
-    //      chunks — a bare check unmutes mid-response and leaks echo.
-    //   2. AFE latency: frames pulled from clean_queue_ were captured ~100-200ms
-    //      earlier, so the echo tail keeps arriving after playing_ goes false.
-    // Holding the mute for ~600ms past the last "playing" frame covers both.
+    // the assistant plays. A hangover (not a bare isPlaying() check) covers two
+    // effects: (1) playing_ briefly drops false in the network gaps BETWEEN TTS
+    // chunks; (2) AFE latency — frames from clean_queue_ were captured ~100-200ms
+    // earlier, so the echo tail keeps arriving after playing_ goes false.
     constexpr int MUTE_HANGOVER_FRAMES = 30;  // 30 × 20ms = 600ms
     int mute_hangover = 0;
 
@@ -644,29 +566,19 @@ void Assistant::wsSendTask(void* arg) {
 
         if (xQueueReceive(self->clean_queue_, frame, pdMS_TO_TICKS(100)) == pdTRUE) {
             if (self->talking_) {
-                // Call mode with the VC front-end active: its stronger AEC cancels
-                // the echo, so stream continuously through playback → full-duplex
-                // barge-in (the user can talk over the assistant).
-                //
-                // Fallback path (VC init failed → still on the SR front-end): the
-                // SR AEC (~17 dB ERLE) can't fully cancel echo, so mute the uplink
-                // while the assistant plays. A hangover covers two effects that a
-                // bare isPlaying() check misses:
-                //   1. playing_ briefly drops false in gaps BETWEEN TTS chunks.
-                //   2. AFE latency: frames from clean_queue_ were captured
-                //      ~100-200ms earlier, so the echo tail arrives late.
-                const bool vc_active = (self->active_afe_ == &self->afe_vc_);
-                if (self->call_mode_ && !vc_active) {
+                // In call mode, mute the uplink while the assistant plays (plus a
+                // hangover). The SR-AFE software-reference AEC (~17 dB) can't fully
+                // cancel echo, so streaming during playback sends the assistant's
+                // own voice back — it hears itself and never stops. Half-duplex:
+                // no barge-in during playback, but stable.
+                if (self->call_mode_) {
                     if (self->playback_.isPlaying()) {
                         mute_hangover = MUTE_HANGOVER_FRAMES;
                     } else if (mute_hangover > 0) {
                         mute_hangover--;
                     }
-                } else {
-                    mute_hangover = 0;
                 }
-                const bool mute_for_playback =
-                    self->call_mode_ && !vc_active && mute_hangover > 0;
+                const bool mute_for_playback = self->call_mode_ && mute_hangover > 0;
                 if (self->ws_.isConnected() && !mute_for_playback) {
                     self->ws_.sendAudio(frame, SAMPLES);
                 }
@@ -930,17 +842,6 @@ void Assistant::uiTask(void* arg) {
             }
             self->ws_.sendJson("signal", "wake");
 #if CONFIG_AEC_ENABLE
-            // Create the VC front-end on first use (deferred from boot to keep
-            // WiFi init from OOMing), then switch to it for stronger AEC →
-            // full-duplex barge-in. The feed/fetch tasks pick up the new
-            // active_afe_ on their next iteration; the clean-queue reset below
-            // drops any SR-era frames still in flight. If VC is unavailable
-            // (init failed), stay on SR — the send task mutes the uplink during
-            // playback as a fallback.
-            self->ensureVcAfe();
-            if (self->afe_vc_ready_) {
-                self->active_afe_ = &self->afe_vc_;
-            }
             xQueueReset(self->clean_queue_);
 #else
             xQueueReset(self->mic_queue_);
@@ -954,8 +855,8 @@ void Assistant::uiTask(void* arg) {
         // Exit call mode: hang-up button tapped.
         if (self->display_->consumeHangupRequest()) {
             ESP_LOGI(TAG, "Call mode exited (hang up)");
-            // Clear call state FIRST so the send task stops streaming and no
-            // more audio reaches the backend.
+            // Clear call state FIRST so the send task stops streaming and no more
+            // audio reaches the backend.
             self->call_mode_ = false;
             self->talking_ = false;
             self->eou_pending_ = false;
@@ -963,18 +864,12 @@ void Assistant::uiTask(void* arg) {
             self->wake_turn_ = false;
             // Send interrupt (NOT end_of_utterance) to cancel any in-flight
             // processing. end_of_utterance would force-finalize the pending
-            // speech and the backend would generate a response that lands back
-            // on the main screen after hang-up. interrupt cancels it outright.
+            // speech and the backend would generate a response that lands back on
+            // the main screen after hang-up. interrupt cancels it outright.
             if (self->ws_.isConnected()) {
                 self->ws_.sendInterrupt();
             }
             self->playback_.flush();
-#if CONFIG_AEC_ENABLE
-            // Switch back to the SR front-end (WakeNet) for PTT/wake. The
-            // feed/fetch tasks pick this up next iteration; drop any VC-era frames.
-            self->active_afe_ = &self->afe_sr_;
-            xQueueReset(self->clean_queue_);
-#endif
             self->session_.setState(Session::State::READY);
             self->display_->showStatus("Ready");
         }
