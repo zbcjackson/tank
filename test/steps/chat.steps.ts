@@ -71,3 +71,59 @@ Then('the chat input is visible', async function (this: TankWorld) {
   const chatPage = new ChatModePage(this.page);
   await chatPage.input().waitFor({ state: 'visible', timeout: 5000 });
 });
+
+// ── Sentence-streaming TTS (P0-5) ──────────────────────────────────────────
+// Asserts the client receives the first TTS audio frame while the LLM
+// text is still streaming — only true once Brain streams sentence batches.
+
+When('the user sends a long-answer prompt with audio streaming tracked', async function (this: TankWorld) {
+  const chatPage = new ChatModePage(this.page);
+  const cdp = await this.context.newCDPSession(this.page);
+  await cdp.send('Network.enable');
+
+  const state = { firstAudioAt: null as number | null, textFinalAt: null as number | null, audioFrames: 0 };
+  this.audioStreamState = state;
+
+  cdp.on('Network.webSocketFrameReceived', (params) => {
+    const { opcode, payloadData } = params.response;
+    if (opcode === 2) {
+      // Binary frame = TTS audio chunk
+      state.audioFrames += 1;
+      if (state.firstAudioAt === null) state.firstAudioAt = Date.now();
+    } else if (opcode === 1 && payloadData.includes('"text"')) {
+      try {
+        const msg = JSON.parse(payloadData) as { type?: string; is_final?: boolean };
+        if (msg.type === 'text' && msg.is_final && state.textFinalAt === null) {
+          state.textFinalAt = Date.now();
+        }
+      } catch {
+        // Non-JSON text frame — ignore.
+      }
+    }
+  });
+
+  await chatPage.input().fill('请写一篇五百字左右的文章，详细介绍丝绸之路的历史、主要路线和文化遗产。');
+  await chatPage.sendButton().click();
+});
+
+Then('the first audio frame arrives before the response text completes', async function (this: TankWorld) {
+  const state = this.audioStreamState;
+  if (!state) throw new Error('audio streaming was not tracked — run the tracking step first');
+
+  // Wait (bounded) for BOTH the final text frame and the first audio frame.
+  // Audio for the tail batches keeps arriving after the text finalizes, so
+  // waiting for text alone would race the first chunk.
+  const deadline = Date.now() + 120_000;
+  while ((state.textFinalAt === null || state.firstAudioAt === null) && Date.now() < deadline) {
+    await this.page.waitForTimeout(500);
+  }
+
+  if (state.audioFrames === 0) throw new Error('no audio frames received — TTS produced nothing');
+  if (state.textFinalAt === null) throw new Error('response text never finalized within 120s');
+  if (state.firstAudioAt! >= state.textFinalAt!) {
+    throw new Error(
+      `first audio frame (at ${state.firstAudioAt}) did not precede the final text frame ` +
+      `(at ${state.textFinalAt}) — sentence-level TTS streaming regressed`,
+    );
+  }
+});

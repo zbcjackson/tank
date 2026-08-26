@@ -25,3 +25,10 @@ Feature: Chat mode
     When the user types "你好" and sends it
     Then the stop button is visible
     And eventually the send button is visible
+
+  # P0-5: sentence-level TTS streaming — first audio must land while the
+  # LLM text is still streaming (not after the whole turn finishes).
+  @requires-active-conversation @streaming-audio
+  Scenario: Long answer audio starts before text finishes streaming
+    When the user sends a long-answer prompt with audio streaming tracked
+    Then the first audio frame arrives before the response text completes
