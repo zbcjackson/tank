@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -35,12 +36,15 @@ class _MemCfg:
 
 @pytest.fixture
 def temp_prefs(tmp_path: Path):
+    # Non-pinned entries older than the 90-day staleness window are
+    # auto-removed by the store, so date the fixture today.
+    today = date.today().isoformat()
     user_dir = tmp_path / "users" / "alice"
     user_dir.mkdir(parents=True)
     (user_dir / "preferences.md").write_text(
-        "- Prefers Celsius [explicit, 2026-04-21]\n"
-        "- Lives in Tokyo [pinned, 2026-04-21]\n"
-        "- Likes hiking [inferred, 2026-04-21]\n",
+        f"- Prefers Celsius [explicit, {today}]\n"
+        f"- Lives in Tokyo [pinned, {today}]\n"
+        f"- Likes hiking [inferred, {today}]\n",
         encoding="utf-8",
     )
     return tmp_path
