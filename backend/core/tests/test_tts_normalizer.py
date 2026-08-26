@@ -167,6 +167,37 @@ class TestChineseText:
         assert result == "Hello 你好 world 世界"
 
 
+class TestBareUrlRemoval:
+    """Bare URLs are never spoken — screens show them, speech reads noise."""
+
+    def test_http_url_removed(self):
+        assert normalize_for_tts(
+            "Visit https://example.com/page for details."
+        ) == "Visit for details."
+
+    def test_www_url_removed(self):
+        assert normalize_for_tts("See www.example.com now.") == "See now."
+
+    def test_url_only_text_becomes_empty(self):
+        """A URL-only batch is skipped by TTSProcessor's speakable check."""
+        assert normalize_for_tts("https://example.com/a?b=1") == ""
+
+    def test_markdown_link_text_still_preserved(self):
+        assert normalize_for_tts(
+            "Click [here](https://example.com)"
+        ) == "Click here"
+
+    def test_url_with_trailing_punctuation(self):
+        result = normalize_for_tts("Docs at https://x.io/a, okay?")
+        assert "https" not in result
+        assert "okay?" in result
+
+    def test_chinese_sentence_with_url(self):
+        assert normalize_for_tts(
+            "详情见 https://example.com 页面。"
+        ) == "详情见 页面。"
+
+
 class TestEdgeCases:
     def test_empty_string(self):
         assert normalize_for_tts("") == ""

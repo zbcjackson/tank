@@ -16,6 +16,12 @@ _IMAGE_RE = re.compile(r"!\[([^\]]*)\]\([^)]*\)")
 # ── Links [text](url) ───────────────────────────────────────────────────────
 _LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 
+# ── Bare URLs (https?://… or www.…) ─────────────────────────────────────────
+# Markdown links above already reduce to their text; this catches raw URLs.
+# Never spoken: screens render them clickable, speech would read
+# "h-t-t-p colon slash slash" noise the listener can't remember anyway.
+_BARE_URL_RE = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+
 # ── Headers (# ... at line start) ───────────────────────────────────────────
 _HEADER_RE = re.compile(r"^#{1,6}\s+", re.MULTILINE)
 
@@ -100,6 +106,9 @@ def normalize_for_tts(text: str) -> str:
 
     # 4. Links → link text
     text = _LINK_RE.sub(r"\1", text)
+
+    # 4b. Bare URLs → nothing (run after links so [text](url) keeps its text)
+    text = _BARE_URL_RE.sub("", text)
 
     # 5. Horizontal rules → nothing
     text = _HR_RE.sub("", text)
