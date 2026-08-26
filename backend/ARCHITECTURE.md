@@ -28,7 +28,7 @@ Cross-cutting: Message Bus for decoupled observability, health monitoring, and a
 │  Layer 2: Agent Orchestration                                      │
 │  ┌────────────────────────────────────────────────────────────────┐ │
 │  │ AgentGraph → ChatAgent (all tools)                            │ │
-│  │ Approval gates · Checkpointing · Streaming tokens to TTS      │ │
+│  │ Approval gates · Checkpointing · Streaming tokens to UI      │ │
 │  └────────────────────────────────────────────────────────────────┘ │
 │                                                                     │
 │  Layer 3: LLM Transport (Raw SDK)                                   │
@@ -136,16 +136,17 @@ The Brain delegates to an AgentGraph that runs a single ChatAgent with access to
 **Agent Graph Flow**:
 ```
 User message
-  → ChatAgent (all tools, comprehensive system prompt)
+  → Agent (all tools, comprehensive system prompt)
   → Agent.run(state) streams:
-      TOKEN → TTS immediately (no batching)
+      TOKEN → UI text stream immediately (client sees tokens live)
       TOOL_CALLING → check ApprovalPolicy
         → APPROVAL_NEEDED → pause, await user response
         → or auto-approve → TOOL_EXECUTING → TOOL_RESULT
       DONE → end turn
+  → after the loop: ONE AudioOutputRequest with the full turn text → TTS
 ```
 
-**Key Difference from LangGraph**: Tokens stream immediately via async generators. No batching, no superstep synchronization. Every token flows to TTS the moment it's produced.
+**Key Difference from LangGraph**: Tokens stream immediately via async generators — no batching, no superstep synchronization — straight to the UI text stream. TTS, however, is *not* streamed today: `BrainProcessor` accumulates the full turn text and emits a single `AudioOutputRequest` after the agent loop ends, so first-audio latency is the whole LLM generation time plus TTS startup (baseline: first token 1.6s vs first audio 8.0s — see `scripts/benchmark_pipeline.py`). Sentence-level streaming into TTS is planned in [docs/s2s-comparison-and-improvement-plan.md](../docs/s2s-comparison-and-improvement-plan.md) (P0-5).
 
 #### Approval System
 
@@ -386,62 +387,55 @@ Bidirectional event-based interruption replaces the old single `threading.Event`
 
 ## Directory Structure
 
+The backend is a uv workspace of three packages:
+
 ```
-src/tank_backend/
-├── api/                          # FastAPI routes
-│   ├── server.py                 # Health, metrics endpoints
-│   ├── router.py                 # WebSocket handler
-│   ├── approvals.py              # Approval REST API
-│   └── metrics.py                # Metrics endpoint
-├── agents/                       # Agent orchestration (Layer 2)
-│   ├── base.py                   # Agent ABC, AgentState, AgentOutput
-│   ├── graph.py                  # AgentGraph orchestrator
-│   ├── approval.py               # ApprovalManager + ApprovalPolicy
-│   ├── factory.py                # Agent factory
-│   └── chat_agent.py             # Single conversational agent (all tools)
-├── pipeline/                     # Pipeline architecture (Layer 1)
-│   ├── processor.py              # Processor ABC, AudioCaps, FlowReturn
-│   ├── event.py                  # PipelineEvent, EventDirection
-│   ├── queue.py                  # ThreadedQueue (bounded, backpressure)
-│   ├── fan_out_queue.py          # FanOutQueue (parallel branches)
-│   ├── bus.py                    # Bus, BusMessage (pub/sub)
-│   ├── builder.py                # PipelineBuilder, Pipeline
-│   ├── health.py                 # HealthAggregator, component health types
-│   ├── processors/               # Concrete processors
-│   │   ├── vad.py                # Voice Activity Detection
-│   │   ├── asr.py                # Speech-to-text
-│   │   ├── speaker_id.py         # Speaker identification
-│   │   ├── asr_speaker_merger.py # Combine ASR + speaker
-│   │   ├── brain.py              # LLM conversation (bridges to Layer 2)
-│   │   ├── echo_guard.py         # Self-echo detection (Layer 2)
-│   │   ├── tts.py                # Text-to-speech + QoS
-│   │   └── playback.py           # Audio output
-│   └── observers/                # Bus subscribers
-│       ├── latency.py            # Per-stage timing
-│       ├── interrupt_latency.py  # Interrupt responsiveness
-│       ├── turn_tracking.py      # Conversation turn metrics
-│       ├── metrics_collector.py  # Aggregated metrics
-│       ├── health_monitor.py     # Health checks
-│       └── alerting.py           # Anomaly detection + alerts
-├── llm/                          # LLM transport (Layer 3)
-│   └── llm.py                    # AsyncOpenAI wrapper, retry, token counting
-├── observability/                # LLM tracing
-│   ├── langfuse_client.py        # Langfuse initialization
-│   └── trace.py                  # Trace ID generation
-├── persistence/                  # Unified ORM persistence (SQLAlchemy 2.0)
-│   ├── database.py               # Database class (engine + session factory)
-│   ├── base.py                   # Shared DeclarativeBase
-│   ├── models/                   # ORM row types for all domains
-│   ├── migrate.py                # run_migrations() — programmatic Alembic
-│   ├── bootstrap.py              # First-run legacy-DB lift-and-shift
-│   └── migrations/               # Alembic env + versions
-├── tools/                        # Tool system
-├── plugin/                       # Plugin system
-├── config/                       # Settings
-├── audio/                        # Legacy audio components
-│   ├── input/                    # ASR engines, segmenter
-│   └── output/                   # TTS engines, playback
-└── core/                         # Core types and events
+backend/
+├── core/                          # Main package — server, pipeline, agents
+│   ├── config.yaml                # Runtime configuration (LLM profiles, slots)
+│   ├── plugins.yaml               # Auto-generated plugin inventory
+│   ├── src/tank_backend/
+│   │   ├── main.py                # Entry point
+│   │   ├── api/                   # FastAPI routes (server, ws router, REST)
+│   │   ├── agents/                # Agent orchestration (Layer 2)
+│   │   │   ├── base.py            # Agent ABC, AgentState, AgentOutput
+│   │   │   ├── llm_agent.py       # Conversational agent (all tools)
+│   │   │   ├── graph.py           # AgentGraph orchestrator
+│   │   │   ├── supervisor.py      # Sub-agent supervision
+│   │   │   └── approval.py        # Approval gates
+│   │   ├── pipeline/              # Pipeline architecture (Layer 1)
+│   │   │   ├── processor.py       # Processor ABC, AudioCaps, FlowReturn
+│   │   │   ├── queue.py           # ThreadedQueue (bounded, backpressure)
+│   │   │   ├── fan_out_queue.py   # FanOutQueue (parallel branches)
+│   │   │   ├── bus.py             # Bus, BusMessage (pub/sub)
+│   │   │   ├── builder.py         # PipelineBuilder, Pipeline
+│   │   │   ├── health.py          # Pipeline health snapshots
+│   │   │   ├── processors/        # VAD, ASR, Brain, EchoGuard, TTS,
+│   │   │   │                      #   Playback (+ tts_normalizer)
+│   │   │   └── observers/         # Latency, health, alerting, metrics
+│   │   ├── llm/                   # LLM transport (Layer 3)
+│   │   ├── audio/                 # Audio types, Silero VAD segmenter
+│   │   ├── tools/                 # Tool system (BaseTool, ToolManager)
+│   │   ├── plugin/                # Plugin discovery, registry, manifests
+│   │   ├── config/                # Typed config models + parser
+│   │   ├── persistence/           # SQLAlchemy ORM + Alembic migrations
+│   │   ├── connectors/            # Chat-platform connectors (Telegram, …)
+│   │   ├── context/               # Conversation history & compaction
+│   │   ├── memory/ preferences/   # Cross-session user state
+│   │   ├── channels/ jobs/        # Channels & scheduled jobs
+│   │   ├── media/ users/          # Media store, user profiles
+│   │   ├── policy/ sandbox/ hooks/ mcp/    # Security & extensibility
+│   │   ├── skills/                # Skill registry
+│   │   ├── observability/         # Langfuse tracing
+│   │   └── core/                  # Assistant orchestrator, events, runtime
+│   └── tests/                     # Core test suite
+├── contracts/                     # tank_contracts — engine interface ABCs
+│   └── tank_contracts/            #   (ASR, TTS, speaker, connector SDK)
+└── plugins/                       # One package per plugin, own tests
+    ├── asr-sherpa/ asr-elevenlabs/ asr-funasr/ …
+    ├── tts-edge/ tts-cartesia/ tts-cosyvoice/ …
+    ├── speaker-sherpa/
+    └── connector-telegram/ connector-slack/ connector-discord/ …
 ```
 
 ## API Protocol
