@@ -6,6 +6,7 @@ import textwrap
 
 import pytest
 
+from tank_backend.audio.input.types import SegmenterConfig
 from tank_backend.config.app_config import AppConfig, ConfigError
 from tank_backend.config.models import (
     AgentsConfig,
@@ -180,6 +181,42 @@ class TestAppConfig:
         raw = {**self.MINIMAL_RAW, "brain": {"max_history_tokens": 32000}}
         cfg = AppConfig.from_raw_dict(raw)
         assert cfg.brain.max_history_tokens == 32000
+
+    def test_minimal_config_uses_default_vad(self):
+        cfg = AppConfig.from_raw_dict(self.MINIMAL_RAW)
+        assert cfg.vad == SegmenterConfig()
+        assert cfg.vad.min_silence_ms == 1000
+
+    def test_vad_section_overrides_defaults(self):
+        raw = {
+            **self.MINIMAL_RAW,
+            "vad": {
+                "speech_threshold": 0.7,
+                "min_silence_ms": 250,
+                "min_speech_ms": 300,
+                "pre_roll_ms": 400,
+                "max_utterance_ms": 30000,
+            },
+        }
+        cfg = AppConfig.from_raw_dict(raw)
+        assert cfg.vad == SegmenterConfig(
+            speech_threshold=0.7,
+            min_silence_ms=250,
+            min_speech_ms=300,
+            pre_roll_ms=400,
+            max_utterance_ms=30000,
+        )
+
+    def test_vad_section_partial_override(self):
+        raw = {**self.MINIMAL_RAW, "vad": {"min_silence_ms": 500}}
+        cfg = AppConfig.from_raw_dict(raw)
+        assert cfg.vad.min_silence_ms == 500
+        assert cfg.vad.speech_threshold == SegmenterConfig().speech_threshold
+
+    def test_vad_section_invalid_type_raises(self):
+        raw = {**self.MINIMAL_RAW, "vad": {"min_silence_ms": "slow"}}
+        with pytest.raises(ConfigError, match="min_silence_ms"):
+            AppConfig.from_raw_dict(raw)
 
     def test_echo_guard_nested_structure_parsed(self):
         raw = {

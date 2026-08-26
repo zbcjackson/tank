@@ -267,6 +267,15 @@ audit:
   enabled: true
   log_path: ~/.tank/audit.jsonl
 
+# VAD / utterance segmentation — controls when a spoken turn ends.
+# These map 1:1 onto the Silero VAD segmenter feeding ASR.
+vad:
+  speech_threshold: 0.5 # probability above which a frame counts as speech
+  min_silence_ms: 1000 # trailing silence before an utterance is finalized
+  min_speech_ms: 200 # minimum speech duration for a valid utterance
+  pre_roll_ms: 200 # audio kept before speech onset (leading-word recovery)
+  max_utterance_ms: 20000 # hard cap — force-finalize even mid-speech
+
 # Assistant — pipeline-level settings
 assistant:
   speech_interrupt_enabled: true

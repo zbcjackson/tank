@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from ..audio.input.types import SegmenterConfig
 from ..llm.profile import LLMProfile, resolve_profile
 
 if TYPE_CHECKING:
@@ -99,6 +100,10 @@ class AppConfig:
     brain: BrainConfig = field(default_factory=BrainConfig)
     echo_guard: EchoGuardConfig = field(default_factory=EchoGuardConfig)
     assistant: AssistantConfig = field(default_factory=AssistantConfig)
+    # ``vad:`` section parses straight into SegmenterConfig — the exact
+    # type VADEngine.create_stream() consumes, so there is a single
+    # definition of the segmentation knobs (no mirror dataclass to drift).
+    vad: SegmenterConfig = field(default_factory=SegmenterConfig)
 
     # Context & memory
     context: ContextConfig = field(default_factory=ContextConfig)
@@ -182,6 +187,7 @@ class AppConfig:
                 brain=parse_section(BrainConfig, raw.get("brain")),
                 echo_guard=parse_section(EchoGuardConfig, raw.get("echo_guard")),
                 assistant=parse_section(AssistantConfig, raw.get("assistant")),
+                vad=parse_section(SegmenterConfig, raw.get("vad")),
                 context=parse_section(ContextConfig, raw.get("context")),
                 memory=parse_section(MemoryConfig, raw.get("memory")),
                 preferences=parse_section(PreferenceConfig, raw.get("preferences")),

@@ -250,12 +250,11 @@ class Assistant:
         if asr_engine is None:
             return
 
-        from ..audio.input.types import SegmenterConfig
         from ..audio.input.vad import VADEngine
 
         vad_engine = self._app_context.vad_engine or VADEngine()
         vad_stream = vad_engine.create_stream(
-            cfg=SegmenterConfig(), sample_rate=PIPELINE_SAMPLE_RATE
+            cfg=self._app_config.vad, sample_rate=PIPELINE_SAMPLE_RATE
         )
         asr_stream = asr_engine.create_stream()
 
