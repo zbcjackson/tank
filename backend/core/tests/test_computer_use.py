@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -124,9 +124,11 @@ class TestClickTool:
     @pytest.mark.asyncio
     async def test_click_success(self):
         tool = ClickTool()
-        with patch("tank_backend.tools.computer_use._ydotool_available", return_value=False):
-            with patch("tank_backend.tools.computer_use._run_pyautogui") as mock:
-                result = await tool.execute(x=100, y=200)
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
+            patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+        ):
+            result = await tool.execute(x=100, y=200)
         assert result.error is False
         assert "(100, 200)" in result.content
         mock.assert_called_once_with("click", 100, 200, button="left", clicks=1)
@@ -134,29 +136,35 @@ class TestClickTool:
     @pytest.mark.asyncio
     async def test_click_right_double(self):
         tool = ClickTool()
-        with patch("tank_backend.tools.computer_use._ydotool_available", return_value=False):
-            with patch("tank_backend.tools.computer_use._run_pyautogui") as mock:
-                result = await tool.execute(x=50, y=75, button="right", clicks=2)
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
+            patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+        ):
+            result = await tool.execute(x=50, y=75, button="right", clicks=2)
         assert result.error is False
         mock.assert_called_once_with("click", 50, 75, button="right", clicks=2)
 
     @pytest.mark.asyncio
     async def test_click_failure(self):
         tool = ClickTool()
-        with patch("tank_backend.tools.computer_use._ydotool_available", return_value=False):
-            with patch(
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
+            patch(
                 "tank_backend.tools.computer_use._run_pyautogui",
                 side_effect=RuntimeError("fail"),
-            ):
-                result = await tool.execute(x=0, y=0)
+            ),
+        ):
+            result = await tool.execute(x=0, y=0)
         assert result.error is True
 
     @pytest.mark.asyncio
     async def test_click_ydotool(self):
         tool = ClickTool()
-        with patch("tank_backend.tools.computer_use._ydotool_available", return_value=True):
-            with patch("tank_backend.tools.computer_use._click_ydotool") as mock:
-                result = await tool.execute(x=300, y=400)
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=True),
+            patch("tank_backend.tools.computer_use._click_ydotool") as mock,
+        ):
+            result = await tool.execute(x=300, y=400)
         assert result.error is False
         assert "(300, 400)" in result.content
         mock.assert_called_once_with(300, 400, "left", 1)
@@ -175,9 +183,11 @@ class TestTypeTextTool:
     @pytest.mark.asyncio
     async def test_type_success(self):
         tool = TypeTextTool()
-        with patch("tank_backend.tools.computer_use._ydotool_available", return_value=False):
-            with patch("tank_backend.tools.computer_use._run_pyautogui") as mock:
-                result = await tool.execute(text="hello world")
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
+            patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+        ):
+            result = await tool.execute(text="hello world")
         assert result.error is False
         assert "hello world" in result.content
         mock.assert_called_once_with("write", "hello world", interval=0)
@@ -191,9 +201,11 @@ class TestTypeTextTool:
     @pytest.mark.asyncio
     async def test_type_with_interval(self):
         tool = TypeTextTool()
-        with patch("tank_backend.tools.computer_use._ydotool_available", return_value=False):
-            with patch("tank_backend.tools.computer_use._run_pyautogui") as mock:
-                result = await tool.execute(text="abc", interval=0.05)
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
+            patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+        ):
+            result = await tool.execute(text="abc", interval=0.05)
         mock.assert_called_once_with("write", "abc", interval=0.05)
         assert result.error is False
 
@@ -211,26 +223,32 @@ class TestKeyPressTool:
     @pytest.mark.asyncio
     async def test_single_key(self):
         tool = KeyPressTool()
-        with patch("tank_backend.tools.computer_use._ydotool_available", return_value=False):
-            with patch("tank_backend.tools.computer_use._run_pyautogui") as mock:
-                result = await tool.execute(keys="enter")
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
+            patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+        ):
+            result = await tool.execute(keys="enter")
         assert result.error is False
         mock.assert_called_once_with("hotkey", "enter")
 
     @pytest.mark.asyncio
     async def test_key_combo(self):
         tool = KeyPressTool()
-        with patch("tank_backend.tools.computer_use._ydotool_available", return_value=False):
-            with patch("tank_backend.tools.computer_use._run_pyautogui") as mock:
-                result = await tool.execute(keys="ctrl+c")
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
+            patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+        ):
+            result = await tool.execute(keys="ctrl+c")
         assert result.error is False
         mock.assert_called_once_with("hotkey", "ctrl", "c")
 
     @pytest.mark.asyncio
     async def test_cmd_alias(self):
         tool = KeyPressTool()
-        with patch("tank_backend.tools.computer_use._ydotool_available", return_value=False):
-            with patch("tank_backend.tools.computer_use._run_pyautogui") as mock:
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
+            patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+        ):
                 await tool.execute(keys="cmd+space")
         mock.assert_called_once_with("hotkey", "command", "space")
 
@@ -254,9 +272,11 @@ class TestScrollTool:
     @pytest.mark.asyncio
     async def test_scroll_down(self):
         tool = ScrollTool()
-        with patch("tank_backend.tools.computer_use._ydotool_available", return_value=False):
-            with patch("tank_backend.tools.computer_use._run_pyautogui") as mock:
-                result = await tool.execute(amount=-3)
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
+            patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+        ):
+            result = await tool.execute(amount=-3)
         assert result.error is False
         assert "down" in result.content
         mock.assert_called_once_with("scroll", -3)
@@ -264,9 +284,11 @@ class TestScrollTool:
     @pytest.mark.asyncio
     async def test_scroll_up_at_position(self):
         tool = ScrollTool()
-        with patch("tank_backend.tools.computer_use._ydotool_available", return_value=False):
-            with patch("tank_backend.tools.computer_use._run_pyautogui") as mock:
-                result = await tool.execute(amount=5, x=400, y=300)
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
+            patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+        ):
+            result = await tool.execute(amount=5, x=400, y=300)
         assert result.error is False
         assert "up" in result.content
         mock.assert_called_once_with("scroll", 5, x=400, y=300)
@@ -285,9 +307,11 @@ class TestMouseMoveTool:
     @pytest.mark.asyncio
     async def test_move_success(self):
         tool = MouseMoveTool()
-        with patch("tank_backend.tools.computer_use._ydotool_available", return_value=False):
-            with patch("tank_backend.tools.computer_use._run_pyautogui") as mock:
-                result = await tool.execute(x=500, y=600)
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
+            patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+        ):
+            result = await tool.execute(x=500, y=600)
         assert result.error is False
         assert "(500, 600)" in result.content
         mock.assert_called_once_with("moveTo", 500, 600)
@@ -295,10 +319,12 @@ class TestMouseMoveTool:
     @pytest.mark.asyncio
     async def test_move_failure(self):
         tool = MouseMoveTool()
-        with patch("tank_backend.tools.computer_use._ydotool_available", return_value=False):
-            with patch(
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
+            patch(
                 "tank_backend.tools.computer_use._run_pyautogui",
                 side_effect=OSError("no display"),
-            ):
-                result = await tool.execute(x=0, y=0)
+            ),
+        ):
+            result = await tool.execute(x=0, y=0)
         assert result.error is True
