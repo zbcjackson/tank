@@ -19,6 +19,11 @@ class BrainConfig:
 
     max_history_tokens: int = 8000
 
+    # Sentences per streamed TTS batch. 1 = synthesize every sentence as
+    # soon as it completes; larger = fewer engine round-trips at the cost
+    # of first-audio latency.
+    stream_batch_sentences: int = 5
+
 
 @dataclass(frozen=True)
 class EchoGuardConfig:

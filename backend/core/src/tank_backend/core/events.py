@@ -12,6 +12,9 @@ class AudioOutputRequest:
     content: str
     language: str = "auto"
     voice: str | None = None
+    # Assistant message id. Groups the sentence batches of one streamed
+    # turn (a long reply arrives as N requests sharing one msg_id).
+    msg_id: str | None = None
 
 
 class InputType(Enum):

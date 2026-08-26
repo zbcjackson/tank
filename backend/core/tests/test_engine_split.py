@@ -158,8 +158,10 @@ class TestSherpaEngineSplit:
 
     def _mock_sherpa_symbols(self):
         """Return a tuple matching _load_sherpa()'s return shape, with
-        everything as MagicMocks."""
-        return tuple(MagicMock() for _ in range(9))
+        everything as MagicMocks. Length must track the symbols _load_sherpa
+        imports (currently 8 — no EndpointRule since endpoint detection
+        moved to the VAD segmenter)."""
+        return tuple(MagicMock() for _ in range(8))
 
     def test_engine_loads_model_once(self, tmp_path) -> None:
         """Creating many streams does NOT reload the model."""

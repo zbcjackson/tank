@@ -182,6 +182,13 @@ class TestAppConfig:
         cfg = AppConfig.from_raw_dict(raw)
         assert cfg.brain.max_history_tokens == 32000
 
+    def test_brain_stream_batch_sentences_parsed(self):
+        raw = {**self.MINIMAL_RAW, "brain": {"stream_batch_sentences": 2}}
+        cfg = AppConfig.from_raw_dict(raw)
+        assert cfg.brain.stream_batch_sentences == 2
+        # Default keeps speech streaming without extra config
+        assert AppConfig.from_raw_dict(self.MINIMAL_RAW).brain.stream_batch_sentences == 5
+
     def test_minimal_config_uses_default_vad(self):
         cfg = AppConfig.from_raw_dict(self.MINIMAL_RAW)
         assert cfg.vad == SegmenterConfig()

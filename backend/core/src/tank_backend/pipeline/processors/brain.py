@@ -71,6 +71,7 @@ class Brain(Processor):
         self._llm = llm
         self._tool_manager = tool_manager
         self._config = config
+        self._stream_batch_sentences = max(1, config.stream_batch_sentences)
         self._bus = bus
         self._interrupt_event = interrupt_event
         self._tts_enabled = tts_enabled
@@ -744,10 +745,14 @@ class Brain(Processor):
         ))
 
         try:
-            audio_request = await self._process_via_agents(
+            async for audio_request in self._process_via_agents(
                 messages, assistant_msg_id, language, event,
                 system_prompt_fn=system_prompt_fn,
-            )
+            ):
+                # Record TTS text for self-echo detection — per batch, since
+                # the guard's sliding window tracks recency, not turn structure.
+                self._echo_detector.record_tts(audio_request.content)
+                yield FlowReturn.OK, audio_request
 
             elapsed = time.time() - started_at
             logger.info("Brain response finished at %.3f, duration_s=%.3f", time.time(), elapsed)
@@ -777,14 +782,6 @@ class Brain(Processor):
                     "latency_s": elapsed,
                 },
             ))
-
-            # Yield AudioOutputRequest for TTS downstream
-            if audio_request is not None:
-                # Record TTS text for self-echo detection
-                self._echo_detector.record_tts(audio_request.content)
-                yield FlowReturn.OK, audio_request
-            else:
-                yield FlowReturn.OK, None
 
         except BrainInterrupted:
             logger.info("Brain: processing interrupted by user speech")
@@ -829,9 +826,18 @@ class Brain(Processor):
         language: str,
         event: BrainInputEvent,
         system_prompt_fn: Any = None,
-    ) -> AudioOutputRequest | None:
-        """Process via AgentGraph."""
+    ) -> AsyncIterator[AudioOutputRequest]:
+        """Process via AgentGraph, streaming sentence-batched TTS requests.
+
+        The full response text is still accumulated for the non-voice exits
+        (conversation history, memory, outbound_voice, image attachments).
+        Sentence batches (``stream_batch_sentences`` sentences each) yield
+        as soon as they complete, so speech starts well before the turn
+        finishes generating.
+        """
         from ...agents.base import AgentOutputType, AgentState
+        from ...core.language import detect_language
+        from ..text import SentenceBuffer
 
         state = AgentState(
             messages=messages,  # type: ignore[arg-type]  # messages is list[dict] at runtime; AgentState accepts broader shapes
@@ -843,6 +849,13 @@ class Brain(Processor):
         )
         self._current_msg_id = msg_id
         full_response_text = ""
+        # The user's utterance language (ASR-detected) is the best
+        # low-confidence prior for the reply; the LLM output text itself
+        # (first batch) is the primary cue — code-switch requests like
+        # "用英文介绍长城" must follow the reply, not the question.
+        preferred = event.language or language
+        sentence_buf = SentenceBuffer(min_sentences=self._stream_batch_sentences)
+        spoken_language: str | None = None
 
         assert self._agent_graph is not None
         gen = self._agent_graph.run(state)
@@ -872,6 +885,20 @@ class Brain(Processor):
 
                 if output.type == AgentOutputType.TOKEN:
                     full_response_text += output.content
+                    if self._tts_enabled:
+                        sentence_buf.feed(output.content)
+                        for batch_text in sentence_buf.drain_ready():
+                            if spoken_language is None:
+                                spoken_language = detect_language(
+                                    batch_text,
+                                    candidates=self._languages,
+                                    preferred=preferred,
+                                ).language
+                            yield AudioOutputRequest(
+                                content=batch_text,
+                                language=spoken_language,
+                                msg_id=msg_id,
+                            )
 
             # Finalize UI block
             self._bus.post(BusMessage(
@@ -905,23 +932,41 @@ class Brain(Processor):
                 full_response_text, msg_id,
             )
 
-            # Detect response language for TTS voice selection
-            if full_response_text.strip():
-                from ...core.language import detect_language
-                language = detect_language(
-                    full_response_text,
-                    candidates=self._languages,
-                    preferred=self._preferred_language,
-                ).language
+            # Tail batch: whatever the sentence buffer still holds (the
+            # final sentences of a turn never hit min_sentences on their own).
+            if self._tts_enabled:
+                tail_text = sentence_buf.flush()
+                if tail_text:
+                    if spoken_language is None:
+                        spoken_language = detect_language(
+                            tail_text,
+                            candidates=self._languages,
+                            preferred=preferred,
+                        ).language
+                    yield AudioOutputRequest(
+                        content=tail_text,
+                        language=spoken_language,
+                        msg_id=msg_id,
+                    )
 
+            # outbound_voice (connector TTS bypass): full text with the
+            # language decided while streaming, falling back to detection
+            # on the full text when nothing was spoken (TTS off, empty batches).
             if full_response_text.strip():
+                voice_language = spoken_language
+                if voice_language is None:
+                    voice_language = detect_language(
+                        full_response_text,
+                        candidates=self._languages,
+                        preferred=preferred,
+                    ).language
                 self._bus.post(BusMessage(
                     type="outbound_voice",
                     source=self.name,
                     payload={
                         "msg_id": msg_id,
                         "text": full_response_text,
-                        "language": language,
+                        "language": voice_language,
                     },
                 ))
 
@@ -932,10 +977,6 @@ class Brain(Processor):
                 self._context.schedule_memory_store(
                     event.user, event.text, full_response_text,
                 )
-                if self._tts_enabled:
-                    return AudioOutputRequest(content=full_response_text, language=language)
-
-            return None
 
         except BrainInterrupted:
             # Save what the assistant already said so the LLM has context
@@ -1190,18 +1231,14 @@ class Brain(Processor):
         ))
 
         try:
-            audio_request = await self._process_via_agents(
+            async for audio_request in self._process_via_agents(
                 messages, assistant_msg_id, language, event,
-            )
+            ):
+                self._echo_detector.record_tts(audio_request.content)
+                yield FlowReturn.OK, audio_request
 
             elapsed = time.time() - started_at
             logger.info("Brain notification turn finished: %.3fs", elapsed)
-
-            if audio_request is not None:
-                self._echo_detector.record_tts(audio_request.content)
-                yield FlowReturn.OK, audio_request
-            else:
-                yield FlowReturn.OK, None
 
         except BrainInterrupted:
             logger.info("Brain: notification turn interrupted")
