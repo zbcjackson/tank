@@ -5,92 +5,132 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from asr_sherpa.engine import SherpaASREngine
+
 MODULE = "asr_sherpa.engine"
 
 
 @pytest.fixture
-def mock_sherpa():
-    """Mock all sherpa-onnx internals to avoid model loading."""
-    with (
-        patch(f"{MODULE}.OnlineRecognizer") as mock_recognizer_cls,
-        patch(f"{MODULE}.OnlineRecognizerConfig"),
-        patch(f"{MODULE}.OnlineModelConfig"),
-        patch(f"{MODULE}.OnlineTransducerModelConfig"),
-        patch(f"{MODULE}.FeatureExtractorConfig"),
-        patch(f"{MODULE}.EndpointConfig"),
-        patch(f"{MODULE}.EndpointRule"),
-        patch(f"{MODULE}.OnlineLMConfig"),
-        patch(f"{MODULE}.OnlineCtcFstDecoderConfig"),
-        patch(f"{MODULE}.Path") as mock_path_cls,
-    ):
-        mock_path = MagicMock()
-        mock_path.exists.return_value = True
-        mock_path.__truediv__ = MagicMock(return_value=MagicMock(__str__=lambda s: "model.onnx"))
-        mock_path_cls.return_value = mock_path
+def sherpa(tmp_path):
+    """Mock _load_sherpa internals; yield an engine factory plus mocks.
 
-        mock_recognizer = MagicMock()
-        mock_stream = MagicMock()
-        mock_recognizer.create_stream.return_value = mock_stream
-        mock_recognizer_cls.return_value = mock_recognizer
+    Returns ``(factory, recognizer, stream)`` where ``factory()`` builds a
+    SherpaASREngine against a real (empty) model dir — Path handling stays
+    real, only the sherpa-onnx symbols are mocked.
+    """
+    stream = MagicMock(name="stream")
+    recognizer = MagicMock(name="recognizer")
+    recognizer.create_stream.return_value = stream
+    recognizer_cls = MagicMock(name="OnlineRecognizer", return_value=recognizer)
+    recognizer_config_cls = MagicMock(name="OnlineRecognizerConfig")
 
-        yield mock_recognizer, mock_stream
+    # Order must match the tuple _load_sherpa() returns / __init__ unpacks.
+    components = (
+        MagicMock(name="EndpointConfig"),
+        MagicMock(name="FeatureExtractorConfig"),
+        MagicMock(name="OnlineCtcFstDecoderConfig"),
+        MagicMock(name="OnlineLMConfig"),
+        MagicMock(name="OnlineModelConfig"),
+        recognizer_cls,
+        recognizer_config_cls,
+        MagicMock(name="OnlineTransducerModelConfig"),
+    )
 
-
-def test_process_pcm_returns_text_and_endpoint(mock_sherpa):
-    """process_pcm returns (text, is_endpoint) from recognizer."""
-    mock_recognizer, mock_stream = mock_sherpa
-    mock_recognizer.is_ready.return_value = False
-    mock_recognizer.is_endpoint.return_value = False
-    mock_result = MagicMock()
-    mock_result.text = " hello world "
-    mock_recognizer.get_result.return_value = mock_result
-
-    from asr_sherpa.engine import SherpaASREngine
-
-    engine = SherpaASREngine(model_dir="/fake/model")
-    pcm = np.zeros(320, dtype=np.float32)
-    text, is_endpoint = engine.process_pcm(pcm)
-
-    assert text == "hello world"
-    assert is_endpoint is False
-    mock_stream.accept_waveform.assert_called_once()
+    with patch(f"{MODULE}._load_sherpa", return_value=components):
+        yield (
+            (lambda: SherpaASREngine(model_dir=str(tmp_path))),
+            recognizer,
+            stream,
+            recognizer_config_cls,
+        )
 
 
-def test_process_pcm_resets_on_endpoint(mock_sherpa):
-    """When is_endpoint is True, recognizer.reset is called."""
-    mock_recognizer, mock_stream = mock_sherpa
-    mock_recognizer.is_ready.return_value = False
-    mock_recognizer.is_endpoint.return_value = True
-    mock_result = MagicMock()
-    mock_result.text = " done "
-    mock_recognizer.get_result.return_value = mock_result
+class TestEngineInit:
+    def test_endpoint_detection_disabled(self, sherpa):
+        """Endpoint detection is off — turn-ending is the VAD segmenter's job."""
+        factory, _, _, recognizer_config_cls = sherpa
+        factory()
 
-    from asr_sherpa.engine import SherpaASREngine
+        # OnlineRecognizerConfig is called positionally:
+        # (feat, model, lm, endpoint, ctc_decoder, enable_endpoint, method)
+        args, _kwargs = recognizer_config_cls.call_args
+        assert args[5] is False  # enable_endpoint
 
-    engine = SherpaASREngine(model_dir="/fake/model")
-    text, is_endpoint = engine.process_pcm(np.zeros(320, dtype=np.float32))
-
-    assert text == "done"
-    assert is_endpoint is True
-    mock_recognizer.reset.assert_called_once_with(mock_stream)
+    def test_missing_model_dir_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError, match="not found"):
+            SherpaASREngine(model_dir=str(tmp_path / "missing"))
 
 
-def test_reset_delegates_to_recognizer(mock_sherpa):
-    """reset() calls recognizer.reset on the stream."""
-    mock_recognizer, mock_stream = mock_sherpa
+class TestStreamLifecycle:
+    def test_start_creates_fresh_stream(self, sherpa):
+        factory, recognizer, _, _ = sherpa
+        stream = factory().create_stream()
+        stream.start()
 
-    from asr_sherpa.engine import SherpaASREngine
+        recognizer.create_stream.assert_called()
 
-    engine = SherpaASREngine(model_dir="/fake/model")
-    engine.reset()
+    def test_process_pcm_without_session_returns_empty(self, sherpa):
+        factory, _, mock_stream, _ = sherpa
+        stream = factory().create_stream()
 
-    mock_recognizer.reset.assert_called_once_with(mock_stream)
+        text = stream.process_pcm(np.zeros(320, dtype=np.float32))
+
+        assert text == ""
+        mock_stream.accept_waveform.assert_not_called()
+
+    def test_process_pcm_feeds_waveform_and_returns_text(self, sherpa):
+        factory, recognizer, mock_stream, _ = sherpa
+        stream = factory().create_stream()
+        stream.start()
+
+        recognizer.is_ready.return_value = False
+        result = MagicMock()
+        result.text = " hello world "
+        recognizer.get_result.return_value = result
+
+        pcm = np.zeros(320, dtype=np.float32)
+        text = stream.process_pcm(pcm)
+
+        assert text == "hello world"
+        mock_stream.accept_waveform.assert_called_once_with(16000, pcm)
+
+    def test_stop_flushes_decoder_and_returns_final(self, sherpa):
+        factory, recognizer, mock_stream, _ = sherpa
+        stream = factory().create_stream()
+        stream.start()
+
+        recognizer.is_ready.side_effect = [True, False]  # one pending decode step
+        result = MagicMock()
+        result.text = " done "
+        recognizer.get_result.return_value = result
+
+        text = stream.stop()
+
+        assert text == "done"
+        mock_stream.input_finished.assert_called_once()
+        recognizer.decode_stream.assert_called_once_with(mock_stream)
+
+    def test_stop_falls_back_to_last_partial(self, sherpa):
+        factory, recognizer, _, _ = sherpa
+        stream = factory().create_stream()
+        stream.start()
+
+        recognizer.is_ready.return_value = False
+        partial = MagicMock()
+        partial.text = " partial text "
+        recognizer.get_result.return_value = partial
+        stream.process_pcm(np.zeros(320, dtype=np.float32))
+
+        final = MagicMock()
+        final.text = ""
+        recognizer.get_result.return_value = final
+
+        assert stream.stop() == "partial text"
 
 
 def test_create_engine_factory():
     """create_engine returns a SherpaASREngine with config values."""
     with patch(f"{MODULE}.SherpaASREngine.__init__", return_value=None) as mock_init:
-        # Need to patch Path.exists too since __init__ is not fully mocked
         from asr_sherpa import create_engine
 
         create_engine({

@@ -50,7 +50,6 @@ def _load_sherpa():
     _patch_macos_onnxruntime()
     from sherpa_onnx.lib._sherpa_onnx import (
         EndpointConfig,
-        EndpointRule,
         FeatureExtractorConfig,
         OnlineCtcFstDecoderConfig,
         OnlineLMConfig,
@@ -60,7 +59,7 @@ def _load_sherpa():
         OnlineTransducerModelConfig,
     )
     return (
-        EndpointConfig, EndpointRule, FeatureExtractorConfig,
+        EndpointConfig, FeatureExtractorConfig,
         OnlineCtcFstDecoderConfig, OnlineLMConfig, OnlineModelConfig,
         OnlineRecognizer, OnlineRecognizerConfig, OnlineTransducerModelConfig,
     )
@@ -173,7 +172,7 @@ class SherpaASREngine(ASREngine):
         sample_rate: int = 16000,
     ):
         (
-            EndpointConfig, EndpointRule, FeatureExtractorConfig,
+            EndpointConfig, FeatureExtractorConfig,
             OnlineCtcFstDecoderConfig, OnlineLMConfig, OnlineModelConfig,
             OnlineRecognizer, OnlineRecognizerConfig, OnlineTransducerModelConfig,
         ) = _load_sherpa()
@@ -200,19 +199,16 @@ class SherpaASREngine(ASREngine):
             model_type="zipformer",
         )
 
-        endpoint_config = EndpointConfig(
-            rule1=EndpointRule(False, 2.4, 0.0),
-            rule2=EndpointRule(True, 1.2, 0.0),
-            rule3=EndpointRule(False, 20.0, 0.0),
-        )
-
+        # Endpoint detection is disabled: turn-ending is owned by the Silero
+        # VAD segmenter upstream — sherpa's built-in endpoint detector is
+        # never consulted, so a default EndpointConfig placeholder suffices.
         recognizer_config = OnlineRecognizerConfig(
             feat_config,
             model_config,
             OnlineLMConfig(),
-            endpoint_config,
+            EndpointConfig(),
             OnlineCtcFstDecoderConfig(),
-            True,  # enable_endpoint
+            False,  # enable_endpoint
             "greedy_search",  # decoding_method
         )
 
