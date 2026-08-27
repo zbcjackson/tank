@@ -289,7 +289,7 @@ brain:
   max_history_tokens: 131072
   # Sentences per streamed TTS batch: speech starts after this many
   # sentences instead of after the whole turn. 1 = lowest latency.
-  stream_batch_sentences: 5
+  stream_batch_sentences: 2
 
 # Agent orchestration — main agent has all tools, delegates via `agent` tool.
 # Agent definitions are loaded from .tank/agents/*.md files.
