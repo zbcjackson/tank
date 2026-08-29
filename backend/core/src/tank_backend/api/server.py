@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -123,14 +124,23 @@ def _init_stores(
     return conversation, channel
 
 
+@dataclass(frozen=True)
+class JobSchedulerHandles:
+    """Job-scheduling components built once at startup (all None when disabled)."""
+
+    job_store: JobStore | None = None
+    scheduler: CronScheduler | None = None
+    delivery: DeliveryManager | None = None
+
+
 def _init_job_scheduler(
     config: AppConfig,
     stores: tuple[ConversationStore | None, ChannelStore | None],
     db: Database,
-) -> tuple[JobStore | None, CronScheduler | None, DeliveryManager | None]:
+) -> JobSchedulerHandles:
     if not config.jobs.enabled:
         logger.info("Job scheduler disabled (jobs.enabled=false)")
-        return None, None, None
+        return JobSchedulerHandles()
 
     from ..jobs.delivery import DeliveryManager
     from ..jobs.runner import AutonomousRunner
@@ -170,7 +180,7 @@ def _init_job_scheduler(
         )
 
     logger.info("Job scheduler initialized (max_parallel=%d)", jobs_cfg.max_parallel)
-    return job_store, scheduler, delivery
+    return JobSchedulerHandles(job_store=job_store, scheduler=scheduler, delivery=delivery)
 
 
 def _init_voiceprint_recognizer(
@@ -195,15 +205,24 @@ def _init_voiceprint_recognizer(
         return None
 
 
+@dataclass(frozen=True)
+class AudioEngines:
+    """Process-global audio engines built once at startup.
+
+    Each may be None when the corresponding feature is disabled or
+    construction fails.
+    """
+
+    asr: ASREngine | None = None
+    tts: TTSEngine | None = None
+    vad: VADEngine | None = None
+    smart_turn: SmartTurnAnalyzer | None = None
+
+
 def _init_audio_engines(
     config: AppConfig, registry: ExtensionRegistry,
-) -> tuple[ASREngine | None, TTSEngine | None, VADEngine | None, SmartTurnAnalyzer | None]:
-    """Build process-global ASR/TTS/VAD engines once at startup.
-
-    Returns (asr_engine, tts_engine, vad_engine, smart_turn_analyzer). Each
-    may be None when the corresponding feature is disabled or construction
-    fails.
-    """
+) -> AudioEngines:
+    """Build process-global ASR/TTS/VAD engines once at startup."""
     from tank_contracts import ASREngine, TTSEngine
 
     from ..audio.input.smart_turn import SmartTurnAnalyzer
@@ -252,7 +271,9 @@ def _init_audio_engines(
     # model fails to load. from_config never raises.
     smart_turn_analyzer = SmartTurnAnalyzer.from_config(config.smart_turn)
 
-    return asr_engine, tts_engine, vad_engine, smart_turn_analyzer
+    return AudioEngines(
+        asr=asr_engine, tts=tts_engine, vad=vad_engine, smart_turn=smart_turn_analyzer,
+    )
 
 
 def _init_connectors(
@@ -528,14 +549,10 @@ from ..agents.store import WorkerStore  # noqa: E402
 _worker_store = WorkerStore(_database)
 logger.info("Worker store initialized on unified DB")
 
-_job_store, _scheduler, _delivery = _init_job_scheduler(
-    app_config, (_store, _channel_store), _database,
-)
+_job_handles = _init_job_scheduler(app_config, (_store, _channel_store), _database)
 _voiceprint_recognizer = _init_voiceprint_recognizer(app_config, _registry, _database)
 
-_asr_engine, _tts_engine, _vad_engine, _smart_turn_analyzer = _init_audio_engines(
-    app_config, _registry,
-)
+_audio_engines = _init_audio_engines(app_config, _registry)
 
 _media_store = MediaStore(Path("~/.tank/media").expanduser())
 
@@ -578,8 +595,8 @@ if _store is not None:
 app_context = AppContext(
     app_config=app_config,
     registry=_registry,
-    job_store=_job_store,
-    scheduler=_scheduler,
+    job_store=_job_handles.job_store,
+    scheduler=_job_handles.scheduler,
     conversation_store=_store,
     compaction_store=_compaction_store,
     conversation_messages_store=_messages_store,
@@ -587,10 +604,10 @@ app_context = AppContext(
     voiceprint_recognizer=_voiceprint_recognizer,
     channel_store=_channel_store,
     media_store=_media_store,
-    asr_engine=_asr_engine,
-    tts_engine=_tts_engine,
-    vad_engine=_vad_engine,
-    smart_turn_analyzer=_smart_turn_analyzer,
+    asr_engine=_audio_engines.asr,
+    tts_engine=_audio_engines.tts,
+    vad_engine=_audio_engines.vad,
+    smart_turn_analyzer=_audio_engines.smart_turn,
     worker_store=_worker_store,
     llm_capabilities=_llm_capabilities,
 )
@@ -606,13 +623,13 @@ _subscription_manager = ChannelSubscriptionManager()
 # Build the channel audio service before wiring deps so the composition root
 # is initialised exactly once.
 _channel_audio_service = _init_channel_audio_service(
-    _tts_engine, _subscription_manager, connection_manager,
+    _audio_engines.tts, _subscription_manager, connection_manager,
 )
 
-if _delivery is not None:
-    _delivery.set_connection_manager(connection_manager)
+if _job_handles.delivery is not None:
+    _job_handles.delivery.set_connection_manager(connection_manager)
     if _channel_audio_service is not None:
-        _delivery.set_channel_audio_service(_channel_audio_service)
+        _job_handles.delivery.set_channel_audio_service(_channel_audio_service)
 
 deps.init(
     app_context,
@@ -625,9 +642,9 @@ deps.init(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("API Server starting up")
-    if _scheduler is not None:
-        _register_dream_schedule(_scheduler, app_config)
-        await _scheduler.start()
+    if _job_handles.scheduler is not None:
+        _register_dream_schedule(_job_handles.scheduler, app_config)
+        await _job_handles.scheduler.start()
     if _connector_manager is not None:
         await _connector_manager.start_all()
     yield
@@ -636,19 +653,19 @@ async def lifespan(app: FastAPI):
         await _connector_manager.stop_all()
     if _channel_audio_service is not None:
         await _channel_audio_service.stop()
-    if _scheduler is not None:
-        await _scheduler.stop()
-    if _job_store is not None:
-        _job_store.close()
+    if _job_handles.scheduler is not None:
+        await _job_handles.scheduler.stop()
+    if _job_handles.job_store is not None:
+        _job_handles.job_store.close()
     await connection_manager.close_all()
-    if _asr_engine is not None:
+    if _audio_engines.asr is not None:
         try:
-            _asr_engine.close()
+            _audio_engines.asr.close()
         except Exception:
             logger.warning("ASR engine close failed", exc_info=True)
-    if _vad_engine is not None:
+    if _audio_engines.vad is not None:
         try:
-            _vad_engine.close()
+            _audio_engines.vad.close()
         except Exception:
             logger.warning("VAD engine close failed", exc_info=True)
 
