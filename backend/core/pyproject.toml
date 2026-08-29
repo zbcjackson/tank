@@ -16,6 +16,9 @@ dependencies = [
     "sounddevice>=0.5.5",
     "silero-vad>=4.0.0",
     "onnxruntime>=1.16.1",
+    # Smart Turn endpointing: only the WhisperFeatureExtractor (numpy-only,
+    # no torch) is used — see audio/input/smart_turn.py.
+    "transformers>=4.57.0",
     "faster-whisper>=1.0.0",
     "sherpa-onnx>=1.12.23",
     "fastapi>=0.129.0",

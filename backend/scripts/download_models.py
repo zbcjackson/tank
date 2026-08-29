@@ -59,6 +59,15 @@ SPEAKER_MODELS = {
 
 DEFAULT_SPEAKER_MODEL = "3dspeaker-zh"
 
+# --- Smart Turn endpointing model (pipecat-ai smart-turn-v3.2) ---
+SMART_TURN_URL = (
+    "https://huggingface.co/pipecat-ai/smart-turn-v3/resolve/main/"
+    "smart-turn-v3.2-cpu.onnx"
+)
+SMART_TURN_DIR = Path("../models/smart-turn")
+SMART_TURN_FILENAME = "smart-turn-v3.2-cpu.onnx"
+SMART_TURN_SIZE_MB = 9
+
 
 def download_progress(block_num: int, block_size: int, total_size: int) -> None:
     """Print download progress."""
@@ -150,6 +159,29 @@ def download_speaker(model_key: str) -> None:
             dest.unlink()
 
 
+def download_smart_turn() -> None:
+    """Download the Smart Turn v3.2 end-of-turn classifier (ONNX)."""
+    dest = SMART_TURN_DIR / SMART_TURN_FILENAME
+
+    print("\n--- Smart Turn Model (pipecat-ai smart-turn-v3.2, CPU) ---")
+    print("  Semantic end-of-turn classifier used by the VAD endpoint policy")
+    print(f"  Size: ~{SMART_TURN_SIZE_MB} MB")
+
+    if dest.exists():
+        print(f"  Already exists: {dest}. Skipping.")
+        return
+
+    SMART_TURN_DIR.mkdir(parents=True, exist_ok=True)
+
+    try:
+        download_file(SMART_TURN_URL, dest)
+        print(f"  Ready: {dest}")
+    except Exception as e:
+        print(f"\n  Error: {e}", file=sys.stderr)
+        if dest.exists():
+            dest.unlink()
+
+
 def list_speaker_models() -> None:
     """Print available speaker models."""
     print("\nAvailable speaker embedding models:\n")
@@ -168,8 +200,9 @@ def main():
     parser.add_argument(
         "targets",
         nargs="*",
-        choices=["asr", "speaker", "all"],
-        help="Which models to download (default: asr)",
+        choices=["asr", "speaker", "smart-turn", "all"],
+        help="Which models to download (default: asr). smart-turn is opt-in — "
+        "'all' does not include it.",
     )
     parser.add_argument(
         "--speaker-model",
@@ -197,6 +230,9 @@ def main():
 
     if "speaker" in targets:
         download_speaker(args.speaker_model)
+
+    if "smart-turn" in targets:
+        download_smart_turn()
 
     print("\nDone.")
 
