@@ -47,6 +47,7 @@ from .users import router as users_router
 if TYPE_CHECKING:
     from tank_contracts import ASREngine, TTSEngine
 
+    from ..audio.input.smart_turn import SmartTurnAnalyzer
     from ..audio.input.vad import VADEngine
     from ..connectors import ConnectorManager
 
@@ -196,14 +197,16 @@ def _init_voiceprint_recognizer(
 
 def _init_audio_engines(
     config: AppConfig, registry: ExtensionRegistry,
-) -> tuple[ASREngine | None, TTSEngine | None, VADEngine | None]:
+) -> tuple[ASREngine | None, TTSEngine | None, VADEngine | None, SmartTurnAnalyzer | None]:
     """Build process-global ASR/TTS/VAD engines once at startup.
 
-    Returns (asr_engine, tts_engine, vad_engine). Each may be None when the
-    corresponding feature is disabled or plugin instantiation fails.
+    Returns (asr_engine, tts_engine, vad_engine, smart_turn_analyzer). Each
+    may be None when the corresponding feature is disabled or construction
+    fails.
     """
     from tank_contracts import ASREngine, TTSEngine
 
+    from ..audio.input.smart_turn import SmartTurnAnalyzer
     from ..audio.input.vad import VADEngine
 
     asr_engine: ASREngine | None = None
@@ -244,7 +247,12 @@ def _init_audio_engines(
     except Exception:
         logger.warning("Failed to initialize VAD engine", exc_info=True)
 
-    return asr_engine, tts_engine, vad_engine
+    # Optional Smart Turn endpoint adjudicator — None (and the plain
+    # silence policy) when disabled, the model file is missing, or the
+    # model fails to load. from_config never raises.
+    smart_turn_analyzer = SmartTurnAnalyzer.from_config(config.smart_turn)
+
+    return asr_engine, tts_engine, vad_engine, smart_turn_analyzer
 
 
 def _init_connectors(
@@ -525,7 +533,9 @@ _job_store, _scheduler, _delivery = _init_job_scheduler(
 )
 _voiceprint_recognizer = _init_voiceprint_recognizer(app_config, _registry, _database)
 
-_asr_engine, _tts_engine, _vad_engine = _init_audio_engines(app_config, _registry)
+_asr_engine, _tts_engine, _vad_engine, _smart_turn_analyzer = _init_audio_engines(
+    app_config, _registry,
+)
 
 _media_store = MediaStore(Path("~/.tank/media").expanduser())
 
@@ -580,6 +590,7 @@ app_context = AppContext(
     asr_engine=_asr_engine,
     tts_engine=_tts_engine,
     vad_engine=_vad_engine,
+    smart_turn_analyzer=_smart_turn_analyzer,
     worker_store=_worker_store,
     llm_capabilities=_llm_capabilities,
 )

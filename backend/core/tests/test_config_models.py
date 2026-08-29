@@ -16,6 +16,7 @@ from tank_backend.config.models import (
     MemoryConfig,
     NetworkAccessConfig,
     SkillsConfig,
+    SmartTurnConfig,
 )
 from tank_backend.config.parser import parse_section
 
@@ -223,6 +224,44 @@ class TestAppConfig:
     def test_vad_section_invalid_type_raises(self):
         raw = {**self.MINIMAL_RAW, "vad": {"min_silence_ms": "slow"}}
         with pytest.raises(ConfigError, match="min_silence_ms"):
+            AppConfig.from_raw_dict(raw)
+
+    def test_minimal_config_uses_default_smart_turn(self):
+        cfg = AppConfig.from_raw_dict(self.MINIMAL_RAW)
+        assert cfg.smart_turn == SmartTurnConfig()
+
+    def test_smart_turn_section_parsed(self):
+        raw = {
+            **self.MINIMAL_RAW,
+            "smart_turn": {
+                "enabled": False,
+                "model_path": "/models/st.onnx",
+                "threshold": 0.7,
+                "candidate_min_silence_ms": 300,
+                "incomplete_delay_ms": 500,
+                "cpu_count": 2,
+            },
+        }
+        cfg = AppConfig.from_raw_dict(raw)
+        assert cfg.smart_turn == SmartTurnConfig(
+            enabled=False,
+            model_path="/models/st.onnx",
+            threshold=0.7,
+            candidate_min_silence_ms=300,
+            incomplete_delay_ms=500,
+            cpu_count=2,
+        )
+
+    def test_smart_turn_section_partial_override(self):
+        raw = {**self.MINIMAL_RAW, "smart_turn": {"incomplete_delay_ms": 400}}
+        cfg = AppConfig.from_raw_dict(raw)
+        assert cfg.smart_turn.incomplete_delay_ms == 400
+        # vad keeps its conservative default — the fail-open value
+        assert cfg.vad.min_silence_ms == 1000
+
+    def test_smart_turn_section_invalid_type_raises(self):
+        raw = {**self.MINIMAL_RAW, "smart_turn": {"threshold": "high"}}
+        with pytest.raises(ConfigError, match="threshold"):
             AppConfig.from_raw_dict(raw)
 
     def test_echo_guard_nested_structure_parsed(self):

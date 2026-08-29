@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
     from ..agents.approval import PendingToolCallStore, ToolApprovalPolicy
     from ..agents.store import WorkerStore
+    from ..audio.input.smart_turn import SmartTurnAnalyzer
     from ..audio.input.vad import VADEngine
     from ..audio.input.voiceprint import VoiceprintRecognizer
     from ..channels.store import ChannelStore
@@ -53,6 +54,7 @@ class AppContext:
     asr_engine: ASREngine | None = None
     tts_engine: TTSEngine | None = None
     vad_engine: VADEngine | None = None
+    smart_turn_analyzer: SmartTurnAnalyzer | None = None
     # Phase 2 worker runtime — persists every ``agent`` tool dispatch
     # so runs are listable/stoppable/resumable across sessions.
     worker_store: WorkerStore | None = None

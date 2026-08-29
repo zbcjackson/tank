@@ -276,6 +276,25 @@ vad:
   pre_roll_ms: 200 # audio kept before speech onset (leading-word recovery)
   max_utterance_ms: 20000 # hard cap — force-finalize even mid-speech
 
+# Smart Turn — ML end-of-turn adjudication (pipecat-ai smart-turn-v3.2).
+# When active, the VAD fires a fast candidate boundary after
+# candidate_min_silence_ms and the classifier decides: complete → commit
+# immediately; incomplete → hold the utterance open for incomplete_delay_ms
+# in case speech continues. Falls back to vad.min_silence_ms (keep it at
+# the conservative default above) when disabled, the model file is
+# missing, or the model fails to load. Model accuracy is validated on
+# English — disable here if Chinese turn-taking degrades.
+# Fetch the model: uv run python scripts/download_models.py smart-turn
+smart_turn:
+  enabled: true
+  model_path: null # default: ../models/smart-turn/smart-turn-v3.2-cpu.onnx
+  threshold: 0.5 # P(complete) above which the utterance is committed
+  # The realized boundary lands ~100ms later: Silero's voice timestamps
+  # trail the acoustic offset.
+  candidate_min_silence_ms: 250
+  incomplete_delay_ms: 600 # hold window for continued speech after "incomplete"
+  cpu_count: 1 # ONNX intra-op threads (once per endpoint, not per chunk)
+
 # Assistant — pipeline-level settings
 assistant:
   speech_interrupt_enabled: true

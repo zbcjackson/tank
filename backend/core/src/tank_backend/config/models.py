@@ -393,6 +393,36 @@ class SkillsConfig:
     catalog_budget_max_chars: int = 12000
 
 
+# ── Endpointing ──────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class SmartTurnConfig:
+    """``smart_turn:`` section — ML end-of-turn adjudication.
+
+    When the analyzer is active, VAD fires its candidate boundary at
+    ``candidate_min_silence_ms`` and the classifier either commits the
+    utterance (complete) or holds it open for ``incomplete_delay_ms`` of
+    possible continued speech. When disabled, the model file is missing,
+    or loading fails, endpointing falls back to ``vad.min_silence_ms``
+    (the pre-Smart-Turn behaviour) — so ``vad.min_silence_ms`` should
+    stay at its conservative default.
+
+    Note: the realized candidate boundary is ~100ms later than
+    ``candidate_min_silence_ms`` because Silero's voice timestamps trail
+    the acoustic offset.
+
+    Model accuracy is best validated on English; Chinese behaviour is
+    unvalidated — disable here if turn-taking degrades.
+    """
+
+    enabled: bool = True
+    model_path: str | None = None  # default: ../models/smart-turn/smart-turn-v3.2-cpu.onnx
+    threshold: float = 0.5
+    candidate_min_silence_ms: int = 250
+    incomplete_delay_ms: int = 600
+    cpu_count: int = 1
+
+
 # ── Jobs ──────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)

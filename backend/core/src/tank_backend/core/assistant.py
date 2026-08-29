@@ -254,7 +254,9 @@ class Assistant:
 
         vad_engine = self._app_context.vad_engine or VADEngine()
         vad_stream = vad_engine.create_stream(
-            cfg=self._app_config.vad, sample_rate=PIPELINE_SAMPLE_RATE
+            cfg=self._app_config.vad,
+            sample_rate=PIPELINE_SAMPLE_RATE,
+            smart_turn=self._app_context.smart_turn_analyzer,
         )
         asr_stream = asr_engine.create_stream()
 

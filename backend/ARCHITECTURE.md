@@ -98,7 +98,7 @@ Audio frames
 
 | Processor | File | Input | Output |
 |-----------|------|-------|--------|
-| `VADProcessor` | `vad.py` | Audio frames | Speech segments. Emits `interrupt` events upstream on speech detection. Switches VAD threshold during playback (echo guard layer 1). |
+| `VADProcessor` | `vad.py` | Audio frames | Speech segments. Emits `interrupt` events upstream on speech detection. Switches VAD threshold during playback (echo guard layer 1). When a Smart Turn analyzer is configured (`smart_turn:` in `config.yaml`, model via `scripts/download_models.py smart-turn`), fires a fast candidate boundary (~250ms) and the Smart Turn classifier (`smart_turn.py`) commits it or holds the utterance open for continued speech; without one, the plain `min_silence_ms` timeout endpoints the turn. |
 | `ASRProcessor` | `asr.py` | Speech segments | Transcripts. Posts ASR latency metrics to Bus. |
 | `SpeakerIDProcessor` | `speaker_id.py` | Audio segments | Speaker identity. |
 | `ASRSpeakerMerger` | `asr_speaker_merger.py` | ASR + Speaker ID | Combined transcript with speaker name. |

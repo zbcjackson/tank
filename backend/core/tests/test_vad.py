@@ -3,8 +3,9 @@
 import numpy as np
 import pytest
 
+from tank_backend.audio.input.smart_turn import SmartTurnAnalyzer, SmartTurnResult
 from tank_backend.audio.input.types import AudioFrame, SegmenterConfig
-from tank_backend.audio.input.vad import SileroVAD, VADStatus
+from tank_backend.audio.input.vad import SileroVAD, VADEngine, VADStatus
 
 
 def generate_silence_frame(sample_rate=16000, frame_ms=20):
@@ -431,3 +432,219 @@ class TestVADEndpointDetection:
         # Should return NO_SPEECH
         assert result.status == VADStatus.NO_SPEECH
         assert result.utterance_pcm is None
+
+
+class _ScriptedAnalyzer(SmartTurnAnalyzer):
+    """Scripted Smart Turn verdicts; records predict() audio for assertions.
+
+    Skips the heavy ``__init__`` (no ONNX session) — VADStream only uses
+    the two timing knobs and ``predict()``.
+    """
+
+    def __init__(
+        self,
+        verdicts: list[bool],
+        candidate_ms: int = 250,
+        delay_ms: int = 600,
+        fail: bool = False,
+    ):
+        self.candidate_min_silence_ms = candidate_ms
+        self.incomplete_delay_ms = delay_ms
+        self._verdicts = list(verdicts)
+        self._fail = fail
+        self.calls: list[np.ndarray] = []
+
+    def predict(self, audio, *, sample_rate=16000):  # noqa: ANN001 — test fake
+        self.calls.append(np.asarray(audio))
+        if self._fail:
+            raise RuntimeError("scripted Smart Turn failure")
+        complete = self._verdicts.pop(0) if self._verdicts else True
+        return SmartTurnResult(
+            complete=complete,
+            probability=0.9 if complete else 0.1,
+            inference_ms=1.0,
+        )
+
+
+def _feed(stream, frames, start_s, step_s=0.02):  # noqa: ANN001 — test helper
+    """Feed frames; return (index, result) of the first END_SPEECH, or None."""
+    for i, pcm in enumerate(frames):
+        result = stream.process_frame(pcm=pcm, timestamp_s=start_s + i * step_s)
+        if result.status == VADStatus.END_SPEECH:
+            return i, result
+    return None
+
+
+class TestSmartTurnEndpointing:
+    """VADStream × Smart Turn: candidate boundary, hold, resume-merge."""
+
+    BASE_TIME = 1000.0
+    SPEECH_FRAMES = 11  # 220ms > min_speech_ms
+    # Silero's voice timestamps trail the acoustic offset by ~100ms, so a
+    # 250ms candidate boundary commits ~370ms after the last speech frame.
+    CANDIDATE_BUDGET_S = 0.90  # committed well before the 1000ms fallback
+    FALLBACK_BUDGET_S = 1.60
+
+    def _stream(self, analyzer, cfg=None):
+        engine = VADEngine()
+        return engine.create_stream(
+            cfg=cfg or SegmenterConfig(min_silence_ms=1000),
+            smart_turn=analyzer,
+        )
+
+    def _speech_then_silence(self, analyzer, silence_budget_s, cfg=None):
+        """11 speech frames then silence; return (index, result) of END_SPEECH."""
+        stream = self._stream(analyzer, cfg)
+        speech = [generate_speech_frame() for _ in range(self.SPEECH_FRAMES)]
+        silence = [generate_silence_frame() for _ in range(int(silence_budget_s / 0.02))]
+
+        assert _feed(stream, speech, self.BASE_TIME) is None  # no endpoint in speech
+        found = _feed(stream, silence, self.BASE_TIME + self.SPEECH_FRAMES * 0.02)
+        return found, stream
+
+    def test_no_analyzer_falls_back_to_min_silence_ms(self):
+        """Without an analyzer, the configured silence timeout is the endpoint."""
+        found, _ = self._speech_then_silence(None, self.FALLBACK_BUDGET_S)
+
+        assert found is not None, "expected END_SPEECH at the plain silence policy"
+        idx, _ = found
+        silence_s = (idx + 1) * 0.02
+        assert silence_s >= 0.60, "committed too early without an analyzer"
+
+    def test_complete_verdict_commits_at_candidate_boundary(self):
+        """complete → commit at the fast candidate boundary, not 1000ms."""
+        analyzer = _ScriptedAnalyzer([True])
+        found, _ = self._speech_then_silence(analyzer, self.CANDIDATE_BUDGET_S)
+
+        assert found is not None, "complete verdict should commit at the candidate boundary"
+        idx, result = found
+        silence_s = (idx + 1) * 0.02
+        assert silence_s < self.CANDIDATE_BUDGET_S
+        assert result.utterance_pcm is not None and len(result.utterance_pcm) > 0
+        assert len(analyzer.calls) == 1
+
+    def test_incomplete_verdict_holds_then_commits(self):
+        """incomplete → hold open for the incomplete window, then commit."""
+        analyzer = _ScriptedAnalyzer([False], delay_ms=600)
+        # Budget past candidate (~0.37s) + 0.6s hold + tolerance
+        found, _ = self._speech_then_silence(analyzer, 1.30)
+
+        assert found is not None, "hold expiry should commit the utterance"
+        idx, _ = found
+        silence_s = (idx + 1) * 0.02
+        # The hold must actually delay the commit past the candidate boundary
+        assert silence_s >= 0.50, "incomplete verdict committed without holding"
+        assert silence_s < 1.30
+        assert len(analyzer.calls) == 1
+
+    def test_resume_during_hold_merges_into_one_utterance(self):
+        """Speech resuming inside the hold continues the same utterance."""
+        analyzer = _ScriptedAnalyzer([False, True])
+        stream = self._stream(analyzer)
+
+        t = self.BASE_TIME
+        speech = [generate_speech_frame() for _ in range(self.SPEECH_FRAMES)]
+
+        # Burst 1 → 500ms pause (crosses the candidate boundary → "incomplete"
+        # hold) → burst 2 inside the hold window → final silence
+        assert _feed(stream, speech, t) is None
+        t += self.SPEECH_FRAMES * 0.02
+
+        pause = [generate_silence_frame() for _ in range(25)]  # 500ms
+        assert _feed(stream, pause, t) is None, "hold must swallow the pause"
+        t += len(pause) * 0.02
+
+        assert _feed(stream, speech, t) is None, "resumed speech must continue the turn"
+        t += self.SPEECH_FRAMES * 0.02
+
+        tail = [generate_silence_frame() for _ in range(40)]  # 800ms
+        found = _feed(stream, tail, t)
+
+        assert found is not None, "expected a single END_SPEECH after the tail"
+        _, result = found
+        assert result.utterance_pcm is not None
+        # One merged utterance: both bursts + the pause (and pre-roll)
+        assert len(result.utterance_pcm) / 16000 > 0.8
+        # The analyzer re-adjudicated the longer utterance
+        assert len(analyzer.calls) == 2
+        assert analyzer.calls[1].shape[0] > analyzer.calls[0].shape[0]
+
+    def test_analyzer_exception_commits_at_candidate_boundary(self):
+        """Inference failure fails open: commit immediately, never hang."""
+        analyzer = _ScriptedAnalyzer([], fail=True)
+        found, _ = self._speech_then_silence(analyzer, self.CANDIDATE_BUDGET_S)
+
+        assert found is not None, "analyzer failure must not block the endpoint"
+        idx, _ = found
+        assert (idx + 1) * 0.02 < self.CANDIDATE_BUDGET_S
+
+    def test_flush_commits_held_utterance(self):
+        """PTT / end-of-utterance flush force-finalizes a held segment."""
+        analyzer = _ScriptedAnalyzer([False], delay_ms=600)
+        stream = self._stream(analyzer)
+
+        t = self.BASE_TIME
+        speech = [generate_speech_frame() for _ in range(self.SPEECH_FRAMES)]
+        assert _feed(stream, speech, t) is None
+        t += self.SPEECH_FRAMES * 0.02
+
+        pause = [generate_silence_frame() for _ in range(25)]  # enter the hold
+        assert _feed(stream, pause, t) is None
+        t += len(pause) * 0.02
+
+        result = stream.flush(now_s=t)
+        assert result.status == VADStatus.END_SPEECH
+        assert result.utterance_pcm is not None and len(result.utterance_pcm) > 0
+        # State fully reset — no leakage into the next turn
+        assert stream.process_frame(
+            pcm=generate_silence_frame(), timestamp_s=t + 0.02
+        ).status == VADStatus.NO_SPEECH
+
+    def test_max_utterance_cap_enforced_with_analyzer(self):
+        """max_utterance_ms still force-finalizes while an analyzer is attached."""
+        cfg = SegmenterConfig(min_silence_ms=1000, max_utterance_ms=1000)
+        analyzer = _ScriptedAnalyzer([False] * 10)
+        stream = self._stream(analyzer, cfg)
+
+        speech = [generate_speech_frame() for _ in range(80)]  # 1600ms continuous
+        found = _feed(stream, speech, self.BASE_TIME)
+
+        assert found is not None, "hard utterance cap must fire during the hold era"
+        _, result = found
+        assert result.utterance_pcm is not None
+
+
+class TestLargeFrameVoiceTracking:
+    """Regression: frames larger than the 512-sample Silero chunk size.
+
+    During sustained speech the transition-based VADIterator reports no
+    result for full chunks; the sub-chunk leftover of each frame must
+    still count as voice evidence, or mid-speech frames read as silent,
+    ``_last_voice_at_s`` freezes, and a short silence boundary (Smart
+    Turn's 250ms candidate) fires mid-speech.
+    """
+
+    def test_sustained_speech_tracked_across_big_frames(self):
+        cfg = SegmenterConfig(min_silence_ms=250, min_speech_ms=200)
+        analyzer = _ScriptedAnalyzer([True])
+        stream = VADEngine().create_stream(cfg=cfg, smart_turn=analyzer)
+
+        # 0.5s speech (25 x 20ms) fed as 100ms frames, then 1s silence
+        speech = b"".join(
+            generate_speech_frame().tobytes() for _ in range(25)
+        )
+        speech = np.frombuffer(speech, dtype=np.float32)
+        silence = np.zeros(16000, dtype=np.float32)
+
+        starts = ends = 0
+        for i in range(0, len(speech), 1600):
+            r = stream.process_frame(pcm=speech[i:i + 1600], timestamp_s=1000.0 + i / 16000)
+            starts += r.status == VADStatus.START_SPEECH
+        for i in range(0, len(silence), 1600):
+            r = stream.process_frame(pcm=silence[i:i + 1600], timestamp_s=1000.5 + i / 16000)
+            if r.status == VADStatus.END_SPEECH:
+                ends += 1
+                break
+
+        assert starts == 1
+        assert ends == 1, "utterance must complete once after trailing silence"

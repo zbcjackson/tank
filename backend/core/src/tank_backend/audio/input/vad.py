@@ -24,6 +24,7 @@ from enum import Enum, auto
 import numpy as np
 from silero_vad import VADIterator, load_silero_vad
 
+from .smart_turn import SmartTurnAnalyzer, SmartTurnResult
 from .types import SegmenterConfig
 
 logger = logging.getLogger("VAD")
@@ -65,13 +66,19 @@ class VADEngine:
         self,
         cfg: SegmenterConfig | None = None,
         sample_rate: int = 16000,
+        smart_turn: SmartTurnAnalyzer | None = None,
     ) -> VADStream:
         """Create a fresh per-session VAD stream.
 
         Each stream owns its own VADIterator (which wraps the shared model)
         plus state buffers. Streams are cheap to create.
         """
-        return VADStream(engine=self, cfg=cfg or SegmenterConfig(), sample_rate=sample_rate)
+        return VADStream(
+            engine=self,
+            cfg=cfg or SegmenterConfig(),
+            sample_rate=sample_rate,
+            smart_turn=smart_turn,
+        )
 
     def close(self) -> None:
         """Release engine resources. No-op today — Silero model has no
@@ -91,6 +98,7 @@ class VADStream:
         engine: VADEngine | None = None,
         cfg: SegmenterConfig | None = None,
         sample_rate: int = 16000,
+        smart_turn: SmartTurnAnalyzer | None = None,
     ):
         """
         Initialize a VADStream.
@@ -101,6 +109,13 @@ class VADStream:
                 an engine from AppContext).
             cfg: Segmenter configuration
             sample_rate: Audio sample rate (default: 16000 Hz)
+            smart_turn: Optional Smart Turn analyzer adjudicating each
+                speech→silence boundary. When present, the Silero boundary
+                fires at the analyzer's ``candidate_min_silence_ms`` as a
+                *candidate* — the analyzer either commits the utterance or
+                holds it open for continued speech. When None, the
+                configured ``min_silence_ms`` is the endpoint (the
+                pre-Smart-Turn behaviour).
         """
         if cfg is None:
             cfg = SegmenterConfig()
@@ -115,6 +130,17 @@ class VADStream:
         self._speech_pcm_parts: list[np.ndarray] = []
         self._speech_started_at_s: float | None = None
         self._last_voice_at_s: float | None = None  # For silence timeout tracking
+
+        # Endpoint policy: Smart Turn adjudication, or the plain silence
+        # timeout when no analyzer is attached.
+        self._smart_turn = smart_turn
+        self._endpoint_silence_ms = (
+            smart_turn.candidate_min_silence_ms if smart_turn else cfg.min_silence_ms
+        )
+        # Smart Turn "incomplete" hold: the utterance stays open until this
+        # deadline, so a pause-and-continue merges into one utterance.
+        self._st_pending = False
+        self._st_hold_until_s: float | None = None
 
         # Chunk buffering (for 512-sample chunks required by silero-vad)
         self._chunk_buffer = np.array([], dtype=np.float32)
@@ -134,6 +160,14 @@ class VADStream:
             threshold=cfg.speech_threshold,
             sampling_rate=self._sample_rate,
         )
+
+        if smart_turn is not None:
+            logger.info(
+                "VAD endpoint policy: Smart Turn adjudication "
+                "(candidate silence %dms, incomplete hold %dms)",
+                self._endpoint_silence_ms,
+                smart_turn.incomplete_delay_ms,
+            )
 
     def set_threshold(self, value: float) -> None:
         """Dynamically adjust the VAD speech threshold."""
@@ -180,14 +214,62 @@ class VADStream:
 
         chunk_result = self._process_pending_chunks()
 
-        if chunk_result is not None:
-            return chunk_result
-
-        if len(self._chunk_buffer) > 0:
+        # Voice evidence in the leftover samples (< 512) after full-chunk
+        # processing. During sustained speech the transition-based iterator
+        # reports no result for full chunks (it only fires on start/end),
+        # so a frame of big chunks + voiced leftover must OR the leftover
+        # energy in — otherwise mid-speech frames read as silent, freezing
+        # ``_last_voice_at_s`` and triggering premature silence boundaries.
+        leftover_voice: bool | None = None
+        if self._chunk_buffer.size > 0:
             energy = np.sqrt(np.mean(self._chunk_buffer**2))
-            return energy > 0.01
+            leftover_voice = bool(energy > 0.01)
 
-        return self._last_chunk_has_voice
+        if chunk_result is None:
+            if leftover_voice is not None:
+                return leftover_voice
+            return self._last_chunk_has_voice
+        if leftover_voice is not None:
+            return leftover_voice or chunk_result
+        return chunk_result
+
+    def _reset_speech_state(self) -> None:
+        """Clear all in-speech state, including a pending Smart Turn hold.
+
+        Every reset path must go through here (finalize, min-speech discard,
+        flush) so a held utterance can never survive into the next turn.
+        """
+        self._in_speech = False
+        self._speech_pcm_parts = []
+        self._speech_started_at_s = None
+        self._last_voice_at_s = None
+        self._st_pending = False
+        self._st_hold_until_s = None
+
+    def _adjudicate_endpoint(self) -> SmartTurnResult | None:
+        """Run Smart Turn on the pending utterance; None = commit now.
+
+        Returns None when no analyzer is attached (plain silence policy) or
+        on any analyzer failure — failing open to an immediate commit, never
+        hanging the turn on classifier trouble.
+        """
+        if self._smart_turn is None:
+            return None
+        utterance = np.concatenate(self._speech_pcm_parts)
+        try:
+            result = self._smart_turn.predict(utterance, sample_rate=self._sample_rate)
+        except Exception:
+            logger.warning(
+                "Smart Turn inference failed — committing endpoint", exc_info=True,
+            )
+            return None
+        logger.info(
+            "Smart Turn verdict p=%.3f complete=%s (%.0fms inference)",
+            result.probability,
+            result.complete,
+            result.inference_ms,
+        )
+        return result
 
     def _finalize_utterance(self, ended_at_s: float) -> VADResult:
         """
@@ -199,10 +281,7 @@ class VADStream:
             else np.array([], dtype=np.float32)
         )
         started_at = self._speech_started_at_s or ended_at_s
-        self._in_speech = False
-        self._speech_pcm_parts = []
-        self._speech_started_at_s = None
-        self._last_voice_at_s = None
+        self._reset_speech_state()
         self._speech_process_ended_at_s = time.time()
         duration_s = self._speech_process_ended_at_s - (
             self._speech_process_started_at_s or self._speech_process_ended_at_s
@@ -236,20 +315,36 @@ class VADStream:
 
         # Check silence timeout BEFORE processing voice activity
         if self._in_speech and self._last_voice_at_s is not None:
-            silence_duration_ms = (timestamp_s - self._last_voice_at_s) * 1000.0
-            if silence_duration_ms >= self._cfg.min_silence_ms:
-                if self._speech_started_at_s is not None:
-                    speech_duration_ms = (
-                        self._last_voice_at_s - self._speech_started_at_s
-                    ) * 1000.0
-                    if speech_duration_ms < self._cfg.min_speech_ms:
-                        self._in_speech = False
-                        self._speech_pcm_parts = []
-                        self._speech_started_at_s = None
-                        self._last_voice_at_s = None
-                        return VADResult(status=VADStatus.NO_SPEECH)
+            if self._st_pending:
+                # Smart Turn said "incomplete": hold the utterance open for
+                # continued speech; if the hold expires in silence, commit
+                # anyway (fail-forward — the model may have been wrong).
+                if self._st_hold_until_s is not None and timestamp_s >= self._st_hold_until_s:
+                    return self._finalize_utterance(self._last_voice_at_s)
+            else:
+                silence_duration_ms = (timestamp_s - self._last_voice_at_s) * 1000.0
+                if silence_duration_ms >= self._endpoint_silence_ms:
+                    if self._speech_started_at_s is not None:
+                        speech_duration_ms = (
+                            self._last_voice_at_s - self._speech_started_at_s
+                        ) * 1000.0
+                        if speech_duration_ms < self._cfg.min_speech_ms:
+                            self._reset_speech_state()
+                            return VADResult(status=VADStatus.NO_SPEECH)
 
-                return self._finalize_utterance(self._last_voice_at_s or timestamp_s)
+                    analyzer = self._smart_turn
+                    verdict = self._adjudicate_endpoint()
+                    if analyzer is None or verdict is None or verdict.complete:
+                        return self._finalize_utterance(
+                            self._last_voice_at_s or timestamp_s
+                        )
+                    # Incomplete: hold open for continued speech. Resumed
+                    # voice clears the hold below; the next boundary
+                    # re-adjudicates the (longer) utterance.
+                    self._st_pending = True
+                    self._st_hold_until_s = (
+                        timestamp_s + analyzer.incomplete_delay_ms / 1000.0
+                    )
 
         has_voice = self._has_voice_activity(pcm)
 
@@ -286,6 +381,11 @@ class VADStream:
 
         if has_voice:
             self._last_voice_at_s = timestamp_s
+            if self._st_pending:
+                # Speech resumed during the Smart Turn hold — the same
+                # utterance continues; the next boundary re-adjudicates it.
+                self._st_pending = False
+                self._st_hold_until_s = None
 
         return VADResult(status=VADStatus.IN_SPEECH)
 
@@ -300,9 +400,7 @@ class VADStream:
 
         if len(self._speech_pcm_parts) > 0:
             return self._finalize_utterance(now_s)
-        self._in_speech = False
-        self._speech_pcm_parts = []
-        self._speech_started_at_s = None
+        self._reset_speech_state()
         return VADResult(status=VADStatus.NO_SPEECH)
 
 

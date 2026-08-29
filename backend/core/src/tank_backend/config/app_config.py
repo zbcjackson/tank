@@ -41,6 +41,7 @@ from .models import (
     PreferenceConfig,
     SandboxConfig,
     SkillsConfig,
+    SmartTurnConfig,
     ToolGuardrailsConfig,
     ToolsetProfileConfig,
     ToolsetsConfig,
@@ -104,6 +105,7 @@ class AppConfig:
     # type VADEngine.create_stream() consumes, so there is a single
     # definition of the segmentation knobs (no mirror dataclass to drift).
     vad: SegmenterConfig = field(default_factory=SegmenterConfig)
+    smart_turn: SmartTurnConfig = field(default_factory=SmartTurnConfig)
 
     # Context & memory
     context: ContextConfig = field(default_factory=ContextConfig)
@@ -188,6 +190,7 @@ class AppConfig:
                 echo_guard=parse_section(EchoGuardConfig, raw.get("echo_guard")),
                 assistant=parse_section(AssistantConfig, raw.get("assistant")),
                 vad=parse_section(SegmenterConfig, raw.get("vad")),
+                smart_turn=parse_section(SmartTurnConfig, raw.get("smart_turn")),
                 context=parse_section(ContextConfig, raw.get("context")),
                 memory=parse_section(MemoryConfig, raw.get("memory")),
                 preferences=parse_section(PreferenceConfig, raw.get("preferences")),
