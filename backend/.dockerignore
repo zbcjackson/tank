@@ -1,0 +1,14 @@
+# Keep the build context small — only workspace sources belong in the image.
+.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+core/tests/
+core/htmlcov/
+plugins/*/tests/
+plugins/*/htmlcov/
+data/
+workspace/
+*.db
+*.sqlite*
+.env

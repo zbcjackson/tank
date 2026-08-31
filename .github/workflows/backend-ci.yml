@@ -1,0 +1,49 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+jobs:
+  docker-smoke:
+    # Install smoke (s2s analog): build the service image, start it in a
+    # clean container, and require /api/health to answer.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build service image
+        run: docker build -t tank-backend:smoke ./backend
+
+      - name: Start container
+        run: |
+          docker run -d --name tank-smoke \
+            -e LLM_API_KEY=smoke-dummy-key \
+            -p 8000:8000 \
+            tank-backend:smoke
+
+      - name: Wait for /api/health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8000/api/health >/dev/null 2>&1; then
+              echo "backend healthy after $i attempts"
+              curl -fsS http://localhost:8000/api/health
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::backend did not become healthy within 120s"
+          docker logs tank-smoke
+          exit 1
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f tank-smoke
