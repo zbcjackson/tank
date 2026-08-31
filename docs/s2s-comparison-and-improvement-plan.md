@@ -287,7 +287,7 @@ P0-3 ─┘   P0-4（文档，独立提交）
 
 ## 4. 基线记录（P0-3 产出后回填）
 
-测量方法：`backend/scripts/benchmark_pipeline.py`（文本输入，长回答 prompt，本地 backend，n=3 + 1 warmup；2026-08-26）。
+测量方法：`backend/scripts/benchmark_pipeline.py`（文本输入，长回答 prompt，本地 backend，n=3 + 1 warmup；2026-08-26）。语音行：`--mode voice`（E2E 同款「你好」WAV 走 VAD/ASR，尾静音窗 2.5s，n=3 + 1 warmup；2026-08-31）。
 
 | 指标 | 改造前基线 | P0-5 后 | P1 后 |
 |---|---|---|---|
@@ -295,8 +295,8 @@ P0-3 ─┘   P0-4（文档，独立提交）
 | 其中：LLM 首 token 到客户端 | p50 1.6s | p50 2.0s（LLM 波动，非回归） | — |
 | 其中：turn 生成完毕（processing_ended） | p50 7.2s | p50 5.7s | — |
 | 末音频延迟（整段播完） | p50 52.6s（~1000 chunks / 800+ 字） | p50 41.8s（~850 chunks） | — |
-| 首音频延迟（语音输入） | 待测 | 待测 | 待测 |
-| 断句延迟（说完→processing_started，中文） | 待测 | — | 待测 |
+| 首音频延迟（语音输入） | 待测 | 待测 | p50 **7.3s**（自发声起，含 4.7s 语音流；`--mode voice`，2026-08-31） |
+| 断句延迟（说完→processing_started，中文） | 待测 | — | p50 **2.63s**（2618 / 2634 / 2636ms；`--mode voice`，2026-08-31） |
 | 断句延迟（英文） | 待测 | — | 待测 |
 
 基线确认了 §2.2② 的诊断：`first_audio（8.0s）≈ turn_end（7.2s）+ TTS 首包`——音频确实等整 turn 生成完才出声，而 LLM 首 token 1.6s 就到了客户端。P0-5 后关系反转：`first_audio（3.2s）< turn_end（5.7s）`——首批 5 句生成完即出声，E2E 场景（`@streaming-audio` profile）断言首音频帧先于文本流结束到达，已通过。
