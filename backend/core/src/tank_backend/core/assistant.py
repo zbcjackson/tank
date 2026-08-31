@@ -111,6 +111,7 @@ class Assistant:
         self._init_alerting()
 
         self._bus.subscribe("speech_detected", self._on_speech_detected)
+        self._bus.subscribe("turn_reopened", self._on_turn_reopened)
         self.on_exit_request = on_exit_request
 
         self._has_asr = asr_engine is not None
@@ -712,6 +713,17 @@ class Assistant:
         if not self._pipeline_busy:
             return
         self._interrupt_pipeline("speech_interrupt")
+
+    def _on_turn_reopened(self, _message: BusMessage) -> None:
+        """Handle turn_reopened: a committed turn resumed within the
+        speculative window. Cancel in-flight Brain/TTS/Playback right away
+        (not waiting for the first ASR partial) so the revised utterance
+        supersedes the aborted response with minimal stray output."""
+        if not self._speech_interrupt_enabled:
+            return
+        if not self._pipeline_busy:
+            return
+        self._interrupt_pipeline("turn_reopen")
 
     def interrupt(self) -> None:
         """Public API: interrupt active processing (e.g. from stop button)."""

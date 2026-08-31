@@ -648,3 +648,155 @@ class TestLargeFrameVoiceTracking:
 
         assert starts == 1
         assert ends == 1, "utterance must complete once after trailing silence"
+
+
+class TestSpeculativeReopen:
+    """Committed turn + resumed speech inside speculative_reopen_ms merges
+    into the same turn chain (revision + 1); past the window it is a fresh
+    turn; explicit ends (flush) never arm the window."""
+
+    BASE_TIME = 1000.0
+    SPEECH_FRAMES = 11  # 220ms > min_speech_ms
+
+    def _stream(self, analyzer, cfg=None):
+        engine = VADEngine()
+        return engine.create_stream(
+            cfg=cfg or SegmenterConfig(min_silence_ms=1000),
+            smart_turn=analyzer,
+        )
+
+    def _commit_first_utterance(self, stream):
+        """Feed speech + enough silence to commit; return the END_SPEECH."""
+        t = self.BASE_TIME
+        speech = [generate_speech_frame() for _ in range(self.SPEECH_FRAMES)]
+        assert _feed(stream, speech, t) is None
+        t += self.SPEECH_FRAMES * 0.02  # last voice ≈ 1000.20
+        silence = [generate_silence_frame() for _ in range(25)]  # 500ms
+        found = _feed(stream, silence, t)
+        assert found is not None, "first utterance must commit at the boundary"
+        t += len(silence) * 0.02
+        return found[1], t
+
+    def _resume(self, stream, frames, start_s, step_s=0.02):
+        """Feed frames until START_SPEECH; return (index, result) or (None, None).
+
+        The first resumed frame may straddle a Silero chunk boundary and
+        score below threshold on synthetic tone audio; the next frame's
+        leftover-energy path detects voice deterministically, so resume
+        detection may land one frame late — that is a test-audio artifact,
+        not behaviour under test.
+        """
+        for i, pcm in enumerate(frames):
+            result = stream.process_frame(pcm=pcm, timestamp_s=start_s + i * step_s)
+            if result.status == VADStatus.START_SPEECH:
+                return i, result
+        return None, None
+
+    def test_resume_within_window_reopens_turn(self):
+        analyzer = _ScriptedAnalyzer([True, True])
+        stream = self._stream(analyzer)
+        first, t = self._commit_first_utterance(stream)
+        assert first.turn_revision == 0
+        assert first.turn_id is not None
+
+        # Resume at ~+0.5s after last voice — inside the 800ms window.
+        resumed = [generate_speech_frame() for _ in range(6)]
+        idx, start = self._resume(stream, resumed, t)
+        assert start is not None, "resumed speech must reopen the turn"
+        assert idx * 0.02 < 0.08, "resume must be detected within the window"
+        assert start.turn_id == first.turn_id
+        assert start.turn_revision == 1
+
+        assert _feed(stream, resumed[idx + 1:], t + (idx + 1) * 0.02) is None
+        t += len(resumed) * 0.02
+        tail = [generate_silence_frame() for _ in range(40)]  # 800ms
+        found = _feed(stream, tail, t)
+
+        assert found is not None, "merged utterance must endpoint"
+        _, merged = found
+        assert merged.turn_id == first.turn_id
+        assert merged.turn_revision == 1
+        # Duration stays anchored to the original utterance start.
+        assert merged.started_at_s == first.started_at_s
+        # Both bursts are present in the merged audio (plus pause/pre-roll).
+        min_expected = (self.SPEECH_FRAMES + 5) * 0.02 * 16000
+        assert merged.utterance_pcm is not None
+        assert len(merged.utterance_pcm) >= min_expected
+
+    def test_resume_past_window_starts_fresh_turn(self):
+        analyzer = _ScriptedAnalyzer([True, True])
+        stream = self._stream(analyzer)
+        first, t = self._commit_first_utterance(stream)
+
+        # Resume ~1.2s after the last voice — past the 800ms window.
+        speech = [generate_speech_frame() for _ in range(self.SPEECH_FRAMES)]
+        idx, start = self._resume(stream, speech, t + 0.7)
+        assert start is not None
+        assert start.turn_revision == 0
+        assert start.turn_id is None
+
+        resume_t = t + 0.7 + idx * 0.02
+        assert _feed(stream, speech[idx + 1:], resume_t + 0.02) is None
+        tail = [generate_silence_frame() for _ in range(40)]
+        found = _feed(stream, tail, resume_t + self.SPEECH_FRAMES * 0.02)
+
+        assert found is not None
+        _, second = found
+        assert second.turn_revision == 0
+        assert second.turn_id is not None
+        assert second.turn_id != first.turn_id
+
+    def test_reopen_disabled_by_zero_window(self):
+        cfg = SegmenterConfig(min_silence_ms=1000, speculative_reopen_ms=0)
+        analyzer = _ScriptedAnalyzer([True, True])
+        stream = self._stream(analyzer, cfg)
+        _, t = self._commit_first_utterance(stream)
+
+        _, start = self._resume(
+            stream, [generate_speech_frame() for _ in range(4)], t,
+        )
+        assert start is not None
+        assert start.turn_revision == 0
+
+    def test_successive_reopens_increment_revision(self):
+        analyzer = _ScriptedAnalyzer([True, True, True])
+        stream = self._stream(analyzer)
+        first, t = self._commit_first_utterance(stream)
+        burst = [generate_speech_frame() for _ in range(6)]
+
+        # First reopen (revision 1)
+        idx, start = self._resume(stream, burst, t)
+        assert start is not None and start.turn_revision == 1
+        assert _feed(stream, burst[idx + 1:], t + (idx + 1) * 0.02) is None
+        t += len(burst) * 0.02
+        pause = [generate_silence_frame() for _ in range(25)]  # 500ms
+        found = _feed(stream, pause, t)
+        assert found is not None and found[1].turn_revision == 1
+        t += len(pause) * 0.02
+
+        # Second reopen (revision 2) — same turn chain
+        _, start = self._resume(stream, burst, t)
+        assert start is not None
+        assert start.turn_id == first.turn_id
+        assert start.turn_revision == 2
+
+    def test_flush_finalized_turn_does_not_reopen(self):
+        """Explicit ends (push-to-talk flush) never arm the window."""
+        analyzer = _ScriptedAnalyzer([True])
+        stream = self._stream(analyzer)
+        t = self.BASE_TIME
+        speech = [generate_speech_frame() for _ in range(self.SPEECH_FRAMES)]
+        assert _feed(stream, speech, t) is None
+        t += self.SPEECH_FRAMES * 0.02
+
+        flushed = stream.flush(now_s=t)
+        assert flushed.status == VADStatus.END_SPEECH
+        assert flushed.turn_revision == 0
+
+        # Immediate resume would be inside any window — still a fresh turn.
+        _, start = self._resume(
+            stream, [generate_speech_frame() for _ in range(4)], t,
+        )
+        assert start is not None
+        assert start.turn_revision == 0
+        assert start.turn_id is None

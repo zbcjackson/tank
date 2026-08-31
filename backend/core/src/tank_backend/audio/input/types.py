@@ -63,6 +63,11 @@ class SegmenterConfig:
     min_silence_ms: int = 1000
     pre_roll_ms: int = 200
     max_utterance_ms: int = 20000
+    # After a silence-driven commit, resumed speech within this window
+    # reopens the same turn (revision + 1) instead of starting a second
+    # user turn. Only silence/max-utterance endpoints arm the window —
+    # explicit ends (PTT flush) do not.
+    speculative_reopen_ms: int = 800
 
 
 @dataclass(frozen=True)

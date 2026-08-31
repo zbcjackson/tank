@@ -237,6 +237,14 @@ async for output in gen:
 
 #### P1-2 speculative reopen / turn revision（修 T5）
 
+> **落地说明（2026-08-31）**：已实现，设计较下文简化——P1-1 的 hold 已覆盖 commit 前合并，
+> 故无需 `SpeculativeTurnTracker` 阻塞机制。实际形态：`VADStream` 在静音/超时提交后保留
+> reopen 候选（turn_id + PCM 前缀 + revision），恢复语音落在 `speculative_reopen_ms`
+> （默认 800ms，流时间戳域）内则 revision+1 拼接前缀重转；VADProcessor 发
+> `turn_reopened`，Assistant 提前取消在途 Brain/TTS；ASR 整段重转写并复用原 msg_id
+> （三端 UI 原地更新）；ContextManager 对同 turn_id 的修订**替换**原 user 消息并截断
+> 其后孤儿回复（身份不匹配则安全回退为 append）。显式结束（PTT flush）不触发 reopen。
+
 - **改动**：
   1. 管线消息（`BrainInputEvent` 等）加 `turn_id` / `turn_revision` 字段；
   2. VAD 软结束：段完成不再立即终局，进入 grace 期（默认 800ms，`speculative_reopen_ms`）；grace 内续说 → revision+1，音频前缀拼接重新转写；

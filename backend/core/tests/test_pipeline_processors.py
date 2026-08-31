@@ -209,6 +209,50 @@ def _make_streaming_asr(text="hello", supports_streaming=True):
     return asr
 
 
+    async def test_turn_reopened_posted_on_reopened_start_speech(self):
+        """A reopened START_SPEECH (revision > 0) notifies the assistant."""
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+        from tank_backend.pipeline.processors.vad import VADProcessor
+
+        bus = Bus()
+        received = []
+        bus.subscribe("turn_reopened", lambda m: received.append(m))
+
+        vad = MagicMock()
+        vad.process_frame = MagicMock(return_value=VADResult(
+            status=VADStatus.START_SPEECH,
+            started_at_s=BASE_TIME,
+            turn_id="turn_1000.000",
+            turn_revision=1,
+        ))
+        proc = VADProcessor(vad_stream=vad, bus=bus)
+        await _collect(proc, _make_audio_frame())
+        bus.poll()
+
+        assert len(received) == 1
+        assert received[0].payload["turn_id"] == "turn_1000.000"
+        assert received[0].payload["turn_revision"] == 1
+
+    async def test_no_turn_reopened_for_fresh_start_speech(self):
+        """A fresh START_SPEECH (revision 0) posts no reopen message."""
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+        from tank_backend.pipeline.processors.vad import VADProcessor
+
+        bus = Bus()
+        received = []
+        bus.subscribe("turn_reopened", lambda m: received.append(m))
+
+        vad = MagicMock()
+        vad.process_frame = MagicMock(return_value=VADResult(
+            status=VADStatus.START_SPEECH, started_at_s=BASE_TIME,
+        ))
+        proc = VADProcessor(vad_stream=vad, bus=bus)
+        await _collect(proc, _make_audio_frame())
+        bus.poll()
+
+        assert len(received) == 0
+
+
 class TestASRProcessor:
     def _make_processor(self, text="hello", bus=None, supports_streaming=True):
         from tank_backend.pipeline.processors.asr import ASRProcessor
@@ -479,6 +523,121 @@ class TestASRProcessor:
         assert brain_event.text == "batch result"
         # speech_start posted for non-streaming engines on finalize
         assert len(speech_starts) == 1
+
+    # ── Speculative reopen (turn revision) ────────────────────────────────
+
+    TURN_ID = "turn_1000.000"
+
+    def _vad_end_speech(self, pcm, *, turn_id=None, turn_revision=0):
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+
+        return VADResult(
+            status=VADStatus.END_SPEECH,
+            utterance_pcm=pcm,
+            sample_rate=16000,
+            started_at_s=1.0,
+            ended_at_s=2.0,
+            turn_id=turn_id,
+            turn_revision=turn_revision,
+        )
+
+    def _vad_start_speech(self, *, turn_id=None, turn_revision=0):
+        from tank_backend.audio.input.vad import VADResult, VADStatus
+
+        return VADResult(
+            status=VADStatus.START_SPEECH,
+            started_at_s=3.0,
+            turn_id=turn_id,
+            turn_revision=turn_revision,
+        )
+
+    async def test_reopened_turn_reuses_msg_id_and_retranscribes(self):
+        """A reopened utterance keeps the turn's msg_id and re-transcribes
+        the full concatenated audio (not just the resumed tail)."""
+        pcm = np.zeros(16000, dtype=np.float32)
+        proc, asr = self._make_processor(text="我想吃还是喝")
+
+        # Original utterance (revision 0)
+        await _collect(proc, self._vad_start_speech())
+        orig = await _collect(proc, self._vad_end_speech(pcm, turn_id=self.TURN_ID))
+        orig_event = orig[-1][1]
+        assert orig_event.turn_id == self.TURN_ID
+        assert orig_event.turn_revision == 0
+        orig_msg_id = orig_event.metadata["msg_id"]
+
+        # Reopened utterance (revision 1): resumed speech → full re-transcribe
+        await _collect(proc, self._vad_start_speech(
+            turn_id=self.TURN_ID, turn_revision=1,
+        ))
+        reopened = await _collect(proc, self._vad_end_speech(
+            pcm, turn_id=self.TURN_ID, turn_revision=1,
+        ))
+        event = reopened[-1][1]
+        assert event.turn_id == self.TURN_ID
+        assert event.turn_revision == 1
+        assert event.metadata["msg_id"] == orig_msg_id, (
+            "reopened turn must reuse the original msg_id for in-place UI update"
+        )
+
+        # start: original + reopened + re-transcription; stop: original +
+        # discard + final. process_pcm saw the full concatenated PCM.
+        assert asr.start.call_count == 3
+        assert asr.stop.call_count == 3
+        fed = asr.process_pcm.call_args_list[-1][0][0]
+        assert np.array_equal(fed, pcm)
+
+    async def test_reopened_partials_prepend_committed_text(self):
+        """Live partials of a reopened turn show prefix + resumed tail."""
+        bus = Bus()
+        received = []
+        bus.subscribe("ui_message", lambda m: received.append(m))
+
+        proc, asr = self._make_processor(text="我想吃", bus=bus)
+        await _collect(proc, self._vad_start_speech())
+        await _collect(proc, self._vad_end_speech(
+            np.zeros(1600, dtype=np.float32), turn_id=self.TURN_ID,
+        ))
+
+        asr.process_pcm = MagicMock(return_value="还是")
+        await _collect(proc, self._vad_start_speech(
+            turn_id=self.TURN_ID, turn_revision=1,
+        ))
+        await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME))
+        bus.poll()
+
+        partials = [
+            m.payload for m in received
+            if getattr(m.payload, "is_user", False)
+            and getattr(m.payload, "is_final", True) is False
+        ]
+        assert partials, "expected a partial transcript for the reopened turn"
+        assert partials[-1].text == "我想吃还是"
+
+    async def test_reopened_non_streaming_engine_retranscribes_full(self):
+        """Batch engines take the same full-audio path on reopen."""
+        pcm = np.zeros(8000, dtype=np.float32)
+        proc, asr = self._make_processor(
+            text="merged text", supports_streaming=False,
+        )
+
+        await _collect(proc, self._vad_end_speech(pcm, turn_id=self.TURN_ID))
+        orig_event = (
+            await _collect(proc, self._vad_end_speech(pcm, turn_id=self.TURN_ID))
+        )[-1][1]
+        orig_msg_id = orig_event.metadata["msg_id"]
+
+        await _collect(proc, self._vad_start_speech(
+            turn_id=self.TURN_ID, turn_revision=1,
+        ))
+        outputs = await _collect(proc, self._vad_end_speech(
+            pcm, turn_id=self.TURN_ID, turn_revision=1,
+        ))
+
+        event = outputs[-1][1]
+        assert event.text == "merged text"
+        assert event.metadata["msg_id"] == orig_msg_id
+        fed = asr.process_pcm.call_args_list[-1][0][0]
+        assert np.array_equal(fed, pcm)
 
     async def test_flush_resets_streaming_state(self):
         """Flush event resets streaming state so next utterance starts clean."""

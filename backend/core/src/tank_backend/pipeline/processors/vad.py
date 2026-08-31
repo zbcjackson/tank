@@ -115,6 +115,18 @@ class VADProcessor(Processor):
 
         elif result.status == VADStatus.START_SPEECH:
             self._speech_active = True
+            if self._bus and result.turn_revision > 0:
+                # Speculative reopen: the just-committed turn continues.
+                # Assistant cancels in-flight Brain/TTS/Playback so the
+                # revised utterance supersedes the aborted response.
+                self._bus.post(BusMessage(
+                    type="turn_reopened",
+                    source=self.name,
+                    payload={
+                        "turn_id": result.turn_id,
+                        "turn_revision": result.turn_revision,
+                    },
+                ))
             # Forward START_SPEECH result so ASR can start session
             yield FlowReturn.OK, result
 

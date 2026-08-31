@@ -720,6 +720,7 @@ class Brain(Processor):
         attachments = event.metadata.get("attachments") if event.metadata else None
         messages = await self._context.prepare_turn(
             event.user, event.text, attachments=attachments,
+            turn_id=event.turn_id, turn_revision=event.turn_revision,
         )
 
         # --- System prompt refresher for mid-turn updates ---
@@ -1062,7 +1063,10 @@ class Brain(Processor):
             agents={"confirm": confirm_agent}, default_agent="confirm",
         )
 
-        messages = await self._context.prepare_turn(event.user, event.text)
+        messages = await self._context.prepare_turn(
+            event.user, event.text,
+            turn_id=event.turn_id, turn_revision=event.turn_revision,
+        )
         state = AgentState(
             messages=messages,  # type: ignore[arg-type]  # messages is list[dict] at runtime; AgentState accepts broader shapes
             metadata={"msg_id": msg_id, "user": event.user},

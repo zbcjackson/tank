@@ -80,6 +80,12 @@ class ContextManager:
         self._memory_context: str = ""
         self._last_user: str = ""
         self._last_user_text: str = ""
+        # Speculative turn identity of the most recent user message, so a
+        # reopened turn (same turn_id, higher revision) replaces that
+        # message instead of appending a fragment. In-memory only — reopen
+        # windows are seconds long, so cross-restart staleness is a
+        # non-issue and the append fallback is safe.
+        self._last_user_turn_id: str | None = None
         self._encoder = tiktoken.get_encoding("cl100k_base")
 
         # Anti-thrashing state
@@ -359,6 +365,7 @@ class ContextManager:
         self._compaction_mode = resolved.compaction_mode
         self._channel_context_builder = None
         self._memory_context = ""
+        self._last_user_turn_id = None
 
         if resolved.compaction_mode == CompactionMode.NON_DESTRUCTIVE:
             from ..channels.context import ChannelContextBuilder
@@ -463,10 +470,15 @@ class ContextManager:
         text: str,
         *,
         attachments: list[Any] | None = None,
+        turn_id: str | None = None,
+        turn_revision: int = 0,
     ) -> list[dict[str, Any]]:
         """Prepare messages for an LLM call.
 
-        1. Add user message to conversation (persists)
+        1. Add user message to conversation (persists) — or, for a
+           reopened speculative turn (``turn_revision > 0`` with a matching
+           ``turn_id``), replace the previous user message and truncate the
+           aborted revision's replies
         2. Rebuild system prompt in-memory if needed
         3. Augment with memory context (temporary, not persisted)
         4. Pre-turn compaction check (if enabled and over budget)
@@ -480,7 +492,12 @@ class ContextManager:
         reachable via the session's MediaStore, so we don't duplicate
         them into the conversation JSON.
         """
-        self.add_message("user", text, name=user, attachments=attachments)
+        revised = turn_revision > 0 and turn_id is not None
+        if revised and turn_id == self._last_user_turn_id:
+            self._replace_last_user_turn(text)
+        else:
+            self.add_message("user", text, name=user, attachments=attachments)
+        self._last_user_turn_id = turn_id
 
         # ``add_message`` ensures a conversation is loaded; narrow once
         # for the rest of this method so pyright stops re-flagging the
@@ -753,6 +770,32 @@ class ContextManager:
             msg["attachments"] = [block_to_dict(b) for b in attachments]
         self._require_conversation().messages.append(msg)
         self._persist()
+
+    def _replace_last_user_turn(self, text: str) -> bool:
+        """Rewrite the most recent user message (speculative turn revision).
+
+        A reopened turn supersedes the committed fragment: its text is
+        replaced in place and every message after it — the aborted
+        revision's assistant reply, including any partial saved on
+        interrupt — is truncated, so the LLM sees one coherent user turn
+        followed by nothing stale. Attachments belong to the replaced
+        text and are dropped.
+
+        Returns False (and changes nothing) when no user message exists.
+        """
+        conv = self._require_conversation()
+        for idx in range(len(conv.messages) - 1, 0, -1):
+            if conv.messages[idx].get("role") == "user":
+                msg = conv.messages[idx]
+                msg["content"] = text
+                msg.pop("attachments", None)
+                del conv.messages[idx + 1:]
+                self._persist()
+                logger.info(
+                    "Replaced user turn at index %d (speculative revision)", idx,
+                )
+                return True
+        return False
 
     # ------------------------------------------------------------------
     # Token counting

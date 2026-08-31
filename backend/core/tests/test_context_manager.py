@@ -186,6 +186,93 @@ class TestPrepareTurn:
         mgr._resolver.save.assert_called_once()
 
 
+class TestSpeculativeTurnRevision:
+    """A reopened turn (same turn_id, revision > 0) replaces the previous
+    user message and truncates the aborted revision's replies instead of
+    appending a second fragment."""
+
+    async def test_revised_turn_replaces_and_truncates(self):
+        mgr = _make_manager()
+        _load_conversation(mgr)
+
+        # Original revision 0 commits "我想吃", brain saves a partial reply.
+        await mgr.prepare_turn("Jackson", "我想吃", turn_id="turn_1", turn_revision=0)
+        mgr.finish_turn([{"role": "assistant", "content": "你想吃什么？"}])
+        assert mgr.messages[-2]["content"] == "我想吃"
+        assert mgr.messages[-1]["content"] == "你想吃什么？"
+
+        # Reopened revision 1 arrives with the merged utterance.
+        await mgr.prepare_turn("Jackson", "我想吃还是喝吧", turn_id="turn_1", turn_revision=1)
+
+        assert mgr.messages == [
+            mgr.messages[0],  # system prompt
+            {"role": "user", "content": "我想吃还是喝吧", "name": "Jackson"},
+        ]
+
+    async def test_successive_revisions_keep_replacing(self):
+        mgr = _make_manager()
+        _load_conversation(mgr)
+
+        await mgr.prepare_turn("Jackson", "a", turn_id="turn_1", turn_revision=0)
+        await mgr.prepare_turn("Jackson", "a b", turn_id="turn_1", turn_revision=1)
+        await mgr.prepare_turn("Jackson", "a b c", turn_id="turn_1", turn_revision=2)
+
+        user_msgs = [m for m in mgr.messages if m["role"] == "user"]
+        assert [m["content"] for m in user_msgs] == ["a b c"]
+
+    async def test_revision_zero_appends(self):
+        mgr = _make_manager()
+        _load_conversation(mgr)
+
+        await mgr.prepare_turn("Jackson", "first", turn_id="turn_1", turn_revision=0)
+        await mgr.prepare_turn("Jackson", "second", turn_id="turn_2", turn_revision=0)
+
+        user_msgs = [m for m in mgr.messages if m["role"] == "user"]
+        assert [m["content"] for m in user_msgs] == ["first", "second"]
+
+    async def test_revision_without_matching_turn_id_appends(self):
+        """Stale identity (e.g. after restart) degrades to append."""
+        mgr = _make_manager()
+        _load_conversation(mgr)
+
+        await mgr.prepare_turn("Jackson", "我想吃", turn_id="turn_1", turn_revision=0)
+        await mgr.prepare_turn("Jackson", "还是喝吧", turn_id="turn_9", turn_revision=1)
+
+        user_msgs = [m for m in mgr.messages if m["role"] == "user"]
+        assert [m["content"] for m in user_msgs] == ["我想吃", "还是喝吧"]
+
+    async def test_typed_input_breaks_the_chain(self):
+        """Typed text (no turn_id) must not be replaceable by a reopen."""
+        mgr = _make_manager()
+        _load_conversation(mgr)
+
+        await mgr.prepare_turn("Jackson", "typed message")  # no turn identity
+        await mgr.prepare_turn("Jackson", "reopened", turn_id="turn_1", turn_revision=1)
+
+        user_msgs = [m for m in mgr.messages if m["role"] == "user"]
+        assert [m["content"] for m in user_msgs] == ["typed message", "reopened"]
+
+    async def test_revised_turn_updates_last_user_text(self):
+        mgr = _make_manager()
+        _load_conversation(mgr)
+
+        await mgr.prepare_turn("Jackson", "我想吃", turn_id="turn_1", turn_revision=0)
+        await mgr.prepare_turn("Jackson", "我想吃还是喝吧", turn_id="turn_1", turn_revision=1)
+
+        assert mgr._last_user_text == "我想吃还是喝吧"
+
+    async def test_replacement_persists(self):
+        mgr = _make_manager()
+        _load_conversation(mgr)
+        mgr._resolver.save.reset_mock()
+
+        await mgr.prepare_turn("Jackson", "我想吃", turn_id="turn_1", turn_revision=0)
+        mgr._resolver.save.reset_mock()
+        await mgr.prepare_turn("Jackson", "我想吃还是喝吧", turn_id="turn_1", turn_revision=1)
+
+        mgr._resolver.save.assert_called_once()
+
+
 class TestMemory:
     async def test_recall_memory_fetches(self):
         mgr = _make_manager()

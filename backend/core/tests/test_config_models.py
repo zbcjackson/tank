@@ -226,6 +226,14 @@ class TestAppConfig:
         with pytest.raises(ConfigError, match="min_silence_ms"):
             AppConfig.from_raw_dict(raw)
 
+    def test_vad_speculative_reopen_ms_parsed(self):
+        raw = {**self.MINIMAL_RAW, "vad": {"speculative_reopen_ms": 1200}}
+        cfg = AppConfig.from_raw_dict(raw)
+        assert cfg.vad.speculative_reopen_ms == 1200
+        # Default keeps the reopen safety net on
+        default = AppConfig.from_raw_dict(self.MINIMAL_RAW).vad
+        assert default.speculative_reopen_ms == 800
+
     def test_minimal_config_uses_default_smart_turn(self):
         cfg = AppConfig.from_raw_dict(self.MINIMAL_RAW)
         assert cfg.smart_turn == SmartTurnConfig()

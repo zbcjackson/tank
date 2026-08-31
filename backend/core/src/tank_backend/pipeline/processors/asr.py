@@ -75,6 +75,14 @@ class ASRProcessor(Processor):
         self._streaming_msg_id: str | None = None
         self._streaming_started_at: float | None = None
         self._speech_detected_sent: bool = False
+        self._streaming_turn_id: str | None = None
+        self._streaming_turn_revision: int = 0
+        # Speculative turn chains: turn_id → last msg_id / final transcript,
+        # so a reopened utterance can reuse the msg_id (UI updates in place)
+        # and prepend the committed text to its partials. Bounded — reopens
+        # only ever consult the most recent turn.
+        self._turn_msg_ids: dict[str, str] = {}
+        self._turn_final_texts: dict[str, str] = {}
 
     def _reset_state(self) -> None:
         """Reset state for a new utterance."""
@@ -82,6 +90,18 @@ class ASRProcessor(Processor):
         self._streaming_msg_id = None
         self._streaming_started_at = None
         self._speech_detected_sent = False
+        self._streaming_turn_id = None
+        self._streaming_turn_revision = 0
+
+    def _remember_turn(self, turn_id: str, msg_id: str, final_text: str) -> None:
+        """Record a turn chain's identity for a possible future reopen."""
+        self._turn_msg_ids[turn_id] = msg_id
+        self._turn_final_texts[turn_id] = final_text
+        if len(self._turn_msg_ids) > 4:
+            for stale in list(self._turn_msg_ids)[:-2]:
+                self._turn_msg_ids.pop(stale, None)
+            for stale in list(self._turn_final_texts)[:-2]:
+                self._turn_final_texts.pop(stale, None)
 
     def _to_asr_rate(self, pcm: np.ndarray) -> np.ndarray:
         """Resample float32 PCM from the pipeline rate to the ASR rate.
@@ -109,6 +129,11 @@ class ASRProcessor(Processor):
     def _post_partial(self, text: str) -> None:
         """Post partial transcript to UI. On first real text, also notify frontend."""
         if self._bus and self._streaming_msg_id:
+            if self._streaming_turn_id:
+                # Reopened turn: the live partial only covers the resumed
+                # tail — prepend the committed prefix so the UI shows the
+                # growing merged utterance.
+                text = self._turn_final_texts.get(self._streaming_turn_id, "") + text
             # First non-empty partial → tell frontend real speech was detected
             if not self._speech_detected_sent:
                 self._speech_detected_sent = True
@@ -222,6 +247,38 @@ class ASRProcessor(Processor):
             self._post_recognition_failed()
             return ""
 
+    async def _discard_session(self) -> None:
+        """Stop the open ASR session quietly (reopened-utterance discard).
+
+        Unlike :meth:`_stop_with_timeout`, failure here does not post
+        ``recognition_failed`` — the full re-transcription that follows
+        decides whether the utterance succeeded.
+        """
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(self._asr.stop),
+                timeout=_STOP_TIMEOUT_S,
+            )
+        except Exception:
+            logger.warning("ASR stop() during reopen discard failed")
+
+    async def _finalize_reopened(self, item: Any) -> tuple[str, float]:
+        """Re-transcribe a reopened utterance over its full concatenated audio.
+
+        The open streaming session only saw the resumed tail — the committed
+        prefix lives in ``item.utterance_pcm``. Batch the whole merged
+        utterance through a fresh session so the final transcript is
+        coherent (works identically for streaming and batch engines).
+        """
+        if self._asr.supports_streaming:
+            await self._discard_session()
+        started_at = time.time()
+        self._asr.start()
+        self._asr.process_pcm(self._to_asr_rate(item.utterance_pcm))
+        final_text = await self._stop_with_timeout()
+        elapsed = time.time() - started_at
+        return final_text, elapsed
+
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         from ...audio.input.types import AudioFrame
         from ...audio.input.vad import VADResult, VADStatus
@@ -230,7 +287,17 @@ class ASRProcessor(Processor):
         # ── START_SPEECH: begin ASR session ──────────────────────────────
         if isinstance(item, VADResult) and item.status == VADStatus.START_SPEECH:
             self._asr.start()
-            self._streaming_msg_id = f"user_{uuid.uuid4().hex[:8]}"
+            self._streaming_turn_id = item.turn_id
+            self._streaming_turn_revision = item.turn_revision
+            if item.turn_revision > 0 and item.turn_id:
+                # Reopened turn — reuse the original msg_id so the UI
+                # updates the existing user message in place. Fall back to
+                # a fresh id when the chain is unknown (e.g. after restart).
+                self._streaming_msg_id = self._turn_msg_ids.get(
+                    item.turn_id, f"user_{uuid.uuid4().hex[:8]}",
+                )
+            else:
+                self._streaming_msg_id = f"user_{uuid.uuid4().hex[:8]}"
             self._streaming_started_at = time.time()
             self._post_speech_start(item.started_at_s)
             yield FlowReturn.OK, None
@@ -259,7 +326,9 @@ class ASRProcessor(Processor):
                 return
 
             # Get final transcript
-            if self._asr.supports_streaming:
+            if item.turn_revision > 0:
+                final_text, elapsed = await self._finalize_reopened(item)
+            elif self._asr.supports_streaming:
                 final_text = await self._stop_with_timeout()
                 if not final_text:
                     final_text = self._partial_text
@@ -287,6 +356,8 @@ class ASRProcessor(Processor):
                 self._post_final(final_text)
 
                 msg_id = self._streaming_msg_id or f"user_{uuid.uuid4().hex[:8]}"
+                if item.turn_id:
+                    self._remember_turn(item.turn_id, msg_id, final_text)
                 utterance_id = (
                     f"{item.started_at_s:.3f}_{item.ended_at_s:.3f}"
                     if item.started_at_s is not None and item.ended_at_s is not None
@@ -308,6 +379,8 @@ class ASRProcessor(Processor):
                     language=lang,
                     confidence=None,
                     metadata={"msg_id": msg_id, "utterance_id": utterance_id},
+                    turn_id=item.turn_id,
+                    turn_revision=item.turn_revision,
                 )
                 self._reset_state()
                 yield FlowReturn.OK, event

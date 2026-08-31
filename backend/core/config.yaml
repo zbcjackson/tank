@@ -275,6 +275,11 @@ vad:
   min_speech_ms: 200 # minimum speech duration for a valid utterance
   pre_roll_ms: 200 # audio kept before speech onset (leading-word recovery)
   max_utterance_ms: 20000 # hard cap — force-finalize even mid-speech
+  # Speculative reopen: after a silence-driven commit, resumed speech
+  # within this window merges into the same turn (one user message,
+  # in-flight reply cancelled and replaced) instead of a second message.
+  # Explicit ends (push-to-talk) never reopen. 0 disables.
+  speculative_reopen_ms: 800
 
 # Smart Turn — ML end-of-turn adjudication (pipecat-ai smart-turn-v3.2).
 # When active, the VAD fires a fast candidate boundary after

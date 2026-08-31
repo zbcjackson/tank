@@ -83,6 +83,12 @@ class BrainInputEvent:
     confidence: float | None
     timestamp: float = field(default_factory=time.time)
     metadata: dict = field(default_factory=dict)
+    # Speculative turn identity: set on audio inputs from VAD endpointing.
+    # ``turn_revision > 0`` means the utterance reopens a previously
+    # committed turn — the context manager replaces the original user
+    # message instead of appending a second one.
+    turn_id: str | None = None
+    turn_revision: int = 0
 
 
 class BrainInterrupted(Exception):

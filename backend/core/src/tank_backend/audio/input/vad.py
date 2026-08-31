@@ -41,13 +41,21 @@ class VADStatus(Enum):
 
 @dataclass(frozen=True)
 class VADResult:
-    """Result from VAD processing."""
+    """Result from VAD processing.
+
+    ``turn_id``/``turn_revision`` identify a speculative turn chain: the
+    original commit carries revision 0; each reopen (resumed speech within
+    ``speculative_reopen_ms``) increments the revision while keeping the
+    same ``turn_id``.
+    """
 
     status: VADStatus
     utterance_pcm: np.ndarray | None = None
     sample_rate: int | None = None
     started_at_s: float | None = None
     ended_at_s: float | None = None
+    turn_id: str | None = None
+    turn_revision: int = 0
 
 
 class VADEngine:
@@ -130,6 +138,19 @@ class VADStream:
         self._speech_pcm_parts: list[np.ndarray] = []
         self._speech_started_at_s: float | None = None
         self._last_voice_at_s: float | None = None  # For silence timeout tracking
+
+        # Speculative turn identity: the chain currently being recorded.
+        self._active_turn_id: str | None = None
+        self._active_turn_revision: int = 0
+        # The last commit is kept briefly so resumed speech within
+        # ``speculative_reopen_ms`` reopens the same turn (revision + 1)
+        # instead of starting a second user turn. Cleared lazily: the next
+        # voice start either consumes it or finds it expired.
+        self._reopen_turn_id: str | None = None
+        self._reopen_revision: int = 0
+        self._reopen_pcm: np.ndarray | None = None
+        self._reopen_started_at_s: float | None = None
+        self._reopen_last_voice_at_s: float | None = None
 
         # Endpoint policy: Smart Turn adjudication, or the plain silence
         # timeout when no analyzer is attached.
@@ -245,6 +266,16 @@ class VADStream:
         self._last_voice_at_s = None
         self._st_pending = False
         self._st_hold_until_s = None
+        self._active_turn_id = None
+        self._active_turn_revision = 0
+
+    def _clear_reopen_state(self) -> None:
+        """Drop the reopen candidate (consumed or expired)."""
+        self._reopen_turn_id = None
+        self._reopen_revision = 0
+        self._reopen_pcm = None
+        self._reopen_started_at_s = None
+        self._reopen_last_voice_at_s = None
 
     def _adjudicate_endpoint(self) -> SmartTurnResult | None:
         """Run Smart Turn on the pending utterance; None = commit now.
@@ -271,9 +302,14 @@ class VADStream:
         )
         return result
 
-    def _finalize_utterance(self, ended_at_s: float) -> VADResult:
+    def _finalize_utterance(self, ended_at_s: float, *, arm_reopen: bool = True) -> VADResult:
         """
         Build END_SPEECH result from current speech state and reset.
+
+        Silence/max-utterance endpoints arm the speculative reopen window
+        (``arm_reopen=True``) so resumed speech can merge into the same
+        turn. Explicit ends (``flush()`` — push-to-talk, interrupts) pass
+        ``arm_reopen=False``: the caller signalled a hard turn boundary.
         """
         utterance_pcm = (
             np.concatenate(self._speech_pcm_parts)
@@ -281,7 +317,18 @@ class VADStream:
             else np.array([], dtype=np.float32)
         )
         started_at = self._speech_started_at_s or ended_at_s
+        turn_id = self._active_turn_id or f"turn_{started_at:.3f}"
+        turn_revision = self._active_turn_revision
+        last_voice_at_s = self._last_voice_at_s
         self._reset_speech_state()
+        if arm_reopen and utterance_pcm.size > 0:
+            self._reopen_turn_id = turn_id
+            self._reopen_revision = turn_revision
+            self._reopen_pcm = utterance_pcm
+            self._reopen_started_at_s = started_at
+            self._reopen_last_voice_at_s = last_voice_at_s
+        else:
+            self._clear_reopen_state()
         self._speech_process_ended_at_s = time.time()
         duration_s = self._speech_process_ended_at_s - (
             self._speech_process_started_at_s or self._speech_process_ended_at_s
@@ -300,6 +347,8 @@ class VADStream:
             sample_rate=self._sample_rate,
             started_at_s=started_at,
             ended_at_s=ended_at_s,
+            turn_id=turn_id,
+            turn_revision=turn_revision,
         )
 
     def process_frame(
@@ -352,22 +401,50 @@ class VADStream:
             if not has_voice:
                 return VADResult(status=VADStatus.NO_SPEECH)
 
-            # Voice start detected - include pre-roll in utterance
+            # Voice start detected. If the previous commit is still inside
+            # the speculative reopen window, this speech continues that
+            # turn: splice the committed audio back in front and bump the
+            # revision, so pause-and-continue stays a single user turn.
+            prefix_pcm = self._reopen_pcm
+            pre_roll_parts = list(self._pre_roll_buffer)
             self._in_speech = True
-            self._speech_started_at_s = timestamp_s
             self._last_voice_at_s = timestamp_s
             self._speech_process_started_at_s = time.time()
+            if (
+                prefix_pcm is not None
+                and self._reopen_turn_id is not None
+                and self._reopen_last_voice_at_s is not None
+                and (timestamp_s - self._reopen_last_voice_at_s) * 1000.0
+                <= self._cfg.speculative_reopen_ms
+            ):
+                self._active_turn_id = self._reopen_turn_id
+                self._active_turn_revision = self._reopen_revision + 1
+                # Duration caps and the reported start stay anchored to the
+                # original utterance — the merged turn *is* that turn.
+                self._speech_started_at_s = self._reopen_started_at_s
+                self._speech_pcm_parts = [prefix_pcm, *pre_roll_parts, pcm]
+                self._clear_reopen_state()
+                logger.info(
+                    "VAD turn reopened: turn=%s revision=%d",
+                    self._active_turn_id,
+                    self._active_turn_revision,
+                )
+            else:
+                self._clear_reopen_state()
+                self._active_turn_id = None
+                self._active_turn_revision = 0
+                self._speech_started_at_s = timestamp_s
+                self._speech_pcm_parts = pre_roll_parts + [pcm]
             logger.info(
                 "VAD speech process started at %.3f, speech started at %.3f",
                 self._speech_process_started_at_s,
                 timestamp_s,
             )
-
-            pre_roll_parts = list(self._pre_roll_buffer)
-            self._speech_pcm_parts = pre_roll_parts + [pcm]
             return VADResult(
                 status=VADStatus.START_SPEECH,
                 started_at_s=timestamp_s,
+                turn_id=self._active_turn_id,
+                turn_revision=self._active_turn_revision,
             )
 
         # In speech state
@@ -390,7 +467,11 @@ class VADStream:
         return VADResult(status=VADStatus.IN_SPEECH)
 
     def flush(self, now_s: float) -> VADResult:
-        """Force finalize any in-progress speech."""
+        """Force finalize any in-progress speech.
+
+        An explicit end (push-to-talk, interrupt flush) — the reopen window
+        is not armed, the caller has declared the turn over.
+        """
         if not self._in_speech:
             return VADResult(status=VADStatus.NO_SPEECH)
 
@@ -399,7 +480,7 @@ class VADStream:
             self._chunk_buffer = np.array([], dtype=np.float32)
 
         if len(self._speech_pcm_parts) > 0:
-            return self._finalize_utterance(now_s)
+            return self._finalize_utterance(now_s, arm_reopen=False)
         self._reset_speech_state()
         return VADResult(status=VADStatus.NO_SPEECH)
 

@@ -510,6 +510,37 @@ class TestAssistantWaitForIdle:
         assert not brain_idle_event.is_set()
 
 
+class TestAssistantTurnReopened:
+    """Tests for Assistant._on_turn_reopened (speculative reopen cancel)."""
+
+    def _make_stub(self, *, enabled=True, busy=True):
+        """Stub that just carries the attributes _on_turn_reopened reads."""
+        from tank_backend.core.assistant import Assistant
+
+        stub = MagicMock(spec=Assistant)
+        stub._speech_interrupt_enabled = enabled
+        stub._pipeline_busy = busy
+        stub._interrupt_pipeline = MagicMock()
+        # Bind the real method so it executes against the stub's attrs.
+        stub._on_turn_reopened = Assistant._on_turn_reopened.__get__(stub, Assistant)
+        return stub
+
+    def test_cancels_pipeline_when_busy(self):
+        stub = self._make_stub(busy=True)
+        stub._on_turn_reopened(MagicMock())
+        stub._interrupt_pipeline.assert_called_once_with("turn_reopen")
+
+    def test_no_op_when_pipeline_idle(self):
+        stub = self._make_stub(busy=False)
+        stub._on_turn_reopened(MagicMock())
+        stub._interrupt_pipeline.assert_not_called()
+
+    def test_no_op_when_speech_interrupt_disabled(self):
+        stub = self._make_stub(enabled=False, busy=True)
+        stub._on_turn_reopened(MagicMock())
+        stub._interrupt_pipeline.assert_not_called()
+
+
 class TestAssistantEndUtterance:
     """Tests for Assistant.end_utterance (push-to-talk send path)."""
 
