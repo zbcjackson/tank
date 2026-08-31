@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 from .bus import Bus
-from .event import PipelineEvent
+from .event import DrainSentinel, PipelineEvent
 from .fan_out_queue import FanOutQueue
 from .health import PipelineHealth, ProcessorHealth
 from .processor import FlowReturn, Processor
@@ -149,6 +150,43 @@ class Pipeline:
             queues=queue_health,
             is_healthy=is_healthy,
         )
+
+    async def drain(self, entry: str, timeout: float = 10.0) -> bool:
+        """Prove the pipeline has drained by pushing a sentinel through.
+
+        The sentinel is pushed into the queue feeding ``entry`` and must
+        emerge at the terminal processor, which calls ``DrainSentinel.arrive``.
+        Arrival proves every item queued ahead of it was consumed — including
+        an in-flight batch still producing downstream output (s2s's
+        SESSION_END traversal proof). Requires the terminal processor to
+        recognize ``DrainSentinel``; returns False after logging a warning
+        with per-queue residue when the sentinel does not arrive in time.
+        """
+        if not self._running:
+            return True
+        idx = next(
+            (i for i, proc in enumerate(self._processors) if proc.name == entry),
+            None,
+        )
+        if idx is None:
+            logger.warning("Drain: processor %r not found — skipping", entry)
+            return True
+        sentinel = DrainSentinel()
+        if self._queues[idx].push(sentinel) != FlowReturn.OK:
+            logger.warning(
+                "Drain: could not push sentinel into %r — pipeline saturated", entry,
+            )
+            return False
+        arrived = await asyncio.to_thread(sentinel.wait, timeout)
+        if not arrived:
+            residue = {q.name: q.qsize for q in self._queues if q.qsize}
+            logger.warning(
+                "Drain timed out after %.1fs (entry=%r) — residue: %s",
+                timeout,
+                entry,
+                residue or "none (terminal processor never saw the sentinel)",
+            )
+        return arrived
 
     async def swap_processor(self, name: str, new_processor: Processor) -> None:
         """Hot-swap a processor without restarting the pipeline.

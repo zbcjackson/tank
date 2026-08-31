@@ -7,7 +7,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from ..bus import Bus, BusMessage
-from ..event import PipelineEvent
+from ..event import DrainSentinel, PipelineEvent
 from ..processor import FlowReturn, Processor
 from .tts_normalizer import normalize_for_tts
 
@@ -43,6 +43,12 @@ class TTSProcessor(Processor):
         self._feeding_queue: Any = None  # set by assistant after pipeline build
 
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
+        # Drain sentinel (session teardown): forward untouched — the proof
+        # point is the terminal playback processor, not here.
+        if isinstance(item, DrainSentinel):
+            yield FlowReturn.OK, item
+            return
+
         request: AudioOutputRequest = item
         self._interrupted = False
 

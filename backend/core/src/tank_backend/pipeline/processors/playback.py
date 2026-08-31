@@ -6,7 +6,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ..bus import Bus, BusMessage
-from ..event import PipelineEvent
+from ..event import DrainSentinel, PipelineEvent
 from ..processor import FlowReturn, Processor
 
 if TYPE_CHECKING:
@@ -48,6 +48,13 @@ class PlaybackProcessor(Processor):
         self._signal_playback_ended()
 
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
+        # Drain sentinel (session teardown): terminal proof point — everything
+        # queued ahead of it has been consumed by the time we see it.
+        if isinstance(item, DrainSentinel):
+            item.arrive()
+            yield FlowReturn.OK, None
+            return
+
         chunk: AudioChunk = item
 
         # New chunk arriving means upstream TTS started a new request —

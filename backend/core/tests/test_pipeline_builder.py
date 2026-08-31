@@ -1,6 +1,7 @@
 """Tests for PipelineBuilder and Pipeline."""
 
 import asyncio
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -364,3 +365,108 @@ class TestPipelineBuilderFanOut:
 
         # vad + asr_pre + asr + spk + merger = 5
         assert len(pipeline._processors) == 5
+
+
+# ── Pipeline.drain (SESSION_END-style drain proof) ──────────────────────────
+
+class StallFirstItemProcessor(Processor):
+    """Test processor that stalls once on its first item, then drains instantly."""
+
+    def __init__(self, name: str, stall_s: float):
+        super().__init__(name)
+        self._stall_s = stall_s
+        self._seen = 0
+
+    async def process(self, item):
+        self._seen += 1
+        if self._seen == 1:
+            await asyncio.sleep(self._stall_s)
+        yield FlowReturn.OK, item
+
+
+class TestPipelineDrain:
+    def _build(self, tts_proc, playback_cb=None):
+        from tank_backend.pipeline.processors.playback import PlaybackProcessor
+
+        bus = Bus()
+        playback = PlaybackProcessor(playback_callback=playback_cb, bus=bus)
+        return PipelineBuilder(bus).add(tts_proc).add(playback).build()
+
+    async def test_drain_sentinel_reaches_playback(self):
+        """An idle pipeline drains immediately: the sentinel crosses tts → playback."""
+        from tank_backend.pipeline.event import DrainSentinel
+
+        class RecordingProcessor(Processor):
+            def __init__(self):
+                super().__init__("tts")
+                self.arrived = []
+
+            async def process(self, item):
+                if isinstance(item, DrainSentinel):
+                    self.arrived.append(item)
+                yield FlowReturn.OK, item
+
+        recording = RecordingProcessor()
+        pipeline = self._build(recording, playback_cb=MagicMock())
+        await pipeline.start()
+        assert await pipeline.drain(entry="tts", timeout=2.0) is True
+        assert recording.arrived, "sentinel must pass through the entry processor"
+        await pipeline.stop()
+
+    async def test_drain_proves_queued_items_were_consumed(self):
+        """Items pushed ahead of the sentinel all reach playback before it does."""
+        callback = MagicMock()
+        pipeline = self._build(PassthroughProcessor("tts"), playback_cb=callback)
+        await pipeline.start()
+
+        pipeline.push("chunk_a")
+        pipeline.push("chunk_b")
+        assert await pipeline.drain(entry="tts", timeout=2.0) is True
+
+        delivered = [call.args[0] for call in callback.call_args_list]
+        assert "chunk_a" in delivered
+        assert "chunk_b" in delivered
+        await pipeline.stop()
+
+    async def test_drain_times_out_when_stalled(self):
+        """A stalled in-flight item blocks the sentinel → False within timeout."""
+        callback = MagicMock()
+        pipeline = self._build(
+            StallFirstItemProcessor("tts", stall_s=0.6), playback_cb=callback,
+        )
+        await pipeline.start()
+        pipeline.push("in_flight")
+
+        assert await pipeline.drain(entry="tts", timeout=0.1) is False
+        assert callback.call_count <= 1  # nothing behind the stall was delivered
+        await pipeline.stop()
+
+    async def test_drain_timeout_logs_queue_residue(self, caplog):
+        """A drain timeout logs a warning listing the queues still holding items."""
+        import logging
+
+        pipeline = self._build(
+            StallFirstItemProcessor("tts", stall_s=0.6), playback_cb=MagicMock(),
+        )
+        await pipeline.start()
+        pipeline.push("in_flight")
+        pipeline.push("queued_b")
+
+        with caplog.at_level(logging.WARNING, logger="tank_backend.pipeline.builder"):
+            assert await pipeline.drain(entry="tts", timeout=0.1) is False
+
+        assert "residue" in caplog.text
+        assert "q_0_tts" in caplog.text  # the stalled queue and its depth
+        await pipeline.stop()
+
+    async def test_drain_unknown_entry_returns_true(self):
+        """Pipelines without the named stage have no output residue to prove."""
+        pipeline = self._build(PassthroughProcessor("tts"))
+        await pipeline.start()
+        assert await pipeline.drain(entry="nonexistent", timeout=0.1) is True
+        await pipeline.stop()
+
+    async def test_drain_on_stopped_pipeline_returns_true(self):
+        """A pipeline that is not running is considered drained."""
+        pipeline = self._build(PassthroughProcessor("tts"))
+        assert await pipeline.drain(entry="tts", timeout=0.1) is True

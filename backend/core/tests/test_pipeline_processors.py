@@ -822,6 +822,17 @@ class TestTTSProcessor:
         assert outputs[0] == (FlowReturn.OK, chunk1)
         assert outputs[1] == (FlowReturn.OK, chunk2)
 
+    async def test_forwards_drain_sentinel_without_synthesizing(self):
+        """A DrainSentinel passes through untouched — engine never called."""
+        from tank_backend.pipeline.event import DrainSentinel
+
+        proc, tts = self._make_processor(chunks=[MagicMock()])
+        sentinel = DrainSentinel()
+        outputs = await _collect(proc, sentinel)
+
+        assert outputs == [(FlowReturn.OK, sentinel)]
+        tts.generate_stream.assert_not_called()
+
     async def test_posts_tts_latency_to_bus(self):
         from tank_backend.core.events import AudioOutputRequest
 
@@ -865,6 +876,20 @@ class TestPlaybackProcessor:
         chunk = MagicMock()
         await _collect(proc, chunk)
         callback.assert_called_once_with(chunk)
+
+    async def test_drain_sentinel_arrives_and_is_not_played(self):
+        """A DrainSentinel marks arrival (drain proof) and never reaches the callback."""
+        from tank_backend.pipeline.event import DrainSentinel
+
+        proc, callback = self._make_processor()
+        sentinel = DrainSentinel()
+        assert not sentinel.wait(0.0)  # not yet arrived
+
+        outputs = await _collect(proc, sentinel)
+
+        assert outputs == [(FlowReturn.OK, None)]
+        callback.assert_not_called()
+        assert sentinel.wait(0.0) is True  # arrived
 
     async def test_flush_event_sets_flushed(self):
         proc, _ = self._make_processor()

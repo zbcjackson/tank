@@ -54,6 +54,10 @@ logger = logging.getLogger("Assistant")
 # Clients receive this in the "ready" signal so they know what to capture at.
 PIPELINE_SAMPLE_RATE = 16000
 
+# Bound for the output-path drain proof at shutdown (s2s's SESSION_END warn
+# threshold): in-flight TTS gets this long to finish before we force-stop.
+DRAIN_TIMEOUT_S = 10.0
+
 
 class Assistant:
     """Pipeline-based voice assistant orchestrator.
@@ -484,6 +488,11 @@ class Assistant:
         so in-flight LLM responses and tool executions complete gracefully.
         If the brain doesn't become idle within a reasonable timeout,
         proceed with forced shutdown anyway.
+
+        Before stopping the pipeline, a drain sentinel rides the TTS →
+        Playback data path to prove queued audio actually crossed the
+        chain (bounded by DRAIN_TIMEOUT_S; a timeout logs the per-queue
+        residue instead of blocking teardown).
         """
         await self.wait_for_idle(timeout=30.0)
 
@@ -492,6 +501,11 @@ class Assistant:
         self._health_monitor.stop()
 
         if self._pipeline is not None:
+            tts_processor = getattr(self, "_tts_processor", None)
+            if tts_processor is not None:
+                await self._pipeline.drain(
+                    entry=tts_processor.name, timeout=DRAIN_TIMEOUT_S,
+                )
             await self._pipeline.stop()
 
         if self._bus_poll_thread is not None:
