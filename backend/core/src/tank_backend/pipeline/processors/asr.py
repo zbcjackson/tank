@@ -14,6 +14,7 @@ import numpy as np
 from ..bus import Bus, BusMessage
 from ..event import PipelineEvent
 from ..processor import FlowReturn, Processor
+from ..text.transcript_stabilizer import PartialTranscriptStabilizer
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -39,7 +40,7 @@ class ASRProcessor(Processor):
 
     Bus messages posted:
       - speech_start — when speech starts (triggers assistant interrupt)
-      - ui_message — partial and final transcripts for UI
+      - ui_message — stabilized partial and final transcripts for UI
       - asr_result — transcription metrics
       - recognition_failed — when ASR stop times out or fails unrecoverably
 
@@ -83,6 +84,9 @@ class ASRProcessor(Processor):
         # only ever consult the most recent turn.
         self._turn_msg_ids: dict[str, str] = {}
         self._turn_final_texts: dict[str, str] = {}
+        # Stabilizes raw hypotheses into an append-only display prefix so the
+        # UI text does not flicker on every tail revision.
+        self._stabilizer = PartialTranscriptStabilizer()
 
     def _reset_state(self) -> None:
         """Reset state for a new utterance."""
@@ -92,6 +96,7 @@ class ASRProcessor(Processor):
         self._speech_detected_sent = False
         self._streaming_turn_id = None
         self._streaming_turn_revision = 0
+        self._stabilizer.reset()
 
     def _remember_turn(self, turn_id: str, msg_id: str, final_text: str) -> None:
         """Record a turn chain's identity for a possible future reopen."""
@@ -127,13 +132,24 @@ class ASRProcessor(Processor):
             ))
 
     def _post_partial(self, text: str) -> None:
-        """Post partial transcript to UI. On first real text, also notify frontend."""
+        """Post a stabilized partial transcript to the UI.
+
+        The raw hypothesis is run through the stabilizer first, so the UI
+        sees an append-only confirmed prefix (newest edge word held back)
+        instead of the flickering raw hypothesis. ``speech_detected`` still
+        fires on the first raw hypothesis — it cues "user is speaking",
+        which must not wait for stabilization.
+        """
         if self._bus and self._streaming_msg_id:
+            display = self._stabilizer.feed(text)
             if self._streaming_turn_id:
                 # Reopened turn: the live partial only covers the resumed
                 # tail — prepend the committed prefix so the UI shows the
                 # growing merged utterance.
-                text = self._turn_final_texts.get(self._streaming_turn_id, "") + text
+                display = (
+                    self._turn_final_texts.get(self._streaming_turn_id, "")
+                    + (display or "")
+                )
             # First non-empty partial → tell frontend real speech was detected
             if not self._speech_detected_sent:
                 self._speech_detected_sent = True
@@ -148,11 +164,12 @@ class ASRProcessor(Processor):
                     source=self.name,
                     payload={"text": text},
                 ))
-            self._bus.post(BusMessage(
-                type="ui_message",
-                source=self.name,
-                payload=self._make_display_message(text, is_final=False),
-            ))
+            if display:
+                self._bus.post(BusMessage(
+                    type="ui_message",
+                    source=self.name,
+                    payload=self._make_display_message(display, is_final=False),
+                ))
 
     def _post_final(self, text: str) -> None:
         """Post final transcript to UI."""

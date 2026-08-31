@@ -374,34 +374,40 @@ class TestASRProcessor:
         assert speech_starts[0].source == "asr"
 
     async def test_streaming_audio_frame_partial_transcript(self):
-        """AudioFrame with non-empty partial text → ui_message with is_final=False."""
+        """Growing hypotheses → speech_detected on the first raw hypothesis,
+        then a stabilized partial (confirmed prefix, edge word held back)."""
         from tank_backend.audio.input.vad import VADResult, VADStatus
 
         bus = Bus()
         received = []
         bus.subscribe("ui_message", lambda m: received.append(m))
 
-        proc, _ = self._make_processor(text="你好", bus=bus)
+        proc, asr = self._make_processor(text="你好世界", bus=bus)
+        asr.process_pcm = MagicMock(side_effect=["你好", "你好世界"])
 
         # First send START_SPEECH to start session
         start_speech = VADResult(status=VADStatus.START_SPEECH, started_at_s=BASE_TIME)
         await _collect(proc, start_speech)
 
-        # Then send AudioFrame
-        frame = _make_audio_frame(timestamp_s=BASE_TIME)
-        outputs = await _collect(proc, frame)
+        # Then send AudioFrames with two growing hypotheses
+        outputs = await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME))
+        await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME + 0.02))
         bus.poll()
 
         # AudioFrame yields None (brain waits for final)
         assert outputs[0][1] is None
 
-        # Partial transcript posted to UI (speech_detected signal + partial)
-        assert len(received) == 2
+        # speech_detected fired on the first raw hypothesis
         assert received[0].payload.signal_type == "speech_detected"
-        display_msg = received[1].payload
-        assert display_msg.is_user is True
-        assert display_msg.text == "你好"
-        assert display_msg.is_final is False
+        partials = [
+            m.payload for m in received
+            if getattr(m.payload, "is_user", False)
+            and m.payload.is_final is False
+        ]
+        # "你好" + "你好世界" confirm 你; edge 好 is held back.
+        assert [p.text for p in partials] == ["你"]
+        assert partials[0].is_user is True
+        assert partials[0].msg_id is not None
 
     async def test_streaming_first_partial_posts_speech_start(self):
         """speech_start is posted on START_SPEECH, not on first partial."""
@@ -598,11 +604,13 @@ class TestASRProcessor:
             np.zeros(1600, dtype=np.float32), turn_id=self.TURN_ID,
         ))
 
-        asr.process_pcm = MagicMock(return_value="还是")
+        asr.process_pcm = MagicMock(side_effect=["还是", "还是喝", "还是喝吧"])
         await _collect(proc, self._vad_start_speech(
             turn_id=self.TURN_ID, turn_revision=1,
         ))
         await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME))
+        await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME + 0.02))
+        await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME + 0.04))
         bus.poll()
 
         partials = [
@@ -611,6 +619,8 @@ class TestASRProcessor:
             and getattr(m.payload, "is_final", True) is False
         ]
         assert partials, "expected a partial transcript for the reopened turn"
+        # Prefix + stabilized tail: "还是" confirmed by hypotheses 2+3
+        # (edge held back on each feed).
         assert partials[-1].text == "我想吃还是"
 
     async def test_reopened_non_streaming_engine_retranscribes_full(self):
@@ -680,8 +690,9 @@ class TestASRProcessor:
         await _collect(proc, _make_audio_frame(timestamp_s=BASE_TIME + 0.02))
         bus.poll()
 
-        # speech_detected + one partial (text didn't change on second frame)
-        assert len(received) == 2
+        # Only speech_detected: the raw text never changed (one hypothesis,
+        # which confirms nothing under stabilization).
+        assert len(received) == 1
         assert received[0].payload.signal_type == "speech_detected"
 
     # ── _stop_with_timeout resilience ───────────────────────────────────────
