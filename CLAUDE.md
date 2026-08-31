@@ -156,6 +156,14 @@ All eight must pass before considering work complete.
 
 Fix ALL failing tests whenever you run the test suite — whether they are caused by your changes or pre-existing. A red test suite is never acceptable. Do not dismiss failures as "pre-existing" or "unrelated".
 
+## Git Commits
+
+Commit code as soon as each sub-task completes — do not batch everything into one commit at the end. Follow [.github/git-commit-instructions.md](.github/git-commit-instructions.md):
+
+- Subject starts with a gitmoji **shortcode** (e.g. `:sparkles:`), not the raw emoji character and not conventional types (`feat:`)
+- Subject: imperative mood, ~50 chars or less; optional body wrapped at 72 chars
+- One commit per logical sub-task (e.g. feature code, test-only change, docs update)
+
 ## Planning Rules
 
 - Every plan MUST include a "Tests" section — write new E2E or unit tests for any behavior change
