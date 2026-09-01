@@ -269,6 +269,44 @@ class TestCohortTracking:
         assert len(notifications) == 1
 
 
+class TestForegroundWorkerSkipped:
+    """Foreground (blocking) workers deliver their result inline as the
+    caller's tool result — a notification would make the LLM report the
+    same content twice."""
+
+    def test_foreground_completed_not_queued(self, bus, hub):
+        payload = _worker_payload(event="completed", background=False)
+        bus.post(BusMessage(type="worker", source="test", payload=payload))
+        bus.poll()
+
+        assert not hub.has_pending("conv_a")
+        assert hub.drain("conv_a") == []
+
+    def test_foreground_started_not_tracked(self, bus, hub):
+        payload = _worker_payload(event="started", background=False)
+        bus.post(BusMessage(type="worker", source="test", payload=payload))
+        bus.poll()
+
+        assert hub._pending_workers.get("conv_a", set()) == set()
+
+    def test_foreground_waiting_not_queued(self, bus, hub):
+        """The caller relays the question via its tool result too."""
+        payload = _worker_payload(
+            event="waiting", background=False, question="Which db?",
+        )
+        bus.post(BusMessage(type="worker", source="test", payload=payload))
+        bus.poll()
+
+        assert not hub.has_pending("conv_a")
+
+    def test_background_completed_still_queued(self, bus, hub):
+        payload = _worker_payload(event="completed", background=True)
+        bus.post(BusMessage(type="worker", source="test", payload=payload))
+        bus.poll()
+
+        assert len(hub.drain("conv_a")) == 1
+
+
 class TestProactiveDeliveryConfig:
     def test_proactive_disabled_does_not_schedule_timer(self, bus):
         config = NotificationHubConfig(proactive_delivery=False)

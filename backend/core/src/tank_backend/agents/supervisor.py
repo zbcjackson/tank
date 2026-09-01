@@ -466,6 +466,9 @@ class WorkerSupervisor:
             "originating_conversation_id": run.originating_conversation_id,
             "originating_channel": run.originating_channel,
             "parent_msg_id": run.parent_msg_id,
+            # Foreground runs deliver inline to the caller — subscribers
+            # like NotificationHub must not report them a second time.
+            "background": run.background,
         }
         if result is not None:
             payload["status"] = result.status

@@ -148,6 +148,12 @@ class NotificationHub:
             return
         task_id = str(payload.get("task_id") or "")
 
+        # Foreground (blocking) workers hand their result straight back to
+        # the caller as a tool result — the main agent already reports it.
+        # Notifying here would surface the same content twice.
+        if not payload.get("background", True):
+            return
+
         # Track worker starts for cohort awareness
         if event == "started":
             with self._lock:
