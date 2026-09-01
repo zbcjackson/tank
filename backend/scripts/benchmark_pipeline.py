@@ -93,6 +93,75 @@ async def _stream_utterance(
     return voice_end_ms
 
 
+async def _collect(
+    ws: Any, t0: float, stall_timeout_s: float, drain_s: float,
+) -> dict[str, Any]:
+    """Receive and timestamp server frames until the turn goes quiet.
+
+    Runs concurrently with audio streaming so ``processing_started`` is
+    timestamped on arrival: with the previous recv-after-streaming order,
+    an endpoint firing mid-stream was only read (and dated) once the
+    injected silence window finished streaming, flooring ``endpoint_ms``
+    at that window. After ``processing_ended`` it keeps draining for
+    ``drain_s`` so trailing TTS chunks still count toward
+    ``last_audio_ms``.
+    """
+    first_text_ms: float | None = None
+    first_audio_ms: float | None = None
+    last_audio_ms: float | None = None
+    turn_end_ms: float | None = None
+    processing_started_ms: float | None = None
+    audio_chunks = 0
+    audio_bytes = 0
+    text_chars = 0
+
+    while True:
+        timeout = drain_s if turn_end_ms is not None else stall_timeout_s
+        try:
+            raw = await asyncio.wait_for(ws.recv(), timeout=timeout)
+        except asyncio.TimeoutError:
+            break  # stall (before end) or quiet drain window (after end)
+        now = asyncio.get_running_loop().time()
+        if isinstance(raw, bytes):
+            if first_audio_ms is None:
+                first_audio_ms = (now - t0) * 1000
+            last_audio_ms = (now - t0) * 1000
+            audio_chunks += 1
+            audio_bytes += len(raw)
+        else:
+            data = json.loads(raw)
+            msg_type = data.get("type")
+            if msg_type == "text":
+                if first_text_ms is None:
+                    first_text_ms = (now - t0) * 1000
+                text_chars += len(data.get("content", ""))
+            elif (
+                msg_type == "signal"
+                and data.get("content") == "processing_started"
+            ):
+                # First occurrence only: a speculative reopen re-emits the
+                # signal when the brain restarts, which would overstate the
+                # turn-taking latency this metric exists to capture.
+                if processing_started_ms is None:
+                    processing_started_ms = (now - t0) * 1000
+            elif (
+                msg_type == "signal"
+                and data.get("content") == "processing_ended"
+            ):
+                turn_end_ms = (now - t0) * 1000
+
+    return {
+        "first_text_ms": first_text_ms,
+        "first_audio_ms": first_audio_ms,
+        "last_audio_ms": last_audio_ms,
+        "turn_end_ms": turn_end_ms,
+        "processing_started_ms": processing_started_ms,
+        "audio_chunks": audio_chunks,
+        "audio_bytes": audio_bytes,
+        "text_chars": text_chars,
+    }
+
+
 async def run_round(
     base_url: str,
     prompt: str,
@@ -117,6 +186,7 @@ async def run_round(
         ready_ms = (asyncio.get_running_loop().time() - t_connect) * 1000
 
         t0 = asyncio.get_running_loop().time()
+        collect_task = asyncio.create_task(_collect(ws, t0, stall_timeout_s, drain_s))
         voice_end_ms: float | None = None
         if audio_pcm is not None:
             voice_end_ms = await _stream_utterance(
@@ -125,63 +195,25 @@ async def run_round(
         else:
             await ws.send(json.dumps({"type": "input", "content": prompt}))
 
-        first_text_ms: float | None = None
-        first_audio_ms: float | None = None
-        last_audio_ms: float | None = None
-        turn_end_ms: float | None = None
-        processing_started_ms: float | None = None
-        audio_chunks = 0
-        audio_bytes = 0
-        text_chars = 0
-
-        while True:
-            timeout = drain_s if turn_end_ms is not None else stall_timeout_s
-            try:
-                raw = await asyncio.wait_for(ws.recv(), timeout=timeout)
-            except asyncio.TimeoutError:
-                break  # stall (before end) or quiet drain window (after end)
-            now = asyncio.get_running_loop().time()
-            if isinstance(raw, bytes):
-                if first_audio_ms is None:
-                    first_audio_ms = (now - t0) * 1000
-                last_audio_ms = (now - t0) * 1000
-                audio_chunks += 1
-                audio_bytes += len(raw)
-            else:
-                data = json.loads(raw)
-                msg_type = data.get("type")
-                if msg_type == "text":
-                    if first_text_ms is None:
-                        first_text_ms = (now - t0) * 1000
-                    text_chars += len(data.get("content", ""))
-                elif (
-                    msg_type == "signal"
-                    and data.get("content") == "processing_started"
-                ):
-                    processing_started_ms = (now - t0) * 1000
-                elif (
-                    msg_type == "signal"
-                    and data.get("content") == "processing_ended"
-                ):
-                    turn_end_ms = (now - t0) * 1000
+        collected = await collect_task
 
     endpoint_ms = (
-        round(processing_started_ms - voice_end_ms, 1)
-        if processing_started_ms is not None and voice_end_ms is not None
+        round(collected["processing_started_ms"] - voice_end_ms, 1)
+        if collected["processing_started_ms"] is not None and voice_end_ms is not None
         else None
     )
     return {
         "session": session,
         "ready_ms": round(ready_ms, 1),
-        "first_text_ms": _round(first_text_ms),
-        "first_audio_ms": _round(first_audio_ms),
-        "last_audio_ms": _round(last_audio_ms),
-        "turn_end_ms": _round(turn_end_ms),
+        "first_text_ms": _round(collected["first_text_ms"]),
+        "first_audio_ms": _round(collected["first_audio_ms"]),
+        "last_audio_ms": _round(collected["last_audio_ms"]),
+        "turn_end_ms": _round(collected["turn_end_ms"]),
         "voice_end_ms": _round(voice_end_ms),
         "endpoint_ms": endpoint_ms,
-        "audio_chunks": audio_chunks,
-        "audio_bytes": audio_bytes,
-        "text_chars": text_chars,
+        "audio_chunks": collected["audio_chunks"],
+        "audio_bytes": collected["audio_bytes"],
+        "text_chars": collected["text_chars"],
     }
 
 
