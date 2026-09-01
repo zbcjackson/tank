@@ -296,6 +296,89 @@ class TestSentenceBatchStreaming:
         # Partial turn is still persisted (existing behavior)
         ctx.finish_turn.assert_called_once()
 
+    async def test_tool_boundary_speaks_held_sentences(self, bus):
+        """A lone sentence must be spoken before tools run, not held for
+        min_sentences company while a 16s tool phase passes in silence."""
+        class _ToolTurnAgent(Agent):
+            def __init__(self):
+                super().__init__("tools")
+
+            async def run(self, state):
+                yield AgentOutput(type=AgentOutputType.TOKEN,
+                                  content="我先看一下最近的新闻。",
+                                  metadata={"turn": 1})
+                yield AgentOutput(
+                    type=AgentOutputType.TOOL_CALLING, content="",
+                    metadata={"index": 0, "name": "web_search",
+                              "status": "calling"},
+                )
+                yield AgentOutput(
+                    type=AgentOutputType.TOOL_RESULT, content="...",
+                    metadata={"index": 0, "name": "web_search",
+                              "status": "success"},
+                )
+                yield AgentOutput(type=AgentOutputType.TOKEN,
+                                  content="最近一周的要点如下：第一条。第二条。",
+                                  metadata={"turn": 1})
+                yield AgentOutput(type=AgentOutputType.DONE)
+
+        graph = AgentGraph(
+            agents={"tools": _ToolTurnAgent()}, default_agent="tools",
+        )
+        brain = make_brain(
+            bus=bus, agent_graph=graph,
+            config=BrainConfig(stream_batch_sentences=2),
+        )
+
+        results = await _collect(brain, _make_event())
+
+        requests = [out for _status, out in results if out is not None]
+        # The interim sentence goes out at the tool boundary — before the
+        # post-tool sentences — instead of being fused with them.
+        assert [r.content for r in requests] == [
+            "我先看一下最近的新闻。",
+            "最近一周的要点如下：第一条。第二条。",
+        ]
+
+    async def test_tool_boundary_keeps_incomplete_tail(self, bus):
+        """An incomplete fragment at the tool boundary stays buffered and
+        joins the next batch — never spoken mid-sentence."""
+
+        class _ToolTurnAgent(Agent):
+            def __init__(self):
+                super().__init__("tools")
+
+            async def run(self, state):
+                yield AgentOutput(type=AgentOutputType.TOKEN,
+                                  content="让我查一下，稍等",
+                                  metadata={"turn": 1})
+                yield AgentOutput(
+                    type=AgentOutputType.TOOL_CALLING, content="",
+                    metadata={"index": 0, "name": "web_search",
+                              "status": "calling"},
+                )
+                yield AgentOutput(type=AgentOutputType.TOKEN,
+                                  content="，查到了。第一条在这里。",
+                                  metadata={"turn": 1})
+                yield AgentOutput(type=AgentOutputType.DONE)
+
+        graph = AgentGraph(
+            agents={"tools": _ToolTurnAgent()}, default_agent="tools",
+        )
+        brain = make_brain(
+            bus=bus, agent_graph=graph,
+            config=BrainConfig(stream_batch_sentences=2),
+        )
+
+        results = await _collect(brain, _make_event())
+
+        requests = [out for _status, out in results if out is not None]
+        # Fragment held through the tool phase; tail flush speaks it fused
+        # with the follow-up — batches reconstruct the full reply.
+        assert "".join(r.content for r in requests) == "让我查一下，稍等，查到了。第一条在这里。"
+        assert all("让我查一下，稍等，" not in r.content or r is requests[-1]
+                   for r in requests)
+
     async def test_finalize_runs_once_on_full_text(self, bus):
         tokens = [
             "第一句话在这里。", "第二句话也在这里。", "第三句话收尾。 ",

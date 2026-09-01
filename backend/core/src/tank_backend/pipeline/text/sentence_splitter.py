@@ -91,6 +91,24 @@ class SentenceBuffer:
             text = text[: fence_starts[-1]]
         return text.strip()
 
+    def flush_complete(self) -> str:
+        """Emit every complete sentence held so far, keeping the tail.
+
+        Used at turn pauses (the model stops to call a tool): a lone
+        sentence must not wait for ``min_sentences`` company while tools
+        run — potentially tens of seconds. Unlike :meth:`flush`, any
+        incomplete trailing fragment stays buffered so it can join the
+        next batch, and an unclosed fence still withholds its content.
+        """
+        self._buf = _IMAGE_RE.sub(" ", self._buf)
+        boundaries = _find_boundaries(self._buf)
+        if not boundaries:
+            return ""
+        cut = boundaries[-1]
+        text = self._buf[:cut].strip()
+        self._buf = self._buf[cut:]
+        return text
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------

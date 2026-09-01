@@ -205,6 +205,47 @@ class TestBatchingBehaviour:
         assert buf.drain_ready() == ["Solo."]
 
 
+class TestFlushComplete:
+    """flush_complete() — speak held sentences at tool boundaries (P0-5)."""
+
+    def test_releases_complete_sentences_below_min(self):
+        """A lone sentence must not wait for min_sentences company while
+        tools run — it is speakable the moment the model pauses to call
+        a tool."""
+        buf = SentenceBuffer(min_sentences=2)
+        buf.feed("我先看一下最近的新闻。")
+
+        assert buf.flush_complete() == "我先看一下最近的新闻。"
+        assert buf.flush() == ""
+
+    def test_keeps_incomplete_tail(self):
+        buf = SentenceBuffer(min_sentences=2)
+        buf.feed("第一句在这里。第二句还没有说完")
+
+        assert buf.flush_complete() == "第一句在这里。"
+        assert buf.flush() == "第二句还没有说完"
+
+    def test_no_complete_sentence_returns_empty(self):
+        buf = SentenceBuffer(min_sentences=2)
+        buf.feed("还没说完的一句")
+
+        assert buf.flush_complete() == ""
+        # Held content is untouched — the turn-end flush still speaks it
+        assert buf.flush() == "还没说完的一句"
+
+    def test_empty_buffer_returns_empty(self):
+        buf = SentenceBuffer(min_sentences=2)
+        assert buf.flush_complete() == ""
+
+    def test_unclosed_fence_withheld(self):
+        """Everything from an unclosed fence opener stays withheld."""
+        buf = SentenceBuffer(min_sentences=2)
+        buf.feed("先说一句。 ```python\ncode_line()")
+
+        assert buf.flush_complete() == "先说一句。"
+        assert buf.flush() == ""
+
+
 class TestMarkdownEmphasis:
     def test_emphasis_within_sentence_not_split(self):
         """Bold spanning words inside one sentence stays in one batch."""

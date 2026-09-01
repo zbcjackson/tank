@@ -901,6 +901,27 @@ class Brain(Processor):
                                 msg_id=msg_id,
                             )
 
+                elif output.type == AgentOutputType.TOOL_CALLING and self._tts_enabled:
+                    # Tool boundary: the model paused to call a tool. Speak
+                    # whatever complete sentences are held — a lone interim
+                    # sentence would otherwise wait for min_sentences
+                    # company while tools run (tens of seconds of silence
+                    # after its text is already on screen). An incomplete
+                    # tail stays buffered for the next batch.
+                    held = sentence_buf.flush_complete()
+                    if held:
+                        if spoken_language is None:
+                            spoken_language = detect_language(
+                                held,
+                                candidates=self._languages,
+                                preferred=preferred,
+                            ).language
+                        yield AudioOutputRequest(
+                            content=held,
+                            language=spoken_language,
+                            msg_id=msg_id,
+                        )
+
             # Finalize UI block
             self._bus.post(BusMessage(
                 type="ui_message",
