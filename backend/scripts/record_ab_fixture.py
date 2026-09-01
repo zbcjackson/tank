@@ -75,7 +75,12 @@ def cut_like_fixtures(pcm: np.ndarray) -> tuple[np.ndarray, str]:
     rms = np.array([
         float(np.sqrt((pcm[i * win:(i + 1) * win] ** 2).mean())) for i in range(n)
     ])
-    loud = np.where(rms > THRESH)[0]
+    # Adaptive speech threshold: room noise (this VM's mic idles at
+    # rms ~0.006) must read as silence or no pause is ever found, so
+    # scale from the quietest 10% of windows, floored at the TTS-set
+    # threshold for already-clean recordings.
+    thresh = max(THRESH, float(np.percentile(rms, 10)) * 3.0)
+    loud = np.where(rms > thresh)[0]
     if not len(loud):
         raise SystemExit("no speech detected in the clip (all windows below threshold)")
     start, end = loud[0] * win, (loud[-1] + 1) * win
@@ -85,9 +90,9 @@ def cut_like_fixtures(pcm: np.ndarray) -> tuple[np.ndarray, str]:
     lo, hi = start + int(SR * 0.3), end - int(SR * 0.3)
     i = lo // win
     while i * win < hi:
-        if rms[i] <= THRESH:
+        if rms[i] <= thresh:
             j = i
-            while j < len(rms) and rms[j] <= THRESH:
+            while j < len(rms) and rms[j] <= thresh:
                 j += 1
             if (j - i) * win >= pause:
                 cut = min(i * win + tail, end)
