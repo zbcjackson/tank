@@ -43,17 +43,25 @@ class ThreadedQueue:
         self._next_queue = next_queue
 
     def push(self, item: Any) -> FlowReturn:
-        """Push an item into the queue. Blocks if full (backpressure)."""
-        if self._stop_event.is_set():
-            return FlowReturn.EOS
-        if self._blocked.is_set():
-            return FlowReturn.FLUSHING
-        try:
-            self._queue.put(item, timeout=1.0)
-            return FlowReturn.OK
-        except queue.Full:
-            logger.warning("Queue %s full — backpressure", self.name)
-            return FlowReturn.ERROR
+        """Push an item into the queue. Blocks if full (backpressure).
+
+        Re-checks stop/block flags once per second while waiting, so a
+        session teardown or dynamic swap still releases the producer —
+        items are never silently dropped.
+        """
+        warned = False
+        while True:
+            if self._stop_event.is_set():
+                return FlowReturn.EOS
+            if self._blocked.is_set():
+                return FlowReturn.FLUSHING
+            try:
+                self._queue.put(item, timeout=1.0)
+                return FlowReturn.OK
+            except queue.Full:
+                if not warned:
+                    logger.warning("Queue %s full — backpressure", self.name)
+                    warned = True
 
     def start(self) -> None:
         """Start the consumer thread."""
