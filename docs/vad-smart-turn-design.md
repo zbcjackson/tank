@@ -329,7 +329,13 @@ flush 终结的 turn:`arm_reopen=False`(§5.3),不发 reopen 窗口。
 
 ## 10. 已知限制与后续方向
 
-1. **中文未验证**:smart-turn-v3 以英文训练为主;上线前应以中文音频做 A/B(基准脚本 + 人工评测),劣化则 `enabled: false`(设计上保证降级无损)。
+1. **中文质量 A/B 已完成(2026-09-01,TTS 合成夹具,离线评测 `scripts/eval_smart_turn.py` + `scripts/smart_turn_ab/`)**:
+   - zh:误断率 **3/6**(误判的全部是"内容听起来像完整祈使句"的从句——"帮我查一下明天的天气,"/“如果明天下雨的话,”,P 0.94-0.99),过度扣留 0/6;en 控制组 1/4(同一失败模式)。
+   - **阈值扫描:中文两类概率分布重叠**(误判 incomplete 得分 0.94-0.99,判对 complete 0.58-0.98),无可用工作点——threshold 0.99 才清零误断,但 6/6 complete 全部过度扣留(每轮 +600ms);en 在 threshold 0.95 有零误断零扣留的工作点。
+   - 缓解:生产中误断多数被 800ms reopen 窗口挽救(停顿内续说即合并),实际伤害集中于"停顿 >800ms 后续说"的场景;基线对比——纯静音策略对任何 ≥ 静音阈值的停顿误断 100%,Smart Turn 仍减半。
+   - 结论:保持 `enabled: true` 观察,暂不调阈值;若实测不能接受则对中文会话 `enabled: false`(降级无损)。**待办**:人工真录音补测(TTS 无法复现真实犹豫韵律),样本收入 `scripts/smart_turn_ab/`。
 2. **候选边界实际 ~350ms**:250ms 配置 + Silero 时间戳 ~100ms 滞后。若要再压,需换更细粒度的边界信号,收益/复杂度比当前不高。
 3. **reopen 只覆盖 VAD 域**:文本输入、PTT 显式结束不存在 reopen(前者无 VAD,后者是明确意图——by design)。
 4. **每个语音起点重算 reopen 判定**:惰性过期无定时器,换来的是 reopen 五元组在无人续说时多驻留最多 800ms 的 PCM(整段 utterance 引用),内存占用有界且随下一次语音释放。
+5. **提交后残留 reopen(2026-09-01 基准测量中发现)**:快速裁决路径(首个候选即 complete → 立即提交)提交后 ~30ms,Silero 时序平滑残留仍过阈值,VADStream 误判为新语音 → 幻影 reopen → 整段重转写(云端 ASR 下多付 ~2s)。中文因 incomplete 600ms hold 让残留衰减而幸免——语言相关的偶然免疫,非设计保证。候选修复:提交时复位 Silero 状态/加提交后冷却窗。
+6. **断句延迟数字依赖 ASR 引擎**:测量时 ASR 插槽为 ElevenLabs 云端,每段提交 ~1.1s flush 延迟且偶发 `commit did not flush in time`;切回本地 sherpa 后数字会不同,对比时应固定引擎。
