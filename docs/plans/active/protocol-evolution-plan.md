@@ -1,6 +1,6 @@
 # Tank 私有协议演进计划（Protocol Evolution Plan）
 
-> 状态：P0-1 实施中（2026-09-02）。P0-2 / P1-x 未开始。
+> 状态：P0-1 已落地（2026-09-02）。P0-2 / P1-x 未开始。
 > 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](../done/s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
 > 触发背景：Tank 将来要远程部署在服务器上，连接远程操控的机器人和客户端。远程化对协议提出三个硬前提——认证、弱网韧性、可演进性——当前协议一项都不具备。
 > 本文所有代码事实均核对自实际代码（文件行号见引用）。
@@ -277,6 +277,13 @@ backend/contracts/tank_protocol/
 **P0-1 非目标**：UpdateType 线上格式 `UpdateType.THOUGHT` 保持原样（行为零变化）；`cli/src/tank_cli/audio/frame.py` 对 tank_contracts codec 的手抄保留（CLI 已具备 path 依赖基建，后续顺手项）；device `platformio.ini` 的 magic build flags 不改为生成。
 
 **Commit 顺序**：① `:sparkles:` 包 + 接线 → ② `:recycle:` backend 收拢 → ③ `:recycle:` cli 切换 → ④ `:sparkles:` web 生成 → ⑤ `:white_check_mark:` device golden → ⑥ `:memo:`+`:white_check_mark:` 文档与同步脚本。
+
+**落地记录（2026-09-02）**：六个 commit 全部落地；全量验证清单通过（后端 3284 测试、cli 24、web 142 + E2E 10 场景、device native 86、sync 脚本双向验证）。补充事实与偏差：
+
+- 嵌套 workspace 成员（`contracts/tank_protocol`）uv 实测可用；gotcha：`tank-contracts` 的 editable 安装把 `backend/contracts/` 放上 sys.path，新建 `tank_protocol/` 目录到 `uv sync` 之间的窗口内它会被当成无内容 namespace 包遮蔽真包——在这个窗口里 dev server 的 reload worker 会 ImportError，重跑 `scripts/dev.sh` 即恢复。
+- golden frames 立即抓到一个真实固件缺陷：`WsMessage.type[20]` 装不下 `channel_notification`（20 字符）与 `conversation_metadata_updated`（29 字符），已扩为 32 字节（两类型本就不参与设备路由，行为仍是忽略，只是从"截断巧合"变成"完整字符串"）。
+- web 生成接口用 schema 后处理对齐旧手写接口：strip pydantic 逐字段 title（避免垃圾别名）、信封必填 `type/content/is_user/is_final/metadata`、attachment 四字段全必填——依据是"服务端每帧全量序列化、null 显式"这一 wire 事实。
+- 验收标准 2 演练通过：把 `msg_id` 临时改为 `int | None` 后，cli 测试即红、web `tsc -b` 即报错。
 
 ### P0-2 认证（独立可先行）
 
