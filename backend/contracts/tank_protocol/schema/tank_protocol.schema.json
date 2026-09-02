@@ -20,16 +20,13 @@
       "properties": {
         "kind": {
           "default": "image",
-          "title": "Kind",
           "type": "string"
         },
         "url": {
-          "title": "Url",
           "type": "string"
         },
         "mime_type": {
           "default": "image/jpeg",
-          "title": "Mime Type",
           "type": "string"
         },
         "caption": {
@@ -41,12 +38,14 @@
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Caption"
+          "default": null
         }
       },
       "required": [
-        "url"
+        "kind",
+        "url",
+        "mime_type",
+        "caption"
       ],
       "title": "WebsocketAttachment",
       "type": "object"
@@ -59,7 +58,6 @@
     },
     "content": {
       "default": "",
-      "title": "Content",
       "type": "string"
     },
     "speaker": {
@@ -71,17 +69,14 @@
           "type": "null"
         }
       ],
-      "default": null,
-      "title": "Speaker"
+      "default": null
     },
     "is_user": {
       "default": false,
-      "title": "Is User",
       "type": "boolean"
     },
     "is_final": {
       "default": false,
-      "title": "Is Final",
       "type": "boolean"
     },
     "msg_id": {
@@ -93,8 +88,7 @@
           "type": "null"
         }
       ],
-      "default": null,
-      "title": "Msg Id"
+      "default": null
     },
     "session_id": {
       "anyOf": [
@@ -105,24 +99,25 @@
           "type": "null"
         }
       ],
-      "default": null,
-      "title": "Session Id"
+      "default": null
     },
     "metadata": {
       "additionalProperties": true,
-      "title": "Metadata",
       "type": "object"
     },
     "attachments": {
       "items": {
         "$ref": "#/$defs/WebsocketAttachment"
       },
-      "title": "Attachments",
       "type": "array"
     }
   },
   "required": [
-    "type"
+    "type",
+    "content",
+    "is_user",
+    "is_final",
+    "metadata"
   ],
   "title": "WebsocketMessage",
   "type": "object",
@@ -156,7 +151,9 @@
         "session_id",
         "speaker"
       ],
-      "metadata": []
+      "metadata": [
+        "step_id"
+      ]
     },
     "text": {
       "envelope": [
@@ -168,7 +165,10 @@
         "session_id",
         "speaker"
       ],
-      "metadata": []
+      "metadata": [
+        "step_id",
+        "turn"
+      ]
     },
     "update": {
       "envelope": [

@@ -13,6 +13,8 @@ const audioProcessorInstance = {
   disableWakeWord: vi.fn().mockResolvedValue(undefined),
   enableWakeWord: vi.fn().mockResolvedValue(undefined),
   start: vi.fn().mockResolvedValue(undefined),
+  // Reported to the backend via the audio_format signal after start().
+  getSampleRate: vi.fn().mockReturnValue(16000),
   stop: vi.fn(),
   setPlatformAdapter: vi.fn(),
 };

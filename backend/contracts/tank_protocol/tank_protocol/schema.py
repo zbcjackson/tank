@@ -46,6 +46,25 @@ __all__ = [
 ]
 
 
+def _strip_field_titles(node: Any) -> None:
+    """Drop per-field ``title`` keys so downstream code generators inline
+    primitives instead of emitting one named alias per envelope field."""
+    if isinstance(node, dict):
+        node.pop("title", None)
+        for value in node.values():
+            _strip_field_titles(value)
+    elif isinstance(node, list):
+        for item in node:
+            _strip_field_titles(item)
+
+
+# Wire truth the raw pydantic schema cannot express: the server serializes
+# every defaulted field on every frame (explicit ``null`` for unset
+# optionals), and clients rely on these five always being present. The
+# remaining fields stay optional/nullable — clients tolerate their absence.
+_WIRE_REQUIRED = ["type", "content", "is_user", "is_final", "metadata"]
+
+
 def build_schema_document() -> dict[str, Any]:
     """The committed JSON Schema document.
 
@@ -53,6 +72,17 @@ def build_schema_document() -> dict[str, Any]:
     ``x-tank-*`` keys carry the payload field sets for human/CI reference.
     """
     doc = WebsocketMessage.model_json_schema()
+    for props in (
+        doc.get("properties", {}),
+        *(d.get("properties", {}) for d in doc.get("$defs", {}).values()),
+    ):
+        _strip_field_titles(props)
+    doc["required"] = list(_WIRE_REQUIRED)
+    # Same wire truth for the nested attachment object: every field is
+    # serialized, so clients see kind/mime_type/caption on each item.
+    attachment_def = doc.get("$defs", {}).get("WebsocketAttachment")
+    if attachment_def is not None:
+        attachment_def["required"] = ["kind", "url", "mime_type", "caption"]
     doc["x-tank-version"] = __version__
     doc["x-tank-payload-fields"] = {
         msg_type.value: {

@@ -1,4 +1,13 @@
-export type MessageType = 'signal' | 'transcript' | 'text' | 'update' | 'input' | 'approval_response' | 'channel_notification' | 'attachment' | 'conversation_metadata_updated';
+// Wire contract types are generated from the tank_protocol package
+// (backend/contracts/tank_protocol) — the single source of truth.
+// Regenerate with `pnpm generate:protocol`; do not edit by hand.
+import type { MessageType, WebsocketMessage } from '../types/protocol';
+
+export type {
+  MessageType,
+  WebsocketAttachment,
+  WebsocketMessage,
+} from '../types/protocol';
 
 export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'failed';
 
@@ -16,37 +25,6 @@ export interface ConnectionMetadata {
   nextRetryIn?: number; // milliseconds
   error?: string;
   errorType?: ErrorType;
-}
-
-/**
- * Phase 17: one assistant-sent media item carried on an
- * ``attachment`` frame. The wire shape mirrors backend
- * ``WebsocketAttachment`` (api/schemas.py).
- *
- * ``url`` is always something the browser can fetch directly:
- * - ``media://`` URIs are rewritten to ``/api/media/<session>/<file>``
- *   server-side before the frame is sent.
- * - ``http(s)://`` URLs (from tools that already have a public URL —
- *   ``echo_image`` is the first such tool) pass through unchanged.
- */
-export interface WebsocketAttachment {
-  kind: 'image';
-  url: string;
-  mime_type: string;
-  caption: string | null;
-}
-
-export interface WebsocketMessage {
-  type: MessageType;
-  content: string;
-  speaker?: string;
-  is_user: boolean;
-  is_final: boolean;
-  msg_id?: string;
-  session_id?: string;
-  metadata: Record<string, unknown>;
-  // Empty for every frame except ``attachment``.
-  attachments?: WebsocketAttachment[];
 }
 
 export class VoiceAssistantClient {
