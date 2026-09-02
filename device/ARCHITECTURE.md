@@ -81,7 +81,12 @@ Follows the same protocol as web/CLI clients:
 
 **Server → Client:**
 - Binary: 8-byte header (magic 0x544B + sample_rate + channels) + Int16 PCM
-- JSON: signal, transcript, text, update, error messages
+- JSON: the shared envelope (`tank_protocol` package); the firmware routes
+  `signal`, `transcript`, `text`, and `update` types and ignores the rest
+  (`attachment`, `channel_notification`, `conversation_metadata_updated`).
+  Errors arrive as `signal` frames with `content:"error"`. Golden-frame
+  fixtures for all eight outbound types live in the native test suite
+  (`test_native/test_ws_message/golden_frames.h`).
 
 ## State Machine
 

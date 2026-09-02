@@ -122,9 +122,15 @@ The backend URL defaults to `localhost:8000`. To point at a different server, ed
 
 ### Add a New Message Type
 
-1. Add the new type to `MessageType` in `services/websocket.ts`
-2. Handle it in `handleMessage` inside `hooks/useAssistant.ts`
-3. Add a renderer in `components/Assistant/MessageStep.tsx`
+Protocol types are generated — do not edit `src/types/protocol.ts` by hand.
+
+1. Extend `MessageType` in `backend/contracts/tank_protocol/` (enums,
+   envelope, payload field sets; see the package README's evolution rules)
+2. Regenerate artifacts and verify sync:
+   `python -m tank_protocol.schema ...` + `pnpm generate:protocol` +
+   `python3 scripts/check_protocol_sync.py` (from the repo root)
+3. Handle it in `handleMessage` inside `hooks/useAssistant.ts`
+4. Add a renderer in `components/Assistant/MessageStep.tsx`
 
 ## Troubleshooting
 

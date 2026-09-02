@@ -431,8 +431,11 @@ backend/
 │   │   ├── observability/         # Langfuse tracing
 │   │   └── core/                  # Assistant orchestrator, events, runtime
 │   └── tests/                     # Core test suite
-├── contracts/                     # tank_contracts — engine interface ABCs
-│   └── tank_contracts/            #   (ASR, TTS, speaker, connector SDK)
+├── contracts/                     # uv workspace contract packages (zero backend deps)
+│   ├── tank_contracts/            # tank-contracts — plugin engine SDK
+│   │                              #   (ASR/TTS/speaker/connector ABCs, audio frame codec)
+│   └── tank_protocol/             # tank-protocol — client wire contract
+│                                  #   (envelope, factories, schema + golden-frame codegen)
 └── plugins/                       # One package per plugin, own tests
     ├── asr-sherpa/ asr-elevenlabs/ asr-funasr/ …
     ├── tts-edge/ tts-cartesia/ tts-cosyvoice/ …
@@ -442,24 +445,47 @@ backend/
 
 ## API Protocol
 
-### WebSocket Message Types
+> The wire contract is machine-checked: `contracts/tank_protocol/` is the
+> single source of truth for the JSON envelope (models + constructor
+> factories + per-type payload field sets), and
+> `python3 scripts/check_protocol_sync.py` fails whenever the generated web
+> TS types (`web/src/types/protocol.ts`) or device golden-frame fixtures
+> drift from it.
 
-**Client → Server**:
-```json
-{"type": "audio", "data": "<base64>", "sample_rate": 16000}
-{"type": "input", "content": "user message"}
-{"type": "interrupt"}
-```
+### WebSocket Frames
 
-**Server → Client**:
-```json
-{"type": "audio", "data": "<base64>"}
-{"type": "text", "content": "...", "msg_id": "...", "metadata": {...}}
-{"type": "signal", "content": "ready|processing_started|processing_ended"}
-{"type": "transcript", "content": "...", "is_user": true}
-{"type": "update", "metadata": {"update_type": "THOUGHT|TOOL_CALL|TOOL_RESULT|APPROVAL_NEEDED"}}
-{"type": "error", "message": "error description"}
-```
+Two frame kinds:
+
+- **Binary** — audio only. Client → server: headerless raw Int16 PCM at any
+  sample rate / channel count; the server downmixes and resamples to the
+  pipeline rate (`router.py` binary branch). Server → client: an 8-byte
+  little-endian header (`<HIH`: magic `0x544B`, sample rate, channels)
+  followed by Int16 PCM, encoded by `encode_audio_frame` from
+  `tank_contracts`.
+- **JSON text** — the protocol envelope `{type, content, speaker, is_user,
+  is_final, msg_id, session_id, metadata, attachments}`. Every field is
+  serialized on every frame (explicit `null` for unset optionals); unknown
+  types and fields must be warn-and-ignored by clients (evolution rule in
+  the `tank_protocol` README).
+
+**Client → Server message types** (`tank_protocol.MessageType`):
+
+| type | semantics |
+|------|-----------|
+| `signal` | `interrupt` / `wake` / `end_of_utterance` / `disconnect` / `idle` / `audio_format` / `ping` / `resume_conversation` / `new_conversation` / `subscribe_channels` / `unsubscribe_channels` / `stop_channel_audio` — dispatched via the `@register` registry (`api/signal_handlers.py`); unknown signals are logged and ignored |
+| `input` | typed text input; `metadata` may carry `user_id` and `attachments` (uploaded media refs) |
+
+**Server → Client message types**:
+
+| type | semantics |
+|------|-----------|
+| `signal` | `ready` / `processing_started` / `processing_ended` / `speech_detected` / `recognition_failed` / `error` / `conversation_ready` / `pong` / conversation and channel lifecycle |
+| `transcript` | ASR result; `msg_id` supports in-place revision (turn reopen) |
+| `text` | streamed LLM token; positioned by `msg_id` + `metadata.turn` |
+| `update` | thinking / tool / approval / worker activity; `metadata.update_type` is `UpdateType.THOUGHT\|TEXT\|TOOL\|APPROVAL` or `ACTIVITY.TOOL\|ACTIVITY.WORKER_ACTIVITY` |
+| `attachment` | assistant-sent media (images); `attachments[]` carries directly fetchable URLs |
+| `channel_notification` | channel push (job deliveries etc.); broadcast, no session scope |
+| `conversation_metadata_updated` | title etc.; scoped to the matching conversation |
 
 ### REST API
 

@@ -168,6 +168,7 @@ Run ALL of these every time you finish a task. Do not skip any step.
    The dev server is started via `scripts/dev.sh` (tmux session "tank"). After changes, uvicorn auto-reloads. Empty output means no errors (pass). If the grep returns nothing, that is a pass — do not retry. If it returns errors, fix them.
 8. `cd test && pnpm test` — E2E cucumber tests (14 scenarios, requires backend + frontend running)
 9. `python3 scripts/check_docs.py` — Docs consistency: doc links resolve, kebab-case naming, plan status lines, `docs/README.md` index coverage. Must pass after any change under `docs/` or to doc references in code.
+10. `python3 scripts/check_protocol_sync.py` — Protocol artifact consistency: the JSON Schema, device golden frames, and generated web TS types match the `backend/contracts/tank_protocol` package. Must pass after any change to the protocol contract or its generated artifacts.
 
 Steps 7 and 8 are critical. Unit tests mock most dependencies, so they miss runtime errors like calling `.get()` on a dataclass or passing the wrong type to a constructor. The dev server and E2E tests exercise the full stack with real objects. If any step shows errors, fix them before considering the task done.
 
