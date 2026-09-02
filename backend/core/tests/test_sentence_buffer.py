@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tank_backend.pipeline.text.sentence_splitter import SentenceBuffer
+from tank_backend.pipeline.text.sentence_buffer import SentenceBuffer
 
 
 def feed_by_token(buf: SentenceBuffer, text: str) -> list[str]:

@@ -198,7 +198,7 @@ async for output in gen:
 
 | # | 任务 | 文件 | 说明 |
 |---|---|---|---|
-| 1 | 分句器 `SentenceBuffer` | `core/src/tank_backend/pipeline/text/sentence_splitter.py`（新） | 纯函数模块：中文标点 `。！？；…` 直切；英文 `.!?` 切并排除小数/缩写；代码块扣留；URL 内不切；`feed(token) → drain_ready() / flush()` 接口 |
+| 1 | 分句器 `SentenceBuffer` | `core/src/tank_backend/pipeline/text/sentence_buffer.py`（新） | 纯函数模块：中文标点 `。！？；…` 直切；英文 `.!?` 切并排除小数/缩写；代码块扣留；URL 内不切；`feed(token) → drain_ready() / flush()` 接口 |
 | 2 | `AudioOutputRequest` 加 `msg_id` | `core/events.py:9` | 现有 `content/language/voice` 不动，新增可选字段默认 None，向后兼容 |
 | 3 | Brain 流式改造 | `brain.py:825-975` | 按上方目标形态；finalize/outbound_voice/图片抽取仍在循环后对全文 |
 | 4 | normalizer 裸 URL 规则 | `tts_normalizer.py` | 独立 commit（修现状缺陷）；空批兜底已有 |
