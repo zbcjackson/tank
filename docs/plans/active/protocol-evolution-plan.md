@@ -1,6 +1,6 @@
 # Tank 私有协议演进计划（Protocol Evolution Plan）
 
-> 状态：已起草，未开始实施。
+> 状态：P0-1 实施中（2026-09-02）。P0-2 / P1-x 未开始。
 > 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](../done/s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
 > 触发背景：Tank 将来要远程部署在服务器上，连接远程操控的机器人和客户端。远程化对协议提出三个硬前提——认证、弱网韧性、可演进性——当前协议一项都不具备。
 > 本文所有代码事实均核对自实际代码（文件行号见引用）。
@@ -210,16 +210,100 @@ W1 + W2 是同一根因：**契约只存在于四处手写副本 + 过时文档�
 
 ---
 
-## 7. 实施阶段（建议 commit 顺序）
+## 7. 实施阶段
 
-| # | 阶段 | 内容 | 规模 |
-|---|---|---|---|
-| P0-1 | 契约包抽取 | 新建 `backend/contracts/tank_protocol`（枚举/信封/payload 模型/构造工厂/Schema 导出）；backend 20 处构造点改走工厂；删除 `cli/src/tank_cli/schemas.py` 改依赖包；web TS 类型生成 + CI 校验；device golden frames；修正 `backend/ARCHITECTURE.md` 音频帧描述 | 最大，但纯重构、行为零变化 |
-| P0-2 | 认证 | token 校验 + 配置项 + 断连处理 | 小 |
-| P1-1 | 握手/版本/能力 | `ready` 携带 protocol/capabilities；客户端声明机制 | 小 |
-| P1-2 | Opus 协商 | 服务端编解码 + web/cli 编码 + device 实测（内存/CPU 预算定案后） | 中，device 侧风险最高 |
-| P1-3 | 热配置 + 注入 | `config` 类型 + 上下文注入 + 管线热应用 | 中 |
-| P2 | 按触发条件 | WebRTC / Resume / Realtime 端点（§6） | 条件触发 |
+> 2026-09-02 细化为文件级步骤（代码事实逐一核实，行号以核实日为准）。每步完成即 commit（gitmoji shortcode），并跑 §10 验证清单。
+
+### 事实基线（P0-1 开工前核实）
+
+- 信封：`backend/core/src/tank_backend/api/schemas.py`（56 行）= `MessageType`（8 值）+ `WebsocketAttachment` + `WebsocketMessage`（9 字段）。
+- 出向构造 **18 处**：`api/router.py` 8、`api/signal_handlers.py` 8、`channels/audio_service.py` 2、`jobs/delivery.py` 1；全部经 `model_dump_json()` 上 wire。入向解析 1 处（`router.py:596`）。
+- cli 手抄副本 `cli/src/tank_cli/schemas.py`（31 行）仅 4 个消费文件；web 手写 TS 镜像在 `web/src/services/websocket.ts:1-50`（`'approval_response'` 为死类型）；device `WsProtocol.cpp` 解析 5 字段、native fixture 内嵌源码。
+- workspace：`backend/pyproject.toml` members=`["core","contracts","plugins/*"]`；tank-contracts 为扁平布局（零依赖、hatchling）；cli 是独立 uv 项目。
+- 仓库无活跃 CI（backend-ci.yml 仅手动 dispatch）→「CI 校验」落地为本地检查脚本 + 验证清单步骤。
+
+### P0-1 契约包抽取（纯重构、行为零变化）
+
+**Step 1 — 新建 `backend/contracts/tank_protocol/`（嵌套 workspace 成员，§11.1 倾向落地）**
+
+```
+backend/contracts/tank_protocol/
+├── pyproject.toml        # name="tank-protocol", version="0.1.0", deps=["pydantic>=2.0"],
+│                         #   hatchling, dev 组 pytest
+├── README.md             # §5.5 演进规则成文
+└── tank_protocol/
+    ├── __init__.py       # re-export + __version__（协议版本单一来源，P1-1 消费）
+    ├── enums.py          # MessageType 8 值逐字照抄
+    ├── envelope.py       # WebsocketAttachment + WebsocketMessage 字段/默认值逐字照抄
+    ├── payloads.py       # 每类型合法字段集声明 + validate_envelope() → 违规列表
+    │                     #   （wire 仍宽松，违反仅告警——§4.3 扁平袋缓解）
+    ├── factories.py      # 按类型构造工厂（signal/transcript/text/update/attachment/
+    │                     #   channel_notification/conversation_metadata_updated），仅原语参数
+    ├── schema.py         # build_json_schema() + `python -m tank_protocol.schema <out>`
+    │                     #   生成 schema.json 与 device golden_frames.h
+    └── tests/            # round-trip / 字段集合法性 / 工厂快照 / 生成稳定性
+```
+
+接线：`backend/pyproject.toml` members 增加 `"contracts/tank_protocol"`；`uv lock` 验证嵌套成员（若 uv 报错，回退平级成员 `backend/protocol/`，其余步骤不变）。
+
+**Step 2 — backend 构造点收拢（修 W7），删除 `api/schemas.py`**
+
+- `backend/core/pyproject.toml` 依赖加 `"tank-protocol"` + `[tool.uv.sources]`（仿 tank-contracts）。
+- 4 个 import 点改 `from tank_protocol import ...`：`api/router.py`、`api/signal_handlers.py`、`jobs/delivery.py`、`channels/audio_service.py`；18 处构造逐个改走工厂；`DisplayMessage→ws_msg` 映射逻辑留在 backend。
+- 同步改 3 个测试文件 import（test_signal_handlers / test_websocket_attachment_frame / test_worker_live_push）。
+- 安全网：新增 `backend/core/tests/test_protocol_wire_compat.py`，把 18 处现存构造的 wire dict 冻结为期望值，逐工厂断言 `model_dump()` 相等。
+
+**Step 3 — cli 删除手抄 schema（修 W2）**
+
+- `cli/pyproject.toml`：dependencies 加 `tank-protocol`，`[tool.uv.sources]` 用 path 依赖 `../backend/contracts/tank_protocol`（editable）。
+- 删除 `cli/src/tank_cli/schemas.py`；4 个消费点改 import；新增喂 `speaker`+`attachments` 帧的测试（原副本会丢字段）。
+
+**Step 4 — web TS 类型生成（§11.4 倾向落地：生成物入库）**
+
+- web devDep `json-schema-to-typescript` + script `generate:protocol`（从入库的 `schema/tank_protocol.schema.json` 生成 `web/src/types/protocol.ts`）。
+- `websocket.ts` 删除手写三类型，改 re-export（消费方零改动）；`'approval_response'` 死类型随之消失。
+
+**Step 5 — device golden frames**
+
+- `python -m tank_protocol.schema` 生成 `device/test/test_native/test_ws_message/golden_frames.h`（每出向类型一条真实 wire JSON + 一条含未知字段帧，内嵌头文件）。
+- `test_ws_message.cpp` 增用例：每条 golden frame 解析后字段完整；未知字段帧解析不失败。
+
+**Step 6 — 同步检查 + 文档修正（修 W1）**
+
+- 新增 `scripts/check_protocol_sync.py`（仿 check_docs.py）：重生成三份生成物与入库版本 diff；校验 `__version__` 三处一致；失配非零退出。
+- `backend/ARCHITECTURE.md` 协议章节修正：入向音频=纯二进制 Int16 PCM（无信封、服务端重采样/downmix 适配）；下行=8 字节头（magic 0x544B）；update_type 线上取值=`UpdateType.THOUGHT|TEXT|TOOL|APPROVAL|MESSAGE|USAGE`；删除不存在的 `{"type":"error"}` JSON 帧（错误走 `signal: error`）；目录结构补 tank_protocol。
+- CLAUDE.md 验证清单加第 10 步：`python3 scripts/check_protocol_sync.py`。
+
+**P0-1 非目标**：UpdateType 线上格式 `UpdateType.THOUGHT` 保持原样（行为零变化）；`cli/src/tank_cli/audio/frame.py` 对 tank_contracts codec 的手抄保留（CLI 已具备 path 依赖基建，后续顺手项）；device `platformio.ini` 的 magic build flags 不改为生成。
+
+**Commit 顺序**：① `:sparkles:` 包 + 接线 → ② `:recycle:` backend 收拢 → ③ `:recycle:` cli 切换 → ④ `:sparkles:` web 生成 → ⑤ `:white_check_mark:` device golden → ⑥ `:memo:`+`:white_check_mark:` 文档与同步脚本。
+
+### P0-2 认证（独立可先行）
+
+- 配置：`config/models.py` 新增 frozen dataclass `AuthConfig`（`token: str = ""`，YAML 里 `${TANK_WS_TOKEN:-}`；`require: bool = false`），`AppConfig` 注册字段 + `from_raw_dict` 接线 + `config.yaml` 注释示例（三处插入点见 `config/app_config.py` 现有模式）。
+- 校验：`websocket_endpoint` 在 accept 前读 `websocket.query_params.get("token")`，`hmac.compare_digest` 比对；`require=true` 时缺失/不符即拒（close 1008）；`require=false` 时无 token 放行（LAN 兼容），带了但错仍拒。
+- Tests：有效/无效/缺失 × require 开/关。
+
+### P1-1 握手/版本/能力
+
+- `ready` 帧 metadata 增加 `protocol_version`（= `tank_protocol.__version__`；用字符串取代 §5.1 草案的 int，包版本即单一来源）与 `capabilities: list[str]`（随各阶段落地逐个点亮：opus/resume/config）。
+- 新 signal `capabilities`（`@register` 零改动扩展）：`metadata.enable` 存入连接级能力集。
+- 旧客户端不发声明帧 = 现行为。Tests：ready 帧携带字段；无声明行为不变。
+
+### P1-2 Opus 协商（开工前置：码率/复杂度起点、device 内存实测定案）
+
+- tank_protocol：能力名 `opus` + 协商状态模型。
+- 服务端：libopus 绑定（选型开工时定）编解码器；协商开启时 binary 分支 Opus→PCM 入管线、下行 PCM→Opus 出。
+- web：AudioWorklet + wasm 编解码；cli：Python 绑定；device：ESP32-S3 实测通过后接入。
+
+### P1-3 热配置 + 上下文注入
+
+- tank_protocol：`config` 消息类型 payload 模型（deep-merge 语义）+ 上下文注入消息类型。
+- 服务端：`@register` 处理器 → Assistant 会话热应用（instructions/voice/VAD 参数）；注入只入上下文不触发生成；非法配置先校验后应用，拒绝时会话不受影响。
+
+### P2 按触发条件（§6）
+
+WebRTC / Resume / Realtime 端点 / LLM Proxy —— 见 §6 触发条件表。
 
 依赖关系：P1-x 全部依赖 P0-1（没有单一契约源，每项都要四端各改一遍）；P0-2 独立可先行。
 
@@ -232,6 +316,7 @@ W1 + W2 是同一根因：**契约只存在于四处手写副本 + 过时文档�
   - cli：删除本地 schema 后全量测试通过（import 路径替换）；故意给 cli 喂带 `attachments` 的帧验证新契约生效；
   - web：生成的 `protocol.ts` 编译通过、`pnpm lint`/`tsc -b` 通过；CI 校验生成物与包版本一致的测试；
   - device：golden-frame 夹具加入 `test_ws_message` / `test_audio_protocol`（每种消息类型一条真实帧，含未知字段容忍用例）；
+  - 同步：`scripts/check_protocol_sync.py` 重生成三份生成物（schema.json / golden_frames.h / protocol.ts）与入库版本 diff 为空、`__version__` 三处一致；
 - **P0-2 认证**：unit —— 有效/无效/缺失 token 三分支（可配置强制模式下缺失即拒）；
 - **P1-1 握手**：unit —— `ready` 帧携带 protocol/capabilities；旧客户端（无声明帧）行为不变；
 - **P1-2 Opus**：unit —— 编解码 round-trip（PCM → Opus → PCM，SNR 阈值断言）；能力协商开关关/开两分支；
@@ -257,12 +342,13 @@ W1 + W2 是同一根因：**契约只存在于四处手写副本 + 过时文档�
 7. dev server 日志检查：`tmux capture-pane -t tank -p -S -50 | grep -i "error\|traceback\|exception"`（空输出即通过，不重试）
 8. `cd test && pnpm test`（E2E，需 backend + frontend 运行中）
 9. device 侧（P0-1/P1-2 涉及时）：`cd device && uv run pio test -e native`
+10. `python3 scripts/check_protocol_sync.py` — 协议生成物与 `tank_protocol` 包同步（P0-1 起生效）
 
 **测试失败政策**：任何阶段发现红测试——无论是否本阶段引入——修复后才算完成。
 
 ## 11. 未决问题
 
-1. `tank_protocol` 放 `backend/contracts/` 下还是仓库根 `protocol/`？倾向前者（复用现有 workspace，cli path 依赖路径短）；若将来非 backend 生态（如独立发布）再迁出；
+1. ~~`tank_protocol` 放 `backend/contracts/` 下还是仓库根 `protocol/`？~~ **已定（2026-09-02）**：嵌套 workspace 成员 `backend/contracts/tank_protocol/`（复用现有 workspace，cli path 依赖路径短）；若将来非 backend 生态（如独立发布）再迁出；
 2. 认证 token 的分发方式（配置文件 vs 首次配对流程）——远程部署设计时定；
 3. Opus 码率/复杂度参数（16kHz 语音建议 24-32kbps 起点）与 device 端内存实测——P1-2 开工时定；
-4. web 生成类型的落盘路径与 lint 集成方式（生成物入库 + CI 校验 vs 构建期生成不入库）——倾向入库（device 夹具同理），保证离线可构建。
+4. ~~web 生成类型的落盘路径与 lint 集成方式~~ **已定（2026-09-02）**：生成物入库（`web/src/types/protocol.ts`、device golden_frames.h、schema.json 同理），一致性由 `scripts/check_protocol_sync.py` + 验证清单保障（仓库 CI 为手动触发，不依赖 GitHub Actions）。
