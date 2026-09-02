@@ -2,6 +2,7 @@
 members = [
     "core",
     "contracts",
+    "contracts/tank_protocol",
     "plugins/*",
 ]
 

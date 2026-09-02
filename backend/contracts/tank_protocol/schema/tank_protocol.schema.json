@@ -1,0 +1,246 @@
+{
+  "$defs": {
+    "MessageType": {
+      "description": "Types of messages exchanged over WebSocket.",
+      "enum": [
+        "signal",
+        "transcript",
+        "text",
+        "update",
+        "input",
+        "channel_notification",
+        "attachment",
+        "conversation_metadata_updated"
+      ],
+      "title": "MessageType",
+      "type": "string"
+    },
+    "WebsocketAttachment": {
+      "description": "One assistant-sent media item delivered alongside a chat reply.\n\nOnly ``image`` kinds are emitted today; the schema is shaped for\nfuture audio / document / video without needing another wire-format\nchange. ``url`` is always a path the browser can fetch directly:\n``media://`` URIs are rewritten to ``/api/media/<session>/<file>``\nserver-side; ``http(s)://`` URIs pass through unchanged.",
+      "properties": {
+        "kind": {
+          "default": "image",
+          "title": "Kind",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "mime_type": {
+          "default": "image/jpeg",
+          "title": "Mime Type",
+          "type": "string"
+        },
+        "caption": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caption"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "title": "WebsocketAttachment",
+      "type": "object"
+    }
+  },
+  "description": "Base schema for all WebSocket messages.",
+  "properties": {
+    "type": {
+      "$ref": "#/$defs/MessageType"
+    },
+    "content": {
+      "default": "",
+      "title": "Content",
+      "type": "string"
+    },
+    "speaker": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Speaker"
+    },
+    "is_user": {
+      "default": false,
+      "title": "Is User",
+      "type": "boolean"
+    },
+    "is_final": {
+      "default": false,
+      "title": "Is Final",
+      "type": "boolean"
+    },
+    "msg_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Msg Id"
+    },
+    "session_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Session Id"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "title": "Metadata",
+      "type": "object"
+    },
+    "attachments": {
+      "items": {
+        "$ref": "#/$defs/WebsocketAttachment"
+      },
+      "title": "Attachments",
+      "type": "array"
+    }
+  },
+  "required": [
+    "type"
+  ],
+  "title": "WebsocketMessage",
+  "type": "object",
+  "x-tank-version": "0.1.0",
+  "x-tank-payload-fields": {
+    "signal": {
+      "envelope": [
+        "content",
+        "metadata",
+        "msg_id",
+        "session_id"
+      ],
+      "metadata": [
+        "capabilities",
+        "channel_slug",
+        "channels",
+        "conversation_id",
+        "error",
+        "pipeline_sample_rate",
+        "sample_rate",
+        "title"
+      ]
+    },
+    "transcript": {
+      "envelope": [
+        "content",
+        "is_final",
+        "is_user",
+        "metadata",
+        "msg_id",
+        "session_id",
+        "speaker"
+      ],
+      "metadata": []
+    },
+    "text": {
+      "envelope": [
+        "content",
+        "is_final",
+        "is_user",
+        "metadata",
+        "msg_id",
+        "session_id",
+        "speaker"
+      ],
+      "metadata": []
+    },
+    "update": {
+      "envelope": [
+        "content",
+        "is_final",
+        "is_user",
+        "metadata",
+        "msg_id",
+        "session_id",
+        "speaker"
+      ],
+      "metadata": [
+        "approval_id",
+        "arguments",
+        "index",
+        "name",
+        "status",
+        "step_id",
+        "task_id",
+        "tool_args",
+        "tool_name",
+        "tool_status",
+        "turn",
+        "update_type"
+      ]
+    },
+    "input": {
+      "envelope": [
+        "content",
+        "metadata"
+      ],
+      "metadata": [
+        "attachments",
+        "user_id"
+      ]
+    },
+    "attachment": {
+      "envelope": [
+        "attachments",
+        "content",
+        "is_final",
+        "metadata",
+        "msg_id",
+        "session_id",
+        "speaker"
+      ],
+      "metadata": []
+    },
+    "channel_notification": {
+      "envelope": [
+        "metadata"
+      ],
+      "metadata": [
+        "channel_name",
+        "channel_slug",
+        "event_type",
+        "job_name",
+        "message_preview",
+        "messages",
+        "run_id"
+      ]
+    },
+    "conversation_metadata_updated": {
+      "envelope": [
+        "is_final",
+        "metadata",
+        "session_id"
+      ],
+      "metadata": [
+        "conversation_id",
+        "title"
+      ]
+    }
+  }
+}
