@@ -22,6 +22,7 @@ from .models import (
     AlertingConfig,
     AssistantConfig,
     AuditConfig,
+    AuthConfig,
     BrainConfig,
     ChannelsConfig,
     CommandSecurityConfig,
@@ -116,6 +117,9 @@ class AppConfig:
     # Persistence
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
 
+    # API auth (WebSocket token)
+    auth: AuthConfig = field(default_factory=AuthConfig)
+
     # Tools & policies
     sandbox: SandboxConfig = field(default_factory=SandboxConfig)
     network_access: NetworkAccessConfig = field(default_factory=NetworkAccessConfig)
@@ -198,6 +202,7 @@ class AppConfig:
                     ConsolidationConfig, raw.get("consolidation"),
                 ),
                 database=parse_section(DatabaseConfig, raw.get("database")),
+                auth=parse_section(AuthConfig, raw.get("auth")),
                 sandbox=parse_section(SandboxConfig, raw.get("sandbox")),
                 network_access=parse_section(NetworkAccessConfig, raw.get("network_access")),
                 file_access=parse_section(FileAccessConfig, raw.get("file_access")),

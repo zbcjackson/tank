@@ -69,6 +69,24 @@ class DatabaseConfig:
     echo: bool = False
 
 
+# ── API auth ─────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class AuthConfig:
+    """``auth:`` section — WebSocket connection token (protocol plan P0-2).
+
+    ``token`` is the shared secret clients pass as the ``?token=`` query
+    parameter; keep it in ``.env`` and reference it as ``${TANK_WS_TOKEN:-}``.
+    ``require=False`` keeps the LAN trust model: token-less clients connect
+    as before, but a client that sends a wrong token is still rejected.
+    ``require=True`` rejects any connection without a valid token — with an
+    empty ``token`` this fails closed (every connection rejected).
+    """
+
+    token: str = ""
+    require: bool = False
+
+
 # ── Context & memory ─────────────────────────────────────────────
 
 @dataclass(frozen=True)

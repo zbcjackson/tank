@@ -1,6 +1,6 @@
 # Tank 私有协议演进计划（Protocol Evolution Plan）
 
-> 状态：P0-1 已落地（2026-09-02）。P0-2 / P1-x 未开始。
+> 状态：P0-1、P0-2 已落地（2026-09-02）。P1-x 未开始。
 > 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](../done/s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
 > 触发背景：Tank 将来要远程部署在服务器上，连接远程操控的机器人和客户端。远程化对协议提出三个硬前提——认证、弱网韧性、可演进性——当前协议一项都不具备。
 > 本文所有代码事实均核对自实际代码（文件行号见引用）。
@@ -285,11 +285,12 @@ backend/contracts/tank_protocol/
 - web 生成接口用 schema 后处理对齐旧手写接口：strip pydantic 逐字段 title（避免垃圾别名）、信封必填 `type/content/is_user/is_final/metadata`、attachment 四字段全必填——依据是"服务端每帧全量序列化、null 显式"这一 wire 事实。
 - 验收标准 2 演练通过：把 `msg_id` 临时改为 `int | None` 后，cli 测试即红、web `tsc -b` 即报错。
 
-### P0-2 认证（独立可先行）
+### P0-2 认证（独立可先行）——已落地（2026-09-02）
 
 - 配置：`config/models.py` 新增 frozen dataclass `AuthConfig`（`token: str = ""`，YAML 里 `${TANK_WS_TOKEN:-}`；`require: bool = false`），`AppConfig` 注册字段 + `from_raw_dict` 接线 + `config.yaml` 注释示例（三处插入点见 `config/app_config.py` 现有模式）。
-- 校验：`websocket_endpoint` 在 accept 前读 `websocket.query_params.get("token")`，`hmac.compare_digest` 比对；`require=true` 时缺失/不符即拒（close 1008）；`require=false` 时无 token 放行（LAN 兼容），带了但错仍拒。
-- Tests：有效/无效/缺失 × require 开/关。
+- 校验：`api/auth.py` 纯函数 `check_ws_auth`（`hmac.compare_digest` 按 UTF-8 字节比对）；`websocket_endpoint` 在 accept 后、任何会话工作前读 `?token=` 并校验，拒则 `close(1008)`。`require=true` 且未配 token 时 fail-closed（拒绝一切连接并记 error 日志）。
+- Tests：`test_ws_auth.py` 11 例 —— 纯函数决策矩阵（含非 ASCII token、fail-closed）+ endpoint 级 4 条拒绝路径（TestClient 断言 close code 1008）。放行路径由既有 E2E（无 token 连默认配置）覆盖。
+- 注意：拒绝发生在 `get_or_create_assistant` 之前，被拒连接零会话开销；客户端侧 token 携带（web/cli/device 发 `?token=`）属远程部署设计（§11.2）的后续工作，本阶段不涉及。
 
 ### P1-1 握手/版本/能力
 

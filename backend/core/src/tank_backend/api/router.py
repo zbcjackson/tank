@@ -44,6 +44,7 @@ from ..core.events import (
     UpdateType,
 )
 from . import deps
+from .auth import WS_AUTH_CLOSE_CODE, WS_AUTH_CLOSE_REASON, check_ws_auth
 from .signal_handlers import DisconnectSignal
 from .signal_handlers import dispatch as dispatch_signal
 
@@ -361,6 +362,18 @@ def _attachment_payload_to_ws_msg(
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     """Pipeline-based WebSocket endpoint using Assistant."""
     await websocket.accept()
+
+    # Connection auth (protocol plan P0-2). Checked before any session or
+    # assistant work; a rejection is an immediate close so clients see a
+    # meaningful close code instead of a hanging handshake.
+    provided_token = websocket.query_params.get("token")
+    if not check_ws_auth(deps.app_context().app_config.auth, provided_token):
+        logger.warning("WebSocket auth rejected for session %s", session_id)
+        await websocket.close(
+            code=WS_AUTH_CLOSE_CODE, reason=WS_AUTH_CLOSE_REASON,
+        )
+        return
+
     logger.info(f"WebSocket connected: {session_id}")
 
     # Optional client-requested output sample rate (e.g. hardware device fixed

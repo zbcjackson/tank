@@ -419,6 +419,15 @@ database:
   url: sqlite+pysqlite:///~/.tank/tank.db
   echo: false
 
+# Auth — WebSocket connection token (protocol plan P0-2). Clients pass it
+# as the ``?token=`` query parameter on ``/ws/{session_id}``. Keep the
+# secret in .env; an empty token + require:false means no auth (LAN mode).
+# require:true rejects any connection without a valid token — with an
+# empty token this fails closed (every connection rejected).
+# auth:
+#   token: ${TANK_WS_TOKEN:-}
+#   require: false
+
 # Context — conversation history compaction (messages persist to the unified DB above).
 context:
   persist: true
