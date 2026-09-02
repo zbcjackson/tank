@@ -115,6 +115,25 @@ Then read the docs for the sub-project(s) you are working on:
 
 > Tip: If you start a session from inside a sub-project directory (e.g. `cd backend && claude`), that directory's CLAUDE.md will be loaded automatically with its own `@` imports — no need to read the others.
 
+## Documentation (`docs/`)
+
+Design notes, plans, and research records live in `docs/`, organized by type. The index is [docs/README.md](docs/README.md) — update it whenever you add, move, or complete a doc.
+
+| Directory | Contents | Lifecycle |
+|-----------|----------|-----------|
+| `docs/design/` | How a subsystem works **today** | Update in place whenever behavior changes; never accumulates plan content |
+| `docs/plans/active/` | Implementation plans not yet finished | Must open with a status line (`> 状态：…` or `> **Status:** …`) with the date. Move to `done/` once every item lands or is dropped, and update the status line |
+| `docs/plans/done/` | Completed plans | Kept for rationale/history; status line marks completion |
+| `docs/research/` | Investigations, comparative analyses, troubleshooting records | Open with the date and a conclusion status (open/resolved) |
+| `docs/history/` | Architecture evolution narrative | Append-only — add new eras, never rewrite |
+
+Rules:
+
+- **Naming**: all lowercase kebab-case (e.g. `conversation-gate.md`).
+- **New work gets a plan doc** in `plans/active/`; landed plans move to `plans/done/` rather than being deleted.
+- `docs/superpowers/` is managed by the superpowers plugin and is exempt from these rules.
+- The root `ARCHITECTURE.md` and each sub-project's ARCHITECTURE / CODING_STANDARDS / DEVELOPMENT / TESTING docs are the canonical entry points — they stay where they are and are not part of this system.
+
 ## Quick Reference
 
 | Sub-project | Language   | Package Manager | Test Command      |
