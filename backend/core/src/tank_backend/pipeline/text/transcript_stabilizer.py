@@ -3,7 +3,7 @@
 A streaming recognizer revises its hypothesis as audio arrives, so the raw
 partial makes the UI text flicker: earlier words get re-scored and the tail
 changes on every update. Mirroring s2s's ``_stable_transcript_words``
-(docs/plans/active/s2s-comparison-and-improvement-plan.md §P2), a word is
+(docs/plans/done/s2s-comparison-and-improvement-plan.md §P2), a word is
 displayed only
 once two consecutive hypotheses agree on it, and the newest agreeing word is
 held back — it sat at the speculative edge of the previous hypothesis and may

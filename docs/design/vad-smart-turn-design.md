@@ -1,7 +1,7 @@
 # VAD + Smart Turn 端点检测:实现与设计
 
 > 撰写日期:2026-09-01。描述 `backend/core` 中 VAD / 端点检测 / speculative reopen 的**当前实现**及其设计原因。
-> 背景分析见 [s2s-comparison-and-improvement-plan.md](../plans/active/s2s-comparison-and-improvement-plan.md) §2.2①(端点检测差距)与 §3 P1-1/P1-2(对应改造项,均已落地)。
+> 背景分析见 [s2s-comparison-and-improvement-plan.md](../plans/done/s2s-comparison-and-improvement-plan.md) §2.2①(端点检测差距)与 §3 P1-1/P1-2(对应改造项,均已落地)。
 
 ---
 

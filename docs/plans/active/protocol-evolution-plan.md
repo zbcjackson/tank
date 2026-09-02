@@ -1,7 +1,7 @@
 # Tank 私有协议演进计划（Protocol Evolution Plan）
 
 > 状态：已起草，未开始实施。
-> 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
+> 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](../done/s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
 > 触发背景：Tank 将来要远程部署在服务器上，连接远程操控的机器人和客户端。远程化对协议提出三个硬前提——认证、弱网韧性、可演进性——当前协议一项都不具备。
 > 本文所有代码事实均核对自实际代码（文件行号见引用）。
 

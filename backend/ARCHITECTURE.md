@@ -143,10 +143,12 @@ User message
         → APPROVAL_NEEDED → pause, await user response
         → or auto-approve → TOOL_EXECUTING → TOOL_RESULT
       DONE → end turn
-  → after the loop: ONE AudioOutputRequest with the full turn text → TTS
+  → BrainProcessor sentence-batches TOKENs → AudioOutputRequest per
+    batch streams to TTS mid-loop; held sentences flush at tool
+    boundaries, tail flushes after the loop
 ```
 
-**Key Difference from LangGraph**: Tokens stream immediately via async generators — no batching, no superstep synchronization — straight to the UI text stream. TTS, however, is *not* streamed today: `BrainProcessor` accumulates the full turn text and emits a single `AudioOutputRequest` after the agent loop ends, so first-audio latency is the whole LLM generation time plus TTS startup (baseline: first token 1.6s vs first audio 8.0s — see `scripts/benchmark_pipeline.py`). Sentence-level streaming into TTS is planned in [docs/plans/active/s2s-comparison-and-improvement-plan.md](../docs/plans/active/s2s-comparison-and-improvement-plan.md) (P0-5).
+**Key Difference from LangGraph**: Tokens stream immediately via async generators — no batching, no superstep synchronization — straight to the UI text stream. TTS streams too, sentence-batched: `BrainProcessor` feeds tokens through a `SentenceBuffer` and yields an `AudioOutputRequest` per completed batch (`stream_batch_sentences`, default 2), flushing held sentences at tool boundaries and the tail after the loop — first-audio latency is the first sentences' generation plus TTS startup, not the whole turn (pre-streaming baseline: first token 1.6s vs first audio 8.0s, `scripts/benchmark_pipeline.py`; design in [docs/plans/done/s2s-comparison-and-improvement-plan.md](../docs/plans/done/s2s-comparison-and-improvement-plan.md) §P0-5).
 
 #### Approval System
 
