@@ -2,6 +2,8 @@
 
 Comparative analysis of Tank vs. OpenClaw, Hermes Agent, and Open Code across four agentic harness patterns.
 
+> **Status:** Complete — all phases shipped (details in the Implementation Roadmap section).
+
 ---
 
 ## 1. Progressive Tool Expansion

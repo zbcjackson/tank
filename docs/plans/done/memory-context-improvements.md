@@ -2,6 +2,7 @@
 
 A comparison of Tank against four reference agentic harnesses (Claude Code, OpenClaw, Hermes Agent, OpenCode) across five context/memory patterns, and a prioritized backlog of improvements and new features.
 
+> **Status:** Complete — all phases shipped, remaining items dropped from scope.
 > **Created:** 2026-05-23
 > **Last updated:** 2026-05-28 — Phase C shipped (IMP-12, IMP-11, IMP-5, IMP-14); IMP-10/13/15 dropped, IMP-16 already shipped pre-doc.
 > **Scope:** `backend/core/src/tank_backend/` — `context/`, `memory/`, `preferences/`, `prompts/`, `agents/`, `llm/`

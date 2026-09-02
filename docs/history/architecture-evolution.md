@@ -536,7 +536,7 @@ single `ChatAgent` that sees every tool and lets the LLM decide.
 
 What replaced the router was not the absence of multi-agent capability, but a
 different shape of it, borrowed from Claude Code (`720bba7`,
-`docs/CLAUDE_CODE_LEARNINGS.md`):
+`docs/research/claude-code-learnings.md`):
 
 - **Agent definitions are data, not classes.** `backend/agents/*.md`
   (`coder.md`, `researcher.md`, `tasker.md`, `verifier.md`) declare sub-agents

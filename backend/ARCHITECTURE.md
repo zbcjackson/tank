@@ -146,7 +146,7 @@ User message
   → after the loop: ONE AudioOutputRequest with the full turn text → TTS
 ```
 
-**Key Difference from LangGraph**: Tokens stream immediately via async generators — no batching, no superstep synchronization — straight to the UI text stream. TTS, however, is *not* streamed today: `BrainProcessor` accumulates the full turn text and emits a single `AudioOutputRequest` after the agent loop ends, so first-audio latency is the whole LLM generation time plus TTS startup (baseline: first token 1.6s vs first audio 8.0s — see `scripts/benchmark_pipeline.py`). Sentence-level streaming into TTS is planned in [docs/s2s-comparison-and-improvement-plan.md](../docs/s2s-comparison-and-improvement-plan.md) (P0-5).
+**Key Difference from LangGraph**: Tokens stream immediately via async generators — no batching, no superstep synchronization — straight to the UI text stream. TTS, however, is *not* streamed today: `BrainProcessor` accumulates the full turn text and emits a single `AudioOutputRequest` after the agent loop ends, so first-audio latency is the whole LLM generation time plus TTS startup (baseline: first token 1.6s vs first audio 8.0s — see `scripts/benchmark_pipeline.py`). Sentence-level streaming into TTS is planned in [docs/plans/active/s2s-comparison-and-improvement-plan.md](../docs/plans/active/s2s-comparison-and-improvement-plan.md) (P0-5).
 
 #### Approval System
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline A/B eval of the Smart Turn endpoint classifier on labeled audio.
 
-Answers the open question from docs/vad-smart-turn-design.md §10: the
+Answers the open question from docs/design/vad-smart-turn-design.md §10: the
 smart-turn-v3 model is English-trained, so Chinese utterance-completeness
 accuracy must be measured before trusting it in production (fall back to
 ``smart_turn.enabled: false`` if it misendpoints).

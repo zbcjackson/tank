@@ -376,7 +376,7 @@ toolsets:
 # Hooks — user-defined shell scripts that fire on tool lifecycle events.
 # pre_tool_call can block execution; post_tool_call is fire-and-forget.
 # pre_llm_call can inject context into the system prompt.
-# Scripts receive JSON on stdin; see docs/agentic-harness-features.md for protocol.
+# Scripts receive JSON on stdin; see docs/design/agentic-harness-features.md for protocol.
 # hooks:
 #   hooks:
 #     - event: pre_tool_call

@@ -3,7 +3,7 @@
 Bridges the token stream out of the agent graph to sentence-grouped
 batches so speech synthesis can start after the first few sentences
 instead of after the whole turn (see
-docs/s2s-comparison-and-improvement-plan.md §P0-5).
+docs/plans/active/s2s-comparison-and-improvement-plan.md §P0-5).
 
 Splitting rules:
 
