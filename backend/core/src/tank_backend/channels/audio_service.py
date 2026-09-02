@@ -109,16 +109,12 @@ class ChannelAudioService:
         metadata: dict[str, str] | None,
     ) -> None:
         """Generate TTS and send audio frames to subscriber sessions."""
-        from ..api.schemas import MessageType, WebsocketMessage
+        from tank_protocol import signal as signal_frame
 
         meta = {"channel_slug": channel_slug, **(metadata or {})}
 
         # Send channel_audio_start to all subscribers
-        start_msg = WebsocketMessage(
-            type=MessageType.SIGNAL,
-            content="channel_audio_start",
-            metadata=meta,
-        )
+        start_msg = signal_frame("channel_audio_start", metadata=meta)
         await self._send_json_to_sessions(subscribers, start_msg.model_dump_json())
 
         # Stream TTS chunks
@@ -144,10 +140,8 @@ class ChannelAudioService:
             self._interrupted_channels.discard(channel_slug)
 
         # Send channel_audio_end to all subscribers
-        end_msg = WebsocketMessage(
-            type=MessageType.SIGNAL,
-            content="channel_audio_end",
-            metadata={"channel_slug": channel_slug},
+        end_msg = signal_frame(
+            "channel_audio_end", metadata={"channel_slug": channel_slug}
         )
         await self._send_json_to_sessions(subscribers, end_msg.model_dump_json())
 

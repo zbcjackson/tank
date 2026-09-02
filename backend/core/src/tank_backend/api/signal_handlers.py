@@ -10,7 +10,8 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
-from .schemas import MessageType, WebsocketMessage
+from tank_protocol import WebsocketMessage
+from tank_protocol import signal as signal_frame
 
 if TYPE_CHECKING:
     from ..core.assistant import Assistant
@@ -77,19 +78,12 @@ async def handle_wake(
 ) -> None:
     try:
         assistant.compact_session()
-        await send_fn(
-            WebsocketMessage(
-                type=MessageType.SIGNAL,
-                content="conversation_ready",
-                session_id=session_id,
-            )
-        )
+        await send_fn(signal_frame("conversation_ready", session_id=session_id))
     except Exception as e:
         logger.error("Session compact failed: %s", e, exc_info=True)
         await send_fn(
-            WebsocketMessage(
-                type=MessageType.SIGNAL,
-                content="session_reset_failed",
+            signal_frame(
+                "session_reset_failed",
                 session_id=session_id,
                 metadata={"error": str(e)},
             )
@@ -170,9 +164,8 @@ async def handle_ping(
     send_fn: SendFn,
 ) -> None:
     await send_fn(
-        WebsocketMessage(
-            type=MessageType.SIGNAL,
-            content="pong",
+        signal_frame(
+            "pong",
             session_id=session_id,
             metadata=msg.metadata.copy() if msg.metadata else {},
         )
@@ -189,9 +182,8 @@ async def handle_resume_conversation(
     cid = (msg.metadata or {}).get("conversation_id", "")
     if not cid:
         await send_fn(
-            WebsocketMessage(
-                type=MessageType.SIGNAL,
-                content="conversation_resume_failed",
+            signal_frame(
+                "conversation_resume_failed",
                 session_id=session_id,
                 metadata={"error": "missing conversation_id"},
             )
@@ -212,9 +204,8 @@ async def handle_resume_conversation(
     deps.connection_manager().set_session_channel(session_id, channel_slug)
 
     await send_fn(
-        WebsocketMessage(
-            type=MessageType.SIGNAL,
-            content=status,
+        signal_frame(
+            status,
             session_id=session_id,
             metadata={"conversation_id": cid},
         )
@@ -232,9 +223,8 @@ async def handle_new_conversation(
     from . import deps
     deps.connection_manager().set_session_channel(session_id, None)
     await send_fn(
-        WebsocketMessage(
-            type=MessageType.SIGNAL,
-            content="conversation_created",
+        signal_frame(
+            "conversation_created",
             session_id=session_id,
             metadata={"conversation_id": new_cid},
         )
@@ -254,9 +244,8 @@ async def handle_subscribe_channels(
     from . import deps
     deps.subscription_manager().subscribe(session_id, slugs)
     await send_fn(
-        WebsocketMessage(
-            type=MessageType.SIGNAL,
-            content="channels_subscribed",
+        signal_frame(
+            "channels_subscribed",
             session_id=session_id,
             metadata={"channels": slugs},
         )
@@ -276,9 +265,8 @@ async def handle_unsubscribe_channels(
     from . import deps
     deps.subscription_manager().unsubscribe(session_id, slugs)
     await send_fn(
-        WebsocketMessage(
-            type=MessageType.SIGNAL,
-            content="channels_unsubscribed",
+        signal_frame(
+            "channels_unsubscribed",
             session_id=session_id,
             metadata={"channels": slugs},
         )

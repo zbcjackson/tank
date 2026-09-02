@@ -5,8 +5,8 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from tank_protocol import MessageType, WebsocketMessage
 
-from tank_backend.api.schemas import MessageType, WebsocketMessage
 from tank_backend.api.signal_handlers import DisconnectSignal, dispatch
 
 

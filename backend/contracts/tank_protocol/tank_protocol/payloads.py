@@ -111,8 +111,8 @@ METADATA_KEYS: dict[MessageType, frozenset[str]] = {
             "sample_rate",
         }
     ),
-    MessageType.TRANSCRIPT: frozenset(),
-    MessageType.TEXT: frozenset(),
+    MessageType.TRANSCRIPT: frozenset({"step_id"}),
+    MessageType.TEXT: frozenset({"turn", "step_id"}),
     MessageType.UPDATE: frozenset(
         {
             "update_type",

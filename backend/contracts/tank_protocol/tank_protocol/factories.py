@@ -111,9 +111,10 @@ def update(
     """UI update (thinking / tool / approval / worker activity).
 
     ``update_type`` is the final wire string (e.g. ``"UpdateType.TOOL"``,
-    ``"ACTIVITY.TOOL"``) and lands in ``metadata["update_type"]``.
+    ``"ACTIVITY.TOOL"``) and lands in ``metadata["update_type"]`` — always
+    authoritative, overwriting any same-named key in ``metadata``.
     """
-    merged = {"update_type": update_type, **(metadata or {})}
+    merged = {**(metadata or {}), "update_type": update_type}
     return _build(
         MessageType.UPDATE,
         content=content,

@@ -2,8 +2,9 @@
 
 import json
 
+from tank_protocol import MessageType
+
 from tank_backend.api.router import _worker_event_to_ws_msg
-from tank_backend.api.schemas import MessageType
 
 
 class TestWorkerEventToWsMsg:

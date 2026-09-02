@@ -27,6 +27,7 @@ dependencies = [
     "python-multipart>=0.0.22",
     "sherpa-onnx-core>=1.12.25",
     "tank-contracts",
+    "tank-protocol",
     "docker>=7.0.0",
     "tiktoken>=0.7.0",
     "langfuse>=2.0.0",
@@ -111,3 +112,4 @@ reportAttributeAccessIssue = "error"
 
 [tool.uv.sources]
 tank-contracts = { workspace = true }
+tank-protocol = { workspace = true }

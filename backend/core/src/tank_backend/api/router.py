@@ -11,6 +11,27 @@ from typing import Any
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from tank_contracts import encode_audio_frame
+from tank_protocol import (
+    MessageType,
+    WebsocketAttachment,
+    WebsocketMessage,
+    conversation_metadata_updated,
+)
+from tank_protocol import (
+    attachment as attachment_frame,
+)
+from tank_protocol import (
+    signal as signal_frame,
+)
+from tank_protocol import (
+    text as text_frame,
+)
+from tank_protocol import (
+    transcript as transcript_frame,
+)
+from tank_protocol import (
+    update as update_frame,
+)
 
 from ..audio.input.types import AudioFrame
 from ..audio.output.types import AudioChunk
@@ -23,7 +44,6 @@ from ..core.events import (
     UpdateType,
 )
 from . import deps
-from .schemas import MessageType, WebsocketAttachment, WebsocketMessage
 from .signal_handlers import DisconnectSignal
 from .signal_handlers import dispatch as dispatch_signal
 
@@ -112,9 +132,8 @@ def _ui_msg_to_ws_msg(
 ) -> WebsocketMessage | None:
     """Convert a UIMessage to a WebsocketMessage."""
     if isinstance(msg, SignalMessage):
-        return WebsocketMessage(
-            type=MessageType.SIGNAL,
-            content=msg.signal_type,
+        return signal_frame(
+            msg.signal_type,
             msg_id=msg.msg_id,
             session_id=session_id,
             metadata=msg.metadata.copy() if msg.metadata else {},
@@ -127,41 +146,43 @@ def _ui_msg_to_ws_msg(
         metadata: dict[str, Any] = {"conversation_id": msg.conversation_id}
         if msg.title is not None:
             metadata["title"] = msg.title
-        return WebsocketMessage(
-            type=MessageType.CONVERSATION_METADATA_UPDATED,
-            content="",
+        return conversation_metadata_updated(
             session_id=session_id,
-            is_final=True,
             metadata=metadata,
         )
     if isinstance(msg, DisplayMessage):
-        ws_msg = WebsocketMessage(
-            type=MessageType.TRANSCRIPT if msg.is_user else MessageType.TEXT,
-            content=msg.text,
-            speaker=msg.speaker,
-            is_user=msg.is_user,
-            is_final=msg.is_final,
-            msg_id=msg.msg_id,
-            session_id=session_id,
-            metadata=msg.metadata.copy() if msg.metadata else {},
-        )
-        if msg.update_type.name != "TEXT":
-            ws_msg.type = MessageType.UPDATE
-            ws_msg.metadata["update_type"] = str(msg.update_type)
-
+        metadata = msg.metadata.copy() if msg.metadata else {}
         if msg.msg_id:
-            turn = msg.metadata.get("turn", 0)
+            turn = metadata.get("turn", 0)
             step_type = msg.update_type.name.lower()
             step_id = f"{msg.msg_id}_{step_type}_{turn}"
             if msg.update_type == UpdateType.TOOL:
-                index = msg.metadata.get("index", 0)
+                index = metadata.get("index", 0)
                 step_id += f"_{index}"
             elif msg.update_type == UpdateType.APPROVAL:
-                approval_id = msg.metadata.get("approval_id", "")
+                approval_id = metadata.get("approval_id", "")
                 if approval_id:
                     step_id = f"{msg.msg_id}_approval_{approval_id}"
-            ws_msg.metadata["step_id"] = step_id
-        return ws_msg
+            metadata["step_id"] = step_id
+        if msg.update_type.name != "TEXT":
+            return update_frame(
+                str(msg.update_type),
+                content=msg.text,
+                speaker=msg.speaker,
+                is_final=msg.is_final,
+                msg_id=msg.msg_id,
+                session_id=session_id,
+                metadata=metadata,
+            )
+        factory = transcript_frame if msg.is_user else text_frame
+        return factory(
+            msg.text,
+            speaker=msg.speaker,
+            is_final=msg.is_final,
+            msg_id=msg.msg_id,
+            session_id=session_id,
+            metadata=metadata,
+        )
     logger.warning(f"Unknown UI message type: {type(msg)}")
     return None
 
@@ -184,16 +205,12 @@ def _worker_activity_to_ws_msg(
     msg_id = parent_msg_id or f"worker_{task_id}"
     step_id = f"{msg_id}_tool_0_worker_{task_id}"
 
-    return WebsocketMessage(
-        type=MessageType.UPDATE,
-        content="",
+    return update_frame(
+        "ACTIVITY.WORKER_ACTIVITY",
         speaker="Brain",
-        is_user=False,
-        is_final=False,
         msg_id=msg_id,
         session_id=session_id,
         metadata={
-            "update_type": "ACTIVITY.WORKER_ACTIVITY",
             "step_id": step_id,
             "task_id": task_id,
             "tool_name": tool_name,
@@ -248,16 +265,14 @@ def _worker_event_to_ws_msg(
 
     is_final = event != "started"
 
-    return WebsocketMessage(
-        type=MessageType.UPDATE,
+    return update_frame(
+        "ACTIVITY.TOOL",
         content=content,
         speaker="Brain",
-        is_user=False,
         is_final=is_final,
         msg_id=msg_id,
         session_id=session_id,
         metadata={
-            "update_type": "ACTIVITY.TOOL",
             "step_id": step_id,
             "name": "agent",
             "arguments": arguments,
@@ -329,19 +344,16 @@ def _attachment_payload_to_ws_msg(
     if not attachments:
         return None
 
-    return WebsocketMessage(
-        type=MessageType.ATTACHMENT,
+    return attachment_frame(
+        attachments,
         # ``content`` carries the caption so clients that don't
         # inspect the ``attachments`` array still see the text (and
         # the markdown/plain-text heuristics that apply to TEXT frames
         # apply here too).
         content=caption or "",
         speaker="Brain",
-        is_user=False,
-        is_final=True,
         msg_id=msg_id,
         session_id=session_id,
-        attachments=attachments,
     )
 
 
@@ -546,9 +558,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         conv_id = assistant.brain.conversation_id
         if conv_id:
             ready_metadata["conversation_id"] = conv_id
-        ready_msg = WebsocketMessage(
-            type=MessageType.SIGNAL,
-            content="ready",
+        ready_msg = signal_frame(
+            "ready",
             session_id=session_id,
             metadata=ready_metadata,
         )

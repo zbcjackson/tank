@@ -155,7 +155,7 @@ class DeliveryManager:
         if self._connection_manager is None or not channel_messages:
             return
 
-        from ..api.schemas import MessageType, WebsocketMessage
+        from tank_protocol import channel_notification
 
         for slug, messages in channel_messages.items():
             channel = self._channel_store.get(slug) if self._channel_store else None
@@ -166,9 +166,7 @@ class DeliveryManager:
                     preview = content[:200] + "..." if len(content) > 200 else content
                     break
 
-            msg = WebsocketMessage(
-                type=MessageType.CHANNEL_NOTIFICATION,
-                content="",
+            msg = channel_notification(
                 metadata={
                     "channel_slug": slug,
                     "channel_name": channel.name if channel else slug,

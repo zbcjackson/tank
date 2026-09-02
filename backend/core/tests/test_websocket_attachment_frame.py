@@ -25,8 +25,9 @@ Behaviour we pin here:
 
 from __future__ import annotations
 
+from tank_protocol import MessageType
+
 from tank_backend.api.router import _attachment_payload_to_ws_msg
-from tank_backend.api.schemas import MessageType
 from tank_backend.core.content import DocumentBlock, ImageBlock, TextBlock
 
 
