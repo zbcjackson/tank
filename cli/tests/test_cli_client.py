@@ -4,9 +4,9 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from tank_protocol import MessageType, WebsocketMessage
 
 from tank_cli.cli.client import TankClient
-from tank_cli.schemas import MessageType, WebsocketMessage
 
 MODULE = "tank_cli.cli.client"
 
@@ -37,6 +37,22 @@ def test_init_defaults():
     c = TankClient()
     assert c.session_id
     assert not c.is_connected
+
+
+def test_contract_parses_speaker_and_attachments():
+    """The shared tank_protocol envelope keeps fields the old hand-copied
+    tank_cli.schemas dropped (speaker / attachments) — protocol plan W2."""
+    raw = (
+        '{"type":"attachment","content":"cap","speaker":"Brain","is_user":false,'
+        '"is_final":true,"msg_id":"m1","session_id":"s1","metadata":{},'
+        '"attachments":[{"kind":"image","url":"/api/media/s1/x.jpg",'
+        '"mime_type":"image/jpeg","caption":"cap"}]}'
+    )
+    msg = WebsocketMessage.model_validate_json(raw)
+    assert msg.type == MessageType.ATTACHMENT
+    assert msg.speaker == "Brain"
+    assert msg.attachments[0].url == "/api/media/s1/x.jpg"
+    assert msg.attachments[0].caption == "cap"
 
 
 def test_init_custom_session():

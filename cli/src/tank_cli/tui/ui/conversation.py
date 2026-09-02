@@ -1,11 +1,11 @@
 import uuid
 
+from tank_protocol import MessageType, WebsocketMessage
 from textual.app import ComposeResult
 from textual.containers import Container, ScrollableContainer, Vertical
 from textual.widgets import Markdown, Static
 
 from ...core.events import DisplayMessage, UpdateType
-from ...schemas import MessageType, WebsocketMessage
 
 
 class AssistantMessageBlock(Vertical):

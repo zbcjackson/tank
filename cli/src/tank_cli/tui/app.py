@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import logging
 
+from tank_protocol import MessageType, WebsocketMessage
 from textual.app import App, ComposeResult
 from textual.logging import TextualHandler
 from textual.widgets import Footer
@@ -12,7 +13,6 @@ from ..cli.audio_capture import ClientAudioCapture
 from ..cli.audio_playback import ClientAudioPlayback
 from ..cli.client import TankClient
 from ..core.shutdown import GracefulShutdown
-from ..schemas import MessageType, WebsocketMessage
 from .ui.conversation import ConversationArea
 from .ui.footer import InputFooter
 from .ui.header import TankHeader

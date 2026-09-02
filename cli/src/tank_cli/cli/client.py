@@ -7,8 +7,7 @@ import uuid
 from collections.abc import Callable
 
 import websockets
-
-from ..schemas import MessageType, WebsocketMessage
+from tank_protocol import MessageType, WebsocketMessage
 
 logger = logging.getLogger("TankClient")
 

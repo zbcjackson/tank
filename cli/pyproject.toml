@@ -15,7 +15,11 @@ dependencies = [
     "silero-vad>=4.0.0",
     "onnxruntime>=1.16.1",
     "websockets>=12.0",
+    "tank-protocol",
 ]
+
+[tool.uv.sources]
+tank-protocol = { path = "../backend/contracts/tank_protocol", editable = true }
 
 [project.scripts]
 tank = "tank_cli.main:main"
