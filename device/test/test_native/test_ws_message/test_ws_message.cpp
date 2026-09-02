@@ -6,6 +6,7 @@
 #include <cstring>
 #include <string>
 
+#include "golden_frames.h"
 #include "net/WsProtocol.h"
 #include "net/WsClient.h"
 
@@ -61,12 +62,21 @@ TEST(WsMessageParse, TruncatesLongContent) {
 }
 
 TEST(WsMessageParse, TruncatesLongType) {
-    // type field is char[20], so 30-char type should be truncated
-    std::string long_type(30, 'x');
+    // type field is char[32]; the longest real protocol name is 29 chars and
+    // must fit whole (golden frames assert this), so truncate only past 31.
+    std::string long_type(40, 'x');
     std::string json = R"({"type":")" + long_type + R"("})";
     WsMessage msg = {};
     ASSERT_TRUE(parseWsJsonMessage(json.c_str(), json.size(), &msg));
-    EXPECT_EQ(strlen(msg.type), 19u);
+    EXPECT_EQ(strlen(msg.type), 31u);
+}
+
+TEST(WsMessageParse, LongestProtocolTypeNameFitsWhole) {
+    // "conversation_metadata_updated" is the longest MessageType value.
+    const char* json = R"({"type":"conversation_metadata_updated"})";
+    WsMessage msg = {};
+    ASSERT_TRUE(parseWsJsonMessage(json, strlen(json), &msg));
+    EXPECT_STREQ(msg.type, "conversation_metadata_updated");
 }
 
 TEST(WsMessageParse, MalformedJsonReturnsFalse) {
@@ -112,6 +122,58 @@ TEST(WsMessageParse, UpdateMessage) {
 TEST(WsMessageParse, ZeroLengthInput) {
     WsMessage msg = {};
     EXPECT_FALSE(parseWsJsonMessage("", 0, &msg));
+}
+
+// ---------------------------------------------------------------------------
+// Golden frames — real wire frames generated from the tank_protocol contract
+// package (backend/contracts/tank_protocol). One test per outbound message
+// type asserts the C++ parser against exactly what the Python server sends,
+// including fields the parser ignores (speaker/session_id/metadata/nulls).
+// ---------------------------------------------------------------------------
+
+static void expectGolden(const char* json, const char* type, const char* content,
+                         const char* msg_id, bool is_user, bool is_final) {
+    WsMessage msg = {};
+    ASSERT_TRUE(parseWsJsonMessage(json, strlen(json), &msg));
+    EXPECT_STREQ(msg.type, type);
+    EXPECT_STREQ(msg.content, content);
+    EXPECT_STREQ(msg.msg_id, msg_id);
+    EXPECT_EQ(msg.is_user, is_user);
+    EXPECT_EQ(msg.is_final, is_final);
+}
+
+TEST(WsGoldenFrames, SignalReady) {
+    expectGolden(TANK_GOLDEN_SIGNAL, "signal", "ready", "", false, false);
+}
+
+TEST(WsGoldenFrames, TranscriptUtf8) {
+    expectGolden(TANK_GOLDEN_TRANSCRIPT, "transcript", "你好", "u_golden", true, true);
+}
+
+TEST(WsGoldenFrames, TextStreamDelta) {
+    expectGolden(TANK_GOLDEN_TEXT, "text", "Hello", "m_golden", false, false);
+}
+
+TEST(WsGoldenFrames, UpdateTool) {
+    expectGolden(TANK_GOLDEN_UPDATE, "update", "", "m_golden", false, false);
+}
+
+TEST(WsGoldenFrames, AttachmentCaption) {
+    expectGolden(TANK_GOLDEN_ATTACHMENT, "attachment", "a photo", "m_golden", false, true);
+}
+
+TEST(WsGoldenFrames, ChannelNotification) {
+    expectGolden(TANK_GOLDEN_CHANNEL_NOTIFICATION, "channel_notification", "", "", false, false);
+}
+
+TEST(WsGoldenFrames, ConversationMetadata) {
+    expectGolden(TANK_GOLDEN_CONVERSATION_METADATA, "conversation_metadata_updated",
+                 "", "", false, true);
+}
+
+TEST(WsGoldenFrames, UnknownFieldTolerated) {
+    // Evolution rule 2: unknown fields must be ignored, not rejected.
+    expectGolden(TANK_GOLDEN_UNKNOWN_FIELD, "text", "future", "", false, false);
 }
 
 int main(int argc, char** argv) {

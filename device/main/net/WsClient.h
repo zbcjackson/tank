@@ -8,7 +8,10 @@
 
 /// Parsed JSON message from the server.
 struct WsMessage {
-    char type[20];       // "signal", "transcript", "text", "update", "error"
+    // Fits the longest protocol type name ("conversation_metadata_updated",
+    // 29 chars) — see tank_protocol MessageType. Golden-frame tests in
+    // test_native/test_ws_message assert all eight names survive parsing.
+    char type[32];
     char content[512];   // message content
     char msg_id[64];     // message ID (for text streaming)
     bool is_user;        // true if transcript from user
