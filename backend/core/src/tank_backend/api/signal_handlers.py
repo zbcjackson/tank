@@ -156,6 +156,24 @@ async def handle_audio_format(
     assistant.set_capture_format(sample_rate=rate, channels=channels)
 
 
+@register("capabilities")
+async def handle_capabilities(
+    assistant: Assistant,
+    msg: WebsocketMessage,
+    session_id: str,
+    send_fn: SendFn,
+) -> None:
+    """Client declares the protocol features it wants to enable (P1-1).
+
+    Advisory today — no advertised feature has a server-side behavior yet,
+    so the declaration is logged for debugging and left to the phases that
+    introduce one (opus → P1-2, config → P1-3, resume → P2). Unknown
+    feature names are warn-and-ignored per the evolution rules.
+    """
+    enable = (msg.metadata or {}).get("enable", [])
+    logger.info("Client capabilities declared for %s: %s", session_id, enable)
+
+
 @register("ping")
 async def handle_ping(
     assistant: Assistant,

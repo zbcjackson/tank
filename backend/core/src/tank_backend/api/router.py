@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -32,6 +32,7 @@ from tank_protocol import (
 from tank_protocol import (
     update as update_frame,
 )
+from tank_protocol.handshake import handshake_metadata
 
 from ..audio.input.types import AudioFrame
 from ..audio.output.types import AudioChunk
@@ -47,6 +48,9 @@ from . import deps
 from .auth import WS_AUTH_CLOSE_CODE, WS_AUTH_CLOSE_REASON, check_ws_auth
 from .signal_handlers import DisconnectSignal
 from .signal_handlers import dispatch as dispatch_signal
+
+if TYPE_CHECKING:
+    from ..core.assistant import Assistant
 
 logger = logging.getLogger("ApiRouter")
 
@@ -126,6 +130,25 @@ def _resolve_user_name(user_id: str | None) -> str:
         return "Guest"
     speaker = repo.get_speaker(user_id)
     return speaker.name if speaker else "Guest"
+
+
+def _ready_metadata(assistant: Assistant) -> dict[str, Any]:
+    """Metadata for the connection-lifetime ``signal: ready`` frame.
+
+    Carries the pipeline feature flags, the wire capture rate, the active
+    conversation, and the protocol handshake block (protocol plan P1-1:
+    ``protocol_version`` + ``protocol_features``) — additive keys; older
+    clients ignore what they don't know.
+    """
+    metadata: dict[str, Any] = {
+        "capabilities": assistant.capabilities,
+        "pipeline_sample_rate": assistant.pipeline_sample_rate,
+        **handshake_metadata(),
+    }
+    conv_id = assistant.brain.conversation_id
+    if conv_id:
+        metadata["conversation_id"] = conv_id
+    return metadata
 
 
 def _ui_msg_to_ws_msg(
@@ -563,18 +586,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 logger.debug(f"Send error: {e}")
 
     try:
-        # Send 'ready' signal with capabilities and active conversation
-        ready_metadata: dict[str, Any] = {
-            "capabilities": assistant.capabilities,
-            "pipeline_sample_rate": assistant.pipeline_sample_rate,
-        }
-        conv_id = assistant.brain.conversation_id
-        if conv_id:
-            ready_metadata["conversation_id"] = conv_id
         ready_msg = signal_frame(
             "ready",
             session_id=session_id,
-            metadata=ready_metadata,
+            metadata=_ready_metadata(assistant),
         )
         await _locked_send_text(ready_msg.model_dump_json())
 
