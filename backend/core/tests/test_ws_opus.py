@@ -172,7 +172,9 @@ def test_uplink_decoder_tolerates_garbage_without_crashing():
             out = decoder.decode_packet(blob)
         except OpusDecodeError:
             continue
-        assert len(out) <= 640 * 2  # at most a couple of 20 ms frames
+        # Bounded output: well-formed packets decode to one 20 ms frame;
+        # garbage may trigger PLC up to the 120 ms capacity domain.
+        assert len(out) <= 5760
 
 
 def test_create_session_codecs_pairs_both_directions():

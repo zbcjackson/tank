@@ -72,6 +72,11 @@ def uplink_sample_rate() -> int:
 
 DOWNLINK_SAMPLE_RATE = _DOWNLINK_SAMPLE_RATE
 
+# libopus decodes at most 120 ms per packet — the buffer capacity we give it.
+_UPLINK_MAX_FRAME_SAMPLES = (
+    OPUS_PROFILE["uplink"]["sample_rate"] * 120 // 1000
+)
+
 
 class OpusUplinkDecoder:
     """Decodes client uplink Opus packets (profile rate, mono) into PCM16."""
@@ -79,9 +84,6 @@ class OpusUplinkDecoder:
     def __init__(self) -> None:
         import opuslib
 
-        self._frame_samples = (
-            OPUS_PROFILE["uplink"]["sample_rate"] * OPUS_PROFILE["uplink"]["frame_ms"] // 1000
-        )
         self._decoder = opuslib.Decoder(OPUS_PROFILE["uplink"]["sample_rate"], 1)
 
     def decode_packet(self, packet: bytes) -> bytes:
@@ -90,9 +92,13 @@ class OpusUplinkDecoder:
         import opuslib
 
         try:
-            return self._decoder.decode(packet, self._frame_samples)
+            # Capacity hint, not a duration contract: some encoders (e.g.
+            # Chrome's WebCodecs opus) emit variable-duration packets, so
+            # allow libopus's 120 ms maximum instead of exactly one 20 ms
+            # frame — opus_decode returns the actual sample count.
+            return self._decoder.decode(packet, _UPLINK_MAX_FRAME_SAMPLES)
         except opuslib.OpusError as e:
-            raise OpusDecodeError(str(e)) from e
+            raise OpusDecodeError(f"{e} (packet {len(packet)} B)") from e
 
 
 class OpusDownlinkEncoder:
