@@ -1,6 +1,6 @@
 # Tank 私有协议演进计划（Protocol Evolution Plan）
 
-> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。P1-2 / P1-3 未开始。
+> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。P1-2 计划细化完成（2026-09-03，含选型 spike），实施未开始。P1-3 未开始。
 > 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](../done/s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
 > 触发背景：Tank 将来要远程部署在服务器上，连接远程操控的机器人和客户端。远程化对协议提出三个硬前提——认证、弱网韧性、可演进性——当前协议一项都不具备。
 > 本文所有代码事实均核对自实际代码（文件行号见引用）。
@@ -300,11 +300,37 @@ backend/contracts/tank_protocol/
 - 新 signal `capabilities`（`@register` 零改动扩展）：`metadata.enable` 已记录（info 日志）；当前无已实现的协议特性，连接级能力集的消费推迟到 P1-2/P1-3 落地时引入（避免无人读取的死存储）。
 - 旧客户端不发声明帧 = 现行为。Tests：包侧 5 例（handshake_metadata / 帧合法性）+ backend 6 例（`_ready_metadata` 携带字段、声明信号可分发、未知信号仍未处理）；实机 ready 帧验证 + E2E 全过。
 
-### P1-2 Opus 协商（开工前置：码率/复杂度起点、device 内存实测定案）
+### P1-2 Opus 协商 —— 计划细化（2026-09-03，spike 与代码事实核实完毕；实施未开始）
 
-- tank_protocol：能力名 `opus` + 协商状态模型。
-- 服务端：libopus 绑定（选型开工时定）编解码器；协商开启时 binary 分支 Opus→PCM 入管线、下行 PCM→Opus 出。
-- web：AudioWorklet + wasm 编解码；cli：Python 绑定；device：ESP32-S3 实测通过后接入。
+**开工前置定案（spike 实测；方法：300-3400Hz 语音形噪声突发 + 整数相关对齐 SNR——纯音/白噪声上的 SNR 测量有歧义，不可用）**
+
+- **绑定选型：`opuslib`**（cffi 绑定系统 libopus；本机 AArch64 实测加载 `libopus.so.0` 成功，无需 dev 包；解码按构造速率原生输出 16k/24k PCM，免重采样；16k enc+dec 合计 146× 实时，约 6.9ms CPU/20ms 帧）。后备 `PyAV`（PyPI 包名 `av`；自带 FFmpeg 轮子零系统依赖、维护活跃，但解码强制输出 48kHz，两方向都要补重采样）。**互通性已位级验证**：opuslib 编码的包被 opuslib/av 两个解码器解码 corr=1.00000，两绑定同码率包长区间一致（32k：67-127B）——服务端选哪个绑定都不影响 wire，其余三端自选实现。
+- **质量锚点**（opuslib 16k，对齐 SNR，随码率单调正确）：16k→7.5dB / 24k→11.8dB / 32k→14.7dB / 64k→22.3dB；round-trip 延迟 = 104 样本 @16k = libopus 文档的 6.5ms 编码前瞻，无额外延迟。
+- **参数定案**：帧长 20ms（与 mic 帧 / TTS chunk 节奏一致）；上行 16kHz mono、下行 24kHz mono（TTS 原生率 = 设备喇叭率）；码率起点双向 32kbps；复杂度/DTX/FEC 用 libopus 默认（关），TCP 无需 FEC/DTX。带宽收益：上行 32KB/s→约 4KB/s（8×），下行 48KB/s→约 4KB/s（12×）。
+- **device 内存实测仍待**——仅门控下述 Step 5；本机 CoreS3 serial 有 JTAG 争用问题，需专门硬件会话。
+
+**Wire 设计定案（本文档此前未写明的两点）**
+
+1. **分帧**：一条 WS binary 消息 = 一个 Opus 包，双向皆然。WS 消息边界即包边界，无需长度前缀（opus 包上限 1275B；20ms@32k 实测约 80-127B）。
+2. **协商确认流**（connect 时一次性；v1 无中途重协商/关闭，连接生命期内编解码固定）：
+   `signal: ready`（`protocol_features` 含 `opus`，由服务端能否导入 opuslib 决定点亮与否——`router.py:146` 现传空列表）→ 客户端 `signal: capabilities`、`metadata.enable=["opus"]`（P1-1 已定义的帧形）→ 服务端校验后回 `signal: capabilities` ack，`metadata` = `{"enabled": ["opus"], "opus": {"uplink": {"sample_rate":16000, "frame_ms":20, "bitrate":32000}, "downlink": {"sample_rate":24000, "frame_ms":20}}}` → 双方各自切换编解码。
+   - 竞态窗口（ack 在途时客户端旧 PCM 被服务端按 opus 解码）只出现在连接建立瞬间、早于任何用户语音，实际为空窗；已知并接受。
+   - opus 连接中 `audio_format` 信号忽略（上行率已协商固定）；`?output_rate=` 查询参数忽略（下行率已协商固定）。未协商连接（含全部旧客户端）逐帧行为不变。
+
+**实施步骤（每步一 commit + §10 全量验证清单）**
+
+- **Step 1 — tank_protocol**：`payloads.py` SIGNAL metadata 键集加 `enabled`/`opus`；`factories.py` 加 capabilities-ack 工厂；schema/golden 生成物重生成（ack 帧样例如入 golden）；`__version__` → 0.2.0（additive minor bump，`protocol_version` 随之升级）；包测试 + `scripts/check_protocol_sync.py`。
+- **Step 2 — 服务端**：
+  - `backend/core` 依赖加 `opuslib`（uv add）；新增 `audio/opus_codec.py`：`OpusUplinkDecoder`（逐包 decode → PCM16）与 `OpusDownlinkEncoder`（20ms 重缓冲任意长度 PCM chunk → 逐包 encode；中断时直接丢弃残量——playback 本就 fade-out，无爆音）。
+  - `api/signal_handlers.py::handle_capabilities`（现仅记日志，:159-174）实现真协商：校验 feature → 建编解码器 → 回 ack。
+  - `api/router.py`：上行 binary 分支（:611-631）加 opus 解码路径（编解码器实例存 ws handler 闭包，连接级）；`on_playback_chunk`（:468-507）加 opus 编码路径；**channel 音频 fan-out（:497-503）按订阅者各自编码**——现扇出直接转发已编码帧，混合编解码下必须每订阅者重建；`ConnectionManager` 增加每会话编解码器注册表供扇出查询。
+  - `_ready_metadata`（:140-146）：`handshake_metadata()` 传入服务端实际支持的 feature 列表（opuslib 可导入 → `opus`）。
+  - Tests：`test_ws_opus.py`——round-trip SNR（spike 的信号生成+对齐方法移植为 helper，阈值：32k ≥ 10dB）；协商关/开两分支（无声明 = 现行为逐帧不变）；ack 对未知 feature warn-忽略；fan-out 混合编解码（自身 opus + 订阅者 PCM）。
+- **Step 3 — web**：wasm libopus 选型（候选 `opus-encoder`/`opus-decoder` npm wasm 包，开工时按 bundle 体积与 API 定）；`services/audio.ts` 上行编码（AudioContext 已锁 16k，:103）；下行 `services/audioFrame.ts`（现 8 字节头解析处）与 `services/audioPlayback.ts`/`browserAudio.ts` 调度路径加 opus 分支；`hooks/useAudioPipeline.ts`（或 useAssistant）ready 后发声明、收 ack 后切换；不协商则现有 PCM 路径零改动。
+- **Step 4 — cli**：`cli/client.py`（:76 `send_audio` 及下行 binary 分支）+ `audio/input/handler.py`、`audio/output/handler.py` 接 opuslib（与服务端同库同 API）；ready 后声明、ack 后切换。
+- **Step 5 — device（门控：ESP32-S3 内存/CPU 实测）**：libopus 的 ESP-IDF 移植选型（候选 ESP-ADF opus component）+ heap/PSRAM 占用与实时性实测，定案后才接入；触点 `net/WsProtocol.cpp`、`net/WsClient.cpp` 路由、`audio/AudioCapture.cpp`/`AudioPlayback.cpp`；native golden-frame 测试同步。
+
+**P1-2 非目标**：不做中途重协商/关闭；不做 UDP/WebRTC（§6 触发条件）；不动 `tank_contracts` 的 PCM frame codec。
 
 ### P1-3 热配置 + 上下文注入
 
@@ -360,5 +386,5 @@ WebRTC / Resume / Realtime 端点 / LLM Proxy —— 见 §6 触发条件表。
 
 1. ~~`tank_protocol` 放 `backend/contracts/` 下还是仓库根 `protocol/`？~~ **已定（2026-09-02）**：嵌套 workspace 成员 `backend/contracts/tank_protocol/`（复用现有 workspace，cli path 依赖路径短）；若将来非 backend 生态（如独立发布）再迁出；
 2. 认证 token 的分发方式（配置文件 vs 首次配对流程）——远程部署设计时定；
-3. Opus 码率/复杂度参数（16kHz 语音建议 24-32kbps 起点）与 device 端内存实测——P1-2 开工时定；
+3. ~~Opus 码率/复杂度参数与 device 端内存实测~~ **部分已定（2026-09-03）**：绑定 opuslib（后备 PyAV）、20ms 帧、上行 16k/下行 24k、起点双向 32kbps——spike 实测见 §7 P1-2；device 端内存/CPU 实测仍待，仅门控 P1-2 Step 5（device 段）；
 4. ~~web 生成类型的落盘路径与 lint 集成方式~~ **已定（2026-09-02）**：生成物入库（`web/src/types/protocol.ts`、device golden_frames.h、schema.json 同理），一致性由 `scripts/check_protocol_sync.py` + 验证清单保障（仓库 CI 为手动触发，不依赖 GitHub Actions）。
