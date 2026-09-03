@@ -37,6 +37,7 @@ from .factories import (
     transcript,
     update,
 )
+from .handshake import handshake_metadata
 from .payloads import ENVELOPE_FIELDS, METADATA_KEYS
 
 __all__ = [
@@ -102,7 +103,10 @@ def _golden_frames() -> list[tuple[str, str]]:
             signal(
                 "ready",
                 session_id="sess-golden",
-                metadata={"capabilities": ["asr", "tts", "speaker_id"]},
+                metadata={
+                    "capabilities": ["asr", "tts", "speaker_id"],
+                    **handshake_metadata(),
+                },
             ).model_dump_json(),
         ),
         (

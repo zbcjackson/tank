@@ -6,7 +6,7 @@
 
 #pragma once
 
-static const char* const TANK_GOLDEN_SIGNAL = R"JSON({"type":"signal","content":"ready","speaker":null,"is_user":false,"is_final":false,"msg_id":null,"session_id":"sess-golden","metadata":{"capabilities":["asr","tts","speaker_id"]},"attachments":[]})JSON";
+static const char* const TANK_GOLDEN_SIGNAL = R"JSON({"type":"signal","content":"ready","speaker":null,"is_user":false,"is_final":false,"msg_id":null,"session_id":"sess-golden","metadata":{"capabilities":["asr","tts","speaker_id"],"protocol_version":"0.1.0","protocol_features":[]},"attachments":[]})JSON";
 static const char* const TANK_GOLDEN_TRANSCRIPT = R"JSON({"type":"transcript","content":"你好","speaker":"User","is_user":true,"is_final":true,"msg_id":"u_golden","session_id":"sess-golden","metadata":{},"attachments":[]})JSON";
 static const char* const TANK_GOLDEN_TEXT = R"JSON({"type":"text","content":"Hello","speaker":"Brain","is_user":false,"is_final":false,"msg_id":"m_golden","session_id":"sess-golden","metadata":{},"attachments":[]})JSON";
 static const char* const TANK_GOLDEN_UPDATE = R"JSON({"type":"update","content":"","speaker":"Brain","is_user":false,"is_final":false,"msg_id":"m_golden","session_id":"sess-golden","metadata":{"step_id":"m_golden_tool_0","status":"calling","update_type":"UpdateType.TOOL"},"attachments":[]})JSON";

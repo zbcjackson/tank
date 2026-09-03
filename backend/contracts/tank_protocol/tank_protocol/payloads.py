@@ -86,6 +86,7 @@ KNOWN_SIGNALS: frozenset[str] = frozenset(
         "end_of_utterance",
         "audio_format",
         "ping",
+        "capabilities",
         "resume_conversation",
         "new_conversation",
         "subscribe_channels",
@@ -103,6 +104,11 @@ METADATA_KEYS: dict[MessageType, frozenset[str]] = {
         {
             "capabilities",
             "pipeline_sample_rate",
+            # handshake (P1-1): server advertisement on signal:ready and the
+            # client's feature declaration — see handshake.py.
+            "protocol_version",
+            "protocol_features",
+            "enable",
             "conversation_id",
             "title",
             "error",

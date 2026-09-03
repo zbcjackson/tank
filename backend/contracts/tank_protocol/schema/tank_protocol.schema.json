@@ -135,8 +135,11 @@
         "channel_slug",
         "channels",
         "conversation_id",
+        "enable",
         "error",
         "pipeline_sample_rate",
+        "protocol_features",
+        "protocol_version",
         "sample_rate",
         "title"
       ]
