@@ -1,6 +1,6 @@
 # Tank 私有协议演进计划（Protocol Evolution Plan）
 
-> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。P1-2 计划细化完成（2026-09-03，含选型 spike），实施未开始。P1-3 未开始。
+> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。P1-2 实施中：Step 1（协议包 0.2.0）已落地（2026-09-03），Step 2-5 未开始。P1-3 未开始。
 > 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](../done/s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
 > 触发背景：Tank 将来要远程部署在服务器上，连接远程操控的机器人和客户端。远程化对协议提出三个硬前提——认证、弱网韧性、可演进性——当前协议一项都不具备。
 > 本文所有代码事实均核对自实际代码（文件行号见引用）。
@@ -320,6 +320,7 @@ backend/contracts/tank_protocol/
 **实施步骤（每步一 commit + §10 全量验证清单）**
 
 - **Step 1 — tank_protocol**：`payloads.py` SIGNAL metadata 键集加 `enabled`/`opus`；`factories.py` 加 capabilities-ack 工厂；schema/golden 生成物重生成（ack 帧样例如入 golden）；`__version__` → 0.2.0（additive minor bump，`protocol_version` 随之升级）；包测试 + `scripts/check_protocol_sync.py`。
+  **落地记录（2026-09-03，commit d1923a6）**：另加 `handshake.OPUS_PROFILE` 常量（协商参数单一来源，ack 工厂内嵌之，客户端从 wire 自取、服务端自读同一处）；ack 的 `enabled` 排序去重保证 wire 确定性；README 补 handshake 模块行与协商流程小节；golden 新增 `TANK_GOLDEN_SIGNAL_CAPABILITIES_ACK`（native 21 例全过，C++ 侧零改动——ack 帧对设备仍是忽略的 signal 变体）；`web/src/types/protocol.ts` 零变化（json2ts 忽略 `x-tank-*`，信封未动）。全量验证清单通过（包 33 / 后端 3301 / cli 24 / device native 86 / E2E 10 / sync OK）。顺带发现：健康检查路由实际是 `/api/health`（`server.py:692`），根 ARCHITECTURE.md 与 backend 文档仍写 `/health`——既有文档漂移，非本阶段范围。
 - **Step 2 — 服务端**：
   - `backend/core` 依赖加 `opuslib`（uv add）；新增 `audio/opus_codec.py`：`OpusUplinkDecoder`（逐包 decode → PCM16）与 `OpusDownlinkEncoder`（20ms 重缓冲任意长度 PCM chunk → 逐包 encode；中断时直接丢弃残量——playback 本就 fade-out，无爆音）。
   - `api/signal_handlers.py::handle_capabilities`（现仅记日志，:159-174）实现真协商：校验 feature → 建编解码器 → 回 ack。
