@@ -1,6 +1,6 @@
 # Tank 私有协议演进计划（Protocol Evolution Plan）
 
-> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。P1-2 实施中：Step 1（协议包 0.2.0）、Step 2（服务端协商）已落地（2026-09-03），Step 3-5 未开始。P1-3 未开始。
+> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。P1-2 实施中：Step 1（协议包 0.2.0）、Step 2（服务端协商）、Step 3（web/WebCodecs）已落地（2026-09-03），Step 4-5 未开始。P1-3 未开始。
 > 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](../done/s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
 > 触发背景：Tank 将来要远程部署在服务器上，连接远程操控的机器人和客户端。远程化对协议提出三个硬前提——认证、弱网韧性、可演进性——当前协议一项都不具备。
 > 本文所有代码事实均核对自实际代码（文件行号见引用）。
@@ -329,6 +329,8 @@ backend/contracts/tank_protocol/
   - Tests：`test_ws_opus.py`——round-trip SNR（spike 的信号生成+对齐方法移植为 helper，阈值：32k ≥ 10dB）；协商关/开两分支（无声明 = 现行为逐帧不变）；ack 对未知 feature warn-忽略；fan-out 混合编解码（自身 opus + 订阅者 PCM）。
   **落地记录（2026-09-03，commit acdc0a4）**：全部按计划落地，另加两项实现中发现必要的补充——① PCM 自身会话 + opus 订阅者的扇出组合（讲话方未协商 opus）需要共享编码器，落为 `ConnectionManager.get_channel_encoder()` 懒创建（profile 全局相同，一条包流服务所有 opus 消费者）；② 编码器残量陈旧判定（>1s 即丢弃，可注入时钟）——中断后 TTS 半帧残量若不清理会漏进下一响应开头。`test_ws_opus.py` 19 例：编解码单元（SNR/重缓冲/残量语义/垃圾包容错）+ handle_capabilities 决策矩阵 + 真 endpoint 集成（MagicMock assistant + 真 ConnectionManager 驱动 `websocket_endpoint`，覆盖 ready 广告、双向切换、混合扇出）。既有 `test_protocol_handshake` 的 dispatch 用例因 handler 现在触碰 deps 而补初始化（并强化为断言注册发生）。全量验证：后端 3318、cli 24、E2E 10/10、真机 smoke（dev server 上 ready 广告 opus/ack 携带 profile/上行包入管线/未知 feature 被拒）全过。
 - **Step 3 — web**：wasm libopus 选型（候选 `opus-encoder`/`opus-decoder` npm wasm 包，开工时按 bundle 体积与 API 定）；`services/audio.ts` 上行编码（AudioContext 已锁 16k，:103）；下行 `services/audioFrame.ts`（现 8 字节头解析处）与 `services/audioPlayback.ts`/`browserAudio.ts` 调度路径加 opus 分支；`hooks/useAudioPipeline.ts`（或 useAssistant）ready 后发声明、收 ack 后切换；不协商则现有 PCM 路径零改动。
+  **落地记录（2026-09-03，commit 8f035e7 + af90871）——选型偏差：改用 WebCodecs 而非 npm wasm 包**。理由：2026 年浏览器 `AudioEncoder`/`AudioDecoder` 原生支持 opus——零 bundle 体积（对 Tauri 静态打包零负担）、浏览器自带 libopus、可 `isConfigSupported` 探测优雅回退 PCM；而 wasm 路线的编码器侧没有一等 npm 包，且 MB 级内联 wasm 会进 .app。关键事实：WebCodecs 把 opus 锁在 48kHz——下行包解出 48k float（包本身与码率无关，无碍）；上行 16k mic 线性 3× 上采样后编码。实现：`services/opusCodec.ts`（OpusUplink/OpusDownlink/isOpusSupported）；opus 在 `useAudioPipeline` 的 binary 入口处终止——解码后重封 8 字节头 PCM（48k）再走既有路由，channel audio 与 playback 零改动；`websocket.sendBinary` + `audioFrame.encodeAudioFrame`。
+  **smoke 抓到两个真 bug**：① `isConfigSupported()` 的规范字段是 `supported` 而非 lib.dom 里误导性的缺失——初版探针恒 false，线上会静默回退 PCM；② Chrome 的 WebCodecs opus 编码器产出**变长包**（非严格 20ms），服务端 320 样本解码容量报 "buffer too small"（一次 E2E 掉 47 帧）——修复为按 libopus 120ms 上限容量解码（commit af90871，opus_decode 返回实际样本数，管线本就消费变长帧）。**跨实现互通实证**（真实 chromium + opuslib，经真 wrapper 模块）：上行（浏览器编码→服务端解码）51 包全 20ms、SNR 18.8 dB；下行（服务端编码→浏览器解码）50 包、SNR 11.3 dB。E2E 10/10 且协商在 E2E 中真实发生（服务端日志 5 会话 negotiated，修复后 0 解码失败）。验证全量：web lint/tsc/vitest 153、后端 3318。
 - **Step 4 — cli**：`cli/client.py`（:76 `send_audio` 及下行 binary 分支）+ `audio/input/handler.py`、`audio/output/handler.py` 接 opuslib（与服务端同库同 API）；ready 后声明、ack 后切换。
 - **Step 5 — device（门控：ESP32-S3 内存/CPU 实测）**：libopus 的 ESP-IDF 移植选型（候选 ESP-ADF opus component）+ heap/PSRAM 占用与实时性实测，定案后才接入；触点 `net/WsProtocol.cpp`、`net/WsClient.cpp` 路由、`audio/AudioCapture.cpp`/`AudioPlayback.cpp`；native golden-frame 测试同步。
 
