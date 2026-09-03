@@ -8,7 +8,15 @@ import {
 } from '../services/websocket';
 import type { WebsocketMessage } from '../services/websocket';
 import { AudioProcessor } from '../services/audio';
+import { encodeAudioFrame } from '../services/audioFrame';
 import { AudioPlayback } from '../services/audioPlayback';
+import {
+  OPUS_DECODE_SAMPLE_RATE,
+  OpusDownlink,
+  OpusUplink,
+  float32ToInt16,
+  isOpusSupported,
+} from '../services/opusCodec';
 import { createPlatformAudio } from '../services/platformAudio';
 import type { StatusEvent } from './useAssistantStatus';
 import type { ConversationState } from './useConversationSession';
@@ -74,11 +82,68 @@ export function useAudioPipeline({
       }
     });
 
+    // Opus negotiation state (protocol plan P1-2). The codecs terminate
+    // HERE: downlink packets are decoded and re-framed as 8-byte-header PCM
+    // at 48 kHz, so every downstream consumer (channel audio, playback)
+    // keeps seeing exactly the frames it saw on raw-PCM connections.
+    let opus: { uplink: OpusUplink; downlink: OpusDownlink } | null = null;
+    let opusDeclared = false;
+
+    const routeBinary = (data: ArrayBuffer) => {
+      if (!speakEnabledRef.current) return;
+      if (onBinaryMessage) {
+        onBinaryMessage(data);
+      } else {
+        playback.play(data);
+      }
+    };
+
+    const activateOpus = () => {
+      if (opus) return;
+      const downlink = new OpusDownlink((samples) => {
+        routeBinary(encodeAudioFrame(float32ToInt16(samples), OPUS_DECODE_SAMPLE_RATE, 1));
+      });
+      const uplink = new OpusUplink((packet) => clientRef.current?.sendBinary(packet));
+      opus = { uplink, downlink };
+      console.info('[opus] negotiated — binary audio switched to opus packets');
+    };
+
+    const maybeDeclareOpus = (msg: WebsocketMessage) => {
+      if (opusDeclared) return;
+      const features = msg.metadata?.protocol_features;
+      if (!Array.isArray(features) || !features.includes('opus')) return;
+      opusDeclared = true;
+      isOpusSupported()
+        .then((supported) => {
+          if (supported) {
+            clientRef.current?.sendMessage('signal', 'capabilities', {
+              enable: ['opus'],
+            });
+          } else {
+            console.info('[opus] WebCodecs opus unavailable — staying on raw PCM');
+          }
+        })
+        .catch((e) => console.error('[opus] support probe failed:', e));
+    };
+
+    const onCapabilitiesAck = (msg: WebsocketMessage) => {
+      const enabled = msg.metadata?.enabled;
+      if (Array.isArray(enabled) && enabled.includes('opus')) {
+        activateOpus();
+      }
+    };
+
     // Create WebSocket client (pure transport)
     const client = new VoiceAssistantClient(sessionId, backendUrl);
     clientRef.current = client;
     client.connect(
       (msg) => {
+        // Opus negotiation (P1-2): declare after ready, activate on ack.
+        if (msg.type === 'signal' && msg.content === 'ready') {
+          maybeDeclareOpus(msg);
+        } else if (msg.type === 'signal' && msg.content === 'capabilities') {
+          onCapabilitiesAck(msg);
+        }
         // Reset playback gate when a new response cycle begins
         if (msg.type === 'signal' && msg.content === 'processing_started') {
           playback.reset();
@@ -92,14 +157,12 @@ export function useAudioPipeline({
         onMessage(msg);
       },
       (data) => {
-        // Drop TTS frames when the user has muted assistant audio.
-        if (!speakEnabledRef.current) return;
-        // Route binary frames: channel audio track or interactive playback
-        if (onBinaryMessage) {
-          onBinaryMessage(data);
-        } else {
-          playback.play(data);
+        // Opus connection: packets decode → re-framed PCM → routeBinary.
+        if (opus) {
+          opus.downlink.decode(new Uint8Array(data));
+          return;
         }
+        routeBinary(data);
       }, // Binary frames → playback or channel audio
       () => {}, // onOpen - handled by onConnectionStateChange
       (state, metadata) => {
@@ -114,7 +177,13 @@ export function useAudioPipeline({
     );
 
     // AudioProcessor is created eagerly but started lazily (after capabilities arrive)
-    const audioProcessor = new AudioProcessor((data) => client.sendAudio(data));
+    const audioProcessor = new AudioProcessor((data) => {
+      if (opus) {
+        opus.uplink.push(data);
+      } else {
+        client.sendAudio(data);
+      }
+    });
 
     // Create platform audio adapter and wire it to both services
     let disposed = false;
@@ -143,6 +212,10 @@ export function useAudioPipeline({
     return () => {
       disposed = true;
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (opus) {
+        opus.uplink.dispose();
+        opus.downlink.dispose();
+      }
       client.disconnect();
       audioProcessor.stop();
       playback.dispose();

@@ -239,6 +239,20 @@ export class VoiceAssistantClient {
     }
   }
 
+  /** Send a raw binary frame (e.g. an opus packet, protocol plan P1-2). */
+  sendBinary(data: Uint8Array | ArrayBuffer) {
+    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+    if (this.isTauri) {
+      import('@tauri-apps/api/core').then(({ invoke }) => {
+        invoke('ws_send_binary', { data: Array.from(bytes) });
+      }).catch(console.error);
+      return;
+    }
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.socket.send(bytes);
+    }
+  }
+
   private sendAudioTauri(data: Int16Array) {
     import('@tauri-apps/api/core').then(({ invoke }) => {
       invoke('ws_send_binary', { data: Array.from(new Uint8Array(data.buffer)) });

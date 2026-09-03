@@ -31,3 +31,21 @@ export function decodeAudioFrame(frame: ArrayBuffer): DecodedAudioFrame {
     channels,
   };
 }
+
+/** Build an 8-byte-header PCM frame — the reverse of decodeAudioFrame. Used
+ * to re-frame opus-decoded PCM so downstream consumers stay header-typed. */
+export function encodeAudioFrame(
+  pcm: Int16Array,
+  sampleRate: number,
+  channels: number,
+): ArrayBuffer {
+  const out = new ArrayBuffer(AUDIO_FRAME_HEADER_SIZE + pcm.byteLength);
+  const view = new DataView(out);
+  view.setUint16(0, AUDIO_FRAME_MAGIC, true);
+  view.setUint32(2, sampleRate, true);
+  view.setUint16(6, channels, true);
+  new Uint8Array(out, AUDIO_FRAME_HEADER_SIZE).set(
+    new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength),
+  );
+  return out;
+}
