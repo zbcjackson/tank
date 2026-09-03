@@ -1,6 +1,6 @@
 # Tank 私有协议演进计划（Protocol Evolution Plan）
 
-> 状态：P0-1、P0-2 已落地（2026-09-02）。P1-x 未开始。
+> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。P1-2 / P1-3 未开始。
 > 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](../done/s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
 > 触发背景：Tank 将来要远程部署在服务器上，连接远程操控的机器人和客户端。远程化对协议提出三个硬前提——认证、弱网韧性、可演进性——当前协议一项都不具备。
 > 本文所有代码事实均核对自实际代码（文件行号见引用）。
@@ -292,11 +292,13 @@ backend/contracts/tank_protocol/
 - Tests：`test_ws_auth.py` 11 例 —— 纯函数决策矩阵（含非 ASCII token、fail-closed）+ endpoint 级 4 条拒绝路径（TestClient 断言 close code 1008）。放行路径由既有 E2E（无 token 连默认配置）覆盖。
 - 注意：拒绝发生在 `get_or_create_assistant` 之前，被拒连接零会话开销；客户端侧 token 携带（web/cli/device 发 `?token=`）属远程部署设计（§11.2）的后续工作，本阶段不涉及。
 
-### P1-1 握手/版本/能力
+### P1-1 握手/版本/能力 ——已落地（2026-09-02）
 
-- `ready` 帧 metadata 增加 `protocol_version`（= `tank_protocol.__version__`；用字符串取代 §5.1 草案的 int，包版本即单一来源）与 `capabilities: list[str]`（随各阶段落地逐个点亮：opus/resume/config）。
-- 新 signal `capabilities`（`@register` 零改动扩展）：`metadata.enable` 存入连接级能力集。
-- 旧客户端不发声明帧 = 现行为。Tests：ready 帧携带字段；无声明行为不变。
+- `ready` 帧 metadata 增加 `protocol_version`（= `tank_protocol.__version__`；用字符串取代 §5.1 草案的 int，包版本即单一来源）与 `protocol_features: list[str]`（随各阶段落地逐个点亮：opus/resume/config）。
+  - **命名偏差记录**：§5.1 草案的 `capabilities: [...]` 与 ready 帧既有键 `capabilities`（`{asr,tts,speaker_id}` 流水线能力字典，web 在消费）冲突，wire 兼容承诺不允许改语义，故协议能力列表落在新键 `protocol_features` 下。
+- `tank_protocol.handshake` 模块：`handshake_metadata()`（版本 + 特性列表的单一来源）+ `KNOWN_PROTOCOL_FEATURES`；payloads 的 SIGNAL metadata 键集与 KNOWN_SIGNALS 同步收录 `protocol_version`/`protocol_features`/`enable`/`capabilities` 信号。
+- 新 signal `capabilities`（`@register` 零改动扩展）：`metadata.enable` 已记录（info 日志）；当前无已实现的协议特性，连接级能力集的消费推迟到 P1-2/P1-3 落地时引入（避免无人读取的死存储）。
+- 旧客户端不发声明帧 = 现行为。Tests：包侧 5 例（handshake_metadata / 帧合法性）+ backend 6 例（`_ready_metadata` 携带字段、声明信号可分发、未知信号仍未处理）；实机 ready 帧验证 + E2E 全过。
 
 ### P1-2 Opus 协商（开工前置：码率/复杂度起点、device 内存实测定案）
 
