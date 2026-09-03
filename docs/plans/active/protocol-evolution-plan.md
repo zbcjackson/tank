@@ -1,6 +1,6 @@
 # Tank 私有协议演进计划（Protocol Evolution Plan）
 
-> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。P1-2 实施中：Step 1（协议包 0.2.0）已落地（2026-09-03），Step 2-5 未开始。P1-3 未开始。
+> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。P1-2 实施中：Step 1（协议包 0.2.0）、Step 2（服务端协商）已落地（2026-09-03），Step 3-5 未开始。P1-3 未开始。
 > 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](../done/s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
 > 触发背景：Tank 将来要远程部署在服务器上，连接远程操控的机器人和客户端。远程化对协议提出三个硬前提——认证、弱网韧性、可演进性——当前协议一项都不具备。
 > 本文所有代码事实均核对自实际代码（文件行号见引用）。
@@ -327,6 +327,7 @@ backend/contracts/tank_protocol/
   - `api/router.py`：上行 binary 分支（:611-631）加 opus 解码路径（编解码器实例存 ws handler 闭包，连接级）；`on_playback_chunk`（:468-507）加 opus 编码路径；**channel 音频 fan-out（:497-503）按订阅者各自编码**——现扇出直接转发已编码帧，混合编解码下必须每订阅者重建；`ConnectionManager` 增加每会话编解码器注册表供扇出查询。
   - `_ready_metadata`（:140-146）：`handshake_metadata()` 传入服务端实际支持的 feature 列表（opuslib 可导入 → `opus`）。
   - Tests：`test_ws_opus.py`——round-trip SNR（spike 的信号生成+对齐方法移植为 helper，阈值：32k ≥ 10dB）；协商关/开两分支（无声明 = 现行为逐帧不变）；ack 对未知 feature warn-忽略；fan-out 混合编解码（自身 opus + 订阅者 PCM）。
+  **落地记录（2026-09-03，commit acdc0a4）**：全部按计划落地，另加两项实现中发现必要的补充——① PCM 自身会话 + opus 订阅者的扇出组合（讲话方未协商 opus）需要共享编码器，落为 `ConnectionManager.get_channel_encoder()` 懒创建（profile 全局相同，一条包流服务所有 opus 消费者）；② 编码器残量陈旧判定（>1s 即丢弃，可注入时钟）——中断后 TTS 半帧残量若不清理会漏进下一响应开头。`test_ws_opus.py` 19 例：编解码单元（SNR/重缓冲/残量语义/垃圾包容错）+ handle_capabilities 决策矩阵 + 真 endpoint 集成（MagicMock assistant + 真 ConnectionManager 驱动 `websocket_endpoint`，覆盖 ready 广告、双向切换、混合扇出）。既有 `test_protocol_handshake` 的 dispatch 用例因 handler 现在触碰 deps 而补初始化（并强化为断言注册发生）。全量验证：后端 3318、cli 24、E2E 10/10、真机 smoke（dev server 上 ready 广告 opus/ack 携带 profile/上行包入管线/未知 feature 被拒）全过。
 - **Step 3 — web**：wasm libopus 选型（候选 `opus-encoder`/`opus-decoder` npm wasm 包，开工时按 bundle 体积与 API 定）；`services/audio.ts` 上行编码（AudioContext 已锁 16k，:103）；下行 `services/audioFrame.ts`（现 8 字节头解析处）与 `services/audioPlayback.ts`/`browserAudio.ts` 调度路径加 opus 分支；`hooks/useAudioPipeline.ts`（或 useAssistant）ready 后发声明、收 ack 后切换；不协商则现有 PCM 路径零改动。
 - **Step 4 — cli**：`cli/client.py`（:76 `send_audio` 及下行 binary 分支）+ `audio/input/handler.py`、`audio/output/handler.py` 接 opuslib（与服务端同库同 API）；ready 后声明、ack 后切换。
 - **Step 5 — device（门控：ESP32-S3 内存/CPU 实测）**：libopus 的 ESP-IDF 移植选型（候选 ESP-ADF opus component）+ heap/PSRAM 占用与实时性实测，定案后才接入；触点 `net/WsProtocol.cpp`、`net/WsClient.cpp` 路由、`audio/AudioCapture.cpp`/`AudioPlayback.cpp`；native golden-frame 测试同步。
