@@ -10,16 +10,19 @@ internals. Callers map their own domain types (``DisplayMessage``,
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from typing import Any
 
 from .enums import MessageType
 from .envelope import WebsocketAttachment, WebsocketMessage
+from .handshake import OPUS_PROFILE
 from .payloads import validate_envelope
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
     "attachment",
+    "capabilities_ack",
     "channel_notification",
     "conversation_metadata_updated",
     "signal",
@@ -51,6 +54,33 @@ def signal(
         msg_id=msg_id,
         session_id=session_id,
         metadata=metadata or {},
+    )
+
+
+def capabilities_ack(
+    enabled: Iterable[str],
+    *,
+    session_id: str | None = None,
+) -> WebsocketMessage:
+    """Server ack to a client ``signal: capabilities`` declaration (P1-2).
+
+    ``enabled`` lists the features the server switched on for this
+    connection (deduped + sorted for deterministic wire output). When
+    ``"opus"`` is among them the ack embeds the canonical codec profile
+    (``handshake.OPUS_PROFILE``) so clients configure their codecs from
+    the wire instead of hardcoding.
+    """
+    features = sorted(set(enabled))
+    metadata: dict[str, Any] = {"enabled": features}
+    if "opus" in features:
+        metadata["opus"] = {
+            direction: dict(params) for direction, params in OPUS_PROFILE.items()
+        }
+    return _build(
+        MessageType.SIGNAL,
+        content="capabilities",
+        session_id=session_id,
+        metadata=metadata,
     )
 
 

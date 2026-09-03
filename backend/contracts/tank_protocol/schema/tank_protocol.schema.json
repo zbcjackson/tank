@@ -121,7 +121,7 @@
   ],
   "title": "WebsocketMessage",
   "type": "object",
-  "x-tank-version": "0.1.0",
+  "x-tank-version": "0.2.0",
   "x-tank-payload-fields": {
     "signal": {
       "envelope": [
@@ -136,7 +136,9 @@
         "channels",
         "conversation_id",
         "enable",
+        "enabled",
         "error",
+        "opus",
         "pipeline_sample_rate",
         "protocol_features",
         "protocol_version",

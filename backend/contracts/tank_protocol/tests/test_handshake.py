@@ -6,6 +6,7 @@ import json
 
 from tank_protocol import (
     KNOWN_PROTOCOL_FEATURES,
+    OPUS_PROFILE,
     handshake_metadata,
     validate_envelope,
 )
@@ -24,6 +25,16 @@ def test_handshake_features_are_sorted_and_deduped():
 
 def test_known_features_cover_planned_phases():
     assert KNOWN_PROTOCOL_FEATURES == frozenset({"opus", "resume", "config"})
+
+
+def test_opus_profile_is_the_canonical_negotiation_params():
+    # P1-2: 20ms frames, 32 kbps start, uplink 16 kHz (mic) / downlink
+    # 24 kHz (TTS native rate). Clients configure from the ack frame's
+    # ``metadata.opus`` — this constant is the single source.
+    assert OPUS_PROFILE == {
+        "uplink": {"sample_rate": 16000, "frame_ms": 20, "bitrate": 32000},
+        "downlink": {"sample_rate": 24000, "frame_ms": 20, "bitrate": 32000},
+    }
 
 
 def test_ready_frame_with_handshake_metadata_is_clean():

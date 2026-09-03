@@ -60,6 +60,16 @@ def test_unknown_metadata_key_is_reported():
     assert violations == ["metadata: key 'secret_key' is not documented for text"]
 
 
+def test_capabilities_ack_metadata_keys_are_documented():
+    # P1-2 negotiation ack: server → client on signal:capabilities.
+    msg = WebsocketMessage(
+        type=MessageType.SIGNAL,
+        content="capabilities",
+        metadata={"enabled": ["opus"], "opus": {"uplink": {}, "downlink": {}}},
+    )
+    assert validate_envelope(msg) == []
+
+
 def test_validation_never_raises_on_any_type():
     for msg_type in MessageType:
         msg = WebsocketMessage(type=msg_type)

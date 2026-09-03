@@ -1,6 +1,6 @@
 [project]
 name = "tank-protocol"
-version = "0.1.0"
+version = "0.2.0"
 description = "Tank Voice Assistant - client WebSocket wire contract (single source of truth)"
 readme = "README.md"
 requires-python = ">=3.10"

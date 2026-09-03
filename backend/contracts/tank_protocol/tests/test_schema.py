@@ -49,6 +49,7 @@ def test_golden_header_covers_every_outbound_type_and_is_stable():
     header = generate_golden_frames_header()
     for constant in (
         "TANK_GOLDEN_SIGNAL",
+        "TANK_GOLDEN_SIGNAL_CAPABILITIES_ACK",
         "TANK_GOLDEN_TRANSCRIPT",
         "TANK_GOLDEN_TEXT",
         "TANK_GOLDEN_UPDATE",
@@ -71,7 +72,7 @@ def test_golden_frames_are_valid_wire_json():
         for line in header.splitlines()
         if "R\"JSON(" in line
     ]
-    assert len(frames) == 8
+    assert len(frames) == 9
     for raw in frames:
         parsed = json.loads(raw)
         assert "type" in parsed

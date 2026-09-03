@@ -5,14 +5,17 @@ pre-extraction construction sites (protocol plan §8 P0-1: "构造工厂产出�
 from __future__ import annotations
 
 from tank_protocol import (
+    OPUS_PROFILE,
     WebsocketAttachment,
     attachment,
+    capabilities_ack,
     channel_notification,
     conversation_metadata_updated,
     signal,
     text,
     transcript,
     update,
+    validate_envelope,
 )
 
 
@@ -102,3 +105,24 @@ def test_factories_do_not_mutate_caller_metadata():
     meta = {"channel_slug": "jobs"}
     channel_notification(metadata=meta)
     assert meta == {"channel_slug": "jobs"}
+
+
+def test_capabilities_ack_embeds_opus_profile():
+    frame = capabilities_ack(["opus"], session_id="s1")
+    assert frame.type.value == "signal"
+    assert frame.content == "capabilities"
+    assert frame.metadata["enabled"] == ["opus"]
+    assert frame.metadata["opus"] == OPUS_PROFILE
+    assert validate_envelope(frame) == []
+
+
+def test_capabilities_ack_without_opus_omits_profile():
+    frame = capabilities_ack([], session_id="s1")
+    assert frame.metadata == {"enabled": []}
+
+
+def test_capabilities_ack_frames_do_not_alias_package_profile():
+    first = capabilities_ack(["opus"])
+    second = capabilities_ack(["opus"])
+    first.metadata["opus"]["uplink"]["bitrate"] = 999
+    assert second.metadata["opus"]["uplink"]["bitrate"] == 32000

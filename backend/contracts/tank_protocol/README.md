@@ -13,6 +13,7 @@ from this package (see "Codegen" below).
 | `envelope` | `WebsocketMessage` / `WebsocketAttachment` — the wire envelope (all 9 fields serialized on every frame, `null` explicit) |
 | `payloads` | Per-type legal envelope-field sets + known metadata keys + `validate_envelope()` (advisory warnings; the wire itself stays lenient) |
 | `factories` | Constructor factories — the one sanctioned way to build outbound frames |
+| `handshake` | Protocol version + negotiable features: `handshake_metadata()` for `signal: ready`, `OPUS_PROFILE` codec params (P1-1/P1-2) |
 | `schema` | JSON Schema export + codegen entry point (`python -m tank_protocol.schema`) |
 
 Dependencies: `pydantic` only. No backend-internal imports.
@@ -34,6 +35,25 @@ Dependencies: `pydantic` only. No backend-internal imports.
    `device/test/test_native/test_ws_message/golden_frames.h`, and
    `web/src/types/protocol.ts` and fails on any diff. A version bump in
    `pyproject.toml` without regenerating is a broken build.
+
+## Handshake & negotiation
+
+Fully backward compatible — missing fields mean an old client and keep the
+current behavior:
+
+1. Server → `signal: ready` with `metadata.protocol_version` (= this
+   package's version) and `metadata.protocol_features` (features it
+   supports, e.g. `opus`).
+2. Client → `signal: capabilities` with `metadata.enable: [...]` declaring
+   the features it wants.
+3. Server → `signal: capabilities` ack with `metadata.enabled: [...]` and,
+   when opus is on, `metadata.opus` = `handshake.OPUS_PROFILE` (uplink
+   16 kHz / downlink 24 kHz, 20 ms frames, 32 kbps start). Clients
+   configure their codecs from this object — the wire is self-describing.
+
+On a negotiated connection a binary WebSocket message carries exactly one
+Opus packet, both directions (the message boundary is the packet boundary).
+Non-negotiated connections keep raw PCM.
 
 ## Codegen
 

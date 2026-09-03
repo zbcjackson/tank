@@ -16,12 +16,23 @@ from typing import Any
 
 from . import __version__
 
-__all__ = ["KNOWN_PROTOCOL_FEATURES", "handshake_metadata"]
+__all__ = ["KNOWN_PROTOCOL_FEATURES", "OPUS_PROFILE", "handshake_metadata"]
 
 
 # Features a server may advertise / a client may request. The list grows
 # additively as phases land: opus (P1-2), config (P1-3), resume (P2).
 KNOWN_PROTOCOL_FEATURES: frozenset[str] = frozenset({"opus", "resume", "config"})
+
+
+# Canonical opus codec parameters (P1-2). The capabilities-ack factory
+# embeds these on the wire so clients configure their codecs from the ack
+# instead of hardcoding; the server reads them here when building its own
+# encoder/decoder. 20ms frames; 32 kbps start; uplink 16 kHz (mic rate),
+# downlink 24 kHz (TTS native rate = device speaker rate).
+OPUS_PROFILE: dict[str, dict[str, int]] = {
+    "uplink": {"sample_rate": 16000, "frame_ms": 20, "bitrate": 32000},
+    "downlink": {"sample_rate": 24000, "frame_ms": 20, "bitrate": 32000},
+}
 
 
 def handshake_metadata(features: Iterable[str] = ()) -> dict[str, Any]:

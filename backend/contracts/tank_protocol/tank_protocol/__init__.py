@@ -5,12 +5,13 @@ See README.md for evolution rules. Dependencies: pydantic only.
 
 # Defined before the submodule imports: handshake.py reads it via
 # `from . import __version__` while the package is still initializing.
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from .enums import MessageType
 from .envelope import WebsocketAttachment, WebsocketMessage
 from .factories import (
     attachment,
+    capabilities_ack,
     channel_notification,
     conversation_metadata_updated,
     signal,
@@ -18,7 +19,7 @@ from .factories import (
     transcript,
     update,
 )
-from .handshake import KNOWN_PROTOCOL_FEATURES, handshake_metadata
+from .handshake import KNOWN_PROTOCOL_FEATURES, OPUS_PROFILE, handshake_metadata
 from .payloads import (
     ENVELOPE_FIELDS,
     KNOWN_SIGNALS,
@@ -32,10 +33,12 @@ __all__ = [
     "KNOWN_SIGNALS",
     "METADATA_KEYS",
     "MessageType",
+    "OPUS_PROFILE",
     "WebsocketAttachment",
     "WebsocketMessage",
     "__version__",
     "attachment",
+    "capabilities_ack",
     "channel_notification",
     "conversation_metadata_updated",
     "handshake_metadata",

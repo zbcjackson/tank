@@ -104,11 +104,14 @@ METADATA_KEYS: dict[MessageType, frozenset[str]] = {
         {
             "capabilities",
             "pipeline_sample_rate",
-            # handshake (P1-1): server advertisement on signal:ready and the
-            # client's feature declaration — see handshake.py.
+            # handshake (P1-1/P1-2): server advertisement on signal:ready,
+            # the client's feature declaration (enable), and the server's
+            # ack (enabled + opus profile) — see handshake.py.
             "protocol_version",
             "protocol_features",
             "enable",
+            "enabled",
+            "opus",
             "conversation_id",
             "title",
             "error",
