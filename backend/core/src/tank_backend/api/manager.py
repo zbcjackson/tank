@@ -7,11 +7,13 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
+from ..audio.opus_codec import OPUS_AVAILABLE, OpusDownlinkEncoder
 from ..config.context import AppContext
 from ..core.assistant import Assistant
 
 if TYPE_CHECKING:
     from ..audio.input.voiceprint import VoiceprintRecognizer
+    from ..audio.opus_codec import SessionCodecs
 
 logger = logging.getLogger("ConnectionManager")
 
@@ -37,6 +39,8 @@ class ConnectionManager:
         self._senders: dict[str, Callable[[str], Awaitable[None]]] = {}
         self._binary_senders: dict[str, Callable[[bytes], Awaitable[None]]] = {}
         self._session_meta: dict[str, dict[str, str]] = {}
+        self._codecs: dict[str, SessionCodecs] = {}
+        self._channel_encoder: OpusDownlinkEncoder | None = None
 
     def get_voiceprint_recognizer(self) -> VoiceprintRecognizer | None:
         """Get the shared voiceprint recognizer."""
@@ -85,6 +89,31 @@ class ConnectionManager:
     ) -> Callable[[str], Awaitable[None]] | None:
         """Get the JSON text sender for a specific session, or None."""
         return self._senders.get(session_id)
+
+    # ── Opus codecs (protocol plan P1-2) ──────────────────────────
+
+    def register_codec(self, session_id: str, codecs: SessionCodecs) -> None:
+        """Attach the negotiated opus codecs to a session."""
+        self._codecs[session_id] = codecs
+
+    def get_codec(self, session_id: str) -> SessionCodecs | None:
+        """Get a session's negotiated opus codecs, or None (raw PCM)."""
+        return self._codecs.get(session_id)
+
+    def unregister_codec(self, session_id: str) -> None:
+        """Remove a session's opus codecs."""
+        self._codecs.pop(session_id, None)
+
+    def get_channel_encoder(self) -> OpusDownlinkEncoder | None:
+        """Shared encoder for channel fan-out toward opus subscribers when
+        the *talking* session itself stayed on raw PCM. All opus consumers
+        share one OPUS_PROFILE, so one packet stream serves them all; None
+        when opuslib is unavailable (nothing can have negotiated opus)."""
+        if not OPUS_AVAILABLE:
+            return None
+        if self._channel_encoder is None:
+            self._channel_encoder = OpusDownlinkEncoder()
+        return self._channel_encoder
 
     # ── Session metadata ──────────────────────────────────────────
 
@@ -211,6 +240,7 @@ class ConnectionManager:
         self._cancel_idle_timer(session_id)
         self._ws_refcount.pop(session_id, None)
         self._session_meta.pop(session_id, None)
+        self._codecs.pop(session_id, None)
         assistant = self._sessions.pop(session_id, None)
         if assistant is None:
             return

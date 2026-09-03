@@ -10,8 +10,10 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
-from tank_protocol import WebsocketMessage
+from tank_protocol import KNOWN_PROTOCOL_FEATURES, WebsocketMessage, capabilities_ack
 from tank_protocol import signal as signal_frame
+
+from ..audio.opus_codec import create_session_codecs, supported_protocol_features
 
 if TYPE_CHECKING:
     from ..core.assistant import Assistant
@@ -163,15 +165,43 @@ async def handle_capabilities(
     session_id: str,
     send_fn: SendFn,
 ) -> None:
-    """Client declares the protocol features it wants to enable (P1-1).
+    """Client declares the protocol features it wants to enable (P1-1/P1-2).
 
-    Advisory today — no advertised feature has a server-side behavior yet,
-    so the declaration is logged for debugging and left to the phases that
-    introduce one (opus → P1-2, config → P1-3, resume → P2). Unknown
-    feature names are warn-and-ignored per the evolution rules.
+    Negotiable today: ``opus`` — binary audio switches to one Opus packet
+    per WebSocket message, both directions (``audio/opus_codec.py``). The
+    server acks every declaration with the features it actually enabled;
+    unknown names are warn-and-ignored and unadvertised ones are declined,
+    per the evolution rules. Non-opus connections keep raw PCM unchanged.
     """
-    enable = (msg.metadata or {}).get("enable", [])
-    logger.info("Client capabilities declared for %s: %s", session_id, enable)
+    from . import deps
+
+    requested_raw = (msg.metadata or {}).get("enable", [])
+    requested = (
+        [f for f in requested_raw if isinstance(f, str)]
+        if isinstance(requested_raw, list)
+        else []
+    )
+    supported = supported_protocol_features()
+    enabled = [
+        f for f in requested
+        if f in KNOWN_PROTOCOL_FEATURES and f in supported
+    ]
+    for feature in requested:
+        if feature not in KNOWN_PROTOCOL_FEATURES:
+            logger.warning("Unknown protocol feature %r from %s — ignored",
+                           feature, session_id)
+        elif feature not in supported:
+            logger.info("Protocol feature %r not available — not enabled for %s",
+                        feature, session_id)
+
+    if "opus" in enabled:
+        deps.connection_manager().register_codec(session_id, create_session_codecs())
+        logger.info(
+            "Opus negotiated for %s (16 kHz up / 24 kHz down, 20 ms, 32 kbps)",
+            session_id,
+        )
+
+    await send_fn(capabilities_ack(enabled, session_id=session_id))
 
 
 @register("ping")

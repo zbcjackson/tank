@@ -3963,6 +3963,12 @@ wheels = [
 ]
 
 [[package]]
+name = "opuslib"
+version = "3.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/46/55/826befabb29fd3902bad6d6d7308790894c7ad4d73f051728a0c53d37cd7/opuslib-3.0.1.tar.gz", hash = "sha256:2cb045e5b03e7fc50dfefe431e3404dddddbd8f5961c10c51e32dfb69a044c97", size = 8550, upload-time = "2018-01-16T06:04:42.184Z" }
+
+[[package]]
 name = "orjson"
 version = "3.11.7"
 source = { registry = "https://pypi.org/simple" }
@@ -6108,6 +6114,7 @@ dependencies = [
     { name = "onnxruntime", version = "1.24.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "openai" },
     { name = "openpyxl" },
+    { name = "opuslib" },
     { name = "pydantic" },
     { name = "pydub" },
     { name = "pymupdf" },
@@ -6164,6 +6171,7 @@ requires-dist = [
     { name = "onnxruntime", specifier = ">=1.16.1" },
     { name = "openai", specifier = ">=1.0.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
+    { name = "opuslib", specifier = ">=3.0.1" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pydub", specifier = ">=0.25.1" },
     { name = "pymupdf", specifier = ">=1.27.2.3" },

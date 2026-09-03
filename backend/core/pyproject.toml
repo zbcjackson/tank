@@ -66,6 +66,7 @@ dependencies = [
     # Only needed on macOS — harmless to list on Linux (install skipped).
     "pyobjc-framework-Quartz>=10.0; sys_platform == 'darwin'",
     "lingua-language-detector>=2.0.0",
+    "opuslib>=3.0.1",
 ]
 
 [project.scripts]

@@ -14,6 +14,7 @@ from tank_protocol import KNOWN_SIGNALS, __version__
 from tank_protocol import signal as signal_frame
 from tank_protocol.payloads import validate_envelope
 
+from tank_backend.api import deps
 from tank_backend.api.router import _ready_metadata
 from tank_backend.api.signal_handlers import dispatch
 
@@ -29,8 +30,8 @@ def _mock_assistant(conversation_id: str | None = None) -> MagicMock:
 def test_ready_metadata_carries_protocol_handshake():
     metadata = _ready_metadata(_mock_assistant())
     assert metadata["protocol_version"] == __version__
-    # No protocol feature is implemented yet (opus → P1-2, config → P1-3).
-    assert metadata["protocol_features"] == []
+    # opus is negotiable since P1-2 (config → P1-3, resume → P2).
+    assert metadata["protocol_features"] == ["opus"]
     assert metadata["pipeline_sample_rate"] == 24000
     assert "conversation_id" not in metadata
 
@@ -48,10 +49,24 @@ def test_ready_frame_validates_clean():
 
 
 async def test_capabilities_declaration_is_dispatched():
-    msg = MagicMock()
-    msg.metadata = {"enable": ["opus"]}
-    handled = await dispatch("capabilities", MagicMock(), msg, "s1", AsyncMock())
-    assert handled is True
+    # handle_capabilities touches the connection manager (codec registry
+    # since P1-2), so dispatch needs an initialised deps container.
+    from tank_backend.api.manager import ConnectionManager
+    from tank_backend.config import AppConfig
+    from tank_backend.config.context import AppContext
+
+    ctx = AppContext(app_config=AppConfig())
+    mgr = ConnectionManager(app_context=ctx)
+    prior = deps._mgr["v"]
+    deps._mgr["v"] = mgr
+    try:
+        msg = MagicMock()
+        msg.metadata = {"enable": ["opus"]}
+        handled = await dispatch("capabilities", MagicMock(), msg, "s1", AsyncMock())
+        assert handled is True
+        assert mgr.get_codec("s1") is not None
+    finally:
+        deps._mgr["v"] = prior
 
 
 async def test_unknown_signal_still_unhandled():

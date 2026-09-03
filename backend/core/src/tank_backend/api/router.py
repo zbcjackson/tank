@@ -35,6 +35,12 @@ from tank_protocol import (
 from tank_protocol.handshake import handshake_metadata
 
 from ..audio.input.types import AudioFrame
+from ..audio.opus_codec import (
+    DOWNLINK_SAMPLE_RATE,
+    OpusDecodeError,
+    supported_protocol_features,
+    uplink_sample_rate,
+)
 from ..audio.output.types import AudioChunk
 from ..core.content import ContentBlocks, DocumentBlock, ImageBlock, modality_for_mime
 from ..core.events import (
@@ -74,6 +80,13 @@ def _resample_pcm16(data: bytes, src_rate: int, dst_rate: int) -> bytes:
     src_idx = np.linspace(0, src.size - 1, num=dst_len)
     resampled = np.interp(src_idx, np.arange(src.size), src.astype(np.float32))
     return resampled.astype(np.int16).tobytes()
+
+
+def _to_downlink_rate(chunk: AudioChunk) -> bytes:
+    """PCM16 mono bytes at the negotiated opus downlink rate."""
+    if chunk.sample_rate == DOWNLINK_SAMPLE_RATE:
+        return chunk.data
+    return _resample_pcm16(chunk.data, chunk.sample_rate, DOWNLINK_SAMPLE_RATE)
 
 
 def _parse_attachments(
@@ -143,7 +156,7 @@ def _ready_metadata(assistant: Assistant) -> dict[str, Any]:
     metadata: dict[str, Any] = {
         "capabilities": assistant.capabilities,
         "pipeline_sample_rate": assistant.pipeline_sample_rate,
-        **handshake_metadata(),
+        **handshake_metadata(supported_protocol_features()),
     }
     conv_id = assistant.brain.conversation_id
     if conv_id:
@@ -469,9 +482,37 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         if not ws_connected:
             return
 
+        mgr = deps.connection_manager()
+        codec = mgr.get_codec(session_id)
+        channel_slug = mgr.get_session_channel(session_id)
+        subscribers: set[str] = set()
+        if channel_slug is not None:
+            subscribers = deps.subscription_manager().get_subscribers(channel_slug)
+            subscribers.discard(session_id)  # don't double-send to self
+
+        # Opus downlink (P1-2): self (if negotiated) and any opus channel
+        # subscriber share one OPUS_PROFILE, so a single packet stream serves
+        # them all. When the talking session stayed on raw PCM, opus
+        # subscribers are served via the manager's shared channel encoder.
+        packets: list[bytes] = []
+        if codec is not None:
+            packets = codec.downlink.feed(_to_downlink_rate(chunk))
+        elif any(mgr.get_codec(sid) is not None for sid in subscribers):
+            channel_encoder = mgr.get_channel_encoder()
+            if channel_encoder is not None:
+                packets = channel_encoder.feed(_to_downlink_rate(chunk))
+
+        # PCM header frame: self in PCM mode (resampled to its output_rate)
+        # and PCM channel subscribers. On an opus connection the negotiated
+        # downlink rate replaces output_rate, so the frame carries the
+        # chunk's native rate for those subscribers.
         data = chunk.data
         out_rate = chunk.sample_rate
-        if output_rate is not None and output_rate != chunk.sample_rate:
+        if (
+            codec is None
+            and output_rate is not None
+            and output_rate != chunk.sample_rate
+        ):
             data = _resample_pcm16(chunk.data, chunk.sample_rate, output_rate)
             out_rate = output_rate
         frame = encode_audio_frame(data, out_rate, chunk.channels)
@@ -480,27 +521,29 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             if not ws_connected:
                 return
             try:
-                await _locked_send_bytes(frame)
+                if codec is not None:
+                    for packet in packets:
+                        await _locked_send_bytes(packet)
+                else:
+                    await _locked_send_bytes(frame)
             except Exception as e:
                 logger.debug(f"Audio send error: {e}")
 
             # Fan out to other subscribers of the same channel
-            mgr = deps.connection_manager()
-            channel_slug = mgr.get_session_channel(session_id)
             if channel_slug is None:
-                return
-            sub_mgr = deps.subscription_manager()
-            subscribers = sub_mgr.get_subscribers(channel_slug)
-            subscribers.discard(session_id)  # don't double-send to self
-            if not subscribers:
                 return
             for sid in subscribers:
                 send_fn = mgr.get_binary_sender(sid)
-                if send_fn is not None:
-                    try:
+                if send_fn is None:
+                    continue
+                try:
+                    if mgr.get_codec(sid) is not None:
+                        for packet in packets:
+                            await send_fn(packet)
+                    else:
                         await send_fn(frame)
-                    except Exception:
-                        logger.debug("Fan-out audio send failed for %s", sid)
+                except Exception:
+                    logger.debug("Fan-out audio send failed for %s", sid)
 
         asyncio.run_coroutine_threadsafe(_send_chunk(), loop)
 
@@ -611,8 +654,23 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             if "bytes" in data:
                 # Binary: push audio into pipeline
                 raw = data["bytes"]
-                cap_rate = assistant.capture_sample_rate
-                cap_ch = assistant.capture_channels
+                # Opus connection (P1-2): one packet per binary message →
+                # decode to PCM16 at the negotiated uplink rate. Mono by
+                # profile; audio_format/output_rate don't apply.
+                codec = deps.connection_manager().get_codec(session_id)
+                if codec is not None:
+                    try:
+                        raw = codec.uplink.decode_packet(raw)
+                    except OpusDecodeError as e:
+                        logger.warning(
+                            "Undecodable opus packet from %s: %s", session_id, e
+                        )
+                        continue
+                    cap_rate = uplink_sample_rate()
+                    cap_ch = 1
+                else:
+                    cap_rate = assistant.capture_sample_rate
+                    cap_ch = assistant.capture_channels
                 pipeline_rate = assistant.pipeline_sample_rate
                 # Downmix stereo → mono if needed
                 if cap_ch > 1:
@@ -664,6 +722,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         mgr = deps.connection_manager()
         mgr.unregister_sender(session_id)
         mgr.unregister_binary_sender(session_id)
+        mgr.unregister_codec(session_id)
         deps.subscription_manager().remove_session(session_id)
         mgr.detach_websocket(session_id)
         logger.info(f"WebSocket disconnected: {session_id}")
