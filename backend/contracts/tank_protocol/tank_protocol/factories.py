@@ -84,6 +84,45 @@ def capabilities_ack(
     )
 
 
+def session_config(
+    config: dict[str, Any],
+    *,
+    session_id: str | None = None,
+) -> WebsocketMessage:
+    """Client session hot-config request (P1-3).
+
+    ``config`` is a partial patch applied with deep-merge semantics:
+    repeat a key to replace its value, explicit ``null`` to clear it
+    (s2s ``session.update`` style). The server validates the whole
+    payload before applying anything — a rejected config leaves the
+    session untouched and answers ``signal: error``.
+    """
+    return _build(
+        MessageType.CONFIG,
+        session_id=session_id,
+        metadata={"config": config},
+    )
+
+
+def context_inject(
+    content: str,
+    *,
+    role: str | None = None,
+    session_id: str | None = None,
+) -> WebsocketMessage:
+    """Context-only injection (P1-3) — appends to the conversation history
+    WITHOUT triggering a response (Realtime ``conversation.item.create``
+    analog; for RAG results, notes, …). ``role`` is one of
+    user/system/assistant, defaulting to ``user`` server-side."""
+    metadata: dict[str, Any] = {"role": role} if role else {}
+    return _build(
+        MessageType.CONTEXT_INJECT,
+        content=content,
+        session_id=session_id,
+        metadata=metadata,
+    )
+
+
 def transcript(
     content: str,
     *,

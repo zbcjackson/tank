@@ -71,6 +71,8 @@ def test_message_type_values():
         "channel_notification",
         "attachment",
         "conversation_metadata_updated",
+        "config",
+        "context_inject",
     }
 
 

@@ -16,3 +16,5 @@ class MessageType(str, Enum):
     CHANNEL_NOTIFICATION = "channel_notification"  # Real-time channel updates
     ATTACHMENT = "attachment"  # Assistant-sent media (images)
     CONVERSATION_METADATA_UPDATED = "conversation_metadata_updated"  # Title/etc.
+    CONFIG = "config"  # Client session hot-config (P1-3, deep-merge)
+    CONTEXT_INJECT = "context_inject"  # Context-only injection, no generation

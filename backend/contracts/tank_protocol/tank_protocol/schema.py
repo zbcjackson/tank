@@ -32,7 +32,9 @@ from .factories import (
     attachment,
     capabilities_ack,
     channel_notification,
+    context_inject,
     conversation_metadata_updated,
+    session_config,
     signal,
     text,
     transcript,
@@ -171,6 +173,21 @@ def _golden_frames() -> list[tuple[str, str]]:
             conversation_metadata_updated(
                 session_id="sess-golden",
                 metadata={"conversation_id": "conv_golden", "title": "Golden"},
+            ).model_dump_json(),
+        ),
+        (
+            "TANK_GOLDEN_CONFIG",
+            session_config(
+                {"instructions": "Reply in French", "vad": {"speech_threshold": 0.7}},
+                session_id="sess-golden",
+            ).model_dump_json(),
+        ),
+        (
+            "TANK_GOLDEN_CONTEXT_INJECT",
+            context_inject(
+                "Note from retrieval: the user prefers metric units.",
+                role="system",
+                session_id="sess-golden",
             ).model_dump_json(),
         ),
     ]

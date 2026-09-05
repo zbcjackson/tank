@@ -171,6 +171,18 @@ TEST(WsGoldenFrames, ConversationMetadata) {
                  "", "", false, true);
 }
 
+TEST(WsGoldenFrames, ConfigHotConfig) {
+    // P1-3: new inbound type — the device doesn't act on it, but the
+    // parser must accept it whole (type fits, fields intact).
+    expectGolden(TANK_GOLDEN_CONFIG, "config", "", "", false, false);
+}
+
+TEST(WsGoldenFrames, ContextInject) {
+    expectGolden(TANK_GOLDEN_CONTEXT_INJECT, "context_inject",
+                 "Note from retrieval: the user prefers metric units.",
+                 "", false, false);
+}
+
 TEST(WsGoldenFrames, UnknownFieldTolerated) {
     // Evolution rule 2: unknown fields must be ignored, not rejected.
     expectGolden(TANK_GOLDEN_UNKNOWN_FIELD, "text", "future", "", false, false);

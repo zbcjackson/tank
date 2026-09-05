@@ -16,7 +16,9 @@ export type MessageType =
   | "input"
   | "channel_notification"
   | "attachment"
-  | "conversation_metadata_updated";
+  | "conversation_metadata_updated"
+  | "config"
+  | "context_inject";
 
 /**
  * Base schema for all WebSocket messages.

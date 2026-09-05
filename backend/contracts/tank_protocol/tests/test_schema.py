@@ -26,6 +26,8 @@ def test_schema_document_contains_envelope_and_version():
         "channel_notification",
         "attachment",
         "conversation_metadata_updated",
+        "config",
+        "context_inject",
     ]
 
 
@@ -56,6 +58,8 @@ def test_golden_header_covers_every_outbound_type_and_is_stable():
         "TANK_GOLDEN_ATTACHMENT",
         "TANK_GOLDEN_CHANNEL_NOTIFICATION",
         "TANK_GOLDEN_CONVERSATION_METADATA",
+        "TANK_GOLDEN_CONFIG",
+        "TANK_GOLDEN_CONTEXT_INJECT",
         "TANK_GOLDEN_UNKNOWN_FIELD",
     ):
         assert constant in header
@@ -72,7 +76,7 @@ def test_golden_frames_are_valid_wire_json():
         for line in header.splitlines()
         if "R\"JSON(" in line
     ]
-    assert len(frames) == 9
+    assert len(frames) == 11
     for raw in frames:
         parsed = json.loads(raw)
         assert "type" in parsed

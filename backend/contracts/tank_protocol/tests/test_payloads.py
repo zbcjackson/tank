@@ -74,3 +74,41 @@ def test_validation_never_raises_on_any_type():
     for msg_type in MessageType:
         msg = WebsocketMessage(type=msg_type)
         assert isinstance(validate_envelope(msg), list)
+
+
+def test_config_frame_fields_are_documented():
+    # P1-3: config rides metadata.config; content stays empty.
+    msg = WebsocketMessage(
+        type=MessageType.CONFIG,
+        session_id="s1",
+        metadata={"config": {"voice": None}},
+    )
+    assert validate_envelope(msg) == []
+
+    bad = WebsocketMessage(type=MessageType.CONFIG, content="oops")
+    assert any(v.startswith("field: content") for v in validate_envelope(bad))
+
+    bad_meta = WebsocketMessage(type=MessageType.CONFIG)
+    bad_meta.metadata["patch"] = {}
+    assert validate_envelope(bad_meta) == [
+        "metadata: key 'patch' is not documented for config"
+    ]
+
+
+def test_context_inject_frame_fields_are_documented():
+    msg = WebsocketMessage(
+        type=MessageType.CONTEXT_INJECT,
+        content="note",
+        session_id="s1",
+        metadata={"role": "system"},
+    )
+    assert validate_envelope(msg) == []
+
+    bare = WebsocketMessage(type=MessageType.CONTEXT_INJECT, content="note")
+    assert validate_envelope(bare) == []  # role defaults server-side
+
+    bad = WebsocketMessage(type=MessageType.CONTEXT_INJECT, content="note")
+    bad.metadata["priority"] = 1
+    assert validate_envelope(bad) == [
+        "metadata: key 'priority' is not documented for context_inject"
+    ]

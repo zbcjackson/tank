@@ -5,7 +5,7 @@ See README.md for evolution rules. Dependencies: pydantic only.
 
 # Defined before the submodule imports: handshake.py reads it via
 # `from . import __version__` while the package is still initializing.
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from .enums import MessageType
 from .envelope import WebsocketAttachment, WebsocketMessage
@@ -13,7 +13,9 @@ from .factories import (
     attachment,
     capabilities_ack,
     channel_notification,
+    context_inject,
     conversation_metadata_updated,
+    session_config,
     signal,
     text,
     transcript,
@@ -40,8 +42,10 @@ __all__ = [
     "attachment",
     "capabilities_ack",
     "channel_notification",
+    "context_inject",
     "conversation_metadata_updated",
     "handshake_metadata",
+    "session_config",
     "signal",
     "text",
     "transcript",

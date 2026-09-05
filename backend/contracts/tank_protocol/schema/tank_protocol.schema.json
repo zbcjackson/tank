@@ -10,7 +10,9 @@
         "input",
         "channel_notification",
         "attachment",
-        "conversation_metadata_updated"
+        "conversation_metadata_updated",
+        "config",
+        "context_inject"
       ],
       "title": "MessageType",
       "type": "string"
@@ -121,7 +123,7 @@
   ],
   "title": "WebsocketMessage",
   "type": "object",
-  "x-tank-version": "0.2.0",
+  "x-tank-version": "0.3.0",
   "x-tank-payload-fields": {
     "signal": {
       "envelope": [
@@ -208,6 +210,25 @@
       "metadata": [
         "attachments",
         "user_id"
+      ]
+    },
+    "config": {
+      "envelope": [
+        "metadata",
+        "session_id"
+      ],
+      "metadata": [
+        "config"
+      ]
+    },
+    "context_inject": {
+      "envelope": [
+        "content",
+        "metadata",
+        "session_id"
+      ],
+      "metadata": [
+        "role"
       ]
     },
     "attachment": {

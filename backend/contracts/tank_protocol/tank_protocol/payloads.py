@@ -35,6 +35,8 @@ ENVELOPE_FIELDS: dict[MessageType, frozenset[str]] = {
         {"content", "speaker", "is_user", "is_final", "msg_id", "session_id", "metadata"}
     ),
     MessageType.INPUT: frozenset({"content", "metadata"}),
+    MessageType.CONFIG: frozenset({"session_id", "metadata"}),
+    MessageType.CONTEXT_INJECT: frozenset({"content", "session_id", "metadata"}),
     MessageType.ATTACHMENT: frozenset(
         {
             "content",
@@ -139,6 +141,10 @@ METADATA_KEYS: dict[MessageType, frozenset[str]] = {
         }
     ),
     MessageType.INPUT: frozenset({"user_id", "attachments"}),
+    # config: the config object itself (P1-3, deep-merge semantics —
+    # repeat a key to replace, explicit null to clear).
+    MessageType.CONFIG: frozenset({"config"}),
+    MessageType.CONTEXT_INJECT: frozenset({"role"}),
     MessageType.ATTACHMENT: frozenset(),
     MessageType.CHANNEL_NOTIFICATION: frozenset(
         {

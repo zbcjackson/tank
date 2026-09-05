@@ -6,7 +6,7 @@
 
 #pragma once
 
-static const char* const TANK_GOLDEN_SIGNAL = R"JSON({"type":"signal","content":"ready","speaker":null,"is_user":false,"is_final":false,"msg_id":null,"session_id":"sess-golden","metadata":{"capabilities":["asr","tts","speaker_id"],"protocol_version":"0.2.0","protocol_features":[]},"attachments":[]})JSON";
+static const char* const TANK_GOLDEN_SIGNAL = R"JSON({"type":"signal","content":"ready","speaker":null,"is_user":false,"is_final":false,"msg_id":null,"session_id":"sess-golden","metadata":{"capabilities":["asr","tts","speaker_id"],"protocol_version":"0.3.0","protocol_features":[]},"attachments":[]})JSON";
 static const char* const TANK_GOLDEN_SIGNAL_CAPABILITIES_ACK = R"JSON({"type":"signal","content":"capabilities","speaker":null,"is_user":false,"is_final":false,"msg_id":null,"session_id":"sess-golden","metadata":{"enabled":["opus"],"opus":{"uplink":{"sample_rate":16000,"frame_ms":20,"bitrate":32000},"downlink":{"sample_rate":24000,"frame_ms":20,"bitrate":32000}}},"attachments":[]})JSON";
 static const char* const TANK_GOLDEN_TRANSCRIPT = R"JSON({"type":"transcript","content":"你好","speaker":"User","is_user":true,"is_final":true,"msg_id":"u_golden","session_id":"sess-golden","metadata":{},"attachments":[]})JSON";
 static const char* const TANK_GOLDEN_TEXT = R"JSON({"type":"text","content":"Hello","speaker":"Brain","is_user":false,"is_final":false,"msg_id":"m_golden","session_id":"sess-golden","metadata":{},"attachments":[]})JSON";
@@ -14,5 +14,7 @@ static const char* const TANK_GOLDEN_UPDATE = R"JSON({"type":"update","content":
 static const char* const TANK_GOLDEN_ATTACHMENT = R"JSON({"type":"attachment","content":"a photo","speaker":"Brain","is_user":false,"is_final":true,"msg_id":"m_golden","session_id":"sess-golden","metadata":{},"attachments":[{"kind":"image","url":"/api/media/sess-golden/golden.jpg","mime_type":"image/jpeg","caption":null}]})JSON";
 static const char* const TANK_GOLDEN_CHANNEL_NOTIFICATION = R"JSON({"type":"channel_notification","content":"","speaker":null,"is_user":false,"is_final":false,"msg_id":null,"session_id":null,"metadata":{"channel_slug":"jobs","channel_name":"Jobs","event_type":"job_delivery","job_name":"golden","run_id":"run_golden","messages":[],"message_preview":""},"attachments":[]})JSON";
 static const char* const TANK_GOLDEN_CONVERSATION_METADATA = R"JSON({"type":"conversation_metadata_updated","content":"","speaker":null,"is_user":false,"is_final":true,"msg_id":null,"session_id":"sess-golden","metadata":{"conversation_id":"conv_golden","title":"Golden"},"attachments":[]})JSON";
+static const char* const TANK_GOLDEN_CONFIG = R"JSON({"type":"config","content":"","speaker":null,"is_user":false,"is_final":false,"msg_id":null,"session_id":"sess-golden","metadata":{"config":{"instructions":"Reply in French","vad":{"speech_threshold":0.7}}},"attachments":[]})JSON";
+static const char* const TANK_GOLDEN_CONTEXT_INJECT = R"JSON({"type":"context_inject","content":"Note from retrieval: the user prefers metric units.","speaker":null,"is_user":false,"is_final":false,"msg_id":null,"session_id":"sess-golden","metadata":{"role":"system"},"attachments":[]})JSON";
 
 static const char* const TANK_GOLDEN_UNKNOWN_FIELD = R"JSON({"type":"text","content":"future","a_future_field":123})JSON";

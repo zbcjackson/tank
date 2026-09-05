@@ -6,11 +6,14 @@ from __future__ import annotations
 
 from tank_protocol import (
     OPUS_PROFILE,
+    MessageType,
     WebsocketAttachment,
     attachment,
     capabilities_ack,
     channel_notification,
+    context_inject,
     conversation_metadata_updated,
+    session_config,
     signal,
     text,
     transcript,
@@ -126,3 +129,30 @@ def test_capabilities_ack_frames_do_not_alias_package_profile():
     second = capabilities_ack(["opus"])
     first.metadata["opus"]["uplink"]["bitrate"] = 999
     assert second.metadata["opus"]["uplink"]["bitrate"] == 32000
+
+
+def test_session_config_factory():
+    frame = session_config(
+        {"voice": "zh-CN-YunxiNeural", "instructions": None}, session_id="s1"
+    )
+    assert frame.type == MessageType.CONFIG
+    assert frame.content == ""
+    assert frame.metadata == {
+        "config": {"voice": "zh-CN-YunxiNeural", "instructions": None}
+    }
+    assert frame.session_id == "s1"
+    assert validate_envelope(frame) == []
+
+
+def test_context_inject_factory_defaults_role_omitted():
+    frame = context_inject("RAG: the answer is 42.", session_id="s1")
+    assert frame.type == MessageType.CONTEXT_INJECT
+    assert frame.content == "RAG: the answer is 42."
+    assert frame.metadata == {}
+    assert validate_envelope(frame) == []
+
+
+def test_context_inject_factory_with_role():
+    frame = context_inject("note", role="system", session_id="s1")
+    assert frame.metadata == {"role": "system"}
+    assert validate_envelope(frame) == []
