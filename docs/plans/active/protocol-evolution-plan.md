@@ -1,6 +1,6 @@
 # Tank 私有协议演进计划（Protocol Evolution Plan）
 
-> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。P1-2 实施中：Step 1（协议包 0.2.0）、Step 2（服务端协商）、Step 3（web/WebCodecs）已落地（2026-09-03），Step 4（cli）已落地（2026-09-05），Step 5（device）未开始（门控：ESP32-S3 实测）。P1-3 未开始。
+> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。P1-2 实施中：Step 1（协议包 0.2.0）、Step 2（服务端协商）、Step 3（web/WebCodecs）已落地（2026-09-03），Step 4（cli）已落地（2026-09-05），Step 5（device）未开始（门控：ESP32-S3 实测）。P1-3 已落地（2026-09-05，协议包 0.3.0 + 服务端热配置/注入；web/cli/device 零代码改动）。
 > 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](../done/s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
 > 触发背景：Tank 将来要远程部署在服务器上，连接远程操控的机器人和客户端。远程化对协议提出三个硬前提——认证、弱网韧性、可演进性——当前协议一项都不具备。
 > 本文所有代码事实均核对自实际代码（文件行号见引用）。
@@ -342,10 +342,36 @@ backend/contracts/tank_protocol/
 
 **P1-2 非目标**：不做中途重协商/关闭；不做 UDP/WebRTC（§6 触发条件）；不动 `tank_contracts` 的 PCM frame codec。
 
-### P1-3 热配置 + 上下文注入
+### P1-3 热配置 + 上下文注入 —— 计划细化（2026-09-05，代码事实核实完毕）
 
-- tank_protocol：`config` 消息类型 payload 模型（deep-merge 语义）+ 上下文注入消息类型。
-- 服务端：`@register` 处理器 → Assistant 会话热应用（instructions/voice/VAD 参数）；注入只入上下文不触发生成；非法配置先校验后应用，拒绝时会话不受影响。
+**Wire 设计定案**
+
+1. 新入向消息类型两个（信封形状不变，additive minor → `__version__` 0.3.0）：
+   - `config`：配置对象放 `metadata.config`（dict，deep-merge：重复发送同名键即替换，显式 `null` 清除；信封 `content` 是 `str`，结构化数据按 capabilities 先例走 metadata）。v1 可配置键：`instructions`（str|null，追加为 stable tier 的 "SESSION INSTRUCTIONS" 段，非整体替换——替换会摧毁 SOUL.md/AGENTS.md 组装出的人格与工具指引）、`voice`（str|null，TTS 音色 override，null 回退引擎按语言默认）、`vad`（dict，v1 仅 `speech_threshold` float ∈ (0,1)）。未知键/类型错/越界 → 整帧拒绝（原子：先全量校验后应用），回 `signal: error`（metadata.error），会话不受影响；成功不回帧（fire-and-forget，仿 input）。
+   - `context_inject`：`content` = 注入文本，`metadata.role` ∈ {user, system, assistant}（默认 user）。服务端直接 `ContextManager.add_message`（追加+持久化），**不投 BrainInputEvent → 不触发生成**（对应 Realtime `conversation.item.create`）。
+2. factories：`session_config(config, *, session_id)` + `context_inject(content, *, role=None, session_id)`；payloads 收录两类型的 ENVELOPE_FIELDS/METADATA_KEYS；golden frames 增两条（`_golden_frames()` 手写清单追加，device 侧 expectGolden 同步）。
+3. `signal: ready` 的 `protocol_features` 增 `"config"`（纯后端逻辑，无条件支持；现有 `supported_protocol_features()` 在 opus_codec 只报 opus，router 侧组合为 `["config"] + opus?`）。
+
+**服务端落点（代码事实）**
+
+- `Assistant.apply_session_config(config)`（ValueError 拒绝）：instructions → `Brain.set_instructions` → `ContextManager` → `PromptAssembler` 新增 override 槽 + `mark_dirty()`（Brain 每次 LLM 调用前已检查 `needs_rebuild` 重组 prompt，llm.py:542）；voice → `self._tts_processor.set_voice_override`（TTSProcessor 是 `request.voice → generate_stream` 的唯一咽喉，tts.py:76，比改 Brain 4 处 AudioOutputRequest 构造点省）；vad → `self._vad_processor.set_session_threshold` → `VADStream` 新增 session 阈值槽——**必须**让 `reset_threshold()` 回落到 session 阈值而非出厂默认，否则 echo guard 播放结束回调（vad.py:76）会把热配置冲掉。目标 processor 为 None（TTS/ASR 未启用）时跳过 + warning，不算拒绝。
+- `Assistant.inject_context(content, role="user")`：校验后转 `ContextManager.add_message(role, content)`。
+- router `websocket_endpoint` 的 elif 链加 CONFIG / CONTEXT_INJECT 分支（消息类型不走 signal 注册表），ValueError → `signal: error`。
+
+**实施步骤（每步一 commit + §10 全量验证清单）**
+
+- **Step 1 — tank_protocol 0.3.0**：枚举/payloads/factories/golden/schema + 重生成三份生成物 + device `test_ws_message.cpp` 补两条 expectGolden + 包测试。
+- **Step 2 — 服务端**：Assistant 两方法 + VADStream/TTSProcessor/PromptAssembler 热应用面 + router 分发 + `tests/test_session_config.py`（校验矩阵/原子性/注入不生成/三参数热应用/路由错误帧）。
+- **Step 3 — 文档**：backend/ARCHITECTURE.md 与根 ARCHITECTURE.md 的入向消息表补两行 + 本节落地记录。
+
+**P1-3 非目标**：不做中途重协商的 config 回执/版本化（error 帧已够用）；不做任意 VAD 参数全量热配置（v1 仅 speech_threshold， additive 扩展）；注入不做去重/长度上限（交给既有 token 预算与 compaction）。
+
+**落地记录（2026-09-05，两 commit：协议包 654e5dd + 服务端）**：全部按细化落地，无设计偏差。
+
+- **Step 1（commit 654e5dd）**：`MessageType` 增 `CONFIG`/`CONTEXT_INJECT`；factories `session_config`/`context_inject`；payloads 字段集（config 只允许 `session_id`+`metadata.config`，context_inject 允许 `content`+`metadata.role`）；golden 增 `TANK_GOLDEN_CONFIG`/`TANK_GOLDEN_CONTEXT_INJECT`（device native 21→23 例，入向类型也进 golden——设备不路由但解析器必须完整吞下）；`__version__` 0.3.0；三份生成物重生成，`check_protocol_sync` OK，web tsc 零代码改动通过。
+- **Step 2**：`Assistant.apply_session_config`（全量校验后原子应用；非 dict/未知键/空 instructions/voice/越界或 bool 阈值 → ValueError）+ `Assistant.inject_context`（role ∈ user/system/assistant）；`VADStream.set_session_threshold`（session 阈值槽，`reset_threshold` 回落到 session 阈值——否则 echo guard 播放结束回调会冲掉热配置，pyright 抓到 None 清除路径后补全）+ `VADProcessor` 透传；`TTSProcessor.set_voice_override`（`request.voice or override`，单咽喉点避免改 Brain 4 处构造点）；`PromptAssembler.set_instructions`（追加 "SESSION INSTRUCTIONS" stable 段，重发替换、None 清除、mark_dirty）；`ContextManager.set_instructions`/`Brain.set_instructions`/`Brain.inject_context` 转发链；router `_handle_config_message`/`_handle_context_inject` + elif 分发，ValueError → `signal: error`。`_negotiable_protocol_features()` = `["config", "opus"?]`。
+- **Tests**：`test_session_config.py` 42 例（VAD 阈值 3、assembler 3、TTS override 3、Assistant 校验矩阵+原子性+缺处理器跳过 10、路由分发 5、真 endpoint 4 + 参数化），`test_protocol_handshake` 特性断言更新为 `["config", "opus"]`。后端 3318 → 3360。
+- **真机 smoke**：dev server 上 ready 广告 `['config', 'opus']`/0.3.0；合法 config（vad+instructions）应用（日志 "Session config applied"/"Session instructions updated"）；`{"bogus":1}` 被拒回 error 帧带支持键列表；context_inject system 角色注入成功（"Injected system context message"）。web lint/tsc、E2E 10/10 通过。
 
 ### P2 按触发条件（§6）
 

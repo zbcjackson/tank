@@ -84,7 +84,9 @@ Each sub-project is independently deployable with its own dependencies and tests
 |------------|--------|-------------|
 | Audio | Binary (Int16 PCM, 16 kHz) | Microphone audio stream |
 | Text input | JSON `{type:"input", content}` | User typed message |
-| Interrupt | JSON `{type:"interrupt"}` | Cancel current response |
+| Interrupt | JSON `{type:"signal", content:"interrupt"}` | Cancel current response |
+| Hot config | JSON `{type:"config", metadata:{config}}` | Deep-merge session config patch (P1-3) |
+| Context inject | JSON `{type:"context_inject", content}` | Append to context without a turn (P1-3) |
 
 ### WebSocket: Backend → Client
 

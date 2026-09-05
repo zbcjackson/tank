@@ -472,8 +472,10 @@ Two frame kinds:
 
 | type | semantics |
 |------|-----------|
-| `signal` | `interrupt` / `wake` / `end_of_utterance` / `disconnect` / `idle` / `audio_format` / `ping` / `resume_conversation` / `new_conversation` / `subscribe_channels` / `unsubscribe_channels` / `stop_channel_audio` — dispatched via the `@register` registry (`api/signal_handlers.py`); unknown signals are logged and ignored |
+| `signal` | `interrupt` / `wake` / `end_of_utterance` / `disconnect` / `idle` / `audio_format` / `ping` / `capabilities` / `resume_conversation` / `new_conversation` / `subscribe_channels` / `unsubscribe_channels` / `stop_channel_audio` — dispatched via the `@register` registry (`api/signal_handlers.py`); unknown signals are logged and ignored |
 | `input` | typed text input; `metadata` may carry `user_id` and `attachments` (uploaded media refs) |
+| `config` | session hot-config (P1-3): deep-merge patch in `metadata.config` (`instructions` / `voice` / `vad.speech_threshold`); validated all-or-nothing, rejected patches answer `signal: error` |
+| `context_inject` | context-only injection (P1-3): appends `content` to the conversation (`metadata.role` = user/system/assistant) **without** triggering a turn |
 
 **Server → Client message types**:
 
