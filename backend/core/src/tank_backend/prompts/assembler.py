@@ -123,6 +123,8 @@ class PromptAssembler:
         self._previous_scope = PromptScope()
         self._needs_rebuild = True
         self._cached_prompt: str = ""
+        # Session hot-config instructions (P1-3); None = no override.
+        self._instructions_override: str | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -174,6 +176,15 @@ class PromptAssembler:
         if skills_section:
             stable_parts.append(skills_section)
 
+        # 4b. SESSION INSTRUCTIONS — client hot-config override (P1-3).
+        # Appended, not replacing the assembled identity: replace semantics
+        # would destroy SOUL.md/AGENTS.md. Re-sending replaces the override;
+        # ``None`` clears it.
+        if self._instructions_override:
+            stable_parts.append(
+                "# SESSION INSTRUCTIONS\n\n" + self._instructions_override
+            )
+
         # 5. WORKSPACE RULES — discovered AGENTS.md chain
         context_parts: list[str] = []
         workspace_section = self._build_workspace_section()
@@ -219,6 +230,16 @@ class PromptAssembler:
     def mark_dirty(self) -> None:
         """Force a rebuild on the next :meth:`assemble` call."""
         self._needs_rebuild = True
+
+    def set_instructions(self, text: str | None) -> None:
+        """Set the session instructions override (protocol P1-3).
+
+        Appended to the assembled stable tier; re-sending replaces the
+        previous override, ``None`` clears it. Always marks the prompt
+        dirty so the next LLM call rebuilds.
+        """
+        self._instructions_override = text or None
+        self.mark_dirty()
 
     def get_base_rules(self) -> str:
         """Return base security rules (for sub-agent prompt building)."""

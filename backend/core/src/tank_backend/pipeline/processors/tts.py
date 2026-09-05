@@ -41,6 +41,13 @@ class TTSProcessor(Processor):
         self._interrupted = False
         self._qos_overload_count = 0
         self._feeding_queue: Any = None  # set by assistant after pipeline build
+        # Session hot-config voice (P1-3). None = engine default per language.
+        self._voice_override: str | None = None
+
+    def set_voice_override(self, voice: str | None) -> None:
+        """Session hot-config TTS voice (protocol P1-3); ``None`` clears."""
+        self._voice_override = voice
+        logger.info("TTS voice override set to %s", voice or "<engine default>")
 
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         # Drain sentinel (session teardown): forward untouched — the proof
@@ -73,7 +80,7 @@ class TTSProcessor(Processor):
         chunk_stream = self._tts_engine.generate_stream(
             normalized_text,
             language=request.language,
-            voice=request.voice,
+            voice=request.voice or self._voice_override,
             is_interrupted=lambda: self._interrupted,
         )
 

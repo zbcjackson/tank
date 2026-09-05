@@ -75,6 +75,14 @@ class VADProcessor(Processor):
     def _on_playback_ended(self, _message: BusMessage) -> None:
         self._vad.reset_threshold()
 
+    def set_session_threshold(self, value: float) -> None:
+        """Session hot-config threshold (P1-3) — survives echo-guard resets."""
+        self._vad.set_session_threshold(value)
+
+    def clear_session_threshold(self) -> None:
+        """Drop the session threshold, back to the configured default."""
+        self._vad.set_session_threshold(None)
+
     async def process(self, item: Any) -> AsyncIterator[tuple[FlowReturn, Any]]:
         from ...audio.input.vad import VADStatus
 

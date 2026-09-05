@@ -421,6 +421,17 @@ class Brain(Processor):
             )
         return True
 
+    def set_instructions(self, text: str | None) -> None:
+        """Session hot-config instructions override (protocol P1-3)."""
+        self._context.set_instructions(text)
+        logger.info("Session instructions %s", "updated" if text else "cleared")
+
+    def inject_context(self, content: str, role: str = "user") -> None:
+        """Append to conversation history WITHOUT triggering a turn
+        (protocol P1-3 context_inject — RAG results, notes, …)."""
+        self._context.add_message(role, content)
+        logger.info("Injected %s context message (%d chars)", role, len(content))
+
     def _finish_turn(self, turn_messages: list[dict]) -> None:
         """Finish turn and persist conversation with pending approvals."""
         # Sync pending approvals to conversation before persist

@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -145,6 +146,15 @@ def _resolve_user_name(user_id: str | None) -> str:
     return speaker.name if speaker else "Guest"
 
 
+def _negotiable_protocol_features() -> list[str]:
+    """Features this server can negotiate (protocol plan P1-1/P1-2/P1-3).
+
+    ``config`` is pure backend logic — always available; ``opus`` depends
+    on the binding (``audio/opus_codec``). ``resume`` lands with P2.
+    """
+    return ["config", *supported_protocol_features()]
+
+
 def _ready_metadata(assistant: Assistant) -> dict[str, Any]:
     """Metadata for the connection-lifetime ``signal: ready`` frame.
 
@@ -156,12 +166,52 @@ def _ready_metadata(assistant: Assistant) -> dict[str, Any]:
     metadata: dict[str, Any] = {
         "capabilities": assistant.capabilities,
         "pipeline_sample_rate": assistant.pipeline_sample_rate,
-        **handshake_metadata(supported_protocol_features()),
+        **handshake_metadata(_negotiable_protocol_features()),
     }
     conv_id = assistant.brain.conversation_id
     if conv_id:
         metadata["conversation_id"] = conv_id
     return metadata
+
+
+async def _handle_config_message(
+    assistant: Assistant,
+    msg: WebsocketMessage,
+    session_id: str,
+    send_ws_msg: Callable[[WebsocketMessage], Awaitable[None]],
+) -> None:
+    """Session hot-config (protocol P1-3): validate-then-apply; a rejected
+    patch leaves the session untouched and answers ``signal: error``."""
+    config = msg.metadata.get("config")
+    if config is None:
+        config = {}
+    try:
+        assistant.apply_session_config(config)
+    except ValueError as e:
+        logger.warning("Rejected config from %s: %s", session_id, e)
+        await send_ws_msg(
+            signal_frame("error", metadata={"error": f"config rejected: {e}"})
+        )
+
+
+async def _handle_context_inject(
+    assistant: Assistant,
+    msg: WebsocketMessage,
+    session_id: str,
+    send_ws_msg: Callable[[WebsocketMessage], Awaitable[None]],
+) -> None:
+    """Context-only injection (protocol P1-3): append to the conversation
+    without triggering a turn; rejected injections answer ``signal: error``."""
+    role = msg.metadata.get("role")
+    if role is None:
+        role = "user"
+    try:
+        assistant.inject_context(msg.content, role=role)
+    except ValueError as e:
+        logger.warning("Rejected context_inject from %s: %s", session_id, e)
+        await send_ws_msg(
+            signal_frame("error", metadata={"error": f"context_inject rejected: {e}"})
+        )
 
 
 def _ui_msg_to_ws_msg(
@@ -706,6 +756,16 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     attachments = _parse_attachments(raw_attachments, session_id)
                     assistant.process_input(
                         msg.content, user=user_name, attachments=attachments,
+                    )
+
+                elif msg.type == MessageType.CONFIG:
+                    await _handle_config_message(
+                        assistant, msg, session_id, send_ws_msg,
+                    )
+
+                elif msg.type == MessageType.CONTEXT_INJECT:
+                    await _handle_context_inject(
+                        assistant, msg, session_id, send_ws_msg,
                     )
 
     except (WebSocketDisconnect, DisconnectSignal):

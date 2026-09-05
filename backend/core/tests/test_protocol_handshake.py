@@ -30,8 +30,8 @@ def _mock_assistant(conversation_id: str | None = None) -> MagicMock:
 def test_ready_metadata_carries_protocol_handshake():
     metadata = _ready_metadata(_mock_assistant())
     assert metadata["protocol_version"] == __version__
-    # opus is negotiable since P1-2 (config → P1-3, resume → P2).
-    assert metadata["protocol_features"] == ["opus"]
+    # opus is negotiable since P1-2; config since P1-3 (resume → P2).
+    assert metadata["protocol_features"] == ["config", "opus"]
     assert metadata["pipeline_sample_rate"] == 24000
     assert "conversation_id" not in metadata
 

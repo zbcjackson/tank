@@ -400,6 +400,86 @@ class Assistant:
             self.brain._context._prompt_assembler.mark_dirty()
         return diff
 
+    # Session hot-config (protocol P1-3, `config` / `context_inject`).
+
+    _CONFIG_KEYS = ("instructions", "voice", "vad")
+    _VAD_KEYS = ("speech_threshold",)
+    _INJECT_ROLES = ("user", "system", "assistant")
+
+    def apply_session_config(self, config: Any) -> None:
+        """Validate then hot-apply a ``config`` message patch (P1-3).
+
+        Deep-merge semantics: a repeated key replaces its value, explicit
+        ``None`` clears it. Validation is all-or-nothing — an invalid
+        patch raises :class:`ValueError` and nothing is applied.
+        """
+        if not isinstance(config, dict):
+            raise ValueError(f"config must be an object, got {type(config).__name__}")
+
+        unknown = [k for k in config if k not in self._CONFIG_KEYS]
+        if unknown:
+            raise ValueError(
+                f"unknown config key(s) {unknown} — supported: {list(self._CONFIG_KEYS)}"
+            )
+
+        instructions = config.get("instructions")
+        if instructions is not None and (
+            not isinstance(instructions, str) or not instructions.strip()
+        ):
+            raise ValueError("config.instructions must be a non-empty string or null")
+
+        voice = config.get("voice")
+        if voice is not None and (not isinstance(voice, str) or not voice.strip()):
+            raise ValueError("config.voice must be a non-empty string or null")
+
+        vad = config.get("vad")
+        threshold: float | None = None
+        if vad is not None:
+            if not isinstance(vad, dict):
+                raise ValueError("config.vad must be an object or null")
+            unknown_vad = [k for k in vad if k not in self._VAD_KEYS]
+            if unknown_vad:
+                raise ValueError(
+                    f"unknown config.vad key(s) {unknown_vad}"
+                    f" — supported: {list(self._VAD_KEYS)}"
+                )
+            raw = vad.get("speech_threshold")
+            if raw is not None:
+                if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+                    raise ValueError("config.vad.speech_threshold must be a number")
+                if not 0.0 < float(raw) < 1.0:
+                    raise ValueError(
+                        "config.vad.speech_threshold must be strictly between 0 and 1"
+                    )
+                threshold = float(raw)
+
+        # Validated — apply. (Missing targets are skipped: no TTS/VAD engine
+        # in this pipeline is an environment fact, not a config error.)
+        if "instructions" in config and hasattr(self, "brain"):
+            self.brain.set_instructions(instructions)
+        if "voice" in config:
+            if self._tts_processor is None:
+                logger.warning("config.voice ignored — pipeline has no TTS processor")
+            else:
+                self._tts_processor.set_voice_override(voice)
+        if "vad" in config and threshold is not None:
+            if self._vad_processor is None:
+                logger.warning("config.vad ignored — pipeline has no VAD processor")
+            else:
+                self._vad_processor.set_session_threshold(threshold)
+        logger.info("Session config applied: %s", sorted(config))
+
+    def inject_context(self, content: Any, role: Any = "user") -> None:
+        """Append to the conversation without triggering a turn (P1-3)."""
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("context_inject content must be a non-empty string")
+        if role not in self._INJECT_ROLES:
+            raise ValueError(
+                f"context_inject role must be one of {list(self._INJECT_ROLES)},"
+                f" got {role!r}"
+            )
+        self.brain.inject_context(content, role=role)
+
     @property
     def metrics(self) -> dict:
         """Return current pipeline metrics snapshot."""

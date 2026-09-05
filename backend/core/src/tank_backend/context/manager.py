@@ -859,6 +859,14 @@ class ContextManager:
     def prompt_assembler(self) -> Any:
         return self._prompt_assembler
 
+    def set_instructions(self, text: str | None) -> None:
+        """Session hot-config instructions override (protocol P1-3).
+
+        Forwards to the prompt assembler (append semantics, ``None``
+        clears) which marks the prompt dirty for the next LLM call.
+        """
+        self._prompt_assembler.set_instructions(text)
+
     @property
     def preference_store(self) -> Any:
         """PreferenceStore instance, or None if disabled."""

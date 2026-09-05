@@ -176,6 +176,8 @@ class VADStream:
         # Resolve engine — load a private one if not provided (legacy path)
         self._engine = engine or VADEngine()
         self._default_threshold = cfg.speech_threshold
+        # Hot-configured session threshold (P1-3); None = use the default.
+        self._session_threshold: float | None = None
         self._vad_iterator = VADIterator(
             self._engine._model,
             threshold=cfg.speech_threshold,
@@ -195,9 +197,27 @@ class VADStream:
         self._vad_iterator.threshold = value
         logger.info("VAD threshold changed to %.2f", value)
 
+    def set_session_threshold(self, value: float | None) -> None:
+        """Hot-configured session threshold (protocol P1-3).
+
+        Echo guard's playback cycle calls :meth:`reset_threshold` on every
+        playback end — a session threshold must survive that, so reset
+        falls back here instead of the configured default. ``None``
+        clears the override and restores the default immediately.
+        """
+        self._session_threshold = value
+        if value is None:
+            self.set_threshold(self._default_threshold)
+        else:
+            self.set_threshold(value)
+
     def reset_threshold(self) -> None:
-        """Restore the VAD speech threshold to its configured default."""
-        self.set_threshold(self._default_threshold)
+        """Restore the VAD speech threshold — to the session threshold when
+        one is set (P1-3), else the configured default."""
+        if self._session_threshold is not None:
+            self.set_threshold(self._session_threshold)
+        else:
+            self.set_threshold(self._default_threshold)
 
     def _process_chunk(self, chunk: np.ndarray) -> bool:
         """
