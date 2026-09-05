@@ -59,17 +59,31 @@ The CLI is a terminal-based client that provides:
 - Handle connection errors and reconnection
 
 **Message Protocol**:
-```json
-// Client → Server
-{"type": "audio", "data": "<base64>", "sample_rate": 16000}
-{"type": "text", "content": "user message"}
-{"type": "interrupt"}
 
-// Server → Client
-{"type": "audio", "data": "<base64>"}
-{"type": "text", "content": "assistant response"}
-{"type": "status", "status": "listening|processing|speaking"}
-```
+Follows the shared Tank wire contract — `backend/contracts/tank_protocol/` is
+the single source of truth, and this client imports the `tank-protocol`
+package directly (no hand-copied schema). Two frame kinds on one WebSocket:
+
+- **Binary** — audio only:
+  - Client → server: raw Int16 PCM microphone audio, no envelope (the server
+    resamples/downmixes to the pipeline rate, so the mic rate need not match
+    exactly).
+  - Server → client: 8-byte little-endian header (`<HIH`: magic `0x544B`,
+    sample rate, channels) followed by Int16 PCM.
+- **JSON text** — the protocol envelope `{type, content, speaker, is_user,
+  is_final, msg_id, session_id, metadata, attachments}`. The client sends
+  `signal` (e.g. `interrupt`) and `input` (typed text); it consumes `signal`
+  (`ready` / `processing_started` / `processing_ended` / …), `transcript`,
+  `text`, and `update`, and warns-and-ignores unknown types.
+
+**Opus negotiation**: when `signal: ready` advertises
+`protocol_features: ["opus"]`, the client replies with
+`{"type":"signal","content":"capabilities","metadata":{"enable":["opus"]}}`;
+once the ack (`metadata.enabled` contains `opus`) arrives, both directions
+switch to one Opus packet per binary message (16 kHz uplink / 24 kHz
+downlink, 20 ms frames, 32 kbps — `tank_protocol.OPUS_PROFILE`; downlink
+packets are decoded and re-framed with the 8-byte header for playback).
+Connections that never negotiate keep raw PCM unchanged.
 
 ### 4. Audio Input (`src/tank_cli/audio/input/`)
 
