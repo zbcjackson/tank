@@ -183,38 +183,6 @@ TEST(WsGoldenFrames, ContextInject) {
                  "", false, false);
 }
 
-TEST(WsGoldenFrames, CapabilitiesAckEnablesOpus) {
-    // P1-2: the ack's metadata.enabled drives the device-side codec switch.
-    WsMessage msg = {};
-    ASSERT_TRUE(parseWsJsonMessage(TANK_GOLDEN_SIGNAL_CAPABILITIES_ACK,
-                                   strlen(TANK_GOLDEN_SIGNAL_CAPABILITIES_ACK), &msg));
-    EXPECT_STREQ(msg.type, "signal");
-    EXPECT_STREQ(msg.content, "capabilities");
-    EXPECT_TRUE(msg.protocol_opus_enabled);
-    EXPECT_FALSE(msg.protocol_opus_advertised);
-}
-
-TEST(WsMessageParse, ReadyOpusFeatureAdvertised) {
-    const char* json =
-        R"({"type":"signal","content":"ready","session_id":"s1","metadata":)"
-        R"({"pipeline_sample_rate":16000,"protocol_version":"0.3.0",)"
-        R"("protocol_features":["config","opus"],"conversation_id":"c1"}})";
-    WsMessage msg = {};
-    ASSERT_TRUE(parseWsJsonMessage(json, strlen(json), &msg));
-    EXPECT_STREQ(msg.type, "signal");
-    EXPECT_STREQ(msg.content, "ready");
-    EXPECT_TRUE(msg.protocol_opus_advertised);
-    EXPECT_FALSE(msg.protocol_opus_enabled);
-}
-
-TEST(WsMessageParse, NegotiationFlagsDefaultFalse) {
-    const char* json = R"({"type":"text","content":"hi","msg_id":"m1"})";
-    WsMessage msg = {};
-    ASSERT_TRUE(parseWsJsonMessage(json, strlen(json), &msg));
-    EXPECT_FALSE(msg.protocol_opus_advertised);
-    EXPECT_FALSE(msg.protocol_opus_enabled);
-}
-
 TEST(WsGoldenFrames, UnknownFieldTolerated) {
     // Evolution rule 2: unknown fields must be ignored, not rejected.
     expectGolden(TANK_GOLDEN_UNKNOWN_FIELD, "text", "future", "", false, false);

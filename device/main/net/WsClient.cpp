@@ -20,7 +20,7 @@ bool WsClient::connect() {
     esp_websocket_client_config_t config = {};
     config.uri = uri_;
     config.buffer_size = CONFIG_TANK_WS_BUFFER_SIZE;
-    config.task_stack = CONFIG_WS_CLIENT_TASK_STACK;
+    config.task_stack = CONFIG_NET_TASK_STACK;
     config.task_prio = CONFIG_NET_TASK_PRIORITY;
     config.ping_interval_sec = 10;
     config.network_timeout_ms = CONFIG_WS_NETWORK_TIMEOUT_MS;
@@ -57,7 +57,6 @@ void WsClient::disconnect() {
         client_ = nullptr;
     }
     connected_ = false;
-    resetOpus();
 }
 
 bool WsClient::reconfigure(const char* host, int port, const char* session_id) {
@@ -77,20 +76,6 @@ bool WsClient::reconfigure(const char* host, int port, const char* session_id) {
 
 bool WsClient::sendAudio(const int16_t* pcm, size_t samples) {
     if (!connected_ || !client_) return false;
-
-    if (opus_negotiated_) {
-        // One mic frame (20 ms) per call — one packet per WS message, the
-        // negotiated wire shape (plan P1-2).
-        uint8_t packet[1276];
-        int n = opus_encode(opus_enc_, pcm, samples, packet, sizeof(packet));
-        if (n <= 0) {
-            ESP_LOGW(TAG, "opus_encode failed: %d", n);
-            return false;
-        }
-        int sent = esp_websocket_client_send_bin(client_, (const char*)packet, n,
-                                                 pdMS_TO_TICKS(1000));
-        return sent == n;
-    }
 
     int len = samples * sizeof(int16_t);
     int sent = esp_websocket_client_send_bin(client_, (const char*)pcm, len, pdMS_TO_TICKS(1000));
@@ -129,10 +114,6 @@ void WsClient::eventHandler(void* arg, esp_event_base_t base, int32_t id, void* 
         case WEBSOCKET_EVENT_CONNECTED:
             ESP_LOGI(TAG, "WebSocket connected");
             self->connected_ = true;
-            // Fresh connection — renegotiate from scratch (the ready frame
-            // re-advertises features on every connect).
-            self->opus_declared_ = false;
-            self->opus_negotiated_ = false;
             if (self->on_connected_) {
                 self->on_connected_();
             }
@@ -141,7 +122,6 @@ void WsClient::eventHandler(void* arg, esp_event_base_t base, int32_t id, void* 
         case WEBSOCKET_EVENT_DISCONNECTED:
             ESP_LOGW(TAG, "WebSocket disconnected");
             self->connected_ = false;
-            self->resetOpus();
             if (self->on_disconnected_) {
                 self->on_disconnected_();
             }
@@ -150,7 +130,6 @@ void WsClient::eventHandler(void* arg, esp_event_base_t base, int32_t id, void* 
         case WEBSOCKET_EVENT_CLOSED:
             ESP_LOGW(TAG, "WebSocket closed by server");
             self->connected_ = false;
-            self->resetOpus();
             if (self->on_disconnected_) {
                 self->on_disconnected_();
             }
@@ -238,21 +217,6 @@ void WsClient::handleData(esp_websocket_event_data_t* event_data) {
 }
 
 void WsClient::parseAudioFrame(const uint8_t* data, int len) {
-    if (opus_negotiated_) {
-        // One opus packet per WS message. Decoded at the speaker rate — opus
-        // packets are rate-agnostic, so no resample is needed downstream.
-        int samples = opus_decode(opus_dec_, data, len, opus_dec_pcm_,
-                                  sizeof(opus_dec_pcm_) / sizeof(opus_dec_pcm_[0]), 0);
-        if (samples <= 0) {
-            ESP_LOGW(TAG, "opus_decode failed: %d (packet %d B)", samples, len);
-            return;
-        }
-        if (on_audio_) {
-            on_audio_(opus_dec_pcm_, samples, CONFIG_SPK_SAMPLE_RATE);
-        }
-        return;
-    }
-
     AudioFrameHeader hdr = {};
     if (!parseAudioFrameHeader(data, len, &hdr)) {
         ESP_LOGW(TAG, "Invalid audio frame: len=%d", len);
@@ -275,86 +239,7 @@ void WsClient::parseJsonMessage(const char* data, int len) {
         return;
     }
 
-    // Opus negotiation (plan P1-2): declare once per connection when ready
-    // advertises the feature; switch codecs on the ack. Between the server
-    // processing the declaration and the ack arriving, uplink PCM can hit
-    // the server's opus decoder and be dropped — the connect-time race the
-    // plan accepted (no user speech that early).
-    if (strcmp(msg.type, "signal") == 0) {
-        if (strcmp(msg.content, "ready") == 0 && msg.protocol_opus_advertised &&
-            !opus_declared_ && !opus_negotiated_) {
-            if (sendCapabilitiesDeclaration()) {
-                opus_declared_ = true;
-                ESP_LOGI(TAG, "Declared opus capability");
-            }
-        } else if (strcmp(msg.content, "capabilities") == 0 &&
-                   msg.protocol_opus_enabled && !opus_negotiated_) {
-            enableOpus();
-        }
-    }
-
     if (on_message_) {
         on_message_(msg);
     }
-}
-
-void WsClient::resetOpus() {
-    if (opus_enc_) {
-        opus_encoder_destroy(opus_enc_);
-        opus_enc_ = nullptr;
-    }
-    if (opus_dec_) {
-        opus_decoder_destroy(opus_dec_);
-        opus_dec_ = nullptr;
-    }
-    opus_negotiated_ = false;
-    opus_declared_ = false;
-}
-
-bool WsClient::sendCapabilitiesDeclaration() {
-    if (!connected_ || !client_) return false;
-
-    cJSON* root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "type", "signal");
-    cJSON_AddStringToObject(root, "content", "capabilities");
-    cJSON* metadata = cJSON_AddObjectToObject(root, "metadata");
-    cJSON* enable = cJSON_AddArrayToObject(metadata, "enable");
-    cJSON_AddItemToArray(enable, cJSON_CreateString("opus"));
-
-    char* json_str = cJSON_PrintUnformatted(root);
-    int len = strlen(json_str);
-    int sent = esp_websocket_client_send_text(client_, json_str, len, pdMS_TO_TICKS(100));
-    cJSON_free(json_str);
-    cJSON_Delete(root);
-    return sent == len;
-}
-
-void WsClient::enableOpus() {
-    int err = OPUS_OK;
-    opus_enc_ = opus_encoder_create(CONFIG_MIC_SAMPLE_RATE, 1,
-                                    OPUS_APPLICATION_VOIP, &err);
-    if (!opus_enc_ || err != OPUS_OK) {
-        ESP_LOGE(TAG, "opus_encoder_create failed: %d — staying on PCM", err);
-        opus_enc_ = nullptr;
-        return;
-    }
-    opus_encoder_ctl(opus_enc_, OPUS_SET_BITRATE(CONFIG_OPUS_BITRATE));
-    // Complexity 5: the CoreS3 gate measured the server default (9) at 111%
-    // of the 20 ms real-time budget; cx5 lands at 73% (see opus_bench data).
-    opus_encoder_ctl(opus_enc_, OPUS_SET_COMPLEXITY(CONFIG_OPUS_COMPLEXITY));
-
-    opus_dec_ = opus_decoder_create(CONFIG_SPK_SAMPLE_RATE, 1, &err);
-    if (!opus_dec_ || err != OPUS_OK) {
-        ESP_LOGE(TAG, "opus_decoder_create failed: %d — staying on PCM", err);
-        opus_decoder_destroy(opus_dec_);
-        opus_dec_ = nullptr;
-        opus_encoder_destroy(opus_enc_);
-        opus_enc_ = nullptr;
-        return;
-    }
-
-    opus_negotiated_ = true;
-    ESP_LOGI(TAG, "Opus negotiated (%u Hz up / %u Hz down, 20 ms, %d bps, cx%d)",
-             CONFIG_MIC_SAMPLE_RATE, CONFIG_SPK_SAMPLE_RATE, CONFIG_OPUS_BITRATE,
-             CONFIG_OPUS_COMPLEXITY);
 }
