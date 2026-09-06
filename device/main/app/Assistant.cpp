@@ -194,7 +194,7 @@ void Assistant::start() {
     // Start WS send task
     xTaskCreatePinnedToCore(
         wsSendTask, "ws_send",
-        CONFIG_NET_TASK_STACK, this,
+        CONFIG_WS_SEND_TASK_STACK, this,
         CONFIG_NET_TASK_PRIORITY, &ws_send_task_,
         CONFIG_NET_TASK_CORE
     );
