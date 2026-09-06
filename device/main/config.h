@@ -137,6 +137,17 @@
 #define CONFIG_NET_TASK_CORE         1
 #define CONFIG_NET_TASK_PRIORITY     18
 #define CONFIG_NET_TASK_STACK        8192
+// libopus allocates encoder/decoder scratch with VAR_ARRAYS on the caller's
+// stack — opus_encode needs ~20-30 KB. Only the two tasks that touch opus
+// carry the bigger stack (P1-2 Step 5; see the opus_bench gate data).
+#define CONFIG_WS_SEND_TASK_STACK    24576
+#define CONFIG_WS_CLIENT_TASK_STACK  24576
+
+// Negotiated opus (P1-2). Bitrate mirrors tank_protocol.OPUS_PROFILE; the
+// complexity cap comes from the CoreS3 gate measurement: the server default
+// (9) exceeds the 20 ms real-time budget on one core, cx5 lands at 73%.
+#define CONFIG_OPUS_BITRATE          32000
+#define CONFIG_OPUS_COMPLEXITY       5
 
 #define CONFIG_UI_TASK_CORE          1
 #define CONFIG_UI_TASK_PRIORITY      5

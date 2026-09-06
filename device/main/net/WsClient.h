@@ -3,6 +3,8 @@
 #include "esp_websocket_client.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "opus.h"
+#include "config.h"
 #include <functional>
 #include <cstdint>
 
@@ -16,6 +18,10 @@ struct WsMessage {
     char msg_id[64];     // message ID (for text streaming)
     bool is_user;        // true if transcript from user
     bool is_final;       // true if message is complete
+    // Opus negotiation (P1-2): "opus" listed in signal:ready
+    // metadata.protocol_features / in the capabilities-ack metadata.enabled.
+    bool protocol_opus_advertised;
+    bool protocol_opus_enabled;
 };
 
 /// WebSocket client for Tank backend.
@@ -70,6 +76,10 @@ public:
 private:
     static void eventHandler(void* arg, esp_event_base_t base, int32_t id, void* data);
 
+    // The native routing test drives negotiation end to end (handleData is
+    // public for the same reason).
+    friend class WsRoutingTest;
+
 public:
     // Public for integration testing (handleData drives the routing logic)
     void handleData(esp_websocket_event_data_t* event_data);
@@ -78,6 +88,13 @@ private:
     void parseJsonMessage(const char* data, int len);
     void parseAudioFrame(const uint8_t* data, int len);
 
+    // Opus negotiation (P1-2): declare on a ready frame advertising opus,
+    // switch both binary directions on the ack. Lives here — WsClient owns
+    // the wire; capture/playback stay PCM end to end.
+    void resetOpus();
+    bool sendCapabilitiesDeclaration();
+    void enableOpus();
+
     esp_websocket_client_handle_t client_ = nullptr;
     AudioCallback on_audio_;
     MessageCallback on_message_;
@@ -85,6 +102,14 @@ private:
     StateCallback on_disconnected_;
     bool connected_ = false;
     char uri_[256] = {};
+
+    OpusEncoder* opus_enc_ = nullptr;
+    OpusDecoder* opus_dec_ = nullptr;
+    // Decoded PCM scratch — 120 ms at the speaker rate (libopus's per-packet
+    // decode maximum).
+    int16_t opus_dec_pcm_[CONFIG_SPK_SAMPLE_RATE * 120 / 1000] = {};
+    bool opus_negotiated_ = false;
+    bool opus_declared_ = false;
 
     // Reassembly buffer for fragmented WebSocket binary frames.
     // esp_websocket_client delivers payloads exceeding buffer_size in multiple

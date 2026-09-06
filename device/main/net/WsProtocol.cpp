@@ -61,6 +61,27 @@ bool parseWsJsonMessage(const char* data, int len, WsMessage* out) {
     cJSON* is_final = cJSON_GetObjectItem(root, "is_final");
     out->is_final = is_final && cJSON_IsTrue(is_final);
 
+    // Opus negotiation (P1-2): the ready frame advertises the feature list,
+    // the capabilities ack names what was enabled. Both live in metadata.
+    if (strcmp(out->type, "signal") == 0) {
+        cJSON* metadata = cJSON_GetObjectItem(root, "metadata");
+        if (metadata && cJSON_IsObject(metadata)) {
+            cJSON* features = cJSON_GetObjectItem(metadata, "protocol_features");
+            cJSON* item = nullptr;
+            cJSON_ArrayForEach(item, features) {
+                if (cJSON_IsString(item) && strcmp(item->valuestring, "opus") == 0) {
+                    out->protocol_opus_advertised = true;
+                }
+            }
+            cJSON* enabled = cJSON_GetObjectItem(metadata, "enabled");
+            cJSON_ArrayForEach(item, enabled) {
+                if (cJSON_IsString(item) && strcmp(item->valuestring, "opus") == 0) {
+                    out->protocol_opus_enabled = true;
+                }
+            }
+        }
+    }
+
     cJSON_Delete(root);
     free(buf);
     return true;
