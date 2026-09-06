@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 #include "cJSON.h"
 #include <cstring>
 #include <cstdio>
@@ -299,12 +300,14 @@ void WsClient::parseJsonMessage(const char* data, int len) {
 }
 
 void WsClient::resetOpus() {
+    // States are PSRAM-owned (placement-init) — heap_caps_free, never the
+    // opus_*_destroy wrappers (they route through the internal heap).
     if (opus_enc_) {
-        opus_encoder_destroy(opus_enc_);
+        heap_caps_free(opus_enc_);
         opus_enc_ = nullptr;
     }
     if (opus_dec_) {
-        opus_decoder_destroy(opus_dec_);
+        heap_caps_free(opus_dec_);
         opus_dec_ = nullptr;
     }
     opus_negotiated_ = false;
@@ -330,11 +333,19 @@ bool WsClient::sendCapabilitiesDeclaration() {
 }
 
 void WsClient::enableOpus() {
-    int err = OPUS_OK;
-    opus_enc_ = opus_encoder_create(CONFIG_MIC_SAMPLE_RATE, 1,
-                                    OPUS_APPLICATION_VOIP, &err);
-    if (!opus_enc_ || err != OPUS_OK) {
-        ESP_LOGE(TAG, "opus_encoder_create failed: %d — staying on PCM", err);
+    // Codec states (~25 KB encoder + ~18 KB decoder) live in PSRAM via the
+    // placement-init APIs — mid-session internal-heap blocks that large are
+    // not dependable (OPUS_ALLOC_FAIL was observed on hardware).
+    opus_enc_ = (OpusEncoder*)heap_caps_malloc(opus_encoder_get_size(1), MALLOC_CAP_SPIRAM);
+    if (!opus_enc_) {
+        ESP_LOGE(TAG, "opus encoder state alloc failed — staying on PCM");
+        return;
+    }
+    int err = opus_encoder_init(opus_enc_, CONFIG_MIC_SAMPLE_RATE, 1,
+                                OPUS_APPLICATION_VOIP);
+    if (err != OPUS_OK) {
+        ESP_LOGE(TAG, "opus_encoder_init failed: %d — staying on PCM", err);
+        heap_caps_free(opus_enc_);
         opus_enc_ = nullptr;
         return;
     }
@@ -343,12 +354,19 @@ void WsClient::enableOpus() {
     // of the 20 ms real-time budget; cx5 lands at 73% (see opus_bench data).
     opus_encoder_ctl(opus_enc_, OPUS_SET_COMPLEXITY(CONFIG_OPUS_COMPLEXITY));
 
-    opus_dec_ = opus_decoder_create(CONFIG_SPK_SAMPLE_RATE, 1, &err);
-    if (!opus_dec_ || err != OPUS_OK) {
-        ESP_LOGE(TAG, "opus_decoder_create failed: %d — staying on PCM", err);
-        opus_decoder_destroy(opus_dec_);
+    opus_dec_ = (OpusDecoder*)heap_caps_malloc(opus_decoder_get_size(1), MALLOC_CAP_SPIRAM);
+    if (!opus_dec_) {
+        ESP_LOGE(TAG, "opus decoder state alloc failed — staying on PCM");
+        heap_caps_free(opus_enc_);
+        opus_enc_ = nullptr;
+        return;
+    }
+    err = opus_decoder_init(opus_dec_, CONFIG_SPK_SAMPLE_RATE, 1);
+    if (err != OPUS_OK) {
+        ESP_LOGE(TAG, "opus_decoder_init failed: %d — staying on PCM", err);
+        heap_caps_free(opus_dec_);
         opus_dec_ = nullptr;
-        opus_encoder_destroy(opus_enc_);
+        heap_caps_free(opus_enc_);
         opus_enc_ = nullptr;
         return;
     }

@@ -84,3 +84,35 @@ real hardware can prove (I2C peripherals, I2S audio, PSRAM, WiFi radio, boot).
   `platformio.ini`, and the source files to `main/CMakeLists.txt`.
 - **Serial reads can be flaky in a VM** with USB passthrough — see the on-device
   notes in [TESTING.md](TESTING.md) §3 before debugging a "hang".
+
+## Memory & Codec Traps (CoreS3, learned 2026-09)
+
+- **Internal DRAM is fully budgeted** (~325 KB usable: 114 KB static + ~246 KB
+  heap pool; steady-state free ~50 KB, largest block only 19-32 KB). Any new
+  feature needing big contiguous runtime blocks must go to PSRAM — and there
+  is no spare internal RAM to "make room" with.
+- **LVGL's builtin allocator pool lives in PSRAM** (64 KB — formerly the
+  largest internal consumer). Implemented via the `LV_MEM_POOL_ALLOC` hook:
+  `main/lv_mem_psram_pool.h` force-included for all C/C++ TUs from
+  `CMakeLists.txt`. Don't move it back; don't add a second static pool.
+- **FreeRTOS kernel objects must live in internal RAM**:
+  - A task whose **stack** is in PSRAM wild-PCs on first schedule (cache-off
+    windows like NVS writes are fatal to external-stack tasks).
+  - Queue/stream-buffer **control structs** in PSRAM crash the kernel
+    (LoadProhibited inside xQueueReceive).
+  - The reliable pattern for oversized stacks: static BSS member arrays +
+    `xTaskCreateStatic` with an **internal** TCB (see `ws_send` in Assistant,
+    32 KB for libopus).
+- **libopus VAR_ARRAYS**: `opus_encode` allocates scratch on the caller's
+  stack — 24 KB overflows on real speech, 32 KB works (`ws_send`). The
+  opus_bench suite's 64 KB stack masks exact high-water marks; size stacks
+  well above any guess and let the canary verify.
+- **Codec states** (`components/opus`, vendored fixed-point libopus 1.4) are
+  placement-inited from PSRAM (`opus_encoder_init` +
+  `heap_caps_malloc(MALLOC_CAP_SPIRAM)`) — free with `heap_caps_free`, never
+  the `opus_*_destroy` wrappers (they route through the internal heap).
+  GCC 13's `stringop-overread` warnings on silk/NSQ are false positives
+  (suppressed in the component's CMakeLists).
+- **Heap integrity checks**: `heap_caps_check_integrity_all` walks the 8 MB
+  PSRAM pool for seconds and starves the interrupt watchdog — scope checks
+  with `heap_caps_check_integrity(MALLOC_CAP_INTERNAL, true)`.

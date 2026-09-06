@@ -1,6 +1,6 @@
 # Tank 私有协议演进计划（Protocol Evolution Plan）
 
-> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。P1-2：Step 1-4 已落地（2026-09-03 ~ 09-05）；Step 5（device）门控实测已完成（2026-09-06）——内存/解码/质量全过，**编码 cx≤5 可行、服务端默认 cx9 超实时**，固件集成待接。P1-3 已落地（2026-09-05，协议包 0.3.0 + 服务端热配置/注入；web/cli/device 零代码改动）。
+> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。**P1-2 全部落地（2026-09-06）**：Step 1-4（09-03 ~ 09-05）、Step 5（device）真机集成完成——opus 全双工经真机验证（说话→正常回复，后端零解码失败）。P1-3 已落地（2026-09-05，协议包 0.3.0 + 服务端热配置/注入）。P2 按触发条件（§6）。
 > 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](../done/s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
 > 触发背景：Tank 将来要远程部署在服务器上，连接远程操控的机器人和客户端。远程化对协议提出三个硬前提——认证、弱网韧性、可演进性——当前协议一项都不具备。
 > 本文所有代码事实均核对自实际代码（文件行号见引用）。
@@ -352,6 +352,10 @@ backend/contracts/tank_protocol/
     2. **PSRAM 任务栈不可用**：静态栈放 PSRAM 的任务首次调度即野 PC（gdb 实证 0x40000000 + SP 不可读）——与 IDF「cache 关闭窗口（NVS 写等）期间外部栈任务不能运行」的限制一致；WiFi 常开设备上是致命雷。
     3. **队列存储搬 PSRAM**（内核结构体内、数据 PSRAM）：afeFeedTask 在 xQueueReceive 临界区内 LoadProhibited（用户说话即崩）——原因未深究，随集成一并回退。
   - **设备端恢复 opus 的候选路径**（后续立项再评估）：① libopus 以 `NONTHREADSAFE_PSEUDOSTACK` 构建——VLA 搬进静态 BSS scratch（~25KB），任务栈缩到 4-8KB，encode/decode 加互斥串行；② 内部 RAM 预算重构（mic/clean/event 队列裁剪 + 实测各栈 HWM 后精确配额）；③ 远程部署时优先给 web/cli 用 opus，device 保持 PCM（LAN 带宽充裕，非痛点）。组件 `device/components/opus` 与 bench 保留，随时可复用。
+  - **集成最终落地（2026-09-06，同日）——内存墙的答案在 LVGL**：ELF 分析发现内部静态 RAM 单项最大占用是 **LVGL 的 64KB tlsf 池**（`CONFIG_LV_MEM_SIZE_KILOBYTES=64`，lv_mem_core_builtin.c 的 `work_mem_int[]`）。LVGL v9 内建分配器支持 `LV_MEM_POOL_ALLOC(size)` 宏钩子——在项目 CMakeLists 对所有 C/C++ 编译单元 force-include `main/lv_mem_psram_pool.h`（`heap_caps_malloc(size, MALLOC_CAP_SPIRAM)`），池整体迁入 PSRAM（控件元数据容忍 PSRAM 延迟；DMA 绘制缓冲不动；LVGL 不 de-init 故不释放）。注意 force-include 必须限定 C/C++ 语言（`$<$<COMPILE_LANGUAGE:C,CXX>:...>`），否则汇编文件编译报语法错；`-include` 与路径必须写成一个 token（分开写触发 gcc "multiple files" 错）。
+    - 迁移后内部堆 WS init 时点 free≈49KB / largest≈31.7KB（对照迁移前 33/8.7），opus 编解码任务栈以 BSS 静态数组保留内部 RAM（链接期保留，免疫碎片）：ws_send 32KB、WS client 8KB（内联解码）。
+    - **真机全双工验证通过**：说话→后端 ASR→回复→下行 opus 解码播放，声音正常；后端零解码失败；设备端零队列满/解码错误。栈溢出实测：opus_encode@cx5 在 24KB 栈上溢（canary 触发），32KB 通过——bench 的 64KB 栈掩盖了精确 HWM，回填值取 32KB。
+    - 复活的集成代码 = cherry-pick 683df88 + 两处改进：codec 状态改 PSRAM placement-init（`opus_encoder_init/decoder_init` + `heap_caps_malloc`，规避会话中期内部堆 -7 分配失败）；destroy 改 `heap_caps_free`。
   - **工程教训（写入 bench 注释与 TESTING.md 语境）**：① libopus VAR_ARRAYS 在调用者栈上开大数组——**opus_encode 至少需 ~20-30KB 任务栈**，bench 用 64KB 专用任务；② `heap_caps_check_integrity_all` 走 8MB PSRAM 池需数秒、饿死 INT WDT——校验用 `MALLOC_CAP_INTERNAL` 限内部池；③ 虚拟串口读法：VM 里每次 flash 后 CDC 端点楔死，冷启动（拔插≥10s）恢复，读端用 O_NONBLOCK 裸 open（pyserial 的 tcsetattr 会卡在楔死端点上），先挂读端再 OpenOCD 软复位可消竞态。
   - 生成/脚本零变化（协议包未动），`check_protocol_sync` 不涉及。
 

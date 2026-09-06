@@ -140,7 +140,7 @@
 // libopus allocates encoder/decoder scratch with VAR_ARRAYS on the caller's
 // stack — opus_encode needs ~20-30 KB. Only the two tasks that touch opus
 // carry the bigger stack (P1-2 Step 5; see the opus_bench gate data).
-#define CONFIG_WS_SEND_TASK_STACK    24576
+#define CONFIG_WS_SEND_TASK_STACK    (32 * 1024)  // 24 KB overflowed on first real speech
 #define CONFIG_WS_CLIENT_TASK_STACK  24576
 
 // Negotiated opus (P1-2). Bitrate mirrors tank_protocol.OPUS_PROFILE; the

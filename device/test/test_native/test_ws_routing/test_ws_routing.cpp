@@ -52,6 +52,10 @@ int opus_encode(OpusEncoder*, const opus_int16* pcm, int samples, unsigned char*
     memcpy(out + 6, pcm, sizeof(opus_int16));
     return 8;
 }
+opus_int32 opus_encoder_get_size(int) { return 24544; }
+int opus_encoder_init(OpusEncoder*, int32_t, int, int) { return OPUS_OK; }
+opus_int32 opus_decoder_get_size(int) { return 17776; }
+int opus_decoder_init(OpusDecoder*, int32_t, int) { return OPUS_OK; }
 OpusDecoder* opus_decoder_create(int32_t, int, int* err) {
     *err = OPUS_OK;
     return new OpusDecoder{0};
