@@ -1,6 +1,6 @@
 # Tank 私有协议演进计划（Protocol Evolution Plan）
 
-> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。P1-2 实施中：Step 1（协议包 0.2.0）、Step 2（服务端协商）、Step 3（web/WebCodecs）已落地（2026-09-03），Step 4（cli）已落地（2026-09-05），Step 5（device）未开始（门控：ESP32-S3 实测）。P1-3 已落地（2026-09-05，协议包 0.3.0 + 服务端热配置/注入；web/cli/device 零代码改动）。
+> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。P1-2：Step 1-4 已落地（2026-09-03 ~ 09-05）；Step 5（device）门控实测已完成（2026-09-06）——内存/解码/质量全过，**编码 cx≤5 可行、服务端默认 cx9 超实时**，固件集成待接。P1-3 已落地（2026-09-05，协议包 0.3.0 + 服务端热配置/注入；web/cli/device 零代码改动）。
 > 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](../done/s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
 > 触发背景：Tank 将来要远程部署在服务器上，连接远程操控的机器人和客户端。远程化对协议提出三个硬前提——认证、弱网韧性、可演进性——当前协议一项都不具备。
 > 本文所有代码事实均核对自实际代码（文件行号见引用）。
@@ -339,6 +339,16 @@ backend/contracts/tank_protocol/
   - 测试 14 例新增：codec 6（SNR round-trip 移植服务端 spike helper、重缓冲、变长包、垃圾包→OpusDecodeError）+ client 8（ready 声明/无 opus 不声明/防重/ack 切上行（解码验证）/ack 无 opus 保持裸 PCM/ack 切下行（8 字节头 24k）/垃圾包丢弃不断连/disconnect 重置）。CLI 24 → 38。
   - 真机 smoke：dev server 上 ready 广告 opus → 声明 → ack（profile 完整）→ 50 上行包入真管线，服务端日志 "Opus negotiated for opussmoke"，零解码错误。全量验证清单通过（web lint/tsc、后端 3318、cli 38、E2E 10/10、sync/docs OK）。
 - **Step 5 — device（门控：ESP32-S3 内存/CPU 实测）**：libopus 的 ESP-IDF 移植选型（候选 ESP-ADF opus component）+ heap/PSRAM 占用与实时性实测，定案后才接入；触点 `net/WsProtocol.cpp`、`net/WsClient.cpp` 路由、`audio/AudioCapture.cpp`/`AudioPlayback.cpp`；native golden-frame 测试同步。
+  **门控实测落地记录（2026-09-06）——结论：GO，但设备端编码器必须 complexity ≤5。**
+  - **选型定案：vendor 上游 libopus 1.4 源码**（`device/components/opus`，定点配置 FIXED_POINT+VAR_ARRAYS+DISABLE_FLOAT_API，裁掉 x86/arm/mips asm 与 float analysis/mlp；license 随附）。ESP-ADF 的 opus 组件已不存在（v2.5 起收进预编译的 esp-adf-libs）；先试了托管组件 `espressif/esp_audio_codec` 2.6.2（声明 idf>=4.4），实测在 IDF 5.3.1 上有致命问题：INFO 日志绕过运行时级别过滤、日志互斥锁结构被踩断言崩溃——已回退移除。源码 libopus 与服务端 opuslib 同核心，测量口径对齐，且可调试。
+  - **实测数据**（CoreS3 真机，`test/test_device/test_opus_bench`，Unity 4 用例全绿，全程 COMPREHENSIVE 堆毒化校验通过；语音形噪声 300-3400Hz 最坏情形，240MHz）：
+    - 内存：enc(16k)+dec(24k) 合计 **25,084 B 内部 RAM**（状态 24,544+17,776 B）；10 次 create/destroy 零泄漏；largest free block 98K→59K。
+    - 解码（24k/20ms/32kbps）：avg **2,037µs = 10.2%** 帧预算，max 2,161µs——余量充足。
+    - 编码（16k/20ms/32kbps）：cx0=33.8% / **cx3=48.9% / cx5=73.3%** / cx8=110.9% / **cx9=110.9%（服务端默认，超实时）** / cx10=111.0%。
+    - 质量：32kbps round-trip **14.4 dB**（spike 浮点 14.7dB——定点与浮点无实质差）。
+  - **集成定案**：上行编码器 `OPUS_SET_COMPLEXITY(5)`（73%，语音实际成本更低；cx3 48.9% 为保守档）——编码器内部参数，不进 OPUS_PROFILE（wire 无关，各端自由）。下行解码 10% 无压力。集成检查项：真实固件（WiFi+LVGL+esp-sr 常驻）下 largest free block 须 ≥ encoder 状态单块 24.5KB。
+  - **工程教训（写入 bench 注释与 TESTING.md 语境）**：① libopus VAR_ARRAYS 在调用者栈上开大数组——**opus_encode 至少需 ~20-30KB 任务栈**，bench 用 64KB 专用任务；② `heap_caps_check_integrity_all` 走 8MB PSRAM 池需数秒、饿死 INT WDT——校验用 `MALLOC_CAP_INTERNAL` 限内部池；③ 虚拟串口读法：VM 里每次 flash 后 CDC 端点楔死，冷启动（拔插≥10s）恢复，读端用 O_NONBLOCK 裸 open（pyserial 的 tcsetattr 会卡在楔死端点上），先挂读端再 OpenOCD 软复位可消竞态。
+  - 生成/脚本零变化（协议包未动），`check_protocol_sync` 不涉及。
 
 **P1-2 非目标**：不做中途重协商/关闭；不做 UDP/WebRTC（§6 触发条件）；不动 `tank_contracts` 的 PCM frame codec。
 

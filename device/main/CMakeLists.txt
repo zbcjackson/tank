@@ -46,4 +46,5 @@ idf_component_register(
         es7210
         esp_lvgl_port
         esp-sr
+        opus
 )
