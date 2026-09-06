@@ -347,6 +347,11 @@ backend/contracts/tank_protocol/
     - 编码（16k/20ms/32kbps）：cx0=33.8% / **cx3=48.9% / cx5=73.3%** / cx8=110.9% / **cx9=110.9%（服务端默认，超实时）** / cx10=111.0%。
     - 质量：32kbps round-trip **14.4 dB**（spike 浮点 14.7dB——定点与浮点无实质差）。
   - **集成定案**：上行编码器 `OPUS_SET_COMPLEXITY(5)`（73%，语音实际成本更低；cx3 48.9% 为保守档）——编码器内部参数，不进 OPUS_PROFILE（wire 无关，各端自由）。下行解码 10% 无压力。集成检查项：真实固件（WiFi+LVGL+esp-sr 常驻）下 largest free block 须 ≥ encoder 状态单块 24.5KB。
+  - **集成尝试与回退（2026-09-06）——协商链路真机打通，但固件内存墙未能跨越，main/ 集成已 revert（commit 序列见 git log），设备恢复 PCM 运行**。已验证的部分：真机协商全流程（ready 广告 → 声明 → ack → "Opus negotiated" 双端日志一致）、PSRAM placement-init 的 codec 状态（`opus_encoder_init/decoder_init` + `heap_caps_malloc`）、上行编码路径。未跨越的墙：
+    1. **内部 DRAM 无 36KB 余量**：真实固件内部堆碎片化到 free≈39KB / largest≈19KB（WS init 时点），而 opus 需要 ~36KB 任务栈（编码 24KB + 解码 12KB）。栈改 BSS 会 1:1 缩小堆池（WS client 的 init 缓冲 ~17KB 连续分配随即失败）；缩 WS buffer/队列只挤出 ~12KB。
+    2. **PSRAM 任务栈不可用**：静态栈放 PSRAM 的任务首次调度即野 PC（gdb 实证 0x40000000 + SP 不可读）——与 IDF「cache 关闭窗口（NVS 写等）期间外部栈任务不能运行」的限制一致；WiFi 常开设备上是致命雷。
+    3. **队列存储搬 PSRAM**（内核结构体内、数据 PSRAM）：afeFeedTask 在 xQueueReceive 临界区内 LoadProhibited（用户说话即崩）——原因未深究，随集成一并回退。
+  - **设备端恢复 opus 的候选路径**（后续立项再评估）：① libopus 以 `NONTHREADSAFE_PSEUDOSTACK` 构建——VLA 搬进静态 BSS scratch（~25KB），任务栈缩到 4-8KB，encode/decode 加互斥串行；② 内部 RAM 预算重构（mic/clean/event 队列裁剪 + 实测各栈 HWM 后精确配额）；③ 远程部署时优先给 web/cli 用 opus，device 保持 PCM（LAN 带宽充裕，非痛点）。组件 `device/components/opus` 与 bench 保留，随时可复用。
   - **工程教训（写入 bench 注释与 TESTING.md 语境）**：① libopus VAR_ARRAYS 在调用者栈上开大数组——**opus_encode 至少需 ~20-30KB 任务栈**，bench 用 64KB 专用任务；② `heap_caps_check_integrity_all` 走 8MB PSRAM 池需数秒、饿死 INT WDT——校验用 `MALLOC_CAP_INTERNAL` 限内部池；③ 虚拟串口读法：VM 里每次 flash 后 CDC 端点楔死，冷启动（拔插≥10s）恢复，读端用 O_NONBLOCK 裸 open（pyserial 的 tcsetattr 会卡在楔死端点上），先挂读端再 OpenOCD 软复位可消竞态。
   - 生成/脚本零变化（协议包未动），`check_protocol_sync` 不涉及。
 
