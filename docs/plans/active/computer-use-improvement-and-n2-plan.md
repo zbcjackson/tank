@@ -1,16 +1,20 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
-> 状态:调研完成,待评审
-> 日期:2026-08-28
+> 状态:第 2 版,待评审——Part B 重设计为 agent 插件架构,新增 A17 基准套件
+> 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 
-## 0. 结论摘要
+## 0. 结论摘要(第 2 版修订)
 
-1. **n2 是"引擎",不是"大脑"。** 它只通过 Yutori API 提供(无开源权重),自带 5 个固定工具(`computer_batch`/`bash`/`read`/`write`/`edit`),由模型返回 `tool_calls`、**我们的客户端在真实桌面上执行**。它不消费我们的工具 schema,也不能当通用对话模型。
+1. **n2 是"引擎",不是"大脑",且没有服务端 loop。** 它只通过 Yutori API 提供(无开源权重),自带 5 个固定工具(`computer_batch`/`bash`/`read`/`write`/`edit`),由模型返回 `tool_calls`、**我们的客户端在真实桌面上执行**。它不消费我们的工具 schema,也不能当通用对话模型。所谓"自己的 loop/消息管理"是 SDK 里的客户端循环(~几十行,可自写)加一组协议硬规则(reasoning 回显、全量历史回传、图片保留)——适配器层的翻译工作,不是架构冲突。
 2. **执行器(控制电脑的代码)无论如何都要自研**——官方生态没有任何 Linux 实现:Yutori 只有 macOS 闭源驱动 CuaDriver.app;Anthropic demo 只有 Docker 里的 X11。我们仓库已有 Linux + macOS 双平台实现,起点反而领先。
-3. **Part A(computer-use 工具改进)与 Part B(n2 接入)互相独立。** Part A 全部是通用改进,今天 gpt-5.4-mini 走现有工具路线就受益;Part B 依赖 Part A 产出的执行器接口,反之不成立。放弃 n2 对 Part A 零损失。
-4. **推荐路径 A**:先做 Part A(通用),n2 引擎作为后续可插拔决定,零返工。
-5. **设计原则已裁决**:凡行业收敛的正确设计(归一化坐标、batch 首错即停、reasoning 回放、截图经济学)吸收进核心;凡 n2 协议特例(`tool_set`、禁参、tool 消息图片装填)封进引擎适配器。核心代码零 n2 痕迹。
+3. **现状已是子代理委托,不是 ChatAgent 直调工具(初稿盘点过时)。** `agent` 工具(AgentTool)→ WorkerSupervisor(持久化、深度/并发限制、agent_status/agent_stop、后台派发 + inbox 回注)→ AgentRunner → LLMAgent;computer use 已由 `backend/agents/computer_use.md` 子代理承担(专用视觉模型 profile + toolset + `background: true` + 300k 预算),多步循环在子代理内。初稿 Part B 的 `computer_task` 工具是在给"不存在的缺口"打补丁。
+4. **Part B 修订为 agent 插件架构**:删 `computer_task` 工具与 `ComputerUseEngine` 契约;改为 `AgentDefinition` 加 `engine:` 字段 + runner 工厂分支(`runner.py:177`),插件实现 Agent ABC。原则:**脑在插件(协议+循环+消息管理),手在 executor(注入的 DesktopExecutor)**——supervisor/审批/进度/取消全部复用现有机制,零新任务级入口。
+5. **Part A 与 Part B 依旧互相独立。** Part A 全部是通用改进,现有 computer_use 子代理路线直接受益;Part B 依赖 Part A 产出的 DesktopExecutor,反之不成立。放弃 n2 对 Part A 零损失。
+6. **n2 是否真的更好无法先验确知,基准是决策依据。** 模型差距(OSWorld-Verified 85.3% vs GPT-5.4 系 47–63%)真实,但兑现受执行器质量与任务分布折扣。A17 基准套件先量现状 baseline,Part A 后重跑,n2 插件后同尺 A/B——引入决定从信仰跳跃变为测量。
+7. **设计原则已裁决**:凡行业收敛的正确设计(归一化坐标、batch 首错即停、reasoning 回放、截图经济学)吸收进核心;凡 n2 协议特例(`tool_set`、禁参、tool 消息图片装填)封进 agent-n2 插件。核心代码零 n2 痕迹。
+8. **安全模型(文档化取舍)**:任务级审批在 agent 工具派发点;动作全部经注入的 DesktopExecutor(红线在此层统一生效);逐动作审批/hooks/tool_guardrails 对插件 agent 失效——GUI 循环逐动作审批本就不可用,取舍记录于 §9 B4。
+9. **验证环境**:开发 VM 无图形会话(实测 `SESSION=tty`、mss 未装,Linux 工具组连注册都不会);Linux 路径验收需 GUI VM(GNOME Wayland);macOS 路径上真机;开发 VM 只承担单测与 harness 代码。
 
 ---
 
@@ -67,7 +71,7 @@
 
 ### 1.4 定位结论
 
-- 适用于:"帮我操作电脑做 X"类任务,作为 ChatAgent 手下的专项执行引擎;
+- 适用于:"帮我操作电脑做 X"类任务,作为经 agent 工具派发的插件子代理(WorkerSupervisor 调度);
 - 不适用于:替换对话主模型;无头服务器;不接受截图上云的场景(全屏截图会上传 Yutori)。
 
 ---
@@ -80,11 +84,12 @@
 - Linux 截图:XDG Portal(busctl)→ mss 回退;输入:ydotool(/dev/uinput,Wayland 可用)→ pyautogui 回退;
 - macOS:screencapture + Quartz CGEvent,**已用归一化 0-1000 坐标**,已处理 Retina 缩放;
 - **多模态链路完整**:ImageBlock → `image_url` 消息部分;工具结果可带图回模型(`llm/llm.py` tool stub + 后跟 user 消息);模态能力注册表。
+- **子代理委托体系已存在(初稿遗漏)**:`agent` 工具(AgentTool)→ WorkerSupervisor(持久化 WorkerRunRow、深度/并发限制、agent_status/agent_stop、后台派发 + inbox 回注)→ AgentRunner → LLMAgent;子代理 = `backend/agents/*.md` 配置(frontmatter:name/model/toolset/background/token_budget/disallowed_tools),全部经同一个内部 LLMAgent 类执行。computer use 已由 `agents/computer_use.md` 子代理承担:专用视觉模型 profile + `computer_use` toolset + `background: true` + 300k token 预算,多步 observe→plan→act→verify 循环在子代理内,主对话不背截图上下文。
 
 ### 2.2 已知缺口与风险
 
 - **7 个 computer-use 工具全部 `category="general"`** → 走 `approval.py` 兜底分支**无条件自动放行**,而它们在宿主机裸奔(输入注入+截图);
-- Linux/macOS 两套工具**坐标体系不一致**(详见 §8 A1);
+- Linux/macOS 两套工具**坐标体系不一致**,且 `agents/computer_use.md` 系统提示已向模型承诺 0-1000 归一化坐标——Linux 工具收裸像素,提示在说谎(详见 §8 A1);
 - 无 batch、无 drag/hold_key/mouse_down/up/wait、无自检命令(详见 §8)。
 
 ---
@@ -102,35 +107,53 @@
 
 ---
 
-## 4. 通用性设计:防绑死分层
+## 4. 通用性设计:agent-seam 分层(第 2 版重设计)
+
+> 初稿的 `computer_task` 工具 + `ComputerUseEngine` 契约写于 worker/subagent 体系落地之前,与现状重复造轮子。修订后删除两者,改为在现有 Agent seam 上扩展一个工厂分支。
+
+**现状(代码事实)**:
 
 ```
-ChatAgent(脑:编排、总结、播报)
-   └─ computer_task 工具(通用:任务级审批、进度流、打断取消)
-        └─ ComputerUseEngine 契约(通用:contracts 定义一次)
-             ├─ engine-n2 插件(n2 专属:n2 循环 + tool_calls→规范动作映射)
-             ├─ engine-anthropic-cua(将来)
-             └─ engine-generic-vision(将来:我们的工具 + 任意视觉模型,走 LLMClient)
-        └─ DesktopExecutor(通用:唯一"控制这台电脑"实现,双平台)
+主对话 LLMAgent(AgentRunner 驱动)
+  └─ agent 工具(AgentTool)→ WorkerSupervisor → AgentRunner.run_agent
+       └─ runner.py:177 无条件构造 LLMAgent —— 全仓库唯一耦合点
+```
+
+**修订后的目标分层**:
+
+```
+主对话 LLMAgent(内部实现,永远不参与插拔)
+  └─ agent 工具 → WorkerSupervisor(零改动)
+       └─ AgentRunner.run_agent 加一个工厂分支
+            ├─ 缺省:LLMAgent(内部,吃 toolset/model 定义)
+            └─ engine: plugin:agent → 插件 agent(实现 Agent ABC)
+                 └─ 动作经注入的 DesktopExecutor(能力接口)
 ```
 
 | 代码 | 属性 | 换模型时 |
 |---|---|---|
 | DesktopExecutor(原语/截图/bash/文件) | **通用** | 原样复用 |
-| computer_task(审批/进度/打断) | **通用** | 原样复用 |
-| ComputerUseEngine 契约 | **通用** | 定义一次 |
+| agent 工具 / WorkerSupervisor / 持久化 / agent_stop | **通用**(已存在) | 原样复用 |
+| Agent ABC + AgentOutput 流 | **通用**(已存在) | 定义一次 |
 | 归一化 1000×1000 坐标约定 | **通用** | Anthropic 同款约定,主流兼容 |
-| plugins/engine-n2(engine.py + actions.py) | **n2 专属** | 随 n2 退役 |
+| `AgentDefinition.engine:` 字段 + runner 工厂分支 | **通用** | 机制与 n2 无关,任何外部 agent 复用 |
+| plugins/agent-n2(agent.py + protocol.py) | **n2 专属** | 随 n2 退役 |
 | yutori base_url/key/tool_set 配置 | **n2 专属** | 换新家的配置段 |
 
-检验:第二个引擎(如 Anthropic CUA)只需新写 `plugins/engine-*/` 两个文件,executor/computer_task/契约一行不动——边界成立。
+检验:第二个外部 agent(深度研究、浏览器代理、Anthropic CUA……)只需新写 `plugins/agent-*/` 并加一个 `.md` 定义,executor/supervisor/runner 一行不动——边界成立。
+
+**边界约束**:
+
+- 插件 agent 只做子代理(经 agent 工具派发);主对话 agent 永远是内部 LLMAgent,否则上下文管理/审批/checkpoint 语义全要跟着泛化;
+- 插件 = 脑(LLM 客户端、协议、循环、消息管理),Tank = 手(动作执行 + 策略):n2 的 5 个工具(`computer_batch`/`bash`/`read`/`write`/`edit`)全部映射到注入的 DesktopExecutor,**不允许插件直连宿主机**;
+- manifest(`[tool.tank]`)声明 `extension_type: agent` + `needs: [desktop_executor]` 能力依赖,Tank 按声明注入——没声明桌面能力的插件拿不到 executor(信任模型差异:asr/tts 插件执行"安装的代码",computer-use 插件执行"安装的代码 × 远端模型指令",爆炸半径大得多)。
 
 ## 5. LLM 配置复用结论
 
-- **调用层不复用**:n2 引擎自建 `AsyncOpenAI`(max_tokens 422、tool_set、reasoning 回显、tool 消息图片——塞进通用 LLMClient 会污染所有模型共用的传输层)。
-- **配置层复用凭据**:`llm:` 段加 `n2` profile 仅作端点+凭据名片,引擎配置 `computer_use.engines.n2` 用 `llm_profile: n2` 引用,并持有引擎特有字段(tool_set、max_steps、reasoning_effort)。
+- **调用层不复用**:N2Agent 自建 `AsyncOpenAI`(max_tokens 422、tool_set、reasoning 回显、tool 消息图片——塞进通用 LLMClient 会污染所有模型共用的传输层)。
+- **配置层复用凭据**:`llm:` 段加 `n2` profile 仅作端点+凭据名片,插件配置段用 `llm_profile: n2` 引用,并持有插件特有字段(tool_set、max_steps、reasoning_effort)。
 - **插件不注册 LLM**:端点条目是静态 config,加一段即可;把 n2 包装成"新 LLM 传输实现"会诱导误配成 default,概念有害。
-- 反例验证:将来 generic-vision 引擎(标准协议)**应当**走 LLMClient + profiles——引擎接口两种用法都兼容。
+- 反例验证:标准协议的视觉模型路线 = 现状 `computer_use.md`(LLMAgent + 视觉 profile),不需要任何插件——agent 扩展机制只服务自带协议/循环的外部 agent。
 
 ## 6. 平衡点裁决:吸收 vs 隔离
 
@@ -144,15 +167,15 @@ ChatAgent(脑:编排、总结、播报)
 | **reasoning 轨迹原样回放** | Anthropic thinking 签名与 n2 reasoning_content 是同一件事;核查 `llm/llm.py` 是否保留 reasoning_content——DeepSeek R1/Qwen thinking 等多家返回,纯通用改进 |
 | 截图缩放 + 保留经济学 | 任何视觉调用受益;n2 缓存价 $0.05/M,全量历史回传实际很便宜 |
 
-**❌ 隔离在引擎适配器**:`tool_set` 参数、拒绝 max_tokens、tool 消息图片装填格式、多 tool_calls 政策、`reasoning_content` 字段名差异、服务端图片保留规则。
+**❌ 隔离在 agent-n2 插件(protocol.py)**:`tool_set` 参数、拒绝 max_tokens、tool 消息图片装填格式、多 tool_calls 政策、`reasoning_content` 字段名差异、服务端图片保留规则。
 
 ## 7. 引入路径决策
 
 | 选项 | 内容 | 评估 |
 |---|---|---|
-| **A(推荐)** | 先做 Part A(通用改进),n2 后续可插拔 | 零风险验证接口缝;桌面能力立刻有;接 n2 零返工 |
-| B | 核心 + n2 第一个引擎 | 能力直达 SOTA 性价比;引入新供应商 |
-| C | 不引入 n2 | 最简;桌面能力停留在通用模型水平 |
+| **A(推荐)** | 先做 Part A + A17 基准,n2 后续可插拔 | 零风险验证接口缝;桌面能力立刻有;A17 产出 baseline,接 n2 零返工且可同尺 A/B |
+| B | 核心 agent 扩展 + agent-n2 插件 | 能力直达 SOTA 性价比;引入新供应商;是否值得由 A17 数据裁决 |
+| C | 不引入 n2 | 最简;桌面能力停留在通用视觉模型水平(computer_use.md 子代理路线) |
 
 安全红线(无论哪个选项):全屏截图上传云端需告知用户;真机 GUI+shell 控制必须任务级审批;不给 sudo;bash 输出截断。
 
@@ -166,11 +189,11 @@ ChatAgent(脑:编排、总结、播报)
 
 | # | 问题 | 现状证据 | 参照做法 | 改进 |
 |---|---|---|---|---|
-| A1 | **Linux/macOS 坐标体系不一致**:Linux 用裸像素且模型不知道屏幕分辨率;macOS 已是归一化 0-1000 | `computer_use.py:293`("X coordinate (pixels)");`computer_use_macos.py:310-319` 已有 `_normalized_to_pixel` | Anthropic 按纵横比缩到标准小分辨率后按比例换算;n2/Anthropic 均为相对坐标 | Linux 对齐 macOS:归一化 0-1000;截图结果文本回报实际宽高;屏幕尺寸进程内缓存 |
+| A1 | **Linux/macOS 坐标体系不一致**:Linux 用裸像素且模型不知道屏幕分辨率;macOS 已是归一化 0-1000;`computer_use.md` 系统提示已向模型承诺 0-1000,与 Linux 工具实参矛盾(提示在说谎) | `computer_use.py:293`("X coordinate (pixels)");`computer_use_macos.py:310-319` 已有 `_normalized_to_pixel`;`agents/computer_use.md:13-18` | Anthropic 按纵横比缩到标准小分辨率后按比例换算;n2/Anthropic 均为相对坐标 | Linux 对齐 macOS:归一化 0-1000;截图结果文本回报实际宽高;屏幕尺寸进程内缓存 |
 | A2 | **中文/Unicode 输入大概率损坏**:ydotool `type` 走 uinput 键码,非 ASCII 不可靠;Tank 是双语助手 | `computer_use.py:189-192` | — | 非 ASCII 走剪贴板粘贴路径(wl-copy/xclip + ctrl+v),粘贴前保存并恢复剪贴板;ASCII 直打;加自检用例 |
 | A3 | **缺修饰键和弦/drag/hold_key/mouse_down-up**:修修饰键的点击会退化成普通点击 | Linux 无 down/up 分离;`computer_use.py:175-186` 仅 click | Anthropic 20250124 起支持 left_mouse_down/up、hold_key、drag;和弦 = keydown→动作→keyup;n2"整手势,退化比报错更糟" | 补 4 个原语:mouse_down/mouse_up(支撑 drag)、hold_key(keydown/sleep/keyup)、修饰键和弦包装 |
 | A4 | **key 名翻译表过窄**:`cmd→"command"` 不是 Linux X keysym(应为 super/meta),`cmd+space` 静默错误;无标点词形映射 | `computer_use.py:406-407` | n2 词形规范(slash/comma…);Anthropic key 表 | 规范 key 名 → 各后端翻译表(X keysyms / pyautogui / AppleScript key codes);含 repeat 与连续按键 |
-| A5 | **审批闸门缺失**:7 个工具 `category="general"` 全自动放行 | `computer_use.py:231,282,332,379,426,484`;`approval.py:109-113` 兜底 ALLOW | — | 新增 `computer` 类别 → 审批策略(默认 require_approval;可在 config 降级) |
+| A5 | **审批闸门缺失**:7 个工具 `category="general"` 全自动放行;任务级审批点(agent 工具派发)也无类别 | `computer_use.py:231,282,332,379,426,484`;`approval.py:109-113` 兜底 ALLOW | 行业均为任务级放行(GUI 循环逐动作审批不可用) | 新增 `computer` 类别 → 默认 require_approval。子代理路径为**任务级语义**:agent 工具派发 computer_use 定义时审批一次,循环内动作继承授权;主对话直连调用逐次审批(可在 config 降级) |
 
 ### P1 — 可靠性/成本
 
@@ -193,6 +216,51 @@ ChatAgent(脑:编排、总结、播报)
 | A15 | 光标可见性 | n2 需要含光标截图;记录选项(show_cursor),Portal/mss 行为各不同,实测后文档化 |
 | A16 | 多显示器 | 当前单屏假设;记录为 v1 限制 |
 
+### A17 — 本地基准套件(改进是否为真、n2 是否值得引入的同一把尺子)
+
+**目的**:给"是否真的改进"提供证据。用途链:现状 baseline(computer_use.md 子代理)→ Part A 后重跑对比 → 将来 agent-n2 插件 A/B——同一把尺子,没有它一切靠感觉。
+
+**运行环境**(开发 VM 实测 `SESSION=tty` 无图形会话、mss 未装 → Linux 工具组在开发 VM 连注册都不会):
+
+- 绝不在开发机裸跑(会动真实鼠标/键盘);
+- Linux 路径:专用 GUI VM(GNOME Wayland,装 Tank backend + mss + ydotool/uinput 权限),setup 后打快照,每次 trial 前恢复(OSWorld 做法);
+- macOS 路径:真机/独立环境跑;
+- 任务定义按平台参数化,一套 harness 双平台复用。
+
+**任务格式**(每任务一个 YAML,放 `backend/benchmarks/computer_use/tasks/`):
+
+```yaml
+id: local-form-submit
+category: form            # app / settings / file / form / browser / typing / multi-window
+difficulty: 2             # 1-3
+platforms: [linux, macos]
+instruction: "打开表单页,填入姓名和邮箱并提交"
+setup: |                  # 每 trial 前执行,保证确定初态;重置上次任务改过的状态
+  rm -rf ~/bench-work && mkdir -p ~/bench-work
+validator:                # 只断言副作用,绝不 diff 截图
+  kind: shell
+  command: test -f ~/bench-work/submitted.json && jq -e '.name=="张三"' ~/bench-work/submitted.json
+timeout_s: 180
+max_steps: 30
+```
+
+**可靠性八条**:
+
+1. **确定性 setup/teardown**——每 trial 从脚本化已知状态开始;VM 快照恢复优先,脚本重置兜底;
+2. **validator 只查副作用**(文件、gsettings/defaults 值、浏览器历史 SQLite、pgrep)——像素比对是最大噪声源,禁用;
+3. **零外网**——浏览器/表单任务用 `file://` 或 harness 起的本地 http server;依赖外网的任务不进套件;
+4. **每任务 3–5 次 trial**——报成功率 + 二项置信区间;步数/耗时/token/成本报中位数(LLM+GUI 都随机,单次无意义);
+5. **环境钉死**——分辨率、缩放、locale、主题固定;关通知/自动更新(抢焦点);开"减少动画"让截图更快稳定;
+6. **全量 trace**——每 trial 存工具调用 JSONL + 每步截图 + validator 输出,失败可离线诊断;
+7. **硬超时 + 步数上限**——卡死快速判负,不拖垮整轮;
+8. **任务准入**——每个任务先人肉金标跑一次、validator 通过才入套(先验证 validator 本身)。
+
+**套件构成**:12–15 任务 × 难度 1–3:启动应用、改系统设置、GUI 文件操作、表单填写(本地页)、本地浏览器导航、中英文输入、多窗口切换。
+
+**驱动方式**:harness 进程内直调 WorkerSupervisor 派发 computer_use 子代理(不经 WS/语音),消除 ASR/TTS 变量。指标:成功率(主)、步数、耗时、token/成本、截图数。
+
+**环境分工**:开发 VM 写 harness/任务/validator 代码 + 全部单测(跑不了 GUI);Linux 验收在 GUI VM;macOS 验收上真机。
+
 ### Part A Tests
 
 - 归一化↔像素映射(0-1000 边界、纵横比)、屏幕尺寸缓存失效
@@ -203,6 +271,7 @@ ChatAgent(脑:编排、总结、播报)
 - portal/mss 后端选择与失败报告(mock subprocess)
 - 审批:computer 类别工具默认走 require_approval
 - doctor:能力报告结构(mock 环境)
+- A17 harness:任务 YAML 解析、setup/validator 执行、trace 落盘、trial 聚合(mock subprocess)
 - 现有 `tests/test_computer_use.py` 全量回归
 
 ### Part A 验收
@@ -213,40 +282,67 @@ ChatAgent(脑:编排、总结、播报)
 - [ ] 截图延迟(Wayland 主路径)< 500ms
 - [ ] computer 类别工具未经批准不执行
 - [ ] `--check-computer-use` 能在不启动会话的情况下报告环境能力
+- [ ] A17 基准套件在 GUI VM 跑通,产出现状(computer_use.md 子代理)baseline 报告
 
 ---
 
-## 9. Part B:n2 引擎接入计划(依赖 Part A 的执行器接口)
+## 9. Part B:n2 插件 agent 接入计划(依赖 Part A 的 DesktopExecutor)
 
-> 前置:Part A 的 A1/A3/A5/A10(坐标、原语、审批、batch 语义)构成执行器骨架;Part A 完成前 Part B 不开工。放弃 Part B 不影响 Part A 任何代码。
+> 前置:Part A 的 A1/A3/A5/A10/A11(坐标、原语、审批、batch 语义、wait)构成 DesktopExecutor 骨架;Part A 完成前 Part B 不开工。放弃 Part B 不影响 Part A 任何代码。
+>
+> 第 2 版重设计:初稿的 `computer_task` 工具、`ComputerUseEngine` 契约、`plugins/engine-n2` 全部废弃,改为下述 agent-seam 方案——复用现有 agent 工具/WorkerSupervisor/AgentRunner 体系,核心新增只有一个工厂分支。
 
-### B1 — 执行器模块(Part A 产物的收拢)
+### B1 — DesktopExecutor(Part A 产物的收拢,能力接口)
 
-`backend/core/src/tank_backend/computer/`:`executor.py`(DesktopExecutor 协议 + 双平台实现,复用 Part A 改进后的原语)、`engine.py`(按配置选引擎、运行、转发进度/取消)。host bash(持久 cwd)+ file read/write/edit(read-before-edit 强制)在此层。
+`backend/core/src/tank_backend/computer/executor.py`:DesktopExecutor 协议 + 双平台实现(复用 Part A 改进后的原语)。host bash(持久 cwd、禁 sudo、输出截断)+ file read/write/edit(read-before-edit 强制)+ batch(首错即停、批前坐标、单批后截图)在此层。§7 安全红线全部实现在这里——**对所有引擎(含 LLMAgent 直调路线)统一生效**,这是"手在 executor"的原因。
 
-### B2 — n2 引擎插件
+### B2 — 核心扩展点(Agent seam,通用机制)
 
-`backend/plugins/engine-n2/`(`[tool.tank]` manifest;AppConfig 增加 `computer_use` slot 类型):
+- `AgentDefinition` 加可选 `engine:` 字段(缺省 = 内部 LLMAgent;`toolset`/`model` 字段对插件 agent 无意义,忽略);
+- `AgentRunner.run_agent`(runner.py:177)加工厂分支:definition 声明 engine → 从 ExtensionRegistry 构造插件 agent;
+- registry 增加 `agent` 扩展类型:`[tool.tank]` manifest 声明 `extension_type: agent` + `needs: [desktop_executor]` 能力依赖,Tank 按声明注入;
+- 契约:插件实现 `Agent.run(state) → AsyncIterator[AgentOutput]`;**必须周期性 yield USAGE**(否则 token_budget 失效);进度经 TOKEN/TOOL_EXECUTING 事件流入现有 worker.* bus 通道;
+- WorkerSupervisor / AgentTool / 持久化 / agent_stop / 后台派发:零改动。
 
-- `engine.py`:裸调 AsyncOpenAI(llm_profile: n2)——`tool_set` 经 extra_body、不发 max_tokens/temperature、assistant 消息含 reasoning_content 原样回显、多 tool_calls 每份独立结果、全量历史回传、步数/预算上限回调、取消令牌;
-- `actions.py`:n2 tool_calls(15 原语、1000×1000 坐标恒等映射)→ DesktopExecutor 调用。
+### B3 — n2 插件与任务级整合
 
-### B3 — computer_task 工具与语音整合
+`backend/plugins/agent-n2/`(manifest:extension_type=agent,needs=[desktop_executor]):
 
-`tools/computer_task.py`:BaseTool,`computer` 类别走任务级审批;进度经 update/THOUGHT 事件流到 UI;VAD 打断 → 取消令牌终止引擎;结果文本回对话由大脑总结播报。config:`computer_use.engine` slot + `engines.n2`(llm_profile、tool_set 钉死、max_steps、reasoning_effort)。
+- `agent.py`:`N2Agent(Agent)`——自建 AsyncOpenAI(llm_profile: n2)、自有消息历史管理、循环(max_steps/预算上限/取消令牌),tool_calls → executor 方法调用,结果(含批后截图)按 n2 协议装填回历史;
+- `protocol.py`:n2 协议特例全部封在此——`tool_set` 经 extra_body、不发 max_tokens/temperature、reasoning_content 原样回显、多 tool_calls 每份独立结果、tool 消息图片装填格式、全量历史回传;
+- `backend/agents/computer_use_n2.md`:`engine: agent-n2:agent` 的子代理定义。
+
+任务级整合(全部复用现有机制,替代初稿 computer_task):审批在 agent 工具派发点(A5 `computer` 类别,一次放行整任务);进度 = worker.* bus 事件 → UI;打断 = `agent_stop` → asyncio 取消 → 引擎取消令牌;语音 UX = `background: true` 派发后继续对话,结果经 inbox 回注。
+
+### B4 — 安全控制矩阵(文档化取舍)
+
+| 控制层 | 实现位置 | 插件 agent 下 |
+|---|---|---|
+| 调度/取消/超时/持久化/并发深度/后台 | WorkerSupervisor(派发缝) | ✅ 自动有效,与 agent 内部实现无关 |
+| 进度可观测、token 预算 | AgentOutput 流(USAGE 事件) | ✅ 有效(契约要求 yield USAGE) |
+| 任务级审批 | agent 工具派发点(computer 类别,A5) | ✅ 自动有效 |
+| 执行红线(禁 sudo/输出截断/文件/网络策略) | DesktopExecutor(注入物) | ✅ 有效——动作经 executor |
+| 逐动作审批、pre/post hooks、tool_guardrails、沙箱路由 | AgentRunner→ToolManager 工具执行管线 | ❌ 失效——文档化取舍 |
+
+- 逐动作审批在 GUI 循环(30+ 步)本就不可用,行业(Anthropic demo、n2 协议)均为任务级放行;
+- hooks/guardrails 失效记录在案;将来若需覆盖,hook 挂在 executor 动作通道(`action.*` bus 事件)而非 agent 层——对所有引擎统一生效;
+- 插件不许直连宿主机(§4 边界约束),n2 的 bash/read/write/edit 同样走 executor。
 
 ### Part B Tests
 
-- n2 引擎循环(mock completions):单/多 tool_calls 回合、reasoning_content 回显、max_tokens 不出现于请求、首错即停透传、循环终止条件(纯 content 无 tool_calls)
-- actions 映射:15 原语 → executor 方法;错误动作 → 合成失败结果
-- computer_task:审批闸门(computer 类别)、打断取消、进度事件序列
-- 配置:slot 校验、llm_profile 引用缺失报错
-- 端到端(mock 引擎):语音输入 → 审批 → 执行 → TTS 播报
+- N2Agent 循环(mock completions):单/多 tool_calls 回合、reasoning_content 回显、max_tokens 不出现于请求、首错即停透传、循环终止条件(纯 content 无 tool_calls)、取消令牌中途生效、USAGE 事件流出
+- tool_calls → executor 映射:15 原语 + bash/read/write/edit → executor 方法(1000×1000 坐标恒等映射);错误动作 → 合成失败结果
+- Agent seam:`engine:` 字段解析、runner 工厂分支、registry 校验(needs 声明缺失报错)、computer_use_n2.md 经 agent 工具派发全链(mock 引擎)
+- 任务级审批:computer 类别派发未经批准不执行;批准后循环内动作不再逐个审批
+- 配置:插件配置段校验、llm_profile 引用缺失报错
+- 端到端(mock 引擎):语音输入 → 审批 → 派发 → 执行 → inbox 回注 → TTS 播报
 
 ### Part B 验收
 
-- [ ] 删除 `plugins/engine-n2/` 后 Part A 与核心全部测试通过(零耦合证明)
+- [ ] 删除 `plugins/agent-n2/` 后 Part A 与核心全部测试通过(零耦合证明)
+- [ ] A17 基准上 agent-n2 与现状 computer_use 子代理同尺 A/B,数据支持引入决定
 - [ ] 手工跑通 3 个真实桌面任务(打开应用/改设置/浏览器搜索)
+- [ ] agent_stop 在批中途生效(取消令牌实测)
 - [ ] 全程无 `# type: ignore`
 
 ---
@@ -267,4 +363,5 @@ ChatAgent(脑:编排、总结、播报)
 - [Navigator n2 产品页](https://yutori.com/n2) · [发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2)
 - [yutori-sdk-python](https://github.com/yutori-ai/yutori-sdk-python)(Daytona 适配器示例)· [yutori-mcp](https://github.com/yutori-ai/yutori-mcp)(CuaDriver 仅 macOS)
 - [Anthropic computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)(loop.py / tools/computer.py:缩放、xdotool、首错即停、缓存经济学)
-- 本仓库:`backend/core/src/tank_backend/tools/computer_use.py`、`computer_use_macos.py`、`tools/groups.py`、`agents/approval.py`
+- 本仓库工具:`backend/core/src/tank_backend/tools/computer_use.py`、`computer_use_macos.py`、`tools/groups.py`、`agents/approval.py`
+- 本仓库子代理体系(第 2 版设计依据):`agents/agent_tool.py`、`agents/supervisor.py`、`agents/runner.py`(`run_agent`:177 工厂分支点)、`agents/definition.py`、`backend/agents/computer_use.md`
