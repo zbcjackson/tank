@@ -1,6 +1,6 @@
 # Tank vs HuggingFace speech-to-speech 对比研究与改进计划
 
-> 状态：已完成（2026-09-02）。P0-1~P0-5、P1-1/P1-2、P2 各项均已落地；P3 单独立项，由 [protocol-evolution-plan.md](../active/protocol-evolution-plan.md) 承接。
+> 状态：已完成（2026-09-02）。P0-1~P0-5、P1-1/P1-2、P2 各项均已落地；P3 单独立项，由 [protocol-evolution-plan.md](protocol-evolution-plan.md) 承接。
 > 研究日期：2026-08-25/26。对象：`huggingface/speech-to-speech`（本地检出 `/home/zbcjackson/src/speech-to-speech/`，以下简称 s2s）。
 > 方法：对 s2s 的管线核心 / Realtime API 层 / LLM 后端抽象 / 工程实践四个侧面做代码级调研，并对 tank backend 对应实现逐项核对（文件路径均来自实际代码）。
 

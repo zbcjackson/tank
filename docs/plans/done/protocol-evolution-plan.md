@@ -1,7 +1,7 @@
 # Tank 私有协议演进计划（Protocol Evolution Plan）
 
-> 状态：P0-1、P0-2、P1-1 已落地（2026-09-02）。**P1-2 全部落地（2026-09-06）**：Step 1-4（09-03 ~ 09-05）、Step 5（device）真机集成完成——opus 全双工经真机验证（说话→正常回复，后端零解码失败）。P1-3 已落地（2026-09-05，协议包 0.3.0 + 服务端热配置/注入）。P2 按触发条件（§6）。
-> 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](../done/s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
+> 状态：**已完成，2026-09-08 关档**。P0-1/P0-2/P1-1 落地（2026-09-02）；P1-2 全部落地（2026-09-06，Step 1-4 于 09-03 ~ 09-05，Step 5 device 真机集成——opus 全双工经真机验证，后端零解码失败）；P1-3 落地（2026-09-05，协议包 0.3.0 + 服务端热配置/注入）。**未启动的触发式条目（§6 全部六项）已移交 [backlog.md](../../backlog.md) 持续跟踪**。
+> 起草日期：2026-09-01。关联文档：[s2s-comparison-and-improvement-plan.md](s2s-comparison-and-improvement-plan.md)（P3 结论的落地）、[vad-smart-turn-design.md](../../design/vad-smart-turn-design.md)。
 > 触发背景：Tank 将来要远程部署在服务器上，连接远程操控的机器人和客户端。远程化对协议提出三个硬前提——认证、弱网韧性、可演进性——当前协议一项都不具备。
 > 本文所有代码事实均核对自实际代码（文件行号见引用）。
 
@@ -201,12 +201,16 @@ W1 + W2 是同一根因：**契约只存在于四处手写副本 + 过时文档�
 
 ## 6. 暂缓项与触发条件
 
+> 2026-09-08 关档：下表六项均未启动，已移交 [backlog.md](../../backlog.md) 持续跟踪；本节保留作为原始出处与理由记录。
+
 | 项 | 暂缓理由 | 触发条件 |
 |---|---|---|
 | WebRTC 传输 | Opus-over-WS 已拿 80% 收益；ESP32 端 aiortc 对等物极重 | 远程实测 Opus-over-TCP 仍因队头阻塞卡顿；届时 WebRTC 仅作传输层挂入（JSON 消息走 data channel，私有消息集原样复用） |
 | Resume（断线续传） | 两个协议都没有；现靠 session_id 恢复历史勉强可用 | 远程部署实测断线频繁到影响体验；需 text/audio 帧序号 + 重连 replay 窗口 |
 | Realtime 端点（`/v1/realtime`） | 无真实外部消费者 | 第一个第三方客户端/机器人接入需求确认；作为边缘网关建立在演进后私有栈之上 |
 | LLM Proxy | 无旁路需求；tank 的摘要在服务端内部直调 LLM client | 出现需要借用服务端凭据的外部旁路任务 |
+| 客户端 token 携带（P0-2 遗留） | 服务端 `?token=` 校验已落地，但 web/cli/device 三端从未实现携带 | 远程部署启动时，与 token 分发方式一并设计实现 |
+| token 分发方式定案（§11.2 未决） | 配置文件 vs 首次配对流程未定 | 远程部署设计时定 |
 
 ---
 

@@ -121,6 +121,7 @@ Design notes, plans, and research records live in `docs/`, organized by type. Th
 
 | Directory | Contents | Lifecycle |
 |-----------|----------|-----------|
+| `docs/backlog.md` | Registry of condition-triggered future work (each entry: trigger condition, context, source) | Maintained separately and never closed — plans hand off their deferred/triggered items here when moving to `done/`; entries are removed once triggered into a new plan or explicitly dropped |
 | `docs/design/` | How a subsystem works **today** | Update in place whenever behavior changes; never accumulates plan content |
 | `docs/plans/active/` | Implementation plans not yet finished | Must open with a status line (`> 状态：…` or `> **Status:** …`) with the date. Move to `done/` once every item lands or is dropped, and update the status line |
 | `docs/plans/done/` | Completed plans | Kept for rationale/history; status line marks completion |
@@ -131,6 +132,7 @@ Rules:
 
 - **Naming**: all lowercase kebab-case (e.g. `conversation-gate.md`).
 - **New work gets a plan doc** in `plans/active/`; landed plans move to `plans/done/` rather than being deleted.
+- **Deferred work goes to `docs/backlog.md`**: when a plan moves to `done/`, its deferred/trigger-conditioned items must be handed off to the backlog (and removed from the backlog once a trigger fires and a new plan is opened).
 - **Consistency is machine-checked**: `python3 scripts/check_docs.py` verifies doc links, kebab-case naming, plan status lines, and index coverage. Run it after any docs change.
 - `docs/superpowers/` is managed by the superpowers plugin and is exempt from these rules.
 - The root `ARCHITECTURE.md` and each sub-project's ARCHITECTURE / CODING_STANDARDS / DEVELOPMENT / TESTING docs are the canonical entry points — they stay where they are and are not part of this system.
