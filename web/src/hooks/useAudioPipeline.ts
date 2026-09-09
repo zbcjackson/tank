@@ -257,8 +257,12 @@ export function useAudioPipeline({
 
     startPipeline().catch((err) => {
       console.error('Failed to start audio processor:', err);
-      setConnectionState('failed');
-      setConnectionMetadata({ error: 'Failed to start audio processor' });
+      // A dead microphone must NOT flip the connection state — the WebSocket
+      // is alive and chat/text streaming still work. Blocking the UI here made
+      // the app unusable in environments without an audio input device
+      // (headless browsers, VMs); the metadata alone is only surfaced inside
+      // the connection overlay, which no longer renders.
+      setConnectionMetadata({ error: 'Microphone unavailable — text input only' });
     });
     // pipelineSampleRate is read from the closure at start time; the ready
     // signal that sets it always arrives before capabilities.asr flips true.
