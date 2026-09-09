@@ -1,0 +1,23 @@
+id: local-form
+category: form
+difficulty: 2
+platforms: [macos, linux]
+instruction: |
+  打开浏览器访问 http://localhost:8901/form.html ，在表单中填入：
+  姓名=张三，邮箱=zhangsan@example.com，日期=2026-09-09，
+  然后点击「提交」按钮，直到页面显示「已提交」。
+setup: |
+  rm -rf ~/bench-work && mkdir -p ~/bench-work
+validator:
+  kind: shell
+  command: >-
+    python3 -c "import json,sys;
+    es=[json.loads(l) for l in open(sys.argv[1])];
+    ok=any(e.get('kind')=='submit' and e.get('payload',{}).get('name')=='张三'
+           and e.get('payload',{}).get('email')=='zhangsan@example.com'
+           and e.get('payload',{}).get('date')=='2026-09-09' for e in es);
+    sys.exit(0 if ok else 1)"
+    "$BENCH_CAPTURE"
+teardown: |
+  rm -rf ~/bench-work
+timeout_s: 180

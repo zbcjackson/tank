@@ -1,0 +1,19 @@
+id: drag-file
+category: file
+difficulty: 3
+platforms: [macos, linux]
+instruction: |
+  用图形文件管理器打开 ~/bench-work 目录，里面有一个文件 draggable.txt 和一个
+  文件夹 dropzone。用鼠标把 draggable.txt 拖拽移动到 dropzone 文件夹里。
+  全部用 GUI 拖拽完成（不要用剪切粘贴）。
+setup: |
+  rm -rf ~/bench-work && mkdir -p ~/bench-work/dropzone
+  echo payload > ~/bench-work/draggable.txt
+validator:
+  kind: shell
+  command: >-
+    test -f ~/bench-work/dropzone/draggable.txt &&
+    ! test -f ~/bench-work/draggable.txt
+teardown: |
+  rm -rf ~/bench-work
+timeout_s: 240

@@ -1,0 +1,16 @@
+# computer_use 套件：桌面 GUI 任务基准
+#
+# 环境钉死（跑批前人工执行）：
+#   - 分辨率/缩放固定；关闭通知与自动更新（抢焦点）
+#   - 开启"减少动画/Reduce motion"让截图更快稳定
+#   - 输入法切英文（任务内中文经剪贴板路径输入）
+#   - Dock/任务栏保持默认布局；跑批期间不碰键鼠
+name: computer_use
+description: "Desktop GUI tasks for the computer_use sub-agent (real screen, real input)"
+agent: computer_use
+assets: assets
+server_port: 8901
+defaults:
+  trials: 3
+  timeout_s: 180
+  max_steps: 30

@@ -1,0 +1,24 @@
+id: links-history
+category: browser
+difficulty: 3
+platforms: [macos, linux]
+instruction: |
+  打开浏览器访问 http://localhost:8901/links.html ，依次点击三个链接：
+  先「第一篇」，再「第二篇」，最后「第三篇」。每点击一个链接页面会跳转，
+  用浏览器后退（快捷键 cmd+[ 或 alt+left）回到链接页再点下一个，
+  三个都点完后点击页面底部的「完成」按钮。
+setup: |
+  true
+validator:
+  kind: shell
+  command: >-
+    python3 -c "
+    import json,sys
+    es=[json.loads(l) for l in open(sys.argv[1])]
+    clicks=[e['name'] for e in es if e.get('kind')=='click' and e.get('name','').startswith('link')]
+    done=any(e.get('kind')=='click' and e.get('name')=='finished' for e in es)
+    sys.exit(0 if done and clicks==['link_a','link_b','link_c'] else 1)"
+    "$BENCH_CAPTURE"
+teardown: |
+  true
+timeout_s: 240

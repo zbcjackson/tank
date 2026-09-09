@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>注册表单</title>
+<style>
+  body { font-family: system-ui, sans-serif; display: flex; justify-content: center;
+         padding-top: 8vh; background: #f5f5f7; }
+  .card { background: #fff; border-radius: 16px; padding: 40px 48px; width: 420px;
+          box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+  h1 { font-size: 22px; }
+  label { display: block; margin: 18px 0 6px; font-size: 15px; color: #333; }
+  input { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 16px;
+          border: 1px solid #ccc; border-radius: 8px; }
+  button { margin-top: 28px; width: 100%; padding: 12px; font-size: 17px; color: #fff;
+           background: #2563eb; border: 0; border-radius: 10px; cursor: pointer; }
+  .ok { margin-top: 18px; font-size: 18px; color: #16a34a; font-weight: 600; }
+</style></head>
+<body>
+<div class="card">
+  <h1>会议注册</h1>
+  <form onsubmit="return submitForm(event)">
+    <label for="name">姓名</label>
+    <input id="name" name="name" autocomplete="off">
+    <label for="email">邮箱</label>
+    <input id="email" name="email" autocomplete="off">
+    <label for="date">日期</label>
+    <input id="date" name="date" placeholder="YYYY-MM-DD" autocomplete="off">
+    <button type="submit">提交</button>
+  </form>
+  <div class="ok" id="ok" hidden>已提交</div>
+</div>
+<script>
+async function submitForm(ev) {
+  ev.preventDefault();
+  const payload = {
+    name: document.getElementById('name').value,
+    email: document.getElementById('email').value,
+    date: document.getElementById('date').value,
+  };
+  await fetch('/submit', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                          body: JSON.stringify(payload)});
+  document.getElementById('ok').hidden = false;
+  return false;
+}
+</script>
+</body></html>

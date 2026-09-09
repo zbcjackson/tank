@@ -1,0 +1,18 @@
+id: terminal-write
+category: app
+difficulty: 2
+platforms: [macos, linux]
+instruction: |
+  打开终端（macOS: Terminal；Linux: GNOME Terminal），在终端里输入并执行这条命令：
+
+  echo benchmark-done > ~/bench-work/terminal.txt
+
+  确认命令执行完成（出现新的提示符）。
+setup: |
+  rm -rf ~/bench-work && mkdir -p ~/bench-work
+validator:
+  kind: shell
+  command: test -f ~/bench-work/terminal.txt && grep -q benchmark-done ~/bench-work/terminal.txt
+teardown: |
+  rm -rf ~/bench-work
+timeout_s: 180

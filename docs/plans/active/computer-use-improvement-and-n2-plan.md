@@ -1,6 +1,6 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
-> 状态:第 2 版,已批准执行——执行阶段划分见 §12(2026-09-09 起按阶段推进,A17 baseline 先行,n2 最后)
+> 状态:执行中(2026-09-09)——阶段 0/1 代码已落地:A17 框架与 computer_use 套件在 `backend/benchmarks/`(14 任务,CLI:`uv run python -m tank_backend.benchmarks --suite ../../benchmarks/computer_use`);待 T0 macOS baseline 跑批。执行阶段划分见 §12。
 > 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)· 2026-09-09(执行启动+事实修订:plugin.yaml manifest、NotificationHub、A5 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 

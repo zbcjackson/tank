@@ -1,0 +1,1 @@
+今天我们要测试 Tank 助手的桌面自动化能力。It must type both Chinese and English correctly, including punctuation like commas、periods. 第二段包含数字 12345 与符号 #¥%*&，请完整保留所有字符，不要增删或改写任何内容。

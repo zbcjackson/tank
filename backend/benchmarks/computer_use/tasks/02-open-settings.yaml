@@ -1,0 +1,18 @@
+id: open-settings
+category: settings
+difficulty: 1
+platforms: [macos, linux]
+instruction: |
+  打开系统设置应用（macOS: System Settings；Linux: GNOME Settings），
+  保持其打开并显示在前台。
+setup: |
+  pkill -x "System Settings" 2>/dev/null; pkill -f gnome-control-center 2>/dev/null; true
+validator_linux:
+  kind: shell
+  command: pgrep -f gnome-control-center >/dev/null
+validator_macos:
+  kind: shell
+  command: pgrep -f "System Settings" >/dev/null
+teardown: |
+  pkill -f gnome-control-center 2>/dev/null; pkill -x "System Settings" 2>/dev/null; true
+timeout_s: 120

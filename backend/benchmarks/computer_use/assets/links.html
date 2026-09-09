@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>阅读列表</title>
+<style>
+  body { font-family: system-ui, sans-serif; padding: 8vh 0 0; background: #f5f5f7;
+         display: flex; justify-content: center; }
+  .card { background: #fff; border-radius: 16px; padding: 36px 48px; width: 460px;
+          box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+  h1 { font-size: 22px; }
+  a { display: block; margin: 16px 0; font-size: 18px; color: #2563eb; }
+  button { margin-top: 26px; padding: 12px 40px; font-size: 17px; color: #fff;
+           background: #16a34a; border: 0; border-radius: 10px; cursor: pointer; }
+  .done { margin-top: 16px; font-size: 18px; color: #16a34a; font-weight: 600; }
+</style></head>
+<body>
+<div class="card">
+  <h1>阅读列表（按顺序点击）</h1>
+  <a href="page_a.html" onclick="log('link_a')">第一篇：Tank 简介</a>
+  <a href="page_b.html" onclick="log('link_b')">第二篇：Tank 架构</a>
+  <a href="page_c.html" onclick="log('link_c')">第三篇：Tank 路线图</a>
+  <button onclick="finish()">完成</button>
+  <div class="done" id="done" hidden>已完成全部阅读</div>
+</div>
+<script>
+async function log(name) { await fetch('/click?name=' + name); }
+async function finish() {
+  await fetch('/click?name=finished');
+  document.getElementById('done').hidden = false;
+}
+</script>
+</body></html>

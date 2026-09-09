@@ -1,0 +1,21 @@
+id: multi-select-copy
+category: file
+difficulty: 3
+platforms: [macos, linux]
+instruction: |
+  用图形文件管理器打开 ~/bench-work 目录。里面有三个文件 alpha.txt、beta.txt、
+  gamma.txt 和一个空文件夹 destination。用多选（按住 cmd 或 ctrl 逐个点击）
+  选中全部三个文件，复制（cmd+c / ctrl+c），然后进入 destination 文件夹粘贴
+  （cmd+v / ctrl+v）。全部用 GUI 操作完成，三个文件都要复制过去。
+setup: |
+  rm -rf ~/bench-work && mkdir -p ~/bench-work/destination
+  touch ~/bench-work/alpha.txt ~/bench-work/beta.txt ~/bench-work/gamma.txt
+validator:
+  kind: shell
+  command: >-
+    test -f ~/bench-work/destination/alpha.txt -a
+    -f ~/bench-work/destination/beta.txt -a
+    -f ~/bench-work/destination/gamma.txt
+teardown: |
+  rm -rf ~/bench-work
+timeout_s: 240

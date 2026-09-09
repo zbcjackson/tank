@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>验证码校验</title>
+<style>
+  body { font-family: system-ui, sans-serif; display: flex; justify-content: center;
+         padding-top: 10vh; background: #f5f5f7; }
+  .card { background: #fff; border-radius: 16px; padding: 40px 48px; width: 480px;
+          box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+  h1 { font-size: 22px; }
+  .code { margin: 24px 0; padding: 14px 10px; background: #f0f0f2; border-radius: 8px;
+          /* deliberately small: the agent must zoom in or squint */
+          font-size: 12px; letter-spacing: 3px; color: #555; text-align: center; }
+  input { width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 16px;
+          border: 1px solid #ccc; border-radius: 8px; letter-spacing: 2px; }
+  button { margin-top: 22px; width: 100%; padding: 12px; font-size: 17px; color: #fff;
+           background: #2563eb; border: 0; border-radius: 10px; cursor: pointer; }
+  .ok { margin-top: 18px; font-size: 18px; color: #16a34a; font-weight: 600; }
+</style></head>
+<body>
+<div class="card">
+  <h1>请输入下方验证码</h1>
+  <div class="code">K7QM29XZ</div>
+  <input id="code" maxlength="8" autocomplete="off" placeholder="8 位验证码">
+  <button onclick="submitCode()">提交</button>
+  <div class="ok" id="ok" hidden>已提交</div>
+</div>
+<script>
+async function submitCode() {
+  const payload = {code: document.getElementById('code').value};
+  await fetch('/submit', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                          body: JSON.stringify(payload)});
+  document.getElementById('ok').hidden = false;
+}
+</script>
+</body></html>

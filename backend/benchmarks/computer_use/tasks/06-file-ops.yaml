@@ -1,0 +1,16 @@
+id: file-ops
+category: file
+difficulty: 2
+platforms: [macos, linux]
+instruction: |
+  用图形文件管理器（macOS: Finder；Linux: Files/Nautilus）在 ~/bench-work 目录里：
+  1. 新建文件夹 bench-dir；2. 进入该文件夹，新建一个空文件 marker.txt；
+  3. 把 marker.txt 重命名为 renamed.txt。全部用 GUI 操作完成。
+setup: |
+  rm -rf ~/bench-work && mkdir -p ~/bench-work
+validator:
+  kind: shell
+  command: test -f ~/bench-work/bench-dir/renamed.txt
+teardown: |
+  rm -rf ~/bench-work
+timeout_s: 180

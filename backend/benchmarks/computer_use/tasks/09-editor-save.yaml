@@ -1,0 +1,16 @@
+id: editor-save
+category: file
+difficulty: 3
+platforms: [macos, linux]
+instruction: |
+  打开文本编辑器（macOS: TextEdit 纯文本模式；Linux: gedit/Text Editor），
+  输入这一行内容：Tank benchmark 你好世界 Hello
+  然后保存为纯文本文件 ~/bench-work/note.txt（用保存对话框输入完整路径）。
+setup: |
+  rm -rf ~/bench-work && mkdir -p ~/bench-work
+validator:
+  kind: shell
+  command: test -f ~/bench-work/note.txt && grep -q "你好世界" ~/bench-work/note.txt
+teardown: |
+  rm -rf ~/bench-work
+timeout_s: 240
