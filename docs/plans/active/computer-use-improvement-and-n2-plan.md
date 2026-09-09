@@ -1,7 +1,7 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
-> 状态:第 2 版,待评审——Part B 重设计为 agent 插件架构,新增 A17 基准套件
-> 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)
+> 状态:第 2 版,已批准执行——执行阶段划分见 §12(2026-09-09 起按阶段推进,A17 baseline 先行,n2 最后)
+> 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)· 2026-09-09(执行启动+事实修订:plugin.yaml manifest、NotificationHub、A5 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 
 ## 0. 结论摘要(第 2 版修订)
@@ -84,7 +84,7 @@
 - Linux 截图:XDG Portal(busctl)→ mss 回退;输入:ydotool(/dev/uinput,Wayland 可用)→ pyautogui 回退;
 - macOS:screencapture + Quartz CGEvent,**已用归一化 0-1000 坐标**,已处理 Retina 缩放;
 - **多模态链路完整**:ImageBlock → `image_url` 消息部分;工具结果可带图回模型(`llm/llm.py` tool stub + 后跟 user 消息);模态能力注册表。
-- **子代理委托体系已存在(初稿遗漏)**:`agent` 工具(AgentTool)→ WorkerSupervisor(持久化 WorkerRunRow、深度/并发限制、agent_status/agent_stop、后台派发 + inbox 回注)→ AgentRunner → LLMAgent;子代理 = `backend/agents/*.md` 配置(frontmatter:name/model/toolset/background/token_budget/disallowed_tools),全部经同一个内部 LLMAgent 类执行。computer use 已由 `agents/computer_use.md` 子代理承担:专用视觉模型 profile + `computer_use` toolset + `background: true` + 300k token 预算,多步 observe→plan→act→verify 循环在子代理内,主对话不背截图上下文。
+- **子代理委托体系已存在(初稿遗漏)**:`agent` 工具(AgentTool)→ WorkerSupervisor(持久化 WorkerRunRow、深度/并发限制、agent_status/agent_stop、后台派发 + 结果回注——2026-09-09 核对:现为 NotificationHub,非早期 inbox observer)→ AgentRunner → LLMAgent;子代理 = `backend/agents/*.md` 配置(frontmatter:name/model/toolset/background/token_budget/disallowed_tools),全部经同一个内部 LLMAgent 类执行。computer use 已由 `agents/computer_use.md` 子代理承担:专用视觉模型 profile + `computer_use` toolset + `background: true` + 300k token 预算,多步 observe→plan→act→verify 循环在子代理内,主对话不背截图上下文。
 
 ### 2.2 已知缺口与风险
 
@@ -146,7 +146,7 @@
 
 - 插件 agent 只做子代理(经 agent 工具派发);主对话 agent 永远是内部 LLMAgent,否则上下文管理/审批/checkpoint 语义全要跟着泛化;
 - 插件 = 脑(LLM 客户端、协议、循环、消息管理),Tank = 手(动作执行 + 策略):n2 的 5 个工具(`computer_batch`/`bash`/`read`/`write`/`edit`)全部映射到注入的 DesktopExecutor,**不允许插件直连宿主机**;
-- manifest(`[tool.tank]`)声明 `extension_type: agent` + `needs: [desktop_executor]` 能力依赖,Tank 按声明注入——没声明桌面能力的插件拿不到 executor(信任模型差异:asr/tts 插件执行"安装的代码",computer-use 插件执行"安装的代码 × 远端模型指令",爆炸半径大得多)。
+- manifest(`plugin.yaml` 的 `extensions[]`,2026-09-09 核对:`[tool.tank]` pyproject 段说法过时)声明 `extension_type: agent` + `needs: [desktop_executor]` 能力依赖,Tank 按声明注入——没声明桌面能力的插件拿不到 executor(信任模型差异:asr/tts 插件执行"安装的代码",computer-use 插件执行"安装的代码 × 远端模型指令",爆炸半径大得多)。
 
 ## 5. LLM 配置复用结论
 
@@ -300,7 +300,7 @@ max_steps: 30
 
 - `AgentDefinition` 加可选 `engine:` 字段(缺省 = 内部 LLMAgent;`toolset`/`model` 字段对插件 agent 无意义,忽略);
 - `AgentRunner.run_agent`(runner.py:177)加工厂分支:definition 声明 engine → 从 ExtensionRegistry 构造插件 agent;
-- registry 增加 `agent` 扩展类型:`[tool.tank]` manifest 声明 `extension_type: agent` + `needs: [desktop_executor]` 能力依赖,Tank 按声明注入;
+- registry 增加 `agent` 扩展类型:`plugin.yaml` manifest 声明 `extension_type: agent` + `needs: [desktop_executor]` 能力依赖,Tank 按声明注入(registry 本身类型无关,只需校验器);
 - 契约:插件实现 `Agent.run(state) → AsyncIterator[AgentOutput]`;**必须周期性 yield USAGE**(否则 token_budget 失效);进度经 TOKEN/TOOL_EXECUTING 事件流入现有 worker.* bus 通道;
 - WorkerSupervisor / AgentTool / 持久化 / agent_stop / 后台派发:零改动。
 
@@ -312,7 +312,7 @@ max_steps: 30
 - `protocol.py`:n2 协议特例全部封在此——`tool_set` 经 extra_body、不发 max_tokens/temperature、reasoning_content 原样回显、多 tool_calls 每份独立结果、tool 消息图片装填格式、全量历史回传;
 - `backend/agents/computer_use_n2.md`:`engine: agent-n2:agent` 的子代理定义。
 
-任务级整合(全部复用现有机制,替代初稿 computer_task):审批在 agent 工具派发点(A5 `computer` 类别,一次放行整任务);进度 = worker.* bus 事件 → UI;打断 = `agent_stop` → asyncio 取消 → 引擎取消令牌;语音 UX = `background: true` 派发后继续对话,结果经 inbox 回注。
+任务级整合(全部复用现有机制,替代初稿 computer_task):审批在 agent 工具派发点(A5 `computer` 类别,一次放行整任务;2026-09-09 核对:AgentTool 派发点现无审批钩子,此为 A5 净新增接线);进度 = worker.* bus 事件 → UI;打断 = `agent_stop` → asyncio 取消 → 引擎取消令牌;语音 UX = `background: true` 派发后继续对话,结果经 NotificationHub 回注(2026-09-09 核对:早期 WorkerInboxObserver 已被 NotificationHub 取代)。
 
 ### B4 — 安全控制矩阵(文档化取舍)
 
@@ -365,3 +365,21 @@ max_steps: 30
 - [Anthropic computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)(loop.py / tools/computer.py:缩放、xdotool、首错即停、缓存经济学)
 - 本仓库工具:`backend/core/src/tank_backend/tools/computer_use.py`、`computer_use_macos.py`、`tools/groups.py`、`agents/approval.py`
 - 本仓库子代理体系(第 2 版设计依据):`agents/agent_tool.py`、`agents/supervisor.py`、`agents/runner.py`(`run_agent`:177 工厂分支点)、`agents/definition.py`、`backend/agents/computer_use.md`
+
+## 12. 执行阶段(2026-09-09 批准)
+
+约束:A17 baseline 必须测在 Part A 改动**之前**(harness 先行);每阶段先经用户设计评审再实现;Part B(n2)在决策门之后且需用户明确同意;Linux 实测在用户的 GUI VM,macOS 实测由用户 push/pull 执行,每轮测试前代码全部提交并附测试指南。
+
+```
+阶段 0   依赖/配置/文档修正(mss/pyautogui 声明、launch_app 平台注释、提示词去 macOS 风味、macOS 模块单测、本文档事实修订)
+阶段 1   A17 基准套件 ──[设计评审]──► 单测 ► T0(macOS baseline,用户)
+阶段 2   坐标+按键+中文(A1+A4+A2)─[设计评审]► T1(GUI VM + macOS)
+阶段 3   原语+输入修正+截图(A3+A7-A9+A11+A6+A15)─[设计评审]► T2
+阶段 4a  审批闸门(A5)─[设计评审·安全]
+阶段 4b  batch 工具(A10)─[设计评审]            ► T3(GUI VM + macOS)
+阶段 4c  doctor 自检(A12)─[设计评审]
+阶段 5   A17 重跑对比 + P2 打磨(A13/A14/A16)+ Part A 验收 ► T4
+══════ 决策门:Part A 验收全绿 + baseline/对比数据 + 用户同意 ══════
+阶段 6   Part B 核心扩展点(B1+B2)─[设计评审·架构]
+阶段 7   agent-n2 插件(B3)─[设计评审]► A17 同尺 A/B ► T5(真机,用户)
+```
