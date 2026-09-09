@@ -45,8 +45,25 @@ _CONNECT_TIMEOUT_S = 5.0
 # How long stop() waits for the forced commit to flush a final transcript.
 # Kept under the ASRProcessor's 5s stop timeout.
 _FINALIZE_TIMEOUT_S = 2.0
+# Upper bound for the adaptive commit wait (see _commit_wait_secs) — must
+# stay below the ASRProcessor's 5s stop timeout so stop() always returns.
+_MAX_COMMIT_WAIT_S = 4.5
+
+
+def _commit_wait_secs(flushed_secs: float) -> float:
+    """Commit wait scaled by the audio volume flushed at commit time.
+
+    A cold-start session dumps its whole buffered utterance at once; the
+    remote needs roughly its duration to transcribe before the commit
+    reply lands. A fixed 2s window loses exactly those turns.
+    """
+    return min(_MAX_COMMIT_WAIT_S, max(_FINALIZE_TIMEOUT_S, flushed_secs + 1.5))
 # Default idle window before the warm socket is closed.
 _DEFAULT_IDLE_CLOSE_S = 30.0
+# Cold-start audio buffer cap. Chunks arriving between session start and the
+# remote ``session_started`` reply are buffered (not dropped) so a short
+# first utterance survives the connect latency; ~100ms chunks → 30s cap.
+_MAX_PENDING_CHUNKS = 300
 
 
 class _ElevenLabsASRStream(ASRStream):
@@ -93,6 +110,17 @@ class ElevenLabsASREngine(ASREngine):
         self._partial_text = ""
         self._committed_text = ""
         self._lock = threading.Lock()
+
+        # Cold-start buffering: base64 audio chunks that arrived before the
+        # remote confirmed the session. Flushed in order once
+        # ``session_started`` lands (or right before a forced commit).
+        self._pending_audio: list[str] = []
+        # Approximate duration of audio buffered so far this session (secs),
+        # so the forced-commit wait can scale with what was flushed late.
+        self._pending_secs = 0.0
+        # True between the remote's ``session_started`` reply and the socket
+        # closing — the remote rejects audio sent before that reply.
+        self._ws_session_ready = False
 
         # Background event loop for the WebSocket
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -200,6 +228,7 @@ class ElevenLabsASREngine(ASREngine):
         # Connection closed
         self._ws = None
         self._connected.clear()
+        self._ws_session_ready = False
         logger.info("ElevenLabs ASR: WebSocket closed")
 
     async def _idle_watchdog(self, ws: websockets.ClientConnection) -> None:
@@ -218,6 +247,8 @@ class ElevenLabsASREngine(ASREngine):
 
         if msg_type == "session_started":
             logger.info("ElevenLabs ASR session started: %s", msg.get("session_id"))
+            self._ws_session_ready = True
+            self._flush_pending()
 
         elif msg_type == "partial_transcript":
             text = msg.get("text", "").strip()
@@ -258,6 +289,8 @@ class ElevenLabsASREngine(ASREngine):
         with self._lock:
             self._partial_text = ""
             self._committed_text = ""
+        self._pending_audio.clear()
+        self._pending_secs = 0.0
         self._commit_done.clear()
         self._session_active = True
         self._last_activity = time.monotonic()
@@ -268,6 +301,45 @@ class ElevenLabsASREngine(ASREngine):
                 logger.warning("ElevenLabs ASR: connect timed out at session start")
         logger.debug("ElevenLabs: Session started")
 
+    def _trim_pending(self) -> None:
+        """Bound the cold-start buffer (drop oldest chunks beyond the cap).
+
+        The dropped duration is estimated at ~100ms/chunk (pipeline frame
+        size); the estimate only feeds the adaptive commit wait, which has
+        a hard cap of its own.
+        """
+        overflow = len(self._pending_audio) - _MAX_PENDING_CHUNKS
+        if overflow > 0:
+            del self._pending_audio[:overflow]
+            self._pending_secs = max(0.0, self._pending_secs - overflow * 0.1)
+
+    def _send_audio_payload(self, audio_b64: str, commit: bool) -> None:
+        """Schedule one input_audio_chunk on the background loop (fire-and-forget)."""
+        ws = self._ws
+        loop = self._loop
+        if ws is None or loop is None:
+            return
+        payload = json.dumps({
+            "message_type": "input_audio_chunk",
+            "audio_base_64": audio_b64,
+            "commit": commit,
+            "sample_rate": self._sample_rate,
+        })
+        asyncio.run_coroutine_threadsafe(ws.send(payload), loop)
+
+    def _flush_pending(self) -> float:
+        """Send all cold-start buffered chunks, oldest first, in order.
+
+        Returns the approximate duration (secs) of what was flushed, for the
+        adaptive commit wait.
+        """
+        with self._lock:
+            pending, self._pending_audio = self._pending_audio, []
+            flushed_secs, self._pending_secs = self._pending_secs, 0.0
+        for audio_b64 in pending:
+            self._send_audio_payload(audio_b64, commit=False)
+        return flushed_secs
+
     def _process_pcm(self, pcm: np.ndarray) -> str:
         """Send a PCM chunk to ElevenLabs and return current transcript."""
         if not self._session_active:
@@ -276,23 +348,20 @@ class ElevenLabsASREngine(ASREngine):
 
         self._last_activity = time.monotonic()
 
-        # Capture references to avoid TOCTOU race with the background thread
-        ws = self._ws
-        loop = self._loop
-        if ws is not None and loop is not None:
-            # Convert float32 → int16 bytes → base64
-            int16_data = (pcm * 32767).astype(np.int16).tobytes()
-            audio_b64 = base64.b64encode(int16_data).decode("ascii")
+        # Convert float32 → int16 bytes → base64
+        int16_data = (pcm * 32767).astype(np.int16).tobytes()
+        audio_b64 = base64.b64encode(int16_data).decode("ascii")
 
-            payload = json.dumps({
-                "message_type": "input_audio_chunk",
-                "audio_base_64": audio_b64,
-                "commit": False,
-                "sample_rate": self._sample_rate,
-            })
-
-            # Fire-and-forget: don't block the audio thread waiting for send
-            asyncio.run_coroutine_threadsafe(ws.send(payload), loop)
+        # Cold start: the socket may not be connected yet, or connected but
+        # before the remote's session_started reply (it rejects early audio).
+        # Buffer instead of dropping, or a short first utterance is lost.
+        if not self._ws_session_ready:
+            with self._lock:
+                self._pending_audio.append(audio_b64)
+                self._pending_secs += len(pcm) / self._sample_rate
+                self._trim_pending()
+        else:
+            self._send_audio_payload(audio_b64, commit=False)
 
         # Read current state
         with self._lock:
@@ -317,6 +386,9 @@ class ElevenLabsASREngine(ASREngine):
             # Force a commit: an audio chunk with commit=true flushes a
             # committed_transcript for everything accumulated this turn.
             self._commit_done.clear()
+            # Any cold-start buffered audio must reach the remote BEFORE the
+            # commit, or it is excluded from the committed transcript.
+            flushed_secs = self._flush_pending()
             payload = json.dumps({
                 "message_type": "input_audio_chunk",
                 "audio_base_64": "",
@@ -325,8 +397,13 @@ class ElevenLabsASREngine(ASREngine):
             })
             asyncio.run_coroutine_threadsafe(ws.send(payload), loop)
             # Wait for the committed_transcript (or an input_error) to land.
-            if not self._commit_done.wait(timeout=_FINALIZE_TIMEOUT_S):
-                logger.warning("ElevenLabs: commit did not flush in time")
+            # Scale with the audio flushed late — a cold-start turn dumps its
+            # whole utterance here and the remote needs ~its duration back.
+            if not self._commit_done.wait(timeout=_commit_wait_secs(flushed_secs)):
+                logger.warning(
+                    "ElevenLabs: commit did not flush in time (flushed %.1fs)",
+                    flushed_secs,
+                )
 
         with self._lock:
             final_text = self._committed_text or self._partial_text

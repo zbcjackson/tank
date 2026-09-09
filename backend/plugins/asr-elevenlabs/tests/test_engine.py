@@ -91,6 +91,125 @@ def test_process_pcm_returns_current_transcript():
     assert eng._process_pcm(np.zeros(160, dtype=np.float32)) == "partial"
 
 
+# ── cold-start buffering ─────────────────────────────────────────────
+#
+# The socket connects lazily on first speech and the remote only accepts
+# audio after its ``session_started`` reply. Chunks arriving before that
+# moment must be buffered (not dropped) or a short first utterance is lost
+# entirely — the E2E voice scenario regressed exactly this way.
+
+
+def test_process_pcm_buffers_while_socket_not_ready():
+    eng = _make_engine()
+    eng._session_active = True
+    eng._process_pcm(np.zeros(160, dtype=np.float32))
+    assert len(eng._pending_audio) == 1
+
+
+def test_process_pcm_buffers_until_session_started_arrives():
+    """Connected socket is not enough — the remote rejects pre-session audio."""
+    eng = _make_engine()
+    eng._session_active = True
+    _wire_fake_socket(eng)  # ws attached …
+    eng._ws_session_ready = False  # … but session_started not yet received
+    eng._process_pcm(np.zeros(160, dtype=np.float32))
+    assert len(eng._pending_audio) == 1
+
+
+def _wire_async_socket(eng):
+    """Attach an AsyncMock ws (send returns awaitables) + fake loop."""
+    from unittest.mock import AsyncMock
+
+    eng._ws = AsyncMock()
+    eng._loop = MagicMock()
+
+
+def _noop_schedule(eng_mod):
+    """run_coroutine_threadsafe that just closes the coroutine."""
+    return patch.object(
+        eng_mod.asyncio, "run_coroutine_threadsafe",
+        side_effect=lambda coro, loop: coro.close(),
+    )
+
+
+def _sent_payloads(eng):
+    import json as _json
+
+    return [
+        _json.loads(call.args[0]) for call in eng._ws.send.call_args_list
+    ]
+
+
+def test_session_started_flushes_pending_chunks_in_order():
+    eng = _make_engine()
+    eng._session_active = True
+    _wire_async_socket(eng)
+    eng._pending_audio = ["AAA=", "BBB="]
+
+    with _noop_schedule(engine_mod):
+        eng._handle_message({"message_type": "session_started", "session_id": "s1"})
+
+    assert eng._ws_session_ready is True
+    assert len(eng._pending_audio) == 0
+    payloads = _sent_payloads(eng)
+    assert [p["audio_base_64"] for p in payloads] == ["AAA=", "BBB="]
+    assert all(p["commit"] is False for p in payloads)
+
+
+def test_stop_flushes_pending_audio_before_commit():
+    eng = _make_engine()
+    eng._session_active = True
+    _wire_async_socket(eng)
+    eng._ws_session_ready = True
+    eng._pending_audio = ["AAA="]
+    eng._commit_done.set()
+
+    with _noop_schedule(engine_mod):
+        eng._stop_session()
+
+    payloads = _sent_payloads(eng)
+    assert len(payloads) == 2
+    assert payloads[0]["audio_base_64"] == "AAA="
+    assert payloads[1]["commit"] is True, "commit must be flushed last"
+
+
+def test_pending_buffer_is_bounded_drop_oldest():
+    eng = _make_engine()
+    eng._session_active = True
+    eng._pending_audio = [f"c{i}" for i in range(engine_mod._MAX_PENDING_CHUNKS + 10)]
+    eng._pending_secs = 60.0
+    eng._trim_pending()
+    assert len(eng._pending_audio) == engine_mod._MAX_PENDING_CHUNKS
+    assert eng._pending_audio[0] == "c10"
+    assert eng._pending_secs == pytest.approx(59.0)  # 10 chunks × ~0.1s
+
+
+# ── adaptive commit wait ─────────────────────────────────────────────
+
+
+def test_commit_wait_floors_at_default():
+    assert engine_mod._commit_wait_secs(0.0) == pytest.approx(
+        engine_mod._FINALIZE_TIMEOUT_S
+    )
+
+
+def test_commit_wait_scales_with_flushed_audio():
+    assert engine_mod._commit_wait_secs(2.0) == pytest.approx(3.5)
+
+
+def test_commit_wait_is_capped():
+    assert engine_mod._commit_wait_secs(30.0) == pytest.approx(
+        engine_mod._MAX_COMMIT_WAIT_S
+    )
+
+
+def test_process_pcm_tracks_pending_duration():
+    eng = _make_engine()
+    eng._session_active = True
+    eng._process_pcm(np.zeros(1600, dtype=np.float32))  # 100ms @ 16kHz
+    assert eng._pending_secs == pytest.approx(0.1)
+
+
 # ── finalize handshake ───────────────────────────────────────────────
 
 
