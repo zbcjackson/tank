@@ -12,16 +12,43 @@ ASR/TTS/语音链路。驱动器直连 `AgentRunner.run_agent`（见 `tank_backe
 
 ## 用法
 
+三种典型跑法（命令都从 `backend/core` 执行）：
+
+**1. 单任务调试**（几分钟，定位环境/权限问题）：
+
 ```bash
-cd backend/core
+uv run python -m tank_backend.benchmarks \
+    --suite ../benchmarks/computer_use \
+    --tasks calc-open --trials 1 --label debug
+```
+
+`--tasks` 是任务 id 的正则（如 `--tasks "form|typing"` 跑多任务）。只用于诊断，
+**不要**当对比报告。
+
+**2. 全量冒烟**（约 15–20 分钟，跑前 1 个 trial 验证环境与链路）：
+
+```bash
+uv run python -m tank_backend.benchmarks \
+    --suite ../benchmarks/computer_use \
+    --agent computer_use --trials 1 --label smoke-macos
+```
+
+**3. 正式 baseline**（约 1 小时，不需要人守着，放着别碰键鼠即可）：
+
+```bash
 uv run python -m tank_backend.benchmarks \
     --suite ../benchmarks/computer_use \
     --agent computer_use --trials 3 --label baseline-macos
 ```
 
+通用说明：
+
 - 报告与逐 trial trace（JSONL + 每步截图）落在 `benchmarks/<suite>/reports/<时间戳>-<label>/`
 - **绝不在开发机裸跑**（会动真实鼠标键盘）：Linux 在 GUI VM，macOS 在真机/独立环境
-- 跑批期间不动键鼠；环境钉死清单见任务套件目录下 suite.yaml 注释
+- 跑批期间不动键鼠；环境钉死与安全清单见任务套件目录下 suite.yaml 注释
+  （单显示器、专用账户、关闭敏感 App——agent 会真实操控键鼠且截图上云）
+- 为什么这么慢：串行「截图→视觉 LLM→动作」× 每任务多步 × 多 trial，失败 trial 烧满
+  超时；并行化/降分辨率/batch 属于被测对象，中途改会让前后数据不可比
 
 ## 结构与演进
 
