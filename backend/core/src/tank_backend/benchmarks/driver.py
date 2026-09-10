@@ -238,7 +238,11 @@ class SubAgentDriver:
         async def consume() -> None:
             nonlocal steps, stopped_reason
             async for output in self._runner.run_agent(self._agent_def, messages):
-                if output.type == AgentOutputType.TOOL_CALLING:
+                # Count EXECUTED tool calls, not TOOL_CALLING stream
+                # updates — the stream emits one "calling" update per
+                # streamed argument delta, so delta-counting aborts an
+                # agent after only a handful of real actions.
+                if output.type == AgentOutputType.TOOL_EXECUTING:
                     steps += 1
                 elif output.type == AgentOutputType.TOKEN and output.content:
                     token_parts.append(output.content)
@@ -268,7 +272,7 @@ class SubAgentDriver:
         self._trace = None
         return DriverResult(
             final_text="".join(token_parts),
-            steps=min(steps, max_steps + 1),
+            steps=steps,
             wall_s=wall_s,
             tokens=self._llm.total_tokens,
             screenshots=trace.screenshot_count,

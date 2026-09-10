@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from tank_backend.agents.base import AgentOutput, AgentOutputType
 from tank_backend.benchmarks.driver import (
@@ -131,6 +132,81 @@ async def test_traced_screenshot_tool_tolerates_no_trace():
     result = await tool.execute()
     assert isinstance(result, ToolResult)
     assert not result.error
+
+
+# ---------------------------------------------------------------------------
+# SubAgentDriver step counting (delta streams must not count as steps)
+# ---------------------------------------------------------------------------
+
+
+class _StubRunner:
+    """Emits the real output shape: many TOOL_CALLING deltas per call."""
+
+    def __init__(self, tool_calls: int) -> None:
+        self._tool_calls = tool_calls
+
+    async def run_agent(self, agent_def, messages, **kwargs):
+        for _ in range(self._tool_calls):
+            for _ in range(8):  # streamed argument deltas
+                yield AgentOutput(
+                    type=AgentOutputType.TOOL_CALLING,
+                    content="",
+                    metadata={"name": "click", "status": "calling"},
+                )
+            yield AgentOutput(
+                type=AgentOutputType.TOOL_EXECUTING,
+                content="",
+                metadata={"name": "click", "status": "executing"},
+            )
+            yield AgentOutput(
+                type=AgentOutputType.TOOL_RESULT,
+                content="Clicked",
+                metadata={"name": "click", "status": "success"},
+            )
+        yield AgentOutput(type=AgentOutputType.TOKEN, content="done", metadata={})
+
+
+async def _drive_with_stub(tool_calls: int, max_steps: int):
+    from unittest.mock import MagicMock
+
+    from tank_backend.agents.definition import AgentDefinition
+    from tank_backend.benchmarks.driver import SubAgentDriver
+
+    agent_def = AgentDefinition(
+        name="stub", description="", system_prompt="",
+        disallowed_tools=frozenset(), toolset="computer_use", tool_filter=None,
+        skills=(), background=False, token_budget=0, model=None,
+    )
+    from tank_backend.llm.llm import LLM
+
+    class _FakeLLM:
+        pass
+
+    driver = SubAgentDriver(
+        runner=cast(Any, _StubRunner(tool_calls)),
+        agent_def=agent_def,
+        llm=CountingLLM(cast(LLM, _FakeLLM())),
+        tool_manager=MagicMock(),
+    )
+    with tempfile.TemporaryDirectory() as td:
+        trace = TraceSink(Path(td) / "t")
+        result = await driver.run("do it", trace, timeout_s=10, max_steps=max_steps)
+        trace.close()
+    return result
+
+
+async def test_steps_count_executed_calls_not_deltas():
+    """5 executed tool calls (8 argument deltas each) = 5 steps, not 40."""
+    result = await _drive_with_stub(tool_calls=5, max_steps=30)
+    assert result.steps == 5
+    assert result.error is None
+    assert result.timed_out is False
+
+
+async def test_max_steps_aborts_on_executed_calls():
+    result = await _drive_with_stub(tool_calls=40, max_steps=5)
+    assert result.steps == 6  # 5 allowed, the 6th triggers the abort
+    assert "max_steps" in (result.error or "")
 
 
 # ---------------------------------------------------------------------------

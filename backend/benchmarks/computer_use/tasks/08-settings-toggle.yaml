@@ -1,0 +1,28 @@
+id: settings-toggle
+category: settings
+difficulty: 2
+platforms: [macos, linux]
+instruction: |
+  通过系统设置的图形界面（不要用终端）切换一项系统外观设置。
+instruction_macos: |
+  通过系统设置的图形界面（不要用终端）：打开「系统设置」→「外观」，
+  把外观切换到「深色」(Dark)。
+instruction_linux: |
+  通过系统设置的图形界面（不要用终端）：打开「设置」→「辅助功能」，
+  打开「减少动画」(Reduce animation) 开关。
+setup_linux: |
+  gsettings set org.gnome.desktop.interface enable-animations true
+setup_macos: |
+  osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to false'
+validator_linux:
+  kind: shell
+  command: test "$(gsettings get org.gnome.desktop.interface enable-animations)" = "false"
+validator_macos:
+  kind: shell
+  command: >-
+    test "$(osascript -e 'tell application "System Events" to tell appearance preferences to get dark mode')" = "true"
+teardown_linux: |
+  gsettings set org.gnome.desktop.interface enable-animations true
+teardown_macos: |
+  osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to false'
+timeout_s: 180
