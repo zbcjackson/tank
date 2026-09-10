@@ -18,6 +18,7 @@ import logging
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -72,6 +73,7 @@ def main() -> None:
 
     driver_factory = lambda: SubAgentDriver.create(agent, config_path=args.config)  # noqa: E731
 
+    run_started = time.monotonic()
     report = asyncio.run(
         run_suite(
             args.suite.resolve(),
@@ -87,7 +89,8 @@ def main() -> None:
     print(
         f"\n{report.successes}/{total} passed "
         f"({report.success_rate * 100:.0f}%, 95% CI "
-        f"{report.ci_lo * 100:.0f}–{report.ci_hi * 100:.0f}%)"
+        f"{report.ci_lo * 100:.0f}–{report.ci_hi * 100:.0f}%) "
+        f"in {time.monotonic() - run_started:.0f}s"
     )
     print(f"report: {out_dir / 'report.md'}")
 

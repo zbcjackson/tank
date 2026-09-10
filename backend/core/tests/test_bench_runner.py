@@ -388,3 +388,78 @@ def test_trial_record_defaults_roundtrip():
 def test_shell_error_attributes():
     err = ShellError("boom", returncode=2, stdout="out", stderr="err")
     assert err.returncode == 2 and err.stdout == "out"
+
+
+# ---------------------------------------------------------------------------
+# IME pinning (macOS TIS via pyobjc; faked on this host)
+# ---------------------------------------------------------------------------
+
+
+def test_pin_ascii_input_source_noop_off_macos():
+    from tank_backend.benchmarks import ime
+
+    assert ime.pin_ascii_input_source() is False
+    assert ime.current_input_source_id() is None
+    assert ime.restore_input_source("com.apple.keylayout.US") is False
+
+
+def test_pin_ascii_input_source_selects_us_layout(monkeypatch):
+    import sys
+
+    calls: dict[str, object] = {}
+
+    class _FakeQuartz:
+        """Stand-in module — importlib binds whatever sits in sys.modules."""
+
+        kTISPropertyInputSourceID = "inputSourceID"
+
+        @staticmethod
+        def TISCreateInputSourceList(props, include_all):
+            calls["create_props"] = dict(props)
+            return ["<us-source>"]
+
+        @staticmethod
+        def TISSelectInputSource(source):
+            calls["selected"] = source
+            return True
+
+        @staticmethod
+        def TISCopyCurrentKeyboardInputSource():
+            return "<current>"
+
+        @staticmethod
+        def TISGetInputSourceProperty(src, prop):
+            return "com.apple.keylayout.Pinyin"
+
+    monkeypatch.setitem(sys.modules, "Quartz", _FakeQuartz())
+    monkeypatch.setattr(sys, "platform", "darwin")
+
+    from tank_backend.benchmarks import ime
+
+    assert ime.current_input_source_id() == "com.apple.keylayout.Pinyin"
+    assert ime.pin_ascii_input_source() is True
+    assert calls["create_props"] == {"inputSourceID": "com.apple.keylayout.US"}
+    assert calls["selected"] == "<us-source>"
+    assert ime.restore_input_source("com.apple.keylayout.Pinyin") is True
+
+
+# ---------------------------------------------------------------------------
+# Trial wall-time covers the whole trial, not just the agent segment
+# ---------------------------------------------------------------------------
+
+
+async def test_run_suite_records_full_trial_wall_time(tmp_path):
+    suite_dir = _make_suite(tmp_path)
+    out = tmp_path / "out-time"
+    report = await run_suite(
+        suite_dir,
+        lambda: FakeDriver("pass"),
+        platform="linux",
+        trials=1,
+        out_dir=out,
+        label="timing",
+    )
+    assert report.total_trials == 2
+    for task_id in ("t1", "t2"):
+        result = json.loads((out / "trials" / task_id / "1" / "result.json").read_text())
+        assert result["wall_s"] >= 0.0

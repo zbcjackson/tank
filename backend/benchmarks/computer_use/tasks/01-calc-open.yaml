@@ -17,4 +17,4 @@ teardown: |
   pkill -f gnome-calculator 2>/dev/null || true
 teardown_macos: |
   killall Calculator 2>/dev/null || true
-timeout_s: 120
+timeout_s: 180

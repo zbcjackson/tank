@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from pathlib import Path
 from typing import Protocol
 
 from .driver import BenchmarkDriver, DriverResult
+from .ime import current_input_source_id, pin_ascii_input_source, restore_input_source
 from .pageserver import LocalPageServer
 from .report import SuiteReport, TrialRecord, aggregate, write_json_report, write_markdown_report
 from .shell import ShellError, run_shell
@@ -70,19 +72,36 @@ async def run_suite(
         "BENCH_ASSETS_DIR": str(assets_dir) if assets_dir is not None else "",
         "BENCH_ASSETS_URL": server.base_url if server is not None else "",
     }
+    original_ime = current_input_source_id()
+    run_started = time.monotonic()
     try:
         for task in tasks:
             driver = driver_factory()
+            task_started = time.monotonic()
+            task_records: list[TrialRecord] = []
             for trial in range(1, trials + 1):
+                # A Chinese IME eats ASCII punctuation ("-"/"."); input-source
+                # stickiness is per-app, so pin fresh before every trial.
+                pin_ascii_input_source()
                 record = await _run_trial(driver, task, trial, out_dir, bench_env)
                 records.append(record)
+                task_records.append(record)
                 logger.info(
-                    "task=%s trial=%d success=%s steps=%d",
-                    task.id, trial, record.success, record.steps,
+                    "task=%s trial=%d success=%s steps=%d wall=%.1fs",
+                    task.id, trial, record.success, record.steps, record.wall_s,
                 )
+            passed = sum(1 for r in task_records if r.success)
+            logger.info(
+                "task=%s done: %d/%d passed in %.1fs",
+                task.id, passed, len(task_records), time.monotonic() - task_started,
+            )
     finally:
         if server is not None:
             server.stop()
+        restore_input_source(original_ime)
+    logger.info(
+        "suite done: %d trials in %.1fs", len(records), time.monotonic() - run_started
+    )
 
     report = aggregate(records)
     write_markdown_report(
@@ -105,6 +124,7 @@ async def _run_trial(
     trial_dir = out_dir / "trials" / task.id / str(trial)
     trace = TraceSink(trial_dir)
     trace.event("trial_start", task=task.id, trial=trial, instruction=task.instruction)
+    trial_started = time.monotonic()
 
     error: str | None = None
     timed_out = False
@@ -161,7 +181,9 @@ async def _run_trial(
         success=success,
         error=error,
         steps=result.steps if result else 0,
-        wall_s=result.wall_s if result else 0.0,
+        # Full trial wall time (setup + agent + validator + teardown);
+        # the agent-only segment is in the trace's driver_done event.
+        wall_s=time.monotonic() - trial_started,
         tokens=result.tokens if result else 0,
         screenshots=result.screenshots if result else 0,
         timed_out=timed_out,
