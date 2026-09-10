@@ -13,4 +13,7 @@ validator:
   command: test -f ~/bench-work/bench-dir/renamed.txt
 teardown: |
   rm -rf ~/bench-work
+teardown_macos: |
+  rm -rf ~/bench-work
+  osascript -e 'tell application "Finder" to close every window' 2>/dev/null || true
 timeout_s: 180

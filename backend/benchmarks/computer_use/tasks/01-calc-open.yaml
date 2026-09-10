@@ -14,5 +14,7 @@ validator_macos:
   kind: shell
   command: pgrep -x Calculator >/dev/null
 teardown: |
-  pkill -f gnome-calculator 2>/dev/null; pkill -x Calculator 2>/dev/null; true
+  pkill -f gnome-calculator 2>/dev/null || true
+teardown_macos: |
+  killall Calculator 2>/dev/null || true
 timeout_s: 120

@@ -13,4 +13,7 @@ validator:
   command: test -f ~/bench-work/note.txt && grep -q "你好世界" ~/bench-work/note.txt
 teardown: |
   rm -rf ~/bench-work
+teardown_macos: |
+  rm -rf ~/bench-work
+  killall TextEdit 2>/dev/null || true
 timeout_s: 240

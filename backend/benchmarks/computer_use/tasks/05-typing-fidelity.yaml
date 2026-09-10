@@ -24,4 +24,7 @@ validator:
     "$BENCH_CAPTURE" "$BENCH_ASSETS_DIR/paragraph.txt"
 teardown: |
   rm -rf ~/bench-work
+teardown_macos: |
+  rm -rf ~/bench-work
+  killall Safari 2>/dev/null || true
 timeout_s: 180

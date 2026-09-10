@@ -20,4 +20,7 @@ validator:
     "$BENCH_CAPTURE"
 teardown: |
   rm -rf ~/bench-work
+teardown_macos: |
+  rm -rf ~/bench-work
+  killall Safari 2>/dev/null || true
 timeout_s: 180

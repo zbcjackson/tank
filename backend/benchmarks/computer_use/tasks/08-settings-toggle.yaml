@@ -25,4 +25,5 @@ teardown_linux: |
   gsettings set org.gnome.desktop.interface enable-animations true
 teardown_macos: |
   osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to false'
+  osascript -e 'quit app "System Settings"' 2>/dev/null || true
 timeout_s: 180

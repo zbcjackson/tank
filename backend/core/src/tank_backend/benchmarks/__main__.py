@@ -16,6 +16,8 @@ import argparse
 import asyncio
 import logging
 import re
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -88,6 +90,14 @@ def main() -> None:
         f"{report.ci_lo * 100:.0f}–{report.ci_hi * 100:.0f}%)"
     )
     print(f"report: {out_dir / 'report.md'}")
+
+    # Audible end-of-run cue: launched apps covered the terminal for the
+    # whole run, so a chime is the reliable "you can come back" signal.
+    if sys.platform == "darwin":
+        subprocess.run(
+            ["afplay", "/System/Library/Sounds/Glass.aiff"],
+            check=False, timeout=10,
+        )
 
 
 if __name__ == "__main__":

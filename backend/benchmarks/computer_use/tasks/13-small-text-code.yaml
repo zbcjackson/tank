@@ -19,4 +19,6 @@ validator:
     "$BENCH_CAPTURE"
 teardown: |
   true
+teardown_macos: |
+  killall Safari 2>/dev/null || true
 timeout_s: 240
