@@ -12,13 +12,12 @@ setup: |
   printf '跨窗口复制是桌面自动化的基本功。' > ~/bench-work/source.txt
 validator:
   kind: shell
-  command: >-
+  command: |
     python3 -c "
     import json,sys
     es=[json.loads(l) for l in open(sys.argv[1])]
     ok=any(e.get('kind')=='submit' and e.get('payload',{}).get('text','').strip()=='跨窗口复制是桌面自动化的基本功。' for e in es)
-    sys.exit(0 if ok else 1)"
-    "$BENCH_CAPTURE"
+    sys.exit(0 if ok else 1)" "$BENCH_CAPTURE"
 teardown: |
   rm -rf ~/bench-work
 teardown_macos: |

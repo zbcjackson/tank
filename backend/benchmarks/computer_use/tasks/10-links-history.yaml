@@ -11,14 +11,13 @@ setup: |
   true
 validator:
   kind: shell
-  command: >-
+  command: |
     python3 -c "
     import json,sys
     es=[json.loads(l) for l in open(sys.argv[1])]
     clicks=[e['name'] for e in es if e.get('kind')=='click' and e.get('name','').startswith('link')]
     done=any(e.get('kind')=='click' and e.get('name')=='finished' for e in es)
-    sys.exit(0 if done and clicks==['link_a','link_b','link_c'] else 1)"
-    "$BENCH_CAPTURE"
+    sys.exit(0 if done and clicks==['link_a','link_b','link_c'] else 1)" "$BENCH_CAPTURE"
 teardown: |
   true
 teardown_macos: |

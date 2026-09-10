@@ -204,6 +204,67 @@ def test_real_suite_yaml_loads():
     assert suite.defaults.get("trials") == 3
 
 
+# ── validator admission ──────────────────────────────────────────────
+#
+# Task rule #8: validate the validator. Every capture-based validator
+# must PASS against a synthesized success capture — this catches YAML
+# folding mangling multi-line python (real bug: `>-` folded newlines to
+# spaces and turned four validators into SyntaxErrors that misjudged
+# correct submissions as failures).
+
+_SUCCESS_CAPTURE_ENTRIES = {
+    "browser-navigate": [{"kind": "click", "name": "checkin"}],
+    "local-form": [{
+        "kind": "submit",
+        "payload": {"name": "张三", "email": "zhangsan@example.com",
+                    "date": "2026-09-09"},
+    }],
+    "typing-fidelity": None,  # filled from assets/paragraph.txt below
+    "links-history": [
+        {"kind": "click", "name": n} for n in ("link_a", "link_b", "link_c")
+    ] + [{"kind": "click", "name": "finished"}],
+    "small-text-code": [{"kind": "submit", "payload": {"code": "K7QM29XZ"}}],
+    "window-copy": [{
+        "kind": "submit",
+        "payload": {"text": "跨窗口复制是桌面自动化的基本功。"},
+    }],
+}
+
+
+async def test_real_suite_capture_validators_pass_on_success_capture(tmp_path):
+    import json
+
+    from tank_backend.benchmarks.shell import run_shell
+
+    paragraph = (_REAL_SUITE / "assets" / "paragraph.txt").read_text(
+        encoding="utf-8"
+    ).strip()
+    entries = dict(_SUCCESS_CAPTURE_ENTRIES)
+    entries["typing-fidelity"] = [{"kind": "submit", "payload": {"text": paragraph}}]
+
+    checked = 0
+    for task in load_suite_tasks(_REAL_SUITE / "tasks", platform="macos"):
+        if "BENCH_CAPTURE" not in task.validator_command:
+            continue
+        if task.id not in entries:
+            pytest.fail(f"no success-capture fixture for capture task {task.id}")
+        capture = tmp_path / f"{task.id}.jsonl"
+        capture.write_text(
+            "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in entries[task.id]),
+            encoding="utf-8",
+        )
+        await run_shell(
+            task.validator_command,
+            timeout_s=30,
+            extra_env={
+                "BENCH_CAPTURE": str(capture),
+                "BENCH_ASSETS_DIR": str(_REAL_SUITE / "assets"),
+            },
+        )
+        checked += 1
+    assert checked >= 6, f"expected all capture validators covered, ran {checked}"
+
+
 def test_bench_task_is_frozen():
     task = BenchTask(
         id="x", category="app", difficulty=1, platforms=("macos",),
