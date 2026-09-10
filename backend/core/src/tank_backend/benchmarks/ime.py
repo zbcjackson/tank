@@ -93,6 +93,38 @@ def _select_english_source() -> bool:
         _cf_release(lang, cf)
 
 
+def _current_source_id(carbon: ctypes.CDLL, cf: ctypes.CDLL) -> str | None:
+    """ID of the currently selected input source, or None if unreadable."""
+    try:
+        prop = ctypes.c_void_p.in_dll(carbon, "kTISPropertyInputSourceID")
+        carbon.TISGetInputSourceProperty.restype = ctypes.c_void_p
+        carbon.TISGetInputSourceProperty.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        carbon.TISCopyCurrentKeyboardInputSource.restype = ctypes.c_void_p
+        carbon.TISCopyCurrentKeyboardInputSource.argtypes = []
+        source = carbon.TISCopyCurrentKeyboardInputSource()
+        if not source:
+            return None
+        cfstr = carbon.TISGetInputSourceProperty(ctypes.c_void_p(source), prop)
+        if not cfstr:
+            return None
+        k_cf_utf8 = 0x08000100
+        cf.CFStringGetCStringPtr.restype = ctypes.c_char_p
+        cf.CFStringGetCStringPtr.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+        direct = cf.CFStringGetCStringPtr(ctypes.c_void_p(cfstr), k_cf_utf8)
+        if direct:
+            return direct.decode()
+        cf.CFStringGetCString.restype = ctypes.c_bool
+        cf.CFStringGetCString.argtypes = [
+            ctypes.c_void_p, ctypes.c_char_p, ctypes.c_long, ctypes.c_uint32,
+        ]
+        buf = ctypes.create_string_buffer(256)
+        if cf.CFStringGetCString(ctypes.c_void_p(cfstr), buf, 256, k_cf_utf8):
+            return buf.value.decode()
+    except Exception:  # noqa: BLE001 — readback is diagnostics only
+        return None
+    return None
+
+
 def pin_ascii_input_source() -> bool:
     """Switch the keyboard to an English/ASCII layout (no-op off macOS).
 
@@ -102,7 +134,18 @@ def pin_ascii_input_source() -> bool:
     if sys.platform != "darwin":
         return False
     try:
-        return _select_english_source()
+        ok = _select_english_source()
+        # Read back the ACTUAL selection: TISSelectInputSource can report
+        # success without affecting the focused context, so log ground
+        # truth — if this shows a Chinese IME, typing will mangle ASCII.
+        frameworks = _load_frameworks()
+        if frameworks is not None:
+            actual = _current_source_id(*frameworks)
+            if ok and actual and "keylayout" not in actual:
+                logger.warning("IME pin reported success but source is %s", actual)
+            else:
+                logger.info("IME pinned; active source: %s", actual)
+        return ok
     except Exception:  # noqa: BLE001 — pinning must never kill a trial
         logger.warning("could not pin ASCII input source", exc_info=True)
         return False

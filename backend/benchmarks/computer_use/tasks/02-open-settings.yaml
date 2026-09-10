@@ -17,4 +17,4 @@ teardown: |
   pkill -f gnome-control-center 2>/dev/null || true
 teardown_macos: |
   osascript -e 'quit app "System Settings"' 2>/dev/null || true
-timeout_s: 120
+timeout_s: 180

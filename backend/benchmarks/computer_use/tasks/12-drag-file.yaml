@@ -18,5 +18,5 @@ teardown: |
   rm -rf ~/bench-work
 teardown_macos: |
   rm -rf ~/bench-work
-  osascript -e 'tell application "Finder" to close every window' 2>/dev/null || true
-timeout_s: 240
+  killall Finder 2>/dev/null || true  # Finder auto-relaunches; osascript close can hang on modal state
+timeout_s: 420

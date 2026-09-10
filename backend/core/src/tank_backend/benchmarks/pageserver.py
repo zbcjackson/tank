@@ -12,6 +12,7 @@ Validators then assert on the capture file — never on pixels.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import threading
 import time
@@ -65,7 +66,10 @@ def _make_handler(assets_dir: Path, capture_path: Path | None) -> type[BaseHTTPR
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(body)
+            # If the page navigated away mid-request (link click racing
+            # the fetch), the side effect is already recorded.
+            with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+                self.wfile.write(body)
 
     return Handler
 
