@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -37,6 +38,10 @@ def main() -> None:
         help="agent definition name (default: suite.yaml 'agent')",
     )
     parser.add_argument("--trials", type=int, default=None)
+    parser.add_argument(
+        "--tasks", default=None,
+        help="regex on task ids — run a subset (debugging; not for comparable reports)",
+    )
     parser.add_argument("--platform", choices=("macos", "linux"), default=None)
     parser.add_argument("--label", default=None, help="run label for the report")
     parser.add_argument("--out", type=Path, default=None, help="output dir override")
@@ -73,6 +78,7 @@ def main() -> None:
             trials=trials,
             out_dir=out_dir,
             label=label,
+            task_filter=re.compile(args.tasks) if args.tasks else None,
         )
     )
     total = report.total_trials

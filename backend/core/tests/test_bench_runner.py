@@ -243,6 +243,26 @@ async def test_run_suite_pass_setup_validate_report(tmp_path):
     assert not work.exists()
 
 
+async def test_run_suite_task_filter_runs_subset(tmp_path):
+    import re
+
+    suite_dir = _make_suite(tmp_path)
+    out = tmp_path / "out-filtered"
+    report = await run_suite(
+        suite_dir,
+        lambda: FakeDriver("pass"),
+        platform="linux",
+        trials=1,
+        out_dir=out,
+        label="filtered",
+        task_filter=re.compile(r"^t1$"),
+    )
+    assert report.total_trials == 1
+    assert list(report.tasks) == ["t1"]
+    assert (out / "trials" / "t1" / "1" / "trace.jsonl").exists()
+    assert not (out / "trials" / "t2").exists()
+
+
 async def test_run_suite_validator_failure_recorded(tmp_path):
     suite_dir = _make_suite(tmp_path)
     out = tmp_path / "out"

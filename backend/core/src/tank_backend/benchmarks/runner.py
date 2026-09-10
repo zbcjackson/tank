@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Protocol
 
@@ -34,6 +35,7 @@ async def run_suite(
     out_dir: Path,
     label: str,
     title: str | None = None,
+    task_filter: re.Pattern[str] | None = None,
 ) -> SuiteReport:
     """Run every platform-matching task ``trials`` times and report.
 
@@ -41,9 +43,15 @@ async def run_suite(
     clean session per measured unit. Trial dirs land under
     ``out_dir/trials/<task_id>/<n>/`` with trace.jsonl + screenshots +
     result.json; the aggregated report lands beside them.
+
+    ``task_filter`` keeps only tasks whose id matches the regex — for
+    debugging single tasks without running the whole suite. Filtered
+    runs are for diagnosis, not for comparable reports.
     """
     suite = load_suite(suite_dir / "suite.yaml")
     tasks = load_suite_tasks(suite_dir / "tasks", platform, defaults=dict(suite.defaults))
+    if task_filter is not None:
+        tasks = [t for t in tasks if task_filter.search(t.id)]
     if not tasks:
         raise ValueError(f"no tasks for platform '{platform}' in {suite_dir / 'tasks'}")
 
