@@ -29,7 +29,7 @@ from ..core.content import (
     blocks_to_text,
 )
 from ..core.events import UpdateType
-from ..observability.langfuse_client import initialize_langfuse
+from ..observability.langfuse_client import initialize_langfuse, is_tracing_registered
 from ..tools.base import ToolResult
 
 logger = logging.getLogger("LLM")
@@ -575,7 +575,10 @@ class LLM:
             # extracts (name, metadata, trace_id, parent_observation_id).
             # Other keys (tags, session_id) leak through to the OpenAI
             # API and cause "unexpected keyword argument" errors.
-            if trace_metadata:
+            # The kwargs are ONLY legal on a Langfuse-patched client —
+            # the raw OpenAI SDK rejects ``name`` with a TypeError, so
+            # gate on the tracing actually being registered.
+            if trace_metadata and is_tracing_registered():
                 if "trace_name" in trace_metadata:
                     api_kwargs["name"] = trace_metadata["trace_name"]
                 if "metadata" in trace_metadata:

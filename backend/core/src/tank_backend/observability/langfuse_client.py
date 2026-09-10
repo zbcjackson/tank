@@ -65,6 +65,15 @@ def initialize_langfuse() -> Any:
         return None
 
 
+def is_tracing_registered() -> bool:
+    """True when the Langfuse OpenAI monkey-patch is active.
+
+    Only then are trace kwargs (``name``/``trace_id``/``metadata``)
+    stripped from requests before they reach the OpenAI SDK.
+    """
+    return _tracing_registered
+
+
 def get_langfuse() -> Any:
     """Return the shared Langfuse client, or None if not configured."""
     return initialize_langfuse()
