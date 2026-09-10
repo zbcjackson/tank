@@ -76,6 +76,23 @@ async def test_counting_llm_accumulates_usage_and_delegates():
     assert counting.total_tokens == 0
 
 
+def test_disable_langfuse_tracing(monkeypatch):
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
+    monkeypatch.setenv("LANGFUSE_HOST", "http://x")
+    monkeypatch.setenv("UNRELATED", "keep")
+    from tank_backend.benchmarks.driver import disable_langfuse_tracing
+
+    removed = disable_langfuse_tracing()
+    # Ambient LANGFUSE_* vars may also be present — only assert ours left
+    # the environment and non-Langfuse vars survive.
+    assert "LANGFUSE_PUBLIC_KEY" in removed
+    assert "LANGFUSE_HOST" in removed
+    import os
+
+    assert not [k for k in os.environ if k.startswith("LANGFUSE_")]
+    assert os.environ["UNRELATED"] == "keep"
+
+
 # ---------------------------------------------------------------------------
 # TracedScreenshotTool
 # ---------------------------------------------------------------------------

@@ -125,6 +125,25 @@ class TracedScreenshotTool(BaseTool):
         return result
 
 
+def disable_langfuse_tracing() -> list[str]:
+    """Drop LANGFUSE_* env vars so benchmark runs stay hermetic.
+
+    Tracing is an async side channel (never affects tool execution or
+    verdicts), but a benchmark process shouldn't spray spans at a Langfuse
+    server that may not be running — the retry noise only obscures real
+    output. Returns the names removed.
+    """
+    import os
+
+    removed = [
+        name for name in list(os.environ)
+        if name.startswith("LANGFUSE_")
+    ]
+    for name in removed:
+        os.environ.pop(name, None)
+    return removed
+
+
 class SubAgentDriver:
     """Drive one sub-agent definition in-process (no pipeline, no WS).
 
@@ -158,6 +177,7 @@ class SubAgentDriver:
         # Same bootstrap the API server does: .env next to config.yaml
         # provides ${LLM_API_KEY} etc. before any config loading.
         load_dotenv(cfg_path.parent / ".env")
+        disable_langfuse_tracing()
         app_config = AppConfig.load(cfg_path)
 
         agent_dirs = [
