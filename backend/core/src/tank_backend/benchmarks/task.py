@@ -151,6 +151,12 @@ def load_suite_tasks(
 
 def load_suite(suite_path: Path) -> SuiteConfig:
     """Load ``suite.yaml`` (name required; everything else optional)."""
+    if not suite_path.is_file():
+        raise TaskError(
+            f"suite file not found: {suite_path}\n"
+            f"(shipped suites live under backend/benchmarks/<name>/ — "
+            f"from backend/core that is ../benchmarks/<name>)"
+        )
     try:
         raw = yaml.safe_load(suite_path.read_text(encoding="utf-8"))
     except yaml.YAMLError as e:

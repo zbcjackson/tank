@@ -15,7 +15,7 @@ ASR/TTS/语音链路。驱动器直连 `AgentRunner.run_agent`（见 `tank_backe
 ```bash
 cd backend/core
 uv run python -m tank_backend.benchmarks \
-    --suite ../../benchmarks/computer_use \
+    --suite ../benchmarks/computer_use \
     --agent computer_use --trials 3 --label baseline-macos
 ```
 

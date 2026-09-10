@@ -168,6 +168,11 @@ def test_load_suite_defaults_optional(tmp_path):
     assert loaded.defaults == {}
 
 
+def test_load_suite_missing_file_clear_error(tmp_path):
+    with pytest.raises(TaskError, match="suite file not found"):
+        load_suite(tmp_path / "nope" / "suite.yaml")
+
+
 def test_current_platform():
     assert current_platform() in ("macos", "linux")
 
