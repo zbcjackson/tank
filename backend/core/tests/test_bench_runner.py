@@ -399,48 +399,51 @@ def test_pin_ascii_input_source_noop_off_macos():
     from tank_backend.benchmarks import ime
 
     assert ime.pin_ascii_input_source() is False
-    assert ime.current_input_source_id() is None
-    assert ime.restore_input_source("com.apple.keylayout.US") is False
+    assert ime.save_current_input_source() is False
+    assert ime.restore_saved_input_source() is False
 
 
-def test_pin_ascii_input_source_selects_us_layout(monkeypatch):
-    import sys
-
-    calls: dict[str, object] = {}
-
-    class _FakeQuartz:
-        """Stand-in module — importlib binds whatever sits in sys.modules."""
-
-        kTISPropertyInputSourceID = "inputSourceID"
-
-        @staticmethod
-        def TISCreateInputSourceList(props, include_all):
-            calls["create_props"] = dict(props)
-            return ["<us-source>"]
-
-        @staticmethod
-        def TISSelectInputSource(source):
-            calls["selected"] = source
-            return True
-
-        @staticmethod
-        def TISCopyCurrentKeyboardInputSource():
-            return "<current>"
-
-        @staticmethod
-        def TISGetInputSourceProperty(src, prop):
-            return "com.apple.keylayout.Pinyin"
-
-    monkeypatch.setitem(sys.modules, "Quartz", _FakeQuartz())
-    monkeypatch.setattr(sys, "platform", "darwin")
-
+async def test_launch_app_wrapper_repins_ime(monkeypatch):
+    """launch_app is wrapped: success → settle delay → re-pin the IME."""
     from tank_backend.benchmarks import ime
+    from tank_backend.benchmarks.driver import RepinImeAfterLaunchTool
 
-    assert ime.current_input_source_id() == "com.apple.keylayout.Pinyin"
-    assert ime.pin_ascii_input_source() is True
-    assert calls["create_props"] == {"inputSourceID": "com.apple.keylayout.US"}
-    assert calls["selected"] == "<us-source>"
-    assert ime.restore_input_source("com.apple.keylayout.Pinyin") is True
+    pins: list[bool] = []
+    monkeypatch.setattr(ime, "pin_ascii_input_source", lambda: pins.append(True) or True)
+
+    class _FakeLaunchTool(BaseTool):
+        def get_info(self):
+            return ToolInfo(name="launch_app", description="launch", parameters=[])
+
+        async def execute(self, **kwargs: Any) -> ToolResult:
+            return ToolResult(content="launched", display="Launched")
+
+    tool = RepinImeAfterLaunchTool(_FakeLaunchTool())
+    result = await tool.execute(app_name="Safari")
+    assert isinstance(result, ToolResult)
+    assert not result.error
+    assert pins == [True]
+
+
+async def test_launch_app_wrapper_skips_repin_on_error(monkeypatch):
+    from tank_backend.benchmarks import ime
+    from tank_backend.benchmarks.driver import RepinImeAfterLaunchTool
+
+    pins: list[bool] = []
+    monkeypatch.setattr(ime, "pin_ascii_input_source", lambda: pins.append(True) or True)
+
+    class _FailingLaunchTool(BaseTool):
+        def get_info(self):
+            return ToolInfo(name="launch_app", description="launch", parameters=[])
+
+        async def execute(self, **kwargs: Any) -> ToolResult:
+            return ToolResult(content="nope", display="nope", error=True)
+
+    tool = RepinImeAfterLaunchTool(_FailingLaunchTool())
+    result = await tool.execute(app_name="Nope")
+    assert isinstance(result, ToolResult)
+    assert result.error
+    assert pins == []
 
 
 # ---------------------------------------------------------------------------

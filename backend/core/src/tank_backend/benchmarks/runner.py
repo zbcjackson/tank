@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Protocol
 
 from .driver import BenchmarkDriver, DriverResult
-from .ime import current_input_source_id, pin_ascii_input_source, restore_input_source
+from .ime import pin_ascii_input_source, restore_saved_input_source, save_current_input_source
 from .pageserver import LocalPageServer
 from .report import SuiteReport, TrialRecord, aggregate, write_json_report, write_markdown_report
 from .shell import ShellError, run_shell
@@ -72,7 +72,7 @@ async def run_suite(
         "BENCH_ASSETS_DIR": str(assets_dir) if assets_dir is not None else "",
         "BENCH_ASSETS_URL": server.base_url if server is not None else "",
     }
-    original_ime = current_input_source_id()
+    save_current_input_source()
     run_started = time.monotonic()
     try:
         for task in tasks:
@@ -98,7 +98,7 @@ async def run_suite(
     finally:
         if server is not None:
             server.stop()
-        restore_input_source(original_ime)
+        restore_saved_input_source()
     logger.info(
         "suite done: %d trials in %.1fs", len(records), time.monotonic() - run_started
     )

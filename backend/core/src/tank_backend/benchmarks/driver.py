@@ -144,6 +144,37 @@ def disable_langfuse_tracing() -> list[str]:
     return removed
 
 
+class RepinImeAfterLaunchTool(BaseTool):
+    """Wrap launch_app so the ASCII input source is re-pinned after launch.
+
+    macOS remembers the last input source PER APP — focusing a freshly
+    launched app can flip the keyboard back to a Chinese IME even though
+    we pinned before the trial. The pin must target the now-frontmost
+    app, hence the short settle delay after ``open`` returns.
+    """
+
+    def __init__(self, inner: BaseTool) -> None:
+        self._inner = inner
+
+    def get_info(self) -> ToolInfo:
+        return self._inner.get_info()
+
+    def get_metadata(self) -> ToolMetadata:
+        return self._inner.get_metadata()
+
+    def get_raw_schema(self) -> Any:
+        return self._inner.get_raw_schema()
+
+    async def execute(self, **kwargs: Any) -> ToolResult | str:
+        result = await self._inner.execute(**kwargs)
+        from .ime import _REPIN_AFTER_LAUNCH_S, pin_ascii_input_source
+
+        await asyncio.sleep(_REPIN_AFTER_LAUNCH_S)
+        if isinstance(result, ToolResult) and not result.error:
+            pin_ascii_input_source()
+        return result
+
+
 class SubAgentDriver:
     """Drive one sub-agent definition in-process (no pipeline, no WS).
 
@@ -222,6 +253,12 @@ class SubAgentDriver:
         if "screenshot" in tool_manager.tools:
             tool_manager.tools["screenshot"] = TracedScreenshotTool(
                 tool_manager.tools["screenshot"], lambda: driver._trace
+            )
+        # Re-pin the ASCII input source after each app launch (per-app IME
+        # memory flips the keyboard back when a launched app takes focus).
+        if "launch_app" in tool_manager.tools:
+            tool_manager.tools["launch_app"] = RepinImeAfterLaunchTool(
+                tool_manager.tools["launch_app"]
             )
         return driver
 
