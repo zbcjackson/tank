@@ -4,7 +4,7 @@ difficulty: 1
 platforms: [macos, linux]
 instruction: |
   打开浏览器（macOS: Safari；Linux: Firefox），通过地址栏访问
-  http://localhost:8901/form.html ，然后点击页面上的「报到」按钮。
+  http://localhost:8901/checkin.html ，然后点击页面上的「报到」按钮。
   看到页面显示「已报到」即完成。
 setup: |
   true

@@ -359,6 +359,46 @@ async def test_run_suite_validator_failure_recorded(tmp_path):
     assert "validator" in result["error"]
 
 
+async def test_run_suite_timeout_passes_if_side_effects_landed(tmp_path):
+    """A timed-out run whose validator passes is a success — the agent's
+    closing narration isn't part of the task (A17: side effects only)."""
+    suite_dir = _make_suite(tmp_path)
+    work = tmp_path / "bench-work"
+
+    class StallButSucceedDriver(FakeDriver):
+        async def run(self, instruction, trace, *, timeout_s, max_steps):
+            import asyncio
+
+            # Side effect lands, then the agent stalls in its closing
+            # narration until the timeout fires.
+            proc = await asyncio.create_subprocess_exec(
+                "bash", "-c", f"mkdir -p {work} && touch {work}/t1.flag"
+            )
+            await proc.wait()
+            trace.event("fake_output")
+            return DriverResult(
+                final_text="", steps=5, wall_s=float(timeout_s),
+                tokens=1, screenshots=1, timed_out=True,
+                error=f"timeout({timeout_s}s)",
+            )
+
+    out = tmp_path / "out-timeout-pass"
+    report = await run_suite(
+        suite_dir,
+        lambda: StallButSucceedDriver(),
+        platform="linux",
+        trials=1,
+        out_dir=out,
+        label="timeout-pass",
+        task_filter=__import__("re").compile(r"^t1$"),
+    )
+    assert report.total_trials == 1
+    assert report.successes == 1
+    result = json.loads((out / "trials" / "t1" / "1" / "result.json").read_text())
+    assert result["success"] is True
+    assert result["timed_out"] is True
+
+
 async def test_run_suite_timeout_fails_without_validator(tmp_path):
     suite_dir = _make_suite(tmp_path)
     # Keep only the 1s-timeout task to bound test duration

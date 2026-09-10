@@ -142,21 +142,21 @@ async def _run_trial(
         timed_out = result.timed_out
         error = result.error
 
-        if timed_out:
+        # Verdict by side effects even when the run timed out: the agent's
+        # closing narration is not part of the task — if the effect landed,
+        # the trial succeeded (A17: validators only check side effects).
+        try:
+            await run_shell(
+                task.validator_command,
+                timeout_s=_VALIDATOR_TIMEOUT_S,
+                extra_env=bench_env,
+            )
+            success = True
+            trace.event("validator_passed")
+        except ShellError as e:
             success = False
-        else:
-            try:
-                await run_shell(
-                    task.validator_command,
-                    timeout_s=_VALIDATOR_TIMEOUT_S,
-                    extra_env=bench_env,
-                )
-                success = True
-                trace.event("validator_passed")
-            except ShellError as e:
-                success = False
-                error = error or "validator failed"
-                trace.event("validator_failed", detail=str(e)[:2000])
+            error = error or "validator failed"
+            trace.event("validator_failed", detail=str(e)[:2000])
     except ShellError as e:
         success = False
         error = f"setup failed: {e}"
