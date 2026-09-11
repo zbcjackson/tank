@@ -24,5 +24,8 @@ assets: assets
 server_port: 8901
 defaults:
   trials: 3
-  timeout_s: 420
-  max_steps: 30
+  timeout_s: 180
+  # max_steps is the fast-fail knob: a wandering agent (misclicks and
+  # retries) aborts after this many executed actions instead of burning
+  # the full timeout. Timeout is the backstop.
+  max_steps: 15

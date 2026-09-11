@@ -23,4 +23,4 @@ teardown: |
 teardown_macos: |
   rm -rf ~/bench-work
   killall Safari 2>/dev/null || true
-timeout_s: 420
+timeout_s: 180

@@ -22,4 +22,4 @@ teardown: |
   true
 teardown_macos: |
   killall Safari 2>/dev/null || true
-timeout_s: 600
+timeout_s: 180

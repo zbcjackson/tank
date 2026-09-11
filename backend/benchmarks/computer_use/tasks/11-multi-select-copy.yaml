@@ -21,4 +21,4 @@ teardown: |
 teardown_macos: |
   rm -rf ~/bench-work
   killall Finder 2>/dev/null || true  # Finder auto-relaunches; osascript close can hang on modal state
-timeout_s: 600
+timeout_s: 180

@@ -24,4 +24,4 @@ teardown_macos: |
   rm -rf ~/bench-work
   killall TextEdit 2>/dev/null || true
   killall Safari 2>/dev/null || true
-timeout_s: 600
+timeout_s: 180

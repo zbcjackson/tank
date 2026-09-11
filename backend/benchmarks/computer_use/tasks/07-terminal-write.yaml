@@ -20,4 +20,4 @@ teardown_macos: |
   # Close Terminal windows that aren't running anything — the benchmark
   # itself lives in a busy one, so only the agent's leftover windows go.
   osascript -e 'tell application "Terminal" to close (every window whose busy is false)' 2>/dev/null || true
-timeout_s: 420
+timeout_s: 60

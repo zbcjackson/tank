@@ -63,3 +63,6 @@ FINAL_STRUCTURE.md
 
 .worktrees/
 .zvec-grep/
+
+# Benchmark run artifacts (reports/traces/screenshots)
+backend/benchmarks/*/reports/
