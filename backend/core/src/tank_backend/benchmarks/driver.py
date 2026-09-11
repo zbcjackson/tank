@@ -47,8 +47,9 @@ class DriverResult:
     screenshots: int
     timed_out: bool
     error: str | None = None
-    # LLM latency (trial level): call count, median time-to-first-token,
-    # median per-call total, and total seconds spent in LLM calls.
+    # LLM latency (trial level): API call (model round-trip) count,
+    # median time-to-first-token, median per-call total, and total
+    # seconds spent in LLM calls.
     llm_calls: int = 0
     llm_ttft_s: float = 0.0
     llm_call_s: float = 0.0
@@ -65,23 +66,26 @@ class BenchmarkDriver(Protocol):
 
 
 class CountingLLM:
-    """Transparent LLM wrapper that accumulates token usage per run.
+    """Transparent LLM wrapper that accumulates token usage and API latency.
 
     AgentRunner consumes USAGE outputs internally (budget enforcement)
     without forwarding them, so token totals are captured here at the
     transport seam instead. ``run_agent`` only uses ``self._llm`` when
     ``app_config`` is None — SubAgentDriver relies on exactly that.
 
-    Also times every ``chat_stream`` call (time-to-first-token and total)
-    so provider latency is visible per call in the console, the trace,
-    and the aggregated report.
+    Timing unit = one model round-trip (API call), not one chat_stream:
+    ``LLM.chat_stream`` runs the whole tool loop internally, so a single
+    call spans N model round-trips delimited by USAGE updates. Each
+    round-trip is timed from the previous boundary to its USAGE update;
+    a stream cancelled mid-round (task timeout) still records the
+    in-flight round so timeout trials show the time the LLM really ate.
     """
 
     def __init__(self, inner: LLM) -> None:
         self._inner = inner
         self.prompt_tokens = 0
         self.completion_tokens = 0
-        # (ttft_s, total_s) per chat_stream call, in call order.
+        # (ttft_s, total_s) per model round-trip, in order.
         self.call_stats: list[tuple[float, float]] = []
         # Optional per-call hook (index, ttft_s, total_s) — the driver
         # wires this to TraceSink so latency lands in trace.jsonl.
@@ -99,27 +103,37 @@ class CountingLLM:
     def __getattr__(self, name: str) -> Any:
         return getattr(self._inner, name)
 
-    async def chat_stream(
-        self, *args: Any, **kwargs: Any
-    ) -> AsyncIterator[tuple[UpdateType, str, dict[str, Any]]]:
-        started = time.monotonic()
-        first_update_at: float | None = None
-        async for update in self._inner.chat_stream(*args, **kwargs):
-            if first_update_at is None:
-                first_update_at = time.monotonic()
-            if update[0] == UpdateType.USAGE:
-                meta = update[2]
-                self.prompt_tokens += int(meta.get("prompt_tokens", 0))
-                self.completion_tokens += int(meta.get("completion_tokens", 0))
-            yield update
-        total = time.monotonic() - started
-        ttft = (first_update_at - started) if first_update_at is not None else 0.0
+    def _record(self, ttft: float, total: float) -> None:
         self.call_stats.append((ttft, total))
         logger.info(
             "LLM call %d: ttft=%.2fs total=%.2fs", len(self.call_stats), ttft, total
         )
         if self.on_call is not None:
             self.on_call(len(self.call_stats), ttft, total)
+
+    async def chat_stream(
+        self, *args: Any, **kwargs: Any
+    ) -> AsyncIterator[tuple[UpdateType, str, dict[str, Any]]]:
+        round_start = time.monotonic()
+        ttft: float | None = None
+        try:
+            async for update in self._inner.chat_stream(*args, **kwargs):
+                if ttft is None:
+                    ttft = time.monotonic() - round_start
+                if update[0] == UpdateType.USAGE:
+                    meta = update[2]
+                    self.prompt_tokens += int(meta.get("prompt_tokens", 0))
+                    self.completion_tokens += int(meta.get("completion_tokens", 0))
+                    self._record(ttft, time.monotonic() - round_start)
+                    round_start = time.monotonic()
+                    ttft = None
+                yield update
+        except BaseException:
+            # Cancellation (task timeout / max-steps abort) or a stream
+            # error: the in-flight round still consumed wall time.
+            if ttft is not None or time.monotonic() - round_start > 0.01:
+                self._record(ttft or 0.0, time.monotonic() - round_start)
+            raise
 
 
 class TracedScreenshotTool(BaseTool):

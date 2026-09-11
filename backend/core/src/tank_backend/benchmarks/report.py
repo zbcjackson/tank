@@ -62,6 +62,13 @@ class SuiteReport:
     ci_lo: float
     ci_hi: float
     tasks: dict[str, TaskStats]
+    # Suite-level LLM latency: API calls (model round-trips) across all
+    # trials, median ttft of trial medians, total-weighted mean per call,
+    # and total seconds spent in LLM calls.
+    llm_calls_total: int = 0
+    llm_ttft_s: float = 0.0
+    llm_call_s_mean: float = 0.0
+    llm_total_s: float = 0.0
 
 
 def _median(records: list[TrialRecord], key: str) -> float:
@@ -97,6 +104,8 @@ def aggregate(records: list[TrialRecord]) -> SuiteReport:
     total = len(records)
     successes = sum(1 for r in records if r.success)
     lo, hi = wilson_interval(successes, total)
+    llm_calls_total = sum(r.llm_calls for r in records)
+    llm_total_s = sum(r.llm_total_s for r in records)
     return SuiteReport(
         total_trials=total,
         successes=successes,
@@ -104,6 +113,10 @@ def aggregate(records: list[TrialRecord]) -> SuiteReport:
         ci_lo=lo,
         ci_hi=hi,
         tasks=task_stats,
+        llm_calls_total=llm_calls_total,
+        llm_ttft_s=statistics.median([r.llm_ttft_s for r in records]) if records else 0.0,
+        llm_call_s_mean=(llm_total_s / llm_calls_total) if llm_calls_total else 0.0,
+        llm_total_s=llm_total_s,
     )
 
 
@@ -149,6 +162,13 @@ def write_markdown_report(
             f"| {t.medians['llm_ttft_s']:.1f} | {t.medians['llm_call_s']:.1f} "
             f"| {t.medians['llm_total_s']:.0f} |"
         )
+    lines += [
+        "",
+        f"- API calls total: {report.llm_calls_total}, "
+        f"mean {report.llm_call_s_mean:.1f}s/call, "
+        f"median ttft {report.llm_ttft_s:.1f}s, "
+        f"LLM time total {report.llm_total_s:.0f}s",
+    ]
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -161,6 +181,12 @@ def write_json_report(report: SuiteReport, out: Path, *, label: str) -> None:
             "success_rate": report.success_rate,
             "ci_lo": report.ci_lo,
             "ci_hi": report.ci_hi,
+            "llm": {
+                "calls_total": report.llm_calls_total,
+                "ttft_s_median": report.llm_ttft_s,
+                "call_s_mean": report.llm_call_s_mean,
+                "total_s": report.llm_total_s,
+            },
         },
         "tasks": {tid: asdict(t) for tid, t in sorted(report.tasks.items())},
     }

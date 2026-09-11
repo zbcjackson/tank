@@ -77,9 +77,11 @@ async def test_counting_llm_accumulates_usage_and_delegates():
     assert counting.total_tokens == 0
 
 
-async def test_counting_llm_times_each_call():
+async def test_counting_llm_times_each_model_round_trip():
+    # _FakeInnerLLM streams TEXT + 2 USAGE — one chat_stream call spans
+    # TWO model round-trips (LLM.chat_stream runs the tool loop inside),
+    # each delimited by a USAGE update. Both must be timed separately.
     counting = CountingLLM(_FakeInnerLLM())  # type: ignore[arg-type]
-    _ = [u async for u in counting.chat_stream()]
     _ = [u async for u in counting.chat_stream()]
     assert len(counting.call_stats) == 2
     for ttft, total in counting.call_stats:
@@ -88,11 +90,38 @@ async def test_counting_llm_times_each_call():
     assert counting.call_stats == []
 
 
+async def test_counting_llm_records_round_cancelled_mid_stream():
+    # A task timeout cancels chat_stream mid-round; the in-flight API
+    # call still consumed wall time and must be recorded (real bug:
+    # timeout trials reported llm_calls=0 because timing only ran after
+    # the loop completed).
+    import asyncio
+
+    import pytest
+
+    class _StallingLLM:
+        async def chat_stream(self, *args, **kwargs):
+            yield (UpdateType.TEXT, "partial", {})
+            await asyncio.sleep(30)
+            yield (UpdateType.USAGE, "", {"prompt_tokens": 1, "completion_tokens": 1})
+
+    counting = CountingLLM(cast(Any, _StallingLLM()))
+
+    async def consume() -> None:
+        _ = [u async for u in counting.chat_stream()]
+
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(consume(), timeout=0.05)
+    assert len(counting.call_stats) == 1
+    ttft, total = counting.call_stats[0]
+    assert ttft >= 0.0
+    assert total >= 0.05  # the cancelled in-flight round
+
+
 async def test_counting_llm_reports_calls_via_callback():
     seen: list[tuple[int, float, float]] = []
     counting = CountingLLM(_FakeInnerLLM())  # type: ignore[arg-type]
     counting.on_call = lambda call, ttft, total: seen.append((call, ttft, total))
-    _ = [u async for u in counting.chat_stream()]
     _ = [u async for u in counting.chat_stream()]
     assert [s[0] for s in seen] == [1, 2]
     assert seen[0][1] <= seen[0][2]
@@ -269,11 +298,11 @@ async def test_driver_result_carries_llm_latency():
             if '"llm_call"' in line
         ]
         trace.close()
-    assert result.llm_calls == 1
+    assert result.llm_calls == 2  # _FakeInnerLLM emits two USAGE round-trips
     assert result.llm_ttft_s >= 0.0
     assert result.llm_call_s > 0.0
     assert result.llm_total_s >= result.llm_call_s
-    assert len(llm_events) == 1
+    assert len(llm_events) == 2
 
 
 async def test_max_steps_aborts_on_executed_calls():

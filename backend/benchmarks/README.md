@@ -53,13 +53,17 @@ uv run python -m tank_backend.benchmarks \
 ## 指标（含 LLM 延迟）
 
 每个 trial 记录：成败（副作用判定）、步数、总耗时、token、截图数，以及 **LLM 延迟**——
-每次 `chat_stream` 调用的 ttft（首 token 延迟）与总时长。三个地方可看：
+按**模型往返（一次 API 调用）**计的 ttft（首 token 延迟）与总时长（一次 `chat_stream`
+内部跑整个工具循环，含 N 次往返，以 USAGE 边界切分；超时被取消的在途往返也计入）。
+三个地方可看：
 
 - **控制台**：每次调用实时打印 `LLM call N: ttft=X.XXs total=Y.YYs`；每 trial 结束打印
   `llm=Ncalls ttft=…/call=…/total=…`（换 provider 前后直接对比这两行）
 - **trace.jsonl**：每条 `llm_call` 事件（call/ttft_s/total_s）；`driver_done` 汇总
 - **report.md / report.json**：主表（成功率/步数/耗时/token）+ "LLM latency (per call)"
-  表（每任务中位 ttft、单调用中位时长、LLM 总时长）——耗时与 LLM 延迟都是正式对比指标
+  表（每任务调用次数中位、ttft 中位、单调用时长中位、LLM 总时长）+ 套件级
+  `API calls total / mean s per call / median ttft / LLM total`——耗时与 LLM 延迟
+  都是正式对比指标
 
 ## 结构与演进
 

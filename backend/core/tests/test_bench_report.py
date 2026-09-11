@@ -78,11 +78,17 @@ def test_aggregate_includes_llm_latency_medians():
         _record("a", True, llm_calls=4, llm_ttft_s=3.0, llm_call_s=7.0, llm_total_s=28.0),
         _record("a", False, llm_calls=6, llm_ttft_s=2.0, llm_call_s=6.0, llm_total_s=36.0),
     ]
-    a = aggregate(records).tasks["a"]
+    report = aggregate(records)
+    a = report.tasks["a"]
     assert a.medians["llm_calls"] == 4
     assert a.medians["llm_ttft_s"] == 2.0
     assert a.medians["llm_call_s"] == 6.0
     assert a.medians["llm_total_s"] == 28.0
+    # Suite level: calls/mean/ttft/total for provider comparison
+    assert report.llm_calls_total == 12
+    assert report.llm_total_s == 74.0
+    assert report.llm_call_s_mean == 74.0 / 12
+    assert report.llm_ttft_s == 2.0
 
 
 def test_aggregate_empty():
@@ -105,6 +111,7 @@ def test_markdown_report_contains_table(tmp_path):
     assert "baseline-macos" in text
     assert "LLM latency" in text
     assert "ttft" in text
+    assert "API calls total" in text
 
 
 def test_json_report_roundtrip(tmp_path):
