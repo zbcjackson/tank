@@ -6,11 +6,16 @@
 #
 # 环境钉死（跑批前人工执行）：
 #   - 输入法（最确定）：系统设置→键盘→输入法，临时只保留 ABC/英文，跑完再加回中文。
-#     必须复查真的删掉了（iCloud 输入法同步会加回来）：
-#       defaults read com.apple.HIToolbox AppleEnabledInputSources
-#     输出不应含 com.apple.inputmethod.SCIM——残留的中文 IME 会按 App 粘滞在被
-#     agent 打开的 Terminal/Finder 里吃掉合成按键的裸 - 和 .（2026-09-10 实证）。
-#     同时勾选"所有文稿使用同一输入源"可关掉按 App 粘滞，作为兜底。
+#     注意 plist 幽灵条目常见且多为惰性（UI 只显示 ABC 但 defaults 里仍见 SCIM），
+#     以行为门为准——Terminal 窗口前台时跑打字复验：
+#       cd backend/core && uv run python -c "
+#       import subprocess, time
+#       subprocess.run(['osascript','-e','tell application \"Terminal\" to activate'])
+#       time.sleep(1.5)
+#       from tank_backend.tools.computer_use_macos import _type_macos
+#       _type_macos('MARK-x-y.z-1-END')"
+#     打出完整字符串即可开跑（丢 -/. 说明前台 App 仍粘滞中文 IME——2026-09-10 实证，
+#     残留 IME 会吃掉合成按键的裸 - 和 .）。勾选"所有文稿使用同一输入源"可作兜底。
 #     自动钉定为尽力而为，无法改前台 App 的粘滞输入源
 #   - 只接一块显示器（v1 单屏假设：截屏只含主屏，新 App 出现在最近
 #     有焦点的屏幕上，双屏会让模型看不到自己启动的应用）
