@@ -16,11 +16,15 @@ from tank_backend.benchmarks.report import (
 
 
 def _record(task: str, ok: bool, *, steps: int = 10, wall_s: float = 30.0,
-            tokens: int = 1000, shots: int = 5, error: str | None = None) -> TrialRecord:
+            tokens: int = 1000, shots: int = 5, error: str | None = None,
+            llm_calls: int = 4, llm_ttft_s: float = 2.0,
+            llm_call_s: float = 6.0, llm_total_s: float = 24.0) -> TrialRecord:
     return TrialRecord(
         task_id=task, trial=1, success=ok, error=error,
         steps=steps, wall_s=wall_s, tokens=tokens, screenshots=shots,
         timed_out=False,
+        llm_calls=llm_calls, llm_ttft_s=llm_ttft_s,
+        llm_call_s=llm_call_s, llm_total_s=llm_total_s,
     )
 
 
@@ -68,6 +72,19 @@ def test_aggregate_per_task_and_overall():
     assert report.tasks["b"].successes == 1
 
 
+def test_aggregate_includes_llm_latency_medians():
+    records = [
+        _record("a", True, llm_calls=2, llm_ttft_s=1.0, llm_call_s=5.0, llm_total_s=10.0),
+        _record("a", True, llm_calls=4, llm_ttft_s=3.0, llm_call_s=7.0, llm_total_s=28.0),
+        _record("a", False, llm_calls=6, llm_ttft_s=2.0, llm_call_s=6.0, llm_total_s=36.0),
+    ]
+    a = aggregate(records).tasks["a"]
+    assert a.medians["llm_calls"] == 4
+    assert a.medians["llm_ttft_s"] == 2.0
+    assert a.medians["llm_call_s"] == 6.0
+    assert a.medians["llm_total_s"] == 28.0
+
+
 def test_aggregate_empty():
     report = aggregate([])
     assert report.total_trials == 0
@@ -86,6 +103,8 @@ def test_markdown_report_contains_table(tmp_path):
     assert "A17 baseline" in text
     assert "| a |" in text
     assert "baseline-macos" in text
+    assert "LLM latency" in text
+    assert "ttft" in text
 
 
 def test_json_report_roundtrip(tmp_path):

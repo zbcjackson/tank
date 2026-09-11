@@ -87,8 +87,11 @@ async def run_suite(
                 records.append(record)
                 task_records.append(record)
                 logger.info(
-                    "task=%s trial=%d success=%s steps=%d wall=%.1fs",
+                    "task=%s trial=%d success=%s steps=%d wall=%.1fs "
+                    "llm=%dcalls ttft=%.1fs/call=%.1fs total=%.1fs",
                     task.id, trial, record.success, record.steps, record.wall_s,
+                    record.llm_calls, record.llm_ttft_s, record.llm_call_s,
+                    record.llm_total_s,
                 )
             passed = sum(1 for r in task_records if r.success)
             logger.info(
@@ -187,6 +190,10 @@ async def _run_trial(
         tokens=result.tokens if result else 0,
         screenshots=result.screenshots if result else 0,
         timed_out=timed_out,
+        llm_calls=result.llm_calls if result else 0,
+        llm_ttft_s=result.llm_ttft_s if result else 0.0,
+        llm_call_s=result.llm_call_s if result else 0.0,
+        llm_total_s=result.llm_total_s if result else 0.0,
     )
     (trial_dir / "result.json").write_text(
         json.dumps(
@@ -200,6 +207,10 @@ async def _run_trial(
                 "tokens": record.tokens,
                 "screenshots": record.screenshots,
                 "timed_out": record.timed_out,
+                "llm_calls": record.llm_calls,
+                "llm_ttft_s": record.llm_ttft_s,
+                "llm_call_s": record.llm_call_s,
+                "llm_total_s": record.llm_total_s,
             },
             ensure_ascii=False,
             indent=2,

@@ -12,9 +12,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from pathlib import Path
+from statistics import median
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from ..agents.approval import PendingToolCallStore
@@ -46,6 +47,12 @@ class DriverResult:
     screenshots: int
     timed_out: bool
     error: str | None = None
+    # LLM latency (trial level): call count, median time-to-first-token,
+    # median per-call total, and total seconds spent in LLM calls.
+    llm_calls: int = 0
+    llm_ttft_s: float = 0.0
+    llm_call_s: float = 0.0
+    llm_total_s: float = 0.0
 
 
 class BenchmarkDriver(Protocol):
@@ -64,16 +71,26 @@ class CountingLLM:
     without forwarding them, so token totals are captured here at the
     transport seam instead. ``run_agent`` only uses ``self._llm`` when
     ``app_config`` is None — SubAgentDriver relies on exactly that.
+
+    Also times every ``chat_stream`` call (time-to-first-token and total)
+    so provider latency is visible per call in the console, the trace,
+    and the aggregated report.
     """
 
     def __init__(self, inner: LLM) -> None:
         self._inner = inner
         self.prompt_tokens = 0
         self.completion_tokens = 0
+        # (ttft_s, total_s) per chat_stream call, in call order.
+        self.call_stats: list[tuple[float, float]] = []
+        # Optional per-call hook (index, ttft_s, total_s) — the driver
+        # wires this to TraceSink so latency lands in trace.jsonl.
+        self.on_call: Callable[[int, float, float], None] | None = None
 
     def reset(self) -> None:
         self.prompt_tokens = 0
         self.completion_tokens = 0
+        self.call_stats = []
 
     @property
     def total_tokens(self) -> int:
@@ -85,12 +102,24 @@ class CountingLLM:
     async def chat_stream(
         self, *args: Any, **kwargs: Any
     ) -> AsyncIterator[tuple[UpdateType, str, dict[str, Any]]]:
+        started = time.monotonic()
+        first_update_at: float | None = None
         async for update in self._inner.chat_stream(*args, **kwargs):
+            if first_update_at is None:
+                first_update_at = time.monotonic()
             if update[0] == UpdateType.USAGE:
                 meta = update[2]
                 self.prompt_tokens += int(meta.get("prompt_tokens", 0))
                 self.completion_tokens += int(meta.get("completion_tokens", 0))
             yield update
+        total = time.monotonic() - started
+        ttft = (first_update_at - started) if first_update_at is not None else 0.0
+        self.call_stats.append((ttft, total))
+        logger.info(
+            "LLM call %d: ttft=%.2fs total=%.2fs", len(self.call_stats), ttft, total
+        )
+        if self.on_call is not None:
+            self.on_call(len(self.call_stats), ttft, total)
 
 
 class TracedScreenshotTool(BaseTool):
@@ -267,6 +296,10 @@ class SubAgentDriver:
     ) -> DriverResult:
         self._trace = trace
         self._llm.reset()
+        # Per-call latency lands in the trace next to the actions it delays.
+        self._llm.on_call = lambda call, ttft, total: trace.event(
+            "llm_call", call=call, ttft_s=ttft, total_s=total
+        )
         messages: list[dict[str, Any]] = [{"role": "user", "content": instruction}]
         steps = 0
         token_parts: list[str] = []
@@ -298,6 +331,13 @@ class SubAgentDriver:
             stopped_reason = f"timeout({timeout_s}s)"
 
         wall_s = time.monotonic() - start
+        call_stats = self._llm.call_stats
+        ttfts = [t for t, _ in call_stats]
+        totals = [t for _, t in call_stats]
+        llm_calls = len(call_stats)
+        llm_ttft_s = median(ttfts) if ttfts else 0.0
+        llm_call_s = median(totals) if totals else 0.0
+        llm_total_s = sum(totals)
         trace.event(
             "driver_done",
             steps=steps,
@@ -305,7 +345,12 @@ class SubAgentDriver:
             wall_s=wall_s,
             timed_out=timed_out,
             stopped_reason=stopped_reason,
+            llm_calls=llm_calls,
+            llm_ttft_s=llm_ttft_s,
+            llm_call_s=llm_call_s,
+            llm_total_s=llm_total_s,
         )
+        self._llm.on_call = None
         self._trace = None
         return DriverResult(
             final_text="".join(token_parts),
@@ -315,4 +360,8 @@ class SubAgentDriver:
             screenshots=trace.screenshot_count,
             timed_out=timed_out,
             error=stopped_reason,
+            llm_calls=llm_calls,
+            llm_ttft_s=llm_ttft_s,
+            llm_call_s=llm_call_s,
+            llm_total_s=llm_total_s,
         )

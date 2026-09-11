@@ -50,6 +50,17 @@ uv run python -m tank_backend.benchmarks \
 - 为什么这么慢：串行「截图→视觉 LLM→动作」× 每任务多步 × 多 trial，失败 trial 烧满
   超时；并行化/降分辨率/batch 属于被测对象，中途改会让前后数据不可比
 
+## 指标（含 LLM 延迟）
+
+每个 trial 记录：成败（副作用判定）、步数、总耗时、token、截图数，以及 **LLM 延迟**——
+每次 `chat_stream` 调用的 ttft（首 token 延迟）与总时长。三个地方可看：
+
+- **控制台**：每次调用实时打印 `LLM call N: ttft=X.XXs total=Y.YYs`；每 trial 结束打印
+  `llm=Ncalls ttft=…/call=…/total=…`（换 provider 前后直接对比这两行）
+- **trace.jsonl**：每条 `llm_call` 事件（call/ttft_s/total_s）；`driver_done` 汇总
+- **report.md / report.json**：主表（成功率/步数/耗时/token）+ "LLM latency (per call)"
+  表（每任务中位 ttft、单调用中位时长、LLM 总时长）——耗时与 LLM 延迟都是正式对比指标
+
 ## 结构与演进
 
 ```

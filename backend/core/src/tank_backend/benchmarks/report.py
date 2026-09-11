@@ -37,6 +37,11 @@ class TrialRecord:
     tokens: int
     screenshots: int
     timed_out: bool
+    # LLM latency (see DriverResult); defaults keep older constructors valid.
+    llm_calls: int = 0
+    llm_ttft_s: float = 0.0
+    llm_call_s: float = 0.0
+    llm_total_s: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -80,7 +85,13 @@ def aggregate(records: list[TrialRecord]) -> SuiteReport:
             success_rate=successes / len(recs),
             ci_lo=lo,
             ci_hi=hi,
-            medians={k: _median(recs, k) for k in ("steps", "wall_s", "tokens", "screenshots")},
+            medians={
+                k: _median(recs, k)
+                for k in (
+                    "steps", "wall_s", "tokens", "screenshots",
+                    "llm_calls", "llm_ttft_s", "llm_call_s", "llm_total_s",
+                )
+            },
         )
 
     total = len(records)
@@ -121,6 +132,22 @@ def write_markdown_report(
             f"| {_fmt_pct(t.ci_lo)}–{_fmt_pct(t.ci_hi)} "
             f"| {t.medians['steps']:.0f} | {t.medians['wall_s']:.0f} "
             f"| {t.medians['tokens']:.0f} | {t.medians['screenshots']:.0f} |"
+        )
+
+    # Per-call LLM latency — the knob to turn when comparing providers.
+    lines += [
+        "",
+        "## LLM latency (per call)",
+        "",
+        "| task | calls (med) | ttft s (med) | call s (med) | llm total s (med) |",
+        "|---|---|---|---|---|",
+    ]
+    for task_id in sorted(report.tasks):
+        t = report.tasks[task_id]
+        lines.append(
+            f"| {task_id} | {t.medians['llm_calls']:.0f} "
+            f"| {t.medians['llm_ttft_s']:.1f} | {t.medians['llm_call_s']:.1f} "
+            f"| {t.medians['llm_total_s']:.0f} |"
         )
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

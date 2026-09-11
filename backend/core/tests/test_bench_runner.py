@@ -77,6 +77,27 @@ async def test_counting_llm_accumulates_usage_and_delegates():
     assert counting.total_tokens == 0
 
 
+async def test_counting_llm_times_each_call():
+    counting = CountingLLM(_FakeInnerLLM())  # type: ignore[arg-type]
+    _ = [u async for u in counting.chat_stream()]
+    _ = [u async for u in counting.chat_stream()]
+    assert len(counting.call_stats) == 2
+    for ttft, total in counting.call_stats:
+        assert 0.0 <= ttft <= total
+    counting.reset()
+    assert counting.call_stats == []
+
+
+async def test_counting_llm_reports_calls_via_callback():
+    seen: list[tuple[int, float, float]] = []
+    counting = CountingLLM(_FakeInnerLLM())  # type: ignore[arg-type]
+    counting.on_call = lambda call, ttft, total: seen.append((call, ttft, total))
+    _ = [u async for u in counting.chat_stream()]
+    _ = [u async for u in counting.chat_stream()]
+    assert [s[0] for s in seen] == [1, 2]
+    assert seen[0][1] <= seen[0][2]
+
+
 def test_disable_langfuse_tracing(monkeypatch):
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
     monkeypatch.setenv("LANGFUSE_HOST", "http://x")
@@ -201,6 +222,58 @@ async def test_steps_count_executed_calls_not_deltas():
     assert result.steps == 5
     assert result.error is None
     assert result.timed_out is False
+    # No LLM call was made by the stub — latency fields stay at zero.
+    assert result.llm_calls == 0
+    assert result.llm_total_s == 0.0
+
+
+class _LlmCallingRunner(_StubRunner):
+    """Stub runner that first makes one real chat_stream call."""
+
+    def __init__(self, llm: CountingLLM) -> None:
+        super().__init__(tool_calls=1)
+        self._llm = llm
+
+    async def run_agent(self, agent_def, messages, **kwargs):
+        _ = [u async for u in self._llm.chat_stream()]
+        async for out in super().run_agent(agent_def, messages, **kwargs):
+            yield out
+
+
+async def test_driver_result_carries_llm_latency():
+    from unittest.mock import MagicMock
+
+    from tank_backend.agents.definition import AgentDefinition
+    from tank_backend.benchmarks.driver import SubAgentDriver
+
+    agent_def = AgentDefinition(
+        name="stub", description="", system_prompt="",
+        disallowed_tools=frozenset(), toolset="computer_use", tool_filter=None,
+        skills=(), background=False, token_budget=0, model=None,
+    )
+    from tank_backend.llm.llm import LLM
+
+    llm = CountingLLM(cast(LLM, _FakeInnerLLM()))
+    driver = SubAgentDriver(
+        runner=cast(Any, _LlmCallingRunner(llm)),
+        agent_def=agent_def,
+        llm=llm,
+        tool_manager=MagicMock(),
+    )
+    with tempfile.TemporaryDirectory() as td:
+        trace = TraceSink(Path(td) / "t")
+        result = await driver.run("do it", trace, timeout_s=10, max_steps=10)
+        llm_events = [
+            json.loads(line)
+            for line in (Path(td) / "t" / "trace.jsonl").read_text().splitlines()
+            if '"llm_call"' in line
+        ]
+        trace.close()
+    assert result.llm_calls == 1
+    assert result.llm_ttft_s >= 0.0
+    assert result.llm_call_s > 0.0
+    assert result.llm_total_s >= result.llm_call_s
+    assert len(llm_events) == 1
 
 
 async def test_max_steps_aborts_on_executed_calls():
@@ -296,7 +369,10 @@ async def test_run_suite_pass_setup_validate_report(tmp_path):
                 "bash", "-c", f"mkdir -p {work} && touch {work}/{tid}.flag"
             )
             await proc.wait()
-            return DriverResult("done", 3, 1.0, 42, 2, False, None)
+            return DriverResult(
+                "done", 3, 1.0, 42, 2, False, None,
+                llm_calls=3, llm_ttft_s=1.5, llm_call_s=2.5, llm_total_s=7.5,
+            )
 
     out = tmp_path / "out"
     report = await run_suite(
@@ -314,7 +390,10 @@ async def test_run_suite_pass_setup_validate_report(tmp_path):
     trial_dir = out / "trials" / "t1" / "1"
     assert (trial_dir / "trace.jsonl").exists()
     assert (trial_dir / "result.json").exists()
-    assert json.loads((trial_dir / "result.json").read_text())["success"] is True
+    result_json = json.loads((trial_dir / "result.json").read_text())
+    assert result_json["success"] is True
+    assert result_json["llm_calls"] == 3
+    assert result_json["llm_ttft_s"] == 1.5
     # teardown removed the workspace
     assert not work.exists()
 
