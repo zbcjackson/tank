@@ -326,7 +326,9 @@ def test_negotiation_switches_downlink_to_opus(harness):
         rate = OPUS_PROFILE["downlink"]["sample_rate"]
         pcm = _speech_noise(rate, rate, seed=5)  # 1 s = 50 frames
         # Feed the whole second via the captured playback callback.
-        step = rate * 20 // 1000 * 2  # one 20 ms frame per chunk
+        # Step is in SAMPLES (pcm is an array, not bytes) — one 20 ms
+        # frame per chunk so each packet decodes at frame_size below.
+        step = rate * 20 // 1000
         for i in range(0, len(pcm) - step + 1, step):
             harness.callbacks["playback"](
                 AudioChunk(data=pcm[i : i + step].tobytes(),
