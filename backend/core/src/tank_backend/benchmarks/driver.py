@@ -111,6 +111,20 @@ class CountingLLM:
         if self.on_call is not None:
             self.on_call(len(self.call_stats), ttft, total)
 
+    @staticmethod
+    def _is_model_output(update: tuple[UpdateType, str, dict[str, Any]]) -> bool:
+        """True for model-generated updates (skips local tool echoes).
+
+        TOOL "calling" deltas are streamed model output; "success"/
+        "error" results and TOOL_EXECUTING come from the local executor
+        microseconds after the round boundary — counting those as ttft
+        reports 0.0 for every round.
+        """
+        kind, _, metadata = update
+        return kind in (UpdateType.TEXT, UpdateType.THOUGHT) or (
+            kind == UpdateType.TOOL and metadata.get("status") == "calling"
+        )
+
     async def chat_stream(
         self, *args: Any, **kwargs: Any
     ) -> AsyncIterator[tuple[UpdateType, str, dict[str, Any]]]:
@@ -118,13 +132,13 @@ class CountingLLM:
         ttft: float | None = None
         try:
             async for update in self._inner.chat_stream(*args, **kwargs):
-                if ttft is None:
+                if ttft is None and self._is_model_output(update):
                     ttft = time.monotonic() - round_start
                 if update[0] == UpdateType.USAGE:
                     meta = update[2]
                     self.prompt_tokens += int(meta.get("prompt_tokens", 0))
                     self.completion_tokens += int(meta.get("completion_tokens", 0))
-                    self._record(ttft, time.monotonic() - round_start)
+                    self._record(ttft or 0.0, time.monotonic() - round_start)
                     round_start = time.monotonic()
                     ttft = None
                 yield update

@@ -127,6 +127,26 @@ async def test_counting_llm_reports_calls_via_callback():
     assert seen[0][1] <= seen[0][2]
 
 
+async def test_ttft_skips_local_tool_echoes():
+    # TOOL success/error updates come from the local executor right
+    # after the round boundary; ttft must wait for real model output
+    # (TEXT/THOUGHT/TOOL "calling"), or every round reports 0.0.
+    import asyncio
+
+    class _ToolEchoLLM:
+        async def chat_stream(self, *args, **kwargs):
+            yield (UpdateType.TOOL, "ok", {"status": "success"})
+            await asyncio.sleep(0.05)
+            yield (UpdateType.TEXT, "hi", {})
+            yield (UpdateType.USAGE, "", {"prompt_tokens": 1, "completion_tokens": 1})
+
+    counting = CountingLLM(cast(Any, _ToolEchoLLM()))
+    _ = [u async for u in counting.chat_stream()]
+    ttft, total = counting.call_stats[0]
+    assert ttft >= 0.05  # measured at the TEXT, not the instant tool echo
+    assert total >= ttft
+
+
 def test_disable_langfuse_tracing(monkeypatch):
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk")
     monkeypatch.setenv("LANGFUSE_HOST", "http://x")
