@@ -293,9 +293,15 @@ def _paste_linux(text: str) -> None:
         raise RuntimeError(
             "no clipboard tool found — install wl-clipboard (Wayland) or xclip"
         )
-    proc = sp.run(copy_cmd, input=text.encode(), capture_output=True, timeout=5)
+    # wl-copy/xclip fork into the background to serve the selection and
+    # the child inherits our pipes — capture_output would block on EOF
+    # until timeout. DEVNULL lets the daemonizing child inherit harmless fds.
+    proc = sp.run(
+        copy_cmd, input=text.encode(),
+        stdout=sp.DEVNULL, stderr=sp.DEVNULL, timeout=5,
+    )
     if proc.returncode != 0:
-        raise RuntimeError(f"clipboard copy failed: {proc.stderr.decode()[:200]}")
+        raise RuntimeError(f"clipboard copy failed (exit {proc.returncode})")
     import time
 
     time.sleep(0.1)  # let the selection register
