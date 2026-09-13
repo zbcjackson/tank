@@ -179,8 +179,16 @@ def _run_pyautogui(func_name: str, *args: Any, **kwargs: Any) -> None:
 # ydotool-based input (works on Wayland via /dev/uinput)
 # ---------------------------------------------------------------------------
 
-_YDOTOOL_BIN = "/tmp/ydotool-extract/usr/bin/ydotool"
+# The historical extract path survives neither reboot nor repo setup —
+# prefer a ydotool on PATH (apt install ydotool), fall back to it.
+_YDOTOOL_FALLBACK_BIN = "/tmp/ydotool-extract/usr/bin/ydotool"
 _YDOTOOL_SOCKET = "/tmp/.ydotool_socket"
+
+
+def _ydotool_binary() -> str:
+    import shutil
+
+    return shutil.which("ydotool") or _YDOTOOL_FALLBACK_BIN
 
 
 def _ydotool_available() -> bool:
@@ -197,7 +205,7 @@ def _run_ydotool(subcmd: str, *args: str) -> None:
     env = os.environ.copy()
     env["YDOTOOL_SOCKET"] = _YDOTOOL_SOCKET
     result = subprocess.run(
-        [_YDOTOOL_BIN, subcmd, *args],
+        [_ydotool_binary(), subcmd, *args],
         capture_output=True, text=True, timeout=5, env=env,
     )
     if result.returncode != 0:
