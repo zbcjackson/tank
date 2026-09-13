@@ -1,6 +1,6 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
-> 状态:阶段 3 实现中(2026-09-13)——设计已批准(§14):EV_ABS 自建绝对指针先行+A3 原语+A9/A8/A6+A15;阶段 2 收口(macOS T1 全绿,Linux 键盘族绿/指针移交本阶段)。执行阶段划分见 §12。
+> 状态:阶段 3 收口(2026-09-13)——macOS T2 全绿(hold_key/scroll clamp/drag 选框铁证);A6 截图 3.3s→0.86s 实测;A3 四原语双平台;Linux 指针仍搁置待 EIS 专项(memory 有完整证据链)。下一步:阶段 4a(A5 审批闸门,安全评审加严)。执行阶段划分见 §12。
 > 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)· 2026-09-09(执行启动+事实修订:plugin.yaml manifest、NotificationHub、A5 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 
