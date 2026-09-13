@@ -442,3 +442,31 @@ class TestTypeTextClipboard:
             result = await m.TypeTextTool().execute(text="你好")
         assert result.error is True
         assert "wl-clipboard" in result.content
+
+
+class TestYdotoolSocketDiscovery:
+    """Ubuntu's systemd ydotoold listens at $XDG_RUNTIME_DIR/.ydotool_socket,
+    not the legacy /tmp path — discovery must find it without manual config."""
+
+    def test_xdg_runtime_dir_socket_found(self, tmp_path, monkeypatch):
+        from tank_backend.tools import computer_use as m
+
+        (tmp_path / ".ydotool_socket").touch()
+        monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+        monkeypatch.delenv("YDOTOOL_SOCKET", raising=False)
+        assert m._ydotool_socket() == str(tmp_path / ".ydotool_socket")
+
+    def test_env_override_wins(self, tmp_path, monkeypatch):
+        from tank_backend.tools import computer_use as m
+
+        override = tmp_path / "custom.sock"
+        override.touch()
+        monkeypatch.setenv("YDOTOOL_SOCKET", str(override))
+        assert m._ydotool_socket() == str(override)
+
+    def test_none_when_no_socket(self, tmp_path, monkeypatch):
+        from tank_backend.tools import computer_use as m
+
+        monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+        monkeypatch.delenv("YDOTOOL_SOCKET", raising=False)
+        assert m._ydotool_socket() is None

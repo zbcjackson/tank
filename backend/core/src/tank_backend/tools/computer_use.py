@@ -182,7 +182,26 @@ def _run_pyautogui(func_name: str, *args: Any, **kwargs: Any) -> None:
 # The historical extract path survives neither reboot nor repo setup —
 # prefer a ydotool on PATH (apt install ydotool), fall back to it.
 _YDOTOOL_FALLBACK_BIN = "/tmp/ydotool-extract/usr/bin/ydotool"
-_YDOTOOL_SOCKET = "/tmp/.ydotool_socket"
+# Socket discovery: env override → distro default under XDG_RUNTIME_DIR
+# (Ubuntu's systemd ydotoold listens at /run/user/<uid>/.ydotool_socket)
+# → legacy /tmp path.
+_YDOTOOL_LEGACY_SOCKET = "/tmp/.ydotool_socket"
+
+
+def _ydotool_socket() -> str | None:
+    import os
+    from pathlib import Path
+
+    candidates: list[str] = []
+    if env_socket := os.environ.get("YDOTOOL_SOCKET"):
+        candidates.append(env_socket)
+    if xdg := os.environ.get("XDG_RUNTIME_DIR"):
+        candidates.append(f"{xdg}/.ydotool_socket")
+    candidates.append(_YDOTOOL_LEGACY_SOCKET)
+    for candidate in candidates:
+        if Path(candidate).exists():
+            return candidate
+    return None
 
 
 def _ydotool_binary() -> str:
@@ -192,9 +211,8 @@ def _ydotool_binary() -> str:
 
 
 def _ydotool_available() -> bool:
-    """Check if ydotool daemon is running."""
-    from pathlib import Path
-    return Path(_YDOTOOL_SOCKET).exists()
+    """Check if a ydotool daemon socket is reachable."""
+    return _ydotool_socket() is not None
 
 
 def _run_ydotool(subcmd: str, *args: str) -> None:
@@ -202,8 +220,11 @@ def _run_ydotool(subcmd: str, *args: str) -> None:
     import os
     import subprocess
 
+    socket = _ydotool_socket()
+    if socket is None:
+        raise RuntimeError("ydotoold is not running (no socket found)")
     env = os.environ.copy()
-    env["YDOTOOL_SOCKET"] = _YDOTOOL_SOCKET
+    env["YDOTOOL_SOCKET"] = socket
     result = subprocess.run(
         [_ydotool_binary(), subcmd, *args],
         capture_output=True, text=True, timeout=5, env=env,
