@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any
 
 from ..core.events import UpdateType
+from ..tools.base import ToolResult
 from .approval import (
     ApprovalGateExecutor,
     PendingToolCallStore,
@@ -32,6 +33,37 @@ _TOOL_STATUS_MAP: dict[str, AgentOutputType] = {
     "success": AgentOutputType.TOOL_RESULT,
     "error": AgentOutputType.TOOL_RESULT,
 }
+
+
+class AllowlistExecutor:
+    """Enforce the agent's advertised toolset at EXECUTION time.
+
+    ``tool_filter``/``exclude_tools`` shape only the schema list sent to
+    the LLM — without this gate a hallucinated tool name that happens to
+    match a registered ToolManager tool executes anyway (observed: a
+    ``computer_use`` benchmark trial called ``run_command``/``file_write``
+    past its toolset). The agent may execute exactly what it was offered.
+    """
+
+    def __init__(self, inner: Any, allowed: set[str]) -> None:
+        self._inner = inner
+        self._allowed = allowed
+
+    async def execute_openai_tool_call(self, tool_call: Any) -> ToolResult | str:
+        name = tool_call.function.name
+        if name not in self._allowed:
+            logger.warning(
+                "Agent tool call '%s' rejected — not in its toolset", name
+            )
+            return ToolResult(
+                content=(
+                    f"tool '{name}' is not available to this agent. "
+                    f"Available tools: {sorted(self._allowed)}"
+                ),
+                display=f"Tool '{name}' not available",
+                error=True,
+            )
+        return await self._inner.execute_openai_tool_call(tool_call)
 
 
 class LLMAgent(Agent):
@@ -114,7 +146,9 @@ class LLMAgent(Agent):
                 current_msg_id_fn=self._current_msg_id_fn,
             )
 
-        return tools, executor
+        # Execute only what was advertised (see AllowlistExecutor).
+        allowed = {t["function"]["name"] for t in tools}
+        return tools, AllowlistExecutor(executor, allowed)
 
     async def run(self, state: AgentState) -> AsyncIterator[AgentOutput]:
         """Stream LLM responses, translating to AgentOutput."""

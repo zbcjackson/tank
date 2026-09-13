@@ -1,10 +1,13 @@
 """Tests for LLMAgent."""
 
-from unittest.mock import MagicMock
+from types import SimpleNamespace
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 from tank_backend.agents.base import AgentOutputType, AgentState
 from tank_backend.agents.llm_agent import LLMAgent, _translate
 from tank_backend.core.events import UpdateType
+from tank_backend.tools.base import ToolResult
 
 
 def _make_llm_gen(events):
@@ -321,3 +324,57 @@ class TestSystemPromptCallback:
             pass
 
         assert captured_kwargs.get("system_prompt_fn") is None
+
+
+class TestLLMAgentExecutionAllowlist:
+    """E3: tool_filter must gate EXECUTION, not just schema advertisement.
+
+    LLMs hallucinate tool names; a hallucinated name that matches a real
+    ToolManager tool would otherwise execute (baseline evidence: a
+    computer_use trial called run_command/file_write/agent past its
+    toolset). The executor must refuse anything not advertised.
+    """
+
+    def _agent(self, tool_filter: list[str] | None) -> LLMAgent:
+        tool_manager = MagicMock()
+        tool_manager.get_openai_tools.return_value = [
+            {"type": "function", "function": {"name": n, "description": n}}
+            for n in ("web_search", "calculator", "weather")
+        ]
+        tool_manager.execute_openai_tool_call = AsyncMock(
+            return_value=ToolResult(content='{"ok": true}', display="ok")
+        )
+        agent = LLMAgent(
+            name="search", llm=MagicMock(), tool_manager=tool_manager,
+            tool_filter=tool_filter,
+        )
+        return agent
+
+    @staticmethod
+    def _call(name: str) -> Any:
+        return SimpleNamespace(
+            function=SimpleNamespace(name=name, arguments="{}")
+        )
+
+    async def test_hallucinated_tool_outside_filter_blocked(self):
+        agent = self._agent(tool_filter=["web_search"])
+        _, executor = agent._get_tools()
+        result = await executor.execute_openai_tool_call(self._call("calculator"))
+        assert isinstance(result, ToolResult)
+        assert result.error
+        assert "not available" in result.content
+        agent._tool_manager.execute_openai_tool_call.assert_not_called()
+
+    async def test_advertised_tool_delegates(self):
+        agent = self._agent(tool_filter=["web_search"])
+        _, executor = agent._get_tools()
+        result = await executor.execute_openai_tool_call(self._call("web_search"))
+        assert isinstance(result, ToolResult)
+        assert not result.error
+        agent._tool_manager.execute_openai_tool_call.assert_awaited_once()
+
+    async def test_no_filter_executes_anything(self):
+        agent = self._agent(tool_filter=None)
+        _, executor = agent._get_tools()
+        await executor.execute_openai_tool_call(self._call("weather"))
+        agent._tool_manager.execute_openai_tool_call.assert_awaited_once()
