@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING
 
 from ..core.content import ImageBlock, TextBlock
 from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
+from .computer_use_common import normalize_keys
 
 if TYPE_CHECKING:
     from ..llm.profile import LLMProfile
@@ -540,18 +541,25 @@ class KeyPressTool(BaseTool):
         )
 
     async def execute(self, keys: str) -> ToolResult:
-        if not keys:
-            return ToolResult(content="key_press: 'keys' is required", error=True)
-
-        key_list = [k.strip() for k in keys.split("+")]
+        # Models sometimes double-encode the argument ('["return"]' or an
+        # actual list) — normalize at the entry, both platforms alike.
+        key_list = normalize_keys(keys)
+        if not key_list:
+            return ToolResult(
+                content=(
+                    "key_press: invalid 'keys' — pass e.g. 'enter', 'cmd+c', "
+                    "'alt+tab' (a JSON array like '[\"return\"]' is accepted)"
+                ),
+                error=True,
+            )
 
         try:
             await asyncio.to_thread(_key_macos, key_list)
         except Exception as e:
             return ToolResult(content=f"key_press: failed: {e}", error=True)
         return ToolResult(
-            content=f"Pressed: {keys}",
-            display=f"Key: {keys}",
+            content=f"Pressed: {'+'.join(key_list)}",
+            display=f"Key: {'+'.join(key_list)}",
         )
 
 

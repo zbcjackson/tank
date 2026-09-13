@@ -373,3 +373,21 @@ class TestLaunchAppTool:
     async def test_empty_name_error(self):
         result = await LaunchAppTool().execute(app_name="")
         assert result.error is True
+
+
+class TestKeyPressToolNormalization:
+    """E2: entry normalization must cover macOS too (same model quirks)."""
+
+    @pytest.mark.asyncio
+    async def test_double_encoded_enter(self):
+        tool = KeyPressTool()
+        with patch("tank_backend.tools.computer_use_macos._key_macos") as mock:
+            result = await tool.execute(keys='["return"]')
+        assert result.error is False
+        mock.assert_called_once_with(["enter"])
+
+    @pytest.mark.asyncio
+    async def test_garbage_keys_errors(self):
+        tool = KeyPressTool()
+        result = await tool.execute(keys="[]]")
+        assert result.error is True

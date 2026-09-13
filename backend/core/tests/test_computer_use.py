@@ -258,6 +258,25 @@ class TestKeyPressTool:
         result = await tool.execute(keys="")
         assert result.error is True
 
+    @pytest.mark.asyncio
+    async def test_double_encoded_json_array(self):
+        """Real qwen artifact from the 2026-09-11 baseline: '["return"]'."""
+        tool = KeyPressTool()
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
+            patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+        ):
+            result = await tool.execute(keys='["return"]')
+        assert result.error is False
+        mock.assert_called_once_with("hotkey", "enter")
+
+    @pytest.mark.asyncio
+    async def test_garbage_keys_errors_with_guidance(self):
+        tool = KeyPressTool()
+        result = await tool.execute(keys="[1, 2]")
+        assert result.error is True
+        assert "enter" in result.content  # valid names listed for self-correction
+
 
 # ---------------------------------------------------------------------------
 # ScrollTool

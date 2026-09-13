@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..core.content import ImageBlock, TextBlock
 from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
+from .computer_use_common import normalize_keys
 
 if TYPE_CHECKING:
     from ..llm.profile import LLMProfile
@@ -398,13 +399,20 @@ class KeyPressTool(BaseTool):
         )
 
     async def execute(self, keys: str) -> ToolResult:
-        if not keys:
-            return ToolResult(content="key_press: 'keys' is required", error=True)
-
-        key_list = [k.strip() for k in keys.split("+")]
+        # Models sometimes double-encode the argument ('["return"]' or an
+        # actual list) — normalize at the entry, both platforms alike.
+        key_list = normalize_keys(keys)
+        if not key_list:
+            return ToolResult(
+                content=(
+                    "key_press: invalid 'keys' — pass e.g. 'enter', 'ctrl+c', "
+                    "'cmd+c' (a JSON array like '[\"return\"]' is accepted)"
+                ),
+                error=True,
+            )
         # Map common aliases
         alias_map = {"ctrl": "ctrl", "cmd": "command", "win": "win", "alt": "alt"}
-        mapped = [alias_map.get(k.lower(), k.lower()) for k in key_list]
+        mapped = [alias_map.get(k, k) for k in key_list]
 
         try:
             if _ydotool_available():
@@ -414,8 +422,8 @@ class KeyPressTool(BaseTool):
         except Exception as e:
             return ToolResult(content=f"key_press: failed: {e}", error=True)
         return ToolResult(
-            content=f"Pressed: {keys}",
-            display=f"Key: {keys}",
+            content=f"Pressed: {'+'.join(mapped)}",
+            display=f"Key: {'+'.join(mapped)}",
         )
 
 
