@@ -22,12 +22,41 @@ from typing import TYPE_CHECKING, Any
 
 from ..core.content import ImageBlock, TextBlock
 from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
-from .computer_use_common import normalize_keys
+from .computer_use_common import (
+    COORDINATE_NOTE,
+    COORDINATE_X_DESCRIPTION,
+    COORDINATE_Y_DESCRIPTION,
+    normalize_keys,
+    normalize_point,
+    normalized_to_pixel,
+)
 
 if TYPE_CHECKING:
     from ..llm.profile import LLMProfile
 
 logger = logging.getLogger(__name__)
+
+# Screen size in pixels, refreshed from every screenshot (PNG IHDR).
+# Coordinate tools convert 0-1000 normalized input to pixels with it.
+_screen_size: tuple[int, int] | None = None
+_DEFAULT_SCREEN_SIZE = (1920, 1080)
+
+
+def _png_size(png: bytes) -> tuple[int, int]:
+    """Read width/height from the PNG IHDR chunk."""
+    import struct
+
+    width, height = struct.unpack(">II", png[16:24])
+    return width, height
+
+
+def _to_pixel(nx: int, ny: int) -> tuple[int, int]:
+    size = _screen_size or _DEFAULT_SCREEN_SIZE
+    if _screen_size is None:
+        logger.warning(
+            "screen size unknown; assuming %s until next screenshot", size
+        )
+    return normalized_to_pixel(nx, ny, size)
 
 
 def _capture_screenshot(monitor_index: int = 0) -> bytes:
@@ -253,6 +282,7 @@ class ScreenshotTool(BaseTool):
         )
 
     async def execute(self, task: str = "") -> ToolResult:
+        global _screen_size
         try:
             png_bytes = await asyncio.to_thread(_capture_screenshot)
         except Exception as e:
@@ -262,11 +292,18 @@ class ScreenshotTool(BaseTool):
                 error=True,
             )
 
+        # Refresh the size cache coordinate tools convert against.
+        size = _png_size(png_bytes)
+        if size[0] and size[1]:
+            _screen_size = size
+
         b64 = base64.b64encode(png_bytes).decode()
         data_url = f"data:image/png;base64,{b64}"
 
+        note = f"Screenshot captured. {COORDINATE_NOTE}"
+        text = f"{note} {task}" if task else note
         content = [
-            TextBlock(text=f"Screenshot captured. {task}" if task else "Screenshot captured."),
+            TextBlock(text=text),
             ImageBlock(source=data_url, mime_type="image/png", detail="high"),
         ]
 
@@ -291,8 +328,8 @@ class ClickTool(BaseTool):
                 "element you want to click."
             ),
             parameters=[
-                ToolParameter(name="x", type="integer", description="X coordinate (pixels)"),
-                ToolParameter(name="y", type="integer", description="Y coordinate (pixels)"),
+                ToolParameter(name="x", type="integer", description=COORDINATE_X_DESCRIPTION),
+                ToolParameter(name="y", type="integer", description=COORDINATE_Y_DESCRIPTION),
                 ToolParameter(
                     name="button",
                     type="string",
@@ -311,18 +348,35 @@ class ClickTool(BaseTool):
         )
 
     async def execute(
-        self, x: int, y: int, button: str = "left", clicks: int = 1,
+        self, x: Any, y: Any = None, button: str = "left", clicks: int = 1,
     ) -> ToolResult:
+        # 0-1000 normalized input (or a bbox array — Qwen-VL form).
+        point = normalize_point(x, y)
+        if point is None:
+            return ToolResult(
+                content=(
+                    "click: pass x/y as integers (0-1000 normalized) or a "
+                    "bbox [x1,y1,x2,y2] in x"
+                ),
+                error=True,
+            )
+        nx, ny = point
+        px, py = _to_pixel(nx, ny)
         try:
             if _ydotool_available():
-                await asyncio.to_thread(_click_ydotool, x, y, button, clicks)
+                await asyncio.to_thread(_click_ydotool, px, py, button, clicks)
             else:
-                await asyncio.to_thread(_run_pyautogui, "click", x, y, button=button, clicks=clicks)
+                await asyncio.to_thread(
+                    _run_pyautogui, "click", px, py, button=button, clicks=clicks
+                )
         except Exception as e:
             return ToolResult(content=f"click: failed: {e}", error=True)
         return ToolResult(
-            content=f"Clicked {button} button at ({x}, {y}), clicks={clicks}",
-            display=f"Clicked ({x}, {y})",
+            content=(
+                f"Clicked {button} button at normalized ({nx}, {ny}) "
+                f"→ pixel ({px}, {py}), clicks={clicks}"
+            ),
+            display=f"Clicked ({nx}, {ny})",
         )
 
 
@@ -450,35 +504,50 @@ class ScrollTool(BaseTool):
                 ToolParameter(
                     name="x",
                     type="integer",
-                    description="X coordinate to scroll at",
+                    description=COORDINATE_X_DESCRIPTION,
                     required=False,
                 ),
                 ToolParameter(
                     name="y",
                     type="integer",
-                    description="Y coordinate to scroll at",
+                    description=COORDINATE_Y_DESCRIPTION,
                     required=False,
                 ),
             ],
         )
 
     async def execute(
-        self, amount: int, x: int | None = None, y: int | None = None,
+        self, amount: int, x: Any = None, y: Any = None,
     ) -> ToolResult:
+        px: int | None = None
+        py: int | None = None
+        pos = ""
+        if x is not None or y is not None:
+            point = normalize_point(x, y)
+            if point is None:
+                return ToolResult(
+                    content=(
+                        "scroll: pass x/y as integers (0-1000 normalized) or "
+                        "a bbox [x1,y1,x2,y2] in x"
+                    ),
+                    error=True,
+                )
+            nx, ny = point
+            px, py = _to_pixel(nx, ny)
+            pos = f" at ({nx}, {ny})"
         try:
             if _ydotool_available():
-                await asyncio.to_thread(_scroll_ydotool, amount, x, y)
+                await asyncio.to_thread(_scroll_ydotool, amount, px, py)
             else:
                 kwargs: dict[str, Any] = {}
-                if x is not None:
-                    kwargs["x"] = x
-                if y is not None:
-                    kwargs["y"] = y
+                if px is not None:
+                    kwargs["x"] = px
+                if py is not None:
+                    kwargs["y"] = py
                 await asyncio.to_thread(_run_pyautogui, "scroll", amount, **kwargs)
         except Exception as e:
             return ToolResult(content=f"scroll: failed: {e}", error=True)
         direction = "up" if amount > 0 else "down"
-        pos = f" at ({x}, {y})" if x is not None else ""
         return ToolResult(
             content=f"Scrolled {direction} by {abs(amount)}{pos}",
             display=f"Scroll {direction} {abs(amount)}",
@@ -496,20 +565,31 @@ class MouseMoveTool(BaseTool):
             name="mouse_move",
             description="Move the mouse cursor to the specified coordinates without clicking.",
             parameters=[
-                ToolParameter(name="x", type="integer", description="X coordinate (pixels)"),
-                ToolParameter(name="y", type="integer", description="Y coordinate (pixels)"),
+                ToolParameter(name="x", type="integer", description=COORDINATE_X_DESCRIPTION),
+                ToolParameter(name="y", type="integer", description=COORDINATE_Y_DESCRIPTION),
             ],
         )
 
-    async def execute(self, x: int, y: int) -> ToolResult:
+    async def execute(self, x: Any, y: Any = None) -> ToolResult:
+        point = normalize_point(x, y)
+        if point is None:
+            return ToolResult(
+                content=(
+                    "mouse_move: pass x/y as integers (0-1000 normalized) or "
+                    "a bbox [x1,y1,x2,y2] in x"
+                ),
+                error=True,
+            )
+        nx, ny = point
+        px, py = _to_pixel(nx, ny)
         try:
             if _ydotool_available():
-                await asyncio.to_thread(_move_ydotool, x, y)
+                await asyncio.to_thread(_move_ydotool, px, py)
             else:
-                await asyncio.to_thread(_run_pyautogui, "moveTo", x, y)
+                await asyncio.to_thread(_run_pyautogui, "moveTo", px, py)
         except Exception as e:
             return ToolResult(content=f"mouse_move: failed: {e}", error=True)
         return ToolResult(
-            content=f"Moved cursor to ({x}, {y})",
-            display=f"Cursor → ({x}, {y})",
+            content=f"Moved cursor to normalized ({nx}, {ny}) → pixel ({px}, {py})",
+            display=f"Cursor → ({nx}, {ny})",
         )

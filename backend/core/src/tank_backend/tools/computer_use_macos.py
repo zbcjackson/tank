@@ -27,11 +27,17 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..core.content import ImageBlock, TextBlock
 from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
-from .computer_use_common import normalize_keys
+from .computer_use_common import (
+    COORDINATE_NOTE,
+    COORDINATE_X_DESCRIPTION,
+    COORDINATE_Y_DESCRIPTION,
+    normalize_keys,
+    normalize_point,
+)
 
 if TYPE_CHECKING:
     from ..llm.profile import LLMProfile
@@ -381,15 +387,7 @@ class ScreenshotTool(BaseTool):
         b64 = base64.b64encode(png_bytes).decode()
         data_url = f"data:image/png;base64,{b64}"
 
-        dimension_note = (
-            "Screenshot captured. "
-            "When reporting element positions, use NORMALIZED coordinates "
-            "on a 0-1000 scale where (0, 0) is the top-left corner and "
-            "(1000, 1000) is the bottom-right corner. "
-            "For example, the center of the screen is (500, 500). "
-            "All coordinate tools (click, scroll, mouse_move) expect this "
-            "0-1000 normalized format."
-        )
+        dimension_note = f"Screenshot captured. {COORDINATE_NOTE}"
         text = f"{dimension_note} {task}" if task else dimension_note
 
         content = [
@@ -420,11 +418,11 @@ class ClickTool(BaseTool):
             parameters=[
                 ToolParameter(
                     name="x", type="integer",
-                    description="X coordinate (0-1000, 0=left, 1000=right)",
+                    description=COORDINATE_X_DESCRIPTION,
                 ),
                 ToolParameter(
                     name="y", type="integer",
-                    description="Y coordinate (0-1000, 0=top, 1000=bottom)",
+                    description=COORDINATE_Y_DESCRIPTION,
                 ),
                 ToolParameter(
                     name="button",
@@ -444,23 +442,19 @@ class ClickTool(BaseTool):
         )
 
     async def execute(
-        self, x: int, y: int, button: str = "left", clicks: int = 1,
+        self, x: Any, y: Any = None, button: str = "left", clicks: int = 1,
     ) -> ToolResult:
-        # Handle models that pass coordinates as a list: {'x': [180, 168]}
-        if isinstance(x, list):
-            if len(x) >= 2:
-                x, y = int(x[0]), int(x[1])
-            else:
-                return ToolResult(content="click: need both x and y coordinates", error=True)
-
-        # Handle models that pass coordinates as strings: {'x': '380', 'y': '310'}
-        try:
-            x, y = int(x), int(y)
-        except (ValueError, TypeError):
+        # 0-1000 normalized input, or a bbox array (Qwen-VL native form).
+        point = normalize_point(x, y)
+        if point is None:
             return ToolResult(
-                content=f"click: x and y must be integers, got x={x!r}, y={y!r}",
+                content=(
+                    "click: pass x/y as integers (0-1000 normalized) or a "
+                    "bbox [x1,y1,x2,y2] in x"
+                ),
                 error=True,
             )
+        x, y = point
 
         # Convert normalized 0-1000 coordinates to pixel coordinates
         px, py = _normalized_to_pixel(x, y)
@@ -586,32 +580,42 @@ class ScrollTool(BaseTool):
                 ToolParameter(
                     name="x",
                     type="integer",
-                    description="X coordinate (0-1000) to scroll at",
+                    description=COORDINATE_X_DESCRIPTION,
                     required=False,
                 ),
                 ToolParameter(
                     name="y",
                     type="integer",
-                    description="Y coordinate (0-1000) to scroll at",
+                    description=COORDINATE_Y_DESCRIPTION,
                     required=False,
                 ),
             ],
         )
 
     async def execute(
-        self, amount: int, x: int | None = None, y: int | None = None,
+        self, amount: int, x: Any = None, y: Any = None,
     ) -> ToolResult:
-        # Convert normalized coordinates to pixel if provided
         px, py = None, None
-        if x is not None and y is not None:
-            px, py = _normalized_to_pixel(int(x), int(y))
+        pos = ""
+        if x is not None or y is not None:
+            point = normalize_point(x, y)
+            if point is None:
+                return ToolResult(
+                    content=(
+                        "scroll: pass x/y as integers (0-1000 normalized) or "
+                        "a bbox [x1,y1,x2,y2] in x"
+                    ),
+                    error=True,
+                )
+            x, y = point
+            px, py = _normalized_to_pixel(x, y)
+            pos = f" at ({x}, {y})"
 
         try:
             await asyncio.to_thread(_scroll_macos, amount, px, py)
         except Exception as e:
             return ToolResult(content=f"scroll: failed: {e}", error=True)
         direction = "up" if amount > 0 else "down"
-        pos = f" at ({x}, {y})" if x is not None else ""
         return ToolResult(
             content=f"Scrolled {direction} by {abs(amount)}{pos}",
             display=f"Scroll {direction} {abs(amount)}",
@@ -634,23 +638,26 @@ class MouseMoveTool(BaseTool):
             parameters=[
                 ToolParameter(
                     name="x", type="integer",
-                    description="X coordinate (0-1000, 0=left, 1000=right)",
+                    description=COORDINATE_X_DESCRIPTION,
                 ),
                 ToolParameter(
                     name="y", type="integer",
-                    description="Y coordinate (0-1000, 0=top, 1000=bottom)",
+                    description=COORDINATE_Y_DESCRIPTION,
                 ),
             ],
         )
 
-    async def execute(self, x: int, y: int) -> ToolResult:
-        try:
-            x, y = int(x), int(y)
-        except (ValueError, TypeError):
+    async def execute(self, x: Any, y: Any = None) -> ToolResult:
+        point = normalize_point(x, y)
+        if point is None:
             return ToolResult(
-                content=f"mouse_move: invalid coordinates x={x!r}, y={y!r}",
+                content=(
+                    "mouse_move: pass x/y as integers (0-1000 normalized) or "
+                    "a bbox [x1,y1,x2,y2] in x"
+                ),
                 error=True,
             )
+        x, y = point
 
         px, py = _normalized_to_pixel(x, y)
         try:

@@ -105,7 +105,8 @@ class TestScreenshotTool:
             result = await tool.execute()
 
         assert result.error is False
-        assert result.content[0].text == "Screenshot captured."
+        assert "Screenshot captured." in result.content[0].text
+        assert "NORMALIZED coordinates" in result.content[0].text
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +128,7 @@ class TestClickTool:
         with (
             patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
             patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+            patch("tank_backend.tools.computer_use._screen_size", (1000, 1000)),
         ):
             result = await tool.execute(x=100, y=200)
         assert result.error is False
@@ -139,6 +141,7 @@ class TestClickTool:
         with (
             patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
             patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+            patch("tank_backend.tools.computer_use._screen_size", (1000, 1000)),
         ):
             result = await tool.execute(x=50, y=75, button="right", clicks=2)
         assert result.error is False
@@ -163,6 +166,7 @@ class TestClickTool:
         with (
             patch("tank_backend.tools.computer_use._ydotool_available", return_value=True),
             patch("tank_backend.tools.computer_use._click_ydotool") as mock,
+            patch("tank_backend.tools.computer_use._screen_size", (1000, 1000)),
         ):
             result = await tool.execute(x=300, y=400)
         assert result.error is False
@@ -306,6 +310,7 @@ class TestScrollTool:
         with (
             patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
             patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+            patch("tank_backend.tools.computer_use._screen_size", (1000, 1000)),
         ):
             result = await tool.execute(amount=5, x=400, y=300)
         assert result.error is False
@@ -329,11 +334,13 @@ class TestMouseMoveTool:
         with (
             patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
             patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
+            patch("tank_backend.tools.computer_use._screen_size", (1000, 1000)),
         ):
             result = await tool.execute(x=500, y=600)
         assert result.error is False
         assert "(500, 600)" in result.content
-        mock.assert_called_once_with("moveTo", 500, 600)
+        # 600 normalized → 599 px even on a 1000×1000 screen (n*(size-1)/1000)
+        mock.assert_called_once_with("moveTo", 500, 599)
 
     @pytest.mark.asyncio
     async def test_move_failure(self):

@@ -17,10 +17,38 @@ identical; platform files call these at tool entry.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 # Canonical spellings for keys that models write inconsistently.
 _KEY_SYNONYMS = {"return": "enter"}
+
+# Appended to every screenshot result, identically on both platforms —
+# the coordinate contract the models are told to follow.
+COORDINATE_NOTE = (
+    "When reporting element positions, use NORMALIZED coordinates "
+    "on a 0-1000 scale where (0, 0) is the top-left corner and "
+    "(1000, 1000) is the bottom-right corner. "
+    "For example, the center of the screen is (500, 500). "
+    "All coordinate tools (click, scroll, mouse_move) expect this "
+    "0-1000 normalized format."
+)
+
+
+def normalized_to_pixel(
+    nx: int, ny: int, size: tuple[int, int]
+) -> tuple[int, int]:
+    """Map a 0-1000 normalized point to pixel space for ``size``."""
+    w, h = size
+    return round(nx * (w - 1) / 1000), round(ny * (h - 1) / 1000)
+
+
+# Coordinate parameter descriptions — identical strings on both platforms
+# (a cross-platform consistency test pins this).
+COORDINATE_X_DESCRIPTION = (
+    "X coordinate (0-1000 normalized); a bbox array [x1,y1,x2,y2] is "
+    "accepted (its center is used)"
+)
+COORDINATE_Y_DESCRIPTION = "Y coordinate (0-1000 normalized)"
 
 
 def _as_part_list(raw: Any) -> list[str] | None:
@@ -70,6 +98,18 @@ def _is_number(v: Any) -> bool:
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
+def _num(v: Any) -> int | None:
+    """Coerce int/float/numeric-string to int; None otherwise."""
+    if _is_number(v):
+        return int(v)
+    if isinstance(v, str):
+        try:
+            return int(float(v))
+        except ValueError:
+            return None
+    return None
+
+
 def _clamp(v: int) -> int:
     return max(0, min(1000, v))
 
@@ -77,21 +117,29 @@ def _clamp(v: int) -> int:
 def normalize_point(x: Any, y: Any) -> tuple[int, int] | None:
     """Normalize a coordinate argument to a clamped 0-1000 point.
 
-    Accepts ``(x: int, y: int)`` or a bbox ``[x1, y1, x2, y2]`` in ``x``
-    (list or JSON-encoded string) — bbox takes the CENTER. Returns
-    ``None`` for anything else.
+    Accepted forms (observed across models):
+    - ``(x: int, y: int)`` — declared shape (numeric strings tolerated);
+    - ``x=[x1, y1]`` — a 2-element list (legacy macOS quirk);
+    - ``x=[x1, y1, x2, y2]`` — a bbox (Qwen-VL native); its CENTER is used.
+
+    Lists may arrive JSON-encoded as strings. Returns ``None`` otherwise.
     """
-    bbox: Any = x
-    if isinstance(bbox, str):
+    seq: Any = x
+    if isinstance(seq, str):
         try:
-            bbox = json.loads(bbox)
+            seq = json.loads(seq)
         except ValueError:
+            seq = None
+    if isinstance(seq, (list, tuple)):
+        nums = [_num(v) for v in seq[:4]]
+        if any(n is None for n in nums) or len(seq) < 2:
             return None
-    if isinstance(bbox, (list, tuple)):
-        if len(bbox) < 4 or not all(_is_number(v) for v in bbox[:4]):
-            return None
-        x1, y1, x2, y2 = (int(v) for v in bbox[:4])
-        return _clamp((x1 + x2) // 2), _clamp((y1 + y2) // 2)
-    if _is_number(x) and _is_number(y):
-        return _clamp(int(x)), _clamp(int(y))
-    return None
+        if len(seq) >= 4:
+            x1, y1, x2, y2 = (cast(int, n) for n in nums)
+            return _clamp((x1 + x2) // 2), _clamp((y1 + y2) // 2)
+        px, py = cast(int, nums[0]), cast(int, nums[1])
+        return _clamp(px), _clamp(py)
+    nx, ny = _num(x), _num(y)
+    if nx is None or ny is None:
+        return None
+    return _clamp(nx), _clamp(ny)
