@@ -135,7 +135,12 @@ class TestJobEndToEnd:
             runner, "_run_agent", return_value="Triggered result",
         ):
             await scheduler.trigger_job(job.id)
-            await asyncio.sleep(0.2)  # Let the task complete
+            # Poll for completion instead of a fixed sleep — under full
+            # suite load the async task outlives any fixed guess.
+            for _ in range(100):
+                if job_store.get_runs(job.id):
+                    break
+                await asyncio.sleep(0.02)
 
         runs = job_store.get_runs(job.id)
         assert len(runs) == 1
