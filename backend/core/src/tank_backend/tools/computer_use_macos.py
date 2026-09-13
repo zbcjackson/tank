@@ -523,7 +523,7 @@ class KeyPressTool(BaseTool):
                 "separate keys with '+' (e.g. 'cmd+c', 'cmd+space', "
                 "'ctrl+alt+delete'). Single keys: 'enter', 'tab', 'escape', "
                 "'backspace', 'delete', 'up', 'down', 'left', 'right', "
-                "'f1'-'f12', 'space', etc."
+                "'f1'-'f12', 'space'; modifiers cmd, ctrl, alt, shift."
             ),
             parameters=[
                 ToolParameter(
@@ -531,29 +531,45 @@ class KeyPressTool(BaseTool):
                     type="string",
                     description="Key(s) to press, e.g. 'enter', 'cmd+c', 'cmd+space'",
                 ),
+                ToolParameter(
+                    name="repeat",
+                    type="integer",
+                    description="Times to press the combination (1-20)",
+                    required=False,
+                    default=1,
+                ),
             ],
         )
 
-    async def execute(self, keys: str) -> ToolResult:
+    async def execute(self, keys: str, repeat: int = 1) -> ToolResult:
         # Models sometimes double-encode the argument ('["return"]' or an
         # actual list) — normalize at the entry, both platforms alike.
         key_list = normalize_keys(keys)
         if not key_list:
             return ToolResult(
                 content=(
-                    "key_press: invalid 'keys' — pass e.g. 'enter', 'cmd+c', "
-                    "'alt+tab' (a JSON array like '[\"return\"]' is accepted)"
+                    f"key_press: invalid 'keys' {keys!r} — valid keys: "
+                    "enter, tab, escape, backspace, delete, space, up, down, "
+                    "left, right, home, end, pageup, pagedown, f1-f12, "
+                    "letters, digits; modifiers cmd, ctrl, alt, shift "
+                    "(combine with '+')"
                 ),
                 error=True,
             )
+        try:
+            times = max(1, min(20, int(repeat)))
+        except (TypeError, ValueError):
+            times = 1
 
         try:
-            await asyncio.to_thread(_key_macos, key_list)
+            for _ in range(times):
+                await asyncio.to_thread(_key_macos, key_list)
         except Exception as e:
             return ToolResult(content=f"key_press: failed: {e}", error=True)
+        suffix = f" ×{times}" if times > 1 else ""
         return ToolResult(
-            content=f"Pressed: {'+'.join(key_list)}",
-            display=f"Key: {'+'.join(key_list)}",
+            content=f"Pressed: {'+'.join(key_list)}{suffix}",
+            display=f"Key: {'+'.join(key_list)}{suffix}",
         )
 
 

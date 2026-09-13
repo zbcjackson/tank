@@ -248,13 +248,14 @@ class TestKeyPressTool:
 
     @pytest.mark.asyncio
     async def test_cmd_alias(self):
+        """cmd → winleft on the pyautogui (X11) backend; meta on ydotool."""
         tool = KeyPressTool()
         with (
             patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
             patch("tank_backend.tools.computer_use._run_pyautogui") as mock,
         ):
-                await tool.execute(keys="cmd+space")
-        mock.assert_called_once_with("hotkey", "command", "space")
+            await tool.execute(keys="cmd+space")
+        mock.assert_called_once_with("hotkey", "winleft", "space")
 
     @pytest.mark.asyncio
     async def test_empty_keys(self):

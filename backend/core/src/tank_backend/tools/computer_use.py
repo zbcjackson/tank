@@ -26,6 +26,8 @@ from .computer_use_common import (
     COORDINATE_NOTE,
     COORDINATE_X_DESCRIPTION,
     COORDINATE_Y_DESCRIPTION,
+    PYAUTOGUI_KEY_ALIASES,
+    YDOTOOL_KEY_ALIASES,
     normalize_keys,
     normalize_point,
     normalized_to_pixel,
@@ -439,9 +441,10 @@ class KeyPressTool(BaseTool):
             description=(
                 "Press a key or key combination. For combinations, "
                 "separate keys with '+' (e.g. 'ctrl+c', 'cmd+space', "
-                "'alt+tab'). Single keys: 'enter', 'tab', 'escape', "
-                "'backspace', 'delete', 'up', 'down', 'left', 'right', "
-                "'f1'-'f12', 'space', etc."
+                "'alt+tab'). Valid keys: enter, tab, escape, backspace, "
+                "delete, space, up, down, left, right, home, end, pageup, "
+                "pagedown, f1-f12, letters, digits; modifiers cmd, ctrl, "
+                "alt, shift."
             ),
             parameters=[
                 ToolParameter(
@@ -449,35 +452,54 @@ class KeyPressTool(BaseTool):
                     type="string",
                     description="Key(s) to press, e.g. 'enter', 'ctrl+c', 'cmd+space'",
                 ),
+                ToolParameter(
+                    name="repeat",
+                    type="integer",
+                    description="Times to press the combination (1-20)",
+                    required=False,
+                    default=1,
+                ),
             ],
         )
 
-    async def execute(self, keys: str) -> ToolResult:
+    async def execute(self, keys: str, repeat: int = 1) -> ToolResult:
         # Models sometimes double-encode the argument ('["return"]' or an
         # actual list) — normalize at the entry, both platforms alike.
         key_list = normalize_keys(keys)
         if not key_list:
             return ToolResult(
                 content=(
-                    "key_press: invalid 'keys' — pass e.g. 'enter', 'ctrl+c', "
-                    "'cmd+c' (a JSON array like '[\"return\"]' is accepted)"
+                    f"key_press: invalid 'keys' {keys!r} — valid keys: "
+                    "enter, tab, escape, backspace, delete, space, up, down, "
+                    "left, right, home, end, pageup, pagedown, f1-f12, "
+                    "letters, digits; modifiers cmd, ctrl, alt, shift "
+                    "(combine with '+')"
                 ),
                 error=True,
             )
-        # Map common aliases
-        alias_map = {"ctrl": "ctrl", "cmd": "command", "win": "win", "alt": "alt"}
-        mapped = [alias_map.get(k, k) for k in key_list]
+        try:
+            times = max(1, min(20, int(repeat)))
+        except (TypeError, ValueError):
+            times = 1
+
+        # Backend-specific modifier names: ydotool speaks libevdev,
+        # pyautogui (X11 fallback) its own key list.
+        ydotool = _ydotool_available()
+        aliases = YDOTOOL_KEY_ALIASES if ydotool else PYAUTOGUI_KEY_ALIASES
+        mapped = [aliases.get(k, k) for k in key_list]
 
         try:
-            if _ydotool_available():
-                await asyncio.to_thread(_key_ydotool, mapped)
-            else:
-                await asyncio.to_thread(_run_pyautogui, "hotkey", *mapped)
+            for _ in range(times):
+                if ydotool:
+                    await asyncio.to_thread(_key_ydotool, mapped)
+                else:
+                    await asyncio.to_thread(_run_pyautogui, "hotkey", *mapped)
         except Exception as e:
             return ToolResult(content=f"key_press: failed: {e}", error=True)
+        suffix = f" ×{times}" if times > 1 else ""
         return ToolResult(
-            content=f"Pressed: {'+'.join(mapped)}",
-            display=f"Key: {'+'.join(mapped)}",
+            content=f"Pressed: {'+'.join(mapped)}{suffix}",
+            display=f"Key: {'+'.join(mapped)}{suffix}",
         )
 
 

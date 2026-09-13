@@ -7,9 +7,16 @@ both platforms must normalize at the tool entry.
 
 from __future__ import annotations
 
-import pytest
+from unittest.mock import patch
 
-from tank_backend.tools.computer_use_common import normalize_keys, normalize_point
+import pytest
+import pytest_asyncio.plugin  # noqa: F401 — asyncio marker support
+
+from tank_backend.tools.computer_use_common import (
+    CANONICAL_KEYS,
+    normalize_keys,
+    normalize_point,
+)
 
 # ── normalize_keys ────────────────────────────────────────────────────
 
@@ -128,3 +135,65 @@ async def test_bbox_click_center_end_to_end_both_platforms():
     assert result.error is False
     n2p.assert_called_once_with(150, 150)
     mac_mock.assert_called_once()
+
+
+# ── A4: canonical key vocabulary ──────────────────────────────────────
+
+
+def test_normalize_keys_rejects_unknown_names():
+    assert normalize_keys("foo+c") is None
+    assert normalize_keys("enterx") is None
+
+
+@pytest.mark.parametrize("key", sorted(CANONICAL_KEYS - {"cmd", "ctrl", "alt", "shift"}))
+def test_every_canonical_key_has_a_macos_keycode(key):
+    """The macOS keycode map must cover the whole advertised vocabulary."""
+    from tank_backend.tools.computer_use_macos import _KEYCODE_MAP
+
+    assert key in _KEYCODE_MAP, key
+
+
+@pytest.mark.asyncio
+async def test_linux_repeat_clamped_and_pressed():
+    from tank_backend.tools import computer_use as m
+
+    with (
+        patch(f"{m.__name__}._ydotool_available", return_value=False),
+        patch(f"{m.__name__}._run_pyautogui") as mock,
+    ):
+        result = await m.KeyPressTool().execute(keys="enter", repeat=99)
+    assert result.error is False
+    assert mock.call_count == 20  # clamped to 1-20
+    assert "×20" in result.content
+
+
+@pytest.mark.asyncio
+async def test_linux_modifier_aliases_per_backend():
+    from tank_backend.tools import computer_use as m
+
+    # pyautogui (X11): cmd → winleft
+    with (
+        patch(f"{m.__name__}._ydotool_available", return_value=False),
+        patch(f"{m.__name__}._run_pyautogui") as mock,
+    ):
+        await m.KeyPressTool().execute(keys="cmd+c")
+    mock.assert_called_once_with("hotkey", "winleft", "c")
+
+    # ydotool: cmd → meta (libevdev name)
+    with (
+        patch(f"{m.__name__}._ydotool_available", return_value=True),
+        patch(f"{m.__name__}._key_ydotool") as mock,
+    ):
+        await m.KeyPressTool().execute(keys="cmd+c")
+    mock.assert_called_once_with(["meta", "c"])
+
+
+@pytest.mark.asyncio
+async def test_macos_repeat_presses_multiple_times():
+    from tank_backend.tools import computer_use_macos as m
+
+    with patch(f"{m.__name__}._key_macos") as mock:
+        result = await m.KeyPressTool().execute(keys="cmd+c", repeat=3)
+    assert result.error is False
+    assert mock.call_count == 3
+    mock.assert_called_with(["cmd", "c"])

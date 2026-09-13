@@ -22,6 +22,24 @@ from typing import Any, cast
 # Canonical spellings for keys that models write inconsistently.
 _KEY_SYNONYMS = {"return": "enter"}
 
+# The key vocabulary key_press advertises (A4). Modifiers combine with
+# '+'; single letters/digits are also valid (checked structurally).
+CANONICAL_KEYS = frozenset({
+    "enter", "tab", "escape", "backspace", "delete", "space",
+    "up", "down", "left", "right", "home", "end", "pageup", "pagedown",
+    *(f"f{i}" for i in range(1, 13)),
+    "cmd", "ctrl", "alt", "shift",
+})
+
+# Modifier translation per Linux backend: ydotool speaks libevdev names,
+# pyautogui (X11 fallback) its own key list.
+YDOTOOL_KEY_ALIASES = {"cmd": "meta", "win": "meta"}
+PYAUTOGUI_KEY_ALIASES = {"cmd": "winleft", "win": "winleft"}
+
+
+def _is_valid_key(part: str) -> bool:
+    return part in CANONICAL_KEYS or (len(part) == 1 and part.isalnum())
+
 # Appended to every screenshot result, identically on both platforms —
 # the coordinate contract the models are told to follow.
 COORDINATE_NOTE = (
@@ -82,16 +100,17 @@ def _as_part_list(raw: Any) -> str | None:
 def normalize_keys(raw: Any) -> list[str] | None:
     """Normalize a key argument to a list of lowercase parts.
 
-    Returns ``None`` when the input can't be interpreted — callers turn
-    that into an error result listing valid key names (models can then
-    self-correct on the next turn).
+    Returns ``None`` when the input can't be interpreted or contains an
+    unknown key name — callers turn that into an error result listing
+    valid key names (models can then self-correct on the next turn).
     """
     joined = _as_part_list(raw)
     if joined is None:
         return None
-    parts = [p.strip().lower() for p in joined.split("+")]
-    parts = [_KEY_SYNONYMS.get(p, p) for p in parts if p]
-    return parts or None
+    parts = [_KEY_SYNONYMS.get(p, p) for p in (s.strip().lower() for s in joined.split("+")) if p]
+    if not parts or not all(_is_valid_key(p) for p in parts):
+        return None
+    return parts
 
 
 def _is_number(v: Any) -> bool:
