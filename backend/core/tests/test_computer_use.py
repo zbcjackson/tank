@@ -559,3 +559,34 @@ class TestYdotoolNativeProtocol:
         ev = [(t & 0xFFFF, t >> 16, v) for t, v in events if t != 0]
         btn = [(t, c, v) for t, c, v in ev if c == 273]
         assert btn == [(1, 273, 1), (1, 273, 0)] * 2
+
+
+# ---------------------------------------------------------------------------
+# Portal screenshot URI parsing (A6)
+# ---------------------------------------------------------------------------
+
+
+class TestPortalUriParsing:
+    def test_json_payload_uri(self):
+        from tank_backend.tools.computer_use import _portal_uri_from_monitor_output
+
+        out = (
+            '‣ ... org.freedesktop.portal.Desktop\n'
+            '{"type":"signal","payload":{"data":["Response",{"response":0,'
+            '"results":{"uri":{"type":"s","data":"file:///tmp/shot.png"}}}]}}\n'
+        )
+        assert _portal_uri_from_monitor_output(out) == "file:///tmp/shot.png"
+
+    def test_regex_fallback_uri(self):
+        from tank_backend.tools.computer_use import _portal_uri_from_monitor_output
+
+        out = 'garbage line\nuri file:///home/u/Pictures/Screenshot%20x.png tail\n'
+        assert (
+            _portal_uri_from_monitor_output(out)
+            == "file:///home/u/Pictures/Screenshot%20x.png"
+        )
+
+    def test_no_uri(self):
+        from tank_backend.tools.computer_use import _portal_uri_from_monitor_output
+
+        assert _portal_uri_from_monitor_output("nothing here\n") is None

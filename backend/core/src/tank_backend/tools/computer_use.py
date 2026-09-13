@@ -93,13 +93,39 @@ def _capture_screenshot(monitor_index: int = 0) -> bytes:
     return png_bytes
 
 
+
+def _portal_uri_from_monitor_output(out: str) -> str | None:
+    """Extract the screenshot file:// URI from busctl monitor output."""
+    import json
+    import re
+
+    for line in out.split("\n"):
+        if "uri" not in line or "file://" not in line:
+            continue
+        try:
+            data = json.loads(line)
+            payload = data.get("payload", {}).get("data", [])
+            if len(payload) >= 2 and isinstance(payload[1], dict):
+                body = payload[1]
+                # busctl emits the results dict at either level depending
+                # on the reply shape
+                uri_entry = body.get("uri") or body.get("results", {}).get("uri")
+                if isinstance(uri_entry, dict):
+                    uri = uri_entry.get("data")
+                    if isinstance(uri, str):
+                        return uri
+        except (json.JSONDecodeError, IndexError, TypeError):
+            match = re.search(r'file://[^\s"]+', line)
+            if match:
+                return match.group(0)
+    return None
+
+
 def _capture_via_portal() -> bytes | None:
     """Capture screenshot via XDG Desktop Portal (GNOME Wayland).
 
     Returns PNG bytes on success, None if the portal is unavailable.
     """
-    import json
-    import re
     import subprocess
     import time
     from pathlib import Path
@@ -134,26 +160,27 @@ def _capture_via_portal() -> bytes | None:
         monitor.terminate()
         return None
 
-    time.sleep(3)
-    monitor.terminate()
-    out = monitor.stdout.read() if monitor.stdout else ""
+    # A6: wait for the portal Response carrying the URI instead of a
+    # fixed 3s sleep — the file is written by the time the response
+    # lands, typically well under a second.
+    import select as select_mod
 
-    uri = None
-    for line in out.split("\n"):
-        if "uri" not in line or "file://" not in line:
+    deadline = time.monotonic() + 2.0
+    out = ""
+    while monitor.stdout is not None and time.monotonic() < deadline:
+        remaining = deadline - time.monotonic()
+        ready, _, _ = select_mod.select([monitor.stdout], [], [], max(0.05, remaining))
+        if not ready:
             continue
-        try:
-            data = json.loads(line)
-            payload = data.get("payload", {}).get("data", [])
-            if len(payload) >= 2 and isinstance(payload[1], dict):
-                uri_entry = payload[1].get("uri", {})
-                if isinstance(uri_entry, dict):
-                    uri = uri_entry.get("data")
-        except (json.JSONDecodeError, IndexError, TypeError):
-            match = re.search(r'file://[^\s"]+', line)
-            if match:
-                uri = match.group(0)
-        break
+        line = monitor.stdout.readline()
+        if not line:
+            break
+        out += line
+        if "uri" in out and "file://" in out:
+            break
+    monitor.terminate()
+
+    uri = _portal_uri_from_monitor_output(out)
 
     if not uri:
         return None
