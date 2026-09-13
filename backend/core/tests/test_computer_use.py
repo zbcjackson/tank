@@ -469,4 +469,93 @@ class TestYdotoolSocketDiscovery:
 
         monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
         monkeypatch.delenv("YDOTOOL_SOCKET", raising=False)
+        monkeypatch.setattr(m, "_YDOTOOL_LEGACY_SOCKET", str(tmp_path / "none.sock"))
         assert m._ydotool_socket() is None
+
+
+# ---------------------------------------------------------------------------
+# ydotool native socket protocol (CLI is dead — Debian 1.0.4-3 bug)
+# ---------------------------------------------------------------------------
+
+
+class TestYdotoolNativeProtocol:
+    def test_packet_matches_strace_ground_truth(self):
+        """mousemove -x 100 captured by strace:
+        16 zero bytes + 02000000 + 64000000 (EV_REL/REL_X, value 100)."""
+        from tank_backend.tools import computer_use as m
+
+        pkt = m._YD_PACKET.pack(2 | (0 << 16), 100)
+        assert pkt == b"\x00" * 16 + b"\x02\x00\x00\x00" + b"\x64\x00\x00\x00"
+        assert m._YD_PACKET.size == 24
+
+    def test_keycodes_cover_canonical_vocabulary(self):
+        import string
+
+        from tank_backend.tools import computer_use as m
+        from tank_backend.tools.computer_use_common import CANONICAL_KEYS
+
+        non_mod = CANONICAL_KEYS - {"cmd", "ctrl", "alt", "shift"}
+        # cmd is mapped to meta by the alias layer before _key_ydotool
+        missing = [k for k in non_mod if k != "cmd" and k not in m._LINUX_KEYCODES]
+        assert not missing, missing
+
+        typable = set(string.ascii_letters + string.digits + string.punctuation + " ")
+        untypable = [
+            ch
+            for ch in typable
+            if ch.lower() not in m._LINUX_KEYCODES and ch not in m._LINUX_SHIFT_CHARS
+        ]
+        assert not untypable, untypable
+
+    def _record_socket(self, monkeypatch):
+        from tank_backend.tools import computer_use as m
+
+        sent: list[bytes] = []
+
+        class _FakeSock:
+            def send(self, data):
+                sent.append(data)
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(m, "_ydotool_client", lambda: _FakeSock())
+        monkeypatch.setattr(m.time, "sleep", lambda *_: None)
+        return m, sent
+
+    def test_chord_order_modifiers_down_tap_up(self, monkeypatch):
+        m, sent = self._record_socket(monkeypatch)
+        m._key_ydotool(["ctrl", "c"])
+        events = [m._YD_PACKET.unpack(b) for b in sent]
+        # strip SYN events (0,0)
+        ev = [(t & 0xFFFF, t >> 16, v) for t, v in events if t != 0]
+        # KEY events: (type, code, value) — ctrl=29 down, c=46 down/up, ctrl up
+        assert ev == [
+            (1, 29, 1), (1, 46, 1), (1, 46, 0), (1, 29, 0),
+        ]
+
+    def test_move_chunks_reset_then_target(self, monkeypatch):
+        m, sent = self._record_socket(monkeypatch)
+        m._move_ydotool(960, 506)
+        events = [m._YD_PACKET.unpack(b) for b in sent]
+        rel = [(t >> 16, v) for t, v in events if (t & 0xFFFF) == 2]
+        assert rel.count((0, -400)) == 10  # REL_X reset chunks
+        assert rel.count((1, -400)) == 10
+        assert (0, 960) in rel and (1, 506) in rel
+
+    def test_type_upper_and_shift_punct(self, monkeypatch):
+        m, sent = self._record_socket(monkeypatch)
+        m._type_ydotool("A!")
+        events = [m._YD_PACKET.unpack(b) for b in sent]
+        ev = [(t & 0xFFFF, t >> 16, v) for t, v in events if t != 0]
+        # A = shift(42) down, a(30) tap, shift up; ! = shift down, 1(2) tap, shift up
+        assert ev[:4] == [(1, 42, 1), (1, 30, 1), (1, 30, 0), (1, 42, 0)]
+        assert ev[4:] == [(1, 42, 1), (1, 2, 1), (1, 2, 0), (1, 42, 0)]
+
+    def test_click_button_down_up(self, monkeypatch):
+        m, sent = self._record_socket(monkeypatch)
+        m._click_ydotool(100, 100, "right", 2)
+        events = [m._YD_PACKET.unpack(b) for b in sent]
+        ev = [(t & 0xFFFF, t >> 16, v) for t, v in events if t != 0]
+        btn = [(t, c, v) for t, c, v in ev if c == 273]
+        assert btn == [(1, 273, 1), (1, 273, 0)] * 2

@@ -18,6 +18,8 @@ from __future__ import annotations
 import asyncio
 import base64
 import logging
+import struct
+import time
 from typing import TYPE_CHECKING, Any
 
 from ..core.content import ImageBlock, TextBlock
@@ -179,9 +181,6 @@ def _run_pyautogui(func_name: str, *args: Any, **kwargs: Any) -> None:
 # ydotool-based input (works on Wayland via /dev/uinput)
 # ---------------------------------------------------------------------------
 
-# The historical extract path survives neither reboot nor repo setup —
-# prefer a ydotool on PATH (apt install ydotool), fall back to it.
-_YDOTOOL_FALLBACK_BIN = "/tmp/ydotool-extract/usr/bin/ydotool"
 # Socket discovery: env override → distro default under XDG_RUNTIME_DIR
 # (Ubuntu's systemd ydotoold listens at /run/user/<uid>/.ydotool_socket)
 # → legacy /tmp path.
@@ -204,63 +203,149 @@ def _ydotool_socket() -> str | None:
     return None
 
 
-def _ydotool_binary() -> str:
-    import shutil
-
-    return shutil.which("ydotool") or _YDOTOOL_FALLBACK_BIN
-
-
 def _ydotool_available() -> bool:
     """Check if a ydotool daemon socket is reachable."""
     return _ydotool_socket() is not None
 
 
-def _run_ydotool(subcmd: str, *args: str) -> None:
-    """Run a ydotool subcommand."""
-    import os
-    import subprocess
+# ---------------------------------------------------------------------------
+# ydotool native input — speak the ydotoold socket protocol directly.
+#
+# The distro CLI is unusable (verified on the GUI VM 2026-09-13 by
+# strace + evtest): Debian ydotool 1.0.4-3 `key` sends nothing at all,
+# and `mousemove -a` emits an INT32_MIN delta that libinput drops. The
+# daemon protocol is fine, so we send its 24-byte little-endian
+# datagrams ourselves: 16 zero bytes, uint32 (type | code << 16),
+# int32 value — one EV_SYN after each event (strace ground truth).
+# ---------------------------------------------------------------------------
 
-    socket = _ydotool_socket()
-    if socket is None:
+_YD_EV_KEY = 1
+_YD_EV_REL = 2
+
+# value is SIGNED int32: relative deltas and wheel values go negative.
+_YD_PACKET = struct.Struct("<16xIi")
+
+_PACKET_GAP_S = 0.005
+_KEY_HOLD_S = 0.05
+_TYPE_HOLD_S = 0.02
+
+# Canonical key names / characters → Linux evdev keycodes (US layout).
+_LINUX_KEYCODES: dict[str, int] = {
+    "escape": 1, "esc": 1,
+    "1": 2, "2": 3, "3": 4, "4": 5, "5": 6, "6": 7, "7": 8, "8": 9,
+    "9": 10, "0": 11, "-": 12, "=": 13,
+    "backspace": 14, "tab": 15,
+    "q": 16, "w": 17, "e": 18, "r": 19, "t": 20, "y": 21, "u": 22,
+    "i": 23, "o": 24, "p": 25, "[": 26, "]": 27,
+    "enter": 28, "ctrl": 29,
+    "a": 30, "s": 31, "d": 32, "f": 33, "g": 34, "h": 35, "j": 36,
+    "k": 37, "l": 38, ";": 39, "'": 40, "`": 41, "shift": 42, "\\": 43,
+    "z": 44, "x": 45, "c": 46, "v": 47, "b": 48, "n": 49, "m": 50,
+    ",": 51, ".": 52, "/": 53,
+    "space": 57, " ": 57,
+    "f1": 59, "f2": 60, "f3": 61, "f4": 62, "f5": 63, "f6": 64,
+    "f7": 65, "f8": 66, "f9": 67, "f10": 68, "f11": 87, "f12": 88,
+    "alt": 56,
+    "home": 102, "up": 103, "pageup": 104, "left": 105, "right": 106,
+    "end": 107, "down": 108, "pagedown": 109, "insert": 110, "delete": 111,
+    "meta": 125,
+}
+
+# Characters typed as shift + another key (US layout).
+_LINUX_SHIFT_CHARS: dict[str, str] = {
+    "!": "1", "@": "2", "#": "3", "$": "4", "%": "5", "^": "6", "&": "7",
+    "*": "8", "(": "9", ")": "0", "_": "-", "+": "=", "{": "[", "}": "]",
+    ":": ";", '"': "'", "~": "`", "|": "\\", "<": ",", ">": ".", "?": "/",
+}
+
+_YD_BTN = {"left": 272, "right": 273, "middle": 274}  # BTN_LEFT/RIGHT/MIDDLE
+_YD_REL_X, _YD_REL_Y, _YD_REL_WHEEL = 0, 1, 8
+
+_YD_MODIFIERS = ("ctrl", "alt", "shift", "meta")
+
+
+def _ydotool_client():
+    """Connected DGRAM socket to the ydotoold daemon."""
+    import socket as socket_mod
+
+    path = _ydotool_socket()
+    if path is None:
         raise RuntimeError("ydotoold is not running (no socket found)")
-    env = os.environ.copy()
-    env["YDOTOOL_SOCKET"] = socket
-    result = subprocess.run(
-        [_ydotool_binary(), subcmd, *args],
-        capture_output=True, text=True, timeout=5, env=env,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"ydotool {subcmd} failed: {result.stderr.strip()}")
+    sock = socket_mod.socket(socket_mod.AF_UNIX, socket_mod.SOCK_DGRAM)
+    sock.connect(path)
+    return sock
 
 
-def _click_ydotool(x: int, y: int, button: str = "left", clicks: int = 1) -> None:
-    """Click using ydotool (Wayland-compatible).
-
-    Uses reset-to-origin + relative move for pixel-accurate positioning,
-    since ydotool absolute mode doesn't work reliably on GNOME Wayland.
-    """
-    _move_ydotool(x, y)
-    # ydotool click codes: 0xC0=left, 0xC1=right, 0xC2=middle (down+up combined)
-    btn_map = {"left": "0xC0", "right": "0xC1", "middle": "0xC2"}
-    btn_code = btn_map.get(button, "0xC0")
-    for _ in range(clicks):
-        _run_ydotool("click", "-D", "50", btn_code)
-
-
-def _type_ydotool(text: str) -> None:
-    """Type text using ydotool."""
-    _run_ydotool("type", "--", text)
+def _ydotool_emit(sock, ev_type: int, code: int, value: int) -> None:
+    """Send one event + SYN to the daemon."""
+    sock.send(_YD_PACKET.pack(ev_type | (code << 16), value))
+    sock.send(_YD_PACKET.pack(0, 0))
+    time.sleep(_PACKET_GAP_S)
 
 
 def _key_ydotool(keys: list[str]) -> None:
-    """Press key combination using ydotool.
+    """Press a combo as a real chord: modifiers down, main key tap,
+    modifiers up (the dead CLI pressed keys sequentially instead)."""
+    mods = [k for k in keys if k in _YD_MODIFIERS]
+    main = [k for k in keys if k not in _YD_MODIFIERS]
+    sock = _ydotool_client()
+    try:
+        for mod in mods:
+            _ydotool_emit(sock, _YD_EV_KEY, _LINUX_KEYCODES[mod], 1)
+        for key in main:
+            code = _LINUX_KEYCODES[key]
+            _ydotool_emit(sock, _YD_EV_KEY, code, 1)
+            time.sleep(_KEY_HOLD_S)
+            _ydotool_emit(sock, _YD_EV_KEY, code, 0)
+        for mod in reversed(mods):
+            _ydotool_emit(sock, _YD_EV_KEY, _LINUX_KEYCODES[mod], 0)
+    finally:
+        sock.close()
 
-    ydotool uses key names like 'enter', 'ctrl', 'alt', 'shift', 'space', etc.
-    For combos: "ctrl+c" → separate key press/release events.
-    """
-    # ydotool key command takes keycodes or key names joined with '+'
-    combo = "+".join(keys)
-    _run_ydotool("key", combo)
+
+def _type_ydotool(text: str) -> None:
+    """Type ASCII text as per-character key events (US layout)."""
+    sock = _ydotool_client()
+    try:
+        for ch in text:
+            base = _LINUX_SHIFT_CHARS.get(ch)
+            if base is None and ch.lower() in _LINUX_KEYCODES:
+                base = ch.lower()
+                shifted = ch.isupper()
+            elif base is not None:
+                shifted = True
+            else:
+                raise ValueError(f"untypable character: {ch!r}")
+            code = _LINUX_KEYCODES[base]
+            if shifted:
+                shift_code = _LINUX_KEYCODES["shift"]
+                _ydotool_emit(sock, _YD_EV_KEY, shift_code, 1)
+                _ydotool_emit(sock, _YD_EV_KEY, code, 1)
+                time.sleep(_TYPE_HOLD_S)
+                _ydotool_emit(sock, _YD_EV_KEY, code, 0)
+                _ydotool_emit(sock, _YD_EV_KEY, shift_code, 0)
+            else:
+                _ydotool_emit(sock, _YD_EV_KEY, code, 1)
+                time.sleep(_TYPE_HOLD_S)
+                _ydotool_emit(sock, _YD_EV_KEY, code, 0)
+    finally:
+        sock.close()
+
+
+def _click_ydotool(x: int, y: int, button: str = "left", clicks: int = 1) -> None:
+    """Click at pixel coordinates (move first, then BTN down/up)."""
+    _move_ydotool(x, y)
+    btn = _YD_BTN.get(button, _YD_BTN["left"])
+    sock = _ydotool_client()
+    try:
+        for i in range(clicks):
+            _ydotool_emit(sock, _YD_EV_KEY, btn, 1)
+            time.sleep(_KEY_HOLD_S)
+            _ydotool_emit(sock, _YD_EV_KEY, btn, 0)
+            if i < clicks - 1:
+                time.sleep(0.05)
+    finally:
+        sock.close()
 
 
 def _paste_linux(text: str) -> None:
@@ -312,22 +397,30 @@ def _paste_linux(text: str) -> None:
 
 
 def _scroll_ydotool(amount: int, x: int | None = None, y: int | None = None) -> None:
-    """Scroll using ydotool."""
+    """Scroll the wheel (positive = up, negative = down)."""
     if x is not None and y is not None:
         _move_ydotool(x, y)
-    # ydotool wheel: -w flag with -x (horizontal) -y (vertical)
-    # positive y = scroll up, negative y = scroll down
-    _run_ydotool("mousemove", "-w", "-x", "0", "-y", str(amount))
+    sock = _ydotool_client()
+    try:
+        _ydotool_emit(sock, _YD_EV_REL, _YD_REL_WHEEL, amount)
+    finally:
+        sock.close()
 
 
 def _move_ydotool(x: int, y: int) -> None:
-    """Move mouse to pixel coordinates using ydotool.
-
-    Uses reset-to-origin + relative move for pixel-accurate positioning,
-    since ydotool --absolute doesn't work on GNOME Wayland.
-    """
-    _run_ydotool("mousemove", "-x", "-20000", "-y", "-20000")
-    _run_ydotool("mousemove", "-x", str(x), "-y", str(y))
+    """Move to pixel coordinates: reset to top-left with chunked small
+    deltas (a single huge delta gets dropped by libinput), then one
+    relative move of (x, y)."""
+    sock = _ydotool_client()
+    try:
+        # 10 × (-400,-400) covers any display up to 4K from any position.
+        for _ in range(10):
+            _ydotool_emit(sock, _YD_EV_REL, _YD_REL_X, -400)
+            _ydotool_emit(sock, _YD_EV_REL, _YD_REL_Y, -400)
+        _ydotool_emit(sock, _YD_EV_REL, _YD_REL_X, x)
+        _ydotool_emit(sock, _YD_EV_REL, _YD_REL_Y, y)
+    finally:
+        sock.close()
 
 
 class ScreenshotTool(BaseTool):
