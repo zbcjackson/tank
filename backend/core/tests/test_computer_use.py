@@ -355,3 +355,79 @@ class TestMouseMoveTool:
         ):
             result = await tool.execute(x=0, y=0)
         assert result.error is True
+
+
+# ---------------------------------------------------------------------------
+# TypeTextTool — non-ASCII clipboard path (A2)
+# ---------------------------------------------------------------------------
+
+
+class TestTypeTextClipboard:
+    @pytest.mark.asyncio
+    async def test_non_ascii_pastes_via_wl_copy(self):
+        """Chinese text → wl-copy + ctrl+v (ydotool), never typed raw."""
+        from tank_backend.tools import computer_use as m
+
+        with (
+            patch(f"{m.__name__}._ydotool_available", return_value=True),
+            patch(f"{m.__name__}._type_ydotool") as raw_type,
+            patch(f"{m.__name__}._key_ydotool") as key_mock,
+            patch(f"{m.__name__}._paste_linux") as paste,
+        ):
+            result = await m.TypeTextTool().execute(text="你好，世界")
+        assert result.error is False
+        raw_type.assert_not_called()
+        paste.assert_called_once_with("你好，世界")
+        # paste itself: verify wiring in the helper test below
+        key_mock.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_paste_uses_wl_copy_then_ctrl_v(self):
+        import subprocess as sp
+        from unittest.mock import MagicMock
+
+        from tank_backend.tools import computer_use as m
+
+        run = MagicMock(return_value=MagicMock(returncode=0))
+        with (
+            patch(
+                "shutil.which",
+                side_effect=lambda n: f"/usr/bin/{n}" if n == "wl-copy" else None,
+            ),
+            patch(f"{sp.__name__}.run", run),
+            patch(f"{m.__name__}._ydotool_available", return_value=True),
+            patch(f"{m.__name__}._key_ydotool") as key_mock,
+            patch("time.sleep"),
+        ):
+            m._paste_linux("你好")
+        assert run.call_args[0][0] == ["/usr/bin/wl-copy"]
+        assert run.call_args[1]["input"] == "你好".encode()
+        key_mock.assert_called_once_with(["ctrl", "v"])
+
+    @pytest.mark.asyncio
+    async def test_paste_falls_back_to_xclip(self):
+        import subprocess as sp
+        from unittest.mock import MagicMock
+
+        from tank_backend.tools import computer_use as m
+
+        run = MagicMock(return_value=MagicMock(returncode=0))
+        with (
+            patch("shutil.which", side_effect=lambda n: f"/usr/bin/{n}" if n == "xclip" else None),
+            patch(f"{sp.__name__}.run", run),
+            patch(f"{m.__name__}._ydotool_available", return_value=False),
+            patch(f"{m.__name__}._run_pyautogui") as pyag,
+            patch("time.sleep"),
+        ):
+            m._paste_linux("héllo")
+        assert run.call_args[0][0] == ["/usr/bin/xclip", "-selection", "clipboard"]
+        pyag.assert_called_once_with("hotkey", "ctrl", "v")
+
+    @pytest.mark.asyncio
+    async def test_paste_without_tool_errors_with_hint(self):
+        from tank_backend.tools import computer_use as m
+
+        with patch("shutil.which", return_value=None):
+            result = await m.TypeTextTool().execute(text="你好")
+        assert result.error is True
+        assert "wl-clipboard" in result.content or "xclip" in result.content

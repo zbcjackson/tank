@@ -234,6 +234,39 @@ def _key_ydotool(keys: list[str]) -> None:
     _run_ydotool("key", combo)
 
 
+def _paste_linux(text: str) -> None:
+    """Paste non-ASCII text via clipboard + ctrl+v.
+
+    Synthetic typing of non-ASCII goes through the desktop IME layer and
+    gets mangled; the clipboard path bypasses it (mirrors the macOS
+    pbcopy+cmd+v behavior). The user's clipboard is overwritten by
+    design — same tradeoff as on macOS.
+    """
+    import shutil
+    import subprocess as sp
+
+    wl_copy = shutil.which("wl-copy")
+    xclip = shutil.which("xclip")
+    if wl_copy:
+        copy_cmd = [wl_copy]
+    elif xclip:
+        copy_cmd = [xclip, "-selection", "clipboard"]
+    else:
+        raise RuntimeError(
+            "no clipboard tool found — install wl-clipboard (Wayland) or xclip"
+        )
+    proc = sp.run(copy_cmd, input=text.encode(), capture_output=True, timeout=5)
+    if proc.returncode != 0:
+        raise RuntimeError(f"clipboard copy failed: {proc.stderr.decode()[:200]}")
+    import time
+
+    time.sleep(0.1)  # let the selection register
+    if _ydotool_available():
+        _key_ydotool(["ctrl", "v"])
+    else:
+        _run_pyautogui("hotkey", "ctrl", "v")
+
+
 def _scroll_ydotool(amount: int, x: int | None = None, y: int | None = None) -> None:
     """Scroll using ydotool."""
     if x is not None and y is not None:
@@ -416,7 +449,10 @@ class TypeTextTool(BaseTool):
         if not text:
             return ToolResult(content="type_text: 'text' is required", error=True)
         try:
-            if _ydotool_available():
+            if any(ord(c) >= 128 for c in text):
+                # Non-ASCII: paste via clipboard to bypass IME mangling.
+                await asyncio.to_thread(_paste_linux, text)
+            elif _ydotool_available():
                 await asyncio.to_thread(_type_ydotool, text)
             else:
                 await asyncio.to_thread(_run_pyautogui, "write", text, interval=interval)
