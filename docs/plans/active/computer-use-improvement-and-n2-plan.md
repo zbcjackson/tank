@@ -1,6 +1,6 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
-> 状态:阶段 2 完成(2026-09-13)——macOS T1 全绿(keys 容错/repeat/bbox 中心/中文粘贴,提示符对账 5=1+1+3);Linux 键盘族(单键/和弦/打字/滚轮/粘贴)全通,指针运动被 mutter 丢弃=环境级问题移交阶段 3(候选 EV_ABS/EIS,详见 memory)。下一步:阶段 3(A3+A7-A9+A11+A6+A15)设计评审。执行阶段划分见 §12。
+> 状态:阶段 3 实现中(2026-09-13)——设计已批准(§14):EV_ABS 自建绝对指针先行+A3 原语+A9/A8/A6+A15;阶段 2 收口(macOS T1 全绿,Linux 键盘族绿/指针移交本阶段)。执行阶段划分见 §12。
 > 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)· 2026-09-09(执行启动+事实修订:plugin.yaml manifest、NotificationHub、A5 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 
@@ -396,3 +396,12 @@ Baseline 已入档:6/42=14%(label=baseline-macos);terminal-write 0/3 两种死�
 - **E3 executor 工具集强制(安全)**:LLMAgent 的 executor 外包 allowlist gate(`tool_filter ∖ exclude` 之外 → ToolResult error "tool not available to this agent",不执行;无 filter 全放行)。证据:baseline trial 3 幻觉调用 run_command(沙箱执行)/file_write/agent 越过 `toolset: computer_use`(llm_agent.py:80-82 只过滤 schema)。
 - **本轮不做**:hold_key/mouse_down/drag(阶段 3)、batch(4b)、审批(4a)、macOS 剪贴板扩展到特殊字符 ASCII。
 - **测试**:翻译表全键×双平台/归一化边界/bbox 三形态/keys 三种容错/executor 拦截放行/剪贴板 mock subprocess/schema 一致性;每子项一 commit;T1 测试轮(GUI VM:gedit 中文、归一化点击、cmd→super;macOS:回归+bbox 抽测)需用户执行。
+
+## 14. 阶段 3 设计定稿(2026-09-13 用户批准)
+
+三项裁决:① Linux 指针通道**先 A(EV_ABS 自建 uinput 绝对指针,触屏风格 ABS_X/Y+BTN_TOUCH)后 B(EIS/libei)**,失败自动退 B;② `drag` 做**独立原语**(move→down→分步 move(20ms 步进)→up),不靠模型组合 mouse_down/up;③ A8 只改 Linux(长文本 100ms 块间),macOS 保持整串 keystroke。
+
+- **EV_ABS 设备**:`/dev/uinput` 直开(免 daemon,已在 input 组),固定量程 0..10000 映射全屏,归一化输入×10;udev 规则补 tank 设备名;键盘/和弦/滚轮保留 ydotoold socket 通道。
+- **A3 原语**:`mouse_down/mouse_up(button)`、`hold_key(keys,duration_s=1.0,上限10s)`、`drag(x1,y1,x2,y2)`;macOS CGEvent、Linux 双通道(ABS 指针+socket 键盘)。
+- **A9 scroll clamp**:±50 超限报错;**A8** Linux 长文本 50 字符块+100ms 块间;**A6** portal 截图改等 Response D-Bus 信号(2s 超时)替代 sleep(3),单次 <1s;**A15** 光标可见性记入 A12 doctor 检查项。
+- 单测:原语时序(mock)、clamp、drag 轨迹、portal 等待;T2:macOS drag/hold_key/长文本,Linux(若 ABS 成)绝对点击/拖拽/复跑。
