@@ -1,6 +1,6 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
-> 状态:阶段 2 实现完成待 T1(2026-09-13)——E3 executor 拦截/E2 keys 容错/E1 bbox+A1 坐标统一/A4 键表+repeat/E2 Linux 剪贴板中文 均已落地(§13 设计,a343a53..3540d74);待用户 T1(GUI VM+macOS)实测。执行阶段划分见 §12。
+> 状态:阶段 2 macOS T1 待跑;Linux T1 部分通过(2026-09-13)——键盘/和弦/滚轮/中文粘贴全通(原生 ydotoold socket 协议);指针运动被 mutter 丢弃,搁置待解(候选:EV_ABS 自建设备/EIS/libei,详见 memory linux-input-ydotool-cli-dead)。macOS T1 命令已交付待用户执行。执行阶段划分见 §12。
 > 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)· 2026-09-09(执行启动+事实修订:plugin.yaml manifest、NotificationHub、A5 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 
