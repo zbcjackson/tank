@@ -51,8 +51,8 @@ COORDINATE_X_DESCRIPTION = (
 COORDINATE_Y_DESCRIPTION = "Y coordinate (0-1000 normalized)"
 
 
-def _as_part_list(raw: Any) -> list[str] | None:
-    """Coerce str/list input into a '+'-joined lowercase string."""
+def _as_part_list(raw: Any) -> str | None:
+    """Coerce str/list input into a '+'-joined string (or None)."""
     if isinstance(raw, list):
         if not raw or not all(isinstance(k, str) for k in raw):
             return None
