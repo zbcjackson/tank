@@ -1,6 +1,6 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
-> 状态:阶段 0/1 完成(2026-09-11)——A17 框架与 computer_use 套件落地于 `backend/benchmarks/`;macOS baseline 已入档:6/42=14%(CI 7-28%),report 见跑批目录 label=baseline-macos;已知:2/14 任务 100%(launch+verify 类),其余受点击精度/max_steps 限制,terminal-write 超时 60→120s 补测中。下一步:阶段 2(A1+A4+A2)设计评审。执行阶段划分见 §12。
+> 状态:阶段 2 实现中(2026-09-13)——baseline 已入档 6/42=14%(label=baseline-macos);阶段 2 设计已批准(§13:A1+A4+A2+E1 bbox+E2 keys 容错+E3 executor 拦截),TDD 实现中。执行阶段划分见 §12。
 > 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)· 2026-09-09(执行启动+事实修订:plugin.yaml manifest、NotificationHub、A5 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 
@@ -383,3 +383,16 @@ max_steps: 30
 阶段 6   Part B 核心扩展点(B1+B2)─[设计评审·架构]
 阶段 7   agent-n2 插件(B3)─[设计评审]► A17 同尺 A/B ► T5(真机,用户)
 ```
+
+## 13. 阶段 2 设计定稿(2026-09-13 用户批准)
+
+Baseline 已入档:6/42=14%(label=baseline-macos);terminal-write 0/3 两种死因(key_press 双重编码、幻觉越权工具调用)均为本阶段修复对象。三项裁决:E1 扩展到 scroll/mouse_move(同一 normalize 函数)、E3 拦截层放 agent 层 wrapper(不动 ToolManager,主对话零影响)、A2 不保存/恢复剪贴板(与 macOS pbcopy+cmd+v 现状对齐)。
+
+- **A1 坐标统一**:Linux `computer_use.py` click/scroll/mouse_move 的 x/y 改 0-1000 归一化,`round(n*(size-1)/1000)`、clamp;mss 截图取宽高缓存并每次刷新;截图结果追加 macOS 同款 dimension_note;双平台 schema 参数描述逐字一致(一致性断言单测)。
+- **A4 按键翻译**:规范名=schema 声明集(单键 enter/tab/escape/backspace/delete/space/arrows/home/end/pageup/pagedown/f1-f12;修饰 cmd/ctrl/alt/shift;`+` 组合;`repeat` 1-20 clamp);enter↔return 同义;三张翻译表单点定义+全键覆盖单测(macOS AppleScript key codes 补齐、Linux pyautogui 键名、cmd→win 修饰映射)。
+- **A2 中文输入(Linux)**:type_text 非 ASCII → wl-copy(Wayland)/xclip(X11)+ctrl+v;工具缺失返回带安装指引的 error;不恢复剪贴板;ASCII 直打。
+- **E1 bbox 兼容(Qwen)**:click/scroll/mouse_move 统一 normalize——`x:[x1,y1,x2,y2]` 取中心 `((x1+x2)//2,(y1+y2)//2)`,`x:int,y:int` 不变,其它形态参数 error;schema 描述补"或传 bbox 数组取中心"。
+- **E2 key_press 容错**:工具入口规范化(双平台共用):strip 后匹配 `^[[].*[]]$` → json.loads(`["return"]`→`return`、`["cmd","c"]`→`cmd+c`);return→enter 同义;未知键名 error 列出合法键名(可自纠)。
+- **E3 executor 工具集强制(安全)**:LLMAgent 的 executor 外包 allowlist gate(`tool_filter ∖ exclude` 之外 → ToolResult error "tool not available to this agent",不执行;无 filter 全放行)。证据:baseline trial 3 幻觉调用 run_command(沙箱执行)/file_write/agent 越过 `toolset: computer_use`(llm_agent.py:80-82 只过滤 schema)。
+- **本轮不做**:hold_key/mouse_down/drag(阶段 3)、batch(4b)、审批(4a)、macOS 剪贴板扩展到特殊字符 ASCII。
+- **测试**:翻译表全键×双平台/归一化边界/bbox 三形态/keys 三种容错/executor 拦截放行/剪贴板 mock subprocess/schema 一致性;每子项一 commit;T1 测试轮(GUI VM:gedit 中文、归一化点击、cmd→super;macOS:回归+bbox 抽测)需用户执行。
