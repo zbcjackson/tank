@@ -590,3 +590,119 @@ class TestPortalUriParsing:
         from tank_backend.tools.computer_use import _portal_uri_from_monitor_output
 
         assert _portal_uri_from_monitor_output("nothing here\n") is None
+
+
+# ---------------------------------------------------------------------------
+# A3 primitives: mouse_down/up, hold_key, drag
+# ---------------------------------------------------------------------------
+
+
+class TestA3Primitives:
+    def _record_socket(self, monkeypatch):
+        from tank_backend.tools import computer_use as m
+
+        sent: list[bytes] = []
+
+        class _FakeSock:
+            def send(self, data):
+                sent.append(data)
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(m, "_ydotool_client", lambda: _FakeSock())
+        monkeypatch.setattr(m.time, "sleep", lambda *_: None)
+        return m, sent
+
+    def _events(self, m, sent):
+        return [
+            (t & 0xFFFF, t >> 16, v)
+            for t, v in (m._YD_PACKET.unpack(b) for b in sent)
+            if t != 0
+        ]
+
+    def test_mouse_button_down_up(self, monkeypatch):
+        m, sent = self._record_socket(monkeypatch)
+        m._mouse_button_ydotool("right", down=True)
+        m._mouse_button_ydotool("right", down=False)
+        assert self._events(m, sent) == [(1, 273, 1), (1, 273, 0)]
+
+    def test_hold_key_sequence(self, monkeypatch):
+        m, sent = self._record_socket(monkeypatch)
+        m._hold_key_ydotool(["ctrl", "c"], 0.5)
+        assert self._events(m, sent) == [
+            (1, 29, 1),   # ctrl down
+            (1, 46, 1),   # c down
+            (1, 46, 0),   # c up (after duration)
+            (1, 29, 0),   # ctrl up
+        ]
+
+    def test_drag_sequence(self, monkeypatch):
+        m, sent = self._record_socket(monkeypatch)
+        moves: list[tuple[int, int]] = []
+        monkeypatch.setattr(m, "_move_ydotool", lambda x, y: moves.append((x, y)))
+        m._drag_ydotool(100, 100, 160, 100)
+        # start move, button down, intermediate moves, button up
+        assert moves[0] == (100, 100)
+        assert moves[-1] == (160, 100)
+        btn = [e for e in self._events(m, sent) if e[1] == 272]
+        assert btn == [(1, 272, 1), (1, 272, 0)]
+
+
+class TestA3Tools:
+    @pytest.mark.asyncio
+    async def test_mouse_down_up_tools(self):
+        from tank_backend.tools import computer_use as m
+
+        with (
+            patch(f"{m.__name__}._ydotool_available", return_value=True),
+            patch(f"{m.__name__}._mouse_button_ydotool") as mock,
+        ):
+            r1 = await m.MouseDownTool().execute(button="left")
+            r2 = await m.MouseUpTool().execute()
+        assert r1.error is False and r2.error is False
+        mock.assert_any_call("left", True)  # positional via to_thread
+        mock.assert_any_call("left", False)
+
+    @pytest.mark.asyncio
+    async def test_hold_key_clamps_duration(self):
+        from tank_backend.tools import computer_use as m
+
+        with (
+            patch(f"{m.__name__}._ydotool_available", return_value=True),
+            patch(f"{m.__name__}._hold_key_ydotool") as mock,
+        ):
+            r = await m.HoldKeyTool().execute(keys="shift", duration_s=99)
+        assert r.error is False
+        mock.assert_called_once_with(["shift"], 10.0)  # clamped
+
+    @pytest.mark.asyncio
+    async def test_hold_key_invalid(self):
+        from tank_backend.tools import computer_use as m
+
+        r = await m.HoldKeyTool().execute(keys="foo")
+        assert r.error is True
+
+    @pytest.mark.asyncio
+    async def test_drag_tool(self):
+        from tank_backend.tools import computer_use as m
+
+        with (
+            patch(f"{m.__name__}._ydotool_available", return_value=True),
+            patch(f"{m.__name__}._drag_ydotool") as mock,
+            patch(f"{m.__name__}._screen_size", (1000, 1000)),
+        ):
+            r = await m.DragTool().execute(x1=100, y1=100, x2=200, y2=200)
+        assert r.error is False
+        mock.assert_called_once_with(100, 100, 200, 200)
+
+    @pytest.mark.asyncio
+    async def test_scroll_clamps_amount(self):
+        tool = ScrollTool()
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=True),
+            patch("tank_backend.tools.computer_use._scroll_ydotool"),
+        ):
+            r = await tool.execute(amount=500)
+        assert r.error is True
+        assert "50" in r.content

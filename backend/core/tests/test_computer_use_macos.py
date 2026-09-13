@@ -391,3 +391,92 @@ class TestKeyPressToolNormalization:
         tool = KeyPressTool()
         result = await tool.execute(keys="[]]")
         assert result.error is True
+
+
+class TestA3MacOSPrimitives:
+    """A3: mouse_down/up, hold_key, drag on the macOS CGEvent path."""
+
+    def test_mouse_button_uses_current_position(self, fake_quartz: _FakeQuartz) -> None:
+        from tank_backend.tools import computer_use_macos as m
+
+        fake_quartz.CGEventCreate = MagicMock(
+            return_value=MagicMock(getLocation=MagicMock(return_value=(100, 200)))
+        )
+        fake_quartz.CGEventCreateMouseEvent = MagicMock(side_effect=lambda s, t, p, b: (t, p, b))
+        fake_quartz.kCGEventLeftMouseDown = 1
+        fake_quartz.kCGEventLeftMouseUp = 2
+        fake_quartz.kCGMouseButtonLeft = 0
+
+        m._mouse_button_macos("left", down=True)
+        fake_quartz.CGEventPost.assert_called()
+        ev = fake_quartz.CGEventCreateMouseEvent.call_args[0]
+        assert ev[1] == 1 and ev[2] == (100, 200)
+
+    def test_hold_key_down_up_with_flags(self, fake_quartz: _FakeQuartz) -> None:
+        from tank_backend.tools import computer_use_macos as m
+
+        fake_quartz.kCGEventFlagMaskShift = 0x20000
+        events: list[tuple[int, bool]] = []
+        fake_quartz.CGEventCreateKeyboardEvent = MagicMock(
+            side_effect=lambda s, k, d: events.append((k, d)) or (k, d)
+        )
+        m._hold_key_macos(["shift", "a"], 0.05)
+        keys = [e for e in events]
+        assert keys[0] == (0, True)   # 'a' key code 0 down
+        assert keys[-1] == (0, False) # up after duration
+        assert fake_quartz.CGEventSetFlags.called
+
+    def test_drag_sequence(self, fake_quartz: _FakeQuartz, monkeypatch) -> None:
+        from tank_backend.tools import computer_use_macos as m
+
+        posted: list[tuple] = []
+        fake_quartz.CGEventCreateMouseEvent = MagicMock(
+            side_effect=lambda s, t, p, b: (t, p, b)
+        )
+        fake_quartz.CGEventPost = MagicMock(side_effect=lambda tap, ev: posted.append(ev))
+        fake_quartz.kCGEventLeftMouseDown = 1
+        fake_quartz.kCGEventLeftMouseUp = 2
+        fake_quartz.kCGEventLeftMouseDragged = 6
+        fake_quartz.kCGEventMouseMoved = 5
+        fake_quartz.kCGMouseButtonLeft = 0
+        fake_quartz.CGPointMake = lambda x, y: (x, y)
+        monkeypatch.setattr(m.time, "sleep", lambda *_: None)
+
+        m._drag_macos(100, 100, 160, 100)
+        kinds = [ev[0] for ev in posted]
+        assert kinds[0] == 5          # move to start
+        assert kinds[1] == 1          # button down
+        assert 6 in kinds             # dragged intermediates
+        assert kinds[-1] == 2         # button up
+        assert posted[-1][1] == (160, 100)
+
+
+class TestA3MacOSTools:
+    @pytest.mark.asyncio
+    async def test_tools_delegate(self, monkeypatch):
+        from tank_backend.tools import computer_use_macos as m
+
+        with (
+            patch(f"{m.__name__}._mouse_button_macos") as mb,
+            patch(f"{m.__name__}._hold_key_macos") as hk,
+            patch(f"{m.__name__}._drag_macos") as drag,
+        ):
+            r1 = await m.MouseDownTool().execute(button="right")
+            r2 = await m.MouseUpTool().execute()
+            r3 = await m.HoldKeyTool().execute(keys="shift", duration_s=99)
+            r4 = await m.DragTool().execute(x1=100, y1=100, x2=200, y2=200)
+        from tank_backend.tools.computer_use_macos import _normalized_to_pixel  # noqa: F401
+        assert all(r.error is False for r in (r1, r2, r3, r4))
+        mb.assert_any_call("right", True)
+        hk.assert_called_once_with(["shift"], 10.0)
+        sx, sy = m._normalized_to_pixel(100, 100)
+        ex, ey = m._normalized_to_pixel(200, 200)
+        drag.assert_called_once_with(sx, sy, ex, ey)  # 1920x1080 default
+
+    @pytest.mark.asyncio
+    async def test_scroll_clamps_amount(self):
+        from tank_backend.tools import computer_use_macos as m
+
+        r = await m.ScrollTool().execute(amount=500)
+        assert r.error is True
+        assert "50" in r.content

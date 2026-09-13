@@ -450,6 +450,51 @@ def _move_ydotool(x: int, y: int) -> None:
         sock.close()
 
 
+def _mouse_button_ydotool(button: str = "left", down: bool = True) -> None:
+    """Press or release a mouse button without moving (drag building block)."""
+    btn = _YD_BTN.get(button, _YD_BTN["left"])
+    sock = _ydotool_client()
+    try:
+        _ydotool_emit(sock, _YD_EV_KEY, btn, 1 if down else 0)
+    finally:
+        sock.close()
+
+
+def _hold_key_ydotool(keys: list[str], duration_s: float) -> None:
+    """Hold a key (with modifiers) pressed for duration_s, then release."""
+    mods = [k for k in keys if k in _YD_MODIFIERS]
+    main = [k for k in keys if k not in _YD_MODIFIERS]
+    sock = _ydotool_client()
+    try:
+        for mod in mods:
+            _ydotool_emit(sock, _YD_EV_KEY, _LINUX_KEYCODES[mod], 1)
+        for key in main:
+            _ydotool_emit(sock, _YD_EV_KEY, _LINUX_KEYCODES[key], 1)
+        time.sleep(duration_s)
+        for key in main:
+            _ydotool_emit(sock, _YD_EV_KEY, _LINUX_KEYCODES[key], 0)
+        for mod in reversed(mods):
+            _ydotool_emit(sock, _YD_EV_KEY, _LINUX_KEYCODES[mod], 0)
+    finally:
+        sock.close()
+
+
+def _drag_ydotool(
+    x1: int, y1: int, x2: int, y2: int, button: str = "left",
+) -> None:
+    """Drag with the button held: move to start, down, stepped moves, up."""
+    _move_ydotool(x1, y1)
+    _mouse_button_ydotool(button, down=True)
+    try:
+        dx, dy = x2 - x1, y2 - y1
+        steps = max(1, max(abs(dx), abs(dy)) // 30)
+        for i in range(1, steps + 1):
+            _move_ydotool(x1 + dx * i // steps, y1 + dy * i // steps)
+            time.sleep(0.02)
+    finally:
+        _mouse_button_ydotool(button, down=False)
+
+
 class ScreenshotTool(BaseTool):
     """Capture a screenshot and return it as an image block."""
 
@@ -617,7 +662,12 @@ class TypeTextTool(BaseTool):
                 # Non-ASCII: paste via clipboard to bypass IME mangling.
                 await asyncio.to_thread(_paste_linux, text)
             elif _ydotool_available():
-                await asyncio.to_thread(_type_ydotool, text)
+                # A8: chunk long ASCII texts — per-key event streams can
+                # drop characters when thousands are injected back-to-back.
+                for i in range(0, len(text), 50):
+                    await asyncio.to_thread(_type_ydotool, text[i : i + 50])
+                    if i + 50 < len(text):
+                        await asyncio.sleep(0.1)
             else:
                 await asyncio.to_thread(_run_pyautogui, "write", text, interval=interval)
         except Exception as e:
@@ -739,8 +789,20 @@ class ScrollTool(BaseTool):
         )
 
     async def execute(
-        self, amount: int, x: Any = None, y: Any = None,
+        self, amount: Any = None, x: Any = None, y: Any = None,
     ) -> ToolResult:
+        try:
+            amount = int(amount)  # type: ignore[assignment]
+        except (TypeError, ValueError):
+            return ToolResult(content="scroll: 'amount' is required", error=True)
+        if abs(amount) > 50:
+            return ToolResult(
+                content=(
+                    f"scroll: amount {amount} out of range — use between "
+                    "-50 and 50 per call (scroll multiple times for more)"
+                ),
+                error=True,
+            )
         px: int | None = None
         py: int | None = None
         pos = ""
@@ -814,4 +876,196 @@ class MouseMoveTool(BaseTool):
         return ToolResult(
             content=f"Moved cursor to normalized ({nx}, {ny}) → pixel ({px}, {py})",
             display=f"Cursor → ({nx}, {ny})",
+        )
+
+
+class MouseDownTool(BaseTool):
+    """Press and hold a mouse button (drag building block)."""
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="general")
+
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="mouse_down",
+            description="Press and hold a mouse button at the current position.",
+            parameters=[
+                ToolParameter(
+                    name="button",
+                    type="string",
+                    description="Mouse button: 'left', 'right', or 'middle'",
+                    required=False,
+                    default="left",
+                ),
+            ],
+        )
+
+    async def execute(self, button: str = "left") -> ToolResult:
+        return await _mouse_button_action(button, down=True)
+
+
+class MouseUpTool(BaseTool):
+    """Release a mouse button previously pressed with mouse_down."""
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="general")
+
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="mouse_up",
+            description="Release a mouse button held by mouse_down.",
+            parameters=[
+                ToolParameter(
+                    name="button",
+                    type="string",
+                    description="Mouse button: 'left', 'right', or 'middle'",
+                    required=False,
+                    default="left",
+                ),
+            ],
+        )
+
+    async def execute(self, button: str = "left") -> ToolResult:
+        return await _mouse_button_action(button, down=False)
+
+
+async def _mouse_button_action(button: str, down: bool) -> ToolResult:
+    state = "down" if down else "up"
+    try:
+        if _ydotool_available():
+            await asyncio.to_thread(_mouse_button_ydotool, button, down)
+        else:
+            fn = "mouseDown" if down else "mouseUp"
+            await asyncio.to_thread(_run_pyautogui, fn, button=button)
+    except Exception as e:
+        return ToolResult(content=f"mouse_{state}: failed: {e}", error=True)
+    return ToolResult(
+        content=f"Mouse {button} button {state}",
+        display=f"Mouse {state}",
+    )
+
+
+class HoldKeyTool(BaseTool):
+    """Hold a key combination pressed for a duration."""
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="general")
+
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="hold_key",
+            description=(
+                "Press and hold a key combination for a duration, then "
+                "release (e.g. hold shift for 1 second). Same key format "
+                "as key_press."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="keys",
+                    type="string",
+                    description="Key(s) to hold, e.g. 'shift', 'ctrl+c'",
+                ),
+                ToolParameter(
+                    name="duration_s",
+                    type="number",
+                    description="Seconds to hold (0.1-10)",
+                    required=False,
+                    default=1.0,
+                ),
+            ],
+        )
+
+    async def execute(self, keys: str, duration_s: float = 1.0) -> ToolResult:
+        key_list = normalize_keys(keys)
+        if not key_list:
+            return ToolResult(
+                content=f"hold_key: invalid 'keys' {keys!r}", error=True
+            )
+        try:
+            duration = max(0.1, min(10.0, float(duration_s)))
+        except (TypeError, ValueError):
+            duration = 1.0
+        try:
+            if _ydotool_available():
+                await asyncio.to_thread(_hold_key_ydotool, key_list, duration)
+            else:
+                await asyncio.to_thread(
+                    _run_pyautogui, "keyDown", *PYAUTOGUI_KEY_ALIASES_JOIN(key_list)
+                )
+                await asyncio.sleep(duration)
+                await asyncio.to_thread(
+                    _run_pyautogui, "keyUp", *PYAUTOGUI_KEY_ALIASES_JOIN(key_list)
+                )
+        except Exception as e:
+            return ToolResult(content=f"hold_key: failed: {e}", error=True)
+        return ToolResult(
+            content=f"Held {'+'.join(key_list)} for {duration}s",
+            display=f"Hold {'+'.join(key_list)}",
+        )
+
+
+def PYAUTOGUI_KEY_ALIASES_JOIN(key_list: list[str]) -> list[str]:
+    """Map canonical names for the pyautogui fallback of hold_key."""
+    return [PYAUTOGUI_KEY_ALIASES.get(k, k) for k in key_list]
+
+
+class DragTool(BaseTool):
+    """Drag from one point to another with the button held."""
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="general")
+
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="drag",
+            description=(
+                "Press at (x1,y1), drag to (x2,y2), release. Coordinates "
+                "are 0-1000 normalized like click."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="x1", type="integer", description="Start X (0-1000 normalized)"
+                ),
+                ToolParameter(
+                    name="y1", type="integer", description="Start Y (0-1000 normalized)"
+                ),
+                ToolParameter(
+                    name="x2", type="integer", description="End X (0-1000 normalized)"
+                ),
+                ToolParameter(
+                    name="y2", type="integer", description="End Y (0-1000 normalized)"
+                ),
+            ],
+        )
+
+    async def execute(
+        self, x1: Any, y1: Any = None, x2: Any = None, y2: Any = None,
+    ) -> ToolResult:
+        start = normalize_point(x1, y1)
+        end = normalize_point(x2, y2)
+        if start is None or end is None:
+            return ToolResult(
+                content=(
+                    "drag: pass x1/y1/x2/y2 as integers (0-1000 normalized)"
+                ),
+                error=True,
+            )
+        sx, sy = _to_pixel(*start)
+        ex, ey = _to_pixel(*end)
+        try:
+            if _ydotool_available():
+                await asyncio.to_thread(_drag_ydotool, sx, sy, ex, ey)
+            else:
+                await asyncio.to_thread(
+                    _run_pyautogui, "drag", sx, sy, ex, ey,
+                    duration=0.4, button="left",
+                )
+        except Exception as e:
+            return ToolResult(content=f"drag: failed: {e}", error=True)
+        return ToolResult(
+            content=(
+                f"Dragged normalized {start} → {end} "
+                f"(pixel ({sx},{sy}) → ({ex},{ey}))"
+            ),
+            display=f"Drag {start} → {end}",
         )

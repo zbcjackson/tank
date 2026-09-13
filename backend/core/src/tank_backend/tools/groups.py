@@ -383,9 +383,13 @@ class ComputerUseToolGroup(ToolGroup):
 
         from .computer_use_macos import (
             ClickTool,
+            DragTool,
+            HoldKeyTool,
             KeyPressTool,
             LaunchAppTool,
+            MouseDownTool,
             MouseMoveTool,
+            MouseUpTool,
             ScreenshotTool,
             ScrollTool,
             TypeTextTool,
@@ -398,6 +402,10 @@ class ComputerUseToolGroup(ToolGroup):
             KeyPressTool(),
             ScrollTool(),
             MouseMoveTool(),
+            MouseDownTool(),
+            MouseUpTool(),
+            HoldKeyTool(),
+            DragTool(),
             LaunchAppTool(),
         ]
 
@@ -412,8 +420,12 @@ class ComputerUseToolGroup(ToolGroup):
 
         from .computer_use import (
             ClickTool,
+            DragTool,
+            HoldKeyTool,
             KeyPressTool,
+            MouseDownTool,
             MouseMoveTool,
+            MouseUpTool,
             ScreenshotTool,
             ScrollTool,
             TypeTextTool,
@@ -426,4 +438,8 @@ class ComputerUseToolGroup(ToolGroup):
             KeyPressTool(),
             ScrollTool(),
             MouseMoveTool(),
+            MouseDownTool(),
+            MouseUpTool(),
+            HoldKeyTool(),
+            DragTool(),
         ]

@@ -377,7 +377,8 @@ toolsets:
       description: "Desktop automation tools"
       # launch_app is macOS-only; on Linux it is unregistered and the
       # allowlist filter simply never matches it (harmless).
-      tools: [screenshot, click, type_text, key_press, scroll, mouse_move, launch_app]
+      tools: [screenshot, click, type_text, key_press, scroll, mouse_move,
+              mouse_down, mouse_up, hold_key, drag, launch_app]
 #     safe:
 #       description: "Read-only tools"
 #       tools: [file_read, file_list, file_search, web_search, calculate, get_time]

@@ -313,6 +313,86 @@ def _move_macos(x: int, y: int) -> None:
     Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
 
 
+def _mouse_button_macos(button: str = "left", down: bool = True) -> None:
+    """Press/release a mouse button at the CURRENT cursor position."""
+    import Quartz
+
+    loc = Quartz.CGEventCreate(None).getLocation()
+    if button == "right":
+        etype = Quartz.kCGEventRightMouseDown if down else Quartz.kCGEventRightMouseUp
+        btn = Quartz.kCGMouseButtonRight
+    elif button == "middle":
+        etype = Quartz.kCGEventOtherMouseDown if down else Quartz.kCGEventOtherMouseUp
+        btn = Quartz.kCGMouseButtonCenter
+    else:
+        etype = Quartz.kCGEventLeftMouseDown if down else Quartz.kCGEventLeftMouseUp
+        btn = Quartz.kCGMouseButtonLeft
+    event = Quartz.CGEventCreateMouseEvent(None, etype, loc, btn)
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+
+
+def _hold_key_macos(keys: list[str], duration_s: float) -> None:
+    """Hold a key (with modifiers) via CGEvent keyDown/keyUp pairs.
+
+    The usual key path is AppleScript (app-compat reasons), but it can
+    only tap — holding requires raw CGEvent keyboard events.
+    """
+    import Quartz
+
+    mods = [k for k in keys if k in _MODIFIER_FLAGS]
+    main = [k for k in keys if k not in _MODIFIER_FLAGS]
+    if not main:
+        main = mods[:1]
+        mods = mods[1:]
+    keycode = _KEYCODE_MAP.get(main[0], 0)
+
+    flags = 0
+    for mod in mods:
+        flags |= _MODIFIER_FLAGS.get(mod, 0)
+
+    down = Quartz.CGEventCreateKeyboardEvent(None, keycode, True)
+    if flags:
+        Quartz.CGEventSetFlags(down, flags)
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+    time.sleep(duration_s)
+    up = Quartz.CGEventCreateKeyboardEvent(None, keycode, False)
+    if flags:
+        Quartz.CGEventSetFlags(up, flags)
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+
+
+def _drag_macos(x1: int, y1: int, x2: int, y2: int, button: str = "left") -> None:
+    """Drag: move to start, button down, stepped drag events, button up."""
+    import Quartz
+
+    btn = Quartz.kCGMouseButtonLeft
+    if button == "right":
+        down_type, up_type = Quartz.kCGEventRightMouseDown, Quartz.kCGEventRightMouseUp
+        btn = Quartz.kCGMouseButtonRight
+    else:
+        down_type, up_type = Quartz.kCGEventLeftMouseDown, Quartz.kCGEventLeftMouseUp
+
+    def post(etype: int, x: int, y: int) -> None:
+        event = Quartz.CGEventCreateMouseEvent(
+            None, etype, Quartz.CGPointMake(x, y), btn
+        )
+        Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
+
+    post(Quartz.kCGEventMouseMoved, x1, y1)
+    post(down_type, x1, y1)
+    try:
+        dx, dy = x2 - x1, y2 - y1
+        steps = max(1, max(abs(dx), abs(dy)) // 30)
+        for i in range(1, steps + 1):
+            post(
+                Quartz.kCGEventLeftMouseDragged,
+                x1 + dx * i // steps, y1 + dy * i // steps,
+            )
+            time.sleep(0.02)
+    finally:
+        post(up_type, x2, y2)
+
+
 # ---------------------------------------------------------------------------
 # Coordinate conversion: normalized (0-1000) → pixel
 # ---------------------------------------------------------------------------
@@ -609,8 +689,20 @@ class ScrollTool(BaseTool):
         )
 
     async def execute(
-        self, amount: int, x: Any = None, y: Any = None,
+        self, amount: Any = None, x: Any = None, y: Any = None,
     ) -> ToolResult:
+        try:
+            amount = int(amount)  # type: ignore[assignment]
+        except (TypeError, ValueError):
+            return ToolResult(content="scroll: 'amount' is required", error=True)
+        if abs(amount) > 50:
+            return ToolResult(
+                content=(
+                    f"scroll: amount {amount} out of range — use between "
+                    "-50 and 50 per call (scroll multiple times for more)"
+                ),
+                error=True,
+            )
         px, py = None, None
         pos = ""
         if x is not None or y is not None:
@@ -730,4 +822,164 @@ class LaunchAppTool(BaseTool):
         return ToolResult(
             content=f"Launched '{app_name}' and brought it to the foreground.",
             display=f"Launched {app_name}",
+        )
+
+
+class MouseDownTool(BaseTool):
+    """Press and hold a mouse button (drag building block)."""
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="general")
+
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="mouse_down",
+            description="Press and hold a mouse button at the current position.",
+            parameters=[
+                ToolParameter(
+                    name="button",
+                    type="string",
+                    description="Mouse button: 'left', 'right', or 'middle'",
+                    required=False,
+                    default="left",
+                ),
+            ],
+        )
+
+    async def execute(self, button: str = "left") -> ToolResult:
+        try:
+            await asyncio.to_thread(_mouse_button_macos, button, True)
+        except Exception as e:
+            return ToolResult(content=f"mouse_down: failed: {e}", error=True)
+        return ToolResult(content=f"Mouse {button} button down", display="Mouse down")
+
+
+class MouseUpTool(BaseTool):
+    """Release a mouse button previously pressed with mouse_down."""
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="general")
+
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="mouse_up",
+            description="Release a mouse button held by mouse_down.",
+            parameters=[
+                ToolParameter(
+                    name="button",
+                    type="string",
+                    description="Mouse button: 'left', 'right', or 'middle'",
+                    required=False,
+                    default="left",
+                ),
+            ],
+        )
+
+    async def execute(self, button: str = "left") -> ToolResult:
+        try:
+            await asyncio.to_thread(_mouse_button_macos, button, False)
+        except Exception as e:
+            return ToolResult(content=f"mouse_up: failed: {e}", error=True)
+        return ToolResult(content=f"Mouse {button} button up", display="Mouse up")
+
+
+class HoldKeyTool(BaseTool):
+    """Hold a key combination pressed for a duration."""
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="general")
+
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="hold_key",
+            description=(
+                "Press and hold a key combination for a duration, then "
+                "release (e.g. hold shift for 1 second). Same key format "
+                "as key_press."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="keys",
+                    type="string",
+                    description="Key(s) to hold, e.g. 'shift', 'cmd+c'",
+                ),
+                ToolParameter(
+                    name="duration_s",
+                    type="number",
+                    description="Seconds to hold (0.1-10)",
+                    required=False,
+                    default=1.0,
+                ),
+            ],
+        )
+
+    async def execute(self, keys: str, duration_s: float = 1.0) -> ToolResult:
+        key_list = normalize_keys(keys)
+        if not key_list:
+            return ToolResult(content=f"hold_key: invalid 'keys' {keys!r}", error=True)
+        try:
+            duration = max(0.1, min(10.0, float(duration_s)))
+        except (TypeError, ValueError):
+            duration = 1.0
+        try:
+            await asyncio.to_thread(_hold_key_macos, key_list, duration)
+        except Exception as e:
+            return ToolResult(content=f"hold_key: failed: {e}", error=True)
+        return ToolResult(
+            content=f"Held {'+'.join(key_list)} for {duration}s",
+            display=f"Hold {'+'.join(key_list)}",
+        )
+
+
+class DragTool(BaseTool):
+    """Drag from one point to another with the button held."""
+
+    def get_metadata(self) -> ToolMetadata:
+        return ToolMetadata(category="general")
+
+    def get_info(self) -> ToolInfo:
+        return ToolInfo(
+            name="drag",
+            description=(
+                "Press at (x1,y1), drag to (x2,y2), release. Coordinates "
+                "are 0-1000 normalized like click."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="x1", type="integer", description="Start X (0-1000 normalized)"
+                ),
+                ToolParameter(
+                    name="y1", type="integer", description="Start Y (0-1000 normalized)"
+                ),
+                ToolParameter(
+                    name="x2", type="integer", description="End X (0-1000 normalized)"
+                ),
+                ToolParameter(
+                    name="y2", type="integer", description="End Y (0-1000 normalized)"
+                ),
+            ],
+        )
+
+    async def execute(
+        self, x1: Any, y1: Any = None, x2: Any = None, y2: Any = None,
+    ) -> ToolResult:
+        start = normalize_point(x1, y1)
+        end = normalize_point(x2, y2)
+        if start is None or end is None:
+            return ToolResult(
+                content="drag: pass x1/y1/x2/y2 as integers (0-1000 normalized)",
+                error=True,
+            )
+        sx, sy = _normalized_to_pixel(*start)
+        ex, ey = _normalized_to_pixel(*end)
+        try:
+            await asyncio.to_thread(_drag_macos, sx, sy, ex, ey)
+        except Exception as e:
+            return ToolResult(content=f"drag: failed: {e}", error=True)
+        return ToolResult(
+            content=(
+                f"Dragged normalized {start} → {end} "
+                f"(pixel ({sx},{sy}) → ({ex},{ey}))"
+            ),
+            display=f"Drag {start} → {end}",
         )

@@ -17,6 +17,12 @@ All coordinate tools (click, scroll, mouse_move) use NORMALIZED 0-1000 scale:
 - (500, 500) = center of the screen
 When you identify an element's position, estimate its x and y on this 0-1000 scale.
 
+TOOLS:
+- click / drag: drag for moving files, selecting text spans, resizing windows
+- mouse_down + mouse_up: press-and-hold building blocks (long press)
+- hold_key: keep a key held for a duration (e.g. hold shift)
+- scroll: amount is limited to ±50 per call; scroll repeatedly for more
+
 WORKFLOW:
 1. Launch the target app if needed (launch_app on macOS; on Linux press the
    Super key and type the app name in the launcher, then Enter).
