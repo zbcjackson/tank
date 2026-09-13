@@ -1,6 +1,6 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
-> 状态:阶段 2 实现中(2026-09-13)——baseline 已入档 6/42=14%(label=baseline-macos);阶段 2 设计已批准(§13:A1+A4+A2+E1 bbox+E2 keys 容错+E3 executor 拦截),TDD 实现中。执行阶段划分见 §12。
+> 状态:阶段 2 实现完成待 T1(2026-09-13)——E3 executor 拦截/E2 keys 容错/E1 bbox+A1 坐标统一/A4 键表+repeat/E2 Linux 剪贴板中文 均已落地(§13 设计,a343a53..3540d74);待用户 T1(GUI VM+macOS)实测。执行阶段划分见 §12。
 > 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)· 2026-09-09(执行启动+事实修订:plugin.yaml manifest、NotificationHub、A5 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 
