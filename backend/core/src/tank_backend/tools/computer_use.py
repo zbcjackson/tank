@@ -242,13 +242,22 @@ def _paste_linux(text: str) -> None:
     pbcopy+cmd+v behavior). The user's clipboard is overwritten by
     design — same tradeoff as on macOS.
     """
+    import os
     import shutil
     import subprocess as sp
 
     wl_copy = shutil.which("wl-copy")
     xclip = shutil.which("xclip")
+    wayland = os.environ.get("XDG_SESSION_TYPE") == "wayland"
     if wl_copy:
         copy_cmd = [wl_copy]
+    elif wayland:
+        # xclip under Wayland goes through XWayland without a clipboard
+        # bridge and can hang — fail fast with the right fix instead.
+        raise RuntimeError(
+            "wl-copy not found — on Wayland install wl-clipboard "
+            "(sudo apt install wl-clipboard)"
+        )
     elif xclip:
         copy_cmd = [xclip, "-selection", "clipboard"]
     else:

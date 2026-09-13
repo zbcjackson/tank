@@ -431,3 +431,14 @@ class TestTypeTextClipboard:
             result = await m.TypeTextTool().execute(text="你好")
         assert result.error is True
         assert "wl-clipboard" in result.content or "xclip" in result.content
+
+    @pytest.mark.asyncio
+    async def test_paste_on_wayland_requires_wl_copy(self, monkeypatch):
+        """On Wayland, missing wl-copy must fail fast — xclip hangs there."""
+        from tank_backend.tools import computer_use as m
+
+        monkeypatch.setenv("XDG_SESSION_TYPE", "wayland")
+        with patch("shutil.which", return_value=None):
+            result = await m.TypeTextTool().execute(text="你好")
+        assert result.error is True
+        assert "wl-clipboard" in result.content
