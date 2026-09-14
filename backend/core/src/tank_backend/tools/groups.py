@@ -409,7 +409,7 @@ class ComputerUseToolGroup(ToolGroup):
             DragTool(),
             LaunchAppTool(),
         ]
-        by_name = {t.name: t for t in tools}
+        by_name = {tool.get_info().name: tool for tool in tools}
         tools.append(ComputerBatchTool(by_name))
         return tools
 
@@ -448,6 +448,6 @@ class ComputerUseToolGroup(ToolGroup):
             HoldKeyTool(),
             DragTool(),
         ]
-        by_name = {t.name: t for t in tools}
+        by_name = {tool.get_info().name: tool for tool in tools}
         tools.append(ComputerBatchTool(by_name))
         return tools

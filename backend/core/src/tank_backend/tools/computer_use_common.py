@@ -20,6 +20,8 @@ import asyncio
 import json
 from typing import Any, cast
 
+from .base import BaseTool
+
 # Canonical spellings for keys that models write inconsistently.
 _KEY_SYNONYMS = {"return": "enter"}
 
@@ -179,7 +181,7 @@ _WAIT_MAX_S = 5.0
 _WAIT_MIN_S = 0.1
 
 
-class ComputerBatchTool:
+class ComputerBatchTool(BaseTool):
     """Execute a sequence of computer actions in one call.
 
     Dispatches to the platform tool instances passed at construction, so
@@ -238,7 +240,7 @@ class ComputerBatchTool:
     ) -> Any:
         import json as json_mod
 
-        from .base import ToolResult
+        from .base import ToolResult  # noqa: F811 — narrow for readers
 
         if not isinstance(actions, list) or not actions:
             return ToolResult(
