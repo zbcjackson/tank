@@ -69,12 +69,17 @@ class ToolApprovalPolicy:
         network_policy: Any | None = None,
         llm: Any | None = None,
         tool_metadata: dict[str, Any] | None = None,
+        computer_mode: str = "require",
     ) -> None:
         self._command_policy = command_policy
         self._file_policy = file_policy
         self._network_policy = network_policy
         self._llm = llm
         self._tool_metadata = tool_metadata or {}
+        # A5: computer-control tools. "require" → dispatch-level approval
+        # before a computer_use agent runs (one ask per task, inherited
+        # by every action inside); "allow" → no gate.
+        self._computer_mode = computer_mode
 
     def _get_category(self, tool_name: str) -> str:
         """Resolve the category for a tool, preferring metadata over hardcoded sets."""
@@ -90,12 +95,36 @@ class ToolApprovalPolicy:
             return "web"
         return "general"
 
+    def category_for(self, tool_name: str) -> str:
+        """Public alias of the category routing used by dispatch gates."""
+        return self._get_category(tool_name)
+
+    def computer_requires_approval(self) -> bool:
+        """Whether computer-control tools are gated (A5)."""
+        return self._computer_mode == "require"
+
+    def _evaluate_computer(self, tool_name: str) -> PolicyVerdict:
+        if self._computer_mode == "allow":
+            return PolicyVerdict(
+                level=AccessLevel.ALLOW,
+                reason=f"computer control allowed by config: {tool_name}",
+                policy="computer",
+            )
+        return PolicyVerdict(
+            level=AccessLevel.REQUIRE_APPROVAL,
+            reason=f"computer control: {tool_name}",
+            policy="computer",
+        )
+
     def evaluate(
         self, tool_name: str, tool_args: dict[str, Any] | None = None,
     ) -> PolicyVerdict:
         """Evaluate synchronously."""
         args = tool_args or {}
         category = self._get_category(tool_name)
+
+        if category == "computer":
+            return self._evaluate_computer(tool_name)
 
         if category == "command":
             return self._evaluate_command(args)
@@ -118,6 +147,9 @@ class ToolApprovalPolicy:
         """Evaluate asynchronously (with optional LLM for unknown commands)."""
         args = tool_args or {}
         category = self._get_category(tool_name)
+
+        if category == "computer":
+            return self._evaluate_computer(tool_name)
 
         if category == "command":
             return await self._evaluate_command_async(args)
@@ -485,3 +517,47 @@ class ApprovalGateExecutor:
             display=f"Approval required: {description}",
             error=True,
         )
+
+
+class ScopedPolicy:
+    """Wraps a ToolApprovalPolicy, force-allowing chosen categories.
+
+    A5 dispatch authorization: once the user approves a computer_use
+    dispatch, every action inside that run inherits the authorization
+    (per-action prompts would make GUI loops unusable). Other
+    categories still route through the wrapped policy unchanged.
+    """
+
+    def __init__(self, inner: Any, allowed_categories: set[str]) -> None:
+        self._inner = inner
+        self._allowed = allowed_categories
+
+    def category_for(self, tool_name: str) -> str:
+        return self._inner.category_for(tool_name)
+
+    def computer_requires_approval(self) -> bool:
+        return "computer" not in self._allowed and (
+            self._inner.computer_requires_approval()
+        )
+
+    def evaluate(
+        self, tool_name: str, tool_args: dict[str, Any] | None = None,
+    ) -> PolicyVerdict:
+        if self._inner.category_for(tool_name) in self._allowed:
+            return PolicyVerdict(
+                level=AccessLevel.ALLOW,
+                reason=f"authorized by dispatch approval: {tool_name}",
+                policy="scope",
+            )
+        return self._inner.evaluate(tool_name, tool_args)
+
+    async def evaluate_async(
+        self, tool_name: str, tool_args: dict[str, Any] | None = None,
+    ) -> PolicyVerdict:
+        if self._inner.category_for(tool_name) in self._allowed:
+            return PolicyVerdict(
+                level=AccessLevel.ALLOW,
+                reason=f"authorized by dispatch approval: {tool_name}",
+                policy="scope",
+            )
+        return await self._inner.evaluate_async(tool_name, tool_args)

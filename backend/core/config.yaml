@@ -193,6 +193,8 @@ sandbox:
 # File access policy — controls which files the agent can read/write/delete.
 # Rules are evaluated top-down; first match wins.
 # Levels: allow | require_approval | deny
+# computer: computer-use dispatch gate — 'require' asks once per task
+# (default), 'allow' disables the gate entirely.
 file_access:
   default_read: allow
   default_write: require_approval

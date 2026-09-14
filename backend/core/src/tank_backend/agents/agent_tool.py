@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 
 from ..tools.base import (
@@ -60,6 +61,9 @@ class AgentTool(BaseTool):
     ) -> None:
         self._runner = runner
         self._supervisor = supervisor
+        # A5: one-time tokens authorizing a computer-control dispatch the
+        # user just approved (round-trips through ConfirmActionTool).
+        self._issued_tokens: set[str] = set()
 
     def get_info(self) -> ToolInfo:
         # Build description with available agent types
@@ -136,6 +140,16 @@ class AgentTool(BaseTool):
                 error=True,
             )
 
+        # A5 dispatch gate: launching an agent whose toolset controls the
+        # computer needs ONE user approval; the approved re-entry carries a
+        # token and the run inherits the authorization for its actions.
+        authorized = self._consume_authorization_token(kwargs)
+        if not authorized and self._computer_gate_needed(agent_def):
+            return self._park_dispatch_approval(
+                kwargs=kwargs, prompt=prompt, ctx=ctx,
+            )
+        allowed_categories = {"computer"} if authorized else None
+
         if self._supervisor is not None:
             return await self._execute_via_supervisor(
                 agent_def=agent_def,
@@ -144,6 +158,7 @@ class AgentTool(BaseTool):
                 description=description,
                 background=bool(background) or agent_def.background,
                 originating_conversation_id=originating_conversation_id,
+                allowed_categories=allowed_categories,
             )
         return await self._execute_via_runner(
             agent_def=agent_def,
@@ -151,6 +166,102 @@ class AgentTool(BaseTool):
             prompt=prompt,
             description=description,
             background=background or agent_def.background,
+            allowed_categories=allowed_categories,
+        )
+
+    # ------------------------------------------------------------------
+    # A5: computer-control dispatch approval
+    # ------------------------------------------------------------------
+
+    def _computer_gate_needed(self, agent_def: Any) -> bool:
+        policy = getattr(self._runner, "_approval_policy", None)
+        # ``is not True`` keeps duck-typed fakes (unit-test mocks) open.
+        if policy is None or policy.computer_requires_approval() is not True:
+            return False
+        tool_filter = agent_def.tool_filter
+        if tool_filter is None and agent_def.toolset:
+            tool_filter = self._runner._resolve_toolset(agent_def.toolset)
+        if tool_filter is None:
+            # Unfiltered agents see every tool, computer tools included.
+            return True
+        return any(
+            policy.category_for(name) == "computer" for name in tool_filter
+        )
+
+    def _consume_authorization_token(self, kwargs: dict[str, Any]) -> bool:
+        token = kwargs.pop("authorization_token", None)
+        if not token or token not in self._issued_tokens:
+            return False
+        self._issued_tokens.discard(token)
+        return True
+
+    def _park_dispatch_approval(
+        self, *, kwargs: dict[str, Any], prompt: str, ctx: Any,
+    ) -> ToolResult:
+        import secrets
+
+        from .approval import PendingToolCall, make_approval_id
+
+        store = getattr(self._runner, "_pending_store", None)
+        bus = getattr(self._runner, "_bus", None)
+        if store is None or bus is None:
+            # No approval machinery (unit-test runners): refuse to run
+            # computer control silently.
+            return ToolResult(
+                content=(
+                    "APPROVAL REQUIRED: this agent controls the computer "
+                    "(mouse/keyboard) and needs user approval, but no "
+                    "approval channel is configured."
+                ),
+                display="Computer control needs approval",
+                error=True,
+            )
+
+        token = secrets.token_hex(8)
+        self._issued_tokens.add(token)
+        description = f"control mouse & keyboard: {prompt[:120]}"
+        pending = PendingToolCall(
+            approval_id=make_approval_id(),
+            tool_name="agent",
+            tool_args={**kwargs, "authorization_token": token},
+            tool_call_id="dispatch",
+            arguments_raw="",
+            description=description,
+            session_id=(ctx.session_id if ctx is not None else ""),
+            created_at=time.time(),
+        )
+        store.park(pending)
+
+        from ..core.events import DisplayMessage, UpdateType
+        from ..pipeline.bus import BusMessage
+
+        bus.post(
+            BusMessage(
+                type="ui_message",
+                source="approval_gate",
+                payload=DisplayMessage(
+                    speaker="Brain",
+                    text=description,
+                    is_user=False,
+                    msg_id="",
+                    is_final=False,
+                    update_type=UpdateType.APPROVAL,
+                    metadata={
+                        "approval_id": pending.approval_id,
+                        "tool_name": "agent",
+                        "tool_args": pending.tool_args,
+                    },
+                ),
+                timestamp=time.time(),
+            ),
+        )
+        return ToolResult(
+            content=(
+                "APPROVAL REQUIRED: the user must confirm computer control "
+                "(mouse/keyboard) before this agent can run. Ask the user; "
+                "on confirmation the dispatch resumes automatically."
+            ),
+            display="Computer control needs approval",
         )
 
     # ------------------------------------------------------------------
@@ -166,6 +277,7 @@ class AgentTool(BaseTool):
         description: str,
         background: bool,
         originating_conversation_id: str | None,
+        allowed_categories: set[str] | None = None,
     ) -> ToolResult:
         assert self._supervisor is not None  # noqa: S101
         try:
@@ -175,6 +287,7 @@ class AgentTool(BaseTool):
                     prompt=prompt,
                     description=description,
                     originating_conversation_id=originating_conversation_id,
+                    allowed_categories=allowed_categories,
                 )
                 logger.info(
                     "AgentTool: '%s' dispatched in background (task=%s)",
@@ -199,6 +312,7 @@ class AgentTool(BaseTool):
                 prompt=prompt,
                 description=description,
                 originating_conversation_id=originating_conversation_id,
+                allowed_categories=allowed_categories,
             )
         except DepthLimitExceeded as e:
             return self._limit_error(agent_type, str(e))
@@ -265,6 +379,7 @@ class AgentTool(BaseTool):
         prompt: str,
         description: str,
         background: bool,
+        allowed_categories: set[str] | None = None,
     ) -> ToolResult:
         messages: list[dict[str, Any]] = [
             {"role": "user", "content": prompt},
@@ -272,11 +387,15 @@ class AgentTool(BaseTool):
 
         full_text = ""
         tool_calls = 0
+        run_kwargs: dict[str, Any] = {}
+        if allowed_categories:
+            run_kwargs["allowed_categories"] = allowed_categories
 
         async for output in self._runner.run_agent(
             agent_def=agent_def,
             messages=messages,
             background=background or agent_def.background,
+            **run_kwargs,
         ):
             if output.type == AgentOutputType.TOKEN:
                 full_text += output.content

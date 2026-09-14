@@ -114,12 +114,19 @@ class ToolManager:
             except Exception as e:
                 logger.warning("Failed to create command security LLM: %s", e)
 
+        # A5: computer-control gate mode. Default "require" = one
+        # dispatch-level approval per computer_use task; "allow" disables.
+        approval_cfg = getattr(app_config, "_raw", {}).get(
+            "approval_policies", {}
+        )
+        computer_mode = approval_cfg.get("computer", "require")
         self._approval_policy = ToolApprovalPolicy(
             command_policy=command_policy,
             file_policy=self._file_policy,
             network_policy=self._network_policy,
             llm=command_llm,
             tool_metadata=self.tool_metadata,
+            computer_mode=computer_mode,
         )
 
         # --- Register tool groups ---

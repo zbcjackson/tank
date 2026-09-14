@@ -125,6 +125,7 @@ class WorkerSupervisor:
         originating_channel: str | None = None,
         parent_msg_id: str | None = None,
         timeout: float | None = None,
+        allowed_categories: set[str] | None = None,
     ) -> DispatchResult:
         """Dispatch and await an agent worker.
 
@@ -147,6 +148,7 @@ class WorkerSupervisor:
         )
         return await self._drive_to_completion(
             run=run, agent_def=agent_def, timeout=timeout,
+            allowed_categories=allowed_categories,
         )
 
     def run_background(
@@ -160,6 +162,7 @@ class WorkerSupervisor:
         originating_channel: str | None = None,
         parent_msg_id: str | None = None,
         timeout: float | None = None,
+        allowed_categories: set[str] | None = None,
     ) -> str:
         """Dispatch a worker and return its ``task_id`` immediately.
 
@@ -181,6 +184,7 @@ class WorkerSupervisor:
         task = asyncio.create_task(
             self._drive_to_completion(
                 run=run, agent_def=agent_def, timeout=timeout,
+                allowed_categories=allowed_categories,
             ),
             name=f"worker:{run.task_id}",
         )
@@ -279,6 +283,7 @@ class WorkerSupervisor:
         agent_def: AgentDefinition,
         timeout: float | None,
         initial_messages: list[dict[str, Any]] | None = None,
+        allowed_categories: set[str] | None = None,
     ) -> DispatchResult:
         start = time.monotonic()
         output_chunks: list[str] = []
@@ -293,6 +298,7 @@ class WorkerSupervisor:
                     run=run,
                     output_chunks=output_chunks,
                     initial_messages=initial_messages,
+                    allowed_categories=allowed_categories,
                 ),
                 timeout=timeout,
             )
@@ -345,6 +351,7 @@ class WorkerSupervisor:
         run: WorkerRun,
         output_chunks: list[str],
         initial_messages: list[dict[str, Any]] | None = None,
+        allowed_categories: set[str] | None = None,
     ) -> _AskUserResult | None:
         """Drain ``runner.run_agent`` into ``output_chunks``.
 
@@ -353,11 +360,16 @@ class WorkerSupervisor:
         """
         messages = initial_messages or [{"role": "user", "content": run.prompt}]
         ask_user_question: str | None = None
+        run_kwargs: dict[str, Any] = {}
+        if allowed_categories:
+            # Optional so narrow test fakes (and older callers) keep working.
+            run_kwargs["allowed_categories"] = allowed_categories
         async for event in self._runner.run_agent(
             agent_def=agent_def,
             messages=messages,
             parent_agent_id=run.parent_task_id,
             background=False,
+            **run_kwargs,
         ):
             if event.type == AgentOutputType.TOKEN:
                 output_chunks.append(event.content)

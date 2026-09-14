@@ -90,6 +90,7 @@ class AgentRunner:
         parent_agent_id: str | None = None,
         background: bool = False,
         token_budget: int | None = None,
+        allowed_categories: set[str] | None = None,
     ) -> AsyncIterator[AgentOutput]:
         """Run an agent to completion, yielding all outputs.
 
@@ -174,14 +175,19 @@ class AgentRunner:
         else:
             agent_llm = self._llm
 
+        approval_policy: Any = self._approval_policy
+        if allowed_categories and approval_policy is not None:
+            from .approval import ScopedPolicy
+
+            approval_policy = ScopedPolicy(approval_policy, allowed_categories)
         agent = LLMAgent(
             name=f"agent_{agent_def.name}",
             llm=agent_llm,
             tool_manager=self._tool_manager,
+            approval_policy=approval_policy,
             system_prompt=system_prompt,
             tool_filter=tool_filter,
             exclude_tools=exclude_tools,
-            approval_policy=self._approval_policy,
             resolver=self._resolver,
             session_id=agent_id,
             pending_store=self._pending_store,

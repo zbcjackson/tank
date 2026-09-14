@@ -421,7 +421,7 @@ class ScreenshotTool(BaseTool):
         self._profile = profile
 
     def get_metadata(self) -> ToolMetadata:
-        return ToolMetadata(category="general", idempotent=True)
+        return ToolMetadata(category="computer", idempotent=True)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -485,7 +485,7 @@ class ClickTool(BaseTool):
     """Click at screen coordinates."""
 
     def get_metadata(self) -> ToolMetadata:
-        return ToolMetadata(category="general")
+        return ToolMetadata(category="computer")
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -556,7 +556,7 @@ class TypeTextTool(BaseTool):
     """Type text at the current cursor position."""
 
     def get_metadata(self) -> ToolMetadata:
-        return ToolMetadata(category="general")
+        return ToolMetadata(category="computer")
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -593,7 +593,7 @@ class KeyPressTool(BaseTool):
     """Press a key or key combination."""
 
     def get_metadata(self) -> ToolMetadata:
-        return ToolMetadata(category="general")
+        return ToolMetadata(category="computer")
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -657,7 +657,7 @@ class ScrollTool(BaseTool):
     """Scroll at a screen position."""
 
     def get_metadata(self) -> ToolMetadata:
-        return ToolMetadata(category="general")
+        return ToolMetadata(category="computer")
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -734,7 +734,7 @@ class MouseMoveTool(BaseTool):
     """Move the mouse cursor without clicking."""
 
     def get_metadata(self) -> ToolMetadata:
-        return ToolMetadata(category="general", idempotent=True)
+        return ToolMetadata(category="computer", idempotent=True)
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -782,7 +782,7 @@ class LaunchAppTool(BaseTool):
     """Launch a macOS application by name."""
 
     def get_metadata(self) -> ToolMetadata:
-        return ToolMetadata(category="general")
+        return ToolMetadata(category="computer")
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -829,7 +829,7 @@ class MouseDownTool(BaseTool):
     """Press and hold a mouse button (drag building block)."""
 
     def get_metadata(self) -> ToolMetadata:
-        return ToolMetadata(category="general")
+        return ToolMetadata(category="computer")
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -858,7 +858,7 @@ class MouseUpTool(BaseTool):
     """Release a mouse button previously pressed with mouse_down."""
 
     def get_metadata(self) -> ToolMetadata:
-        return ToolMetadata(category="general")
+        return ToolMetadata(category="computer")
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -887,7 +887,7 @@ class HoldKeyTool(BaseTool):
     """Hold a key combination pressed for a duration."""
 
     def get_metadata(self) -> ToolMetadata:
-        return ToolMetadata(category="general")
+        return ToolMetadata(category="computer")
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
@@ -935,7 +935,7 @@ class DragTool(BaseTool):
     """Drag from one point to another with the button held."""
 
     def get_metadata(self) -> ToolMetadata:
-        return ToolMetadata(category="general")
+        return ToolMetadata(category="computer")
 
     def get_info(self) -> ToolInfo:
         return ToolInfo(
