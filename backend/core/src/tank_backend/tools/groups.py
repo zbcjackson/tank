@@ -381,6 +381,7 @@ class ComputerUseToolGroup(ToolGroup):
             )
             return []
 
+        from .computer_use_common import ComputerBatchTool
         from .computer_use_macos import (
             ClickTool,
             DragTool,
@@ -395,7 +396,7 @@ class ComputerUseToolGroup(ToolGroup):
             TypeTextTool,
         )
 
-        return [
+        tools: list[BaseTool] = [
             ScreenshotTool(profile),
             ClickTool(),
             TypeTextTool(),
@@ -408,6 +409,9 @@ class ComputerUseToolGroup(ToolGroup):
             DragTool(),
             LaunchAppTool(),
         ]
+        by_name = {t.name: t for t in tools}
+        tools.append(ComputerBatchTool(by_name))
+        return tools
 
     def _create_linux_tools(self, profile: Any) -> list[BaseTool]:
         """Create tools using Linux backends (portal + ydotool/pyautogui)."""
@@ -430,8 +434,9 @@ class ComputerUseToolGroup(ToolGroup):
             ScrollTool,
             TypeTextTool,
         )
+        from .computer_use_common import ComputerBatchTool
 
-        return [
+        tools: list[BaseTool] = [
             ScreenshotTool(profile),
             ClickTool(),
             TypeTextTool(),
@@ -443,3 +448,6 @@ class ComputerUseToolGroup(ToolGroup):
             HoldKeyTool(),
             DragTool(),
         ]
+        by_name = {t.name: t for t in tools}
+        tools.append(ComputerBatchTool(by_name))
+        return tools

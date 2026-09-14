@@ -22,6 +22,8 @@ TOOLS:
 - mouse_down + mouse_up: press-and-hold building blocks (long press)
 - hold_key: keep a key held for a duration (e.g. hold shift)
 - scroll: amount is limited to ±50 per call; scroll repeatedly for more
+- computer_batch: run a SEQUENCE of actions in one call (much faster);
+  use it for predictable multi-step moves like click→type→enter
 
 WORKFLOW:
 1. Launch the target app if needed (launch_app on macOS; on Linux press the

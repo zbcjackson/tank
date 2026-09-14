@@ -16,6 +16,7 @@ identical; platform files call these at tool entry.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any, cast
 
@@ -162,3 +163,154 @@ def normalize_point(x: Any, y: Any) -> tuple[int, int] | None:
     if nx is None or ny is None:
         return None
     return _clamp(nx), _clamp(ny)
+
+
+# ── A10: batch executor ───────────────────────────────────────────────
+
+# Actions allowed inside a computer_batch (primitives + wait; screenshot
+# is taken automatically by the batch itself, launch_app is one-shot).
+BATCH_ACTIONS = frozenset({
+    "click", "type_text", "key_press", "scroll", "mouse_move",
+    "mouse_down", "mouse_up", "hold_key", "drag", "wait",
+})
+
+_WAIT_DEFAULT_S = 1.0
+_WAIT_MAX_S = 5.0
+_WAIT_MIN_S = 0.1
+
+
+class ComputerBatchTool:
+    """Execute a sequence of computer actions in one call.
+
+    Dispatches to the platform tool instances passed at construction, so
+    the class itself is platform-agnostic. Fails fast (first error stops
+    the batch, remaining steps are reported as skipped) and captures one
+    screenshot after the batch so the model sees the combined effect.
+    """
+
+    def __init__(self, tools: dict[str, Any]) -> None:
+        self._tools = tools
+
+    # -- BaseTool-compatible surface -----------------------------------
+
+    def get_metadata(self) -> Any:
+        from .base import ToolMetadata
+
+        return ToolMetadata(category="computer")
+
+    def get_info(self) -> Any:
+        from .base import ToolInfo, ToolParameter
+
+        return ToolInfo(
+            name="computer_batch",
+            description=(
+                "Execute a sequence of computer actions in ONE call — much "
+                "faster than one action per turn. Stops at the first failure "
+                "and reports remaining steps as skipped. A screenshot of the "
+                "final state is captured automatically after the batch."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="actions",
+                    type="array",
+                    description=(
+                        "Ordered action objects. Each has an 'action' field: "
+                        "click(x,y), type_text(text), key_press(keys), "
+                        "scroll(amount[,x,y]), mouse_move(x,y), "
+                        "mouse_down(button), mouse_up(button), "
+                        "hold_key(keys,duration_s), "
+                        "drag(x1,y1,x2,y2), wait(delay_s). Coordinates use "
+                        "the same 0-1000 normalized form as click."
+                    ),
+                ),
+                ToolParameter(
+                    name="screenshot",
+                    type="boolean",
+                    description="Capture a screenshot after the batch",
+                    required=False,
+                    default=True,
+                ),
+            ],
+        )
+
+    async def execute(
+        self, actions: Any = None, screenshot: bool = True,
+    ) -> Any:
+        import json as json_mod
+
+        from .base import ToolResult
+
+        if not isinstance(actions, list) or not actions:
+            return ToolResult(
+                content="computer_batch: 'actions' must be a non-empty list",
+                error=True,
+            )
+
+        steps: list[dict[str, Any]] = []
+        failed_at: int | None = None
+        skipped: list[str] = []
+        for index, raw in enumerate(actions):
+            if not isinstance(raw, dict):
+                return ToolResult(
+                    content=f"computer_batch: action #{index} is not an object",
+                    error=True,
+                )
+            name = raw.get("action")
+            if name not in BATCH_ACTIONS:
+                return ToolResult(
+                    content=(
+                        f"computer_batch: unknown action {name!r} at #{index}; "
+                        f"valid: {sorted(BATCH_ACTIONS)}"
+                    ),
+                    error=True,
+                )
+            if name == "wait":
+                try:
+                    raw_delay = float(raw.get("delay_s", _WAIT_DEFAULT_S))
+                except (TypeError, ValueError):
+                    raw_delay = _WAIT_DEFAULT_S
+                delay = max(_WAIT_MIN_S, min(_WAIT_MAX_S, raw_delay))
+                await asyncio.sleep(delay)
+                steps.append({"action": "wait", "status": "ok", "detail": f"{delay}s"})
+                continue
+            tool = self._tools.get(name)
+            if tool is None:
+                return ToolResult(
+                    content=f"computer_batch: action {name!r} unavailable on this platform",
+                    error=True,
+                )
+            kwargs = {k: v for k, v in raw.items() if k != "action"}
+            result = await tool.execute(**kwargs)
+            failed = isinstance(result, ToolResult) and result.error
+            steps.append({
+                "action": name,
+                "status": "error" if failed else "ok",
+                "detail": result.content if failed else "",
+            })
+            if failed:
+                failed_at = index
+                skipped = [a.get("action", "?") for a in actions[index + 1:]]
+                break
+
+        shot_text = ""
+        if screenshot and "screenshot" in self._tools:
+            shot = await self._tools["screenshot"].execute(task="batch result")
+            if isinstance(shot, ToolResult) and isinstance(shot.content, list):
+                for block in shot.content:
+                    text = getattr(block, "text", "")
+                    if text:
+                        shot_text = text
+                        break
+
+        ok = failed_at is None
+        suffix = f" (failed at {failed_at})" if failed_at is not None else ""
+        return ToolResult(
+            content=json_mod.dumps({
+                "steps": steps,
+                "failed_at": failed_at,
+                "skipped": skipped,
+                "screenshot": shot_text,
+            }, ensure_ascii=False),
+            display=f"Batch: {len(steps)} steps{suffix}",
+            error=not ok,
+        )
