@@ -13,6 +13,10 @@ def main():
     parser.add_argument("--port", type=int, default=8000, help="Port to bind")
     parser.add_argument("--config", type=str, default=".env", help="Config file path")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload on file changes")
+    parser.add_argument(
+        "--check-computer-use", action="store_true",
+        help="Probe the computer-use stack (no session started, no input injected)",
+    )
 
     # backup subcommand
     backup_parser = subparsers.add_parser("backup", help="Manage file backups")
@@ -28,10 +32,20 @@ def main():
 
     args = parser.parse_args()
 
+    if args.check_computer_use:
+        raise SystemExit(_run_computer_doctor(args))
     if args.command == "backup":
         _handle_backup(args)
     else:
         _run_server(args)
+
+
+def _run_computer_doctor(_args: argparse.Namespace) -> int:
+    from .tools.computer_doctor import format_report, run_doctor
+
+    report = run_doctor()
+    print(format_report(report))
+    return report.exit_code
 
 
 def _run_server(args: argparse.Namespace) -> None:
