@@ -73,6 +73,13 @@ class _FakeQuartz:
 def fake_quartz(monkeypatch: pytest.MonkeyPatch) -> _FakeQuartz:
     """Inject a fake Quartz module for functions that ``import Quartz``."""
     quartz = _FakeQuartz()
+    # Class-level MagicMock attrs are shared across tests — rebind fresh
+    # instances so call counts stay per-test.
+    quartz.CGEventCreateKeyboardEvent = MagicMock(
+        side_effect=lambda s, k, d: (k, d)
+    )
+    quartz.CGEventSetFlags = MagicMock()
+    quartz.CGEventPost = MagicMock()
     monkeypatch.setitem(sys.modules, "Quartz", quartz)
     return quartz
 
@@ -227,12 +234,14 @@ class TestTypeTextTool:
         assert result.error is False
 
     @pytest.mark.asyncio
-    async def test_ascii_escapes_quotes(self):
+    async def test_quoted_text_routes_to_paste(self, fake_quartz):
+        """Quotes are punctuation — per-app IME eats bare punctuation
+        keystrokes, so quoted text takes the clipboard path now."""
         tool = TypeTextTool()
         with patch(f"{MODULE}.subprocess.run", return_value=make_run_ok()) as mock_run:
             await tool.execute(text='say "hi"')
-        script = mock_run.call_args[0][0][2]
-        assert '\\"hi\\"' in script
+        first_cmd = mock_run.call_args_list[0][0][0]
+        assert first_cmd[0] == "pbcopy"
 
     @pytest.mark.asyncio
     async def test_non_ascii_uses_clipboard_paste(self, fake_quartz):
@@ -480,3 +489,28 @@ class TestA3MacOSTools:
         r = await m.ScrollTool().execute(amount=500)
         assert r.error is True
         assert "50" in r.content
+
+
+class TestSpecialCharPasteFallback:
+    """A5-era follow-up: bare punctuation keystrokes are eaten by some
+    apps' sticky IME (Terminal eats -/. while TextEdit is fine) — any
+    text beyond alnum+space must take the clipboard paste path."""
+
+    @pytest.mark.asyncio
+    async def test_ascii_punctuation_routes_to_paste(self, fake_quartz):
+        tool = TypeTextTool()
+        with patch("tank_backend.tools.computer_use_macos.subprocess.run") as mr:
+            mr.return_value = make_run_ok()
+            result = await tool.execute(text="T3-batch-ok")
+        assert result.error is False
+        first_cmd = mr.call_args_list[0][0][0]
+        assert first_cmd[0] == "pbcopy"  # paste path, not keystroke
+
+    @pytest.mark.asyncio
+    async def test_plain_alnum_still_keystrokes(self):
+        tool = TypeTextTool()
+        with patch("tank_backend.tools.computer_use_macos.subprocess.run") as mr:
+            mr.return_value = make_run_ok()
+            await tool.execute(text="hello world 42")
+        first_cmd = mr.call_args_list[0][0][0]
+        assert first_cmd[0] == "osascript"  # fast keystroke path

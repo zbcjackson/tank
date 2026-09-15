@@ -154,15 +154,22 @@ def _click_macos(x: int, y: int, button: str = "left", clicks: int = 1) -> None:
             time.sleep(0.05)
 
 
+_KEYSTROKE_SAFE = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
+)
+
+
 def _type_macos(text: str) -> None:
     """Type text on macOS.
 
-    For ASCII-only text, uses AppleScript keystroke (fast, reliable).
-    For text containing non-ASCII (Chinese, emoji, etc.), uses clipboard
-    paste (pbcopy + cmd+v) to bypass IME interference.
+    Plain alphanumeric text uses AppleScript keystroke (fast). Anything
+    else — non-ASCII (Chinese, emoji) or ASCII punctuation like ``-``
+    and ``.`` — is pasted via clipboard (pbcopy + cmd+v): per-app IME
+    stickiness silently eats synthetic keystrokes of bare punctuation
+    in some apps (observed: Terminal.app eats ``-``/``.`` while
+    TextEdit types them fine), while the paste path is immune.
     """
-    if all(ord(c) < 128 for c in text):
-        # Pure ASCII — use keystroke directly
+    if all(c in _KEYSTROKE_SAFE for c in text):
         escaped = text.replace("\\", "\\\\").replace('"', '\\"')
         script = f'tell application "System Events" to keystroke "{escaped}"'
         result = subprocess.run(
