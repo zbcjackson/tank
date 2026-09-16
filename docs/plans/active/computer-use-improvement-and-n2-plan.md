@@ -1,6 +1,6 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
-> 状态:Part A 全部完成并验收(2026-09-16)——阶段 5 对比 6/42→7/42(§15),瓶颈=模型 grounding;A13 zoom + A14 清理已落地(4705fa3/3c5c381)。决策门通过:用户同意进入 Part B。下一步=阶段 6(B1+B2)设计评审。执行阶段划分见 §12。
+> 状态:Part A 全部完成并验收(2026-09-16,§15)。决策门通过,阶段 6(B1+B2)设计已批准(§16),实施中。
 > 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)· 2026-09-09(执行启动+事实修订:plugin.yaml manifest、NotificationHub、A5 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 
@@ -418,3 +418,9 @@ Baseline 已入档:6/42=14%(label=baseline-macos);terminal-write 0/3 两种死�
 **瓶颈定位(为什么总分没动)**:视觉定位精度。local-form 三个字段全部正确填入、页面正常加载,但提交按钮点击不中(page_capture 0 条);file-ops 点击越界(1030>1000 被 clamp);失败任务 16 步全为"点不准→重试"循环。LLM 延迟 6.9s/call 与 baseline 持平(波动主导)。
 
 **结论**:Part A 目标(安全+可靠输入+原语齐备+可诊断)达成;剩余瓶颈是**模型 grounding 能力**,非基础设施。选项:A13 zoom(截图局部放大)作为针对性补充,或直接进决策门以 n2 A/B 回答。
+
+## 16. 阶段 6 设计定稿(2026-09-16 用户批准)
+
+**B1 DesktopExecutor**(`computer/executor.py`):Protocol 桌面原语(screenshot 含 region/click/type_text/key_press/scroll/mouse_move/mouse_down/up/hold_key/drag/wait clamp 0.1-5/batch A10 语义)+ bash(持久 cwd、禁 sudo/su 首token+管道段、输出截断 10k)+ 文件 read/write/edit(read-before-edit 由 old-string 必须唯一命中强制)。双平台实现直接调用既有底层函数(`_click_macos`/`_click_ydotool` 等),不经过 Tool 类;返回强类型小结果(Screenshot/BashResult/BatchResult)。**executor.batch 与 ComputerBatchTool 各自实现、共享底层原语(用户选定)**。
+
+**B2 core seam**:①`AgentDefinition.engine: str|None` + frontmatter 解析(engine 值=registry full_name);②`AgentRunner.__init__` 加 `registry=None`,`run_agent` 在 LLMAgent 构造前加工厂分支,registry 经 Assistant→BrainProcessor→AgentRunner 穿线,jobs/benchmark 默认 None(缺 registry 报错);③`ExtensionManifest.needs: tuple[str,...]`,`plugin.yaml` 声明 `type: agent, needs: [desktop_executor]`,registry 保持类型无关仅实例化后校验 Agent ABC。工厂 config=`{"desktop_executor": Executor|None(按 needs), "llm_profile": LLMProfile|None}`。取消=supervisor stop→task cancel(插件 finally 清理);预算=插件 yield USAGE。toolset/model 字段对插件 agent 忽略。
