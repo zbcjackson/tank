@@ -211,3 +211,14 @@ async def test_allow_mode_skips_gate():
     tool = AgentTool(runner, supervisor=supervisor)
     await tool.execute(prompt="open calculator", subagent_type="computer_use")
     supervisor.run_foreground.assert_called_once()
+
+
+async def test_policy_sees_late_tool_registrations():
+    """The manager registers tools AFTER building the policy, passing its
+    live (still-empty) metadata dict — the policy must keep the SAME
+    object, not `or {}`-swap it for a fresh one (real bug: every computer
+    tool resolved as 'general' and the dispatch gate never fired)."""
+    meta: dict = {}
+    policy = ToolApprovalPolicy(tool_metadata=meta, computer_mode="require")
+    meta["click"] = MagicMock(category="computer")  # registered later
+    assert policy.category_for("click") == "computer"

@@ -75,7 +75,10 @@ class ToolApprovalPolicy:
         self._file_policy = file_policy
         self._network_policy = network_policy
         self._llm = llm
-        self._tool_metadata = tool_metadata or {}
+        # `if ... is not None` (not `or {}`): the manager passes its LIVE
+        # (still-empty at this point) metadata dict — `or {}` would bind a
+        # different dict and the policy would never see later registrations.
+        self._tool_metadata = tool_metadata if tool_metadata is not None else {}
         # A5: computer-control tools. "require" → dispatch-level approval
         # before a computer_use agent runs (one ask per task, inherited
         # by every action inside); "allow" → no gate.
