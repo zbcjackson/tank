@@ -232,6 +232,8 @@ class AgentTool(BaseTool):
         )
         store.park(pending)
 
+        import uuid as uuid_mod
+
         from ..core.events import DisplayMessage, UpdateType
         from ..pipeline.bus import BusMessage
 
@@ -243,7 +245,10 @@ class AgentTool(BaseTool):
                     speaker="Brain",
                     text=description,
                     is_user=False,
-                    msg_id="",
+                    # Real id: the frontend anchors approval cards by msg_id —
+                    # an empty one makes a second card in the same
+                    # conversation a duplicate that never renders.
+                    msg_id=f"approval_{uuid_mod.uuid4().hex[:8]}",
                     is_final=False,
                     update_type=UpdateType.APPROVAL,
                     metadata={
