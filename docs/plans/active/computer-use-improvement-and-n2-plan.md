@@ -1,6 +1,6 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
-> 状态:阶段 5 对比完成(2026-09-16,§15)——6/42→7/42:输入链路与新原语全部验证可靠,剩余瓶颈=模型视觉定位精度(证据:表单全填对但提交点不中、capture 0 条)。待决策:A13 zoom 补充 vs 直接进决策门。执行阶段划分见 §12。
+> 状态:Part A 全部完成并验收(2026-09-16)——阶段 5 对比 6/42→7/42(§15),瓶颈=模型 grounding;A13 zoom + A14 清理已落地(4705fa3/3c5c381)。决策门通过:用户同意进入 Part B。下一步=阶段 6(B1+B2)设计评审。执行阶段划分见 §12。
 > 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)· 2026-09-09(执行启动+事实修订:plugin.yaml manifest、NotificationHub、A5 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 
