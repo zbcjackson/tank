@@ -29,10 +29,14 @@ from .computer_use_common import (
     COORDINATE_X_DESCRIPTION,
     COORDINATE_Y_DESCRIPTION,
     PYAUTOGUI_KEY_ALIASES,
+    REGION_DESCRIPTION,
     YDOTOOL_KEY_ALIASES,
+    crop_and_upscale,
     normalize_keys,
     normalize_point,
     normalized_to_pixel,
+    parse_region,
+    region_note,
 )
 
 logger = logging.getLogger(__name__)
@@ -516,10 +520,16 @@ class ScreenshotTool(BaseTool):
                     ),
                     required=False,
                 ),
+                ToolParameter(
+                    name="region",
+                    type="array",
+                    description=REGION_DESCRIPTION,
+                    required=False,
+                ),
             ],
         )
 
-    async def execute(self, task: str = "") -> ToolResult:
+    async def execute(self, task: str = "", region: Any = None) -> ToolResult:
         global _screen_size
         try:
             png_bytes = await asyncio.to_thread(_capture_screenshot)
@@ -530,15 +540,34 @@ class ScreenshotTool(BaseTool):
                 error=True,
             )
 
-        # Refresh the size cache coordinate tools convert against.
+        # Refresh the size cache coordinate tools convert against. It must
+        # stay FULL-screen even for zoomed captures — click coordinates
+        # are always full-screen normalized.
         size = _png_size(png_bytes)
         if size[0] and size[1]:
             _screen_size = size
 
+        note = f"Screenshot captured. {COORDINATE_NOTE}"
+        if region is not None:
+            parsed = parse_region(region)
+            if parsed is None:
+                return ToolResult(
+                    content=(
+                        "screenshot: 'region' must be [x1, y1, x2, y2] in "
+                        "0-1000 normalized coordinates with x2 > x1, y2 > y1"
+                    ),
+                    error=True,
+                )
+            png_bytes = await asyncio.to_thread(
+                crop_and_upscale, png_bytes, parsed, size,
+            )
+            note = (
+                f"Screenshot captured. {region_note(parsed)} {COORDINATE_NOTE}"
+            )
+
         b64 = base64.b64encode(png_bytes).decode()
         data_url = f"data:image/png;base64,{b64}"
 
-        note = f"Screenshot captured. {COORDINATE_NOTE}"
         text = f"{note} {task}" if task else note
         content = [
             TextBlock(text=text),

@@ -504,3 +504,35 @@ class TestSpecialCharPasteFallback:
             await tool.execute(text="hello world 42")
         first_cmd = mr.call_args_list[0][0][0]
         assert first_cmd[0] == "osascript"  # fast keystroke path
+
+
+# ---------------------------------------------------------------------------
+# Screenshot zoom (A13)
+# ---------------------------------------------------------------------------
+
+
+class TestScreenshotZoomMacos:
+    @pytest.mark.asyncio
+    async def test_region_zooms_and_keeps_full_cache(self):
+        tool = ScreenshotTool()
+        with patch(
+            f"{MODULE}._capture_screenshot_macos",
+            return_value=make_png(400, 200),
+        ):
+            result = await tool.execute(region=[0, 0, 500, 1000])
+
+        assert result.error is False
+        assert "ZOOMED" in result.content[0].text
+        # Cache stays FULL screen (point space) for click conversion.
+        assert cu_macos._screen_point_size == (400, 200)
+
+    @pytest.mark.asyncio
+    async def test_invalid_region_errors(self):
+        tool = ScreenshotTool()
+        with patch(
+            f"{MODULE}._capture_screenshot_macos",
+            return_value=make_png(100, 100),
+        ):
+            result = await tool.execute(region="not-a-region")
+        assert result.error is True
+        assert "region" in result.content

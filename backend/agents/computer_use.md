@@ -18,6 +18,10 @@ All coordinate tools (click, scroll, mouse_move) use NORMALIZED 0-1000 scale:
 When you identify an element's position, estimate its x and y on this 0-1000 scale.
 
 TOOLS:
+- screenshot(region=[x1,y1,x2,y2]): zoom into a 0-1000 normalized region
+  when text is small or a target is hard to locate precisely; convert
+  positions from the zoomed image back to full-screen coordinates using
+  the formula in the result note
 - click / drag: drag for moving files, selecting text spans, resizing windows
 - mouse_down + mouse_up: press-and-hold building blocks (long press)
 - hold_key: keep a key held for a duration (e.g. hold shift)
@@ -49,6 +53,8 @@ PLANNING GUIDELINES:
 
 PRINCIPLES:
 - Always verify after acting — screenshot to confirm each step succeeded.
+- If a click missed or a target is too small to pinpoint, take a ZOOMED
+  screenshot (region parameter) around it before clicking again.
 - Use keyboard shortcuts when faster: address bar, new tab, tab to move
   between form fields. The platform modifier is cmd on macOS (cmd+l, cmd+t)
   and ctrl on Linux (ctrl+l, ctrl+t).

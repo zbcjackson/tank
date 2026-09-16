@@ -167,6 +167,99 @@ def normalize_point(x: Any, y: Any) -> tuple[int, int] | None:
     return _clamp(nx), _clamp(ny)
 
 
+# ── A13: screenshot zoom (region crop) ───────────────────────────────
+
+REGION_DESCRIPTION = (
+    "Optional zoom region [x1, y1, x2, y2] in 0-1000 normalized "
+    "coordinates. When given, the screenshot is cropped to that region "
+    "and upscaled — use it when text is small or a click target is hard "
+    "to locate precisely."
+)
+
+_REGION_NOTE_TEMPLATE = (
+    "ZOOMED VIEW: this image shows the region from ({x1},{y1}) to "
+    "({x2},{y2}) in FULL-SCREEN normalized coordinates. Positions you "
+    "identify in this image are relative to the CROP — convert before "
+    "acting: full_x = {x1} + ({x2}-{x1}) * crop_x / 1000, full_y = "
+    "{y1} + ({y2}-{y1}) * crop_y / 1000. Example: the crop center "
+    "(500,500) maps to full-screen ({cx},{cy})."
+)
+
+
+def parse_region(raw: Any) -> tuple[int, int, int, int] | None:
+    """Parse a screenshot zoom region ``[x1, y1, x2, y2]`` (0-1000
+    normalized).
+
+    Accepts a 4-number sequence, possibly JSON-encoded as a string.
+    Returns ``None`` when unusable (wrong shape, non-numeric, or
+    empty/inverted after clamping).
+    """
+    seq: Any = raw
+    if isinstance(seq, str):
+        try:
+            seq = json.loads(seq)
+        except ValueError:
+            return None
+    if not isinstance(seq, (list, tuple)) or len(seq) != 4:
+        return None
+    nums = [_num(v) for v in seq]
+    if any(n is None for n in nums):
+        return None
+    x1, y1, x2, y2 = (cast(int, n) for n in nums)
+    x1, y1, x2, y2 = _clamp(x1), _clamp(y1), _clamp(x2), _clamp(y2)
+    if x2 <= x1 or y2 <= y1:
+        return None
+    return x1, y1, x2, y2
+
+
+def crop_and_upscale(
+    png_bytes: bytes,
+    region: tuple[int, int, int, int],
+    screen_px: tuple[int, int],
+    max_zoom: float = 3.0,
+) -> bytes:
+    """Crop ``region`` (0-1000 normalized) out of a full screenshot and
+    upscale it so small targets are legible and precisely locatable.
+
+    The crop's long edge is scaled toward the full screenshot's long
+    edge, capped at ``max_zoom``. Returns PNG bytes.
+    """
+    import io
+
+    from PIL import Image
+
+    x1, y1, x2, y2 = region
+    w, h = screen_px
+    px1 = round(x1 * w / 1000)
+    py1 = round(y1 * h / 1000)
+    px2 = max(round(x2 * w / 1000), px1 + 1)
+    py2 = max(round(y2 * h / 1000), py1 + 1)
+
+    img = Image.open(io.BytesIO(png_bytes))
+    crop = img.crop((px1, py1, px2, py2))
+
+    long_full = max(w, h)
+    long_crop = max(crop.width, crop.height)
+    scale = min(long_full / long_crop if long_crop else 1.0, max_zoom)
+    if scale > 1.01:
+        crop = crop.resize(
+            (round(crop.width * scale), round(crop.height * scale)),
+            Image.Resampling.LANCZOS,
+        )
+    out = io.BytesIO()
+    crop.save(out, format="PNG")
+    return out.getvalue()
+
+
+def region_note(region: tuple[int, int, int, int]) -> str:
+    """Coordinate-mapping note appended to a zoomed screenshot result."""
+    x1, y1, x2, y2 = region
+    return _REGION_NOTE_TEMPLATE.format(
+        x1=x1, y1=y1, x2=x2, y2=y2,
+        cx=(x1 + x2) // 2, cy=(y1 + y2) // 2,
+    )
+
+
 # ── A10: batch executor ───────────────────────────────────────────────
 
 # Actions allowed inside a computer_batch (primitives + wait; screenshot

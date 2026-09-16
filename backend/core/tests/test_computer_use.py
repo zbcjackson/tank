@@ -13,7 +13,12 @@ from tank_backend.tools.computer_use import (
     ScreenshotTool,
     ScrollTool,
     TypeTextTool,
-)  # noqa: I001
+)
+from tank_backend.tools.computer_use_common import (  # noqa: I001
+    crop_and_upscale,
+    parse_region,
+    region_note,
+)
 
 # ---------------------------------------------------------------------------
 # ScreenshotTool
@@ -24,7 +29,7 @@ class TestScreenshotTool:
         tool = ScreenshotTool()
         info = tool.get_info()
         assert info.name == "screenshot"
-        assert len(info.parameters) == 1
+        assert len(info.parameters) == 2
         assert info.parameters[0].name == "task"
 
     def test_metadata(self):
@@ -683,3 +688,113 @@ class TestA3Tools:
             r = await tool.execute(amount=500)
         assert r.error is True
         assert "50" in r.content
+
+
+# ---------------------------------------------------------------------------
+# Screenshot zoom (A13)
+# ---------------------------------------------------------------------------
+
+def _make_png(w: int, h: int) -> bytes:
+    import io
+
+    from PIL import Image
+
+    img = Image.new("RGB", (w, h), (255, 0, 0))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _png_dims(data: bytes) -> tuple[int, int]:
+    import io
+
+    from PIL import Image
+
+    img = Image.open(io.BytesIO(data))
+    return img.width, img.height
+
+
+class TestParseRegion:
+    def test_valid_list(self):
+        assert parse_region([100, 100, 500, 600]) == (100, 100, 500, 600)
+
+    def test_json_string(self):
+        assert parse_region("[100, 100, 500, 600]") == (100, 100, 500, 600)
+
+    def test_clamps_out_of_range(self):
+        assert parse_region([-50, 0, 1200, 900]) == (0, 0, 1000, 900)
+
+    def test_rejects_inverted(self):
+        assert parse_region([500, 100, 100, 600]) is None
+
+    def test_rejects_wrong_shape(self):
+        assert parse_region([1, 2, 3]) is None
+        assert parse_region("abc") is None
+        assert parse_region({"x1": 0}) is None
+
+
+class TestCropUpscale:
+    def test_left_half_zoomed_2x(self):
+        full = _make_png(400, 200)
+        out = crop_and_upscale(full, (0, 0, 500, 1000), (400, 200))
+        assert _png_dims(out) == (400, 400)  # 200x200 crop → 2x
+
+    def test_zoom_capped_at_3x(self):
+        full = _make_png(1000, 1000)
+        out = crop_and_upscale(full, (0, 0, 50, 50), (1000, 1000))
+        assert _png_dims(out) == (150, 150)  # 50px crop → capped at 3x
+
+    def test_returns_png_bytes(self):
+        out = crop_and_upscale(_make_png(100, 100), (0, 0, 500, 1000), (100, 100))
+        assert out[:4] == b"\x89PNG"
+
+
+class TestRegionNote:
+    def test_contains_bounds_and_formula(self):
+        note = region_note((100, 200, 500, 800))
+        assert "ZOOMED" in note
+        assert "(100,200)" in note
+        assert "(500,800)" in note
+        assert "crop_x" in note
+
+
+class TestScreenshotZoom:
+    @pytest.mark.asyncio
+    async def test_region_crops_and_keeps_full_cache(self):
+        import base64
+        import io
+
+        from PIL import Image
+
+        import tank_backend.tools.computer_use as cu
+
+        tool = ScreenshotTool()
+        full = _make_png(400, 200)
+        with patch(
+            "tank_backend.tools.computer_use._capture_screenshot",
+            return_value=full,
+        ):
+            result = await tool.execute(region=[0, 0, 500, 1000])
+
+        assert result.error is False
+        assert "ZOOMED" in result.content[0].text
+        b64 = result.content[1].source.split(",", 1)[1]
+        img = Image.open(io.BytesIO(base64.b64decode(b64)))
+        assert (img.width, img.height) == (400, 400)
+        # Coordinate cache must stay FULL-screen for click conversion.
+        assert cu._screen_size == (400, 200)
+
+    @pytest.mark.asyncio
+    async def test_invalid_region_errors(self):
+        tool = ScreenshotTool()
+        with patch(
+            "tank_backend.tools.computer_use._capture_screenshot",
+            return_value=_make_png(100, 100),
+        ):
+            result = await tool.execute(region=[500, 100, 100, 600])
+        assert result.error is True
+        assert "region" in result.content
+
+    def test_info_has_region_param(self):
+        params = {p.name for p in ScreenshotTool().get_info().parameters}
+        assert "region" in params
