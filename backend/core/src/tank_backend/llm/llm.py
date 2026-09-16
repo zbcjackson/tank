@@ -663,6 +663,10 @@ class LLM:
                 "role": "assistant",
                 "content": full_content or None,
             }
+            if full_reasoning:
+                # DeepSeek thinking mode REJECTS the next request unless the
+                # assistant's reasoning_content is passed back (400 error).
+                assistant_msg["reasoning_content"] = full_reasoning
             if tool_calls_data:
                 formatted_tool_calls = []
                 for idx in sorted(tool_calls_data.keys()):

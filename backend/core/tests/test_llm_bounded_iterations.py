@@ -140,3 +140,55 @@ class TestComplete:
         )
 
         assert result["choices"][0]["message"]["content"] == "Hello!"
+
+
+
+async def test_reasoning_content_kept_in_assistant_history(llm):
+    """DeepSeek thinking mode 400s unless reasoning_content is passed
+    back with the assistant message (observed live in the notification
+    turn, 2026-09-16). Round 1 streams reasoning + a tool call; the
+    SECOND request must carry the assistant message with reasoning."""
+
+    def stream_round(tool_round: bool):
+        chunks = []
+        if tool_round:
+            r = MagicMock()
+            r.content = None
+            r.tool_calls = None
+            type(r).reasoning = "thinking hard"
+            type(r).reasoning_content = None
+            chunks.append(MagicMock(choices=[MagicMock(delta=r)]))
+            chunks.append(_make_stream_chunk_with_tool_call())
+        else:
+            plain = MagicMock()
+            plain.content = "done"
+            plain.tool_calls = None
+            type(plain).reasoning = None
+            type(plain).reasoning_content = None
+            chunks.append(MagicMock(choices=[MagicMock(delta=plain)]))
+        s = MagicMock()
+        s.__aiter__ = MagicMock(return_value=AsyncIterator(chunks))
+        s.close = AsyncMock()
+        s.response = AsyncMock()
+        s.response.aclose = AsyncMock()
+        return s
+
+    captured: list[list[dict]] = []
+
+    def fake_create(**kwargs):
+        captured.append(list(kwargs["messages"]))
+        return stream_round(tool_round=len(captured) == 1)
+
+    llm.client.chat.completions.create = AsyncMock(side_effect=fake_create)
+
+    async for _ in llm.chat_stream(
+        messages=[{"role": "user", "content": "hi"}],
+        tools=[{"type": "function", "function": {"name": "calculator"}}],
+        tool_executor=_make_tool_executor(),
+    ):
+        pass
+
+    assert len(captured) >= 2
+    second = captured[1]
+    assistant = [m for m in second if m.get("role") == "assistant"]
+    assert any(m.get("reasoning_content") == "thinking hard" for m in assistant)
