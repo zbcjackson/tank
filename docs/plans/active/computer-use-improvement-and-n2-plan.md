@@ -1,6 +1,6 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
-> 状态:Part A 全部完成并验收(2026-09-16,§15)。决策门通过,阶段 6(B1+B2)设计已批准(§16),实施中。
+> 状态:Part A 验收完成(§15)。阶段 6(B1+B2)已落地(2026-09-16,§16 设计;commits 2520846/9f8b348)。下一步=阶段 7(agent-n2 插件)设计评审。
 > 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)· 2026-09-09(执行启动+事实修订:plugin.yaml manifest、NotificationHub、A5 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 
