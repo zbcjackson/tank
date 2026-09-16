@@ -1,6 +1,6 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
-> 状态:阶段 4a/4b/4c 完成(2026-09-14)——A5 审批闸门(派发级一次审批+token 重入+ScopedPolicy 继承)、A10 computer_batch(首错即停+批后单截图)、A12 doctor(--check-computer-use,探测+修复建议,0/1/2 退出码)。3571 测试绿。待 T3 实测(macOS:doctor/审批流/batch)。执行阶段划分见 §12。
+> 状态:阶段 5 对比完成(2026-09-16,§15)——6/42→7/42:输入链路与新原语全部验证可靠,剩余瓶颈=模型视觉定位精度(证据:表单全填对但提交点不中、capture 0 条)。待决策:A13 zoom 补充 vs 直接进决策门。执行阶段划分见 §12。
 > 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)· 2026-09-09(执行启动+事实修订:plugin.yaml manifest、NotificationHub、A5 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 
@@ -405,3 +405,16 @@ Baseline 已入档:6/42=14%(label=baseline-macos);terminal-write 0/3 两种死�
 - **A3 原语**:`mouse_down/mouse_up(button)`、`hold_key(keys,duration_s=1.0,上限10s)`、`drag(x1,y1,x2,y2)`;macOS CGEvent、Linux 双通道(ABS 指针+socket 键盘)。
 - **A9 scroll clamp**:±50 超限报错;**A8** Linux 长文本 50 字符块+100ms 块间;**A6** portal 截图改等 Response D-Bus 信号(2s 超时)替代 sleep(3),单次 <1s;**A15** 光标可见性记入 A12 doctor 检查项。
 - 单测:原语时序(mock)、clamp、drag 轨迹、portal 等待;T2:macOS drag/hold_key/长文本,Linux(若 ABS 成)绝对点击/拖拽/复跑。
+
+## 15. 阶段 5 对比报告(2026-09-16, baseline vs partA-macos)
+
+同尺同参同 provider(trials=3):**baseline 6/42=14% → partA 7/42=17%**(CI 重叠,总体在噪声内)。
+
+**已验证的改善(trace 取证)**:
+- 新原语采纳率高:computer_batch 用于 16 个 trial,drag 在 drag-file 2/3 用上,bbox 数组实参出现并被取中心;
+- 输入链路完全可靠:中文粘贴(张三入栏)、路径无 IME 损耗、keys 容错生效——terminal-write 0/3→1/3;
+- 审批/doctor/batch 全部 T3 实测通过。
+
+**瓶颈定位(为什么总分没动)**:视觉定位精度。local-form 三个字段全部正确填入、页面正常加载,但提交按钮点击不中(page_capture 0 条);file-ops 点击越界(1030>1000 被 clamp);失败任务 16 步全为"点不准→重试"循环。LLM 延迟 6.9s/call 与 baseline 持平(波动主导)。
+
+**结论**:Part A 目标(安全+可靠输入+原语齐备+可诊断)达成;剩余瓶颈是**模型 grounding 能力**,非基础设施。选项:A13 zoom(截图局部放大)作为针对性补充,或直接进决策门以 n2 A/B 回答。
