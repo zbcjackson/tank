@@ -1,7 +1,7 @@
 """Computer-use tools — screenshot capture and host UI automation (macOS).
 
 Provides six tools that let the main ChatAgent control the host desktop:
-  - screenshot: capture screen + interpret via vision LLM
+  - screenshot: capture screen (returned directly for the agent to analyze)
   - click: mouse click at (x, y)
   - type_text: type a string at the cursor
   - key_press: press key combinations
@@ -27,7 +27,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ..core.content import ImageBlock, TextBlock
 from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
@@ -38,9 +38,6 @@ from .computer_use_common import (
     normalize_keys,
     normalize_point,
 )
-
-if TYPE_CHECKING:
-    from ..llm.profile import LLMProfile
 
 logger = logging.getLogger(__name__)
 
@@ -423,9 +420,6 @@ def _normalized_to_pixel(x: int, y: int) -> tuple[int, int]:
 
 class ScreenshotTool(BaseTool):
     """Capture a screenshot and return it as an image block."""
-
-    def __init__(self, profile: LLMProfile) -> None:
-        self._profile = profile
 
     def get_metadata(self) -> ToolMetadata:
         return ToolMetadata(category="computer", idempotent=True)

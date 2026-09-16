@@ -349,28 +349,18 @@ class ComputerUseToolGroup(ToolGroup):
     """Screenshot + mouse/keyboard automation tools for host UI control.
 
     Platform-aware: uses macOS-native APIs on Darwin, ydotool on Linux/Wayland.
-    Requires the ``computer_use`` LLM profile. Fails gracefully when
-    dependencies or profile are unavailable.
+    Fails gracefully when platform dependencies are unavailable.
     """
-
-    def __init__(self, app_config: Any) -> None:
-        self._app_config = app_config
 
     def create_tools(self) -> list[BaseTool]:
         import sys
 
-        try:
-            profile = self._app_config.get_llm_profile("computer_use")
-        except Exception:
-            logger.info("ComputerUseToolGroup: no 'computer_use' LLM profile, skipping")
-            return []
-
         if sys.platform == "darwin":
-            return self._create_macos_tools(profile)
+            return self._create_macos_tools()
         else:
-            return self._create_linux_tools(profile)
+            return self._create_linux_tools()
 
-    def _create_macos_tools(self, profile: Any) -> list[BaseTool]:
+    def _create_macos_tools(self) -> list[BaseTool]:
         """Create tools using macOS-native APIs (screencapture + CGEvent)."""
         try:
             import Quartz  # noqa: F401
@@ -397,7 +387,7 @@ class ComputerUseToolGroup(ToolGroup):
         )
 
         tools: list[BaseTool] = [
-            ScreenshotTool(profile),
+            ScreenshotTool(),
             ClickTool(),
             TypeTextTool(),
             KeyPressTool(),
@@ -413,7 +403,7 @@ class ComputerUseToolGroup(ToolGroup):
         tools.append(ComputerBatchTool(by_name))
         return tools
 
-    def _create_linux_tools(self, profile: Any) -> list[BaseTool]:
+    def _create_linux_tools(self) -> list[BaseTool]:
         """Create tools using Linux backends (portal + ydotool/pyautogui)."""
         try:
             import mss  # noqa: F401
@@ -437,7 +427,7 @@ class ComputerUseToolGroup(ToolGroup):
         from .computer_use_common import ComputerBatchTool
 
         tools: list[BaseTool] = [
-            ScreenshotTool(profile),
+            ScreenshotTool(),
             ClickTool(),
             TypeTextTool(),
             KeyPressTool(),

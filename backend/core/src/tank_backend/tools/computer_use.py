@@ -8,9 +8,9 @@ Provides six tools that let the main ChatAgent control the host desktop:
   - scroll: scroll wheel at position
   - mouse_move: move cursor without clicking
 
-The screenshot tool calls a dedicated vision LLM (configured via the
-``computer_use`` LLM profile) to interpret what's on screen. Action
-tools are thin wrappers around pyautogui.
+The screenshot tool returns the image directly — the calling agent
+(if vision-capable) analyzes it. Action tools are thin wrappers around
+ydotool (Wayland) or pyautogui (X11 fallback).
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import base64
 import logging
 import struct
 import time
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from ..core.content import ImageBlock, TextBlock
 from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
@@ -34,9 +34,6 @@ from .computer_use_common import (
     normalize_point,
     normalized_to_pixel,
 )
-
-if TYPE_CHECKING:
-    from ..llm.profile import LLMProfile
 
 logger = logging.getLogger(__name__)
 
@@ -497,9 +494,6 @@ def _drag_ydotool(
 
 class ScreenshotTool(BaseTool):
     """Capture a screenshot and return it as an image block."""
-
-    def __init__(self, profile: LLMProfile) -> None:
-        self._profile = profile
 
     def get_metadata(self) -> ToolMetadata:
         return ToolMetadata(category="computer", idempotent=True)

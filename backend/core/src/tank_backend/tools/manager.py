@@ -160,7 +160,7 @@ class ToolManager:
             )
         )
 
-        self._register_group(ComputerUseToolGroup(app_config))
+        self._register_group(ComputerUseToolGroup())
 
         self._skill_group = SkillToolGroup(
             config=app_config.skills,

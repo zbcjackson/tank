@@ -6,56 +6,35 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tank_backend.tools.computer_use import (  # noqa: I001
+from tank_backend.tools.computer_use import (
     ClickTool,
     KeyPressTool,
     MouseMoveTool,
     ScreenshotTool,
     ScrollTool,
     TypeTextTool,
-)
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-@pytest.fixture
-def fake_profile():
-    """Minimal LLMProfile-like object for ScreenshotTool."""
-    profile = MagicMock()
-    profile.name = "computer_use"
-    profile.api_key = "test-key"
-    profile.model = "qwen/qwen3.5-27b"
-    profile.base_url = "https://openrouter.ai/api/v1"
-    profile.temperature = 0.1
-    profile.max_tokens = 4096
-    profile.extra_headers = {}
-    profile.stream_options = False
-    profile.extra_body = {}
-    profile.capabilities = frozenset({"text", "image"})
-    return profile
-
+)  # noqa: I001
 
 # ---------------------------------------------------------------------------
 # ScreenshotTool
 # ---------------------------------------------------------------------------
 
 class TestScreenshotTool:
-    def test_get_info(self, fake_profile):
-        tool = ScreenshotTool(fake_profile)
+    def test_get_info(self):
+        tool = ScreenshotTool()
         info = tool.get_info()
         assert info.name == "screenshot"
         assert len(info.parameters) == 1
         assert info.parameters[0].name == "task"
 
-    def test_metadata(self, fake_profile):
-        tool = ScreenshotTool(fake_profile)
+    def test_metadata(self):
+        tool = ScreenshotTool()
         meta = tool.get_metadata()
         assert meta.idempotent is True
 
     @pytest.mark.asyncio
-    async def test_missing_task(self, fake_profile):
-        tool = ScreenshotTool(fake_profile)
+    async def test_missing_task(self):
+        tool = ScreenshotTool()
         fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
 
         with patch(
@@ -67,8 +46,8 @@ class TestScreenshotTool:
         assert "Screenshot captured." in result.content[0].text
 
     @pytest.mark.asyncio
-    async def test_screenshot_capture_failure(self, fake_profile):
-        tool = ScreenshotTool(fake_profile)
+    async def test_screenshot_capture_failure(self):
+        tool = ScreenshotTool()
         with patch(
             "tank_backend.tools.computer_use._capture_screenshot",
             side_effect=RuntimeError("no display"),
@@ -78,8 +57,8 @@ class TestScreenshotTool:
         assert "failed to capture" in result.content
 
     @pytest.mark.asyncio
-    async def test_screenshot_success(self, fake_profile):
-        tool = ScreenshotTool(fake_profile)
+    async def test_screenshot_success(self):
+        tool = ScreenshotTool()
         fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
 
         with patch(
@@ -94,8 +73,8 @@ class TestScreenshotTool:
         assert result.content[1].source.startswith("data:image/png;base64,")
 
     @pytest.mark.asyncio
-    async def test_screenshot_no_task(self, fake_profile):
-        tool = ScreenshotTool(fake_profile)
+    async def test_screenshot_no_task(self):
+        tool = ScreenshotTool()
         fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
 
         with patch(
@@ -384,7 +363,6 @@ class TestTypeTextClipboard:
     @pytest.mark.asyncio
     async def test_paste_uses_wl_copy_then_ctrl_v(self):
         import subprocess as sp
-        from unittest.mock import MagicMock
 
         from tank_backend.tools import computer_use as m
 
@@ -407,7 +385,6 @@ class TestTypeTextClipboard:
     @pytest.mark.asyncio
     async def test_paste_falls_back_to_xclip(self):
         import subprocess as sp
-        from unittest.mock import MagicMock
 
         from tank_backend.tools import computer_use as m
 

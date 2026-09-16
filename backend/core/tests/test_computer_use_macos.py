@@ -35,16 +35,6 @@ from tank_backend.tools.computer_use_macos import (  # noqa: E402
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-def fake_profile():
-    """Minimal LLMProfile-like object for ScreenshotTool."""
-    profile = MagicMock()
-    profile.name = "computer_use"
-    profile.model = "qwen/qwen3.5-27b"
-    profile.capabilities = frozenset({"text", "image"})
-    return profile
-
-
 @pytest.fixture(autouse=True)
 def reset_screen_size():
     """Reset the module-level screen-size cache between tests."""
@@ -137,8 +127,8 @@ class TestNormalizedToPixel:
 
 class TestScreenshotTool:
     @pytest.mark.asyncio
-    async def test_returns_image_and_updates_cache(self, fake_profile):
-        tool = ScreenshotTool(fake_profile)
+    async def test_returns_image_and_updates_cache(self):
+        tool = ScreenshotTool()
         with patch(f"{MODULE}._capture_screenshot_macos", return_value=make_png(800, 600)):
             result = await tool.execute(task="find the button")
 
@@ -152,8 +142,8 @@ class TestScreenshotTool:
         assert cu_macos._screen_point_size == (800, 600)
 
     @pytest.mark.asyncio
-    async def test_capture_failure(self, fake_profile):
-        tool = ScreenshotTool(fake_profile)
+    async def test_capture_failure(self):
+        tool = ScreenshotTool()
         with patch(
             f"{MODULE}._capture_screenshot_macos",
             side_effect=RuntimeError("screencapture failed: no permission"),
@@ -162,8 +152,8 @@ class TestScreenshotTool:
         assert result.error is True
         assert "failed to capture" in result.content
 
-    def test_get_info(self, fake_profile):
-        info = ScreenshotTool(fake_profile).get_info()
+    def test_get_info(self):
+        info = ScreenshotTool().get_info()
         assert info.name == "screenshot"
 
 
