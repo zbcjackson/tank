@@ -53,6 +53,7 @@ class AgentRunner:
         max_concurrent: int = MAX_CONCURRENT_AGENTS,
         toolsets_config: Any = None,
         app_config: Any = None,
+        registry: Any = None,
     ) -> None:
         self._llm = llm
         self._tool_manager = tool_manager
@@ -66,6 +67,9 @@ class AgentRunner:
         self._active_agents: dict[str, _AgentTracker] = {}
         self._toolsets_config = toolsets_config
         self._app_config = app_config
+        # B2: ExtensionRegistry for plugin agent engines ("brain in the
+        # plugin"). None = this context can only run built-in agents.
+        self._registry = registry
 
         # Create own PromptAssembler for sub-agent prompt building
         from ..prompts.assembler import PromptAssembler
@@ -165,34 +169,39 @@ class AgentRunner:
 
         system_prompt = self._build_sub_agent_prompt(agent_def, messages)
 
-        # Resolve LLM: use agent-specific model profile if declared
-        if agent_def.model and self._app_config is not None:
-            from ..llm.profile import create_llm_from_profile
-
-            agent_llm = create_llm_from_profile(
-                self._app_config.get_llm_profile(agent_def.model)
-            )
+        if agent_def.engine:
+            # B2 factory branch: plugin agent engine (e.g. agent-n2).
+            # toolset/model are meaningless for engine agents — ignored.
+            agent = self._create_engine_agent(agent_def, system_prompt)
         else:
-            agent_llm = self._llm
+            # Resolve LLM: use agent-specific model profile if declared
+            if agent_def.model and self._app_config is not None:
+                from ..llm.profile import create_llm_from_profile
 
-        approval_policy: Any = self._approval_policy
-        if allowed_categories and approval_policy is not None:
-            from .approval import ScopedPolicy
+                agent_llm = create_llm_from_profile(
+                    self._app_config.get_llm_profile(agent_def.model)
+                )
+            else:
+                agent_llm = self._llm
 
-            approval_policy = ScopedPolicy(approval_policy, allowed_categories)
-        agent = LLMAgent(
-            name=f"agent_{agent_def.name}",
-            llm=agent_llm,
-            tool_manager=self._tool_manager,
-            approval_policy=approval_policy,
-            system_prompt=system_prompt,
-            tool_filter=tool_filter,
-            exclude_tools=exclude_tools,
-            resolver=self._resolver,
-            session_id=agent_id,
-            pending_store=self._pending_store,
-            bus=self._bus,
-        )
+            approval_policy: Any = self._approval_policy
+            if allowed_categories and approval_policy is not None:
+                from .approval import ScopedPolicy
+
+                approval_policy = ScopedPolicy(approval_policy, allowed_categories)
+            agent = LLMAgent(
+                name=f"agent_{agent_def.name}",
+                llm=agent_llm,
+                tool_manager=self._tool_manager,
+                approval_policy=approval_policy,
+                system_prompt=system_prompt,
+                tool_filter=tool_filter,
+                exclude_tools=exclude_tools,
+                resolver=self._resolver,
+                session_id=agent_id,
+                pending_store=self._pending_store,
+                bus=self._bus,
+            )
 
         state = AgentState(
             messages=list(messages),
@@ -285,6 +294,53 @@ class AgentRunner:
         if not profile.tools:
             return None  # Empty tools list = all tools
         return list(profile.tools)
+
+    def _create_engine_agent(
+        self, agent_def: AgentDefinition, system_prompt: str,
+    ) -> Any:
+        """Instantiate a plugin agent engine via the ExtensionRegistry.
+
+        The factory config carries only what the engine declared it
+        needs (B2 trust boundary): a DesktopExecutor when the manifest
+        ``needs`` includes it, the LLM profile named after the plugin
+        (e.g. "agent-n2:agent" → profile "agent-n2", None when absent),
+        and the assembled system prompt.
+        """
+        engine = agent_def.engine
+        if not engine:
+            raise RuntimeError(
+                f"Agent '{agent_def.name}' has no engine declared"
+            )
+        if self._registry is None:
+            raise RuntimeError(
+                f"Agent '{agent_def.name}' requires engine "
+                f"'{engine}' but no ExtensionRegistry is "
+                f"available in this context"
+            )
+
+        from ..computer.executor import create_desktop_executor
+
+        manifest = self._registry.get_manifest(engine)
+        needs = getattr(manifest, "needs", ()) or ()
+
+        llm_profile = None
+        if self._app_config is not None:
+            profile_name = engine.split(":", 1)[0]
+            try:
+                llm_profile = self._app_config.get_llm_profile(profile_name)
+            except Exception:  # noqa: BLE001 — profile is optional
+                llm_profile = None
+
+        config: dict[str, Any] = {
+            "system_prompt": system_prompt,
+            "desktop_executor": (
+                create_desktop_executor()
+                if "desktop_executor" in needs
+                else None
+            ),
+            "llm_profile": llm_profile,
+        }
+        return self._registry.instantiate(engine, config)
 
     def _build_sub_agent_prompt(
         self,

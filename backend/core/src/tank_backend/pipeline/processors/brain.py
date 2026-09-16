@@ -66,6 +66,7 @@ class Brain(Processor):
         media_store: Any = None,
         llm_capabilities: frozenset[str] | None = None,
         worker_store: Any = None,
+        registry: Any = None,
     ):
         super().__init__(name="brain")
         self._llm = llm
@@ -76,6 +77,9 @@ class Brain(Processor):
         self._interrupt_event = interrupt_event
         self._tts_enabled = tts_enabled
         self._worker_store = worker_store
+        # B2: ExtensionRegistry handed to AgentRunner for plugin agent
+        # engines ("engine:" in agent definitions).
+        self._registry = registry
 
         # Language config — used to detect the response language for TTS voice
         # selection, with a preferred fallback when detection is low-confidence.
@@ -227,6 +231,7 @@ class Brain(Processor):
             max_concurrent=agents_cfg.max_concurrent,
             toolsets_config=app_config.toolsets,
             app_config=app_config,
+            registry=self._registry,
         )
 
         # Phase 2: WorkerSupervisor owns dispatch lifecycle. The

@@ -56,6 +56,10 @@ class ExtensionRegistry:
         """Return all registered full names."""
         return list(self._manifests.keys())
 
+    def get_manifest(self, full_name: str) -> ExtensionManifest | None:
+        """Return the manifest for *full_name* (None if unregistered)."""
+        return self._manifests.get(full_name)
+
     # ── Instantiation ──────────────────────────────────────────
 
     def instantiate(self, full_name: str, config: dict) -> object:
@@ -94,6 +98,18 @@ class ExtensionRegistry:
         factory = getattr(module, callable_name)
 
         instance = factory(config)
+        if manifest.type == "agent":
+            # B2: an agent extension must implement the Agent ABC —
+            # validated here so a broken plugin fails at instantiation,
+            # not mid-conversation.
+            from ..agents.base import Agent
+
+            if not isinstance(instance, Agent):
+                raise TypeError(
+                    f"Extension '{full_name}' declares type 'agent' but its "
+                    f"factory returned {type(instance).__name__} (must "
+                    f"implement the Agent ABC)"
+                )
         logger.info("Instantiated %s via %s", full_name, manifest.factory)
         return instance
 

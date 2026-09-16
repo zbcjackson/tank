@@ -236,6 +236,7 @@ class Assistant:
             media_store=self._media_store,
             llm_capabilities=self._llm_capabilities.input_modalities,
             worker_store=self._worker_store,
+            registry=registry,
         )
         builder.add(self.brain)
 

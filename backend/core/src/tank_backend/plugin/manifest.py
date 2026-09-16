@@ -18,8 +18,12 @@ class ExtensionManifest:
     """Describes a single extension provided by a plugin."""
 
     name: str  # e.g. "tts"
-    type: str  # e.g. "tts" | "asr" | "speaker_id" | "tool"
+    type: str  # e.g. "tts" | "asr" | "speaker_id" | "tool" | "agent"
     factory: str  # e.g. "tts_edge:create_engine"
+    # Capability dependencies Tank injects at instantiation (B2). An
+    # ``agent`` extension declaring ``desktop_executor`` receives a
+    # DesktopExecutor in its factory config; one that doesn't, doesn't.
+    needs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -54,6 +58,7 @@ def read_manifest_from_yaml(path: Path) -> PluginManifest:
             name=ext["name"],
             type=ext["type"],
             factory=ext["factory"],
+            needs=tuple(ext.get("needs", ())),
         )
         for ext in data.get("extensions", [])
     ]

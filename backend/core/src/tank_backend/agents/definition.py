@@ -29,6 +29,9 @@ class AgentDefinition:
     background: bool = False
     token_budget: int = 0
     model: str | None = None
+    # Plugin agent engine (B2): registry full name like "agent-n2:agent".
+    # None = the built-in LLMAgent loop.
+    engine: str | None = None
 
 
 def parse_agent_file(path: Path) -> AgentDefinition:
@@ -80,6 +83,7 @@ def parse_agent_file(path: Path) -> AgentDefinition:
         background=bool(fm.get("background", False)),
         token_budget=int(fm.get("token-budget", fm.get("token_budget", 0))),
         model=fm.get("model"),
+        engine=fm.get("engine"),
     )
 
 
