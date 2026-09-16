@@ -178,6 +178,11 @@ class AgentTool(BaseTool):
         # ``is not True`` keeps duck-typed fakes (unit-test mocks) open.
         if policy is None or policy.computer_requires_approval() is not True:
             return False
+        if agent_def.engine:
+            registry = getattr(self._runner, "_registry", None)
+            manifest = registry.get_manifest(agent_def.engine) if registry is not None else None
+            # Engine agents ignore toolsets: approval follows declared capabilities.
+            return manifest is None or "desktop_executor" in manifest.needs
         tool_filter = agent_def.tool_filter
         if tool_filter is None and agent_def.toolset:
             tool_filter = self._runner._resolve_toolset(agent_def.toolset)

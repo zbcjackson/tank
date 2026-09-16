@@ -41,7 +41,7 @@ PYAUTOGUI_KEY_ALIASES = {"cmd": "winleft", "win": "winleft"}
 
 
 def _is_valid_key(part: str) -> bool:
-    return part in CANONICAL_KEYS or (len(part) == 1 and part.isalnum())
+    return part in CANONICAL_KEYS or (len(part) == 1 and (part.isalnum() or part in "-=,./\\;'`[]"))
 
 # Appended to every screenshot result, identically on both platforms —
 # the coordinate contract the models are told to follow.

@@ -46,6 +46,13 @@ from .computer_use_common import (
 logger = logging.getLogger(__name__)
 
 
+def _load_quartz() -> Any:
+    """PyObjC exports CoreGraphics symbols dynamically, without static stubs."""
+    import Quartz
+
+    return Quartz
+
+
 # ---------------------------------------------------------------------------
 # Screenshot capture (macOS)
 # ---------------------------------------------------------------------------
@@ -56,7 +63,7 @@ def _get_display_scale_factor() -> int:
     Compares the backing store pixel width (what screencapture produces)
     to the point width (what CGEvent uses for coordinates).
     """
-    import Quartz
+    Quartz = _load_quartz()
 
     main_display = Quartz.CGMainDisplayID()
     mode = Quartz.CGDisplayCopyDisplayMode(main_display)
@@ -108,7 +115,7 @@ def _capture_screenshot_macos() -> bytes:
 
 def _get_point_width() -> int:
     """Get the main display width in points."""
-    import Quartz
+    Quartz = _load_quartz()
 
     main_display = Quartz.CGMainDisplayID()
     mode = Quartz.CGDisplayCopyDisplayMode(main_display)
@@ -121,7 +128,7 @@ def _get_point_width() -> int:
 
 def _click_macos(x: int, y: int, button: str = "left", clicks: int = 1) -> None:
     """Click at coordinates using CGEvent."""
-    import Quartz
+    Quartz = _load_quartz()
 
     point = Quartz.CGPointMake(x, y)
 
@@ -188,7 +195,7 @@ def _type_macos(text: str) -> None:
         if proc.returncode != 0:
             raise RuntimeError(f"pbcopy failed: {proc.stderr.strip()}")
         # Cmd+V to paste
-        import Quartz
+        Quartz = _load_quartz()
         src = Quartz.CGEventSourceCreate(Quartz.kCGEventSourceStateHIDSystemState)
         down = Quartz.CGEventCreateKeyboardEvent(src, 9, True)  # 9 = 'v'
         up = Quartz.CGEventCreateKeyboardEvent(src, 9, False)
@@ -263,7 +270,7 @@ def _key_applescript(keys: list[str]) -> None:
         return
 
     modifier_str = ", ".join(modifiers)
-    if main_key in _KEYCODE_MAP and len(main_key) > 1:
+    if main_key in _KEYCODE_MAP and (len(main_key) > 1 or not main_key.isalnum()):
         # Named key — use key code
         keycode = _KEYCODE_MAP[main_key]
         if modifier_str:
@@ -297,7 +304,7 @@ def _key_applescript(keys: list[str]) -> None:
 
 def _scroll_macos(amount: int, x: int | None = None, y: int | None = None) -> None:
     """Scroll using CGEvent."""
-    import Quartz
+    Quartz = _load_quartz()
 
     if x is not None and y is not None:
         _move_macos(x, y)
@@ -312,7 +319,7 @@ def _scroll_macos(amount: int, x: int | None = None, y: int | None = None) -> No
 
 def _move_macos(x: int, y: int) -> None:
     """Move mouse cursor using CGEvent."""
-    import Quartz
+    Quartz = _load_quartz()
 
     point = Quartz.CGPointMake(x, y)
     event = Quartz.CGEventCreateMouseEvent(
@@ -323,7 +330,7 @@ def _move_macos(x: int, y: int) -> None:
 
 def _mouse_button_macos(button: str = "left", down: bool = True) -> None:
     """Press/release a mouse button at the CURRENT cursor position."""
-    import Quartz
+    Quartz = _load_quartz()
 
     loc = Quartz.CGEventCreate(None).getLocation()
     if button == "right":
@@ -345,7 +352,7 @@ def _hold_key_macos(keys: list[str], duration_s: float) -> None:
     The usual key path is AppleScript (app-compat reasons), but it can
     only tap — holding requires raw CGEvent keyboard events.
     """
-    import Quartz
+    Quartz = _load_quartz()
 
     mods = [k for k in keys if k in _MODIFIER_FLAGS]
     main = [k for k in keys if k not in _MODIFIER_FLAGS]
@@ -371,7 +378,7 @@ def _hold_key_macos(keys: list[str], duration_s: float) -> None:
 
 def _drag_macos(x1: int, y1: int, x2: int, y2: int, button: str = "left") -> None:
     """Drag: move to start, button down, stepped drag events, button up."""
-    import Quartz
+    Quartz = _load_quartz()
 
     btn = Quartz.kCGMouseButtonLeft
     if button == "right":

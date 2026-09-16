@@ -253,6 +253,7 @@ class TestRunnerEngineBranch:
             needs=("desktop_executor",),
         )
         app_config = MagicMock()
+        app_config.get_section.return_value = {}
         profile = MagicMock()
         app_config.get_llm_profile.return_value = profile
         runner = _make_runner(registry=registry)
@@ -296,6 +297,7 @@ class TestRunnerEngineBranch:
             needs=("desktop_executor",),
         )
         app_config = MagicMock()
+        app_config.get_section.return_value = {}
         app_config.get_llm_profile.side_effect = KeyError("no profile")
         runner = _make_runner(registry=registry)
         runner._app_config = app_config

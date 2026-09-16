@@ -110,6 +110,10 @@ class DesktopExecutor(Protocol):
 
     async def key_press(self, keys: str, repeat: int = 1) -> None: ...
 
+    async def key_down(self, key: str) -> None: ...
+
+    async def key_up(self, key: str) -> None: ...
+
     async def scroll(
         self, amount: int, x: Any = None, y: Any = None,
     ) -> None: ...
@@ -350,6 +354,34 @@ class _LinuxExecutor(_BaseExecutor):
                 computer_use._run_pyautogui, "write", text, interval=0,
             )
 
+    async def _key_state(self, key: str, down: bool) -> None:
+        keys = normalize_keys(key)
+        if not keys or len(keys) != 1:
+            raise ValueError("key_down/up requires one valid key")
+        if computer_use._ydotool_available():
+            mapped = YDOTOOL_KEY_ALIASES.get(keys[0], keys[0])
+            def emit() -> None:
+                sock = computer_use._ydotool_client()
+                try:
+                    computer_use._ydotool_emit(
+                        sock, computer_use._YD_EV_KEY,
+                        computer_use._LINUX_KEYCODES[mapped], int(down),
+                    )
+                finally:
+                    sock.close()
+            await asyncio.to_thread(emit)
+        else:
+            mapped = PYAUTOGUI_KEY_ALIASES.get(keys[0], keys[0])
+            await asyncio.to_thread(
+                computer_use._run_pyautogui, "keyDown" if down else "keyUp", mapped,
+            )
+
+    async def key_down(self, key: str) -> None:
+        await self._key_state(key, True)
+
+    async def key_up(self, key: str) -> None:
+        await self._key_state(key, False)
+
     async def key_press(self, keys: str, repeat: int = 1) -> None:
         key_list = normalize_keys(keys)
         if not key_list:
@@ -462,6 +494,28 @@ class _MacOSExecutor(_BaseExecutor):
 
     async def type_text(self, text: str) -> None:
         await asyncio.to_thread(computer_use_macos._type_macos, text)
+
+    async def _key_state(self, key: str, down: bool) -> None:
+        keys = normalize_keys(key)
+        if not keys or len(keys) != 1:
+            raise ValueError("key_down/up requires one valid key")
+        def emit() -> None:
+            import Quartz
+
+            quartz: Any = Quartz  # PyObjC exposes CoreGraphics symbols dynamically.
+            modifier_codes = {"cmd": 55, "ctrl": 59, "alt": 58, "shift": 56}
+            code = modifier_codes.get(keys[0], computer_use_macos._KEYCODE_MAP.get(keys[0]))
+            if code is None:
+                raise ValueError(f"unsupported key: {key}")
+            event = quartz.CGEventCreateKeyboardEvent(None, code, down)
+            quartz.CGEventPost(quartz.kCGHIDEventTap, event)
+        await asyncio.to_thread(emit)
+
+    async def key_down(self, key: str) -> None:
+        await self._key_state(key, True)
+
+    async def key_up(self, key: str) -> None:
+        await self._key_state(key, False)
 
     async def key_press(self, keys: str, repeat: int = 1) -> None:
         key_list = normalize_keys(keys)

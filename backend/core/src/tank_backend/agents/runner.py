@@ -11,7 +11,7 @@ import logging
 import time
 import uuid
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from .base import AgentOutput, AgentOutputType, AgentState
 from .definition import AgentDefinition
@@ -204,7 +204,7 @@ class AgentRunner:
             )
 
         state = AgentState(
-            messages=list(messages),
+            messages=cast(Any, list(messages)),
             metadata={
                 "agent_id": agent_id,
                 "agent_name": agent_def.name,
@@ -220,9 +220,9 @@ class AgentRunner:
 
         start = time.monotonic()
         tokens_used = 0
-
+        outputs = agent.run(state)
         try:
-            async for output in agent.run(state):
+            async for output in outputs:
                 # Accumulate token usage (internal, not forwarded)
                 if output.type == AgentOutputType.USAGE:
                     tokens_used += output.metadata.get("total_tokens", 0)
@@ -255,6 +255,9 @@ class AgentRunner:
                 metadata={"status": "error"},
             )
         finally:
+            close = getattr(outputs, "aclose", None)
+            if close is not None:
+                await close()
             elapsed = time.monotonic() - start
             tracker.active = False
             logger.info(
@@ -323,15 +326,21 @@ class AgentRunner:
         manifest = self._registry.get_manifest(engine)
         needs = getattr(manifest, "needs", ()) or ()
 
+        engine_config: dict[str, Any] = {}
+        if self._app_config is not None:
+            engine_config = self._app_config.get_section("agent_engines").get(engine, {})
+            if not isinstance(engine_config, dict):
+                raise ValueError(f"agent_engines.{engine} must be a mapping")
         llm_profile = None
         if self._app_config is not None:
-            profile_name = engine.split(":", 1)[0]
+            profile_name = engine_config.get("llm_profile", engine.split(":", 1)[0])
             try:
                 llm_profile = self._app_config.get_llm_profile(profile_name)
             except Exception:  # noqa: BLE001 — profile is optional
                 llm_profile = None
 
         config: dict[str, Any] = {
+            **engine_config,
             "system_prompt": system_prompt,
             "desktop_executor": (
                 create_desktop_executor()

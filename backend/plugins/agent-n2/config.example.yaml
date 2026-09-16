@@ -1,0 +1,13 @@
+# Merge into backend/core/config.yaml; do not commit real credentials.
+llm:
+  n2:
+    api_key: ${YUTORI_API_KEY}
+    model: n2
+    base_url: https://api.yutori.com/v1
+
+agent_engines:
+  "agent-n2:agent":
+    llm_profile: n2
+    tool_set: computer_use_tools-20260830
+    reasoning_effort: medium
+    max_steps: 100

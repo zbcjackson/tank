@@ -1,0 +1,8 @@
+name: agent-n2
+display_name: Navigator n2
+description: Desktop agent using Yutori Navigator n2
+extensions:
+  - name: agent
+    type: agent
+    factory: agent_n2:create_agent
+    needs: [desktop_executor]

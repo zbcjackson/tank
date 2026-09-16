@@ -16,6 +16,7 @@ import pytest
 from tank_backend.computer.executor import (
     _SUDO_RE,
     BashResult,
+    _LinuxExecutor,
     create_desktop_executor,
 )
 from tank_backend.tools import computer_use
@@ -32,7 +33,7 @@ def _make_png(w: int, h: int) -> bytes:
 
 @pytest.fixture
 def executor(tmp_path: Path):
-    ex = create_desktop_executor(cwd=tmp_path)
+    ex = _LinuxExecutor(cwd=tmp_path)
     ex._size = (1000, 1000)
     return ex
 

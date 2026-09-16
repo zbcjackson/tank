@@ -10,6 +10,7 @@ without touching the suite/runner — see the benchmarks README.
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import time
 from collections.abc import AsyncIterator, Callable
@@ -19,7 +20,7 @@ from statistics import median
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from ..agents.approval import PendingToolCallStore
-from ..agents.base import AgentOutputType
+from ..agents.base import Agent, AgentOutput, AgentOutputType, AgentState
 from ..agents.definition import AgentDefinition, load_agent_definitions
 from ..agents.runner import AgentRunner
 from ..config.app_config import AppConfig, find_config_yaml
@@ -27,6 +28,7 @@ from ..core.content import ImageBlock
 from ..core.events import UpdateType
 from ..llm.llm import LLM
 from ..pipeline.bus import Bus
+from ..plugin.registry import ExtensionRegistry
 from ..policy.verdict import AlwaysApproveResolver
 from ..tools.base import BaseTool, ToolInfo, ToolMetadata, ToolResult
 from ..tools.manager import ToolManager
@@ -232,6 +234,56 @@ class RepinImeAfterLaunchTool(BaseTool):
         return result
 
 
+class _MeasuredEngine(Agent):
+    """Record engine usage without involving the shared LLM transport."""
+
+    def __init__(self, inner: Agent, llm: CountingLLM) -> None:
+        super().__init__(inner.name)
+        self.inner = inner
+        self.llm = llm
+
+    async def run(self, state: AgentState) -> AsyncIterator[AgentOutput]:
+        outputs = self.inner.run(state)
+        try:
+            async for output in outputs:
+                if output.type == AgentOutputType.USAGE:
+                    self.llm.prompt_tokens += int(output.metadata.get("prompt_tokens", 0))
+                    self.llm.completion_tokens += int(output.metadata.get("completion_tokens", 0))
+                    elapsed = float(output.metadata.get("elapsed_s", 0))
+                    self.llm._record(elapsed, elapsed)  # Non-streaming engine: TTFT = total.
+                yield output
+        finally:
+            close = getattr(outputs, "aclose", None)
+            if close is not None:
+                await close()
+
+
+class _MeasuredRegistry(ExtensionRegistry):
+    def __init__(self, llm: CountingLLM, trace: Callable[[], TraceSink | None]) -> None:
+        super().__init__()
+        self.llm = llm
+        self.trace = trace
+
+    def instantiate(self, full_name: str, config: dict) -> object:
+        executor = config.get("desktop_executor")
+        if executor is not None:
+            capture = executor.screenshot
+
+            async def screenshot(region: Any = None) -> Any:
+                shot = await capture(region)
+                trace = self.trace()
+                if trace is not None:
+                    encoded = base64.b64encode(shot.png).decode("ascii")
+                    trace.save_screenshot(f"data:image/png;base64,{encoded}")
+                return shot
+
+            executor.screenshot = screenshot
+        inner = super().instantiate(full_name, config)
+        if not isinstance(inner, Agent):
+            raise TypeError("benchmark engine must implement Agent")
+        return _MeasuredEngine(inner, self.llm)
+
+
 class SubAgentDriver:
     """Drive one sub-agent definition in-process (no pipeline, no WS).
 
@@ -290,6 +342,17 @@ class SubAgentDriver:
         tool_manager = ToolManager(app_config, bus=bus)
 
         driver = cls.__new__(cls)
+        registry = None
+        if agent_def.engine:
+            from ..plugin.manager import PluginManager
+
+            registry = _MeasuredRegistry(llm, lambda: driver._trace)
+            plugin_name = agent_def.engine.split(":", 1)[0]
+            manifest = PluginManager().discover_plugins().get(plugin_name)
+            if manifest is None:
+                raise ValueError(f"benchmark engine plugin '{plugin_name}' not found")
+            for extension in manifest.extensions:
+                registry.register(plugin_name, extension)
         driver._runner = AgentRunner(
             llm=cast(LLM, llm),
             tool_manager=tool_manager,
@@ -298,7 +361,8 @@ class SubAgentDriver:
             pending_store=PendingToolCallStore(),
             definitions=definitions,
             toolsets_config=app_config.toolsets,
-            app_config=None,  # force the counting LLM path in run_agent
+            app_config=app_config if agent_def.engine else None,
+            registry=registry,
             resolver=AlwaysApproveResolver(),  # benchmarks are autonomous
         )
         driver._agent_def = agent_def
@@ -335,20 +399,23 @@ class SubAgentDriver:
 
         async def consume() -> None:
             nonlocal steps, stopped_reason
-            async for output in self._runner.run_agent(self._agent_def, messages):
-                # Count EXECUTED tool calls, not TOOL_CALLING stream
-                # updates — the stream emits one "calling" update per
-                # streamed argument delta, so delta-counting aborts an
-                # agent after only a handful of real actions.
-                if output.type == AgentOutputType.TOOL_EXECUTING:
-                    steps += 1
-                elif output.type == AgentOutputType.TOKEN and output.content:
-                    token_parts.append(output.content)
-                if output.type != AgentOutputType.USAGE:
-                    trace.output(output)
-                if steps > max_steps:
-                    stopped_reason = f"max_steps({max_steps}) exceeded"
-                    break
+            outputs = self._runner.run_agent(self._agent_def, messages)
+            try:
+                async for output in outputs:
+                    # Count executed calls, rather than streamed argument deltas.
+                    if output.type == AgentOutputType.TOOL_EXECUTING:
+                        steps += 1
+                    elif output.type == AgentOutputType.TOKEN and output.content:
+                        token_parts.append(output.content)
+                    if output.type != AgentOutputType.USAGE:
+                        trace.output(output)
+                    if steps > max_steps:
+                        stopped_reason = f"max_steps({max_steps}) exceeded"
+                        break
+            finally:
+                close = getattr(outputs, "aclose", None)
+                if close is not None:
+                    await close()
 
         timed_out = False
         start = time.monotonic()

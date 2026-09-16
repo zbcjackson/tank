@@ -563,9 +563,10 @@ def test_shell_error_attributes():
 # ---------------------------------------------------------------------------
 
 
-def test_pin_ascii_input_source_noop_off_macos():
+def test_pin_ascii_input_source_noop_off_macos(monkeypatch):
     from tank_backend.benchmarks import ime
 
+    monkeypatch.setattr(ime.sys, "platform", "linux")
     assert ime.pin_ascii_input_source() is False
     assert ime.save_current_input_source() is False
     assert ime.restore_saved_input_source() is False

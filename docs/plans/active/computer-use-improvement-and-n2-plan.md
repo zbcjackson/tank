@@ -1,6 +1,6 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
-> 状态:Part A 验收完成(§15)。阶段 6(B1+B2)已落地(2026-09-16,§16 设计;commits 2520846/9f8b348)。下一步=阶段 7(agent-n2 插件)设计评审。
+> 状态:Part A 验收完成(§15)。阶段 6(B1+B2)已落地(2026-09-16,§16 设计;commits 2520846/9f8b348)。阶段 7(B3)代码与 mock 验证完成(§17);A17 n2 A/B 与 T5 真机验收待用户执行。
 > 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)· 2026-09-09(执行启动+事实修订:plugin.yaml manifest、NotificationHub、A5 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 
@@ -424,3 +424,25 @@ Baseline 已入档:6/42=14%(label=baseline-macos);terminal-write 0/3 两种死�
 **B1 DesktopExecutor**(`computer/executor.py`):Protocol 桌面原语(screenshot 含 region/click/type_text/key_press/scroll/mouse_move/mouse_down/up/hold_key/drag/wait clamp 0.1-5/batch A10 语义)+ bash(持久 cwd、禁 sudo/su 首token+管道段、输出截断 10k)+ 文件 read/write/edit(read-before-edit 由 old-string 必须唯一命中强制)。双平台实现直接调用既有底层函数(`_click_macos`/`_click_ydotool` 等),不经过 Tool 类;返回强类型小结果(Screenshot/BashResult/BatchResult)。**executor.batch 与 ComputerBatchTool 各自实现、共享底层原语(用户选定)**。
 
 **B2 core seam**:①`AgentDefinition.engine: str|None` + frontmatter 解析(engine 值=registry full_name);②`AgentRunner.__init__` 加 `registry=None`,`run_agent` 在 LLMAgent 构造前加工厂分支,registry 经 Assistant→BrainProcessor→AgentRunner 穿线,jobs/benchmark 默认 None(缺 registry 报错);③`ExtensionManifest.needs: tuple[str,...]`,`plugin.yaml` 声明 `type: agent, needs: [desktop_executor]`,registry 保持类型无关仅实例化后校验 Agent ABC。工厂 config=`{"desktop_executor": Executor|None(按 needs), "llm_profile": LLMProfile|None}`。取消=supervisor stop→task cancel(插件 finally 清理);预算=插件 yield USAGE。toolset/model 字段对插件 agent 忽略。
+
+## 17. 阶段 7 实现与验证(2026-09-16 用户要求实施)
+
+**前置核对**:阶段 0–5 的完成依据是 §13–15、Part A 验收提交 `69647df` 及决策门通过记录;阶段 6 的 B1/B2 实现提交为 `2520846`/`9f8b348`,完成记录为 `80d9de7`。本轮前置回归 155 项通过。此前测试 fixture 默认选择宿主平台却只 mock Linux 后端,在 macOS 会执行真实桌面;已显式选择 Linux executor。基准输入法测试也改为显式 mock Linux。
+
+**B3 已实现**:
+- `backend/plugins/agent-n2/`:Tank `plugin.yaml`、Python 工作区包、Agent ABC 工厂、独立 AsyncOpenAI 循环及 `protocol.py`。五类工具全部经注入的 DesktopExecutor;15 种 GUI 动作、归一化坐标恒等转交、按键别名/标点/序列、修饰键手势、批次首错即停与单张批后截图。取消时释放按键/鼠标并关闭自有客户端。
+- 保留完整历史与 assistant reasoning 原文,tool 消息原生带图,截图 WebP quality=80;不发送 max_tokens/temperature/stream。每轮先 yield USAGE,再 yield 事件,runner 在动作前可按预算终止;缺 usage 明确报错。max_steps/请求体大小上限明确终止。
+- `backend/agents/computer_use_n2.md`:后台子代理定义。配置入口为 `agent_engines.<engine full name>`,用 `llm_profile: n2` 引用凭据;未声明 profile 时保留阶段 6 的插件名称回退。能力和解析后的 profile 覆盖配置输入,不能由 YAML 伪造注入物。
+- 任务审批按 manifest 的 `desktop_executor` 能力判断,不依赖对插件无意义的 toolset。runner 和基准驱动显式关闭异步生成器,预算/步数停止会立即清理资源。
+- A17 驱动增加通用插件 registry 路径,代理记录 USAGE/调用耗时,executor 截图归档;内部 LLM 路径保持原有计数方式。无核心 n2 协议分支。
+
+**协议校正**:[官方 API 参考](https://docs.yutori.com/reference/n2)(本轮核对)现默认 `computer_use_tools-20260830`,动作形状为 `{"name": ..., "arguments": ...}`,点击为 `left_click`;早期 §1 的动作名及“禁止自定义 tools”等结论不再代表当前 API。本实现固定支持 20260830。背景 bash、replace_all 暂返回可自纠的明确错误,可用前台 bash 或 read/write 完成;文件编码沿用 executor UTF-8。历史不压缩,超出请求体上限时明确结束。真实任务成功率尚未验证。
+
+**验证**:
+- 插件/工厂/派发审批/预算清理/基准测量与已有 computer use、executor、seam、A17 相关回归:227 passed。
+- 全部改动的运行时代码 pyright:0 errors;backend/core 与插件 ruff、CLI ruff、web lint、web TypeScript、git diff --check 通过。新增代码无 `# type: ignore`。Quartz 动态符号通过返回 Any 的加载边界建模,不屏蔽类型诊断。
+- 完整 backend 回归:3634 passed,1 skipped,7 failed;其中平台假设测试已修复并回归通过,余下受权限/环境影响的检查在沙箱外重跑 9 passed。未重跑第二遍全套。
+- `test/pnpm test`:沙箱外浏览器可启动,但 https://localhost:5173 未运行,10 场景连接被拒绝;tmux 无 tank 服务,无法检查运行日志。
+- `backend/uv.lock` 已纳入新插件。核心测试无需导入插件,可独立运行;没有执行真实宿主机动作或调用付费 n2 API来验收。
+
+**尚待验收**:A17 同尺 n2 A/B、3 个桌面任务及 `agent_stop` 批中取消真机实测;不标记 Part B 验收完成。配置、安装和 T5 指南见 `backend/plugins/agent-n2/README.md`。按 §12 要求,用户真机测试前先提交/push 全部本轮代码,再在测试机 pull。
