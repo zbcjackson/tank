@@ -120,6 +120,8 @@ METADATA_KEYS: dict[MessageType, frozenset[str]] = {
             "channels",
             "channel_slug",
             "sample_rate",
+            # Client ping timestamp (Unix milliseconds), echoed by pong for RTT.
+            "timestamp",
         }
     ),
     MessageType.TRANSCRIPT: frozenset({"step_id"}),

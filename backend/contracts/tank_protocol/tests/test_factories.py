@@ -4,6 +4,7 @@ pre-extraction construction sites (protocol plan §8 P0-1: "构造工厂产出�
 
 from __future__ import annotations
 
+import pytest
 from tank_protocol import (
     OPUS_PROFILE,
     MessageType,
@@ -40,6 +41,14 @@ def test_signal_factory_matches_handwritten():
             "attachments": [],
         }
     )
+
+
+@pytest.mark.parametrize("name", ["ping", "pong"])
+def test_heartbeat_timestamp_is_documented(name, caplog):
+    frame = signal(name, metadata={"timestamp": 1789635547833})
+    assert frame.metadata == {"timestamp": 1789635547833}
+    assert validate_envelope(frame) == []
+    assert not caplog.records
 
 
 def test_transcript_factory_matches_handwritten():

@@ -145,6 +145,7 @@
         "protocol_features",
         "protocol_version",
         "sample_rate",
+        "timestamp",
         "title"
       ]
     },
