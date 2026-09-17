@@ -8,7 +8,10 @@ from typing import Any
 
 from tank_backend.agents.subagent import SubAgentContext
 from yutori.navigator.macos.computer import MacOSComputer
-from yutori.navigator.macos.transport import CuaDriverTransport
+from yutori.navigator.macos.transport import (
+    CuaDriverConnectionError,
+    CuaDriverTransport,
+)
 from yutori.navigator.macos.types import CancellationLatch
 
 
@@ -18,6 +21,29 @@ class CheckedTransport(CuaDriverTransport):
     def __init__(self) -> None:
         super().__init__()
         self.cleanup_error: Exception | None = None
+        self.stderr_tail = b""
+
+    async def start(self) -> None:
+        if not self.running:
+            self.stderr_tail = b""
+        try:
+            await super().start()
+        except CuaDriverConnectionError as exc:
+            detail = self.stderr_tail.decode("utf-8", errors="replace").strip()
+            raise CuaDriverConnectionError(
+                f"{exc} Driver stderr: {detail or '(empty)'}. "
+                "Check CuaDriver.app installation and run "
+                "`uv run --no-sync cua-driver doctor` from backend/."
+            ) from exc
+
+    async def _drain_stderr(self) -> None:
+        # The pinned SDK discards this stream. Keep a bounded tail while still
+        # draining it so a verbose driver cannot block startup or grow memory.
+        process = self._process
+        if process is None or process.stderr is None:
+            return
+        while chunk := await process.stderr.read(4096):
+            self.stderr_tail = (self.stderr_tail + chunk)[-8192:]
 
     async def call_tool(
         self, name: str, arguments: dict[str, Any], **kwargs: Any
