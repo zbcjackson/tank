@@ -585,3 +585,30 @@ SDK 自有 client、插件注入 client 与 environment 的关闭所有权已确
 
 未修改前端/协议控件，也未调用付费 N2 或注入宿主机输入；上述自动化
 结果不代替尚未完成的完整 SDK 主会话 WS 注入与实机验收。
+
+## 14. macOS driver 启动失败排查（2026-09-17）
+
+用户实测已通过审批和后台派发，在 MacOSComputer 进入环境时 MCP 子进程
+退出 1，尚无模型 token。日志没有 driver 的具体拒绝原因，不能仅凭退出码
+认定为权限问题。固定 SDK 会丢弃 stderr，插件保留最后 8192 bytes，并将
+启动失败详情与 doctor 检查提示带入 worker 错误。实际 Mac 的 doctor 输出
+和修复后计算器结果仍待确认。
+
+补齐同版本 CuaDriver.app 的安装、启动与权限检查说明；默认 MCP 是独立
+app daemon 的代理，worker 拥有代理/会话，不拥有可能共享的 daemon。
+去掉审批 update 中协议未声明且客户端未使用的 permissions metadata；
+权限范围仍完整保留在审批正文，运行凭据范围校验不变。
+
+### Tests
+
+- 实际 SDK transport 启动会退出 1 的测试子进程，验证 stderr 保留、
+  大量输出有界、空输出时 doctor 指引以及子进程退出。
+- 现有审批 seam 测试验证权限正文完整且 update metadata 遵守现有协议。
+- 最后执行 §12 完整 Verification Checklist，并记录本轮结果。
+
+验证结果：backend 全量 4333 passed、2 skipped、16 warnings（169.48s）；
+E2E 14 场景 / 55 步骤通过；web lint/TypeScript、backend/CLI ruff、改动
+Python 文件 pyright（0 errors、0 warnings）、文档/协议同步及 diff 检查
+通过。后端 health 正常且最近 50 行无异常；Vite 仍有 WebSocket 关闭
+ECONNRESET 日志，运行日志检查未全绿。以上只证明诊断补丁与回归通过，
+不证明用户 Mac 的 driver 启动问题已经解决。

@@ -44,9 +44,31 @@ isolation when such limits are required. Model calls upload desktop screenshots.
 | Linux X11 | No adapter enabled | Explicitly unsupported until separate acceptance |
 | Linux Wayland / other OS | No adapter | Explicitly unsupported |
 
-Give the Terminal/Python process and cua-driver the required macOS Screen
-Recording and Accessibility permissions. The SDK starts and owns a persistent
-`cua-driver mcp` subprocess for each environment. Overlay presentation is disabled.
+The default macOS transport requires **CuaDriver.app** in addition to the Python
+wheel. Its MCP subprocess proxies to the app's daemon; macOS attributes Screen
+Recording and Accessibility permissions to that app. Granting permissions only
+to Terminal/Python does not establish readiness for this launch mode. Install the
+matching pinned standalone app on the Mac, then check it before dispatch:
+
+```bash
+# From backend/; install the same driver release as the Python dependency.
+curl -fL https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.23.2/install.sh \
+  -o /tmp/tank-cua-driver-install.sh
+CUA_DRIVER_RS_VERSION=0.23.2 bash /tmp/tank-cua-driver-install.sh
+open -n -g -a CuaDriver --args serve
+uv run --no-sync cua-driver permissions grant
+uv run --no-sync cua-driver permissions status
+uv run --no-sync cua-driver doctor
+```
+
+Confirm both permissions in macOS System Settings for CuaDriver.app. Read the
+doctor findings even if its exit code is zero. These steps follow the driver's
+[pinned launch contract](https://github.com/trycua/cua/blob/cua-driver-rs-v0.23.2/libs/cua-driver/README.md#macos-process-identity-and-permissions).
+Tank does not install the app or change OS permissions during dispatch.
+
+The SDK starts and owns a persistent `cua-driver mcp` proxy subprocess for each
+environment; the standalone daemon may be shared and is not owned by the worker.
+Worker cleanup ends its session and closes the proxy. Overlay presentation is disabled.
 Modified clicks are enabled; modified scroll is explicitly disabled because the
 pinned MacOSComputer refuses it. Coordinates delivered to this adapter are pixels;
 the SDK performs normalization/denormalization itself.
