@@ -32,3 +32,14 @@ Feature: Chat mode
   Scenario: Long answer audio starts before text finishes streaming
     When the user sends a long-answer prompt with audio streaming tracked
     Then the first audio frame arrives before the response text completes
+
+  Scenario Outline: Official N2 SDK dispatch uses the worker lifecycle
+    When the isolated N2 SDK dispatch is "<outcome>"
+    Then the N2 SDK worker reports "<status>" with confirmed cleanup
+
+    Examples:
+      | outcome  | status    |
+      | rejected | rejected  |
+      | approved | completed |
+      | stopped  | cancelled |
+      | failed   | failed    |
