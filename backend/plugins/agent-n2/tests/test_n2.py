@@ -4,6 +4,7 @@ import asyncio
 import copy
 import io
 from types import SimpleNamespace
+from typing import AsyncGenerator, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -13,7 +14,7 @@ from PIL import Image
 from agent_n2 import create_agent
 from agent_n2.agent import N2Agent
 from agent_n2.protocol import TOOL_SET, key_name
-from tank_backend.agents.base import AgentOutputType, AgentState
+from tank_backend.agents.base import AgentOutput, AgentOutputType, AgentState
 from tank_backend.computer.executor import BatchResult, BatchStep, DesktopExecutor, Screenshot
 from tank_backend.llm.profile import LLMProfile
 
@@ -34,9 +35,10 @@ def profile():
 
 
 def completion(calls=(), content=None):
-    message = ChatCompletionMessage(role="assistant", content=content,
-                                    reasoning_content="unchanged reasoning",
-                                    tool_calls=list(calls) or None)
+    message = ChatCompletionMessage.model_validate({
+        "role": "assistant", "content": content,
+        "reasoning_content": "unchanged reasoning", "tool_calls": list(calls) or None,
+    })
     return SimpleNamespace(choices=[SimpleNamespace(message=message)],
                            usage=SimpleNamespace(total_tokens=20, prompt_tokens=12,
                                                  completion_tokens=8))
@@ -159,7 +161,7 @@ async def test_usage_boundary_closes_client_without_actions(executor, profile, m
         call("write", {"file_path": "a", "content": "x"})
     ]))
     monkeypatch.setattr("agent_n2.agent.AsyncOpenAI", lambda **kw: client)
-    stream = N2Agent(executor, profile).run(AgentState())
+    stream = cast(AsyncGenerator[AgentOutput, None], N2Agent(executor, profile).run(AgentState()))
     assert (await anext(stream)).type == AgentOutputType.USAGE
     await stream.aclose()
     client.close.assert_awaited_once()
@@ -187,7 +189,7 @@ async def test_real_factory_runner_dispatch_and_budget(executor, profile, monkey
     from tank_backend.plugin.registry import ExtensionRegistry
 
     plugin = Path(__file__).parents[1]
-    definition = parse_agent_file(plugin.parents[1] / "agents/computer_use_n2.md")
+    definition = parse_agent_file(plugin.parents[1] / "agents/n2.md")
     registry = ExtensionRegistry()
     manifest = read_manifest_from_yaml(plugin / "plugin.yaml")
     registry.register(manifest.plugin_name, manifest.extensions[0])
@@ -221,7 +223,7 @@ async def test_real_factory_runner_dispatch_and_budget(executor, profile, monkey
 
 
 async def test_benchmark_engine_records_usage_and_screenshots(executor, profile, tmp_path, monkeypatch):
-    from tank_backend.benchmarks.driver import CountingLLM, _MeasuredRegistry
+    from tank_backend.benchmarks.driver import CountingLLM, _MeasuredEngine, _MeasuredRegistry
     from tank_backend.benchmarks.trace import TraceSink
     from tank_backend.plugin.manifest import ExtensionManifest
 
@@ -236,6 +238,7 @@ async def test_benchmark_engine_records_usage_and_screenshots(executor, profile,
     client.chat.completions.create = AsyncMock(return_value=completion(content="Done"))
     monkeypatch.setattr("agent_n2.agent.AsyncOpenAI", lambda **kw: client)
     engine = registry.instantiate("agent-n2:agent", {"desktop_executor": executor, "llm_profile": profile})
+    assert isinstance(engine, _MeasuredEngine)
     try:
         outputs = [o async for o in engine.run(AgentState())]
         assert outputs[-1].type == AgentOutputType.DONE

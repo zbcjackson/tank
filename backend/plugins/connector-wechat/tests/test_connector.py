@@ -241,11 +241,17 @@ class TestSendTyping:
 
 
 class TestSendVoice:
-    async def test_voice_success(self, connector: WeChatConnector) -> None:
+    async def test_voice_success(self, state_dir: str) -> None:
+        connector = WeChatConnector(
+            instance_name="voice", account_id="acc", token="tok",
+            state_dir=state_dir, voice_out=True,
+        )
         connector._client = MagicMock()
-        connector._client.get_upload_url = AsyncMock(return_value="https://cdn/upload")
-        connector._client.upload_media = AsyncMock(return_value="https://cdn/file")
-        connector._client.send_file_message = AsyncMock(
+        connector._client.get_upload_url = AsyncMock(
+            return_value={"upload_full_url": "https://cdn/upload", "filekey": "file_1"}
+        )
+        connector._client.upload_media = AsyncMock(return_value="encrypted_param")
+        connector._client.send_voice_message = AsyncMock(
             return_value=SendResponse(message_id="voice_1", errcode=0)
         )
         connector._state.save_context_token("wxid_abc", "ctx_tok")
@@ -255,9 +261,16 @@ class TestSendVoice:
             external_id="wechat:user:wxid_abc",
             metadata={"peer_id": "wxid_abc"},
         )
-        result = await connector.send_voice(identity, b"audio_data")
+        with patch(
+            "connector_wechat.connector.transcode_to_silk",
+            new_callable=AsyncMock, return_value=(b"silk_data", 1000),
+        ) as transcode:
+            result = await connector.send_voice(identity, b"audio_data")
+        transcode.assert_awaited_once_with(b"audio_data")
         assert result.ok is True
         assert result.message_id == "voice_1"
+        connector._client.send_voice_message.assert_awaited_once()
+        assert connector._client.send_voice_message.call_args.kwargs["duration_ms"] == 1000
 
     async def test_voice_disabled(self, state_dir: str) -> None:
         c = WeChatConnector(
@@ -293,7 +306,7 @@ class TestInbound:
             peer_id="wxid_sender",
             context_token="ctx_1",
             message_type="text",
-            content={"text": "hello"},
+            content={"text_item": {"text": "hello"}},
             sender_name="Alice",
         )
         await connector._process_updates([update])
@@ -313,7 +326,7 @@ class TestInbound:
             peer_id="wxid_sender",
             context_token="ctx_1",
             message_type="text",
-            content={"text": "hello"},
+            content={"text_item": {"text": "hello"}},
         )
         await connector._process_updates([update])
         await connector._process_updates([update])  # duplicate
@@ -329,7 +342,7 @@ class TestInbound:
             peer_id="wxid_sender",
             context_token="new_ctx",
             message_type="text",
-            content={"text": "hi"},
+            content={"text_item": {"text": "hi"}},
         )
         await connector._process_updates([update])
         assert connector._state.get_context_token("wxid_sender") == "new_ctx"
@@ -343,7 +356,7 @@ class TestInbound:
             peer_id="group_123",
             context_token="ctx",
             message_type="text",
-            content={"text": "hi"},
+            content={"text_item": {"text": "hi"}},
             is_group=True,
         )
         await connector._process_updates([update])
@@ -365,7 +378,7 @@ class TestInbound:
             peer_id="group_123",
             context_token="ctx",
             message_type="text",
-            content={"text": "hi"},
+            content={"text_item": {"text": "hi"}},
             is_group=True,
             sender_name="Bob",
         )
@@ -393,7 +406,7 @@ class TestInbound:
             peer_id="group_allowed",
             context_token="ctx",
             message_type="text",
-            content={"text": "hi"},
+            content={"text_item": {"text": "hi"}},
             is_group=True,
         )
         # Denied group
@@ -402,7 +415,7 @@ class TestInbound:
             peer_id="group_denied",
             context_token="ctx",
             message_type="text",
-            content={"text": "hi"},
+            content={"text_item": {"text": "hi"}},
             is_group=True,
         )
         await c._process_updates([update1, update2])
@@ -448,8 +461,8 @@ class TestSSRF:
             "https://novac2c.cdn.weixin.qq.com/c2c/file123"
         ) is True
 
-    def test_https_allowed(self) -> None:
-        assert WeChatConnector._validate_cdn_url("https://other.example.com/file") is True
+    def test_https_non_cdn_blocked(self) -> None:
+        assert WeChatConnector._validate_cdn_url("https://other.example.com/file") is False
 
     def test_http_non_cdn_blocked(self) -> None:
         assert WeChatConnector._validate_cdn_url("http://internal.local/secret") is False

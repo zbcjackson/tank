@@ -14,12 +14,12 @@ MODULE = "speaker_sherpa.engine"
 @pytest.fixture
 def mock_sherpa_extractor():
     """Mock sherpa-onnx extractor."""
-    with patch(f"{MODULE}._SherpaExtractor") as mock_cls:
+    with patch(f"{MODULE}._load_sherpa") as mock_load:
         mock_instance = MagicMock()
         mock_instance.dim = 192
         mock_instance.create_stream.return_value = MagicMock()
         mock_instance.compute.return_value = [0.1] * 192
-        mock_cls.return_value = mock_instance
+        mock_load.return_value = (MagicMock(return_value=mock_instance), MagicMock())
         yield mock_instance
 
 
