@@ -7,10 +7,37 @@ use the injected DesktopExecutor. Wire details follow the
 Install from the backend workspace with `uv sync --package agent-n2` (or the
 normal plugin installation flow). Merge `config.example.yaml` into the backend
 configuration and set `YUTORI_API_KEY`. The factory resolves the configured
-`llm_profile`; omitting it falls back to a profile named `agent-n2`.
+`llm_profile`; omitting it selects a profile named `agent-n2`.
+Engine profiles are resolved by exact name, without falling back to the default
+chat model. N2 requires `model: n2`; a missing profile or a different model fails
+before screenshots or API calls. Do not omit the `agent_engines` mapping when
+your profile is named `n2`.
 The bundled `n2` definition uses background dispatch and a 300k
 token budget. Dispatch through the existing `agent` tool and approve the task.
 Screenshots of the entire desktop are sent to Yutori.
+
+### macOS troubleshooting
+
+If the log says `LLM profile 'agent-n2' not found`, check the file printed by
+`Loaded config from ...` (normally `backend/core/config.yaml`). Merge both the
+`llm.n2` profile and the top-level `agent_engines` mapping from
+`config.example.yaml`, keeping the existing `llm.default` profile. Set
+`YUTORI_API_KEY` in the backend environment, then restart the backend to ensure
+the updated configuration and environment are loaded.
+
+From `backend/core`, run `uv run tank-backend --check-computer-use` to check
+macOS screen recording and accessibility permissions. Start a new Tank
+conversation and type: “使用 n2 子 Agent 打开计算器，通过界面输入 7×8，读取显示结果。”
+Approve the task. Expected logs include `N2 starting: profile=n2 model=n2`
+and `N2 step ...: tools=['computer_batch']` (other returned tool names are also
+logged). `AgentRunner ... finished` alone does not prove any desktop action.
+
+DeepSeek notification errors mentioning `reasoning_content` are separate from
+N2 desktop execution. Tank now preserves both native `reasoning_content` and
+the compatible `reasoning` streaming field. Existing history that already lost
+reasoning cannot be reconstructed by restarting; use a new conversation for
+the retest. Langfuse/OTel connection failures at `localhost:3001` concern tracing
+and do not establish whether N2 operated the desktop.
 
 The plugin supports the 20260830 tool set, 15 batch primitives, normalized
 coordinates without a second conversion, sequential key presses, modified
