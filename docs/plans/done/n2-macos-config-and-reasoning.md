@@ -40,7 +40,7 @@ N2 插件因此可能只返回文字，没有桌面操作。通知轮次另因�
 - 未调用真实 N2 API，也未操作 macOS 桌面；用户须同步修复、合并配置后
   重启并在新会话中复测，见插件 README。localhost:3001 的 Langfuse 服务
   未启动时，仍会出现独立的遥测导出错误。
-  实机验证仍由现有 [N2 接入计划](../active/computer-use-improvement-and-n2-plan.md)
+  实机验证现由 [SDK 插件实施计划](../active/plugin-subagents-and-n2-sdk.md)
   的 T5 项追踪，不视为本次代码回归已证明桌面操作成功。
 - DeepSeek 思考字段要求依据
   [官方 Thinking Mode 文档](https://api-docs.deepseek.com/guides/thinking_mode/)。

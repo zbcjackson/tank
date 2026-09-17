@@ -14,7 +14,7 @@
 | [design/skills.md](design/skills.md) | 设计 | 现行 | Skill 系统:SKILL.md 解析、注册去重、安全评审、技能工具 |
 | [design/agentic-harness-features.md](design/agentic-harness-features.md) | 设计 | 现行 | agentic harness 基础设施参考:工具元数据、条件注册、hooks 协议 |
 | [design/vad-smart-turn-design.md](design/vad-smart-turn-design.md) | 设计 | 现行 | VAD / Smart Turn 端点检测 / speculative reopen 的当前实现与设计取舍 |
-| [plans/active/computer-use-improvement-and-n2-plan.md](plans/active/computer-use-improvement-and-n2-plan.md) | 计划 | 执行中 | computer-use 工具通用改进(Part A)+ A17 基准套件 + Navigator n2 接入(Part B);执行阶段见 §12,n2 在决策门后 |
+| [plans/done/computer-use-improvement-and-n2-plan.md](plans/done/computer-use-improvement-and-n2-plan.md) | 计划 | 实现已完成 | Part A、A17 harness 与现有 N2 插件已落地；完整 A/B 和真机控制验收移交 SDK 计划，处置见 §18 |
 | [plans/active/plugin-subagents-and-n2-sdk.md](plans/active/plugin-subagents-and-n2-sdk.md) | 计划 | 设计待实施 | 官方 N2ComputerAgent 插件子 Agent 接入；保留 engine/executor；当前 N2 真机测试与 benchmark 对比方案 |
 | [plans/done/n2-macos-config-and-reasoning.md](plans/done/n2-macos-config-and-reasoning.md) | 计划 | 代码与回归完成 | N2 profile 精确查找、模型校验与 DeepSeek 通知思考字段回传；运行日志限制及实机复测见结果 |
 | [plans/done/n2-runtime-config.md](plans/done/n2-runtime-config.md) | 计划 | 配置与回归完成 | 补齐主配置中的 N2 profile 与插件引擎映射；运行日志限制见结果 |

@@ -1,6 +1,6 @@
 # Computer Use 改进与 Navigator n2 接入方案
 
-> 状态:Part A 验收完成(§15)。阶段 6(B1+B2)已落地(2026-09-16,§16 设计;commits 2520846/9f8b348)。阶段 7(B3)代码与 mock 验证完成(§17);A17 n2 A/B 与 T5 真机验收待用户执行。
+> 状态：实现工作已完成并归档（2026-09-17）。Part A 与 B1–B3 已落地，macOS N2 计算器操作已获用户确认；尚未完成的完整 A/B、真机控制验收已移交后续计划，处理结果见 §18。
 > 日期:2026-08-28(初稿)· 2026-09-08(修订:对齐 worker/subagent 现状)· 2026-09-09(执行启动+事实修订:plugin.yaml manifest、NotificationHub、A5 现状)
 > 关联:Yutori [Navigator n2 发布博客](https://yutori.com/blog/introducing-n2) · [API 参考](https://docs.yutori.com/reference/n2) · [Python SDK](https://github.com/yutori-ai/yutori-sdk-python) · Anthropic [computer-use-demo](https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo)
 
@@ -445,4 +445,29 @@ Baseline 已入档:6/42=14%(label=baseline-macos);terminal-write 0/3 两种死�
 - `test/pnpm test`:沙箱外浏览器可启动,但 https://localhost:5173 未运行,10 场景连接被拒绝;tmux 无 tank 服务,无法检查运行日志。
 - `backend/uv.lock` 已纳入新插件。核心测试无需导入插件,可独立运行;没有执行真实宿主机动作或调用付费 n2 API来验收。
 
-**尚待验收**:A17 同尺 n2 A/B、3 个桌面任务及 `agent_stop` 批中取消真机实测;不标记 Part B 验收完成。配置、安装和 T5 指南见 `backend/plugins/agent-n2/README.md`。按 §12 要求,用户真机测试前先提交/push 全部本轮代码,再在测试机 pull。
+**当时尚待验收（2026-09-16）**:A17 同尺 n2 A/B、3 个桌面任务及 `agent_stop` 批中取消真机实测;当时未标记 Part B 验收完成。配置、安装和 T5 指南见 `backend/plugins/agent-n2/README.md`。当前处理状态以 §18 为准。
+
+## 18. 完成核对与关档（2026-09-17）
+
+本计划的实现工作已完成。按用户要求更新状态并移入 done；关档不表示尚未
+取得的真实桌面或成功率证据已经通过。§8/§9 的原始验收清单保留为历史，
+未勾选项以以下处置表为准，后续工作不再在本计划执行。
+
+| 工作 | 核对依据 | 关档处置 |
+|---|---|---|
+| Part A 通用改进与 A17 harness | §13–15、验收提交 `69647df`；现有平台工具、batch、doctor 和 benchmark 测试 | 已完成；历史 6/42 → 7/42 报告保留，不作为修正评分后的严格 baseline |
+| B1 DesktopExecutor、B2 engine seam | `2520846`、`9f8b348`、`80d9de7`；executor/engine seam 测试 | 已完成；只由现有 N2 消费，暂时保留 |
+| B3 N2 插件及 benchmark 接入 | §17；`backend/plugins/agent-n2/`、`backend/agents/n2.md`、driver engine 分支 | 已完成；未改成官方 N2ComputerAgent |
+| 主配置、profile 校验和通知历史修复 | `af3c330`、`d4a6eb4`、`f43cdb0`、`b0003ee`；相关已完成修复计划 | 已完成；旧会话通知修复仍待 macOS 复测 |
+| macOS N2 实机冒烟 | 用户 2026-09-17 确认“测试发现操作正常”；日志正确 profile，57×8 任务 9 轮结束，70.2s | 计算器操作已确认；日志不能代替其余任务、取消和逐项 validator 验收 |
+| 严格同尺 N2 A/B、3 个桌面任务、批中取消与输入释放 | 现有资料没有完整通过记录；benchmark 存在 trial 隔离等限制 | 移交[SDK 插件实施计划](../active/plugin-subagents-and-n2-sdk.md) M1/M6，作为旧路径回归与新路径采用的前置 |
+| Linux 中文/修饰键/截图延迟与新 adapter 平台验收 | macOS 成功不能证明 GNOME Wayland/X11 成功 | 移交同一计划 M4/M6 平台验收；未验证平台不得声明支持 |
+| 插件删除后的零耦合验收 | 原清单没有独立删除环境的验收记录 | 移交 M2：核心测试环境不安装 N2 插件时回归通过 |
+| A13 zoom、A14 截图接口、A16 单屏限制 | 两平台 ScreenshotTool 已提供 region/crop，接口已无死 profile 参数；基准环境固定单屏 | 已完成实现/限制记录；多显示器扩展登记 backlog |
+| A15 光标截图可见性 | 没有各截图 backend 真机图像的完整核对记录，doctor 截图成功不证明含光标 | 移交 M4/M6：核对新 adapter 的实际截图与光标行为，不宣称已有完整验收 |
+| 旧 executor 动作通道 hooks / guardrails | §9 B4 是条件触发建议，不是已实现能力 | 登记 backlog；新 SDK 路径控制由后续计划实现 |
+
+全量回归在通知修复轮为 4276 passed、2 skipped；E2E 为 10 场景/39 步骤
+通过，详见[通知与追踪修复记录](n2-notification-and-tracing-fixes.md)。pytest
+退出时异步任务清理错误、Vite 连接断开错误与 Langfuse 服务连接问题仍有
+记录，不能将本次关档描述为全部运行检查全绿。

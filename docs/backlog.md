@@ -13,6 +13,8 @@
 
 | 项目 | 触发条件 | 背景/前置 | 来源 |
 |---|---|---|---|
+| Computer-use 多显示器支持 | 单屏限制阻碍实际桌面任务，且可准备多显示器验收环境 | 现有平台原语和 N2 benchmark 固定单屏；需统一截图布局、显示器身份与坐标变换 | [computer-use-improvement-and-n2-plan.md](plans/done/computer-use-improvement-and-n2-plan.md) A16 / §18 |
+| 旧 DesktopExecutor 动作 hooks / guardrails | SDK 迁移后仍保留旧 N2，且需要对旧 executor 提供逐动作策略或 hooks | 现有旧插件绕过 ToolManager 管线；若旧路径已退役则删除此条，不为退役实现扩建控制层 | [computer-use-improvement-and-n2-plan.md](plans/done/computer-use-improvement-and-n2-plan.md) B4 / §18 |
 | 客户端 token 携带（web/cli/device 连接时发 `?token=`） | 远程部署启动 | P0-2 只落地了服务端校验，三端客户端从未实现携带；需与 token 分发方式一并设计 | [protocol-evolution-plan.md](plans/done/protocol-evolution-plan.md) P0-2 |
 | 认证 token 分发方式定案 | 远程部署设计时 | 配置文件 vs 首次配对流程，计划 §11.2 未决问题 | [protocol-evolution-plan.md](plans/done/protocol-evolution-plan.md) §11 |
 | Resume（断线续传） | 远程部署实测断线频繁到影响体验 | 现靠 session_id 恢复会话历史，在途 turn 状态全丢；需 text/audio 帧序号 + 重连 replay 窗口 | [protocol-evolution-plan.md](plans/done/protocol-evolution-plan.md) §6 |
