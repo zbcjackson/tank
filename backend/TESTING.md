@@ -484,3 +484,24 @@ When adding a new feature, ask these questions to identify missing integration t
 - **Mocking the boundary you're testing** — if you mock `_run_agent` to test timeout, you bypass the `asyncio.timeout()` inside it. Mock at a lower level or raise the expected exception directly.
 - **Testing only the happy path** — DENY and REQUIRE_APPROVAL paths are where bugs hide.
 - **Testing components in isolation when the bug is at the seam** — the `ApprovalCallback` was `None` for years because no integration test verified file tools actually got a working callback.
+
+## Plugin subagents and N2 SDK
+
+`core/tests/test_subagent.py` exercises the generic contract and the real
+AgentTool → Supervisor → Runner seam, including missing grants, scoped approval,
+terminal errors, cleanup quarantine and lock-wait timeouts. It needs no yutori
+import. `plugins/agent-n2-sdk/tests` uses yutori 0.9.29 with fake computer/completions
+for callback events, retries, usage, cancellation and cleanup; no paid API or
+host input. Install all workspace packages before running all plugin tests:
+`uv sync --all-packages --all-groups`, then `uv run --no-sync pytest`.
+
+The existing chat.feature includes isolated-process SDK dispatch scenarios using
+`test/support/n2-sdk-dispatch.py`. They verify approvals, persisted status, stop,
+activity frame conversion and completion/failure notifications. Existing live
+client scenarios cover transport separately. Fake tests do not establish physical
+macOS input cleanup, Linux support or benchmark success; these remain real-machine
+acceptance items in the active SDK plan.
+
+Benchmark regression tests verify per-trial capture/token isolation, rejection of
+stale tabs/late requests, correct PNG/WebP MIME, tool-call step boundaries,
+smoke exclusion and suite abortion after unconfirmed cleanup.

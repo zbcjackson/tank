@@ -1,6 +1,6 @@
 # 插件子 Agent 与官方 N2ComputerAgent 实施计划
 
-> 状态：实施计划已制定，待实现（2026-09-17）。M0–M6 为首轮交付，M7 为采用后同进程暂停/恢复；保留现有 engine、DesktopExecutor 和 n2，未实施 SDK 插件代码。
+> 状态：SDK 插件与通用派发已实现，自动化验证通过，实机验收待完成（2026-09-17）。保留旧 n2/engine/executor；Linux adapter、M1 真机 baseline、M6 实机 A/B 与采用结论尚未完成，M7 未触发。
 
 关联：[已归档 computer-use / N2 计划](../done/computer-use-improvement-and-n2-plan.md)、[当前编排设计](../../design/agent-orchestration.md)、[当前 N2 插件](../../../backend/plugins/agent-n2/README.md)、[基准指南](../../../backend/benchmarks/README.md)。
 
@@ -66,7 +66,7 @@ Runner 中一个 facade 将现有 AgentState 转成任务请求，再把插件�
 
 继续复用 ExtensionRegistry；增加 `type: subagent`，验证工厂返回 SubAgent。旧 `type: agent` 仍要求现有 Agent ABC。`extension` 与 `engine` 不可同时配置。
 
-新插件 manifest 的设计形状（尚未实现）：
+新插件 manifest：
 
 ```yaml
 name: agent-n2-sdk
@@ -105,7 +105,7 @@ subagents:
       environment: local
 ```
 
-复用现有环境变量解析；不为新增插件强制增加 LLMProfile 依赖，其他远程任务服务不需要这种配置形状。配置和依赖在新插件中验证，核心只验证公共入口与授权。配置示例不是已可运行的安装指令。
+复用现有环境变量解析；不为新增插件强制增加 LLMProfile 依赖，其他远程任务服务不需要这种配置形状。配置和依赖在新插件中验证，核心只验证公共入口与授权。主配置已加入这一独立入口；安装与平台边界见新插件 README。
 
 ## 5. N2 包装、控制与安全
 
@@ -139,7 +139,7 @@ SDK resume 是追加消息继续已有历史。首次只允许在完整工具结
 
 ## 6. 文件改动清单
 
-下表是实施范围，本轮没有实施这些逻辑。现有文件优先局部扩展；新文件
+下表是实施范围，已落地项和剩余验收见 §10 与 §13。现有文件优先局部扩展；新文件
 仅用于公共契约、facade、共享桌面资源锁和新 SDK 插件。
 
 | 文件 / 目录 | 改动 |
@@ -152,7 +152,7 @@ SDK resume 是追加消息继续已有历史。首次只允许在完整工具结
 | `plugin/manager.py` | 新类型发现及注册；通用 registry 能复用的部分不改 |
 | `config/app_config.py` | subagents 配置入口解析/校验；现有 agent_engines 保留 |
 | `agents/runner.py` | 新 extension 分支、facade、授权和预算上下文、桌面锁；engine 分支保留 |
-| `agents/agent_tool.py` | 新入口派发审批按 permissions 判断；旧 desktop_executor 审批保留 |
+| `agents/agent_tool.py`、`agents/approval.py`、`tools/confirm_action.py` | 按 permissions 派发审批；确认回调激活凭据，拒绝/扩大范围失效；旧 desktop_executor 审批保留 |
 | `agents/supervisor.py` | 传递稳定 task_id；正确处理新入口结束原因；复用已有取消与通知 |
 | `pipeline/processors/brain.py` | 将已注册 subagent 描述合并进现有派发目录；校验名称冲突；无需新调度器 |
 | `backend/plugins/agent-n2-sdk/`（新增） | SDK 固定版本、工厂、包装、平台 environment、配置和测试指南 |
@@ -341,14 +341,14 @@ uv run --package agent-n2-sdk python -m tank_backend.benchmarks \
 
 ### M0 — 固定 SDK 与运行环境边界
 
-- [ ] 在新插件 pyproject 中固定候选 `yutori[macos]==0.9.29`，更新 uv.lock；
+- [x] 在新插件 pyproject 中固定候选 `yutori[macos]==0.9.29`，更新 uv.lock；
   新插件内部验证配置，公共核心不导入 yutori。
-- [ ] 用无网络的实际 SDK + fake completions/computer 验证 run 输出、
+- [x] 用无网络的实际 SDK + fake completions/computer 验证 run 输出、
   callback 顺序、stopped_by、compaction 调用路径和 aclose 所有权。
-- [ ] 明确 MacOSComputer 的 cua-driver 启动/授权需求和 CancellationLatch
+- [x] 明确 MacOSComputer 的 cua-driver 启动/授权需求和 CancellationLatch
   传递方式；SDK Agent 的 aclose 只关闭自有 client，插件还必须关闭
   environment 与自行注入的 completions client。
-- [ ] 编写能力矩阵：macOS 可实施、Linux X11 待 M4 验收、Wayland 明确
+- [x] 编写能力矩阵：macOS 可实施、Linux X11 待 M4 验收、Wayland 明确
   unsupported。不支持平台在模型请求和动作开始前报错。
 
 验证：现有 `backend/plugins/agent-n2/tests/test_n2.py` 不变并通过；新增
@@ -358,15 +358,15 @@ uv run --package agent-n2-sdk python -m tank_backend.benchmarks \
 
 ### M1 — 修正评测口径与旧 baseline
 
-- [ ] pageserver/runner 每 trial 建立独立 capture 和随机 trial token；
+- [x] pageserver/runner 每 trial 建立独立 capture 和随机 trial token；
   BENCH_ASSETS_URL 包含本 trial 路径，页面提交携带 token；关闭 trial 后
   拒绝旧 token/迟到提交，validator 只读该 trial 文件。
-- [ ] 修改现有 assets 与受影响任务 setup/validator，不只清空共享文件；
+- [x] 修改现有 assets 与受影响任务 setup/validator，不只清空共享文件；
   新评分 revision 写入报告。无法完整自动验证的任务标记 smoke，并在
   报告单独统计，不混入严格成功率分母。
-- [ ] driver 在工具开始前检查 max_steps，到边界不执行、不计额外一次；
+- [x] driver 在工具开始前检查 max_steps，到边界不执行、不计额外一次；
   保留 steps=已开始的 tool call，batch 原语数与模型轮数另记。
-- [ ] 报告明确 agent_name、engine/extension、git/task/scoring revision、
+- [x] 报告明确 agent_name、engine/extension、git/task/scoring revision、
   配置摘要、平台/显示尺寸、SDK 版本、终止原因和清理状态；不存凭据。
   流式 TTFT 与非流式 RTT 分列，保留旧字段的兼容读取并标明旧报告口径。
 - [ ] 修正后在同一测试机重跑 computer_use 和 n2 的 baseline；暂未拿到
@@ -379,14 +379,14 @@ uv run --package agent-n2-sdk python -m tank_backend.benchmarks \
 
 ### M2 — 最小公共契约与插件入口
 
-- [ ] 实现 §3 的 request/context/capabilities/SubAgent 与 facade；
+- [x] 实现 §3 的 request/context/capabilities/SubAgent 与 facade；
   observer 可选，但运行账本和取消/截止时间必传，工厂只接收插件配置。
-- [ ] definition 新增 extension，与 engine 互斥；manifest 新增 subagent
+- [x] definition 新增 extension，与 engine 互斥；manifest 新增 subagent
   类型与 permissions；registry 验证返回类型和明确的重复入口错误。
-- [ ] AppConfig 解析主配置 subagents 段，Runner 新 extension 分支复用
+- [x] AppConfig 解析主配置 subagents 段，Runner 新 extension 分支复用
   当前 definitions/agent 工具目录。先检查目录是否已自动覆盖 Markdown
   新定义；若已覆盖，不为此修改 Brain 的目录生成逻辑。
-- [ ] 注册一个仅测试用 fake subagent，经过完整工具→Supervisor→Runner
+- [x] 注册一个仅测试用 fake subagent，经过完整工具→Supervisor→Runner
   路径输出活动、usage、DONE；不新增生产 fake 插件或第二套调度器。
 
 验证：扩展 test_plugin_manifest、test_agent_engine_seam 与新公共契约测试，
@@ -395,21 +395,21 @@ uv run --package agent-n2-sdk python -m tank_backend.benchmarks \
 
 ### M3 — 授权、结果与桌面资源控制
 
-- [ ] AgentTool 根据 manifest permissions 触发审批；把本次授权作为
+- [x] AgentTool 根据 manifest permissions 触发审批；把本次授权作为
   运行上下文显式传给 Supervisor/Runner，不能仅用工厂 config 字段代替。
   无授权/已撤销时禁止 environment 启动和新动作。shell/filesystem/network
   的权限展示和策略接线独立于 desktop，不默认绕过已有相应审批。
-- [ ] Supervisor 传递持久 worker task_id；Runner 保留内部 agent_id，
+- [x] Supervisor 传递持久 worker task_id；Runner 保留内部 agent_id，
   不混用。facade 将 DONE 结束原因送回 Supervisor：final_answer 正常
  结束才 completed；budget/max_steps/context_limit 为 failed 并注明原因，
   SDK timeout 为 timeout；工具可恢复错误不等同于整个任务失败。
-- [ ] 新路径不得落入 Runner 当前“捕获异常后只 yield TOOL_RESULT”的
+- [x] 新路径不得落入 Runner 当前“捕获异常后只 yield TOOL_RESULT”的
   成功路径；通过明确 terminal outcome 传递错误，避免流结束即 completed。
   无 DONE、未知 stopped_by 或清理失败必须显式失败。
-- [ ] resources 在同进程内共享桌面锁，内置 computer_use、旧 n2、新
+- [x] resources 在同进程内共享桌面锁，内置 computer_use、旧 n2、新
   n2_sdk 的任务外层使用同一资源 ID；先获授权再取锁，再创建环境。
   锁等待计入截止时间且可取消，取消/初始化失败正常释放。
-- [ ] 清理无法确认时隔离该资源并拒绝下一桌面任务，直到人工核实后
+- [x] 清理无法确认时隔离该资源并拒绝下一桌面任务，直到人工核实后
   显式解除。锁不自动保护主会话直连工具或独立 benchmark 进程，实机
   A/B 仍须停止其它桌面任务并串行执行，不宣称跨进程排他。
 
@@ -419,17 +419,17 @@ supervisor 测试；用 fake 工厂断言未批准零启动，三组互斥、等
 
 ### M4 — 官方 Agent 插件与平台环境
 
-- [ ] 新增 agent_n2_sdk/{agent,config,environment,callbacks}.py 及 manifest、
+- [x] 新增 agent_n2_sdk/{agent,config,environment,callbacks}.py 及 manifest、
   config.example.yaml、README；每个任务创建官方 N2ComputerAgent，
   通过 SDK 的公共 run/callback 接口转换现有 AgentOutput。
-- [ ] 插件拥有一个 SDK 运行 task，callbacks 经有界队列向 facade 输出
+- [x] 插件拥有一个 SDK 运行 task，callbacks 经有界队列向 facade 输出
   事件；工具开始事件取自开始 callback，不能等工具完成后才回放为
   executing。SDK yield 用于轨迹/结果核对，不再重复生成同一调用事件。
   消费者退出时取消并等待 producer，再关闭资源，避免遗留后台循环。
 - [ ] macOS 首先接入原生 MacOSComputer，明确单屏全桌面 scope；modifiers
   能力按实际 environment 声明。Linux 从 direct-X11 示例适配，保存
   来源/许可证；独立验收，失败保持该平台 unsupported。
-- [ ] 增加 n2-sdk.md，name=n2_sdk、extension=agent-n2-sdk:agent；在主
+- [x] 增加 n2-sdk.md，name=n2_sdk、extension=agent-n2-sdk:agent；在主
   config.yaml 增加独立 subagents 配置。保持原 n2 名称与配置，不自动
   把“使用 N2”的请求切换到 SDK；试用明确指定 n2_sdk。
 - [ ] environment 每次动作/原语前检查授权、取消、预算与截止时间；
@@ -444,17 +444,17 @@ batch 首错即停、modifiers、原始 reasoning/图片轨迹与每个 stopped_
 
 ### M5 — 预算与 benchmark 新路径接入
 
-- [ ] completions wrapper 给每次实际返回建立 call_id，响应一次计账；
+- [x] completions wrapper 给每次实际返回建立 call_id，响应一次计账；
   actor callbacks 只转发事件，不能重复计账。compaction/retry 的调用
   使用相同 wrapper；隐藏的传输重试注明 logical call 口径。
-- [ ] request 前、响应后及动作前检查同一账本。Runner 对 extension
+- [x] request 前、响应后及动作前检查同一账本。Runner 对 extension
   只读取共享总量，不再累加 USAGE 一遍；旧路径计数继续沿用现有方式。
   usage 缺失终止；缺失 token 与明确零 token 不混用。在途取消无 usage
   记录 unknown，不报告为已知零成本或精确用量。
-- [ ] observer 收集完整 API 时序、调用类型、工具状态、PNG/WebP 截图；
+- [x] observer 收集完整 API 时序、调用类型、工具状态、PNG/WebP 截图；
   driver extension 路径无需旧 executor monkey-patch。生产无 observer
   仍可正常运行并执行预算约束。
-- [ ] benchmark 同一个 Runner 接入 n2_sdk；清理结束后才执行 validator
+- [x] benchmark 同一个 Runner 接入 n2_sdk；清理结束后才执行 validator
   和 teardown，清理失败保存 trace 并停止 suite，不能继续下一 trial。
 
 验证：新增 fake compaction/retry/budget 测试，并扩展现有 benchmark 测试。
@@ -465,7 +465,9 @@ batch 首错即停、modifiers、原始 reasoning/图片轨迹与每个 stopped_
 
 - [ ] 扩展现有 test/features/chat.feature，SDK 与环境使用测试进程的
   fake 注入，覆盖审批拒绝/批准、后台派发、活动/状态、停止、失败和
-  完成通知；保留现有 WS/后台通知链路，无付费 API 与宿主机输入。
+  完成通知；现有 WS frame 转换器在同一进程验证，真实客户端传输由
+  既有 E2E 单独覆盖，无付费 API 与宿主机输入。该组合尚不等同于
+  在完整主会话 WebSocket 中注入 SDK 的端到端验收。
 - [ ] 用户分别实测旧 n2 与 n2_sdk：§7 的计算器、浏览器、文件任务，
   加一项专用环境中的系统设置修改后恢复；复测旧 DeepSeek 会话通知。
   记录结果证据，不把 bash 文件写入当作纯 GUI 完成。
@@ -534,3 +536,52 @@ batch 首错即停、modifiers、原始 reasoning/图片轨迹与每个 stopped_
 8. `cd test && pnpm test`；backend/frontend 必须已运行。
 9. `python3 scripts/check_docs.py`。
 10. `python3 scripts/check_protocol_sync.py`。
+
+## 13. 实现记录（2026-09-17）
+
+已提交固定 SDK 契约、通用 SubAgent 与授权/桌面资源控制、官方 SDK 插件。
+评测新路径、trial 隔离和自动化派发测试已落地。Markdown loader 已覆盖
+n2_sdk，所以无需修改 Brain 的目录生成；旧 n2 定义/配置/loop/executor
+保留。工厂只收插件 config，授权/共享预算/截止时间由 Runner 创建。
+
+M4 当前可实施平台为 macOS 原生 MacOSComputer；Linux X11 没有启用
+adapter，Wayland 明确 unsupported，在 driver/模型启动前失败。候选
+固定版本的原生 adapter 用原子手势模拟 mouse/key held 状态，modified
+scroll 不支持；已在插件 README 写明，不把这一能力当作持续物理按住。
+M4 的 Linux/真实输入/进程清理项与 M6 的物理停止验收仍保持未完成。
+SDK 自有 client、插件注入 client 与 environment 的关闭所有权已确认；
+插件等待 producer 后分别清理，失败进入资源 quarantine。
+
+自动化证据包括实际固定 SDK + fake completions/computer，覆盖 callback
+事件、retry/compaction 唯一计账、预算后零动作、模型/初始化/动作取消、
+消费者提前关闭与背压、缺失 usage、平台拒绝及关闭异常。公共 seam 测试
+覆盖无授权零启动、确认后才激活凭据、拒绝/权限扩大失效、绑定任务
+审批、稳定 task_id、三路径桌面互斥、等锁
+超时、结束原因与清理失败。SDK benchmark 经过实际 Driver.create/Runner
+入口，计账与截图走 observer，未注入 DesktopExecutor。
+
+评测评分 revision 为 trial-token-v2；每 trial 独立 capture/随机 URL token，
+结束 driver 后关闭 token，再运行 validator；迟到/旧标签页返回 410。
+进程存在型 calculator/settings 为 smoke，排除严格分母；文件保存/复制/
+拖拽 validator 加强内容核对。历史报告字段兼容保留，不能等同新评分。
+没有真实 baseline/A-B 报告，不宣称效果改善或已采用；由用户按 §7/§8
+在同一专用 macOS 桌面跑旧 n2 和明确指定的新 n2_sdk。此计划继续 active，
+不归档，也不启用暂停/恢复。
+
+新增 chat.feature 的四个隔离进程场景验证实际 AgentTool/ConfirmActionTool
+→ Supervisor → Runner → 官方 SDK → WorkerStore/status/stop/NotificationHub
+以及现有 WS frame 转换器。其与既有 live client E2E 分开覆盖；尚未在
+完整主会话 WS 内做 SDK fake 注入，M6 第一项保留待验收。
+
+最终自动化验证：
+
+- 全量 backend pytest：4330 passed、2 skipped、16 warnings（167.38s）。
+- E2E：14 scenarios / 55 steps 全部通过；test TypeScript 检查通过。
+- web lint 与 `tsc -b --noEmit`、backend/CLI ruff，以及全部本轮修改
+  Python 文件的 pyright 通过（0 errors、0 warnings）。
+- 文档一致性、协议同步与 `git diff --check` 通过。
+- 运行后端 health 正常、后端最近 50 行无异常；Vite pane 仍有既有
+  WebSocket 关闭 EPIPE/ECONNRESET 日志，运行日志检查未全绿。
+
+未修改前端/协议控件，也未调用付费 N2 或注入宿主机输入；上述自动化
+结果不代替尚未完成的完整 SDK 主会话 WS 注入与实机验收。

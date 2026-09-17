@@ -322,3 +322,42 @@ notifications:
 7. **`ask_user` is sub-agent only.** The main ChatAgent does NOT have `ask_user` — it talks to the user directly. Only workers dispatched via `agent(...)` get this tool injected.
 
 8. **Worker pause persists full message history.** When a worker calls `ask_user`, all messages up to that point (including the ask_user tool call and result) are serialized to `messages_json` in the database. On resume, the LLM sees the complete conversation history.
+
+## Plugin task agents
+
+An agent definition may select `extension: plugin:extension` with a manifest
+`type: subagent`. This is mutually exclusive with the retained `engine` field.
+Factories receive only `subagents.<extension>.config`; runtime authority is
+provided separately in SubAgentContext. Requests contain the task, definition's
+text context and stable worker task_id, not the main conversation's history.
+The existing Markdown directory loader supplies the dispatch catalog.
+
+AgentTool parks one task approval listing all manifest permissions (desktop,
+shell, filesystem, network); a one-use token is bound to the original task/type.
+The token remains inactive until ConfirmActionTool invokes the runtime-only
+on_confirmation callback; rejection invalidates it. Re-entry also checks that
+the manifest permission scope is unchanged. Supervisor passes the explicit grant
+and task deadline into Runner. SubAgent
+plugins are trusted Python code; these approvals are not a sandbox or substitutes
+for OS file/network isolation, and SDK tools do not inherit Tank tool policies.
+
+SubAgentAdapter defers DONE until producer/environment/client cleanup completes.
+Only `stop_reason=final_answer` completes; incomplete or absent/unknown reasons
+fail, timeout maps to timeout, and cooperative cancellation maps to cancelled.
+Cleanup failure overrides any terminal result and quarantines the desktop.
+The budget ledger counts response identities once, independently of observers;
+Runner consumes usage events without adding them again. Observer events support
+API timing and screenshot traces without participating in execution.
+
+Runner-managed computer_use, old n2 and n2_sdk tasks share one desktop lock.
+Lock wait counts against the task deadline; authorization precedes locking and
+initialization. This covers one event loop, not direct main-session tools or
+other processes. An operator must verify cleanup before explicitly clearing a
+quarantine using DESKTOP_RESOURCE.clear_quarantine().
+
+The [N2 SDK plugin](../../backend/plugins/agent-n2-sdk/README.md) uses the official
+pinned N2ComputerAgent and MacOSComputer. The existing n2/engine path is retained.
+Current SDK platform scope is macOS; Linux X11 is unvalidated and Wayland
+unsupported. The native adapter emulates held input while delivering atomic
+gestures. Real input/process cleanup and business outcomes need macOS acceptance.
+Pause/resume/persistent resume remain disabled; waiting still means ask_user.

@@ -118,6 +118,17 @@ Both layers are backend-only, platform-independent, and fail-open.
 
 ### 3. Agent Orchestration (`src/tank_backend/agents/`)
 
+Plugin task agents can declare `extension: plugin:extension` (manifest type
+`subagent`) instead of `engine`. `SubAgentAdapter` converts a task/context request
+into existing AgentOutput events. Tank owns task authorization, one shared token
+ledger, cancellation/deadline and the same-process desktop lock. WorkerSupervisor
+supplies the persisted task_id and treats only explicit final_answer with
+confirmed cleanup as completion. Cleanup failure quarantines the desktop.
+`n2_sdk` uses the pinned official SDK/MacOSComputer in the new agent-n2-sdk plugin;
+old `n2`, agent engines and DesktopExecutor remain supported. Linux SDK adapters,
+physical cancellation acceptance and pause/resume are pending. See
+[SDK plugin](plugins/agent-n2-sdk/README.md) for configuration and platform limits.
+
 The Brain delegates to an AgentGraph that runs a single ChatAgent with access to all tools. The LLM decides which tools to call naturally — no routing overhead.
 
 **Components**:
