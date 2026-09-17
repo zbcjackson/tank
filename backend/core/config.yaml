@@ -584,3 +584,14 @@ jobs:
 #    config:
 #      account_id: ${WECHAT_ACCOUNT_ID}
 #      token: ${WECHAT_TOKEN}
+
+subagents:
+  "agent-n2-sdk:agent":
+    config:
+      api_key: ${YUTORI_API_KEY}
+      base_url: https://api.yutori.com/v1
+      model: n2
+      tool_set: computer_use_tools-20260830
+      reasoning_effort: medium
+      max_steps: 100
+      environment: local

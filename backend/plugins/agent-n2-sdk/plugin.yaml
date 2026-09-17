@@ -1,0 +1,8 @@
+name: agent-n2-sdk
+display_name: Navigator n2 SDK
+description: Official N2ComputerAgent for a trusted macOS desktop; Linux unsupported.
+extensions:
+  - name: agent
+    type: subagent
+    factory: agent_n2_sdk:create_subagent
+    permissions: [desktop, shell, filesystem, network]
