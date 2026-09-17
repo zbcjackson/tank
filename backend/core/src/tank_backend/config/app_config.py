@@ -133,6 +133,8 @@ class AppConfig:
     # Agent orchestration
     agents: AgentsConfig = field(default_factory=AgentsConfig)
 
+    subagents: dict[str, dict[str, Any]] = field(default_factory=dict)
+
     # Notifications
     notifications: NotificationHubConfig = field(default_factory=NotificationHubConfig)
 
@@ -209,6 +211,7 @@ class AppConfig:
                 command_security=parse_section(CommandSecurityConfig, raw.get("command_security")),
                 audit=parse_section(AuditConfig, raw.get("audit")),
                 agents=parse_section(AgentsConfig, raw.get("agents")),
+                subagents=_parse_subagents(raw.get("subagents", {})),
                 toolsets=_parse_toolsets(raw.get("toolsets")),
                 skills=parse_section(SkillsConfig, raw.get("skills")),
                 jobs=parse_section(JobsConfig, raw.get("jobs")),
@@ -399,3 +402,17 @@ def _parse_connectors(raw: Any) -> ConnectorsConfig:
         ))
 
     return ConnectorsConfig(instances=tuple(instances))
+
+
+def _parse_subagents(raw: Any) -> dict[str, dict[str, Any]]:
+    if not isinstance(raw, dict):
+        raise ConfigError("subagents must be a mapping")
+    result: dict[str, dict[str, Any]] = {}
+    for ref, entry in raw.items():
+        if not isinstance(ref, str) or len(ref.split(":")) != 2 or not all(ref.split(":")):
+            raise ConfigError("subagents keys must be plugin:extension references")
+        if (not isinstance(entry, dict) or set(entry) != {"config"}
+                or not isinstance(entry["config"], dict)):
+            raise ConfigError(f"subagents.{ref} must contain only a config mapping")
+        result[ref] = dict(entry["config"])
+    return result

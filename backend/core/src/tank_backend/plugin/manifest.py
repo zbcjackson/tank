@@ -24,6 +24,7 @@ class ExtensionManifest:
     # ``agent`` extension declaring ``desktop_executor`` receives a
     # DesktopExecutor in its factory config; one that doesn't, doesn't.
     needs: tuple[str, ...] = ()
+    permissions: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -59,9 +60,14 @@ def read_manifest_from_yaml(path: Path) -> PluginManifest:
             type=ext["type"],
             factory=ext["factory"],
             needs=tuple(ext.get("needs", ())),
+            permissions=_parse_permissions(ext.get("permissions", [])),
         )
         for ext in data.get("extensions", [])
     ]
+
+    names = [ext.name for ext in extensions]
+    if len(set(names)) != len(names):
+        raise ValueError(f"Duplicate extension names in {path}")
 
     return PluginManifest(
         plugin_name=data["name"],
@@ -69,6 +75,15 @@ def read_manifest_from_yaml(path: Path) -> PluginManifest:
         description=data.get("description", ""),
         extensions=extensions,
     )
+
+
+def _parse_permissions(raw: object) -> tuple[str, ...]:
+    allowed = {"desktop", "shell", "filesystem", "network"}
+    if not isinstance(raw, list) or any(not isinstance(p, str) or p not in allowed for p in raw):
+        raise ValueError("permissions must be a list of desktop/shell/filesystem/network")
+    if len(set(raw)) != len(raw):
+        raise ValueError("duplicate permissions")
+    return tuple(raw)
 
 
 def read_plugin_manifest(

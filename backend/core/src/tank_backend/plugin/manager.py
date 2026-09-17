@@ -171,6 +171,8 @@ class PluginManager:
         for manifest_path in sorted(plugins_dir.glob(f"*/{MANIFEST_FILENAME}")):
             try:
                 manifest = read_manifest_from_yaml(manifest_path)
+                if manifest.plugin_name in found:
+                    raise RuntimeError(f"Duplicate plugin ID: {manifest.plugin_name}")
                 found[manifest.plugin_name] = manifest
                 logger.debug("Discovered plugin: %s", manifest.plugin_name)
             except (ValueError, KeyError) as exc:

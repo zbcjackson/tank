@@ -25,6 +25,11 @@ class ExtensionRegistry:
     def register(self, plugin_name: str, ext_manifest: ExtensionManifest) -> None:
         """Register an extension manifest under ``'plugin:ext'``."""
         full_name = f"{plugin_name}:{ext_manifest.name}"
+        previous = self._manifests.get(full_name)
+        if previous is not None and previous != ext_manifest and (
+            previous.type == "subagent" or ext_manifest.type == "subagent"
+        ):
+            raise ValueError(f"Ambiguous duplicate subagent extension '{full_name}'")
         if full_name in self._manifests:
             logger.warning("Overwriting extension %s", full_name)
         self._manifests[full_name] = ext_manifest
@@ -110,6 +115,11 @@ class ExtensionRegistry:
                     f"factory returned {type(instance).__name__} (must "
                     f"implement the Agent ABC)"
                 )
+        if manifest.type == "subagent":
+            from ..agents.subagent import SubAgent
+
+            if not isinstance(instance, SubAgent):
+                raise TypeError(f"Extension '{full_name}' must implement the SubAgent ABC")
         logger.info("Instantiated %s via %s", full_name, manifest.factory)
         return instance
 

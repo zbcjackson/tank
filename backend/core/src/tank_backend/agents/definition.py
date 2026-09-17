@@ -32,6 +32,16 @@ class AgentDefinition:
     # Plugin agent engine (B2): registry full name like "agent-n2:agent".
     # None = the built-in LLMAgent loop.
     engine: str | None = None
+    extension: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.engine and self.extension:
+            raise ValueError("engine and extension cannot both be configured")
+        if self.extension is not None and (
+            not isinstance(self.extension, str)
+            or not re.fullmatch(r"[^\s:]+:[^\s:]+", self.extension)
+        ):
+            raise ValueError("extension must be a plugin:extension reference")
 
 
 def parse_agent_file(path: Path) -> AgentDefinition:
@@ -84,6 +94,7 @@ def parse_agent_file(path: Path) -> AgentDefinition:
         token_budget=int(fm.get("token-budget", fm.get("token_budget", 0))),
         model=fm.get("model"),
         engine=fm.get("engine"),
+        extension=fm.get("extension"),
     )
 
 

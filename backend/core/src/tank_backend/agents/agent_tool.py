@@ -35,6 +35,7 @@ from ..tools.base import (
 )
 from .base import AgentOutputType
 from .runner import AgentRunner
+from .subagent import SubAgentAuthorization
 from .supervisor import (
     ConcurrencyLimitExceeded,
     DepthLimitExceeded,
@@ -63,7 +64,7 @@ class AgentTool(BaseTool):
         self._supervisor = supervisor
         # A5: one-time tokens authorizing a computer-control dispatch the
         # user just approved (round-trips through ConfirmActionTool).
-        self._issued_tokens: set[str] = set()
+        self._issued_tokens: dict[str, tuple[str, str]] = {}
 
     def get_info(self) -> ToolInfo:
         # Build description with available agent types
@@ -140,15 +141,18 @@ class AgentTool(BaseTool):
                 error=True,
             )
 
+        permissions = (self._runner.extension_permissions(agent_def)
+                       if agent_def.extension else frozenset())
         # A5 dispatch gate: launching an agent whose toolset controls the
         # computer needs ONE user approval; the approved re-entry carries a
         # token and the run inherits the authorization for its actions.
         authorized = self._consume_authorization_token(kwargs)
-        if not authorized and self._computer_gate_needed(agent_def):
+        if not authorized and (permissions or self._computer_gate_needed(agent_def)):
             return self._park_dispatch_approval(
-                kwargs=kwargs, prompt=prompt, ctx=ctx,
+                kwargs=kwargs, prompt=prompt, ctx=ctx, permissions=permissions,
             )
         allowed_categories = {"computer"} if authorized else None
+        authorization = SubAgentAuthorization(permissions) if authorized else None
 
         if self._supervisor is not None:
             return await self._execute_via_supervisor(
@@ -159,6 +163,7 @@ class AgentTool(BaseTool):
                 background=bool(background) or agent_def.background,
                 originating_conversation_id=originating_conversation_id,
                 allowed_categories=allowed_categories,
+                authorization=authorization,
             )
         return await self._execute_via_runner(
             agent_def=agent_def,
@@ -167,6 +172,7 @@ class AgentTool(BaseTool):
             description=description,
             background=background or agent_def.background,
             allowed_categories=allowed_categories,
+            authorization=authorization,
         )
 
     # ------------------------------------------------------------------
@@ -178,6 +184,8 @@ class AgentTool(BaseTool):
         # ``is not True`` keeps duck-typed fakes (unit-test mocks) open.
         if policy is None or policy.computer_requires_approval() is not True:
             return False
+        if agent_def.extension:
+            return bool(self._runner.extension_permissions(agent_def))
         if agent_def.engine:
             registry = getattr(self._runner, "_registry", None)
             manifest = registry.get_manifest(agent_def.engine) if registry is not None else None
@@ -197,11 +205,12 @@ class AgentTool(BaseTool):
         token = kwargs.pop("authorization_token", None)
         if not token or token not in self._issued_tokens:
             return False
-        self._issued_tokens.discard(token)
-        return True
+        approved = self._issued_tokens.pop(token)
+        return approved == (kwargs.get("prompt", ""), kwargs.get("subagent_type", "coder"))
 
     def _park_dispatch_approval(
         self, *, kwargs: dict[str, Any], prompt: str, ctx: Any,
+        permissions: frozenset[str] = frozenset(),
     ) -> ToolResult:
         import secrets
 
@@ -223,8 +232,9 @@ class AgentTool(BaseTool):
             )
 
         token = secrets.token_hex(8)
-        self._issued_tokens.add(token)
-        description = f"control mouse & keyboard: {prompt[:120]}"
+        self._issued_tokens[token] = (prompt, kwargs.get("subagent_type", "coder"))
+        scope = ", ".join(sorted(permissions)) if permissions else "control mouse & keyboard"
+        description = f"{scope}: {prompt[:120]}"
         pending = PendingToolCall(
             approval_id=make_approval_id(),
             tool_name="agent",
@@ -260,6 +270,7 @@ class AgentTool(BaseTool):
                         "approval_id": pending.approval_id,
                         "tool_name": "agent",
                         "tool_args": pending.tool_args,
+                        "permissions": sorted(permissions),
                     },
                 ),
                 timestamp=time.time(),
@@ -267,8 +278,8 @@ class AgentTool(BaseTool):
         )
         return ToolResult(
             content=(
-                "APPROVAL REQUIRED: the user must confirm computer control "
-                "(mouse/keyboard) before this agent can run. Ask the user; "
+                f"APPROVAL REQUIRED: the user must confirm {scope} "
+                "before this agent can run. Ask the user; "
                 "on confirmation the dispatch resumes automatically."
             ),
             display="Computer control needs approval",
@@ -288,8 +299,11 @@ class AgentTool(BaseTool):
         background: bool,
         originating_conversation_id: str | None,
         allowed_categories: set[str] | None = None,
+        authorization: SubAgentAuthorization | None = None,
     ) -> ToolResult:
         assert self._supervisor is not None  # noqa: S101
+        extension_kwargs: dict[str, Any] = ({"authorization": authorization}
+                                           if agent_def.extension else {})
         try:
             if background:
                 task_id = self._supervisor.run_background(
@@ -298,6 +312,7 @@ class AgentTool(BaseTool):
                     description=description,
                     originating_conversation_id=originating_conversation_id,
                     allowed_categories=allowed_categories,
+                    **extension_kwargs,
                 )
                 logger.info(
                     "AgentTool: '%s' dispatched in background (task=%s)",
@@ -323,6 +338,7 @@ class AgentTool(BaseTool):
                 description=description,
                 originating_conversation_id=originating_conversation_id,
                 allowed_categories=allowed_categories,
+                **extension_kwargs,
             )
         except DepthLimitExceeded as e:
             return self._limit_error(agent_type, str(e))
@@ -390,6 +406,7 @@ class AgentTool(BaseTool):
         description: str,
         background: bool,
         allowed_categories: set[str] | None = None,
+        authorization: SubAgentAuthorization | None = None,
     ) -> ToolResult:
         messages: list[dict[str, Any]] = [
             {"role": "user", "content": prompt},
@@ -401,6 +418,8 @@ class AgentTool(BaseTool):
         if allowed_categories:
             run_kwargs["allowed_categories"] = allowed_categories
 
+        if agent_def.extension:
+            run_kwargs["authorization"] = authorization
         async for output in self._runner.run_agent(
             agent_def=agent_def,
             messages=messages,

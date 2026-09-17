@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING, Any
 from ..pipeline.bus import BusMessage
 from .base import AgentOutputType
 from .store import WorkerRun, WorkerStore
+from .subagent import SubAgentAuthorization, SubAgentStopped
 
 if TYPE_CHECKING:
     from ..pipeline.bus import Bus
@@ -126,6 +127,7 @@ class WorkerSupervisor:
         parent_msg_id: str | None = None,
         timeout: float | None = None,
         allowed_categories: set[str] | None = None,
+        authorization: SubAgentAuthorization | None = None,
     ) -> DispatchResult:
         """Dispatch and await an agent worker.
 
@@ -149,6 +151,7 @@ class WorkerSupervisor:
         return await self._drive_to_completion(
             run=run, agent_def=agent_def, timeout=timeout,
             allowed_categories=allowed_categories,
+            authorization=authorization,
         )
 
     def run_background(
@@ -163,6 +166,7 @@ class WorkerSupervisor:
         parent_msg_id: str | None = None,
         timeout: float | None = None,
         allowed_categories: set[str] | None = None,
+        authorization: SubAgentAuthorization | None = None,
     ) -> str:
         """Dispatch a worker and return its ``task_id`` immediately.
 
@@ -185,6 +189,7 @@ class WorkerSupervisor:
             self._drive_to_completion(
                 run=run, agent_def=agent_def, timeout=timeout,
                 allowed_categories=allowed_categories,
+                authorization=authorization,
             ),
             name=f"worker:{run.task_id}",
         )
@@ -284,6 +289,7 @@ class WorkerSupervisor:
         timeout: float | None,
         initial_messages: list[dict[str, Any]] | None = None,
         allowed_categories: set[str] | None = None,
+        authorization: SubAgentAuthorization | None = None,
     ) -> DispatchResult:
         start = time.monotonic()
         output_chunks: list[str] = []
@@ -299,6 +305,8 @@ class WorkerSupervisor:
                     output_chunks=output_chunks,
                     initial_messages=initial_messages,
                     allowed_categories=allowed_categories,
+                    authorization=authorization,
+                    deadline=(start + timeout if timeout is not None else None),
                 ),
                 timeout=timeout,
             )
@@ -352,6 +360,8 @@ class WorkerSupervisor:
         output_chunks: list[str],
         initial_messages: list[dict[str, Any]] | None = None,
         allowed_categories: set[str] | None = None,
+        authorization: SubAgentAuthorization | None = None,
+        deadline: float | None = None,
     ) -> _AskUserResult | None:
         """Drain ``runner.run_agent`` into ``output_chunks``.
 
@@ -364,6 +374,9 @@ class WorkerSupervisor:
         if allowed_categories:
             # Optional so narrow test fakes (and older callers) keep working.
             run_kwargs["allowed_categories"] = allowed_categories
+        terminal = False
+        if agent_def.extension:
+            run_kwargs.update(task_id=run.task_id, authorization=authorization, deadline=deadline)
         async for event in self._runner.run_agent(
             agent_def=agent_def,
             messages=messages,
@@ -371,6 +384,10 @@ class WorkerSupervisor:
             background=False,
             **run_kwargs,
         ):
+            if event.type == AgentOutputType.DONE and agent_def.extension:
+                if event.metadata.get("stop_reason") != "final_answer":
+                    raise SubAgentStopped(str(event.metadata.get("stop_reason", "error")))
+                terminal = True
             if event.type == AgentOutputType.TOKEN:
                 output_chunks.append(event.content)
             elif event.type in (
@@ -394,6 +411,8 @@ class WorkerSupervisor:
                     question=ask_user_question,
                     messages=messages + turn_messages,
                 )
+        if agent_def.extension and not terminal:
+            raise SubAgentStopped("error", "extension ended without final_answer")
         return None
 
     def _finalize(

@@ -7,15 +7,26 @@ lifecycle management consistently through this one entry point.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from typing import TYPE_CHECKING, Any, cast
 
 from .base import AgentOutput, AgentOutputType, AgentState
 from .definition import AgentDefinition
 from .llm_agent import LLMAgent
+from .resources import DESKTOP_RESOURCE, DesktopResource
+from .subagent import (
+    SubAgentAuthorization,
+    SubAgentBudget,
+    SubAgentCleanupError,
+    SubAgentContext,
+    SubAgentObserver,
+    SubAgentRequest,
+)
+from .subagent_adapter import SubAgentAdapter
 
 if TYPE_CHECKING:
     from ..llm.llm import LLM
@@ -54,6 +65,7 @@ class AgentRunner:
         toolsets_config: Any = None,
         app_config: Any = None,
         registry: Any = None,
+        desktop_resource: DesktopResource | None = None,
     ) -> None:
         self._llm = llm
         self._tool_manager = tool_manager
@@ -70,6 +82,7 @@ class AgentRunner:
         # B2: ExtensionRegistry for plugin agent engines ("brain in the
         # plugin"). None = this context can only run built-in agents.
         self._registry = registry
+        self._desktop_resource = desktop_resource or DESKTOP_RESOURCE
 
         # Create own PromptAssembler for sub-agent prompt building
         from ..prompts.assembler import PromptAssembler
@@ -87,7 +100,78 @@ class AgentRunner:
     # The single execution method
     # ------------------------------------------------------------------
 
+    def extension_permissions(self, agent_def: AgentDefinition) -> frozenset[str]:
+        if self._registry is None:
+            raise RuntimeError("Subagent requires an ExtensionRegistry")
+        manifest = self._registry.get_manifest(agent_def.extension)
+        if manifest is None or manifest.type != "subagent":
+            raise ValueError(
+                f"Subagent extension '{agent_def.extension}' is missing or has wrong type"
+            )
+        return frozenset(manifest.permissions)
+
+    def _uses_desktop(self, agent_def: AgentDefinition) -> bool:
+        if agent_def.extension:
+            return "desktop" in self.extension_permissions(agent_def)
+        if agent_def.engine:
+            manifest = self._registry.get_manifest(agent_def.engine) if self._registry else None
+            return manifest is not None and "desktop_executor" in manifest.needs
+        tools = agent_def.tool_filter
+        if tools is None and agent_def.toolset:
+            tools = self._resolve_toolset(agent_def.toolset)
+        return tools is not None and any(
+            self._approval_policy.category_for(t) == "computer" for t in tools
+        )
+
     async def run_agent(
+        self, agent_def: AgentDefinition, messages: list[dict[str, Any]],
+        parent_agent_id: str | None = None, background: bool = False,
+        token_budget: int | None = None, allowed_categories: set[str] | None = None,
+        *, task_id: str | None = None,
+        authorization: SubAgentAuthorization | None = None,
+        deadline: float | None = None, observer: SubAgentObserver | None = None,
+        max_steps: int | None = None,
+    ) -> AsyncIterator[AgentOutput]:
+        context = None
+        if agent_def.extension:
+            deadline = deadline if deadline is not None else time.monotonic() + 600
+            permissions = self.extension_permissions(agent_def)
+            authorization = authorization or SubAgentAuthorization()
+            for permission in permissions:
+                authorization.check(permission)
+            context = SubAgentContext(
+                authorization, SubAgentBudget(limit=(
+                    agent_def.token_budget if token_budget is None else token_budget
+                )), asyncio.Event(), deadline, observer, max_steps,
+            )
+            context.check()
+        outputs = self._run_agent(
+            agent_def, messages, parent_agent_id, background, token_budget,
+            allowed_categories, context=context, task_id=task_id,
+        )
+        try:
+            if self._uses_desktop(agent_def):
+                async with self._desktop_resource.acquire(deadline=deadline):
+                    try:
+                        async for output in outputs:
+                            yield output
+                    finally:
+                        await outputs.aclose()
+            else:
+                try:
+                    async for output in outputs:
+                        yield output
+                finally:
+                    await outputs.aclose()
+        except SubAgentCleanupError as exc:
+            if self._uses_desktop(agent_def):
+                self._desktop_resource.quarantine(str(exc))
+            raise
+        finally:
+            if context is not None:
+                context.cancel.set()
+
+    async def _run_agent(
         self,
         agent_def: AgentDefinition,
         messages: list[dict[str, Any]],
@@ -95,7 +179,8 @@ class AgentRunner:
         background: bool = False,
         token_budget: int | None = None,
         allowed_categories: set[str] | None = None,
-    ) -> AsyncIterator[AgentOutput]:
+        *, context: SubAgentContext | None = None, task_id: str | None = None,
+    ) -> AsyncGenerator[AgentOutput, None]:
         """Run an agent to completion, yielding all outputs.
 
         This is the ONLY way to run an agent. Brain, AgentTool, and
@@ -168,7 +253,25 @@ class AgentRunner:
 
         system_prompt = self._build_sub_agent_prompt(agent_def, messages)
 
-        if agent_def.engine:
+        if agent_def.extension:
+            if context is None:
+                raise RuntimeError("Subagent runtime context missing")
+            context.check()
+            for permission in self.extension_permissions(agent_def):
+                context.authorization.check(permission)
+            config = (self._app_config.subagents.get(agent_def.extension, {})
+                      if self._app_config is not None else {})
+            from .subagent import SubAgent
+
+            plugin = self._registry.instantiate(agent_def.extension, dict(config))
+            if not isinstance(plugin, SubAgent):
+                raise TypeError("Subagent factory must return SubAgent")
+            task = next((m.get("content", "") for m in reversed(messages)
+                         if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
+            agent = SubAgentAdapter(agent_def.name, plugin, SubAgentRequest(
+                task=task, context=agent_def.system_prompt, task_id=task_id or agent_id,
+            ), context)
+        elif agent_def.engine:
             # B2 factory branch: plugin agent engine (e.g. agent-n2).
             # toolset/model are meaningless for engine agents — ignored.
             agent = self._create_engine_agent(agent_def, system_prompt)
@@ -226,11 +329,12 @@ class AgentRunner:
             async for output in outputs:
                 # Accumulate token usage (internal, not forwarded)
                 if output.type == AgentOutputType.USAGE:
-                    tokens_used += output.metadata.get("total_tokens", 0)
+                    tokens_used = (context.budget.total_tokens if context is not None
+                                   else tokens_used + output.metadata.get("total_tokens", 0))
                     continue
 
                 # Check token budget
-                if effective_budget > 0 and tokens_used >= effective_budget:
+                if context is None and effective_budget > 0 and tokens_used >= effective_budget:
                     logger.warning(
                         "Agent '%s' hit token budget (%d/%d tokens)",
                         agent_def.name, tokens_used, effective_budget,
@@ -246,6 +350,8 @@ class AgentRunner:
                 yield output
 
         except Exception as e:
+            if agent_def.extension:
+                raise
             logger.error(
                 "Agent '%s' (id=%s) error: %s",
                 agent_def.name, agent_id, e, exc_info=True,
@@ -256,11 +362,11 @@ class AgentRunner:
                 metadata={"status": "error"},
             )
         finally:
+            tracker.active = False
             close = getattr(outputs, "aclose", None)
             if close is not None:
                 await close()
             elapsed = time.monotonic() - start
-            tracker.active = False
             logger.info(
                 "AgentRunner: '%s' (id=%s) finished in %.1fs, %d tokens used",
                 agent_def.name, agent_id, elapsed, tokens_used,
