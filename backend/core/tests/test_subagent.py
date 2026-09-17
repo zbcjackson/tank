@@ -190,6 +190,8 @@ async def test_permissions_approval_is_explicit_and_bound(stack):
     again = await tool.execute(**stolen)
     assert "APPROVAL REQUIRED" in again.content and fake.request is None
     pending2 = runner._pending_store.list_pending()[-1]
+    assert pending2.on_confirmation is not None
+    pending2.on_confirmation(True)
     approved = await tool.execute(**pending2.tool_args)
     assert isinstance(approved.content, str)
     assert json.loads(approved.content)["status"] == "completed"
@@ -244,3 +246,105 @@ def test_wrong_factory_type_and_ambiguous_registration(monkeypatch):
         registry.instantiate("bad:agent", {})
     with pytest.raises(ValueError, match="duplicate"):
         registry.register("bad", ExtensionManifest("agent", "subagent", "other:create"))
+
+
+async def test_builtin_engine_and_extension_share_desktop_lock(stack, monkeypatch):
+    from tank_backend.agents.base import Agent
+    from tank_backend.agents.subagent import SubAgentAuthorization
+
+    fake, runner, supervisor, definition, store = stack
+    runner._approval_policy = ToolApprovalPolicy(
+        tool_metadata={"screenshot": SimpleNamespace(category="computer")}
+    )
+    active = peak = 0
+
+    async def occupy():
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+
+    class WaitingAgent(Agent):
+        async def run(self, state):
+            await occupy()
+            yield AgentOutput(AgentOutputType.DONE)
+
+    class WaitingSubAgent(FakeSubAgent):
+        async def run(self, request, context):
+            await occupy()
+            yield AgentOutput(AgentOutputType.DONE, metadata={"stop_reason": "final_answer"})
+
+    monkeypatch.setattr(sys.modules["_subagent_test"], "create", lambda cfg: WaitingSubAgent())
+    runner._registry.unregister("fake:agent")
+    runner._registry.register(
+        "fake",
+        ExtensionManifest("agent", "subagent", "_subagent_test:create", permissions=("desktop",)),
+    )
+    runner._registry.register(
+        "old", ExtensionManifest("agent", "agent", "unused:create", needs=("desktop_executor",))
+    )
+    monkeypatch.setattr(runner, "_create_engine_agent", lambda *args: WaitingAgent("old"))
+    monkeypatch.setattr(
+        "tank_backend.agents.runner.LLMAgent", lambda **kwargs: WaitingAgent("builtin")
+    )
+    definitions = [
+        definition,
+        AgentDefinition("n2", "", "", engine="old:agent"),
+        AgentDefinition("computer_use", "", "", tool_filter=("screenshot",)),
+    ]
+
+    async def run(definition):
+        return [
+            o
+            async for o in runner.run_agent(
+                definition,
+                [{"role": "user", "content": "task"}],
+                authorization=SubAgentAuthorization(frozenset({"desktop"})),
+            )
+        ]
+
+    await asyncio.gather(*(run(d) for d in definitions))
+    assert peak == 1 and active == 0
+
+
+async def test_parked_dispatch_token_cannot_run_before_confirmation(stack):
+    fake, runner, supervisor, definition, store = stack
+    runner._registry.unregister("fake:agent")
+    runner._registry.register(
+        "fake",
+        ExtensionManifest("agent", "subagent", "_subagent_test:create", permissions=("desktop",)),
+    )
+    tool = AgentTool(runner, supervisor=supervisor)
+    await tool.execute(prompt="task", subagent_type="fake")
+    pending = runner._pending_store.get_oldest_pending()
+    result = await tool.execute(**pending.tool_args)
+    assert "APPROVAL REQUIRED" in str(result.content) and fake.request is None
+
+
+async def test_rejected_token_and_changed_permission_scope_require_new_approval(stack):
+    fake, runner, supervisor, definition, store = stack
+    runner._registry.unregister("fake:agent")
+    runner._registry.register(
+        "fake",
+        ExtensionManifest("agent", "subagent", "_subagent_test:create", permissions=("desktop",)),
+    )
+    tool = AgentTool(runner, supervisor=supervisor)
+    await tool.execute(prompt="task", subagent_type="fake")
+    first = runner._pending_store.get_oldest_pending()
+    assert first.on_confirmation is not None
+    first.on_confirmation(False)
+    rejected = await tool.execute(**first.tool_args)
+    assert "APPROVAL REQUIRED" in str(rejected.content) and fake.request is None
+    second = runner._pending_store.list_pending()[-1]
+    assert second.on_confirmation is not None
+    second.on_confirmation(True)
+    runner._registry.unregister("fake:agent")
+    runner._registry.register(
+        "fake",
+        ExtensionManifest(
+            "agent", "subagent", "_subagent_test:create", permissions=("desktop", "shell")
+        ),
+    )
+    wider = await tool.execute(**second.tool_args)
+    assert "APPROVAL REQUIRED" in str(wider.content) and fake.request is None

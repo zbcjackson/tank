@@ -64,7 +64,8 @@ class AgentTool(BaseTool):
         self._supervisor = supervisor
         # A5: one-time tokens authorizing a computer-control dispatch the
         # user just approved (round-trips through ConfirmActionTool).
-        self._issued_tokens: dict[str, tuple[str, str]] = {}
+        self._issued_tokens: dict[str, tuple[str, str, frozenset[str]]] = {}
+        self._approved_tokens: set[str] = set()
 
     def get_info(self) -> ToolInfo:
         # Build description with available agent types
@@ -146,7 +147,7 @@ class AgentTool(BaseTool):
         # A5 dispatch gate: launching an agent whose toolset controls the
         # computer needs ONE user approval; the approved re-entry carries a
         # token and the run inherits the authorization for its actions.
-        authorized = self._consume_authorization_token(kwargs)
+        authorized = self._consume_authorization_token(kwargs, permissions)
         if not authorized and (permissions or self._computer_gate_needed(agent_def)):
             return self._park_dispatch_approval(
                 kwargs=kwargs, prompt=prompt, ctx=ctx, permissions=permissions,
@@ -201,12 +202,24 @@ class AgentTool(BaseTool):
             policy.category_for(name) == "computer" for name in tool_filter
         )
 
-    def _consume_authorization_token(self, kwargs: dict[str, Any]) -> bool:
+    def _confirm_authorization(self, token: str, approved: bool) -> None:
+        if approved and token in self._issued_tokens:
+            self._approved_tokens.add(token)
+        else:
+            self._issued_tokens.pop(token, None)
+            self._approved_tokens.discard(token)
+
+    def _consume_authorization_token(
+        self, kwargs: dict[str, Any], permissions: frozenset[str],
+    ) -> bool:
         token = kwargs.pop("authorization_token", None)
-        if not token or token not in self._issued_tokens:
+        if not token or token not in self._approved_tokens:
             return False
+        self._approved_tokens.discard(token)
         approved = self._issued_tokens.pop(token)
-        return approved == (kwargs.get("prompt", ""), kwargs.get("subagent_type", "coder"))
+        return approved == (
+            kwargs.get("prompt", ""), kwargs.get("subagent_type", "coder"), permissions,
+        )
 
     def _park_dispatch_approval(
         self, *, kwargs: dict[str, Any], prompt: str, ctx: Any,
@@ -232,7 +245,7 @@ class AgentTool(BaseTool):
             )
 
         token = secrets.token_hex(8)
-        self._issued_tokens[token] = (prompt, kwargs.get("subagent_type", "coder"))
+        self._issued_tokens[token] = (prompt, kwargs.get("subagent_type", "coder"), permissions)
         scope = ", ".join(sorted(permissions)) if permissions else "control mouse & keyboard"
         description = f"{scope}: {prompt[:120]}"
         pending = PendingToolCall(
@@ -244,6 +257,7 @@ class AgentTool(BaseTool):
             description=description,
             session_id=(ctx.session_id if ctx is not None else ""),
             created_at=time.time(),
+            on_confirmation=lambda approved: self._confirm_authorization(token, approved),
         )
         store.park(pending)
 

@@ -46,7 +46,7 @@ class ConfirmActionTool(BaseTool):
             ],
         )
 
-    async def execute(self, approved: bool, **kwargs: Any) -> ToolResult:
+    async def execute(self, *, approved: bool, **kwargs: Any) -> ToolResult:
         pending = self._store.get_oldest_pending()
         if pending is None:
             return ToolResult(
@@ -62,6 +62,10 @@ class ConfirmActionTool(BaseTool):
                 display="Action already resolved",
                 error=True,
             )
+
+        callback = getattr(consumed, "on_confirmation", None)
+        if callback is not None:
+            callback(bool(approved))
 
         if not approved:
             return ToolResult(

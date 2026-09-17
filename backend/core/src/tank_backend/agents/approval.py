@@ -13,7 +13,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from ..policy.verdict import AccessLevel, PolicyVerdict
@@ -280,6 +280,10 @@ class PendingToolCall:
     description: str        # Human-readable (e.g., "run command: ls -la")
     session_id: str
     created_at: float
+    # Runtime-only callback: authority is never serialized in tool arguments.
+    on_confirmation: Callable[[bool], None] | None = field(
+        default=None, repr=False, compare=False,
+    )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to JSON-compatible dict for persistence."""
