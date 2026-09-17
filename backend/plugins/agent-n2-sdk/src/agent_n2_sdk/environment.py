@@ -11,17 +11,19 @@ from yutori.navigator.macos.computer import MacOSComputer
 from yutori.navigator.macos.transport import (
     CuaDriverConnectionError,
     CuaDriverTransport,
+    CuaDriverUncertainActionError,
 )
 from yutori.navigator.macos.types import CancellationLatch
 
 
 class CheckedTransport(CuaDriverTransport):
-    """Expose end_session errors the SDK otherwise suppresses in aclose."""
+    """Preserve session failures and expose unconfirmed cleanup."""
 
     def __init__(self) -> None:
         super().__init__()
         self.cleanup_error: Exception | None = None
         self.stderr_tail = b""
+        self.connection_error: CuaDriverConnectionError | None = None
 
     async def start(self) -> None:
         if not self.running:
@@ -46,10 +48,37 @@ class CheckedTransport(CuaDriverTransport):
             self.stderr_tail = (self.stderr_tail + chunk)[-8192:]
 
     async def call_tool(
-        self, name: str, arguments: dict[str, Any], **kwargs: Any
-    ) -> Any:
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        read_only: bool = False,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
         try:
-            return await super().call_tool(name, arguments, **kwargs)
+            if self.connection_error is not None and (
+                name != "end_session" or not self.running
+            ):
+                raise self.connection_error
+            if not self.running:
+                await self.start()
+            try:
+                # SDK reconnect closes the MCP lease, ending its task session.
+                # A session-bound request cannot be replayed on a fresh lease.
+                return await self._call_tool_once(
+                    name, arguments, timeout_seconds=timeout_seconds
+                )
+            except CuaDriverConnectionError as exc:
+                detail = self.stderr_tail.decode("utf-8", errors="replace").strip()
+                self.connection_error = CuaDriverConnectionError(
+                    f"cua-driver {name} failed: {exc} "
+                    f"Driver stderr: {detail or '(empty)'}. Session was not reconnected."
+                )
+                if read_only:
+                    raise self.connection_error from exc
+                raise CuaDriverUncertainActionError(
+                    f"cua-driver {name} acknowledgement lost; action was not retried. {exc}"
+                ) from exc
         except Exception as exc:
             if name == "end_session":
                 self.cleanup_error = exc
