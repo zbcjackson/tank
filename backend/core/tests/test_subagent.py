@@ -169,7 +169,11 @@ async def test_desktop_quarantine_and_cancellable_wait():
 
 
 async def test_permissions_approval_is_explicit_and_bound(stack):
+    from tank_protocol.factories import update
+
     fake, runner, supervisor, definition, store = stack
+    approvals = []
+    runner._bus.subscribe("ui_message", lambda message: approvals.append(message.payload))
     runner._registry.unregister("fake:agent")
     runner._registry.register(
         "fake",
@@ -183,6 +187,13 @@ async def test_permissions_approval_is_explicit_and_bound(stack):
     tool = AgentTool(runner, supervisor=supervisor)
     parked = await tool.execute(prompt="task", subagent_type="fake")
     assert "APPROVAL REQUIRED" in parked.content and fake.request is None
+    runner._bus.poll()
+    assert len(approvals) == 1
+    assert all(
+        scope in approvals[0].text for scope in ("desktop", "shell", "filesystem", "network")
+    )
+    assert "permissions" not in approvals[0].metadata
+    update("UpdateType.APPROVAL", content=approvals[0].text, metadata=approvals[0].metadata)
     pending = runner._pending_store.get_oldest_pending()
     assert "filesystem" in pending.description and "shell" in pending.description
     # A grant for one task cannot authorize a different prompt.

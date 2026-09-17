@@ -284,7 +284,6 @@ class AgentTool(BaseTool):
                         "approval_id": pending.approval_id,
                         "tool_name": "agent",
                         "tool_args": pending.tool_args,
-                        "permissions": sorted(permissions),
                     },
                 ),
                 timestamp=time.time(),
