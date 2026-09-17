@@ -771,7 +771,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     except (WebSocketDisconnect, DisconnectSignal):
         logger.info(f"WebSocket disconnected: {session_id}")
     except RuntimeError as e:
-        if "disconnect message has been received" in str(e):
+        error_text = str(e)
+        if "disconnect message has been received" in error_text or (
+            "TCPTransport closed=True" in error_text
+            and "the handler is closed" in error_text
+        ):
+            # uvloop can close the transport while the assistant is starting,
+            # before receive() has observed the client's disconnect frame.
             logger.info(f"WebSocket disconnected: {session_id}")
         else:
             logger.error(f"WebSocket error in {session_id}: {e}", exc_info=True)

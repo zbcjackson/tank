@@ -8,15 +8,21 @@ ignores the two new metadata keys), covered here by the dispatch tests.
 
 from __future__ import annotations
 
+import logging
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+from starlette.websockets import WebSocket
 from tank_protocol import KNOWN_SIGNALS, __version__
 from tank_protocol import signal as signal_frame
 from tank_protocol.payloads import validate_envelope
 
 from tank_backend.api import deps
-from tank_backend.api.router import _ready_metadata
+from tank_backend.api.router import _ready_metadata, websocket_endpoint
 from tank_backend.api.signal_handlers import dispatch
+from tank_backend.config import AppConfig
+from tank_backend.config.context import AppContext
 
 
 def _mock_assistant(conversation_id: str | None = None) -> MagicMock:
@@ -52,8 +58,6 @@ async def test_capabilities_declaration_is_dispatched():
     # handle_capabilities touches the connection manager (codec registry
     # since P1-2), so dispatch needs an initialised deps container.
     from tank_backend.api.manager import ConnectionManager
-    from tank_backend.config import AppConfig
-    from tank_backend.config.context import AppContext
 
     ctx = AppContext(app_config=AppConfig())
     mgr = ConnectionManager(app_context=ctx)
@@ -76,3 +80,29 @@ async def test_unknown_signal_still_unhandled():
 
 def test_capabilities_signal_is_in_known_set():
     assert "capabilities" in KNOWN_SIGNALS
+
+
+@pytest.mark.parametrize("error,expected_error", [
+    ("unable to perform operation on <TCPTransport closed=True>; the handler is closed", False),
+    ("unexpected application failure", True),
+])
+async def test_ready_send_failure_cleans_up_session(monkeypatch, caplog, error, expected_error):
+    websocket = MagicMock(spec=WebSocket)
+    websocket.query_params = {}
+    websocket.accept = AsyncMock()
+    websocket.send_text = AsyncMock(side_effect=RuntimeError(error))
+    websocket.receive = AsyncMock()
+    manager = MagicMock()
+    manager.get_or_create_assistant = AsyncMock(return_value=(_mock_assistant(), True))
+    subscriptions = MagicMock()
+    context = AppContext(app_config=AppConfig())
+    monkeypatch.setattr(deps, "app_context", lambda: context)
+    monkeypatch.setattr(deps, "connection_manager", lambda: manager)
+    monkeypatch.setattr(deps, "subscription_manager", lambda: subscriptions)
+    with caplog.at_level(logging.INFO, logger="ApiRouter"):
+        await websocket_endpoint(cast(WebSocket, websocket), "s1")
+    assert any(r.levelno >= logging.ERROR for r in caplog.records) == expected_error
+    manager.detach_websocket.assert_called_once_with("s1")
+    manager.unregister_sender.assert_called_once_with("s1")
+    subscriptions.remove_session.assert_called_once_with("s1")
+    websocket.receive.assert_not_awaited()
