@@ -1,10 +1,13 @@
 """Tests for LLMAgent."""
 
+from collections.abc import AsyncGenerator
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
-from tank_backend.agents.base import AgentOutputType, AgentState
+import pytest
+
+from tank_backend.agents.base import AgentOutput, AgentOutputType, AgentState
 from tank_backend.agents.llm_agent import LLMAgent, _translate
 from tank_backend.core.events import UpdateType
 from tank_backend.tools.base import ToolResult
@@ -106,6 +109,30 @@ class TestLLMAgent:
         assert len(turn_msgs) == 1
         assert turn_msgs[0]["role"] == "assistant"
         assert turn_msgs[0]["content"] == "Hi there!"
+
+    @pytest.mark.parametrize("close_early", [False, True])
+    async def test_partial_history_keeps_reasoning_on_error_or_close(self, close_early):
+        message = {"role": "assistant", "content": None,
+                   "reasoning_content": "original reasoning", "tool_calls": []}
+
+        async def chat_stream(**kwargs):
+            yield UpdateType.MESSAGE, "", {"message": message}
+            yield UpdateType.TEXT, "partial", {}
+            raise RuntimeError("notification provider failure")
+
+        llm = MagicMock()
+        llm.chat_stream = chat_stream
+        agent = LLMAgent(name="chat", llm=llm)
+        state = AgentState(messages=[{"role": "user", "content": "task"}])
+        outputs = cast(AsyncGenerator[AgentOutput, None], agent.run(state))
+        try:
+            await anext(outputs)
+            if not close_early:
+                with pytest.raises(RuntimeError, match="provider failure"):
+                    await anext(outputs)
+        finally:
+            await outputs.aclose()
+        assert state.metadata["turn_messages"] == [message]
 
     async def test_thought_events(self):
         events = [
@@ -363,7 +390,7 @@ class TestLLMAgentExecutionAllowlist:
         assert isinstance(result, ToolResult)
         assert result.error
         assert "not available" in result.content
-        agent._tool_manager.execute_openai_tool_call.assert_not_called()
+        cast(MagicMock, agent._tool_manager).execute_openai_tool_call.assert_not_called()
 
     async def test_advertised_tool_delegates(self):
         agent = self._agent(tool_filter=["web_search"])
@@ -371,10 +398,10 @@ class TestLLMAgentExecutionAllowlist:
         result = await executor.execute_openai_tool_call(self._call("web_search"))
         assert isinstance(result, ToolResult)
         assert not result.error
-        agent._tool_manager.execute_openai_tool_call.assert_awaited_once()
+        cast(MagicMock, agent._tool_manager).execute_openai_tool_call.assert_awaited_once()
 
     async def test_no_filter_executes_anything(self):
         agent = self._agent(tool_filter=None)
         _, executor = agent._get_tools()
         await executor.execute_openai_tool_call(self._call("weather"))
-        agent._tool_manager.execute_openai_tool_call.assert_awaited_once()
+        cast(MagicMock, agent._tool_manager).execute_openai_tool_call.assert_awaited_once()

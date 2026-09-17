@@ -169,6 +169,8 @@ class LLMAgent(Agent):
         full_text = ""
         tool_call_count = 0
         turn_messages: list[dict[str, Any]] = []
+        # Expose completed messages even if the stream later fails or closes.
+        state.metadata["turn_messages"] = turn_messages
 
         # Extract system prompt refresher from state metadata
         system_prompt_fn = state.metadata.get("system_prompt_fn")

@@ -515,6 +515,7 @@ class LLM:
         # cheap.
         turn = 0
         rejected_tools: set[str] = set()
+        warned_missing_reasoning = False
 
         # Tool loop guardrails — detect repeated failures / no-progress
         from ..agents.guardrails import (
@@ -594,6 +595,29 @@ class LLM:
                 ] if rejected_tools else tools
                 if effective_tools:
                     api_kwargs["tools"] = effective_tools
+
+            if api_kwargs.get("tools") and self.model in {"deepseek-flash", "deepseek-pro"}:
+                missing_reasoning = [
+                    index for index, message in enumerate(working_messages)
+                    if isinstance(message, dict) and message.get("role") == "assistant"
+                    and not message.get("reasoning_content")
+                ]
+                thinking = self.extra_body.get("thinking", {})
+                if missing_reasoning and not (
+                    isinstance(thinking, dict) and thinking.get("type") == "disabled"
+                ):
+                    # Old/non-thinking assistant messages cannot be repaired by
+                    # inventing reasoning. Keep their content and use a supported
+                    # non-thinking request instead of failing notification delivery.
+                    api_kwargs["extra_body"] = {
+                        **self.extra_body, "thinking": {"type": "disabled"},
+                    }
+                    if not warned_missing_reasoning:
+                        logger.warning(
+                            "DeepSeek assistant history lacks reasoning_content at indices %s; "
+                            "using non-thinking mode for this request", missing_reasoning,
+                        )
+                        warned_missing_reasoning = True
 
             full_content = ""
             full_reasoning = ""

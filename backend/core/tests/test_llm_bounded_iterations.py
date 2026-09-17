@@ -1,5 +1,6 @@
 """Tests for bounded tool iteration guards in LLM."""
 
+import copy
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -208,3 +209,48 @@ async def test_reasoning_content_kept_in_assistant_history(llm, reasoning_field)
     _ = [u async for u in llm.chat_stream(messages=history, tools=tools)]
     assistants = [m for m in captured[2] if m.get("role") == "assistant"]
     assert [m["reasoning_content"] for m in assistants] == ["thinking hard", "final reasoning"]
+
+
+@pytest.mark.parametrize("model,reasoning,disabled", [
+    ("deepseek-flash", None, True),
+    ("deepseek-pro", None, True),
+    ("deepseek-flash", "", True),
+    ("deepseek-flash", "original thinking", False),
+    ("test-model", None, False),
+])
+async def test_notification_with_incomplete_reasoning_history(llm, model, reasoning, disabled):
+    llm.model = model
+    llm.extra_body = {"thinking": {"type": "enabled"}, "custom_option": "retained"}
+    assistant = {"role": "assistant", "content": "Task dispatched"}
+    if reasoning is not None:
+        assistant["reasoning_content"] = reasoning
+    history = [
+        {"role": "user", "content": "Use n2 to calculate 57 times 8"},
+        assistant,
+        {"role": "system", "content": "Background worker completed: calculator displays 456"},
+    ]
+    original_history = copy.deepcopy(history)
+    original_config = copy.deepcopy(llm.extra_body)
+    requests = []
+
+    async def create(**kwargs):
+        requests.append(copy.deepcopy(kwargs))
+        # Simulate the provider's validation of the actual outbound request.
+        if disabled:
+            assert kwargs["extra_body"]["thinking"]["type"] == "disabled"
+        chunk = ChatCompletionChunk.model_validate({
+            "id": "chunk", "object": "chat.completion.chunk", "created": 0,
+            "model": model, "choices": [{"index": 0, "finish_reason": "stop",
+                                         "delta": {"content": "456"}}],
+        })
+        return AsyncIterator([chunk])
+
+    llm.client.chat.completions.create = AsyncMock(side_effect=create)
+    outputs = [u async for u in llm.chat_stream(
+        messages=history, tools=[{"type": "function", "function": {"name": "agent"}}],
+    )]
+    assert any(update == UpdateType.TEXT and content == "456" for update, content, _ in outputs)
+    assert requests[0]["extra_body"]["thinking"]["type"] == ("disabled" if disabled else "enabled")
+    assert requests[0]["extra_body"]["custom_option"] == "retained"
+    assert history == original_history
+    assert llm.extra_body == original_config
