@@ -15,6 +15,7 @@
 | [design/agentic-harness-features.md](design/agentic-harness-features.md) | 设计 | 现行 | agentic harness 基础设施参考:工具元数据、条件注册、hooks 协议 |
 | [design/vad-smart-turn-design.md](design/vad-smart-turn-design.md) | 设计 | 现行 | VAD / Smart Turn 端点检测 / speculative reopen 的当前实现与设计取舍 |
 | [plans/active/computer-use-improvement-and-n2-plan.md](plans/active/computer-use-improvement-and-n2-plan.md) | 计划 | 执行中 | computer-use 工具通用改进(Part A)+ A17 基准套件 + Navigator n2 接入(Part B);执行阶段见 §12,n2 在决策门后 |
+| [plans/active/plugin-subagents-and-n2-sdk.md](plans/active/plugin-subagents-and-n2-sdk.md) | 计划 | 设计待实施 | 官方 N2ComputerAgent 插件子 Agent 接入；保留 engine/executor；当前 N2 真机测试与 benchmark 对比方案 |
 | [plans/done/protocol-evolution-plan.md](plans/done/protocol-evolution-plan.md) | 计划 | 已完成 | 私有协议演进:契约包/认证/握手/Opus/热配置全部落地;触发式条目移交 backlog |
 | [plans/done/memory-context-improvements.md](plans/done/memory-context-improvements.md) | 计划 | 已完成 | 对标四个 harness 的记忆/上下文五模式改进;Phase A/B/C 全部落地 |
 | [plans/done/agentic-harness-patterns-analysis.md](plans/done/agentic-harness-patterns-analysis.md) | 计划 | 已完成 | 对标 OpenClaw/Hermes/OpenCode 的四种 harness 模式;四阶段全部落地 |
