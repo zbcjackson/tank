@@ -7,18 +7,23 @@ For cross-cutting principles, see [../TESTING.md](../TESTING.md).
 ## Framework
 
 - **Framework**: `pytest` with `pytest-asyncio`
-- **Location**: `tests/`
-- **Config**: `pyproject.toml` — `asyncio_mode = "auto"`
+- **Location**: `core/tests/`, `contracts/*/tests/`, `plugins/*/tests/`
+- **Config**: workspace 根目录 `pyproject.toml` — `asyncio_mode = "auto"`
+
+从 `backend/` 执行 `uv run pytest` 会运行整个 workspace 的测试。统一配置使用
+`--import-mode=importlib`，并将 `core/tests` 加入测试 helper 的导入路径。
+插件测试目录不添加 `__init__.py`：同名 `tests` 包会让不同插件的测试模块冲突，
+即使 importlib 模式也可能重复收集另一个插件的测试。
 
 ## Testing Commands
 
 ```bash
 uv run pytest                                    # All tests
 uv run pytest -v                                 # Verbose
-uv run pytest tests/test_brain.py               # Specific file
-uv run pytest tests/test_brain.py::test_name    # Specific test
-uv run pytest --cov=src/tank_backend            # With coverage
-uv run pytest --cov=src/tank_backend --cov-report=html
+uv run pytest core/tests/test_brain.py          # Specific file
+uv run pytest core/tests/test_brain.py::test_name # Specific test
+uv run pytest --cov=core/src/tank_backend       # With coverage
+uv run pytest --cov=core/src/tank_backend --cov-report=html
 ```
 
 ## TDD Workflow
