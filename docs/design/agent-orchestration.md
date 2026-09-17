@@ -360,4 +360,9 @@ pinned N2ComputerAgent and MacOSComputer. The existing n2/engine path is retaine
 Current SDK platform scope is macOS; Linux X11 is unvalidated and Wayland
 unsupported. The native adapter emulates held input while delivering atomic
 gestures. Real input/process cleanup and business outcomes need macOS acceptance.
+Session-bound SDK driver RPCs are not replayed after connection failure: reconnect
+ends the old MCP lease and task session. The plugin preserves the original tool
+failure, blocks further actions and allows only end_session cleanup on the existing
+connection; uncertain cleanup still quarantines the desktop. Actual screen capture
+readiness requires the driver's direct capture permission check.
 Pause/resume/persistent resume remain disabled; waiting still means ask_user.

@@ -52,23 +52,38 @@ matching pinned standalone app on the Mac, then check it before dispatch:
 
 ```bash
 # From backend/; install the same driver release as the Python dependency.
+# Stop an existing daemon using its installed app before replacing the app.
+# If no app/daemon exists yet, skip this stop command.
+/Applications/CuaDriver.app/Contents/MacOS/cua-driver stop
 curl -fL https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.23.2/install.sh \
   -o /tmp/tank-cua-driver-install.sh
 CUA_DRIVER_RS_VERSION=0.23.2 bash /tmp/tank-cua-driver-install.sh
+/Applications/CuaDriver.app/Contents/MacOS/cua-driver --version
 open -n -g -a CuaDriver --args serve
 uv run --no-sync cua-driver permissions grant
 uv run --no-sync cua-driver permissions status
+uv run --no-sync cua-driver status
 uv run --no-sync cua-driver doctor
 ```
 
-Confirm both permissions in macOS System Settings for CuaDriver.app. Read the
-doctor findings even if its exit code is zero. These steps follow the driver's
+Confirm the installed app reports 0.23.2, and confirm both permissions in macOS
+System Settings for CuaDriver.app. `permissions grant` must also verify direct
+capture: approve the macOS request to access the screen without the private
+window picker when it appears. Read-only `permissions status` leaves this probe
+unchecked. On macOS 0.23.2, `doctor` checks the binary/install layout and only
+points to `diagnose` for TCC; it does not prove desktop/capture readiness.
+These steps follow the driver's
 [pinned launch contract](https://github.com/trycua/cua/blob/cua-driver-rs-v0.23.2/libs/cua-driver/README.md#macos-process-identity-and-permissions).
 Tank does not install the app or change OS permissions during dispatch.
 
 The SDK starts and owns a persistent `cua-driver mcp` proxy subprocess for each
 environment; the standalone daemon may be shared and is not owned by the worker.
 Worker cleanup ends its session and closes the proxy. Overlay presentation is disabled.
+Session-bound RPC connection failures stop the run without reconnect/replay:
+closing the proxy ends its lease, so replaying a read-only capture after reconnect
+would reuse an ended session and hide the original timeout. Errors include the
+tool name and stderr; uncertain mutating actions are never retried. Following a
+connection failure, only end_session cleanup on the existing connection is allowed.
 Modified clicks are enabled; modified scroll is explicitly disabled because the
 pinned MacOSComputer refuses it. Coordinates delivered to this adapter are pixels;
 the SDK performs normalization/denormalization itself.

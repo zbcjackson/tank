@@ -612,3 +612,36 @@ Python 文件 pyright（0 errors、0 warnings）、文档/协议同步及 diff �
 通过。后端 health 正常且最近 50 行无异常；Vite 仍有 WebSocket 关闭
 ECONNRESET 日志，运行日志检查未全绿。以上只证明诊断补丁与回归通过，
 不证明用户 Mac 的 driver 启动问题已经解决。
+
+## 15. 首次截图超时与重连错误（2026-09-17）
+
+用户后续日志明确显示 app daemon 与 Python wheel 的 contract 0.8.0/0.7.0
+不匹配；当前官方 SDK 固定组合继续使用 cua-driver 0.23.2，不跳过契约检查。
+降级后握手/start_session 已通过，但首次 get_desktop_state 在 30s 超时。
+SDK 默认 read-only 重连会关闭旧 MCP lease，结束 task session，随后重试
+同一 session 得到 session ended，掩盖最初的超时。
+
+插件的 session-bound tool RPC 单次执行，不自动重连或重放。连接失败
+保留工具名称/原始错误/stderr；不确定的修改动作不重试。失败连接禁止
+开始后续动作，仅允许在尚存连接上执行 end_session；清理失败继续按
+既有 quarantine 处理。不改模型 API retry/compaction 或 SDK Agent loop。
+
+用户随后执行 permissions grant，确认辅助功能、屏幕录制与 Direct Capture
+均已授权。此前 status 的 Direct Capture 为 not checked；直接截图授权
+就绪与首次截图超时现象一致，但尚未取得计算器结果，不认定为实机任务
+完成。安装说明补上停止旧 daemon、核对 app 版本、实际 capture 授权，并
+说明 macOS doctor 不能证明运行权限。
+
+### Tests
+
+- 实际 SDK transport + 测试 MCP 子进程，复现 read-only 截图超时与
+  修改动作确认丢失；断言初始化一次、动作一次、不重连/重放、只允许
+  后续会话清理，并保留失败类别和工具名称。
+- 最后执行 §12 完整 Verification Checklist，记录全量回归结果。
+
+验证结果：backend 全量 4335 passed、2 skipped、16 warnings（169.33s）；
+相关 SDK/seam 54 测试与 E2E 14 场景 / 55 步骤通过。web lint/TypeScript、
+backend/CLI ruff、改动 Python 文件 pyright（0 errors、0 warnings）、
+文档/协议同步与 diff 检查通过。后端 health 正常，最近 50 行无异常；
+Vite 仍有 WebSocket 关闭错误，运行日志检查未全绿。macOS Direct Capture
+授权输出已取得，计算器任务的实际完成证据仍待确认。
