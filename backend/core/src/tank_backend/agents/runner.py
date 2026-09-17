@@ -148,7 +148,6 @@ class AgentRunner:
             parent_id=parent_agent_id,
             depth=depth,
         )
-        self._active_agents[agent_id] = tracker
 
         # Resolve tools: all tools minus disallowed, filtered by toolset
         exclude = set(agent_def.disallowed_tools)
@@ -203,6 +202,8 @@ class AgentRunner:
                 bus=self._bus,
             )
 
+        # A failed factory must not occupy a concurrent-agent slot.
+        self._active_agents[agent_id] = tracker
         state = AgentState(
             messages=cast(Any, list(messages)),
             metadata={
@@ -334,10 +335,13 @@ class AgentRunner:
         llm_profile = None
         if self._app_config is not None:
             profile_name = engine_config.get("llm_profile", engine.split(":", 1)[0])
-            try:
-                llm_profile = self._app_config.get_llm_profile(profile_name)
-            except Exception:  # noqa: BLE001 — profile is optional
-                llm_profile = None
+            # Engine protocols can be provider-specific. Never substitute the
+            # default chat model when the requested profile is absent.
+            llm_profile = self._app_config.llm_profiles.get(profile_name)
+            if llm_profile is None:
+                logger.warning(
+                    "Engine '%s': LLM profile '%s' not found; no fallback", engine, profile_name,
+                )
 
         config: dict[str, Any] = {
             **engine_config,

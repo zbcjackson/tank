@@ -17,6 +17,8 @@ import pytest
 
 from tank_backend.agents.base import Agent, AgentOutput, AgentOutputType, AgentState
 from tank_backend.agents.definition import AgentDefinition, parse_agent_file
+from tank_backend.config.app_config import AppConfig
+from tank_backend.llm.profile import LLMProfile
 from tank_backend.plugin.manifest import ExtensionManifest, read_manifest_from_yaml
 from tank_backend.plugin.registry import ExtensionRegistry
 
@@ -244,6 +246,7 @@ class TestRunnerEngineBranch:
                 _engine_definition(), [{"role": "user", "content": "t"}]
             ):
                 pass
+        assert not any(t.active for t in runner._active_agents.values())
 
     async def test_config_carries_executor_and_profile(self):
         registry = MagicMock()
@@ -255,7 +258,7 @@ class TestRunnerEngineBranch:
         app_config = MagicMock()
         app_config.get_section.return_value = {}
         profile = MagicMock()
-        app_config.get_llm_profile.return_value = profile
+        app_config.llm_profiles = {"agent-n2": profile}
         runner = _make_runner(registry=registry)
         runner._app_config = app_config
 
@@ -289,16 +292,17 @@ class TestRunnerEngineBranch:
         config = registry.instantiate.call_args[0][1]
         assert config["desktop_executor"] is None
 
-    async def test_missing_profile_degrades_to_none(self):
+    @pytest.mark.parametrize("engine_config", [{}, {"llm_profile": "n2"}])
+    async def test_missing_profile_degrades_to_none(self, engine_config):
         registry = MagicMock()
         registry.instantiate.return_value = _StubAgent({})
         registry.get_manifest.return_value = ExtensionManifest(
             name="agent", type="agent", factory="x:y",
             needs=("desktop_executor",),
         )
-        app_config = MagicMock()
-        app_config.get_section.return_value = {}
-        app_config.get_llm_profile.side_effect = KeyError("no profile")
+        app_config = AppConfig(llm_profiles={
+            "default": LLMProfile("default", "test", "deepseek-flash", "https://api.deepseek.com"),
+        }, _raw={"agent_engines": {"agent-n2:agent": engine_config}})
         runner = _make_runner(registry=registry)
         runner._app_config = app_config
 
@@ -311,3 +315,29 @@ class TestRunnerEngineBranch:
 
         config = registry.instantiate.call_args[0][1]
         assert config["llm_profile"] is None
+
+    async def test_configured_profile_is_resolved_exactly(self):
+        registry = MagicMock()
+        registry.instantiate.return_value = _StubAgent({})
+        registry.get_manifest.return_value = ExtensionManifest(
+            name="agent", type="agent", factory="x:y",
+        )
+        profile = LLMProfile("n2", "test", "n2", "https://api.yutori.com/v1")
+        runner = _make_runner(registry=registry)
+        runner._app_config = AppConfig(
+            llm_profiles={"n2": profile},
+            _raw={"agent_engines": {"agent-n2:agent": {"llm_profile": "n2"}}},
+        )
+        _ = [o async for o in runner.run_agent(_engine_definition(), [])]
+        assert registry.instantiate.call_args[0][1]["llm_profile"] is profile
+
+    async def test_factory_failure_leaves_no_active_agent(self):
+        registry = MagicMock()
+        registry.get_manifest.return_value = ExtensionManifest(
+            name="agent", type="agent", factory="x:y",
+        )
+        registry.instantiate.side_effect = ValueError("invalid llm_profile")
+        runner = _make_runner(registry=registry)
+        with pytest.raises(ValueError, match="llm_profile"):
+            _ = [o async for o in runner.run_agent(_engine_definition(), [])]
+        assert not any(t.active for t in runner._active_agents.values())

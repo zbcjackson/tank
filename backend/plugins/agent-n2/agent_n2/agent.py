@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from collections.abc import AsyncIterator
 from typing import Any
@@ -16,6 +17,8 @@ from tank_backend.llm.profile import LLMProfile
 
 from .protocol import TOOL_SET, image_part, key_name, tool_result
 
+logger = logging.getLogger(__name__)
+
 
 class N2Agent(Agent):
     def __init__(
@@ -24,6 +27,11 @@ class N2Agent(Agent):
         tool_set: str = TOOL_SET, client: Any = None,
     ) -> None:
         super().__init__("computer_use_n2")
+        if profile.model != "n2":
+            raise ValueError(
+                f"agent-n2 requires model 'n2'; profile '{profile.name}' uses '{profile.model}'. "
+                "Configure llm.n2 and agent_engines.\"agent-n2:agent\".llm_profile: n2"
+            )
         if isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 1:
             raise ValueError("max_steps must be a positive integer")
         if reasoning_effort not in {"none", "low", "medium", "xhigh"}:
@@ -39,6 +47,7 @@ class N2Agent(Agent):
         self._known_files: set[str] = set()
 
     async def run(self, state: AgentState) -> AsyncIterator[AgentOutput]:
+        logger.info("N2 starting: profile=%s model=%s", self.profile.name, self.profile.model)
         client: Any = self._client or AsyncOpenAI(
             api_key=self.profile.api_key, base_url=self.profile.base_url,
             default_headers=self.profile.extra_headers, max_retries=0,
@@ -52,7 +61,7 @@ class N2Agent(Agent):
             history: list[dict[str, Any]] = [{"role": "user", "content": [
                 {"type": "text", "text": task}, image_part(shot.png),
             ]}]
-            for _ in range(self.max_steps):
+            for step in range(self.max_steps):
                 await asyncio.sleep(0)
                 if len(json.dumps(history).encode()) > 9_500_000:
                     yield AgentOutput(AgentOutputType.TOKEN, "Stopped: n2 request size limit reached.")
@@ -73,6 +82,10 @@ class N2Agent(Agent):
                     "elapsed_s": time.monotonic() - started,
                 })
                 message = response.choices[0].message
+                logger.info(
+                    "N2 step %d: tools=%s", step + 1,
+                    [call.function.name for call in message.tool_calls or []],
+                )
                 history.append(message.model_dump(exclude_none=True))
                 # Yield before actions, so runner can stop on the usage budget.
                 yield AgentOutput(AgentOutputType.TOKEN, message.content or "")

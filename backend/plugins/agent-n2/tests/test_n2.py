@@ -154,6 +154,15 @@ def test_factory_validation(executor, profile):
         create_agent({"desktop_executor": executor, "llm_profile": profile, "max_steps": 0})
 
 
+def test_rejects_default_text_model_before_desktop_or_api(executor):
+    profile = LLMProfile("default", "test", "deepseek-flash", "https://api.deepseek.com")
+    with pytest.raises(ValueError, match="model.*n2"):
+        N2Agent(executor, profile)
+    with pytest.raises(ValueError, match="model.*n2"):
+        create_agent({"desktop_executor": executor, "llm_profile": profile})
+    executor.screenshot.assert_not_awaited()
+
+
 async def test_usage_boundary_closes_client_without_actions(executor, profile, monkeypatch):
     client = MagicMock()
     client.close = AsyncMock()
@@ -195,7 +204,7 @@ async def test_real_factory_runner_dispatch_and_budget(executor, profile, monkey
     registry.register(manifest.plugin_name, manifest.extensions[0])
     app_config = MagicMock()
     app_config.get_section.return_value = {"agent-n2:agent": {"llm_profile": "n2", "max_steps": 2}}
-    app_config.get_llm_profile.return_value = profile
+    app_config.llm_profiles = {"n2": profile}
     client = MagicMock()
     client.close = AsyncMock()
     client.chat.completions.create = AsyncMock(return_value=completion([
@@ -219,7 +228,6 @@ async def test_real_factory_runner_dispatch_and_budget(executor, profile, monkey
     assert any("token budget" in o.content for o in outputs)
     executor.write_file.assert_not_awaited()
     client.close.assert_awaited_once()
-    app_config.get_llm_profile.assert_called_with("n2")
 
 
 async def test_benchmark_engine_records_usage_and_screenshots(executor, profile, tmp_path, monkeypatch):
@@ -248,3 +256,33 @@ async def test_benchmark_engine_records_usage_and_screenshots(executor, profile,
         assert (tmp_path / "screenshots/shot_001.png").exists()
     finally:
         trace.close()
+
+
+async def test_missing_n2_profile_fails_without_using_default(executor, monkeypatch):
+    from tank_backend.agents.definition import AgentDefinition
+    from tank_backend.agents.runner import AgentRunner
+    from tank_backend.config.app_config import AppConfig
+    from tank_backend.plugin.manifest import ExtensionManifest
+    from tank_backend.plugin.registry import ExtensionRegistry
+
+    registry = ExtensionRegistry()
+    registry.register("agent-n2", ExtensionManifest(
+        name="agent", type="agent", factory="agent_n2:create_agent", needs=("desktop_executor",),
+    ))
+    app_config = AppConfig(llm_profiles={
+        "default": LLMProfile("default", "test", "deepseek-flash", "https://api.deepseek.com"),
+    })
+    client_factory = MagicMock()
+    monkeypatch.setattr("agent_n2.agent.AsyncOpenAI", client_factory)
+    monkeypatch.setattr("tank_backend.computer.executor.create_desktop_executor", lambda: executor)
+    runner = AgentRunner(
+        llm=MagicMock(), tool_manager=MagicMock(), bus=MagicMock(),
+        app_config=app_config, registry=registry, approval_policy=MagicMock(),
+        pending_store=MagicMock(), definitions={},
+    )
+    definition = AgentDefinition(name="n2", description="", system_prompt="", engine="agent-n2:agent")
+    with pytest.raises(ValueError, match="llm_profile"):
+        _ = [o async for o in runner.run_agent(definition, [{"role": "user", "content": "task"}])]
+    client_factory.assert_not_called()
+    executor.screenshot.assert_not_awaited()
+    assert not any(t.active for t in runner._active_agents.values())
