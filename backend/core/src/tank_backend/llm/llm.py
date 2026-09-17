@@ -9,6 +9,7 @@ retry behavior.
 from __future__ import annotations
 
 import asyncio
+import json as _json
 import logging
 from collections.abc import AsyncGenerator, Callable
 from typing import Any
@@ -610,10 +611,13 @@ class LLM:
                 delta = chunk.choices[0].delta
 
                 # Handle reasoning/thinking content
-                if hasattr(delta, "reasoning") and delta.reasoning:
-                    full_reasoning += delta.reasoning
+                reasoning = getattr(delta, "reasoning_content", None)
+                if not isinstance(reasoning, str) or not reasoning:
+                    reasoning = getattr(delta, "reasoning", None)
+                if isinstance(reasoning, str) and reasoning:
+                    full_reasoning += reasoning
                     yield (
-                        UpdateType.THOUGHT, delta.reasoning,
+                        UpdateType.THOUGHT, reasoning,
                         {"turn": turn},
                     )
 
@@ -843,8 +847,6 @@ class LLM:
                     try:
                         # --- Pre-tool hook ---
                         if hook_manager is not None:
-                            import json as _json
-
                             try:
                                 tc_args = _json.loads(tc["arguments"]) if tc["arguments"] else {}
                             except (ValueError, TypeError):

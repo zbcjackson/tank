@@ -3,7 +3,9 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from openai.types.chat import ChatCompletionChunk
 
+from tank_backend.core.events import UpdateType
 from tank_backend.llm.llm import LLM, MAX_TOOL_ITERATIONS
 
 MODULE = "tank_backend.llm.llm"
@@ -143,7 +145,8 @@ class TestComplete:
 
 
 
-async def test_reasoning_content_kept_in_assistant_history(llm):
+@pytest.mark.parametrize("reasoning_field", ["reasoning_content", "reasoning"])
+async def test_reasoning_content_kept_in_assistant_history(llm, reasoning_field):
     """DeepSeek thinking mode 400s unless reasoning_content is passed
     back with the assistant message (observed live in the notification
     turn, 2026-09-16). Round 1 streams reasoning + a tool call; the
@@ -152,20 +155,21 @@ async def test_reasoning_content_kept_in_assistant_history(llm):
     def stream_round(tool_round: bool):
         chunks = []
         if tool_round:
-            r = MagicMock()
-            r.content = None
-            r.tool_calls = None
-            type(r).reasoning = "thinking hard"
-            type(r).reasoning_content = None
-            chunks.append(MagicMock(choices=[MagicMock(delta=r)]))
+            for fragment in ("thinking ", "hard"):
+                chunks.append(ChatCompletionChunk.model_validate({
+                    "id": "chunk", "object": "chat.completion.chunk", "created": 0,
+                    "model": "deepseek-flash",
+                    "choices": [{"index": 0, "finish_reason": None,
+                                 "delta": {reasoning_field: fragment}}],
+                }))
             chunks.append(_make_stream_chunk_with_tool_call())
         else:
-            plain = MagicMock()
-            plain.content = "done"
-            plain.tool_calls = None
-            type(plain).reasoning = None
-            type(plain).reasoning_content = None
-            chunks.append(MagicMock(choices=[MagicMock(delta=plain)]))
+            chunks.append(ChatCompletionChunk.model_validate({
+                "id": "chunk", "object": "chat.completion.chunk", "created": 0,
+                "model": "deepseek-flash",
+                "choices": [{"index": 0, "finish_reason": "stop",
+                             "delta": {"content": "done", reasoning_field: "final reasoning"}}],
+            }))
         s = MagicMock()
         s.__aiter__ = MagicMock(return_value=AsyncIterator(chunks))
         s.close = AsyncMock()
@@ -181,14 +185,26 @@ async def test_reasoning_content_kept_in_assistant_history(llm):
 
     llm.client.chat.completions.create = AsyncMock(side_effect=fake_create)
 
-    async for _ in llm.chat_stream(
+    history = [{"role": "user", "content": "hi"}]
+    thoughts = []
+    tools = [{"type": "function", "function": {"name": "calculator"}}]
+    async for update, content, metadata in llm.chat_stream(
         messages=[{"role": "user", "content": "hi"}],
-        tools=[{"type": "function", "function": {"name": "calculator"}}],
+        tools=tools,
         tool_executor=_make_tool_executor(),
     ):
-        pass
+        if update == UpdateType.MESSAGE:
+            history.append(metadata["message"])
+        if update == UpdateType.THOUGHT:
+            thoughts.append(content)
 
     assert len(captured) >= 2
     second = captured[1]
     assistant = [m for m in second if m.get("role") == "assistant"]
     assert any(m.get("reasoning_content") == "thinking hard" for m in assistant)
+    assert thoughts == ["thinking ", "hard", "final reasoning"]
+    assert history[-1]["reasoning_content"] == "final reasoning"
+    history.append({"role": "system", "content": "background worker completed"})
+    _ = [u async for u in llm.chat_stream(messages=history, tools=tools)]
+    assistants = [m for m in captured[2] if m.get("role") == "assistant"]
+    assert [m["reasoning_content"] for m in assistants] == ["thinking hard", "final reasoning"]
