@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import math
 import statistics
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any
 
 _Z_95 = 1.96
 
@@ -42,6 +43,13 @@ class TrialRecord:
     llm_ttft_s: float = 0.0
     llm_call_s: float = 0.0
     llm_total_s: float = 0.0
+    scoring: str = "strict"
+    llm_rtt_s: float = 0.0
+    stop_reason: str | None = None
+    cleanup: str = "unknown"
+    primitives: int = 0
+    model_turns: int = 0
+    unknown_calls: int = 0
 
 
 @dataclass(frozen=True)
@@ -69,6 +77,9 @@ class SuiteReport:
     llm_ttft_s: float = 0.0
     llm_call_s_mean: float = 0.0
     llm_total_s: float = 0.0
+    smoke_trials: int = 0
+    smoke_successes: int = 0
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 def _median(records: list[TrialRecord], key: str) -> float:
@@ -78,6 +89,8 @@ def _median(records: list[TrialRecord], key: str) -> float:
 
 def aggregate(records: list[TrialRecord]) -> SuiteReport:
     """Aggregate trial records into per-task stats and an overall score."""
+    smoke = [r for r in records if r.scoring == "smoke"]
+    records = [r for r in records if r.scoring == "strict"]
     by_task: dict[str, list[TrialRecord]] = {}
     for r in records:
         by_task.setdefault(r.task_id, []).append(r)
@@ -96,7 +109,7 @@ def aggregate(records: list[TrialRecord]) -> SuiteReport:
                 k: _median(recs, k)
                 for k in (
                     "steps", "wall_s", "tokens", "screenshots",
-                    "llm_calls", "llm_ttft_s", "llm_call_s", "llm_total_s",
+                    "llm_calls", "llm_ttft_s", "llm_call_s", "llm_total_s", "llm_rtt_s",
                 )
             },
         )
@@ -108,6 +121,8 @@ def aggregate(records: list[TrialRecord]) -> SuiteReport:
     llm_total_s = sum(r.llm_total_s for r in records)
     return SuiteReport(
         total_trials=total,
+        smoke_trials=len(smoke),
+        smoke_successes=sum(r.success for r in smoke),
         successes=successes,
         success_rate=(successes / total) if total else 0.0,
         ci_lo=lo,
@@ -131,6 +146,8 @@ def write_markdown_report(
         f"# {title}",
         "",
         f"- Run label: `{label}`",
+        "- Scoring: trial-token-v2 (historical reports use a different scoring revision)",
+        f"- Smoke (excluded from strict score): {report.smoke_successes}/{report.smoke_trials}",
         f"- Overall: **{report.successes}/{report.total_trials}** "
         f"({_fmt_pct(report.success_rate)}, 95% CI "
         f"{_fmt_pct(report.ci_lo)}–{_fmt_pct(report.ci_hi)})",
@@ -152,15 +169,15 @@ def write_markdown_report(
         "",
         "## LLM latency (per call)",
         "",
-        "| task | calls (med) | ttft s (med) | call s (med) | llm total s (med) |",
-        "|---|---|---|---|---|",
+        "| task | calls (med) | stream ttft s (med) | call s (med) | total s | nonstream RTT s |",
+        "|---|---|---|---|---|---|",
     ]
     for task_id in sorted(report.tasks):
         t = report.tasks[task_id]
         lines.append(
             f"| {task_id} | {t.medians['llm_calls']:.0f} "
             f"| {t.medians['llm_ttft_s']:.1f} | {t.medians['llm_call_s']:.1f} "
-            f"| {t.medians['llm_total_s']:.0f} |"
+            f"| {t.medians['llm_total_s']:.0f} | {t.medians.get('llm_rtt_s', 0.0):.1f} |"
         )
     lines += [
         "",
@@ -169,12 +186,18 @@ def write_markdown_report(
         f"median ttft {report.llm_ttft_s:.1f}s, "
         f"LLM time total {report.llm_total_s:.0f}s",
     ]
+    if report.metadata:
+        lines += ["", "## Run metadata", "", "```json",
+                  json.dumps(report.metadata, ensure_ascii=False, indent=2), "```"]
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def write_json_report(report: SuiteReport, out: Path, *, label: str) -> None:
     payload = {
         "label": label,
+        "scoring_revision": "trial-token-v2",
+        "metadata": report.metadata,
+        "smoke": {"trials": report.smoke_trials, "successes": report.smoke_successes},
         "overall": {
             "trials": report.total_trials,
             "successes": report.successes,

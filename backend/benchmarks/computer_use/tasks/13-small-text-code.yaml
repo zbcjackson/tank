@@ -3,7 +3,7 @@ category: browser
 difficulty: 3
 platforms: [macos, linux]
 instruction: |
-  打开浏览器访问 http://localhost:8901/smalltext.html 。页面中部有一行很小的
+  打开浏览器访问 ${BENCH_ASSETS_URL}/smalltext.html 。页面中部有一行很小的
   8 位验证码（小字）。仔细看清它，然后在下方输入框里原样输入这 8 位验证码，
   点击「提交」，直到页面显示「已提交」。
 setup: |

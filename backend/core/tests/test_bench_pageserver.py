@@ -81,3 +81,27 @@ async def test_run_shell_nonzero_raises():
 async def test_run_shell_timeout_raises():
     with pytest.raises(ShellError, match="timed out"):
         await run_shell("sleep 5", timeout_s=1)
+
+
+async def test_trial_tokens_reject_stale_tabs_and_late_submissions(assets, tmp_path):
+    from urllib.error import HTTPError
+
+    server = LocalPageServer(assets, capture_path=None, port=0)
+    first, second = tmp_path / "first.jsonl", tmp_path / "second.jsonl"
+    try:
+        url1 = server.begin_trial(first)
+        urllib.request.urlopen(f"{url1}/click?name=first", timeout=5).read()
+        server.end_trial()
+        with pytest.raises(HTTPError) as exc:
+            urllib.request.urlopen(f"{url1}/click?name=late", timeout=5)
+        assert exc.value.code == 410
+        url2 = server.begin_trial(second)
+        assert url1 != url2
+        with pytest.raises(HTTPError):
+            urllib.request.urlopen(f"{url1}/click?name=old-tab", timeout=5)
+        with pytest.raises(HTTPError):
+            urllib.request.urlopen(f"{server.base_url}/click?name=no-token", timeout=5)
+        assert not second.read_text()
+        assert len(first.read_text().splitlines()) == 1
+    finally:
+        server.stop()

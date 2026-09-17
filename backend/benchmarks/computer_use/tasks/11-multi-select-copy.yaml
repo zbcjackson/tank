@@ -9,13 +9,16 @@ instruction: |
   （cmd+v / ctrl+v）。全部用 GUI 操作完成，三个文件都要复制过去。
 setup: |
   rm -rf ~/bench-work && mkdir -p ~/bench-work/destination
-  touch ~/bench-work/alpha.txt ~/bench-work/beta.txt ~/bench-work/gamma.txt
+  for name in alpha beta gamma; do echo "$name-content" > ~/bench-work/$name.txt; done
 validator:
   kind: shell
   command: >-
     test -f ~/bench-work/destination/alpha.txt -a
     -f ~/bench-work/destination/beta.txt -a
-    -f ~/bench-work/destination/gamma.txt
+    -f ~/bench-work/destination/gamma.txt &&
+    cmp ~/bench-work/alpha.txt ~/bench-work/destination/alpha.txt &&
+    cmp ~/bench-work/beta.txt ~/bench-work/destination/beta.txt &&
+    cmp ~/bench-work/gamma.txt ~/bench-work/destination/gamma.txt
 teardown: |
   rm -rf ~/bench-work
 teardown_macos: |

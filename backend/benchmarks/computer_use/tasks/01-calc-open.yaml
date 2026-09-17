@@ -18,3 +18,5 @@ teardown: |
 teardown_macos: |
   killall Calculator 2>/dev/null || true
 timeout_s: 120
+
+scoring: smoke  # Process presence does not verify the requested GUI result.

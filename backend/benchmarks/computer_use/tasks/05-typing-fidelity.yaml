@@ -3,7 +3,7 @@ category: typing
 difficulty: 2
 platforms: [macos, linux]
 instruction: |
-  打开浏览器访问 http://localhost:8901/typing.html ，把下面这段文字一字不差地
+  打开浏览器访问 ${BENCH_ASSETS_URL}/typing.html ，把下面这段文字一字不差地
   输入到文本框中，然后点击「提交」按钮，直到页面显示「已提交」：
 
   今天我们要测试 Tank 助手的桌面自动化能力。It must type both Chinese and

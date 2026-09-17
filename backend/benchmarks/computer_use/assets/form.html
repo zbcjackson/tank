@@ -36,7 +36,7 @@ async function submitForm(ev) {
     email: document.getElementById('email').value,
     date: document.getElementById('date').value,
   };
-  await fetch('/submit', {method: 'POST', headers: {'Content-Type': 'application/json'},
+  await fetch('submit', {method: 'POST', headers: {'Content-Type': 'application/json'},
                           body: JSON.stringify(payload)});
   document.getElementById('ok').hidden = false;
   return false;

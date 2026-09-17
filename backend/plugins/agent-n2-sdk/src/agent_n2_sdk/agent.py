@@ -65,6 +65,7 @@ class N2SdkSubAgent(SubAgent):
             try:
                 context.check()
                 self.computer = self.computer_factory(context)
+                context.observe("sdk_start", sdk_version="0.9.29")
                 await self.computer.__aenter__()
                 context.check()
                 self.client = self.client_factory(self.config)

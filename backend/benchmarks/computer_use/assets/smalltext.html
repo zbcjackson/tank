@@ -27,7 +27,7 @@
 <script>
 async function submitCode() {
   const payload = {code: document.getElementById('code').value};
-  await fetch('/submit', {method: 'POST', headers: {'Content-Type': 'application/json'},
+  await fetch('submit', {method: 'POST', headers: {'Content-Type': 'application/json'},
                           body: JSON.stringify(payload)});
   document.getElementById('ok').hidden = false;
 }

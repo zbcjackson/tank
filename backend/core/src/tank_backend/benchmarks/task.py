@@ -36,6 +36,7 @@ class BenchTask:
     teardown: str = ""
     timeout_s: int = 180
     max_steps: int = 30
+    scoring: str = "strict"
 
 
 @dataclass(frozen=True)
@@ -118,6 +119,10 @@ def load_task(
     setup = pick("setup") or ""
     teardown = pick("teardown") or ""
 
+    scoring = raw.get("scoring", "strict")
+    if scoring not in {"strict", "smoke"}:
+        raise TaskError(f"{where}: scoring must be strict or smoke")
+
     return BenchTask(
         id=task_id,
         category=category,
@@ -129,6 +134,7 @@ def load_task(
         teardown=str(teardown),
         timeout_s=int(timeout_s),
         max_steps=int(max_steps),
+        scoring=scoring,
     )
 
 

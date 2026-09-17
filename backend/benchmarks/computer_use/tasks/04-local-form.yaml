@@ -3,7 +3,7 @@ category: form
 difficulty: 2
 platforms: [macos, linux]
 instruction: |
-  打开浏览器访问 http://localhost:8901/form.html ，在表单中填入：
+  打开浏览器访问 ${BENCH_ASSETS_URL}/form.html ，在表单中填入：
   姓名=张三，邮箱=zhangsan@example.com，日期=2026-09-09，
   然后点击「提交」按钮，直到页面显示「已提交」。
 setup: |

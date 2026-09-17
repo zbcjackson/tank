@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
+import subprocess
 import time
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Protocol
 
@@ -59,7 +62,6 @@ async def run_suite(
 
     out_dir.mkdir(parents=True, exist_ok=True)
     capture_path = out_dir / "page_capture.jsonl"
-    capture_path.write_text("", encoding="utf-8")
 
     records: list[TrialRecord] = []
 
@@ -74,16 +76,36 @@ async def run_suite(
     }
     save_current_input_source()
     run_started = time.monotonic()
+    aborted = False
+    driver_metadata = {}
     try:
         for task in tasks:
             driver = driver_factory()
+            describe = getattr(driver, "describe", None)
+            if describe is not None:
+                driver_metadata = describe()
             task_started = time.monotonic()
             task_records: list[TrialRecord] = []
             for trial in range(1, trials + 1):
                 # A Chinese IME eats ASCII punctuation ("-"/"."); input-source
                 # stickiness is per-app, so pin fresh before every trial.
                 pin_ascii_input_source()
-                record = await _run_trial(driver, task, trial, out_dir, bench_env)
+                trial_env = dict(bench_env)
+                trial_capture = out_dir / "trials" / task.id / str(trial) / "page_capture.jsonl"
+                trial_capture.parent.mkdir(parents=True, exist_ok=True)
+                trial_capture.write_text("", encoding="utf-8")
+                trial_env["BENCH_CAPTURE"] = str(trial_capture)
+                if server is not None:
+                    trial_env["BENCH_ASSETS_URL"] = server.begin_trial(trial_capture)
+                try:
+                    record = await _run_trial(
+                        driver, task, trial, out_dir, trial_env, server=server,
+                    )
+                finally:
+                    if server is not None:
+                        server.end_trial()
+                if describe is not None:
+                    driver_metadata = describe()
                 records.append(record)
                 task_records.append(record)
                 logger.info(
@@ -93,11 +115,16 @@ async def run_suite(
                     record.llm_calls, record.llm_ttft_s, record.llm_call_s,
                     record.llm_total_s,
                 )
+                if record.cleanup == "unconfirmed":
+                    aborted = True
+                    break
             passed = sum(1 for r in task_records if r.success)
             logger.info(
                 "task=%s done: %d/%d passed in %.1fs",
                 task.id, passed, len(task_records), time.monotonic() - task_started,
             )
+            if aborted:
+                break
     finally:
         if server is not None:
             server.stop()
@@ -106,7 +133,21 @@ async def run_suite(
         "suite done: %d trials in %.1fs", len(records), time.monotonic() - run_started
     )
 
-    report = aggregate(records)
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=False,
+    )
+    task_hash = hashlib.sha256()
+    for path in sorted((suite_dir / "tasks").glob("*.yaml")):
+        task_hash.update(path.name.encode())
+        task_hash.update(path.read_bytes())
+    report = replace(aggregate(records), metadata={
+        **driver_metadata, "platform": platform, "git_revision": revision.stdout.strip(),
+        "task_revision": task_hash.hexdigest(), "scoring_revision": "trial-token-v2",
+        "aborted_cleanup": aborted,
+        "outcomes": [{"task": r.task_id, "trial": r.trial, "stop_reason": r.stop_reason,
+                      "cleanup": r.cleanup, "scoring": r.scoring, "success": r.success,
+                      "unknown_calls": r.unknown_calls} for r in records],
+    })
     write_markdown_report(
         report,
         out_dir / "report.md",
@@ -123,10 +164,13 @@ async def _run_trial(
     trial: int,
     out_dir: Path,
     bench_env: dict[str, str],
+    *, server: LocalPageServer | None = None,
 ) -> TrialRecord:
     trial_dir = out_dir / "trials" / task.id / str(trial)
     trace = TraceSink(trial_dir)
-    trace.event("trial_start", task=task.id, trial=trial, instruction=task.instruction)
+    instruction = task.instruction.replace("${BENCH_ASSETS_URL}", bench_env["BENCH_ASSETS_URL"])
+    trace.event("trial_start", task=task.id, trial=trial, instruction=instruction,
+                scoring_revision="trial-token-v2", scoring=task.scoring)
     trial_started = time.monotonic()
 
     error: str | None = None
@@ -140,10 +184,15 @@ async def _run_trial(
             trace.event("setup_done")
 
         result = await driver.run(
-            task.instruction, trace, timeout_s=task.timeout_s, max_steps=task.max_steps,
+            instruction, trace, timeout_s=task.timeout_s, max_steps=task.max_steps,
         )
+        if server is not None:
+            server.end_trial()
         timed_out = result.timed_out
         error = result.error
+
+        if result.cleanup == "unconfirmed":
+            raise RuntimeError("cleanup unconfirmed; validator and teardown skipped")
 
         # Verdict by side effects even when the run timed out: the agent's
         # closing narration is not part of the task — if the effect landed,
@@ -170,7 +219,9 @@ async def _run_trial(
         trace.event("driver_error", detail=str(e)[:2000])
         logger.exception("trial crashed: task=%s trial=%d", task.id, trial)
     finally:
-        if task.teardown:
+        if server is not None:
+            server.end_trial()
+        if task.teardown and (result is None or result.cleanup != "unconfirmed"):
             try:
                 await run_shell(task.teardown, timeout_s=_TEARDOWN_TIMEOUT_S, extra_env=bench_env)
             except ShellError as e:
@@ -190,31 +241,20 @@ async def _run_trial(
         tokens=result.tokens if result else 0,
         screenshots=result.screenshots if result else 0,
         timed_out=timed_out,
+        scoring=task.scoring,
+        llm_rtt_s=result.llm_rtt_s if result else 0.0,
+        stop_reason=result.stop_reason if result else "error",
+        cleanup=result.cleanup if result else "unknown",
+        primitives=result.primitives if result else 0,
+        model_turns=result.model_turns if result else 0,
+        unknown_calls=result.unknown_calls if result else 0,
         llm_calls=result.llm_calls if result else 0,
         llm_ttft_s=result.llm_ttft_s if result else 0.0,
         llm_call_s=result.llm_call_s if result else 0.0,
         llm_total_s=result.llm_total_s if result else 0.0,
     )
     (trial_dir / "result.json").write_text(
-        json.dumps(
-            {
-                "task_id": record.task_id,
-                "trial": record.trial,
-                "success": record.success,
-                "error": record.error,
-                "steps": record.steps,
-                "wall_s": record.wall_s,
-                "tokens": record.tokens,
-                "screenshots": record.screenshots,
-                "timed_out": record.timed_out,
-                "llm_calls": record.llm_calls,
-                "llm_ttft_s": record.llm_ttft_s,
-                "llm_call_s": record.llm_call_s,
-                "llm_total_s": record.llm_total_s,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
+        json.dumps(asdict(record), ensure_ascii=False, indent=2)
         + "\n",
         encoding="utf-8",
     )

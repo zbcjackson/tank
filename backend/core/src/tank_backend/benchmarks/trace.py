@@ -45,11 +45,15 @@ class TraceSink:
         Returns the path (relative to the trial dir) recorded in the trace.
         """
         self.screenshot_count += 1
-        name = f"shot_{self.screenshot_count:03d}.png"
+        mime = data_url.split(";", 1)[0].removeprefix("data:")
+        suffix = {"image/png": "png", "image/webp": "webp", "image/jpeg": "jpg"}.get(mime)
+        if suffix is None:
+            raise ValueError(f"unsupported screenshot MIME: {mime}")
+        name = f"shot_{self.screenshot_count:03d}.{suffix}"
         b64 = data_url.split("base64,", 1)[-1]
         (self.screenshots_dir / name).write_bytes(base64.b64decode(b64))
         rel = f"screenshots/{name}"
-        self.event("screenshot", file=rel)
+        self.event("screenshot", file=rel, mime=mime)
         return rel
 
     def close(self) -> None:

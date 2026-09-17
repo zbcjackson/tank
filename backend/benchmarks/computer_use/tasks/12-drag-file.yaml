@@ -13,7 +13,8 @@ validator:
   kind: shell
   command: >-
     test -f ~/bench-work/dropzone/draggable.txt &&
-    ! test -f ~/bench-work/draggable.txt
+    ! test -f ~/bench-work/draggable.txt &&
+    test "$(cat ~/bench-work/dropzone/draggable.txt)" = "payload"
 teardown: |
   rm -rf ~/bench-work
 teardown_macos: |

@@ -30,6 +30,9 @@ class Computer:
         self.aclose = AsyncMock()
         self.__aenter__ = AsyncMock(return_value=self)
         self.fail_click = False
+        self.run_bash_command: Any = None
+        self.drag: Any = None
+        self.hold_key: Any = None
 
     async def get_dimensions(self):
         return 100, 100
@@ -200,7 +203,10 @@ async def test_batch_first_error_skips_remaining_action():
         agent(computer, Completions([reply(actions=actions), reply()])), context()
     )
     assert len(computer.actions) == 1
-    assert any(o.type == AgentOutputType.TOOL_RESULT for o in outputs)
+    assert any(
+        o.type == AgentOutputType.TOOL_RESULT and o.metadata["status"] == "error"
+        for o in outputs
+    )
 
 
 @pytest.mark.parametrize(
@@ -300,3 +306,130 @@ async def test_cleanup_failure_attempts_other_resources():
     with pytest.raises(SubAgentCleanupError, match="driver did not exit"):
         await collect(plugin, context())
     client.aclose.assert_awaited_once()
+
+
+async def test_compaction_and_actor_share_unique_ledger():
+    from agent_n2_sdk.callbacks import MeteredCompletions
+    from yutori.navigator.n2 import N2ComputerAgent
+
+    class Compactor:
+        async def compact(self, items, *, completions, **kwargs):
+            await completions.create(messages=items, model="n2")
+            return None
+
+    ctx = context()
+    queue = asyncio.Queue()
+    metered = MeteredCompletions(Completions([reply(), reply()]), ctx, queue)
+    sdk = N2ComputerAgent(
+        computer=Computer(), completions=metered, compactor=Compactor()
+    )
+    _ = [frame async for frame in sdk.run("task")]
+    assert ctx.budget.total_tokens == 14 and len(ctx.budget.call_ids) == 2
+    assert queue.qsize() == 2
+
+
+async def test_backpressure_consumer_close_does_not_leave_sdk_loop():
+    computer = Computer()
+    actions = [{"name": "left_click", "arguments": {"coordinates": [20, 20]}}]
+    response = reply(actions=actions)
+    response["choices"][0]["message"]["tool_calls"] *= 80
+    plugin = agent(computer, Completions([response]))
+    outputs = plugin.run(SubAgentRequest("task", "", "id"), context(limit=1000))
+    await anext(outputs)
+    await outputs.aclose()
+    assert plugin.producer is not None
+    assert plugin.producer.done() and computer.aclose.await_count == 1
+
+
+@pytest.mark.parametrize("action", ["drag", "hold_key", "bash"])
+async def test_cancel_during_environment_action_drains_producer(action):
+    computer, started = Computer(), asyncio.Event()
+
+    async def blocked(*args, **kwargs):
+        started.set()
+        await asyncio.Event().wait()
+
+    if action == "bash":
+        computer.run_bash_command = blocked
+        response = reply()
+        response["choices"][0]["message"]["tool_calls"] = [
+            {
+                "id": "bash",
+                "type": "function",
+                "function": {"name": "bash", "arguments": '{"command":"fake command"}'},
+            }
+        ]
+    elif action == "drag":
+        computer.drag = blocked
+        response = reply(
+            actions=[
+                {
+                    "name": "drag",
+                    "arguments": {
+                        "start_coordinates": [100, 100],
+                        "coordinates": [200, 200],
+                    },
+                }
+            ]
+        )
+    else:
+        computer.hold_key = blocked
+        response = reply(
+            actions=[{"name": "hold_key", "arguments": {"key": "shift", "duration": 1}}]
+        )
+    plugin = agent(computer, Completions([response]))
+    task = asyncio.create_task(collect(plugin, context()))
+    await asyncio.wait_for(started.wait(), 1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert plugin.producer is not None
+    assert plugin.producer.done()
+    computer.aclose.assert_awaited_once()
+
+
+async def test_benchmark_create_and_observer_use_sdk_without_executor(
+    tmp_path, monkeypatch
+):
+    from pathlib import Path
+    import yaml
+    import agent_n2_sdk
+    from tank_backend.benchmarks.driver import SubAgentDriver
+    from tank_backend.benchmarks.trace import TraceSink
+
+    computer = Computer()
+    actions = [{"name": "left_click", "arguments": {"coordinates": [500, 500]}}]
+    client = Completions([reply(actions=actions), reply()])
+    plugin = agent(computer, client)
+    monkeypatch.setattr(agent_n2_sdk, "create_subagent", lambda cfg: plugin)
+    config = tmp_path / "config.yaml"
+    agents_dir = Path(__file__).resolve().parents[3] / "agents"
+    config.write_text(
+        yaml.safe_dump(
+            {
+                "llm": {
+                    "default": {
+                        "api_key": "fake",
+                        "model": "fake",
+                        "base_url": "https://example.com",
+                    }
+                },
+                "agents": {"dirs": [str(agents_dir)]},
+                "skills": {"enabled": False, "dirs": []},
+                "subagents": {
+                    "agent-n2-sdk:agent": {
+                        "config": {"api_key": "secret-do-not-report", "model": "n2"}
+                    }
+                },
+            }
+        )
+    )
+    driver = SubAgentDriver.create("n2_sdk", config)
+    trace = TraceSink(tmp_path / "trial")
+    result = await driver.run("task", trace, timeout_s=10, max_steps=10)
+    trace.close()
+    assert result.stop_reason == "final_answer" and result.cleanup == "confirmed"
+    assert result.tokens == 14 and result.llm_calls == 2 and result.screenshots == 1
+    assert result.llm_ttft_s == 0 and result.llm_rtt_s > 0
+    assert "secret-do-not-report" not in json.dumps(driver.describe())
+    assert driver.describe()["display"] == {"width": 100, "height": 100}

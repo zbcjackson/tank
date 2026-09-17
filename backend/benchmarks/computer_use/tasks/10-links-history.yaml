@@ -3,7 +3,7 @@ category: browser
 difficulty: 3
 platforms: [macos, linux]
 instruction: |
-  打开浏览器访问 http://localhost:8901/links.html ，依次点击三个链接：
+  打开浏览器访问 ${BENCH_ASSETS_URL}/links.html ，依次点击三个链接：
   先「第一篇」，再「第二篇」，最后「第三篇」。每点击一个链接页面会跳转，
   用浏览器后退（快捷键 cmd+[ 或 alt+left）回到链接页再点下一个，
   三个都点完后点击页面底部的「完成」按钮。

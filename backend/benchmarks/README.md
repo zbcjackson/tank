@@ -90,3 +90,20 @@ trace / driver / runner / report / __main__），套件无关。
 
 确定性 setup/teardown；validator 只查副作用；零外网；每任务多 trial 报成功率+置信区间；
 环境钉死；全量 trace；硬超时+步数上限；任务先人工金标跑一次、validator 过了才入套。
+
+## SDK path and scoring revision
+
+Select `n2_sdk` explicitly to measure the new plugin through the same Runner.
+Its observer archives screenshots and every logical API response (including
+compaction/retries) without patching DesktopExecutor. Reports separate streamed
+TTFT from non-streaming RTT and record incomplete endings/unknown usage/cleanup.
+Unconfirmed cleanup skips validation/teardown and stops the suite with its trace
+preserved; verify and reset the desktop before continuing.
+
+Scoring revision `trial-token-v2` uses a fresh capture file and unpredictable URL
+prefix per trial. Asset pages submit relative to that URL; closed/stale tokens
+return 410. Instruction `${BENCH_ASSETS_URL}` is expanded by the runner. Validators
+see only their trial's BENCH_CAPTURE. Process-only calculator/settings validators
+are smoke tasks, excluded from the strict score; file validators verify complete
+contents/copies. Historical reports cannot be compared as equivalent scoring.
+Re-run computer_use and n2 baselines on the same dedicated desktop before A/B.

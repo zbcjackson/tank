@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import json
 import time
 import uuid
 from typing import Any
@@ -34,6 +33,7 @@ class MeteredCompletions:
             call_id=call_id,
             model=kwargs.get("model"),
             retry_scope="logical_call",
+            call_type=call_type,
         )
         try:
             response = await self.inner.create(**kwargs)
@@ -135,12 +135,27 @@ class Callbacks:
     async def on_computer_call_end(
         self, item: dict[str, Any], results: list[dict[str, Any]]
     ) -> None:
-        text = json.dumps(results, ensure_ascii=False)
+        # Images belong to the screenshot observer, not multi-megabyte UI
+        # activity text. Keep the SDK trajectory untouched.
+        texts = []
+        for result in results:
+            value = result.get("output", "")
+            if isinstance(value, dict):
+                value = (
+                    value.get("result") or value.get("text") or "screenshot captured"
+                )
+            texts.append(str(value))
+        text = "\n".join(texts)
         metadata = {
             "name": item.get("name"),
             "tool_call_id": item.get("call_id"),
             "status": "error"
-            if "[ERROR]" in text or "ERROR_TIMEOUT" in text
+            if (
+                "[ERROR]" in text
+                or text.startswith("ERROR")
+                or "batch stopped at actions[" in text
+                or "Failed to release held" in text
+            )
             else "success",
         }
         self.context.observe("tool_end", **metadata)

@@ -327,7 +327,7 @@ async def test_driver_result_carries_llm_latency():
 
 async def test_max_steps_aborts_on_executed_calls():
     result = await _drive_with_stub(tool_calls=40, max_steps=5)
-    assert result.steps == 6  # 5 allowed, the 6th triggers the abort
+    assert result.steps == 5  # The 6th call is refused before it starts.
     assert "max_steps" in (result.error or "")
 
 
@@ -635,3 +635,72 @@ async def test_run_suite_records_full_trial_wall_time(tmp_path):
     for task_id in ("t1", "t2"):
         result = json.loads((out / "trials" / task_id / "1" / "result.json").read_text())
         assert result["wall_s"] >= 0.0
+
+
+def test_trace_preserves_webp_mime(tmp_path):
+    import base64
+
+    sink = TraceSink(tmp_path)
+    path = sink.save_screenshot(
+        "data:image/webp;base64," + base64.b64encode(b"RIFF0000WEBP").decode()
+    )
+    sink.close()
+    assert path.endswith(".webp")
+    assert (tmp_path / path).read_bytes() == b"RIFF0000WEBP"
+
+
+async def test_cleanup_failure_stops_suite_before_validator_and_teardown(tmp_path):
+    suite = _make_suite(tmp_path)
+    calls = []
+
+    class UncleanDriver(FakeDriver):
+        async def run(self, instruction, trace, **kwargs):
+            calls.append(instruction)
+            return DriverResult("", 0, 0, 0, 0, False, "cleanup failed", cleanup="unconfirmed")
+
+    out = tmp_path / "unclean"
+    report = await run_suite(
+        suite, UncleanDriver, platform="linux", trials=2, out_dir=out, label="unclean"
+    )
+    assert len(calls) == 1 and report.total_trials == 1
+    assert report.metadata["aborted_cleanup"] is True
+    entries = [
+        json.loads(line) for line in (out / "trials/t1/1/trace.jsonl").read_text().splitlines()
+    ]
+    assert not any(e["kind"].startswith("validator_") for e in entries)
+
+
+async def test_trial_capture_does_not_reuse_previous_success(tmp_path):
+    import urllib.request
+
+    suite = _make_suite(tmp_path)
+    (suite / "assets").mkdir()
+    (suite / "assets/index.html").write_text("hi")
+    (suite / "suite.yaml").write_text("name: isolated\nassets: assets\nserver_port: 0\n")
+    (suite / "tasks/t2.yaml").unlink()
+    (suite / "tasks/t1.yaml").write_text("""id: t1
+category: browser
+difficulty: 1
+platforms: [linux]
+instruction: ${BENCH_ASSETS_URL}/index.html
+validator:
+  kind: shell
+  command: test -s "$BENCH_CAPTURE"
+""")
+
+    class FirstOnlyDriver(FakeDriver):
+        def __init__(self):
+            self.calls = 0
+
+        async def run(self, instruction, trace, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                url = instruction.removesuffix("index.html") + "click?name=first"
+                urllib.request.urlopen(url, timeout=5).read()
+            return DriverResult("done", 1, 0, 0, 0, False)
+
+    out = tmp_path / "isolated"
+    report = await run_suite(
+        suite, FirstOnlyDriver, platform="linux", trials=2, out_dir=out, label="isolated"
+    )
+    assert report.total_trials == 2 and report.successes == 1

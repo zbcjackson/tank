@@ -123,3 +123,11 @@ def test_json_report_roundtrip(tmp_path):
     assert data["label"] == "x"
     assert data["tasks"]["a"]["trials"] == 1
     assert data["overall"]["successes"] == 1
+
+
+def test_smoke_tasks_excluded_from_strict_success_rate():
+    from dataclasses import replace
+
+    report = aggregate([_record("strict", False), replace(_record("smoke", True), scoring="smoke")])
+    assert report.total_trials == 1 and report.success_rate == 0
+    assert report.smoke_trials == 1 and report.smoke_successes == 1

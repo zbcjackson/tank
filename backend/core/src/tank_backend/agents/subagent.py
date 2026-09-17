@@ -15,8 +15,11 @@ from .base import AgentOutput
 class SubAgentStopped(RuntimeError):
     """A controlled, incomplete termination."""
 
-    def __init__(self, reason: str, detail: str = "") -> None:
+    def __init__(
+        self, reason: str, detail: str = "", metadata: dict[str, Any] | None = None
+    ) -> None:
         self.reason = reason
+        self.metadata = metadata or {}
         super().__init__(f"{reason}: {detail}" if detail else reason)
 
 

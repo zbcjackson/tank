@@ -59,7 +59,11 @@ class SubAgentAdapter(Agent):
         if reason == "timeout":
             raise TimeoutError("subagent timeout")
         if reason != "final_answer":
-            raise SubAgentStopped(str(reason or "error"), "plugin did not finish the task")
+            raise SubAgentStopped(
+                str(reason or "error"),
+                "plugin did not finish the task",
+                terminal.metadata,
+            )
         yield AgentOutput(
             AgentOutputType.DONE,
             terminal.content,

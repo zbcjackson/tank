@@ -22,9 +22,9 @@
   <div class="done" id="done" hidden>已完成全部阅读</div>
 </div>
 <script>
-async function log(name) { await fetch('/click?name=' + name); }
+async function log(name) { await fetch('click?name=' + name); }
 async function finish() {
-  await fetch('/click?name=finished');
+  await fetch('click?name=finished');
   document.getElementById('done').hidden = false;
 }
 </script>
