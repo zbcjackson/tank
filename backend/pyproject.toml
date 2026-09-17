@@ -13,3 +13,10 @@ tank-contracts = { workspace = true }
 dev = [
     "pyright>=1.1.409",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["core/tests", "contracts", "plugins"]
+addopts = "--import-mode=importlib"
+pythonpath = ["core/tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
