@@ -149,10 +149,17 @@ Optional observability settings in `.env`:
 LANGFUSE_PUBLIC_KEY=pk-lf-...
 LANGFUSE_SECRET_KEY=sk-lf-...
 LANGFUSE_HOST=http://localhost:3001
+# Set false and restart the backend to disable tracing without removing keys.
+LANGFUSE_TRACING_ENABLED=true
 
 # Logging
 LOG_LEVEL=INFO
 ```
+
+When using `http://localhost:3001`, start the Langfuse services from the repository
+root with `docker compose up -d`. If tracing is not needed for a test, set
+`LANGFUSE_TRACING_ENABLED=false` and restart the backend. A configured but
+unavailable Langfuse service produces trace export and media upload errors.
 
 ## Running the Server
 

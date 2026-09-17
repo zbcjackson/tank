@@ -35,9 +35,13 @@ logged). `AgentRunner ... finished` alone does not prove any desktop action.
 DeepSeek notification errors mentioning `reasoning_content` are separate from
 N2 desktop execution. Tank now preserves both native `reasoning_content` and
 the compatible `reasoning` streaming field. Existing history that already lost
-reasoning cannot be reconstructed by restarting; use a new conversation for
-the retest. Langfuse/OTel connection failures at `localhost:3001` concern tracing
-and do not establish whether N2 operated the desktop.
+reasoning cannot be reconstructed by restarting. For DeepSeek flash/pro tool
+requests, Tank now uses non-thinking mode when assistant history lacks reasoning,
+logging the affected message indices while preserving the conversation. A new
+conversation with complete reasoning follows the configured thinking behavior.
+Langfuse/OTel connection failures at `localhost:3001` concern tracing and do not
+establish whether N2 operated the desktop. Start the configured Langfuse service
+or set `LANGFUSE_TRACING_ENABLED=false` and restart the backend for testing.
 
 The plugin supports the 20260830 tool set, 15 batch primitives, normalized
 coordinates without a second conversion, sequential key presses, modified

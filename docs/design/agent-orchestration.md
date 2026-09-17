@@ -218,6 +218,25 @@ Each `LLMAgent` passes trace metadata to `LLM.chat_stream()`:
 
 This appears in Langfuse as separate traces per agent, filterable by name.
 
+The OpenAI integration registers tracing automatically when imported; Tank does
+not register it again. `LANGFUSE_TRACING_ENABLED=false` skips initialization and
+instrumentation at startup even when keys are configured. Restart the backend
+after changing this setting.
+
+### Thinking History
+
+`LLM.chat_stream` preserves streamed `reasoning_content` (or the compatible
+`reasoning` field) on assistant messages. `LLMAgent` exposes completed turn
+messages in `state.metadata` while streaming, so errors or interruption still
+allow Brain to persist their original reasoning and tool results.
+
+For `deepseek-flash` and `deepseek-pro` requests with tools, assistant history
+without reasoning triggers a request using `thinking.type=disabled`, with a
+warning listing the affected message indices. This supports older or non-thinking
+history without inventing reasoning or changing stored messages/profile settings.
+Complete history follows the configured thinking behavior. This also applies to
+background completion notifications, which append a system message to history.
+
 ## Approval System
 
 ### Two-Tier Approval
