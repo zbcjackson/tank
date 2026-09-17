@@ -1,6 +1,7 @@
 """Tests for Langfuse integration — conditional import and graceful fallback."""
 
 import os
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from tank_backend.observability import langfuse_client
@@ -56,6 +57,34 @@ class TestLangfuseEnabled:
             r1 = langfuse_client.initialize_langfuse()
             r2 = langfuse_client.initialize_langfuse()
             assert r1 is r2
+
+    def test_explicit_disable_overrides_configured_keys(self) -> None:
+        with patch.dict(os.environ, {
+            "LANGFUSE_PUBLIC_KEY": "pk-test",
+            "LANGFUSE_SECRET_KEY": "sk-test",
+            "LANGFUSE_TRACING_ENABLED": "false",
+        }, clear=True), patch("langfuse.Langfuse") as constructor:
+            assert langfuse_client.is_langfuse_enabled() is False
+            assert langfuse_client.initialize_langfuse() is None
+            constructor.assert_not_called()
+
+    def test_imported_integration_is_not_registered_twice(self) -> None:
+        from unittest.mock import MagicMock
+
+        # The SDK module registers tracing automatically during its import.
+        register = MagicMock()
+        module = SimpleNamespace(register_tracing=register)
+        with patch.dict(os.environ, {
+            "LANGFUSE_PUBLIC_KEY": "pk-test",
+            "LANGFUSE_SECRET_KEY": "sk-test",
+        }, clear=True), patch.dict("sys.modules", {"langfuse.openai": module}), patch(
+            "langfuse.Langfuse",
+        ) as constructor, patch.object(langfuse_client, "_tracing_registered", False):
+            assert langfuse_client.initialize_langfuse() is constructor.return_value
+            assert langfuse_client.initialize_langfuse() is constructor.return_value
+            constructor.assert_called_once()
+            register.assert_not_called()
+            assert langfuse_client.is_tracing_registered()
 
     def test_reset_allows_reinitialization(self) -> None:
         with patch.dict(os.environ, {}, clear=True):

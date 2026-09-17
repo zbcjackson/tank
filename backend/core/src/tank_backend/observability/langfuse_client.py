@@ -7,6 +7,7 @@ Call ``initialize_langfuse()`` once at startup — after that, every
 
 import logging
 import os
+from importlib import import_module
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,8 @@ _tracing_registered = False
 def is_langfuse_enabled() -> bool:
     """Check if Langfuse env vars are configured."""
     return bool(
-        os.environ.get("LANGFUSE_PUBLIC_KEY")
+        os.environ.get("LANGFUSE_TRACING_ENABLED", "true").lower() == "true"
+        and os.environ.get("LANGFUSE_PUBLIC_KEY")
         and os.environ.get("LANGFUSE_SECRET_KEY")
     )
 
@@ -38,12 +40,11 @@ def initialize_langfuse() -> Any:
     _initialized = True
 
     if not is_langfuse_enabled():
-        logger.info("Langfuse not configured (missing LANGFUSE_PUBLIC_KEY/LANGFUSE_SECRET_KEY)")
+        logger.info("Langfuse tracing disabled or credentials not configured")
         return None
 
     try:
         from langfuse import Langfuse
-        from langfuse.openai import register_tracing
 
         _langfuse_instance = Langfuse(
             public_key=os.environ["LANGFUSE_PUBLIC_KEY"],
@@ -52,7 +53,9 @@ def initialize_langfuse() -> Any:
         )
 
         if not _tracing_registered:
-            register_tracing()
+            # Importing the SDK integration registers tracing automatically.
+            # Calling register_tracing() again nests duplicate wrappers.
+            import_module("langfuse.openai")
             _tracing_registered = True
             logger.info("Langfuse OpenAI tracing registered")
 
