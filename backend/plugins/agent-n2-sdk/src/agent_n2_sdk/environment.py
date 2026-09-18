@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import sys
+from functools import wraps
 from typing import Any
 
 from tank_backend.agents.subagent import SubAgentContext
@@ -115,6 +116,7 @@ class GuardedComputer:
             else "desktop"
         )
 
+        @wraps(value)
         async def guarded(*args: Any, **kwargs: Any) -> Any:
             self.context.check(permission)
             result = await value(*args, **kwargs)

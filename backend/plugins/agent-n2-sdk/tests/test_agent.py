@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import io
+import inspect
 import json
 from unittest.mock import AsyncMock
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Any
 import pytest
 from PIL import Image
 from yutori.navigator.macos.types import CancellationLatch
+from yutori.navigator.macos.computer import MacOSComputer
 
 from tank_backend.agents.base import AgentOutputType
 from tank_backend.agents.subagent import (
@@ -17,6 +19,7 @@ from tank_backend.agents.subagent import (
     SubAgentBudget,
     SubAgentContext,
     SubAgentRequest,
+    SubAgentStopped,
 )
 from agent_n2_sdk.agent import N2SdkSubAgent
 from agent_n2_sdk.config import N2SdkConfig
@@ -37,8 +40,8 @@ class Computer:
     async def get_dimensions(self):
         return 100, 100
 
-    async def click(self, x, y, **kwargs):
-        self.actions.append((x, y, kwargs))
+    async def click(self, x, y, button="left", modifier=None):
+        self.actions.append((x, y, {"button": button, "modifier": modifier}))
         if self.fail_click:
             raise RuntimeError("click failed")
 
@@ -135,6 +138,60 @@ async def test_real_sdk_tool_events_usage_and_cleanup():
         m.get("reasoning_content") == "thinking"
         for m in completions.calls[1]["messages"]
     )
+
+
+async def test_real_macos_adapter_through_sdk_without_host_input():
+    data = io.BytesIO()
+    Image.new("RGB", (100, 100)).save(data, format="PNG")
+    frame = {
+        "content": [{"type": "image", "data": base64.b64encode(data.getvalue()).decode(),
+                     "mimeType": "image/png"}],
+        "structuredContent": {"screenshot_width": 100, "screenshot_height": 100},
+    }
+    transport = AsyncMock()
+    transport.call_tool.return_value = frame
+    computer = MacOSComputer(transport=transport, owns_transport=True,
+                             presentation=False, verify_focus=False)
+    actions = [
+        {"name": "left_click", "arguments": {"coordinates": [500, 500], "modifier": "shift"}},
+        {"name": "key_press", "arguments": {"key": "command+a"}},
+        {"name": "type", "arguments": {"text": "hello"}},
+        {"name": "mouse_move", "arguments": {"coordinates": [400, 400]}},
+        {"name": "drag", "arguments": {"start_coordinates": [400, 400], "coordinates": [600, 600]}},
+    ]
+    outputs = await collect(
+        agent(computer, Completions([reply(actions=actions), reply()])), context()
+    )
+    results = [o for o in outputs if o.type == AgentOutputType.TOOL_RESULT]
+    assert len(results) == 1 and results[0].metadata["status"] == "success"
+    names = [c.args[0] for c in transport.call_tool.await_args_list]
+    assert all(name in names for name in ["click", "hotkey", "type_text", "move_cursor", "drag"])
+    click = next(c.args[1] for c in transport.call_tool.await_args_list if c.args[0] == "click")
+    assert click["x"] == 50 and click["y"] == 50 and click["modifier"] == ["shift"]
+    assert "end_session" in names
+    transport.close.assert_awaited_once()
+
+
+@pytest.mark.parametrize("name", ["click", "keypress", "type", "move", "drag", "wait", "hold_key"])
+def test_guard_preserves_macos_method_signatures(name):
+    computer = MacOSComputer(transport=AsyncMock(), owns_transport=True)
+    guarded = GuardedComputer(computer, context())
+    assert inspect.signature(getattr(guarded, name)) == inspect.signature(getattr(computer, name))
+
+
+@pytest.mark.parametrize("stop", ["cancel", "revoke"])
+async def test_guard_checks_stop_before_action(stop):
+    computer, ctx = Computer(), context()
+    guarded = GuardedComputer(computer, ctx)
+    if stop == "cancel":
+        ctx.cancel.set()
+        error = asyncio.CancelledError
+    else:
+        ctx.authorization.revoke()
+        error = SubAgentStopped
+    with pytest.raises(error):
+        await guarded.click(10, 20)
+    assert computer.actions == []
 
 
 async def test_budget_before_actions_and_no_observer():
