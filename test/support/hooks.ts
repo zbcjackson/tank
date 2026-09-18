@@ -33,6 +33,29 @@ Before({tags: '@fake-audio'}, async function (this: TankWorld) {
             // Capture the first /ws/ connection (the app's main WebSocket)
             if (url.includes('/ws/')) {
                 (window as any).__testWs = ws;
+                (window as any).__testTranscripts = [];
+                ws.addEventListener('message', (event) => {
+                    if (typeof event.data !== 'string') return;
+                    const message = JSON.parse(event.data);
+                    if (message.type === 'transcript' && message.is_user && message.content) {
+                        (window as any).__testTranscripts.push(message.content);
+                    }
+                });
+                // The fixture sends raw 16 kHz PCM, so keep this test
+                // connection on PCM even when WebCodecs supports Opus.
+                const send = ws.send.bind(ws);
+                ws.send = (data) => {
+                    if (typeof data === 'string') {
+                        const message = JSON.parse(data);
+                        if (message.type === 'signal' && message.content === 'capabilities') {
+                            message.metadata = { ...message.metadata, enable: [] };
+                        } else if (message.type === 'signal' && message.content === 'audio_format') {
+                            message.metadata = { sample_rate: 16000, channels: 1 };
+                        }
+                        return send(JSON.stringify(message));
+                    }
+                    return send(data);
+                };
             }
             return ws;
         } as any;

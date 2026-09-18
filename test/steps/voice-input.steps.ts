@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import { When, Then } from '@cucumber/cucumber';
 import type { TankWorld } from '../support/world';
-import { ChatModePage } from '../support/page-objects/ChatModePage';
 
 const FIXTURE_DIR = path.resolve(__dirname, '..', 'fixtures', 'audio');
 
@@ -17,6 +16,7 @@ When('the WAV fixture {string} is sent over the WebSocket', async function (this
   // Wait for the intercepted WebSocket to be open
   await this.page.waitForFunction(
     () => (window as any).__testWs?.readyState === WebSocket.OPEN,
+    undefined,
     { timeout: 10000 },
   );
 
@@ -28,6 +28,11 @@ When('the WAV fixture {string} is sent over the WebSocket', async function (this
       return new Promise<void>((resolve) => {
         const raw = Uint8Array.from(atob(pcmBase64), (c) => c.charCodeAt(0));
         const ws = (window as any).__testWs as WebSocket;
+        (window as any).__testTranscripts = [];
+        ws.send(JSON.stringify({
+          type: 'signal', content: 'audio_format',
+          metadata: { sample_rate: 16000, channels: 1 },
+        }));
 
         let offset = 0;
         let sent = 0;
@@ -53,6 +58,12 @@ When('the WAV fixture {string} is sent over the WebSocket', async function (this
 });
 
 Then('eventually a user transcript appears in the conversation', async function (this: TankWorld) {
-  const chatPage = new ChatModePage(this.page);
-  await chatPage.userTranscript().waitFor({ state: 'visible', timeout: 30000 });
+  await this.page.waitForFunction(
+    () => (window as any).__testTranscripts?.length > 0,
+    undefined,
+    { timeout: 30000 },
+  );
+  const transcript: string = await this.page.evaluate(() => (window as any).__testTranscripts[0]);
+  await this.page.locator('[data-testid="user-message"]')
+    .filter({ hasText: transcript }).first().waitFor({ state: 'visible', timeout: 30000 });
 });
