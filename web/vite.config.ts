@@ -1,3 +1,4 @@
+import { stripVTControlCharacters } from 'node:util';
 import { createLogger, defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -9,7 +10,7 @@ const logError = logger.error.bind(logger);
 logger.error = (message, options) => {
   const error = options?.error;
   // Browser teardown can reset a WS tunnel; retain every other proxy error.
-  if (message.startsWith('ws proxy ') && error &&
+  if (stripVTControlCharacters(message).startsWith('ws proxy ') && error &&
       'code' in error && error.code === 'ECONNRESET') return;
   logError(message, options);
 };

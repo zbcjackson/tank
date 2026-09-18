@@ -11,6 +11,18 @@ import { createServer as createViteServer } from 'vite';
 import { expect, test, vi } from 'vitest';
 import config from '../vite.config';
 
+test('colored WS reset logs are treated as client disconnects', () => {
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    config.customLogger?.error('\u001b[31mws proxy error:\u001b[39m', {
+      error: Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
+    });
+    expect(errors).not.toHaveBeenCalled();
+  } finally {
+    errors.mockRestore();
+  }
+});
+
 test('unexpected proxy failures remain visible', () => {
   const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
   try {
