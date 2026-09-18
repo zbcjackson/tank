@@ -220,7 +220,7 @@ class _BaseExecutor:
         )
         proc = await asyncio.to_thread(
             subprocess.run, ["bash", "-c", wrapped],
-            capture_output=True, text=True, timeout=timeout_s,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout_s,
         )
 
         stdout = proc.stdout or ""
@@ -500,9 +500,7 @@ class _MacOSExecutor(_BaseExecutor):
         if not keys or len(keys) != 1:
             raise ValueError("key_down/up requires one valid key")
         def emit() -> None:
-            import Quartz
-
-            quartz: Any = Quartz  # PyObjC exposes CoreGraphics symbols dynamically.
+            quartz = computer_use_macos._load_quartz()
             modifier_codes = {"cmd": 55, "ctrl": 59, "alt": 58, "shift": 56}
             code = modifier_codes.get(keys[0], computer_use_macos._KEYCODE_MAP.get(keys[0]))
             if code is None:

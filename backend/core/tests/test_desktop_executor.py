@@ -95,6 +95,15 @@ class TestBash:
         assert len(result.stdout) < 12000
         assert "truncated" in result.stdout
 
+    @pytest.mark.asyncio
+    async def test_non_utf8_shell_output_preserves_exit_code_and_cwd(self, executor, tmp_path):
+        (tmp_path / "sub").mkdir()
+        result = await executor.bash("cd sub; printf '\\377'; printf '\\376' >&2; false")
+        assert result.exit_code == 1
+        assert result.stdout == "\ufffd" and result.stderr == "\ufffd"
+        assert result.cwd == str(tmp_path / "sub")
+        assert (await executor.bash("pwd")).stdout.strip() == str(tmp_path / "sub")
+
 
 # ---------------------------------------------------------------------------
 # file operations

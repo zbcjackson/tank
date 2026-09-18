@@ -108,6 +108,28 @@ async def test_modifier_release_and_mouse_cleanup_on_cancel(executor, profile):
     executor.mouse_up.assert_awaited_once()
 
 
+async def test_left_mouse_aliases_preserve_drag_and_cleanup(executor, profile):
+    text, png = await N2Agent(executor, profile)._batch([
+        {"name": "left_mouse_down", "arguments": {"coordinates": [100, 200]}},
+        {"name": "mouse_move", "arguments": {"coordinates": [300, 400]}},
+        {"name": "left_mouse_up", "arguments": {}},
+    ])
+    assert text == "Executed 3 of 3 actions." and png
+    executor.mouse_move.assert_awaited_once_with(100, 200)
+    executor.mouse_down.assert_awaited_once()
+    executor.mouse_up.assert_awaited_once()
+
+
+async def test_left_mouse_alias_released_on_cancel(executor, profile):
+    executor.batch.side_effect = asyncio.CancelledError
+    with pytest.raises(asyncio.CancelledError):
+        await N2Agent(executor, profile)._batch([
+            {"name": "left_mouse_down", "arguments": {}},
+            {"name": "mouse_move", "arguments": {"coordinates": [300, 400]}},
+        ])
+    executor.mouse_up.assert_awaited_once()
+
+
 async def test_file_read_before_edit_and_numbering(executor, profile):
     agent = N2Agent(executor, profile)
     with pytest.raises(ValueError, match="before editing"):

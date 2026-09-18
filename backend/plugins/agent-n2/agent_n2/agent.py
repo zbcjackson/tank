@@ -158,6 +158,10 @@ class N2Agent(Agent):
             for index, raw in enumerate(actions):
                 try:
                     name, args = raw["name"], raw["arguments"]
+                    if name == "left_mouse_down":
+                        name = "mouse_down"
+                    elif name == "left_mouse_up":
+                        name = "mouse_up"
                     modifier = args.get("modifier")
                     if modifier and modifier not in {"ctrl", "shift", "alt", "meta", "command", "super"}:
                         raise ValueError("invalid modifier")
