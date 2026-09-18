@@ -1,7 +1,10 @@
 // @vitest-environment node
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { connect } from 'node:tls';
 import { createLogger, createServer as createViteServer } from 'vite';
 import { expect, test, vi } from 'vitest';
@@ -32,10 +35,13 @@ test('WebSocket client disconnect closes the proxy without write-after-FIN error
   const errors = vi.spyOn(logger, 'error');
   const ws = config.server?.proxy?.['/ws'];
   if (!ws || typeof ws === 'string') throw new Error('missing WS proxy');
+  const cacheDir = await mkdtemp(join(tmpdir(), 'tank-vite-proxy-'));
   const vite = await createViteServer({
     configFile: false,
+    cacheDir,
     plugins: [config.plugins?.[0]],
     customLogger: logger,
+    optimizeDeps: { noDiscovery: true, include: [] },
     server: {
       host: '127.0.0.1', port: 0,
       proxy: { '/ws': { ...ws, target: `ws://127.0.0.1:${backendAddress.port}` } },
@@ -63,5 +69,6 @@ test('WebSocket client disconnect closes the proxy without write-after-FIN error
     client?.destroy();
     await vite.close();
     await new Promise<void>((resolve) => backend.close(() => resolve()));
+    await rm(cacheDir, { recursive: true, force: true });
   }
 });
