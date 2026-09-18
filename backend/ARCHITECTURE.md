@@ -74,6 +74,7 @@ The pipeline is a GStreamer-inspired processor chain with bounded queues, backpr
 
 **Key Design Decisions**:
 - **Queue = Thread Boundary**: Inserting a `ThreadedQueue` between two processors creates a new thread. Pipeline topology determines threading, not hardcoding.
+- **Idle queue waits**: The blocking input queue wait runs in an executor, so background agents sharing a consumer's event loop can continue reading subprocess responses after a turn returns.
 - **Backpressure**: Bounded queues with `FlowReturn` propagation. When a queue is full, the upstream processor blocks.
 - **Bidirectional Events**: Data flows downstream; control events (interrupt, flush) flow upstream from VAD to Playback.
 - **Bus for Observability**: Decoupled from pipeline data flow. Any processor can post metrics/state changes; any observer can subscribe.
@@ -527,7 +528,7 @@ uv run uvicorn tank_backend.main:app --host 0.0.0.0 --port 8000
 
 ## Performance Considerations
 
-- Pipeline uses real threads (via `ThreadedQueue`) for CPU-bound work — no hidden `asyncio.to_thread()`
+- Pipeline uses real threads (via `ThreadedQueue`) for CPU-bound work; `asyncio.to_thread()` only offloads the blocking input queue wait.
 - Bounded queues provide backpressure — prevents unbounded memory growth
 - TTS streaming with QoS feedback — graceful degradation under load
 - Token counting via `tiktoken` — prevents context window overflow

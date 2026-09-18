@@ -645,3 +645,34 @@ backend/CLI ruff、改动 Python 文件 pyright（0 errors、0 warnings）、
 文档/协议同步与 diff 检查通过。后端 health 正常，最近 50 行无异常；
 Vite 仍有 WebSocket 关闭错误，运行日志检查未全绿。macOS Direct Capture
 授权输出已取得，计算器任务的实际完成证据仍待确认。
+
+## 16. 空闲 Brain 队列阻塞后台图片读取（2026-09-18）
+
+用户在实际 Mac 上验证同一个 CheckedTransport MCP session：文件截图
+0.207s、内联截图 0.185s，内联 base64 长度 1,329,092。该测试证明当前
+driver 的 MCP/session 截图链路可以成功，不证明 Tank 内部的运行环境相同。
+
+ThreadedQueue 在消费线程的 asyncio loop 内同步执行 queue.get(timeout=0.1)。
+Brain turn 返回后，后台 worker 和 SDK 子进程读取仍共享该 loop；空闲队列
+会反复阻塞其 I/O。Linux 对照实验读取同等大小的子进程响应：独立 loop
+0.012s，加入原空闲等待逻辑后 3.791s。实际队列消费路径的回归测试在旧
+代码上发生读取超时。将阻塞输入等待移到 executor，保留 bounded queue、
+停止轮询和既有背压行为；不修改 SDK 图片格式、RPC 超时或模型 loop。
+修复后经过实际队列消费路径读取同等大小响应为 0.011s。
+
+这处阻塞已本地复现，尚不能认定为 Mac 30s 超时的全部原因。修复后仍需
+在 Mac 重跑完整计算器任务，取得实际模型调用和计算器结果。
+
+### Tests
+
+- 实际 ThreadedQueue async 消费路径与实际子进程管道并行，验证空闲时
+  仍能在 1s 内读取 1,329,092 字符的图片响应；旧代码先失败。
+- 现有队列停止/背压/不丢消息、后台 worker 与 SDK 回归测试。
+- 最后执行 §12 完整 Verification Checklist，记录全量回归结果。
+
+验证结果：队列/后台 worker/SDK 相关 60 测试通过；backend 全量
+4336 passed、2 skipped、16 warnings（168.60s）；E2E 14 场景 / 55 步骤
+通过（55.135s）。web lint/TypeScript、backend/CLI ruff、修改 Python
+文件 pyright（0 errors、0 warnings）、文档/协议同步与 diff 检查通过。
+后端 /api/health 正常且最近 50 行无异常；Vite 仍有 WebSocket 关闭
+错误，运行日志检查未全绿。Mac 计算器任务仍待修复后的完整实测。
