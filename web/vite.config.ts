@@ -1,11 +1,22 @@
-import { defineConfig } from 'vite';
+import { createLogger, defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 
+const logger = createLogger();
+const logError = logger.error.bind(logger);
+logger.error = (message, options) => {
+  const error = options?.error;
+  // Browser teardown can reset a WS tunnel; retain every other proxy error.
+  if (message.startsWith('ws proxy ') && error &&
+      'code' in error && error.code === 'ECONNRESET') return;
+  logError(message, options);
+};
+
 // https://vite.dev/config/
 export default defineConfig({
+  customLogger: logger,
   plugins: [
     basicSsl(),
     react(),
