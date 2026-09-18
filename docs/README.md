@@ -5,6 +5,8 @@
 
 | 路径 | 类型 | 状态 | 简介 |
 |---|---|---|---|
+| [plans/active/macos-coordinate-chain-tests.md](plans/active/macos-coordinate-chain-tests.md) | 计划 | 测试完成，全量检查未通过 | macOS 截图到点击的跨层测试与现状复现 |
+| [research/macos-coordinate-chain.md](research/macos-coordinate-chain.md) | 调研 | 离线链路已核实 | 图片尺寸、坐标变换、旧测试缺口及离线验证边界 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
 | [plans/active/computer-use-benchmark-fixes.md](plans/active/computer-use-benchmark-fixes.md) | 计划 | 修复与本机验证完成，待实机复测 | 三组 benchmark 的 SDK 签名、Quartz、图像反馈与 GUI 评分修复；完整检查及实机限制见结果 |
 | [plans/done/backend-unit-test-fixes.md](plans/done/backend-unit-test-fixes.md) | 计划 | 单测修复完成 | 后端 workspace 测试收集与单元测试修复；运行日志验证限制见结果 |
