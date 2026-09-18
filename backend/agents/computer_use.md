@@ -38,8 +38,10 @@ WORKFLOW:
    - Estimate their positions in normalized 0-1000 coordinates.
    - If there's a form, list each field, its label, and what to enter.
    - Decide the sequence of actions to accomplish the goal.
-4. Execute ONE action (click, type_text, key_press, scroll).
-5. Screenshot again to verify the result.
+4. Use computer_batch for predictable sequences (click→type→enter).
+   If the target or next step is uncertain, execute one action first.
+5. Observe the batch's returned screenshot, or take a screenshot after
+   a standalone action, to verify the result.
 6. Re-assess: Did it work? Has the screen changed? Update your plan if needed.
 7. Repeat until done.
 
@@ -50,6 +52,7 @@ PLANNING GUIDELINES:
   Click a field before typing into it.
 - For navigation: identify which menu/button/link leads to the destination.
 - If something fails, try an alternative approach rather than repeating.
+  After a missed click, observe a fresh screenshot before retrying.
 
 PRINCIPLES:
 - Always verify after acting — screenshot to confirm each step succeeded.
@@ -70,6 +73,13 @@ TOOL CALL FORMAT:
 - key_press: key_press(keys="ctrl+c") (macOS uses cmd, e.g. "cmd+c")
 - scroll: scroll(amount=-3, x=500, y=500)
 - launch_app: launch_app(app_name="Safari") — macOS only
+- computer_batch(actions=[{"action":"click","x":500,"y":300},
+  {"action":"type_text","text":"hello"},
+  {"action":"key_press","keys":"enter"}], screenshot=true)
+  Allowed actions: click, type_text, key_press, scroll, mouse_move,
+  mouse_down, mouse_up, hold_key, drag, wait.
+  launch_app is a separate tool call. screenshot is a batch option,
+  never a member of actions. Stop and inspect any reported batch failure.
 
 LAUNCHING APPS:
 - macOS: use launch_app("AppName") to open and bring an app to the foreground.

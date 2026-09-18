@@ -31,6 +31,7 @@ from .computer_use_common import (
     PYAUTOGUI_KEY_ALIASES,
     REGION_DESCRIPTION,
     YDOTOOL_KEY_ALIASES,
+    click_schema,
     crop_and_upscale,
     normalize_keys,
     normalize_point,
@@ -595,8 +596,16 @@ class ClickTool(BaseTool):
                 "element you want to click."
             ),
             parameters=[
-                ToolParameter(name="x", type="integer", description=COORDINATE_X_DESCRIPTION),
-                ToolParameter(name="y", type="integer", description=COORDINATE_Y_DESCRIPTION),
+                ToolParameter(
+                    name="x", type="integer", description=COORDINATE_X_DESCRIPTION, required=False,
+                ),
+                ToolParameter(
+                    name="y", type="integer", description=COORDINATE_Y_DESCRIPTION, required=False,
+                ),
+                ToolParameter(
+                    name="bbox", type="array", required=False,
+                    description="Bounding box [x1,y1,x2,y2] (0-1000); use instead of x/y",
+                ),
                 ToolParameter(
                     name="button",
                     type="string",
@@ -614,10 +623,20 @@ class ClickTool(BaseTool):
             ],
         )
 
+    def get_raw_schema(self) -> dict[str, Any]:
+        return click_schema(self.get_info())
+
     async def execute(
-        self, x: Any, y: Any = None, button: str = "left", clicks: int = 1,
+        self, x: Any = None, y: Any = None, button: str = "left", clicks: int = 1,
+        bbox: Any = None,
     ) -> ToolResult:
         # 0-1000 normalized input (or a bbox array — Qwen-VL form).
+        if bbox is not None:
+            if x is not None or y is not None or not isinstance(bbox, list) or len(bbox) != 4:
+                return ToolResult(
+                    content="click: pass either x/y or bbox=[x1,y1,x2,y2]", error=True,
+                )
+            x = bbox
         point = normalize_point(x, y)
         if point is None:
             return ToolResult(

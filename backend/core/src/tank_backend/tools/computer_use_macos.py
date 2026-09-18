@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import importlib
 import logging
 import subprocess
 import tempfile
@@ -36,6 +37,7 @@ from .computer_use_common import (
     COORDINATE_X_DESCRIPTION,
     COORDINATE_Y_DESCRIPTION,
     REGION_DESCRIPTION,
+    click_schema,
     crop_and_upscale,
     normalize_keys,
     normalize_point,
@@ -48,9 +50,7 @@ logger = logging.getLogger(__name__)
 
 def _load_quartz() -> Any:
     """PyObjC exports CoreGraphics symbols dynamically, without static stubs."""
-    import Quartz
-
-    return Quartz
+    return importlib.import_module("Quartz")
 
 
 # ---------------------------------------------------------------------------
@@ -332,7 +332,7 @@ def _mouse_button_macos(button: str = "left", down: bool = True) -> None:
     """Press/release a mouse button at the CURRENT cursor position."""
     Quartz = _load_quartz()
 
-    loc = Quartz.CGEventCreate(None).getLocation()
+    loc = Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
     if button == "right":
         etype = Quartz.kCGEventRightMouseDown if down else Quartz.kCGEventRightMouseUp
         btn = Quartz.kCGMouseButtonRight
@@ -536,10 +536,16 @@ class ClickTool(BaseTool):
                 ToolParameter(
                     name="x", type="integer",
                     description=COORDINATE_X_DESCRIPTION,
+                    required=False,
                 ),
                 ToolParameter(
                     name="y", type="integer",
                     description=COORDINATE_Y_DESCRIPTION,
+                    required=False,
+                ),
+                ToolParameter(
+                    name="bbox", type="array", required=False,
+                    description="Bounding box [x1,y1,x2,y2] (0-1000); use instead of x/y",
                 ),
                 ToolParameter(
                     name="button",
@@ -558,10 +564,20 @@ class ClickTool(BaseTool):
             ],
         )
 
+    def get_raw_schema(self) -> dict[str, Any]:
+        return click_schema(self.get_info())
+
     async def execute(
-        self, x: Any, y: Any = None, button: str = "left", clicks: int = 1,
+        self, x: Any = None, y: Any = None, button: str = "left", clicks: int = 1,
+        bbox: Any = None,
     ) -> ToolResult:
         # 0-1000 normalized input, or a bbox array (Qwen-VL native form).
+        if bbox is not None:
+            if x is not None or y is not None or not isinstance(bbox, list) or len(bbox) != 4:
+                return ToolResult(
+                    content="click: pass either x/y or bbox=[x1,y1,x2,y2]", error=True,
+                )
+            x = bbox
         point = normalize_point(x, y)
         if point is None:
             return ToolResult(

@@ -105,6 +105,33 @@ async def test_auto_screenshot_once_after_batch():
     assert len(shots) == 1
 
 
+async def test_batch_returns_image_to_llm_and_benchmark(tmp_path):
+    from tank_backend.benchmarks.driver import TracedScreenshotTool
+    from tank_backend.benchmarks.trace import TraceSink
+    from tank_backend.core.content import ImageBlock, TextBlock
+
+    image = ImageBlock(source="data:image/png;base64,aGVsbG8=", mime_type="image/png")
+    screenshot = MagicMock()
+
+    async def capture(**kwargs):
+        return ToolResult(content=[TextBlock(text="Screenshot captured. NOTE"), image])
+
+    screenshot.execute = capture
+    tool = ComputerBatchTool(_tools(screenshot=screenshot))
+    trace = TraceSink(tmp_path)
+    try:
+        result = await TracedScreenshotTool(tool, lambda: trace).execute(
+            actions=[{"action": "click", "x": 1}],
+        )
+        assert isinstance(result, ToolResult) and isinstance(result.content, list)
+        assert result.content[-1] == image
+        assert isinstance(result.content[0], TextBlock)
+        assert json.loads(result.content[0].text)["failed_at"] is None
+        assert trace.screenshot_count == 1
+    finally:
+        trace.close()
+
+
 async def test_unknown_action_errors():
     result = await ComputerBatchTool(_tools()).execute(actions=[{"action": "explode"}])
     assert result.error is True

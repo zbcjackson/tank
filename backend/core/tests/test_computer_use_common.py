@@ -31,6 +31,7 @@ from tank_backend.tools.computer_use_common import (
         ('["return"]', ["enter"]),  # also exercises the return→enter synonym
         ('["cmd", "c"]', ["cmd", "c"]),
         ("return", ["enter"]),
+        ("esc", ["escape"]),
         (["cmd", "c"], ["cmd", "c"]),  # model sent an actual list
     ],
 )
@@ -135,6 +136,38 @@ async def test_bbox_click_center_end_to_end_both_platforms():
     assert result.error is False
     n2p.assert_called_once_with(150, 150)
     mac_mock.assert_called_once()
+
+
+async def test_bbox_keyword_click_and_conflicting_inputs_both_platforms():
+    from tank_backend.tools import computer_use as linux_mod
+    from tank_backend.tools import computer_use_macos as macos_mod
+
+    for module, helper in [(linux_mod, "_run_pyautogui"), (macos_mod, "_click_macos")]:
+        with (
+            patch("tank_backend.tools.computer_use._ydotool_available", return_value=False),
+            patch(f"{module.__name__}.{helper}") as click,
+        ):
+            result = await module.ClickTool().execute(bbox=[100, 100, 200, 200])
+            assert not result.error and "(150, 150)" in str(result.content)
+            click.assert_called_once()
+            result = await module.ClickTool().execute(x=500, y=500, bbox=[100, 100, 200, 200])
+            assert result.error
+            assert click.call_count == 1
+
+
+def test_click_raw_schema_matches_coordinate_forms_both_platforms():
+    from tank_backend.tools import computer_use as linux_mod
+    from tank_backend.tools import computer_use_macos as macos_mod
+
+    linux = linux_mod.ClickTool().get_raw_schema()
+    assert linux is not None and linux == macos_mod.ClickTool().get_raw_schema()
+    assert linux["properties"]["x"]["anyOf"][0]["type"] == "integer"
+    assert linux["properties"]["x"]["anyOf"][1]["type"] == "array"
+    assert linux["properties"]["bbox"]["minItems"] == 4
+    assert linux["properties"]["bbox"]["maxItems"] == 4
+    assert {tuple(branch["required"]) for branch in linux["oneOf"]} == {
+        ("x", "y"), ("x",), ("bbox",),
+    }
 
 
 # ── A4: canonical key vocabulary ──────────────────────────────────────

@@ -389,10 +389,11 @@ class SubAgentDriver:
         driver._runtime_metadata = {}
 
         # Archive every screenshot the agent takes for offline diagnosis.
-        if "screenshot" in tool_manager.tools:
-            tool_manager.tools["screenshot"] = TracedScreenshotTool(
-                tool_manager.tools["screenshot"], lambda: driver._trace
-            )
+        for name in ("screenshot", "computer_batch"):
+            if name in tool_manager.tools:
+                tool_manager.tools[name] = TracedScreenshotTool(
+                    tool_manager.tools[name], lambda: driver._trace
+                )
         # Re-pin the ASCII input source after each app launch (per-app IME
         # memory flips the keyboard back when a launched app takes focus).
         if "launch_app" in tool_manager.tools:

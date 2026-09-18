@@ -57,6 +57,16 @@ class _FakeQuartz:
     kCGEventFlagMaskCommand = 0x100000
     CGEventPost = MagicMock()
     kCGHIDEventTap = 0
+    CGEventCreate = MagicMock()
+    CGEventGetLocation = MagicMock()
+    CGEventCreateMouseEvent = MagicMock()
+    CGPointMake = MagicMock()
+    kCGEventLeftMouseDown = 1
+    kCGEventLeftMouseUp = 2
+    kCGMouseButtonLeft = 0
+    kCGEventLeftMouseDragged = 3
+    kCGEventMouseMoved = 5
+    kCGEventFlagMaskShift = 0x20000
 
 
 @pytest.fixture
@@ -89,6 +99,20 @@ def make_run_ok(returncode: int = 0, stdout: str = "", stderr: str = "") -> Magi
     result.stdout = stdout
     result.stderr = stderr
     return result
+
+
+@pytest.mark.parametrize("button", ["left", "right", "middle"])
+@pytest.mark.parametrize("down", [True, False])
+def test_mouse_button_uses_quartz_location_api(button, down):
+    quartz = MagicMock()
+    current_event = object()  # CGEventRef has no getLocation method.
+    quartz.CGEventCreate.return_value = current_event
+    quartz.CGEventGetLocation.return_value = (123, 456)
+    with patch(f"{MODULE}._load_quartz", return_value=quartz):
+        cu_macos._mouse_button_macos(button, down)
+    quartz.CGEventGetLocation.assert_called_once_with(current_event)
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (123, 456)
+    quartz.CGEventPost.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -398,9 +422,8 @@ class TestA3MacOSPrimitives:
     def test_mouse_button_uses_current_position(self, fake_quartz: _FakeQuartz) -> None:
         from tank_backend.tools import computer_use_macos as m
 
-        fake_quartz.CGEventCreate = MagicMock(
-            return_value=MagicMock(getLocation=MagicMock(return_value=(100, 200)))
-        )
+        fake_quartz.CGEventCreate = MagicMock(return_value=object())
+        fake_quartz.CGEventGetLocation = MagicMock(return_value=(100, 200))
         fake_quartz.CGEventCreateMouseEvent = MagicMock(side_effect=lambda s, t, p, b: (t, p, b))
         fake_quartz.kCGEventLeftMouseDown = 1
         fake_quartz.kCGEventLeftMouseUp = 2
@@ -522,6 +545,7 @@ class TestScreenshotZoomMacos:
             result = await tool.execute(region=[0, 0, 500, 1000])
 
         assert result.error is False
+        assert isinstance(result.content, list) and isinstance(result.content[0], TextBlock)
         assert "ZOOMED" in result.content[0].text
         # Cache stays FULL screen (point space) for click conversion.
         assert cu_macos._screen_point_size == (400, 200)

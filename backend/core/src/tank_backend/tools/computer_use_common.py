@@ -20,10 +20,11 @@ import asyncio
 import json
 from typing import Any, cast
 
-from .base import BaseTool
+from ..core.content import ContentBlocks, ImageBlock, TextBlock
+from .base import BaseTool, ToolInfo
 
 # Canonical spellings for keys that models write inconsistently.
-_KEY_SYNONYMS = {"return": "enter"}
+_KEY_SYNONYMS = {"return": "enter", "esc": "escape"}
 
 # The key vocabulary key_press advertises (A4). Modifiers combine with
 # '+'; single letters/digits are also valid (checked structurally).
@@ -70,6 +71,32 @@ COORDINATE_X_DESCRIPTION = (
     "accepted (its center is used)"
 )
 COORDINATE_Y_DESCRIPTION = "Y coordinate (0-1000 normalized)"
+
+
+def click_schema(info: ToolInfo) -> dict[str, Any]:
+    """Advertise point, array-in-x and bbox keyword forms on both platforms."""
+    properties: dict[str, Any] = {
+        p.name: {"type": p.type, "description": p.description}
+        for p in info.parameters
+    }
+    properties["x"] = {
+        "description": COORDINATE_X_DESCRIPTION,
+        "anyOf": [{"type": "integer"}, {
+            "type": "array", "items": {"type": "integer"},
+            "oneOf": [{"minItems": 2, "maxItems": 2}, {"minItems": 4, "maxItems": 4}],
+        }],
+    }
+    properties["bbox"].update(items={"type": "integer"}, minItems=4, maxItems=4)
+    return {
+        "type": "object", "properties": properties, "additionalProperties": False,
+        "oneOf": [
+            {"required": ["x", "y"], "properties": {"x": {"type": "integer"}},
+             "not": {"required": ["bbox"]}},
+            {"required": ["x"], "properties": {"x": {"type": "array"}},
+             "not": {"required": ["bbox"]}},
+            {"required": ["bbox"], "not": {"anyOf": [{"required": ["x"]}, {"required": ["y"]}]}},
+        ],
+    }
 
 
 def _as_part_list(raw: Any) -> str | None:
@@ -303,6 +330,8 @@ class ComputerBatchTool(BaseTool):
                 "faster than one action per turn. Stops at the first failure "
                 "and reports remaining steps as skipped. A screenshot of the "
                 "final state is captured automatically after the batch."
+                " launch_app must be called separately; screenshot is a "
+                "batch option, not an action."
             ),
             parameters=[
                 ToolParameter(
@@ -316,6 +345,9 @@ class ComputerBatchTool(BaseTool):
                         "hold_key(keys,duration_s), "
                         "drag(x1,y1,x2,y2), wait(delay_s). Coordinates use "
                         "the same 0-1000 normalized form as click."
+                        ' Example: [{"action":"click","x":500,"y":300},'
+                        '{"action":"type_text","text":"hello"},'
+                        '{"action":"key_press","keys":"enter"}].'
                     ),
                 ),
                 ToolParameter(
@@ -388,24 +420,26 @@ class ComputerBatchTool(BaseTool):
                 break
 
         shot_text = ""
+        images: ContentBlocks = []
         if screenshot and "screenshot" in self._tools:
             shot = await self._tools["screenshot"].execute(task="batch result")
             if isinstance(shot, ToolResult) and isinstance(shot.content, list):
                 for block in shot.content:
-                    text = getattr(block, "text", "")
-                    if text:
-                        shot_text = text
-                        break
+                    if isinstance(block, TextBlock):
+                        shot_text = block.text
+                    elif isinstance(block, ImageBlock):
+                        images.append(block)
 
         ok = failed_at is None
         suffix = f" (failed at {failed_at})" if failed_at is not None else ""
-        return ToolResult(
-            content=json_mod.dumps({
+        text = json_mod.dumps({
                 "steps": steps,
                 "failed_at": failed_at,
                 "skipped": skipped,
                 "screenshot": shot_text,
-            }, ensure_ascii=False),
+            }, ensure_ascii=False)
+        return ToolResult(
+            content=[TextBlock(text=text), *images] if images else text,
             display=f"Batch: {len(steps)} steps{suffix}",
             error=not ok,
         )
