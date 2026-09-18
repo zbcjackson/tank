@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import re
 import time
 import uuid
 from typing import Any
@@ -119,7 +120,6 @@ class Callbacks:
             )
         self.steps += 1
         count = len(item.get("_batch_actions") or [])
-        self.primitives += count
         metadata = {
             "name": item.get("name"),
             "tool_call_id": item.get("call_id"),
@@ -146,9 +146,16 @@ class Callbacks:
                 )
             texts.append(str(value))
         text = "\n".join(texts)
+        completed = (
+            len(re.findall(r"^\[\d+:[^\]]+\]", text, re.MULTILINE))
+            if item.get("name") == "computer_batch"
+            else 0
+        )
+        self.primitives += completed
         metadata = {
             "name": item.get("name"),
             "tool_call_id": item.get("call_id"),
+            "completed_primitives": completed,
             "status": "error"
             if (
                 "[ERROR]" in text

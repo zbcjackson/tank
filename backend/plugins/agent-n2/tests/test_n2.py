@@ -70,6 +70,8 @@ async def test_loop_history_usage_and_multiple_results(executor, profile):
     outputs = [o async for o in agent.run(AgentState(messages=[{"role": "user", "content": "task"}]))]
     assert sum(o.type == AgentOutputType.USAGE for o in outputs) == 2
     assert outputs[-1].type == AgentOutputType.DONE
+    batch_result = next(o for o in outputs if o.type == AgentOutputType.TOOL_RESULT)
+    assert batch_result.metadata["completed_primitives"] == 1
     assert "max_tokens" not in requests[0] and "temperature" not in requests[0]
     assert requests[0]["extra_body"]["tool_set"] == TOOL_SET
     history = requests[1]["messages"]

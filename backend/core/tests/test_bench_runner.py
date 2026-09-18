@@ -274,6 +274,50 @@ async def test_steps_count_executed_calls_not_deltas():
     # No LLM call was made by the stub — latency fields stay at zero.
     assert result.llm_calls == 0
     assert result.llm_total_s == 0.0
+    assert result.primitives == 5
+
+
+async def test_driver_counts_completed_batch_members_and_non_gui_tools(tmp_path):
+    from unittest.mock import MagicMock
+
+    from tank_backend.agents.definition import AgentDefinition
+    from tank_backend.benchmarks.driver import SubAgentDriver
+
+    class Runner:
+        async def run_agent(self, *args, **kwargs):
+            yield AgentOutput(AgentOutputType.TOOL_EXECUTING, metadata={
+                "name": "computer_batch", "arguments": '{"actions":[{}, {}, {}]}',
+            })
+            yield AgentOutput(AgentOutputType.TOOL_RESULT, "Batch: 1 of 3 actions (failed at 1)",
+                              {"name": "computer_batch", "status": "error"})
+            yield AgentOutput(AgentOutputType.TOOL_EXECUTING, metadata={"name": "bash"})
+            yield AgentOutput(AgentOutputType.TOOL_RESULT, "ok",
+                              {"name": "bash", "status": "success"})
+
+    driver = SubAgentDriver(cast(Any, Runner()), AgentDefinition(name="stub", description="",
+                           system_prompt=""), CountingLLM(MagicMock()), MagicMock())
+    trace = TraceSink(tmp_path)
+    try:
+        result = await driver.run("task", trace, timeout_s=10, max_steps=15)
+    finally:
+        trace.close()
+    assert result.steps == 2 and result.primitives == 1
+    assert result.non_gui_tools == ("bash",)
+
+
+async def test_gui_trial_rejects_shell_even_when_validator_passes(tmp_path):
+    from tank_backend.benchmarks.runner import _run_trial
+    from tank_backend.benchmarks.task import BenchTask
+
+    class Driver:
+        async def run(self, instruction, trace, **kwargs):
+            assert "GUI" in instruction
+            return DriverResult("done", 1, 0.01, 5, 0, False, non_gui_tools=("bash",))
+
+    task = BenchTask("gui", "file", 1, ("linux",), "create file", "true", gui_only=True)
+    record = await _run_trial(Driver(), task, 1, tmp_path, {"BENCH_ASSETS_URL": ""})
+    assert not record.success and record.error == "GUI-only task attempted non-GUI tools: bash"
+    assert record.gui_only and record.non_gui_tools == ("bash",)
 
 
 class _LlmCallingRunner(_StubRunner):
@@ -319,7 +363,7 @@ async def test_driver_result_carries_llm_latency():
         ]
         trace.close()
     assert result.llm_calls == 2  # _FakeInnerLLM emits two USAGE round-trips
-    assert result.llm_ttft_s >= 0.0
+    assert result.llm_ttft_s is not None and result.llm_ttft_s >= 0.0
     assert result.llm_call_s > 0.0
     assert result.llm_total_s >= result.llm_call_s
     assert len(llm_events) == 2

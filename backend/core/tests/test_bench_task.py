@@ -91,6 +91,16 @@ validator:
     assert task.max_steps == 10
 
 
+def test_gui_only_defaults_and_override(tmp_path):
+    task = load_task(_write(tmp_path, VALID), "linux", defaults={"gui_only": True})
+    assert task.gui_only
+    task = load_task(_write(tmp_path, VALID + "\ngui_only: false\n"), "linux",
+                     defaults={"gui_only": True})
+    assert not task.gui_only
+    with pytest.raises(TaskError, match="gui_only must be a boolean"):
+        load_task(_write(tmp_path, VALID + "\ngui_only: yesplease\n"), "linux")
+
+
 # ── validation ───────────────────────────────────────────────────────
 
 

@@ -37,6 +37,7 @@ class BenchTask:
     timeout_s: int = 180
     max_steps: int = 30
     scoring: str = "strict"
+    gui_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -123,6 +124,10 @@ def load_task(
     if scoring not in {"strict", "smoke"}:
         raise TaskError(f"{where}: scoring must be strict or smoke")
 
+    gui_only = raw.get("gui_only", merged.get("gui_only", False))
+    if not isinstance(gui_only, bool):
+        raise TaskError(f"{where}: gui_only must be a boolean")
+
     return BenchTask(
         id=task_id,
         category=category,
@@ -135,6 +140,7 @@ def load_task(
         timeout_s=int(timeout_s),
         max_steps=int(max_steps),
         scoring=scoring,
+        gui_only=gui_only,
     )
 
 

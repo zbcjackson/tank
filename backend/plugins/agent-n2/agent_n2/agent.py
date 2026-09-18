@@ -45,6 +45,7 @@ class N2Agent(Agent):
         self.tool_set = tool_set
         self._client = client
         self._known_files: set[str] = set()
+        self._batch_completed = 0
 
     async def run(self, state: AgentState) -> AsyncIterator[AgentOutput]:
         logger.info("N2 starting: profile=%s model=%s", self.profile.name, self.profile.model)
@@ -105,7 +106,10 @@ class N2Agent(Agent):
                         text, png = f"ERROR: {error}", None
                     history.append(tool_result(call.id, text, png))
                     yield AgentOutput(AgentOutputType.TOOL_RESULT, text,
-                                      {**metadata, "status": "error" if text.startswith("ERROR:") else "success"})
+                                      {**metadata,
+                                       "completed_primitives": self._batch_completed
+                                       if call.function.name == "computer_batch" else 0,
+                                       "status": "error" if text.startswith("ERROR:") else "success"})
             else:
                 yield AgentOutput(AgentOutputType.TOKEN, "Stopped: n2 max_steps reached; task may be incomplete.")
             yield AgentOutput(AgentOutputType.DONE)
@@ -149,6 +153,7 @@ class N2Agent(Agent):
         raise ValueError(f"unknown n2 tool: {name}")
 
     async def _batch(self, actions: list[dict[str, Any]]) -> tuple[str, bytes]:
+        self._batch_completed = 0
         if not isinstance(actions, list) or not 1 <= len(actions) <= 20:
             raise ValueError("batch must contain 1-20 actions")
         completed = 0
@@ -190,6 +195,7 @@ class N2Agent(Agent):
                         if modifier:
                             await self.executor.key_up(key_name(modifier))
                     completed += 1
+                    self._batch_completed = completed
                 except Exception as error:
                     failure = f" Action {index} failed: {error}; skipped {len(actions)-index-1}."
                     break

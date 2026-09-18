@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import logging
+import re
 import time
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
@@ -37,6 +39,7 @@ from ..pipeline.bus import Bus
 from ..plugin.registry import ExtensionRegistry
 from ..policy.verdict import AlwaysApproveResolver
 from ..tools.base import BaseTool, ToolInfo, ToolMetadata, ToolResult
+from ..tools.computer_use_common import BATCH_ACTIONS
 from ..tools.manager import ToolManager
 from .trace import TraceSink
 
@@ -44,6 +47,7 @@ if TYPE_CHECKING:
     from ..llm.profile import LLMProfile
 
 logger = logging.getLogger(__name__)
+GUI_TOOLS = BATCH_ACTIONS | {"screenshot", "launch_app", "computer_batch"}
 
 
 @dataclass(frozen=True)
@@ -59,7 +63,7 @@ class DriverResult:
     # median time-to-first-token, median per-call total, and total
     # seconds spent in LLM calls.
     llm_calls: int = 0
-    llm_ttft_s: float = 0.0
+    llm_ttft_s: float | None = None
     llm_call_s: float = 0.0
     llm_total_s: float = 0.0
     llm_rtt_s: float = 0.0
@@ -68,6 +72,7 @@ class DriverResult:
     primitives: int = 0
     model_turns: int = 0
     unknown_calls: int = 0
+    non_gui_tools: tuple[str, ...] = ()
 
 
 class BenchmarkDriver(Protocol):
@@ -410,8 +415,18 @@ class SubAgentDriver:
             raw = config.subagents.get(definition.extension, {})
             summary = {k: raw[k] for k in ("model", "tool_set", "reasoning_effort", "max_steps",
                                           "environment") if k in raw}
+        elif definition.engine and config is not None:
+            raw = config.get_section("agent_engines").get(definition.engine, {})
+            summary = {k: raw[k] for k in ("tool_set", "reasoning_effort", "max_steps") if k in raw}
+            profile_name = raw.get("llm_profile", definition.engine.split(":", 1)[0])
+            profile = config.llm_profiles.get(profile_name)
+            if profile is not None:
+                summary.update(model=profile.model, llm_profile=profile_name)
+        else:
+            summary = {"model": self._llm.model}
         return {"agent_name": definition.name, "engine": definition.engine,
                 "extension": definition.extension, "config": summary,
+                "prompt_revision": hashlib.sha256(definition.system_prompt.encode()).hexdigest(),
                 **self._runtime_metadata,
                 "token_budget": definition.token_budget}
 
@@ -422,7 +437,9 @@ class SubAgentDriver:
         self._llm.reset()
         # Per-call latency lands in the trace next to the actions it delays.
         self._llm.on_call = lambda call, ttft, total: trace.event(
-            "llm_call", call=call, ttft_s=ttft, total_s=total
+            "llm_call", call=call,
+            ttft_s=None if self._agent_def.engine or self._agent_def.extension else ttft,
+            total_s=total,
         )
         messages: list[dict[str, Any]] = [{"role": "user", "content": instruction}]
         steps = 0
@@ -431,6 +448,8 @@ class SubAgentDriver:
         terminal: dict[str, Any] = {}
         rtts: list[float] = []
         unknown_calls = 0
+        primitives = 0
+        non_gui_tools: set[str] = set()
 
         class Observer:
             def on_event(_self, kind: str, metadata: dict[str, Any]) -> None:
@@ -455,7 +474,7 @@ class SubAgentDriver:
                     trace.event(kind, **metadata)
 
         async def consume() -> None:
-            nonlocal steps, stopped_reason
+            nonlocal steps, stopped_reason, primitives
             run_kwargs: dict[str, Any] = {}
             if self._agent_def.extension:
                 permissions = self._runner.extension_permissions(self._agent_def)
@@ -471,6 +490,19 @@ class SubAgentDriver:
                             stopped_reason = f"max_steps({max_steps}) reached"
                             break
                         steps += 1
+                        name = str(output.metadata.get("name", ""))
+                        if name not in GUI_TOOLS:
+                            non_gui_tools.add(name)
+                    elif output.type == AgentOutputType.TOOL_RESULT:
+                        name = output.metadata.get("name")
+                        if name == "computer_batch":
+                            completed = output.metadata.get("completed_primitives")
+                            if completed is None:
+                                match = re.match(r"Batch: (\d+) of \d+ actions", output.content)
+                                completed = int(match[1]) if match else 0
+                            primitives += int(completed)
+                        elif name in GUI_TOOLS and output.metadata.get("status") == "success":
+                            primitives += 1
                     elif output.type == AgentOutputType.TOKEN and output.content:
                         token_parts.append(output.content)
                     if output.type == AgentOutputType.DONE:
@@ -512,7 +544,9 @@ class SubAgentDriver:
         ttfts = [t for t, _ in call_stats]
         totals = [t for _, t in call_stats]
         llm_calls = len(call_stats)
-        llm_ttft_s = median(ttfts) if ttfts else 0.0
+        llm_ttft_s = (median(ttfts) if ttfts else None) if not (
+            self._agent_def.engine or self._agent_def.extension
+        ) else None
         llm_call_s = median(totals) if totals else 0.0
         llm_total_s = sum(totals)
         trace.event(
@@ -545,6 +579,7 @@ class SubAgentDriver:
             llm_total_s=llm_total_s,
             llm_rtt_s=median(rtts) if rtts else (llm_call_s if self._agent_def.engine else 0.0),
             stop_reason=terminal.get("stop_reason"), cleanup=terminal.get("cleanup", "unknown"),
-            primitives=int(terminal.get("primitives", 0)),
-            model_turns=int(terminal.get("model_turns", 0)), unknown_calls=unknown_calls,
+            primitives=primitives,
+            model_turns=int(terminal.get("model_turns", llm_calls)), unknown_calls=unknown_calls,
+            non_gui_tools=tuple(sorted(non_gui_tools)),
         )

@@ -131,3 +131,27 @@ def test_smoke_tasks_excluded_from_strict_success_rate():
     report = aggregate([_record("strict", False), replace(_record("smoke", True), scoring="smoke")])
     assert report.total_trials == 1 and report.success_rate == 0
     assert report.smoke_trials == 1 and report.smoke_successes == 1
+
+
+def test_nonstream_ttft_is_null_and_markdown_na(tmp_path):
+    from dataclasses import replace
+
+    report = aggregate([replace(_record("n2", True), llm_ttft_s=None, llm_rtt_s=4.2,
+                                primitives=7, model_turns=3, tool_call_limit=15)])
+    assert report.llm_ttft_s is None
+    assert report.tasks["n2"].medians["llm_ttft_s"] is None
+    write_markdown_report(report, tmp_path / "report.md", title="test", label="n2")
+    text = (tmp_path / "report.md").read_text()
+    assert "N/A" in text and "4.2" in text
+    assert "actions (med)" in text and "turns (med)" in text and "call limit" in text
+    write_json_report(report, tmp_path / "report.json", label="n2")
+    data = json.loads((tmp_path / "report.json").read_text())
+    assert data["overall"]["llm"]["ttft_s_median"] is None
+
+
+def test_mixed_latency_aggregates_only_streamed_ttft():
+    from dataclasses import replace
+
+    report = aggregate([_record("a", True), replace(_record("a", False), llm_ttft_s=None)])
+    assert report.llm_ttft_s == 2.0
+    assert report.tasks["a"].medians["llm_ttft_s"] == 2.0

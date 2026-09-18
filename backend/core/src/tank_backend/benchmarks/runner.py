@@ -15,7 +15,14 @@ from typing import Protocol
 from .driver import BenchmarkDriver, DriverResult
 from .ime import pin_ascii_input_source, restore_saved_input_source, save_current_input_source
 from .pageserver import LocalPageServer
-from .report import SuiteReport, TrialRecord, aggregate, write_json_report, write_markdown_report
+from .report import (
+    SCORING_REVISION,
+    SuiteReport,
+    TrialRecord,
+    aggregate,
+    write_json_report,
+    write_markdown_report,
+)
 from .shell import ShellError, run_shell
 from .task import BenchTask, load_suite, load_suite_tasks
 from .trace import TraceSink
@@ -110,7 +117,7 @@ async def run_suite(
                 task_records.append(record)
                 logger.info(
                     "task=%s trial=%d success=%s steps=%d wall=%.1fs "
-                    "llm=%dcalls ttft=%.1fs/call=%.1fs total=%.1fs",
+                    "llm=%dcalls streamed_ttft=%s/call=%.1fs total=%.1fs",
                     task.id, trial, record.success, record.steps, record.wall_s,
                     record.llm_calls, record.llm_ttft_s, record.llm_call_s,
                     record.llm_total_s,
@@ -142,11 +149,13 @@ async def run_suite(
         task_hash.update(path.read_bytes())
     report = replace(aggregate(records), metadata={
         **driver_metadata, "platform": platform, "git_revision": revision.stdout.strip(),
-        "task_revision": task_hash.hexdigest(), "scoring_revision": "trial-token-v2",
+        "task_revision": task_hash.hexdigest(), "scoring_revision": SCORING_REVISION,
         "aborted_cleanup": aborted,
         "outcomes": [{"task": r.task_id, "trial": r.trial, "stop_reason": r.stop_reason,
                       "cleanup": r.cleanup, "scoring": r.scoring, "success": r.success,
                       "unknown_calls": r.unknown_calls} for r in records],
+        "limits": [{"task": t.id, "tool_call_limit": t.max_steps,
+                    "timeout_s": t.timeout_s, "gui_only": t.gui_only} for t in tasks],
     })
     write_markdown_report(
         report,
@@ -169,8 +178,13 @@ async def _run_trial(
     trial_dir = out_dir / "trials" / task.id / str(trial)
     trace = TraceSink(trial_dir)
     instruction = task.instruction.replace("${BENCH_ASSETS_URL}", bench_env["BENCH_ASSETS_URL"])
+    if task.gui_only:
+        instruction += (
+            "\n本任务仅允许 GUI 工具操作；"
+            "不得调用 shell 或文件工具读取答案或完成任务。\n"
+        )
     trace.event("trial_start", task=task.id, trial=trial, instruction=instruction,
-                scoring_revision="trial-token-v2", scoring=task.scoring)
+                scoring_revision=SCORING_REVISION, scoring=task.scoring, gui_only=task.gui_only)
     trial_started = time.monotonic()
 
     error: str | None = None
@@ -209,6 +223,10 @@ async def _run_trial(
             success = False
             error = error or "validator failed"
             trace.event("validator_failed", detail=str(e)[:2000])
+        if task.gui_only and result.non_gui_tools:
+            success = False
+            error = "GUI-only task attempted non-GUI tools: " + ", ".join(result.non_gui_tools)
+            trace.event("execution_path_failed", tools=result.non_gui_tools)
     except ShellError as e:
         success = False
         error = f"setup failed: {e}"
@@ -248,8 +266,10 @@ async def _run_trial(
         primitives=result.primitives if result else 0,
         model_turns=result.model_turns if result else 0,
         unknown_calls=result.unknown_calls if result else 0,
+        tool_call_limit=task.max_steps, gui_only=task.gui_only,
+        non_gui_tools=result.non_gui_tools if result else (),
         llm_calls=result.llm_calls if result else 0,
-        llm_ttft_s=result.llm_ttft_s if result else 0.0,
+        llm_ttft_s=result.llm_ttft_s if result else None,
         llm_call_s=result.llm_call_s if result else 0.0,
         llm_total_s=result.llm_total_s if result else 0.0,
     )

@@ -1,4 +1,5 @@
 id: open-settings
+gui_only: false
 category: settings
 difficulty: 1
 platforms: [macos, linux]

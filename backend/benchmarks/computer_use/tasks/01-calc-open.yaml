@@ -1,4 +1,5 @@
 id: calc-open
+gui_only: false
 category: app
 difficulty: 1
 platforms: [macos, linux]

@@ -28,6 +28,7 @@ agent: computer_use
 assets: assets
 server_port: 8901
 defaults:
+  gui_only: true
   trials: 3
   timeout_s: 180
   # max_steps is the fast-fail knob: a wandering agent (misclicks and

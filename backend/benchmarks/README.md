@@ -5,7 +5,8 @@
 ## 测什么 / 不测什么
 
 **测**：一个子代理（定义提示词 × 模型 profile × 工具集）在真实桌面/文件系统上完成任务的
-成功率、步数、耗时、token、截图数。首个套件 `computer_use`（桌面 GUI 任务）。
+成功率、工具调用数、完成的动作数、模型轮次、耗时、token、截图数。
+首个套件 `computer_use`（桌面 GUI 任务）。
 
 **不测**（刻意绕开，是 A/B 对比中的恒定量）：WorkerSupervisor 调度/持久化/回注、审批 UI、
 ASR/TTS/语音链路。驱动器直连 `AgentRunner.run_agent`（见 `tank_backend/benchmarks/driver.py`）。
@@ -107,3 +108,21 @@ see only their trial's BENCH_CAPTURE. Process-only calculator/settings validator
 are smoke tasks, excluded from the strict score; file validators verify complete
 contents/copies. Historical reports cannot be compared as equivalent scoring.
 Re-run computer_use and n2 baselines on the same dedicated desktop before A/B.
+
+Current scoring revision `trial-token-gui-v3` retains that isolation and also
+checks execution paths. The computer_use suite defaults to `gui_only: true`;
+strict trials that attempt tools other than desktop actions, screenshot,
+launch_app or computer_batch fail even if their side-effect validator passes.
+The two smoke tasks opt out. Agents receive the GUI requirement in the task;
+shell/file tools remain available to normal Tank tasks. This is a scoring check,
+not a shell sandbox: attempted non-GUI calls are recorded in result.json.
+
+`steps` counts tool calls; `primitives` counts confirmed completed GUI members
+(including explicit wait/screenshot, excluding automatic post-batch captures).
+Failed/skipped members are excluded. Actions cancelled without a result cannot
+be confirmed. `model_turns` counts actor model rounds; SDK compaction/retry API
+calls are separately included in `llm_calls`. Reports show the effective per-task
+tool-call limit (currently 15), independently of the SDK's model-turn limit 100.
+Non-streaming TTFT is null in JSON and N/A in Markdown; use RTT for those calls.
+Run metadata includes the model/config, prompt hash, task hash, git revision and
+effective limits. Old scores and latency fields must not be treated as equivalent.

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 _Z_95 = 1.96
+SCORING_REVISION = "trial-token-gui-v3"
 
 
 def wilson_interval(successes: int, trials: int) -> tuple[float, float]:
@@ -40,7 +41,7 @@ class TrialRecord:
     timed_out: bool
     # LLM latency (see DriverResult); defaults keep older constructors valid.
     llm_calls: int = 0
-    llm_ttft_s: float = 0.0
+    llm_ttft_s: float | None = None
     llm_call_s: float = 0.0
     llm_total_s: float = 0.0
     scoring: str = "strict"
@@ -50,6 +51,9 @@ class TrialRecord:
     primitives: int = 0
     model_turns: int = 0
     unknown_calls: int = 0
+    tool_call_limit: int = 0
+    gui_only: bool = False
+    non_gui_tools: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -59,7 +63,7 @@ class TaskStats:
     success_rate: float
     ci_lo: float
     ci_hi: float
-    medians: dict[str, float]
+    medians: dict[str, float | None]
 
 
 @dataclass(frozen=True)
@@ -74,7 +78,7 @@ class SuiteReport:
     # trials, median ttft of trial medians, total-weighted mean per call,
     # and total seconds spent in LLM calls.
     llm_calls_total: int = 0
-    llm_ttft_s: float = 0.0
+    llm_ttft_s: float | None = None
     llm_call_s_mean: float = 0.0
     llm_total_s: float = 0.0
     smoke_trials: int = 0
@@ -82,9 +86,9 @@ class SuiteReport:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
-def _median(records: list[TrialRecord], key: str) -> float:
-    values = [float(getattr(r, key)) for r in records]
-    return statistics.median(values) if values else 0.0
+def _median(records: list[TrialRecord], key: str) -> float | None:
+    values = [float(value) for r in records if (value := getattr(r, key)) is not None]
+    return statistics.median(values) if values else None
 
 
 def aggregate(records: list[TrialRecord]) -> SuiteReport:
@@ -110,6 +114,7 @@ def aggregate(records: list[TrialRecord]) -> SuiteReport:
                 for k in (
                     "steps", "wall_s", "tokens", "screenshots",
                     "llm_calls", "llm_ttft_s", "llm_call_s", "llm_total_s", "llm_rtt_s",
+                    "primitives", "model_turns", "tool_call_limit",
                 )
             },
         )
@@ -129,7 +134,7 @@ def aggregate(records: list[TrialRecord]) -> SuiteReport:
         ci_hi=hi,
         tasks=task_stats,
         llm_calls_total=llm_calls_total,
-        llm_ttft_s=statistics.median([r.llm_ttft_s for r in records]) if records else 0.0,
+        llm_ttft_s=_median(records, "llm_ttft_s"),
         llm_call_s_mean=(llm_total_s / llm_calls_total) if llm_calls_total else 0.0,
         llm_total_s=llm_total_s,
     )
@@ -139,6 +144,10 @@ def _fmt_pct(x: float) -> str:
     return f"{x * 100:.0f}%"
 
 
+def _fmt_ttft(value: float | None) -> str:
+    return "N/A" if value is None else f"{value:.1f}"
+
+
 def write_markdown_report(
     report: SuiteReport, out: Path, *, title: str, label: str
 ) -> None:
@@ -146,21 +155,24 @@ def write_markdown_report(
         f"# {title}",
         "",
         f"- Run label: `{label}`",
-        "- Scoring: trial-token-v2 (historical reports use a different scoring revision)",
+        f"- Scoring: {SCORING_REVISION} (historical reports use a different scoring revision)",
         f"- Smoke (excluded from strict score): {report.smoke_successes}/{report.smoke_trials}",
         f"- Overall: **{report.successes}/{report.total_trials}** "
         f"({_fmt_pct(report.success_rate)}, 95% CI "
         f"{_fmt_pct(report.ci_lo)}–{_fmt_pct(report.ci_hi)})",
         "",
-        "| task | pass | rate | 95% CI | steps (med) | wall s (med) | tokens (med) | shots (med) |",
-        "|---|---|---|---|---|---|---|---|",
+        "| task | pass | rate | 95% CI | tool calls (med) | actions (med) | turns (med) | "
+        "call limit | wall s (med) | tokens (med) | shots (med) |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for task_id in sorted(report.tasks):
         t = report.tasks[task_id]
         lines.append(
             f"| {task_id} | {t.successes}/{t.trials} | {_fmt_pct(t.success_rate)} "
             f"| {_fmt_pct(t.ci_lo)}–{_fmt_pct(t.ci_hi)} "
-            f"| {t.medians['steps']:.0f} | {t.medians['wall_s']:.0f} "
+            f"| {t.medians['steps']:.0f} | {t.medians['primitives']:.0f} "
+            f"| {t.medians['model_turns']:.0f} | {t.medians['tool_call_limit']:.0f} "
+            f"| {t.medians['wall_s']:.0f} "
             f"| {t.medians['tokens']:.0f} | {t.medians['screenshots']:.0f} |"
         )
 
@@ -176,14 +188,14 @@ def write_markdown_report(
         t = report.tasks[task_id]
         lines.append(
             f"| {task_id} | {t.medians['llm_calls']:.0f} "
-            f"| {t.medians['llm_ttft_s']:.1f} | {t.medians['llm_call_s']:.1f} "
+            f"| {_fmt_ttft(t.medians['llm_ttft_s'])} | {t.medians['llm_call_s']:.1f} "
             f"| {t.medians['llm_total_s']:.0f} | {t.medians.get('llm_rtt_s', 0.0):.1f} |"
         )
     lines += [
         "",
         f"- API calls total: {report.llm_calls_total}, "
         f"mean {report.llm_call_s_mean:.1f}s/call, "
-        f"median ttft {report.llm_ttft_s:.1f}s, "
+        f"median streamed ttft {_fmt_ttft(report.llm_ttft_s)}, "
         f"LLM time total {report.llm_total_s:.0f}s",
     ]
     if report.metadata:
@@ -195,7 +207,7 @@ def write_markdown_report(
 def write_json_report(report: SuiteReport, out: Path, *, label: str) -> None:
     payload = {
         "label": label,
-        "scoring_revision": "trial-token-v2",
+        "scoring_revision": SCORING_REVISION,
         "metadata": report.metadata,
         "smoke": {"trials": report.smoke_trials, "successes": report.smoke_successes},
         "overall": {

@@ -78,6 +78,7 @@ async def test_fail_fast_records_skipped():
     assert data["steps"][0]["status"] == "error"
     assert data["skipped"] == ["type_text"]
     assert calls == [("click", {"x": 1})]
+    assert result.display == "Batch: 0 of 2 actions (failed at 0)"
 
 
 async def test_wait_action_and_clamp(monkeypatch):

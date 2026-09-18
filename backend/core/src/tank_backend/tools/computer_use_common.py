@@ -431,6 +431,7 @@ class ComputerBatchTool(BaseTool):
                         images.append(block)
 
         ok = failed_at is None
+        completed = len(steps) - (1 if failed_at is not None else 0)
         suffix = f" (failed at {failed_at})" if failed_at is not None else ""
         text = json_mod.dumps({
                 "steps": steps,
@@ -440,6 +441,6 @@ class ComputerBatchTool(BaseTool):
             }, ensure_ascii=False)
         return ToolResult(
             content=[TextBlock(text=text), *images] if images else text,
-            display=f"Batch: {len(steps)} steps{suffix}",
+            display=f"Batch: {completed} of {len(actions)} actions{suffix}",
             error=not ok,
         )

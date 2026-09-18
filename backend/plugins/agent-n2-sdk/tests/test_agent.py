@@ -164,6 +164,8 @@ async def test_real_macos_adapter_through_sdk_without_host_input():
     )
     results = [o for o in outputs if o.type == AgentOutputType.TOOL_RESULT]
     assert len(results) == 1 and results[0].metadata["status"] == "success"
+    assert results[0].metadata["completed_primitives"] == 5
+    assert outputs[-1].metadata["primitives"] == 5
     names = [c.args[0] for c in transport.call_tool.await_args_list]
     assert all(name in names for name in ["click", "hotkey", "type_text", "move_cursor", "drag"])
     click = next(c.args[1] for c in transport.call_tool.await_args_list if c.args[0] == "click")
@@ -264,6 +266,20 @@ async def test_batch_first_error_skips_remaining_action():
         o.type == AgentOutputType.TOOL_RESULT and o.metadata["status"] == "error"
         for o in outputs
     )
+    assert outputs[-1].metadata["primitives"] == 0
+
+
+async def test_shell_output_cannot_inflate_gui_action_count():
+    from agent_n2_sdk.callbacks import Callbacks
+
+    queue = asyncio.Queue()
+    callbacks = Callbacks(queue, context())
+    await callbacks.on_computer_call_end(
+        {"name": "bash", "call_id": "shell"},
+        [{"output": "[0:left_click] arbitrary shell output"}],
+    )
+    assert callbacks.primitives == 0
+    assert (await queue.get()).metadata["completed_primitives"] == 0
 
 
 @pytest.mark.parametrize(
@@ -487,6 +503,7 @@ async def test_benchmark_create_and_observer_use_sdk_without_executor(
     trace.close()
     assert result.stop_reason == "final_answer" and result.cleanup == "confirmed"
     assert result.tokens == 14 and result.llm_calls == 2 and result.screenshots == 1
-    assert result.llm_ttft_s == 0 and result.llm_rtt_s > 0
+    assert result.llm_ttft_s is None and result.llm_rtt_s > 0
+    assert result.primitives == 1 and result.model_turns == 2
     assert "secret-do-not-report" not in json.dumps(driver.describe())
     assert driver.describe()["display"] == {"width": 100, "height": 100}
