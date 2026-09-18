@@ -8,8 +8,12 @@ Quartz-backed helpers directly. A fake ``Quartz`` module is injected into
 
 from __future__ import annotations
 
+import base64
 import io
+import subprocess
 import sys
+from collections.abc import Iterator
+from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, patch
 
@@ -560,3 +564,224 @@ class TestScreenshotZoomMacos:
             result = await tool.execute(region="not-a-region")
         assert result.error is True
         assert "region" in result.content
+
+
+@pytest.fixture
+def capture_chain(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[tuple[MagicMock, MagicMock]]:
+    """Only OS boundaries are fake; capture, transport and click code stay real.
+
+    The sips substitute performs a real Pillow resize. This verifies Tank's
+    command contract, not the installed macOS sips or physical event delivery.
+    """
+    from PIL import Image, ImageDraw
+
+    width, height, scale, fail_resize = getattr(request, "param", (1920, 1080, 2, False))
+    quartz = MagicMock()
+    quartz.CGDisplayModeGetPixelWidth.return_value = width * scale
+    quartz.CGDisplayModeGetWidth.return_value = width
+    quartz.CGDisplayModeGetHeight.return_value = height
+    quartz.CGPointMake.side_effect = lambda x, y: (x, y)
+    paths: list[Path] = []
+
+    def run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        path = Path(args[-1])
+        if args[0] == "screencapture":
+            paths.append(path)
+            img = Image.new("RGB", (width * scale, height * scale), "black")
+            # Known target in the lower-right quadrant, away from crop edges.
+            ImageDraw.Draw(img).rectangle(
+                (width * scale * 0.7, height * scale * 0.7,
+                 width * scale * 0.8, height * scale * 0.8), fill="red",
+            )
+            img.save(path)
+        elif args[0] == "sips":
+            assert args[1] == "--resampleWidth"
+            if fail_resize:
+                return subprocess.CompletedProcess(args, 1, "", "simulated resize failure")
+            with Image.open(path) as img:
+                new_width = int(args[2])
+                resized = img.resize((new_width, round(img.height * new_width / img.width)))
+            resized.save(path)
+        else:
+            raise AssertionError(f"Unexpected host command: {args[0]}")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    command = MagicMock(side_effect=run)
+    monkeypatch.setattr(cu_macos, "_load_quartz", lambda: quartz)
+    monkeypatch.setattr(cu_macos.subprocess, "run", command)
+    yield quartz, command
+    assert all(not path.exists() for path in paths), "capture temp files must be removed"
+
+
+def screenshot_wire_image(result: object) -> tuple[bytes, str]:
+    """Use the actual tool-result/follow-up serializer, not the UI display."""
+    from tank_backend.llm.llm import _build_follow_up_user_message, _tool_result_to_llm
+
+    _, _, blocks = _tool_result_to_llm(result)
+    message = _build_follow_up_user_message("capture-id", "screenshot", blocks)
+    parts = message["content"]
+    wire = next(part["image_url"] for part in parts if part["type"] == "image_url")
+    image_block = next(block for block in blocks if isinstance(block, ImageBlock))
+    assert wire["url"] == image_block.source
+    assert wire["detail"] == "auto"
+    assert wire["url"].startswith("data:image/png;base64,")
+    return base64.b64decode(wire["url"].split(",", 1)[1]), "\n".join(
+        part["text"] for part in parts if part["type"] == "text"
+    )
+
+
+@pytest.mark.parametrize("capture_chain", [
+    (1920, 1080, 1, False), (1920, 1080, 2, False), (1512, 982, 2, False),
+], indirect=True)
+async def test_capture_to_wire_to_quartz_preserves_coordinate_space(capture_chain):
+    from PIL import Image
+
+    quartz, command = capture_chain
+    result = await ScreenshotTool().execute()
+    assert not result.error
+    png, note = screenshot_wire_image(result)
+    with Image.open(io.BytesIO(png)) as img:
+        width, height = img.size
+        assert width == quartz.CGDisplayModeGetWidth.return_value
+        assert height == quartz.CGDisplayModeGetHeight.return_value
+        assert img.getpixel((round(width * 0.75), round(height * 0.75))) == (255, 0, 0)
+    assert "0-1000" in note
+    assert cu_macos._screen_point_size == (width, height)
+    result = await ClickTool().execute(x=750, y=750)
+    assert not result.error
+    point = (int(width * 0.75), int(height * 0.75))
+    events = quartz.CGEventCreateMouseEvent.call_args_list
+    assert [call.args[2] for call in events] == [point, point]
+    assert [call.args[1] for call in events] == [
+        quartz.kCGEventLeftMouseDown, quartz.kCGEventLeftMouseUp,
+    ]
+    assert quartz.CGEventPost.call_count == 2
+    needs_resize = quartz.CGDisplayModeGetPixelWidth() > width
+    assert [call.args[0][0] for call in command.call_args_list] == (
+        ["screencapture", "sips"] if needs_resize else ["screencapture"]
+    )
+
+
+@pytest.mark.parametrize("capture_chain", [(1920, 1080, 2, True)], indirect=True)
+@pytest.mark.parametrize("use_executor", [False, True])
+async def test_known_resize_failure_uses_retina_pixels_as_points(capture_chain, use_executor):
+    """Characterize the existing defect; passing does NOT mean safe fallback.
+
+    When fixed, replace the doubled-position assertion with the logical
+    center (960, 540), or assert an explicit screenshot failure.
+    """
+    from tank_backend.computer.executor import _MacOSExecutor
+
+    quartz, _ = capture_chain
+    if use_executor:
+        executor = _MacOSExecutor()
+        shot = await executor.screenshot()
+        assert (shot.width, shot.height) == (3840, 2160)
+        await executor.click(500, 500)
+    else:
+        result = await ScreenshotTool().execute()
+        assert not result.error  # Raw Retina fallback is reported as success.
+        assert cu_macos._screen_point_size == (3840, 2160)
+        await ClickTool().execute(x=500, y=500)
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1920, 1080)
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] != (960, 540)
+
+
+async def test_zoom_wire_pixels_and_full_screen_click_mapping(capture_chain):
+    from PIL import Image
+
+    quartz, _ = capture_chain
+    result = await ScreenshotTool().execute(region=[500, 500, 1000, 1000])
+    png, note = screenshot_wire_image(result)
+    # Crop: 960x540 at origin (960,540); upscale 2x to 1920x1080.
+    with Image.open(io.BytesIO(png)) as img:
+        assert img.size == (1920, 1080)
+        assert img.getpixel((960, 540)) == (255, 0, 0)
+        assert img.getpixel((1440, 810)) == (0, 0, 0)
+    assert "full_x = 500 + (1000-500) * crop_x / 1000" in note
+    assert "full_y = 500 + (1000-500) * crop_y / 1000" in note
+    assert cu_macos._screen_point_size == (1920, 1080)
+    # Correct model-side conversion of crop center -> full-screen (750,750).
+    await ClickTool().execute(x=750, y=750)
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1440, 810)
+    # Current tools do NOT automatically convert crop-relative input.
+    await ClickTool().execute(x=500, y=500)
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (960, 540)
+
+
+async def test_small_crop_caps_zoom_at_three_without_changing_click_space(capture_chain):
+    from PIL import Image
+
+    quartz, _ = capture_chain
+    result = await ScreenshotTool().execute(region=[700, 700, 800, 800])
+    png, _ = screenshot_wire_image(result)
+    with Image.open(io.BytesIO(png)) as img:
+        # 192x108 crop is capped at 3x, rather than enlarged 10x to full size.
+        assert img.size == (576, 324)
+        assert img.getpixel((288, 162)) == (255, 0, 0)
+    assert cu_macos._screen_point_size == (1920, 1080)
+    await ClickTool().execute(x=750, y=750)
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1440, 810)
+
+
+@pytest.mark.parametrize(("kwargs", "expected"), [
+    ({"x": "690", "y": 288}, (1324, 311)),
+    ({"bbox": [700, 700, 800, 800]}, (1440, 810)),
+    ({"x": 1030, "y": 403}, (1920, 435)),
+    ({"x": 0, "y": 0}, (0, 0)),
+    ({"x": 1000, "y": 1000}, (1920, 1080)),
+])
+async def test_model_arguments_reach_quartz_after_real_capture(capture_chain, kwargs, expected):
+    quartz, _ = capture_chain
+    await ScreenshotTool().execute()
+    result = await ClickTool().execute(**kwargs)
+    assert not result.error
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == expected
+
+
+async def test_batch_replays_calculator_miss_and_returns_wire_screenshot(capture_chain):
+    """Replay 20260918-082609/calc-open/1 trace lines 134/182.
+
+    Bounds are manually measured from shot_001.png, not model predictions.
+    This proves execution of supplied wrong coordinates, not model accuracy.
+    """
+    from PIL import Image
+
+    from tank_backend.tools.computer_use_common import ComputerBatchTool
+
+    quartz, _ = capture_chain
+    screenshot = ScreenshotTool()
+    click = ClickTool()
+    await screenshot.execute()
+    await click.execute(x="690", y=288)
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1324, 311)
+    result = await ComputerBatchTool({"click": click, "screenshot": screenshot}).execute(
+        actions=[
+            {"action": "click", "x": 643, "y": 323},
+            {"action": "click", "x": 785, "y": 323},
+            {"action": "click", "x": 685, "y": 323},
+            {"action": "click", "x": 775, "y": 433},
+        ],
+    )
+    assert not result.error
+    points = [call.args[2] for call in quartz.CGEventCreateMouseEvent.call_args_list[::2]]
+    assert points == [(1324, 311), (1234, 348), (1507, 348), (1315, 348), (1488, 467)]
+    assert all(x > 1192 for x, _ in points)  # Right of the entire calculator window.
+    png, _ = screenshot_wire_image(result)
+    with Image.open(io.BytesIO(png)) as img:
+        assert img.size == (1920, 1080)
+
+
+async def test_executor_and_tool_have_different_edge_rounding(capture_chain):
+    from tank_backend.computer.executor import _MacOSExecutor
+
+    quartz, _ = capture_chain
+    await ScreenshotTool().execute()
+    await ClickTool().execute(x=1000, y=1000)
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1920, 1080)
+    executor = _MacOSExecutor()
+    await executor.screenshot()
+    await executor.click(1000, 1000)
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1919, 1079)
