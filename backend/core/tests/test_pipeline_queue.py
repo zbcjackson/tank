@@ -1,6 +1,7 @@
 """Tests for ThreadedQueue."""
 
 import asyncio
+import sys
 import threading
 import time
 
@@ -40,6 +41,31 @@ class GatedProcessor(Processor):
 
 
 class TestThreadedQueue:
+    @pytest.mark.asyncio
+    async def test_idle_queue_allows_background_screenshot_response(self):
+        """An idle Brain queue must not stall a background SDK's image pipe."""
+        q = ThreadedQueue(name="brain")
+        q.link(CollectorProcessor("collector"))
+        size = 1_329_092
+        child = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-c",
+            f"import sys; sys.stdout.write('x' * {size} + '\\n'); sys.stdout.flush()",
+            stdout=asyncio.subprocess.PIPE,
+            limit=32 * 1024 * 1024,
+        )
+        assert child.stdout is not None
+        consumer = asyncio.create_task(q._async_consumer())
+        try:
+            frame = await asyncio.wait_for(child.stdout.readline(), timeout=1)
+            assert len(frame) == size + 1
+        finally:
+            q._stop_event.set()
+            await consumer
+            if child.returncode is None:
+                child.terminate()
+            await child.wait()
+
     def test_queue_init(self):
         """ThreadedQueue should initialize with name and maxsize."""
         q = ThreadedQueue(name="test_q", maxsize=5)

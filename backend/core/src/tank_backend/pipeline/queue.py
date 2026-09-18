@@ -143,7 +143,9 @@ class ThreadedQueue:
 
         while not self._stop_event.is_set():
             try:
-                item = self._queue.get(timeout=0.1)
+                # Background agents share this loop after a turn returns.
+                # Keep the blocking queue wait off their subprocess I/O loop.
+                item = await asyncio.to_thread(self._queue.get, timeout=0.1)
             except queue.Empty:
                 await asyncio.sleep(0)
                 continue
