@@ -10,8 +10,8 @@ by BOTH platform backends:
   declared (Qwen-VL emits 0-1000 bboxes natively; clicking a corner
   misses small targets).
 
-All normalization lives here so Linux and macOS stay behaviorally
-identical; platform files call these at tool entry.
+Normalization lives here; platform files call it at tool entry. macOS opts
+into strict range validation; Linux retains legacy clamping.
 """
 
 from __future__ import annotations
@@ -90,9 +90,13 @@ def click_schema(info: ToolInfo) -> dict[str, Any]:
     return {
         "type": "object", "properties": properties, "additionalProperties": False,
         "oneOf": [
-            {"required": ["x", "y"], "properties": {"x": {"type": "integer"}},
+            {"required": ["x", "y"], "properties": {
+                "x": {"type": "integer"}, "y": properties["y"],
+            },
              "not": {"required": ["bbox"]}},
-            {"required": ["x"], "properties": {"x": {"type": "array"}},
+            {"required": ["x"], "properties": {
+                "x": {"type": "array", "items": {"type": "integer"}},
+            },
              "not": {"required": ["bbox"]}},
             {"required": ["bbox"], "not": {"anyOf": [{"required": ["x"]}, {"required": ["y"]}]}},
         ],
@@ -147,23 +151,24 @@ def _is_number(v: Any) -> bool:
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
-def _num(v: Any) -> int | None:
+def _num(v: Any, *, strict_range: bool = False) -> int | None:
     """Coerce int/float/numeric-string to int; None otherwise."""
-    if _is_number(v):
-        return int(v)
-    if isinstance(v, str):
-        try:
-            return int(float(v))
-        except ValueError:
+    if not (_is_number(v) or isinstance(v, str)):
+        return None
+    try:
+        number = float(v) if isinstance(v, str) else v
+        if strict_range and not 0 <= number <= 1000:
             return None
-    return None
+        return int(number)
+    except (ValueError, OverflowError):
+        return None
 
 
 def _clamp(v: int) -> int:
     return max(0, min(1000, v))
 
 
-def normalize_point(x: Any, y: Any) -> tuple[int, int] | None:
+def normalize_point(x: Any, y: Any, *, strict: bool = False) -> tuple[int, int] | None:
     """Normalize a coordinate argument to a clamped 0-1000 point.
 
     Accepted forms (observed across models):
@@ -172,6 +177,7 @@ def normalize_point(x: Any, y: Any) -> tuple[int, int] | None:
     - ``x=[x1, y1, x2, y2]`` — a bbox (Qwen-VL native); its CENTER is used.
 
     Lists may arrive JSON-encoded as strings. Returns ``None`` otherwise.
+    ``strict`` rejects out-of-range input instead of silently clamping it.
     """
     seq: Any = x
     if isinstance(seq, str):
@@ -180,16 +186,22 @@ def normalize_point(x: Any, y: Any) -> tuple[int, int] | None:
         except ValueError:
             seq = None
     if isinstance(seq, (list, tuple)):
-        nums = [_num(v) for v in seq[:4]]
+        nums = [_num(v, strict_range=strict) for v in seq[:4]]
         if any(n is None for n in nums) or len(seq) < 2:
+            return None
+        if strict and (len(seq) not in (2, 4) or any(
+            not 0 <= cast(int, n) <= 1000 for n in nums
+        )):
             return None
         if len(seq) >= 4:
             x1, y1, x2, y2 = (cast(int, n) for n in nums)
             return _clamp((x1 + x2) // 2), _clamp((y1 + y2) // 2)
         px, py = cast(int, nums[0]), cast(int, nums[1])
         return _clamp(px), _clamp(py)
-    nx, ny = _num(x), _num(y)
+    nx, ny = _num(x, strict_range=strict), _num(y, strict_range=strict)
     if nx is None or ny is None:
+        return None
+    if strict and not (0 <= nx <= 1000 and 0 <= ny <= 1000):
         return None
     return _clamp(nx), _clamp(ny)
 

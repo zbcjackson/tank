@@ -1,0 +1,175 @@
+{
+  "model": "qwen3.7-flash-2026-07-15",
+  "results": [
+    {
+      "target": "AC",
+      "region": null,
+      "image_size": [
+        1920,
+        1080
+      ],
+      "sha256": "834a0a2d1c3111dbed15a7b86830d638567f560f12fc73265066dd0339535ae1",
+      "requests": [
+        {
+          "image_hashes": [
+            "834a0a2d1c3111dbed15a7b86830d638567f560f12fc73265066dd0339535ae1"
+          ],
+          "model": "qwen3.7-flash-2026-07-15"
+        }
+      ],
+      "calls": [
+        {
+          "name": "click",
+          "arguments": {
+            "bbox": [
+              670,
+              375,
+              715,
+              419
+            ]
+          },
+          "pixel": [
+            1328,
+            428
+          ],
+          "inside_target": false
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 3965,
+        "completion_tokens": 123,
+        "total_tokens": 4088,
+        "estimated": false,
+        "turn": 1
+      },
+      "seconds": 3.06
+    },
+    {
+      "target": "7",
+      "region": null,
+      "image_size": [
+        1920,
+        1080
+      ],
+      "sha256": "834a0a2d1c3111dbed15a7b86830d638567f560f12fc73265066dd0339535ae1",
+      "requests": [
+        {
+          "image_hashes": [
+            "834a0a2d1c3111dbed15a7b86830d638567f560f12fc73265066dd0339535ae1"
+          ],
+          "model": "qwen3.7-flash-2026-07-15"
+        }
+      ],
+      "calls": [
+        {
+          "name": "click",
+          "arguments": {
+            "bbox": [
+              625,
+              305,
+              660,
+              345
+            ]
+          },
+          "pixel": [
+            1232,
+            351
+          ],
+          "inside_target": false
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 3966,
+        "completion_tokens": 173,
+        "total_tokens": 4139,
+        "estimated": false,
+        "turn": 1
+      },
+      "seconds": 3.27
+    },
+    {
+      "target": "AC",
+      "region": [
+        450,
+        350,
+        620,
+        620
+      ],
+      "image_size": [
+        978,
+        876
+      ],
+      "sha256": "9253becfe55694aabef1b2897adb59750b80c614010faec1d8c119534fdea935",
+      "requests": [
+        {
+          "image_hashes": [
+            "9253becfe55694aabef1b2897adb59750b80c614010faec1d8c119534fdea935"
+          ],
+          "model": "qwen3.7-flash-2026-07-15"
+        }
+      ],
+      "calls": [
+        {
+          "name": "click",
+          "arguments": {
+            "bbox": "\n[395, 105, 585, 275], \"x\": 533, \"y\": 401\n"
+          },
+          "pixel": null,
+          "inside_target": false
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 2897,
+        "completion_tokens": 809,
+        "total_tokens": 3706,
+        "estimated": false,
+        "turn": 1
+      },
+      "seconds": 10.52
+    },
+    {
+      "target": "7",
+      "region": [
+        450,
+        350,
+        620,
+        620
+      ],
+      "image_size": [
+        978,
+        876
+      ],
+      "sha256": "9253becfe55694aabef1b2897adb59750b80c614010faec1d8c119534fdea935",
+      "requests": [
+        {
+          "image_hashes": [
+            "9253becfe55694aabef1b2897adb59750b80c614010faec1d8c119534fdea935"
+          ],
+          "model": "qwen3.7-flash-2026-07-15"
+        }
+      ],
+      "calls": [
+        {
+          "name": "click",
+          "arguments": {
+            "x": "499",
+            "y": 450
+          },
+          "pixel": [
+            958,
+            486
+          ],
+          "inside_target": true
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 2898,
+        "completion_tokens": 861,
+        "total_tokens": 3759,
+        "estimated": false,
+        "turn": 1
+      },
+      "seconds": 10.64
+    }
+  ]
+}

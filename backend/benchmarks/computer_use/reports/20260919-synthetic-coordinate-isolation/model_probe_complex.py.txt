@@ -1,0 +1,68 @@
+import asyncio,base64,hashlib,io,json,os,time
+from pathlib import Path
+from unittest.mock import patch
+os.environ['LANGFUSE_TRACING_ENABLED']='false'
+from dotenv import load_dotenv
+from PIL import Image,ImageDraw,ImageFont
+from tank_backend.config.app_config import AppConfig
+from tank_backend.llm.profile import create_llm_from_profile
+from tank_backend.llm.llm import _build_follow_up_user_message
+from tank_backend.core.content import ImageBlock,TextBlock
+from tank_backend.tools.computer_use_common import COORDINATE_NOTE,crop_and_upscale,region_note,normalize_point
+from tank_backend.tools.computer_use_macos import ClickTool
+ROOT=Path('/Users/zbcjackson/src/tank')
+OUT=Path('/tmp/tank-coordinate-isolation')
+async def main():
+ load_dotenv(ROOT/'backend/core/.env')
+ cfg=AppConfig.load(ROOT/'backend/core/config.yaml');profile=cfg.get_llm_profile('computer_use')
+ llm=create_llm_from_profile(profile)
+ llm.client.max_retries=0
+ image=Image.new('RGB',(1920,1080),'#25272c');draw=ImageDraw.Draw(image)
+ small=ImageFont.truetype('/System/Library/Fonts/Supplemental/Arial.ttf',13)
+ for row in range(65):
+  draw.text((3,90+row*15),f'INFO synthetic.test: calibration event {row:03d} - generated non-personal diagnostic background only',font=small,fill='#dddddd')
+ draw.rounded_rectangle((520,278,1192,685),radius=22,fill='#302d31')
+ font=ImageFont.truetype('/System/Library/Fonts/Supplemental/Arial.ttf',24)
+ draw.text((1135,350),'5x7',font=font,fill='#aaaaaa');draw.text((1140,376),'35',font=font,fill='white')
+ labels=[['(',')','mc','m+','m-','mr','DEL','AC','%','/'],['2nd','x2','x3','xy','ex','10x','7','8','9','x'],['1/x','sqrt','cbrt','root','ln','log','4','5','6','-'],['x!','sin','cos','tan','e','EE','1','2','3','+'],['Rand','sinh','cosh','tanh','pi','Rad','+/-','0','.','=']]
+ for row,labels_row in enumerate(labels):
+  for col,label in enumerate(labels_row):
+   x=559+66*col;y=434+54*row
+   draw.rounded_rectangle((x-30,y-24,x+30,y+24),radius=22,fill='#ee9900' if col==9 else '#555257')
+   draw.text((x,y),label,font=font,fill='white',anchor='mm')
+ image.save(OUT/'synthetic-complex.png');raw=(OUT/'synthetic-complex.png').read_bytes()
+ prompt=(ROOT/'backend/agents/computer_use.md').read_text().split('---',2)[2].strip()
+ schema={'type':'function','function':{'name':'click','description':ClickTool().get_info().description,'parameters':ClickTool().get_raw_schema()}}
+ # Measured screenshot bounding boxes; only score unambiguous button interiors.
+ targets=[('AC',(994,413,1048,455)),('7',(928,467,982,509))]
+ rows=[]
+ try:
+  for region in [None,(450,350,620,620)]:
+   png=crop_and_upscale(raw,region,(1920,1080)) if region else raw
+   for name,box in targets:
+    blocks=[TextBlock(text=(region_note(region)+' ' if region else '')+COORDINATE_NOTE),ImageBlock(source='data:image/png;base64,'+base64.b64encode(png).decode(),mime_type='image/png')]
+    message=_build_follow_up_user_message('probe','screenshot',blocks)
+    messages=[{'role':'system','content':prompt},{'role':'user','content':f'Locate the Calculator button labeled {name}. Call click once at its center, using full-screen normalized coordinates. Do not call any other tool.'},message]
+    args=[]; usage={}; started=time.monotonic();requests=[]
+    async def on_request(request):
+     body=json.loads(request.content)
+     images=[p['image_url']['url'] for m in body['messages'] if isinstance(m.get('content'),list) for p in m['content'] if p.get('type')=='image_url']
+     requests.append({'image_hashes':[hashlib.sha256(base64.b64decode(u.split(',',1)[1])).hexdigest() for u in images],'model':body['model']})
+    llm.client._client.event_hooks['request']=[on_request]
+    try:
+     async with asyncio.timeout(60):
+      async for kind,content,meta in llm.chat_stream(messages,tools=[schema],max_tokens=4000):
+       if kind.name=='MESSAGE':
+        for tc in meta.get('message',{}).get('tool_calls',[]): args.append({'name':tc['function']['name'],'arguments':json.loads(tc['function']['arguments'])})
+       if kind.name=='USAGE': usage=meta
+     result={'target':name,'region':region,'image_size':Image.open(io.BytesIO(png)).size,'sha256':hashlib.sha256(png).hexdigest(),'requests':requests,'calls':args,'usage':usage,'seconds':round(time.monotonic()-started,2)}
+     for call in args:
+      a=call['arguments'];pt=normalize_point(a.get('bbox',a.get('x')),a.get('y'))
+      xy=(int(pt[0]*1920/1000),int(pt[1]*1080/1000)) if pt else None
+      call['pixel']=xy;call['inside_target']=bool(xy and box[0]<=xy[0]<=box[2] and box[1]<=xy[1]<=box[3])
+     rows.append(result)
+    except Exception as e: rows.append({'target':name,'region':region,'error':type(e).__name__+': '+str(e)[:300]})
+    (OUT/'synthetic-complex-results.json').write_text(json.dumps({'model':profile.model,'results':rows},ensure_ascii=False,indent=2))
+    print(json.dumps(rows[-1],ensure_ascii=False),flush=True)
+ finally: await llm.client.close()
+asyncio.run(main())

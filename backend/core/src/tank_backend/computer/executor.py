@@ -480,6 +480,12 @@ class _LinuxExecutor(_BaseExecutor):
 class _MacOSExecutor(_BaseExecutor):
     """macOS backend: screencapture + CGEvent/AppleScript."""
 
+    def _point(self, x: Any, y: Any) -> tuple[int, int]:
+        point = normalize_point(x, y, strict=True)
+        if point is None:
+            raise ValueError("coordinates must be finite numbers in the 0-1000 range")
+        return point
+
     def _capture(self) -> bytes:
         return computer_use_macos._capture_screenshot_macos()
 

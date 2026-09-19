@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -128,9 +129,9 @@ class TestNormalizedToPixel:
     def test_identity_at_origin(self):
         assert _normalized_to_pixel(0, 0) == (0, 0)
 
-    def test_max_maps_to_screen_size(self):
+    def test_max_maps_inside_screen(self):
         cu_macos._screen_point_size = (2560, 1600)
-        assert _normalized_to_pixel(1000, 1000) == (2560, 1600)
+        assert _normalized_to_pixel(1000, 1000) == (2559, 1599)
 
     def test_center(self):
         cu_macos._screen_point_size = (2000, 1000)
@@ -145,7 +146,7 @@ class TestNormalizedToPixel:
 
     def test_default_cache(self):
         # Default cache is 1920x1080
-        assert _normalized_to_pixel(1000, 1000) == (1920, 1080)
+        assert _normalized_to_pixel(1000, 1000) == (1919, 1079)
 
 
 # ---------------------------------------------------------------------------
@@ -589,7 +590,7 @@ def capture_chain(
         path = Path(args[-1])
         if args[0] == "screencapture":
             paths.append(path)
-            img = Image.new("RGB", (width * scale, height * scale), "black")
+            img = Image.new("RGB", (round(width * scale), round(height * scale)), "black")
             # Known target in the lower-right quadrant, away from crop edges.
             ImageDraw.Draw(img).rectangle(
                 (width * scale * 0.7, height * scale * 0.7,
@@ -634,6 +635,7 @@ def screenshot_wire_image(result: object) -> tuple[bytes, str]:
 
 @pytest.mark.parametrize("capture_chain", [
     (1920, 1080, 1, False), (1920, 1080, 2, False), (1512, 982, 2, False),
+    (1600, 1000, 1.5, False),
 ], indirect=True)
 async def test_capture_to_wire_to_quartz_preserves_coordinate_space(capture_chain):
     from PIL import Image
@@ -662,31 +664,35 @@ async def test_capture_to_wire_to_quartz_preserves_coordinate_space(capture_chai
     assert [call.args[0][0] for call in command.call_args_list] == (
         ["screencapture", "sips"] if needs_resize else ["screencapture"]
     )
+    assert "-m" in command.call_args_list[0].args[0]  # Only the mapped main display.
+
+
+async def test_successful_but_wrong_screenshot_dimensions_are_rejected(capture_chain):
+    quartz, _ = capture_chain
+    quartz.CGDisplayModeGetHeight.return_value = 1200
+    result = await ScreenshotTool().execute()
+    assert result.error
+    assert "dimensions" in result.content
+    quartz.CGEventCreateMouseEvent.assert_not_called()
 
 
 @pytest.mark.parametrize("capture_chain", [(1920, 1080, 2, True)], indirect=True)
 @pytest.mark.parametrize("use_executor", [False, True])
-async def test_known_resize_failure_uses_retina_pixels_as_points(capture_chain, use_executor):
-    """Characterize the existing defect; passing does NOT mean safe fallback.
-
-    When fixed, replace the doubled-position assertion with the logical
-    center (960, 540), or assert an explicit screenshot failure.
-    """
+async def test_resize_failure_never_advertises_retina_pixels_as_points(capture_chain, use_executor):
+    """A failed conversion must stop, not advertise an unusable screenshot."""
     from tank_backend.computer.executor import _MacOSExecutor
 
     quartz, _ = capture_chain
     if use_executor:
         executor = _MacOSExecutor()
-        shot = await executor.screenshot()
-        assert (shot.width, shot.height) == (3840, 2160)
-        await executor.click(500, 500)
+        with pytest.raises(RuntimeError, match="sips"):
+            await executor.screenshot()
     else:
         result = await ScreenshotTool().execute()
-        assert not result.error  # Raw Retina fallback is reported as success.
-        assert cu_macos._screen_point_size == (3840, 2160)
-        await ClickTool().execute(x=500, y=500)
-    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1920, 1080)
-    assert quartz.CGEventCreateMouseEvent.call_args.args[2] != (960, 540)
+        assert result.error
+        assert "sips" in result.content
+        assert cu_macos._screen_point_size == (1920, 1080)
+    quartz.CGEventCreateMouseEvent.assert_not_called()
 
 
 async def test_zoom_wire_pixels_and_full_screen_click_mapping(capture_chain):
@@ -729,9 +735,8 @@ async def test_small_crop_caps_zoom_at_three_without_changing_click_space(captur
 @pytest.mark.parametrize(("kwargs", "expected"), [
     ({"x": "690", "y": 288}, (1324, 311)),
     ({"bbox": [700, 700, 800, 800]}, (1440, 810)),
-    ({"x": 1030, "y": 403}, (1920, 435)),
     ({"x": 0, "y": 0}, (0, 0)),
-    ({"x": 1000, "y": 1000}, (1920, 1080)),
+    ({"x": 1000, "y": 1000}, (1919, 1079)),
 ])
 async def test_model_arguments_reach_quartz_after_real_capture(capture_chain, kwargs, expected):
     quartz, _ = capture_chain
@@ -739,6 +744,30 @@ async def test_model_arguments_reach_quartz_after_real_capture(capture_chain, kw
     result = await ClickTool().execute(**kwargs)
     assert not result.error
     assert quartz.CGEventCreateMouseEvent.call_args.args[2] == expected
+
+
+@pytest.mark.parametrize(("x", "y"), [
+    (1030, 403), (-1, 100), ("nan", 500), (float("inf"), 500),
+    (-0.5, 100), (1000.5, 100),
+    ([900, 100, 1100, 200], None),
+])
+@pytest.mark.parametrize("use_executor", [False, True])
+async def test_macos_rejects_invalid_coordinates_before_injection(
+    capture_chain, x, y, use_executor,
+):
+    from tank_backend.computer.executor import _MacOSExecutor
+
+    quartz, _ = capture_chain
+    if use_executor:
+        executor = _MacOSExecutor()
+        await executor.screenshot()
+        with pytest.raises(ValueError, match="coordinates"):
+            await executor.click(x, y)
+    else:
+        await ScreenshotTool().execute()
+        result = await ClickTool().execute(x=x, y=y)
+        assert result.error
+    quartz.CGEventCreateMouseEvent.assert_not_called()
 
 
 async def test_batch_replays_calculator_miss_and_returns_wire_screenshot(capture_chain):
@@ -774,14 +803,140 @@ async def test_batch_replays_calculator_miss_and_returns_wire_screenshot(capture
         assert img.size == (1920, 1080)
 
 
-async def test_executor_and_tool_have_different_edge_rounding(capture_chain):
+async def test_executor_and_tool_keep_maximum_inside_display(capture_chain):
     from tank_backend.computer.executor import _MacOSExecutor
 
     quartz, _ = capture_chain
     await ScreenshotTool().execute()
     await ClickTool().execute(x=1000, y=1000)
-    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1920, 1080)
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1919, 1079)
     executor = _MacOSExecutor()
     await executor.screenshot()
     await executor.click(1000, 1000)
     assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1919, 1079)
+
+
+@pytest.mark.parametrize("region", [None, [500, 500, 1000, 1000]])
+async def test_http_tool_loop_preserves_image_and_fragmented_coordinates(
+    capture_chain, monkeypatch, region,
+):
+    """Real SDK JSON + SSE parser + ToolManager, fake HTTP and OS only."""
+    import httpx
+    from openai import AsyncOpenAI
+    from PIL import Image
+
+    from tank_backend.llm import llm as llm_module
+    from tank_backend.tools.manager import ToolManager
+
+    quartz, _ = capture_chain
+    requests: list[dict] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        requests.append(body)
+        assert request.url.path == "/v1/chat/completions"
+        turn = len(requests)
+        deltas = []
+        if turn <= 2:
+            name = "screenshot" if turn == 1 else "click"
+            args = json.dumps({"region": region} if region else {}) if turn == 1 else (
+                '{"bbox":[700,700,800,800]}'
+            )
+            deltas.append({"tool_calls": [{"index": 0, "id": f"call-{turn}",
+                           "type": "function", "function": {"name": name, "arguments": ""}}]})
+            # Split inside numbers/JSON punctuation to exercise accumulation.
+            deltas.extend({"tool_calls": [{"index": 0, "function": {"arguments": c}}]}
+                          for c in args)
+        else:
+            assert turn == 3
+            deltas.append({"content": "done"})
+        chunks = [{"id": "probe", "object": "chat.completion.chunk", "created": 1,
+                   "model": "test", "choices": [{"index": 0, "delta": delta,
+                   "finish_reason": None}]} for delta in deltas]
+        chunks.append({"id": "probe", "object": "chat.completion.chunk", "created": 1,
+                       "model": "test", "choices": [], "usage": {
+                           "prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}})
+        sse = "".join(f"data: {json.dumps(chunk)}\n\n" for chunk in chunks) + "data: [DONE]\n\n"
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=sse)
+
+    client = AsyncOpenAI(api_key="test", base_url="https://probe.invalid/v1",
+                         http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+    monkeypatch.setattr(llm_module, "AsyncOpenAI", lambda **kwargs: client)
+    monkeypatch.setattr(llm_module, "initialize_langfuse", lambda: None)
+    llm = llm_module.LLM(api_key="test", model="test", base_url="https://probe.invalid/v1")
+    # Skip unrelated tool registration; dispatch and schemas are real methods.
+    manager = ToolManager.__new__(ToolManager)
+    manager.tools = {"screenshot": ScreenshotTool(), "click": ClickTool()}
+    manager._bus = None
+    manager._media_store = None
+    manager._session_id = None
+    try:
+        updates = [event async for event in llm.chat_stream(
+            [{"role": "user", "content": "capture then click the target"}],
+            tools=manager.get_openai_tools(), tool_executor=manager,
+        )]
+    finally:
+        await client.close()
+    assert updates
+    assert len(requests) == 3
+    follow_up = next(msg for msg in requests[1]["messages"] if isinstance(msg.get("content"), list))
+    wire = next(p["image_url"] for p in follow_up["content"] if p["type"] == "image_url")
+    assert wire["detail"] == "auto"
+    with Image.open(io.BytesIO(base64.b64decode(wire["url"].split(",", 1)[1]))) as img:
+        assert img.size == (1920, 1080)
+        target = (960, 540) if region else (1440, 810)
+        assert img.getpixel(target) == (255, 0, 0)
+    assert requests[2]["messages"][3]["content"] == follow_up["content"]
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1440, 810)
+    click_reply = next(m for m in requests[2]["messages"] if m.get("name") == "click")
+    assert "(1440, 810)" in click_reply["content"]
+
+
+@pytest.mark.parametrize("filename", [
+    "synthetic-model-results.json", "synthetic-complex-results.json",
+    "synthetic-resolution-results.json",
+])
+async def test_recorded_synthetic_model_coordinates_reach_expected_points(capture_chain, filename):
+    """Replay actual responses locally; no API calls or real mouse events."""
+    import hashlib
+
+    from PIL import Image
+
+    from tank_backend.tools.computer_use_common import crop_and_upscale
+
+    quartz, _ = capture_chain
+    await ScreenshotTool().execute()
+    reports = Path(__file__).resolve().parents[2] / "benchmarks/computer_use/reports"
+    evidence = reports / "20260919-synthetic-coordinate-isolation"
+    raw = (evidence / ("synthetic.png" if filename == "synthetic-model-results.json"
+                       else "synthetic-complex.png")).read_bytes()
+    for row in json.loads((evidence / filename).read_text())["results"]:
+        png = raw
+        if row["region"]:
+            png = crop_and_upscale(raw, tuple(row["region"]), (1920, 1080))
+        elif row["image_size"] != [1920, 1080]:
+            buffer = io.BytesIO()
+            with Image.open(io.BytesIO(raw)) as image:
+                image.resize(tuple(row["image_size"]), Image.Resampling.LANCZOS).save(
+                    buffer, format="PNG",
+                )
+            png = buffer.getvalue()
+        assert hashlib.sha256(png).hexdigest() == row["sha256"]
+        assert all(request["image_hashes"] == [row["sha256"]] for request in row["requests"])
+        for call in row["calls"]:
+            if call["name"] != "click":
+                assert call["pixel"] is None and not call["inside_target"]
+                continue
+            quartz.CGEventCreateMouseEvent.reset_mock()
+            result = await ClickTool().execute(**call["arguments"])
+            if call["pixel"] is None:
+                assert result.error
+                quartz.CGEventCreateMouseEvent.assert_not_called()
+            else:
+                assert not result.error
+                point = quartz.CGEventCreateMouseEvent.call_args.args[2]
+                assert list(point) == call["pixel"]
+                box = (994, 413, 1048, 455) if row["target"] == "AC" else (928, 467, 982, 509)
+                assert call["inside_target"] == (
+                    box[0] <= point[0] <= box[2] and box[1] <= point[1] <= box[3]
+                )

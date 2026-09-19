@@ -1,0 +1,72 @@
+[
+  {
+    "target": 0,
+    "expected_screen": [
+      180.0,
+      500.0
+    ],
+    "expected_view": [
+      80,
+      70
+    ],
+    "normalized": [
+      94,
+      463
+    ],
+    "screenshot_size": [
+      1920,
+      1080
+    ],
+    "actual_mouse": [
+      180.0,
+      500.0
+    ],
+    "received": [
+      {
+        "view_point": [
+          80.0,
+          70.0
+        ],
+        "event_point": [
+          180.0,
+          500.0
+        ],
+        "hit": 0
+      }
+    ],
+    "error_points": [
+      0.0,
+      0.0
+    ],
+    "hit": true
+  },
+  {
+    "target": 1,
+    "expected_screen": [
+      500.0,
+      500.0
+    ],
+    "expected_view": [
+      400,
+      70
+    ],
+    "normalized": [
+      260,
+      463
+    ],
+    "screenshot_size": [
+      1920,
+      1080
+    ],
+    "actual_mouse": [
+      499.0,
+      500.0
+    ],
+    "received": [],
+    "error_points": [
+      -1.0,
+      0.0
+    ],
+    "hit": false
+  }
+]

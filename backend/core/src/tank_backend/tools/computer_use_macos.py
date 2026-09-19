@@ -9,13 +9,13 @@ Provides six tools that let the main ChatAgent control the host desktop:
   - mouse_move: move cursor without clicking
 
 macOS implementation uses:
-  - Screenshot: screencapture CLI (built-in, no extra permissions)
+  - Screenshot: screencapture CLI (requires Screen Recording permission)
   - Input: CGEvent via pyobjc-framework-Quartz (one-time Accessibility permission)
   - App control: AppleScript for activate/launch (built-in osascript)
 
 Requires: pip install pyobjc-framework-Quartz
-One-time setup: Grant Accessibility permission to Terminal/iTerm2 in
-  System Settings → Privacy & Security → Accessibility
+One-time setup: Grant Screen Recording and Accessibility to the host app
+(e.g. Paseo or Terminal) in System Settings → Privacy & Security.
 """
 
 from __future__ import annotations
@@ -57,8 +57,8 @@ def _load_quartz() -> Any:
 # Screenshot capture (macOS)
 # ---------------------------------------------------------------------------
 
-def _get_display_scale_factor() -> int:
-    """Get the Retina scale factor (1 for non-Retina, 2 for Retina).
+def _get_display_scale_factor() -> float:
+    """Get the backing-pixel to logical-point ratio without truncation.
 
     Compares the backing store pixel width (what screencapture produces)
     to the point width (what CGEvent uses for coordinates).
@@ -70,8 +70,8 @@ def _get_display_scale_factor() -> int:
     backing_width = Quartz.CGDisplayModeGetPixelWidth(mode)
     point_width = Quartz.CGDisplayModeGetWidth(mode)
     if point_width and backing_width > point_width:
-        return backing_width // point_width
-    return 1
+        return backing_width / point_width
+    return 1.0
 
 
 def _capture_screenshot_macos() -> bytes:
@@ -86,7 +86,7 @@ def _capture_screenshot_macos() -> bytes:
 
     try:
         result = subprocess.run(
-            ["screencapture", "-x", "-C", tmp_path],
+            ["screencapture", "-x", "-C", "-m", tmp_path],
             capture_output=True, text=True, timeout=10,
         )
         if result.returncode != 0:
@@ -103,10 +103,23 @@ def _capture_screenshot_macos() -> bytes:
                 capture_output=True, text=True, timeout=10,
             )
             if result2.returncode != 0:
-                # sips failed, try reading raw and let vision model deal with it
-                logger.warning("sips resize failed, using raw Retina screenshot")
+                raise RuntimeError(f"sips resize failed: {result2.stderr}")
 
         png_bytes = Path(tmp_path).read_bytes()
+        # A successful command is not enough: the image must really match
+        # the main display's logical coordinate space (including its height).
+        import io
+
+        from PIL import Image
+
+        Quartz = _load_quartz()
+        mode = Quartz.CGDisplayCopyDisplayMode(Quartz.CGMainDisplayID())
+        expected = (Quartz.CGDisplayModeGetWidth(mode), Quartz.CGDisplayModeGetHeight(mode))
+        with Image.open(io.BytesIO(png_bytes)) as image:
+            if image.size != expected:
+                raise RuntimeError(
+                    f"screenshot dimensions {image.size} do not match logical display {expected}"
+                )
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
@@ -420,8 +433,8 @@ _screen_point_size: tuple[int, int] = (1920, 1080)
 def _normalized_to_pixel(x: int, y: int) -> tuple[int, int]:
     """Convert normalized 0-1000 coordinates to pixel coordinates."""
     screen_w, screen_h = _screen_point_size
-    px = int(x * screen_w / 1000)
-    py = int(y * screen_h / 1000)
+    px = min(screen_w - 1, int(x * screen_w / 1000))
+    py = min(screen_h - 1, int(y * screen_h / 1000))
     return px, py
 
 
@@ -578,7 +591,7 @@ class ClickTool(BaseTool):
                     content="click: pass either x/y or bbox=[x1,y1,x2,y2]", error=True,
                 )
             x = bbox
-        point = normalize_point(x, y)
+        point = normalize_point(x, y, strict=True)
         if point is None:
             return ToolResult(
                 content=(
@@ -759,7 +772,7 @@ class ScrollTool(BaseTool):
         px, py = None, None
         pos = ""
         if x is not None or y is not None:
-            point = normalize_point(x, y)
+            point = normalize_point(x, y, strict=True)
             if point is None:
                 return ToolResult(
                     content=(
@@ -809,7 +822,7 @@ class MouseMoveTool(BaseTool):
         )
 
     async def execute(self, x: Any, y: Any = None) -> ToolResult:
-        point = normalize_point(x, y)
+        point = normalize_point(x, y, strict=True)
         if point is None:
             return ToolResult(
                 content=(
@@ -1016,8 +1029,8 @@ class DragTool(BaseTool):
     async def execute(
         self, x1: Any, y1: Any = None, x2: Any = None, y2: Any = None,
     ) -> ToolResult:
-        start = normalize_point(x1, y1)
-        end = normalize_point(x2, y2)
+        start = normalize_point(x1, y1, strict=True)
+        end = normalize_point(x2, y2, strict=True)
         if start is None or end is None:
             return ToolResult(
                 content="drag: pass x1/y1/x2/y2 as integers (0-1000 normalized)",

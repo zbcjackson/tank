@@ -1,0 +1,1 @@
+Target did not receive the expected click; stopping
