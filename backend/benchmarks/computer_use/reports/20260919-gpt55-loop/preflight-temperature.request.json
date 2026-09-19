@@ -1,0 +1,409 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "Locate the requested UI element in the current image."
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "CURRENT image: 1440x900. Locate the button labeled AC. Call click once with its center of the button in normalized coordinates, x=0..1000, y=0..1000. The origin is the top-left of THIS input image; each axis spans the full image. Use only the CURRENT image, not previous positions. Set found=true when located. If absent or uncertain, set found=false and ALL coordinates=null."
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "sha256:040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8",
+            "detail": "auto"
+          }
+        }
+      ]
+    }
+  ],
+  "model": "openai/gpt-5.5",
+  "max_tokens": 16000,
+  "stream": true,
+  "stream_options": {
+    "include_usage": true
+  },
+  "temperature": 1.0,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "screenshot",
+        "description": "Capture a screenshot of the current screen. Returns the image directly. The calling agent (if vision-capable) can analyze it to identify UI elements and their coordinates.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "task": {
+              "type": "string",
+              "description": "Optional context about what you're looking for on screen. Helps you focus your analysis of the returned image."
+            },
+            "region": {
+              "type": "array",
+              "description": "Optional zoom region [x1, y1, x2, y2] in 0-1000 normalized coordinates. When given, the screenshot is cropped to that region and upscaled \u2014 use it when text is small or a click target is hard to locate precisely.",
+              "items": {}
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "click",
+        "description": "Click the mouse at the specified coordinates (normalized 0-1000 scale). Use 'screenshot' first to find the coordinates of the element you want to click.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "description": "X coordinate (0-1000 normalized); a bbox array [x1,y1,x2,y2] is accepted (its center is used)",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "oneOf": [
+                    {
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    {
+                      "minItems": 4,
+                      "maxItems": 4
+                    }
+                  ]
+                }
+              ]
+            },
+            "y": {
+              "type": "integer",
+              "description": "Y coordinate (0-1000 normalized)"
+            },
+            "bbox": {
+              "type": "array",
+              "description": "Bounding box [x1,y1,x2,y2] (0-1000); use instead of x/y",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            "button": {
+              "type": "string",
+              "description": "Mouse button: 'left', 'right', or 'middle'"
+            },
+            "clicks": {
+              "type": "integer",
+              "description": "Number of clicks (1 for single, 2 for double)"
+            }
+          },
+          "additionalProperties": false,
+          "oneOf": [
+            {
+              "required": [
+                "x",
+                "y"
+              ],
+              "properties": {
+                "x": {
+                  "type": "integer"
+                },
+                "y": {
+                  "type": "integer",
+                  "description": "Y coordinate (0-1000 normalized)"
+                }
+              },
+              "not": {
+                "required": [
+                  "bbox"
+                ]
+              }
+            },
+            {
+              "required": [
+                "x"
+              ],
+              "properties": {
+                "x": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "not": {
+                "required": [
+                  "bbox"
+                ]
+              }
+            },
+            {
+              "required": [
+                "bbox"
+              ],
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "x"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "y"
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "type_text",
+        "description": "Type text at the current cursor/focus position. Click on an input field first using the 'click' tool, then use this to enter text.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "The text to type"
+            }
+          },
+          "required": [
+            "text"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "key_press",
+        "description": "Press a key or key combination. For combinations, separate keys with '+' (e.g. 'cmd+c', 'cmd+space', 'ctrl+alt+delete'). Single keys: 'enter', 'tab', 'escape', 'backspace', 'delete', 'up', 'down', 'left', 'right', 'f1'-'f12', 'space'; modifiers cmd, ctrl, alt, shift.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "keys": {
+              "type": "string",
+              "description": "Key(s) to press, e.g. 'enter', 'cmd+c', 'cmd+space'"
+            },
+            "repeat": {
+              "type": "integer",
+              "description": "Times to press the combination (1-20)"
+            }
+          },
+          "required": [
+            "keys"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "scroll",
+        "description": "Scroll the mouse wheel. Positive amount scrolls up, negative scrolls down. Optionally specify (x, y) in normalized 0-1000 coordinates to move the cursor there first.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "amount": {
+              "type": "integer",
+              "description": "Scroll amount (positive=up, negative=down)"
+            },
+            "x": {
+              "type": "integer",
+              "description": "X coordinate (0-1000 normalized); a bbox array [x1,y1,x2,y2] is accepted (its center is used)"
+            },
+            "y": {
+              "type": "integer",
+              "description": "Y coordinate (0-1000 normalized)"
+            }
+          },
+          "required": [
+            "amount"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "mouse_move",
+        "description": "Move the mouse cursor to the specified coordinates (normalized 0-1000 scale) without clicking.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "integer",
+              "description": "X coordinate (0-1000 normalized); a bbox array [x1,y1,x2,y2] is accepted (its center is used)"
+            },
+            "y": {
+              "type": "integer",
+              "description": "Y coordinate (0-1000 normalized)"
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "mouse_down",
+        "description": "Press and hold a mouse button at the current position.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "button": {
+              "type": "string",
+              "description": "Mouse button: 'left', 'right', or 'middle'"
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "mouse_up",
+        "description": "Release a mouse button held by mouse_down.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "button": {
+              "type": "string",
+              "description": "Mouse button: 'left', 'right', or 'middle'"
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "hold_key",
+        "description": "Press and hold a key combination for a duration, then release (e.g. hold shift for 1 second). Same key format as key_press.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "keys": {
+              "type": "string",
+              "description": "Key(s) to hold, e.g. 'shift', 'cmd+c'"
+            },
+            "duration_s": {
+              "type": "number",
+              "description": "Seconds to hold (0.1-10)"
+            }
+          },
+          "required": [
+            "keys"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "drag",
+        "description": "Press at (x1,y1), drag to (x2,y2), release. Coordinates are 0-1000 normalized like click.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "x1": {
+              "type": "integer",
+              "description": "Start X (0-1000 normalized)"
+            },
+            "y1": {
+              "type": "integer",
+              "description": "Start Y (0-1000 normalized)"
+            },
+            "x2": {
+              "type": "integer",
+              "description": "End X (0-1000 normalized)"
+            },
+            "y2": {
+              "type": "integer",
+              "description": "End Y (0-1000 normalized)"
+            }
+          },
+          "required": [
+            "x1",
+            "y1",
+            "x2",
+            "y2"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "launch_app",
+        "description": "Launch a macOS application by name and bring it to the foreground. Use this before taking screenshots to interact with an app.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "app_name": {
+              "type": "string",
+              "description": "Application name (e.g. \"Safari\", \"Spark Desktop\", \"Arc\")"
+            }
+          },
+          "required": [
+            "app_name"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "computer_batch",
+        "description": "Execute a sequence of computer actions in ONE call \u2014 much faster than one action per turn. Stops at the first failure and reports remaining steps as skipped. A screenshot of the final state is captured automatically after the batch. launch_app must be called separately; screenshot is a batch option, not an action.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "actions": {
+              "type": "array",
+              "description": "Ordered action objects. Each has an 'action' field: click(x,y), type_text(text), key_press(keys), scroll(amount[,x,y]), mouse_move(x,y), mouse_down(button), mouse_up(button), hold_key(keys,duration_s), drag(x1,y1,x2,y2), wait(delay_s). Coordinates use the same 0-1000 normalized form as click. Example: [{\"action\":\"click\",\"x\":500,\"y\":300},{\"action\":\"type_text\",\"text\":\"hello\"},{\"action\":\"key_press\",\"keys\":\"enter\"}].",
+              "items": {}
+            },
+            "screenshot": {
+              "type": "boolean",
+              "description": "Capture a screenshot after the batch"
+            }
+          },
+          "required": [
+            "actions"
+          ]
+        }
+      }
+    }
+  ],
+  "reasoning": {
+    "effort": "low"
+  },
+  "provider": {
+    "only": [
+      "openai"
+    ],
+    "allow_fallbacks": false,
+    "require_parameters": true
+  }
+}

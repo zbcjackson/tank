@@ -1,0 +1,13 @@
+{
+  "profile_pytest": "30 passed",
+  "backend_pytest": "4484 passed, 1 skipped",
+  "e2e": "14 scenarios / 55 steps passed",
+  "web_lint": "passed",
+  "web_types": "passed",
+  "backend_lint": "passed",
+  "changed_python_types": "passed",
+  "cli_lint": "passed",
+  "dev_reload": "passed",
+  "protocol_sync": "passed",
+  "docs": "passed"
+}

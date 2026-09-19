@@ -1,0 +1,691 @@
+{
+  "scope": "Production AgentRunner macOS calc-open; cleaned desktop; real screenshots stay in /tmp/tank-gpt55-loop",
+  "model": "openai/gpt-5.5",
+  "endpoint": "https://openrouter.ai/api/v1",
+  "profile": {
+    "temperature": null,
+    "max_tokens": 16000,
+    "reasoning": {
+      "effort": "low"
+    },
+    "provider": {
+      "only": [
+        "openai"
+      ],
+      "allow_fallbacks": false,
+      "require_parameters": true
+    }
+  },
+  "code_commit": "10104c56c80a8db3268c2a21ed4dda87a4b5fdbf",
+  "source_sha256": {
+    "backend/agents/computer_use.md": "bae2d2fd7eafee2012d0e1e5e0028ebdece9fe14784a1a5ec71c3ba49213735a",
+    "backend/core/src/tank_backend/llm/llm.py": "764e435ca5140568db10451a69fc7edcf628c5b172b22bec630b59e6c6fa2117",
+    "backend/core/src/tank_backend/llm/profile.py": "61542ffdc166d4010f76e7941db00d49f65695848c7dddcb16f0b65c859b9862",
+    "backend/core/src/tank_backend/agents/runner.py": "39d26ac266f570d3e575c744d9afa33f047ef403e47dcdd192f92e28e2ed0753",
+    "backend/core/src/tank_backend/prompts/defaults/base.md": "fa007d4bacde00d65041e96127b1137f0a9dcc9edc111366b869c3861618e1d0",
+    "backend/benchmarks/computer_use/tasks/01-calc-open.yaml": "f362168f6a132a30d7b921f18c107aa7b7995f9fa7f86e3af13762e5eb3e8306"
+  },
+  "trials": [
+    {
+      "task_id": "calc-open",
+      "trial": 1,
+      "success": true,
+      "error": null,
+      "steps": 3,
+      "wall_s": 28.93121345801046,
+      "tokens": 20287,
+      "screenshots": 2,
+      "timed_out": false,
+      "llm_calls": 4,
+      "llm_ttft_s": 2.87588997950661,
+      "llm_call_s": 3.7923634169856086,
+      "llm_total_s": 20.828561041969806,
+      "scoring": "strict",
+      "llm_rtt_s": 0.0,
+      "stop_reason": null,
+      "cleanup": "unknown",
+      "primitives": 6,
+      "model_turns": 4,
+      "unknown_calls": 0,
+      "tool_call_limit": 15,
+      "gui_only": true,
+      "non_gui_tools": [],
+      "actions": [
+        {
+          "tool": "launch_app",
+          "arguments": {
+            "app_name": "Calculator"
+          }
+        },
+        {
+          "tool": "screenshot",
+          "arguments": {
+            "task": "Observe Calculator app to compute 7×8"
+          }
+        },
+        {
+          "tool": "computer_batch",
+          "arguments": {
+            "actions": [
+              {
+                "action": "click",
+                "x": 545,
+                "y": 435
+              },
+              {
+                "action": "click",
+                "x": 647,
+                "y": 436
+              },
+              {
+                "action": "click",
+                "x": 579,
+                "y": 435
+              },
+              {
+                "action": "click",
+                "x": 647,
+                "y": 586
+              }
+            ],
+            "screenshot": true
+          }
+        }
+      ],
+      "http_verified": [
+        {
+          "kind": "http_request_verified",
+          "call": 1,
+          "model": "openai/gpt-5.5",
+          "images": []
+        },
+        {
+          "kind": "http_request_verified",
+          "call": 2,
+          "model": "openai/gpt-5.5",
+          "images": []
+        },
+        {
+          "kind": "http_request_verified",
+          "call": 3,
+          "model": "openai/gpt-5.5",
+          "images": [
+            {
+              "sha256": "4ce2820f1e179fb750d563643aa35d8d0123ad638fc5933aefc7096ffd7cf3fa",
+              "size": [
+                1920,
+                1080
+              ],
+              "detail": "auto"
+            }
+          ]
+        },
+        {
+          "kind": "http_request_verified",
+          "call": 4,
+          "model": "openai/gpt-5.5",
+          "images": [
+            {
+              "sha256": "4ce2820f1e179fb750d563643aa35d8d0123ad638fc5933aefc7096ffd7cf3fa",
+              "size": [
+                1920,
+                1080
+              ],
+              "detail": "auto"
+            },
+            {
+              "sha256": "aac64653996ca9ee8ea4543368427587313b4427bd7b99ee9c6061a647dc9886",
+              "size": [
+                1920,
+                1080
+              ],
+              "detail": "auto"
+            }
+          ]
+        }
+      ],
+      "screenshots_manifest": [
+        {
+          "name": "shot_001.png",
+          "sha256": "4ce2820f1e179fb750d563643aa35d8d0123ad638fc5933aefc7096ffd7cf3fa",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "name": "shot_002.png",
+          "sha256": "aac64653996ca9ee8ea4543368427587313b4427bd7b99ee9c6061a647dc9886",
+          "size": [
+            1920,
+            1080
+          ]
+        }
+      ],
+      "provider_responses": [
+        {
+          "response": "http-001.response.sse",
+          "models": [
+            "openai/gpt-5.5"
+          ],
+          "providers": [
+            "OpenAI"
+          ],
+          "sha256": "3d95a1ca949c9343c4a26e1db3cd75948052f3d4dcb37abfbe9cc340fdaaa68d"
+        },
+        {
+          "response": "http-002.response.sse",
+          "models": [
+            "openai/gpt-5.5"
+          ],
+          "providers": [
+            "OpenAI"
+          ],
+          "sha256": "534e11fef9eb3bc238819e518efbb7000eb86a4ea4a225a8e6e5afaf13aa00aa"
+        },
+        {
+          "response": "http-003.response.sse",
+          "models": [
+            "openai/gpt-5.5"
+          ],
+          "providers": [
+            "OpenAI"
+          ],
+          "sha256": "9746b011d0d92bc174c6532ff33071a3e14eb3079b862b0c7ac1668c32447246"
+        },
+        {
+          "response": "http-004.response.sse",
+          "models": [
+            "openai/gpt-5.5"
+          ],
+          "providers": [
+            "OpenAI"
+          ],
+          "sha256": "a413b40fa49190c66d048d25ffd484bd971f603f47ce1b000e63b9484d12aef4"
+        }
+      ],
+      "final_screenshot_sent_back": true,
+      "final_screenshot_visual_review": {
+        "expression": "7×8",
+        "result": "56",
+        "method": "local human-readable image inspection, not automatic OCR or scored pixel validator"
+      }
+    },
+    {
+      "task_id": "calc-open",
+      "trial": 2,
+      "success": false,
+      "error": "validator failed",
+      "steps": 3,
+      "wall_s": 27.760188707965426,
+      "tokens": 20298,
+      "screenshots": 2,
+      "timed_out": false,
+      "llm_calls": 4,
+      "llm_ttft_s": 3.66704412503168,
+      "llm_call_s": 4.649888333515264,
+      "llm_total_s": 19.13503991701873,
+      "scoring": "strict",
+      "llm_rtt_s": 0.0,
+      "stop_reason": null,
+      "cleanup": "unknown",
+      "primitives": 4,
+      "model_turns": 4,
+      "unknown_calls": 0,
+      "tool_call_limit": 15,
+      "gui_only": true,
+      "non_gui_tools": [],
+      "actions": [
+        {
+          "tool": "launch_app",
+          "arguments": {
+            "app_name": "Calculator"
+          }
+        },
+        {
+          "tool": "screenshot",
+          "arguments": {
+            "task": "Observe Calculator app to compute 7×8 and confirm result"
+          }
+        },
+        {
+          "tool": "computer_batch",
+          "arguments": {
+            "actions": [
+              {
+                "action": "type_text",
+                "text": "7*8"
+              },
+              {
+                "action": "key_press",
+                "keys": "enter"
+              }
+            ],
+            "screenshot": true
+          }
+        }
+      ],
+      "http_verified": [
+        {
+          "kind": "http_request_verified",
+          "call": 5,
+          "model": "openai/gpt-5.5",
+          "images": []
+        },
+        {
+          "kind": "http_request_verified",
+          "call": 6,
+          "model": "openai/gpt-5.5",
+          "images": []
+        },
+        {
+          "kind": "http_request_verified",
+          "call": 7,
+          "model": "openai/gpt-5.5",
+          "images": [
+            {
+              "sha256": "a7d204b88ba0ff5125fff5d53e0f54d1d317c321efda443966e30de8ccbe7e7a",
+              "size": [
+                1920,
+                1080
+              ],
+              "detail": "auto"
+            }
+          ]
+        },
+        {
+          "kind": "http_request_verified",
+          "call": 8,
+          "model": "openai/gpt-5.5",
+          "images": [
+            {
+              "sha256": "a7d204b88ba0ff5125fff5d53e0f54d1d317c321efda443966e30de8ccbe7e7a",
+              "size": [
+                1920,
+                1080
+              ],
+              "detail": "auto"
+            },
+            {
+              "sha256": "9d1b5b44e512bbdd5c74aa7088ccd25c3d439dcf285447b0cac875b13e1259e2",
+              "size": [
+                1920,
+                1080
+              ],
+              "detail": "auto"
+            }
+          ]
+        }
+      ],
+      "screenshots_manifest": [
+        {
+          "name": "shot_001.png",
+          "sha256": "a7d204b88ba0ff5125fff5d53e0f54d1d317c321efda443966e30de8ccbe7e7a",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "name": "shot_002.png",
+          "sha256": "9d1b5b44e512bbdd5c74aa7088ccd25c3d439dcf285447b0cac875b13e1259e2",
+          "size": [
+            1920,
+            1080
+          ]
+        }
+      ],
+      "provider_responses": [
+        {
+          "response": "http-005.response.sse",
+          "models": [
+            "openai/gpt-5.5"
+          ],
+          "providers": [
+            "OpenAI"
+          ],
+          "sha256": "83f2b158e3433bf4978c6f0e5edfa129bf399f014f5ed2e426824ffb0711f819"
+        },
+        {
+          "response": "http-006.response.sse",
+          "models": [
+            "openai/gpt-5.5"
+          ],
+          "providers": [
+            "OpenAI"
+          ],
+          "sha256": "89dfeb6d7add97e1a6589649e7441ae12466a856696c1986d092c97935ca826f"
+        },
+        {
+          "response": "http-007.response.sse",
+          "models": [
+            "openai/gpt-5.5"
+          ],
+          "providers": [
+            "OpenAI"
+          ],
+          "sha256": "08e5ebbdc4a6657cc8f359f7fe3e4298d74c4586394c1ebc4492c7c905656d46"
+        },
+        {
+          "response": "http-008.response.sse",
+          "models": [
+            "openai/gpt-5.5"
+          ],
+          "providers": [
+            "OpenAI"
+          ],
+          "sha256": "7d413d2fa947b118bd107db88f05d9a2cc1e72174f4f87ccea2fb1b8b891ff08"
+        }
+      ],
+      "final_screenshot_sent_back": true,
+      "final_screenshot_visual_review": {
+        "expression": null,
+        "result": "56",
+        "method": "local human-readable image inspection, not automatic OCR or scored pixel validator"
+      }
+    },
+    {
+      "task_id": "calc-open",
+      "trial": 3,
+      "success": true,
+      "error": null,
+      "steps": 4,
+      "wall_s": 58.81513845798327,
+      "tokens": 31555,
+      "screenshots": 3,
+      "timed_out": false,
+      "llm_calls": 5,
+      "llm_ttft_s": 9.053684708022047,
+      "llm_call_s": 9.542491333035287,
+      "llm_total_s": 50.153354334121104,
+      "scoring": "strict",
+      "llm_rtt_s": 0.0,
+      "stop_reason": null,
+      "cleanup": "unknown",
+      "primitives": 7,
+      "model_turns": 5,
+      "unknown_calls": 0,
+      "tool_call_limit": 15,
+      "gui_only": true,
+      "non_gui_tools": [],
+      "actions": [
+        {
+          "tool": "launch_app",
+          "arguments": {
+            "app_name": "Calculator"
+          }
+        },
+        {
+          "tool": "screenshot",
+          "arguments": {
+            "task": "Observe Calculator app to compute 7×8 and confirm result"
+          }
+        },
+        {
+          "tool": "computer_batch",
+          "arguments": {
+            "actions": [
+              {
+                "action": "type_text",
+                "text": "7*8="
+              }
+            ],
+            "screenshot": true
+          }
+        },
+        {
+          "tool": "computer_batch",
+          "arguments": {
+            "actions": [
+              {
+                "action": "click",
+                "x": 681,
+                "y": 361
+              },
+              {
+                "action": "click",
+                "x": 783,
+                "y": 361
+              },
+              {
+                "action": "click",
+                "x": 714,
+                "y": 361
+              },
+              {
+                "action": "click",
+                "x": 783,
+                "y": 510
+              }
+            ],
+            "screenshot": true
+          }
+        }
+      ],
+      "http_verified": [
+        {
+          "kind": "http_request_verified",
+          "call": 9,
+          "model": "openai/gpt-5.5",
+          "images": []
+        },
+        {
+          "kind": "http_request_verified",
+          "call": 10,
+          "model": "openai/gpt-5.5",
+          "images": []
+        },
+        {
+          "kind": "http_request_verified",
+          "call": 11,
+          "model": "openai/gpt-5.5",
+          "images": [
+            {
+              "sha256": "a902d035fc503da40f668f02c595aa5200bfdf07716517784ca3b57cec6527cd",
+              "size": [
+                1920,
+                1080
+              ],
+              "detail": "auto"
+            }
+          ]
+        },
+        {
+          "kind": "http_request_verified",
+          "call": 12,
+          "model": "openai/gpt-5.5",
+          "images": [
+            {
+              "sha256": "a902d035fc503da40f668f02c595aa5200bfdf07716517784ca3b57cec6527cd",
+              "size": [
+                1920,
+                1080
+              ],
+              "detail": "auto"
+            },
+            {
+              "sha256": "81a4c9e636bbe3ced83268937e0bf21648aa83877c737252b7dd1250b13add10",
+              "size": [
+                1920,
+                1080
+              ],
+              "detail": "auto"
+            }
+          ]
+        },
+        {
+          "kind": "http_request_verified",
+          "call": 13,
+          "model": "openai/gpt-5.5",
+          "images": [
+            {
+              "sha256": "a902d035fc503da40f668f02c595aa5200bfdf07716517784ca3b57cec6527cd",
+              "size": [
+                1920,
+                1080
+              ],
+              "detail": "auto"
+            },
+            {
+              "sha256": "81a4c9e636bbe3ced83268937e0bf21648aa83877c737252b7dd1250b13add10",
+              "size": [
+                1920,
+                1080
+              ],
+              "detail": "auto"
+            },
+            {
+              "sha256": "c547ba7a75c70792e7b2ed54bf5ef9f25229bc306dcb3d02725f16000595cf0d",
+              "size": [
+                1920,
+                1080
+              ],
+              "detail": "auto"
+            }
+          ]
+        }
+      ],
+      "screenshots_manifest": [
+        {
+          "name": "shot_001.png",
+          "sha256": "a902d035fc503da40f668f02c595aa5200bfdf07716517784ca3b57cec6527cd",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "name": "shot_002.png",
+          "sha256": "81a4c9e636bbe3ced83268937e0bf21648aa83877c737252b7dd1250b13add10",
+          "size": [
+            1920,
+            1080
+          ]
+        },
+        {
+          "name": "shot_003.png",
+          "sha256": "c547ba7a75c70792e7b2ed54bf5ef9f25229bc306dcb3d02725f16000595cf0d",
+          "size": [
+            1920,
+            1080
+          ]
+        }
+      ],
+      "provider_responses": [
+        {
+          "response": "http-009.response.sse",
+          "models": [
+            "openai/gpt-5.5"
+          ],
+          "providers": [
+            "OpenAI"
+          ],
+          "sha256": "e4c7afc9e0af576ab8561fe04e5e13a09de677452b4730949cabeae415983d2e"
+        },
+        {
+          "response": "http-010.response.sse",
+          "models": [
+            "openai/gpt-5.5"
+          ],
+          "providers": [
+            "OpenAI"
+          ],
+          "sha256": "bd383fd419db8888688fff02249d76dd89a0a5b906147ead1e8d1b532b006294"
+        },
+        {
+          "response": "http-011.response.sse",
+          "models": [
+            "openai/gpt-5.5"
+          ],
+          "providers": [
+            "OpenAI"
+          ],
+          "sha256": "0c0c6283af7ecea77f0aea411f01da61f5b5dd7044c5c8ab01cbdf5a8ff51eed"
+        },
+        {
+          "response": "http-012.response.sse",
+          "models": [
+            "openai/gpt-5.5"
+          ],
+          "providers": [
+            "OpenAI"
+          ],
+          "sha256": "8a097531ea27438fe124e65516cc5c87822093be93ca3fdddb298e38fc738180"
+        },
+        {
+          "response": "http-013.response.sse",
+          "models": [
+            "openai/gpt-5.5"
+          ],
+          "providers": [
+            "OpenAI"
+          ],
+          "sha256": "2022cd149c6f3c255ec45632b6ca9c23555772daf116a71e3bdc253e5d984ec9"
+        }
+      ],
+      "final_screenshot_sent_back": true,
+      "final_screenshot_visual_review": {
+        "expression": "7×8",
+        "result": "56",
+        "method": "local human-readable image inspection, not automatic OCR or scored pixel validator"
+      }
+    }
+  ],
+  "total_trials": 3,
+  "strict_successes": 2,
+  "total_llm_calls": 13,
+  "total_tokens": 72140,
+  "total_screenshots": 7,
+  "input_isolation": [
+    {
+      "text": "7*8",
+      "reset": {
+        "result": "0"
+      },
+      "after_paste": {
+        "result": "56"
+      },
+      "after_enter": {
+        "result": "56"
+      }
+    },
+    {
+      "text": "7*8=",
+      "reset": {
+        "result": "0"
+      },
+      "after_paste": {
+        "result": "0"
+      }
+    }
+  ],
+  "geometry": {
+    "screen_recording": true,
+    "input_control": true,
+    "main_display": 2,
+    "logical_size": [
+      1920.0,
+      1080.0
+    ],
+    "backing_size": [
+      3840,
+      2160
+    ]
+  },
+  "prompt_conflict": {
+    "observed_in_actual_http": true,
+    "source": "backend/core/src/tank_backend/prompts/defaults/base.md",
+    "injection": "AgentRunner._build_sub_agent_prompt appends get_base_rules()",
+    "conflicting_excerpt": "ALWAYS delegate to the computer_use agent immediately:",
+    "tool_surface_has_agent": false,
+    "impact": "not causally measured; not fixed in this run"
+  },
+  "preflight": {
+    "requests": 3,
+    "failed_with_temperature": 404,
+    "same_request_without_temperature": "succeeded",
+    "fixed_production_llm": "HTTP 200",
+    "paired_http_requests_identical_except_temperature": true,
+    "synthetic_only": true
+  }
+}
