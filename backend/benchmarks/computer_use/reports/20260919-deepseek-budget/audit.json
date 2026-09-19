@@ -1,0 +1,302 @@
+{
+  "groups": {
+    "20260919-deepseek-holdout-off-4000": {
+      "all": {
+        "n": 32,
+        "hits": 20,
+        "schema_valid": 32,
+        "length": 0,
+        "errors": [],
+        "mean_completion_tokens": 103.9375,
+        "mean_reasoning_tokens": 0,
+        "total_completion_tokens": 3326,
+        "max_distance_px": 339.3335100457954,
+        "median_distance_px": 11.454992253336922,
+        "mean_seconds": 1.144375
+      },
+      "variants": {
+        "point": {
+          "n": 32,
+          "hits": 20,
+          "schema_valid": 32,
+          "length": 0,
+          "errors": [],
+          "mean_completion_tokens": 103.9375,
+          "mean_reasoning_tokens": 0,
+          "total_completion_tokens": 3326,
+          "max_distance_px": 339.3335100457954,
+          "median_distance_px": 11.454992253336922,
+          "mean_seconds": 1.144375
+        }
+      }
+    },
+    "20260919-deepseek-holdout-on-16000": {
+      "all": {
+        "n": 32,
+        "hits": 23,
+        "schema_valid": 31,
+        "length": 1,
+        "errors": [
+          "deepseek-206-point-0: ValueError: Expected exactly one click function call"
+        ],
+        "mean_completion_tokens": 736.4375,
+        "mean_reasoning_tokens": 664.875,
+        "total_completion_tokens": 23566,
+        "max_distance_px": 134.29537631653594,
+        "median_distance_px": 14.42054437252631,
+        "mean_seconds": 3.6065625000000003
+      },
+      "variants": {
+        "point": {
+          "n": 32,
+          "hits": 23,
+          "schema_valid": 31,
+          "length": 1,
+          "errors": [
+            "deepseek-206-point-0: ValueError: Expected exactly one click function call"
+          ],
+          "mean_completion_tokens": 736.4375,
+          "mean_reasoning_tokens": 664.875,
+          "total_completion_tokens": 23566,
+          "max_distance_px": 134.29537631653594,
+          "median_distance_px": 14.42054437252631,
+          "mean_seconds": 3.6065625000000003
+        }
+      }
+    },
+    "20260919-deepseek-off-16000": {
+      "all": {
+        "n": 12,
+        "hits": 5,
+        "schema_valid": 12,
+        "length": 0,
+        "errors": [],
+        "mean_completion_tokens": 106.08333333333333,
+        "mean_reasoning_tokens": 0,
+        "total_completion_tokens": 1273,
+        "max_distance_px": 257.5382814262765,
+        "median_distance_px": 32.62510653845412,
+        "mean_seconds": 0.995
+      },
+      "variants": {
+        "low-detail": {
+          "n": 4,
+          "hits": 2,
+          "schema_valid": 4,
+          "length": 0,
+          "errors": [],
+          "mean_completion_tokens": 103.5,
+          "mean_reasoning_tokens": 0,
+          "total_completion_tokens": 414,
+          "max_distance_px": 257.5382814262765,
+          "median_distance_px": 125.22248705073079,
+          "mean_seconds": 1.0375
+        },
+        "point": {
+          "n": 4,
+          "hits": 3,
+          "schema_valid": 4,
+          "length": 0,
+          "errors": [],
+          "mean_completion_tokens": 99.75,
+          "mean_reasoning_tokens": 0,
+          "total_completion_tokens": 399,
+          "max_distance_px": 70.12256698096556,
+          "median_distance_px": 12.837902858357822,
+          "mean_seconds": 0.99
+        },
+        "strict-bbox": {
+          "n": 4,
+          "hits": 0,
+          "schema_valid": 4,
+          "length": 0,
+          "errors": [],
+          "mean_completion_tokens": 115,
+          "mean_reasoning_tokens": 0,
+          "total_completion_tokens": 460,
+          "max_distance_px": 56.45736090183463,
+          "median_distance_px": 35.42854937395869,
+          "mean_seconds": 0.9575
+        }
+      }
+    },
+    "20260919-deepseek-off-4000": {
+      "all": {
+        "n": 12,
+        "hits": 3,
+        "schema_valid": 12,
+        "length": 0,
+        "errors": [],
+        "mean_completion_tokens": 106.5,
+        "mean_reasoning_tokens": 0,
+        "total_completion_tokens": 1278,
+        "max_distance_px": 242.51926438945014,
+        "median_distance_px": 41.885575161058554,
+        "mean_seconds": 0.9708333333333333
+      },
+      "variants": {
+        "low-detail": {
+          "n": 4,
+          "hits": 0,
+          "schema_valid": 4,
+          "length": 0,
+          "errors": [],
+          "mean_completion_tokens": 95.75,
+          "mean_reasoning_tokens": 0,
+          "total_completion_tokens": 383,
+          "max_distance_px": 242.51926438945014,
+          "median_distance_px": 134.1194309342094,
+          "mean_seconds": 0.915
+        },
+        "point": {
+          "n": 4,
+          "hits": 3,
+          "schema_valid": 4,
+          "length": 0,
+          "errors": [],
+          "mean_completion_tokens": 101.75,
+          "mean_reasoning_tokens": 0,
+          "total_completion_tokens": 407,
+          "max_distance_px": 64.44454670489961,
+          "median_distance_px": 14.507708295937078,
+          "mean_seconds": 0.89
+        },
+        "strict-bbox": {
+          "n": 4,
+          "hits": 0,
+          "schema_valid": 4,
+          "length": 0,
+          "errors": [],
+          "mean_completion_tokens": 122,
+          "mean_reasoning_tokens": 0,
+          "total_completion_tokens": 488,
+          "max_distance_px": 43.27734857867342,
+          "median_distance_px": 41.885575161058554,
+          "mean_seconds": 1.1075
+        }
+      }
+    },
+    "20260919-deepseek-on-16000": {
+      "all": {
+        "n": 12,
+        "hits": 3,
+        "schema_valid": 12,
+        "length": 0,
+        "errors": [],
+        "mean_completion_tokens": 2023.5833333333333,
+        "mean_reasoning_tokens": 1928.1666666666667,
+        "total_completion_tokens": 24283,
+        "max_distance_px": 471.0930018584441,
+        "median_distance_px": 37.88118966243242,
+        "mean_seconds": 8.440833333333334
+      },
+      "variants": {
+        "low-detail": {
+          "n": 4,
+          "hits": 0,
+          "schema_valid": 4,
+          "length": 0,
+          "errors": [],
+          "mean_completion_tokens": 2933.75,
+          "mean_reasoning_tokens": 2817.5,
+          "total_completion_tokens": 11735,
+          "max_distance_px": 471.0930018584441,
+          "median_distance_px": 309.1794972598645,
+          "mean_seconds": 11.905
+        },
+        "point": {
+          "n": 4,
+          "hits": 1,
+          "schema_valid": 4,
+          "length": 0,
+          "errors": [],
+          "mean_completion_tokens": 2565.75,
+          "mean_reasoning_tokens": 2496.75,
+          "total_completion_tokens": 10263,
+          "max_distance_px": 39.32114443909287,
+          "median_distance_px": 35.60890372992418,
+          "mean_seconds": 10.639999999999999
+        },
+        "strict-bbox": {
+          "n": 4,
+          "hits": 2,
+          "schema_valid": 4,
+          "length": 0,
+          "errors": [],
+          "mean_completion_tokens": 571.25,
+          "mean_reasoning_tokens": 470.25,
+          "total_completion_tokens": 2285,
+          "max_distance_px": 169.65697627860763,
+          "median_distance_px": 28.655388234714245,
+          "mean_seconds": 2.7775
+        }
+      }
+    },
+    "20260919-deepseek-on-4000": {
+      "all": {
+        "n": 12,
+        "hits": 3,
+        "schema_valid": 10,
+        "length": 2,
+        "errors": [
+          "deepseek-102-low-detail-1: ValueError: Expected exactly one click function call",
+          "deepseek-102-point-1: ValueError: Expected exactly one click function call"
+        ],
+        "mean_completion_tokens": 1301.1666666666667,
+        "mean_reasoning_tokens": 1230.5,
+        "total_completion_tokens": 15614,
+        "max_distance_px": 347.40722157145785,
+        "median_distance_px": 70.87923208110652,
+        "mean_seconds": 5.7225
+      },
+      "variants": {
+        "low-detail": {
+          "n": 4,
+          "hits": 0,
+          "schema_valid": 3,
+          "length": 1,
+          "errors": [
+            "deepseek-102-low-detail-1: ValueError: Expected exactly one click function call"
+          ],
+          "mean_completion_tokens": 2107.75,
+          "mean_reasoning_tokens": 2056,
+          "total_completion_tokens": 8431,
+          "max_distance_px": 347.40722157145785,
+          "median_distance_px": 285.67041428891446,
+          "mean_seconds": 8.775
+        },
+        "point": {
+          "n": 4,
+          "hits": 1,
+          "schema_valid": 3,
+          "length": 1,
+          "errors": [
+            "deepseek-102-point-1: ValueError: Expected exactly one click function call"
+          ],
+          "mean_completion_tokens": 1137,
+          "mean_reasoning_tokens": 1085.25,
+          "total_completion_tokens": 4548,
+          "max_distance_px": 150.21467970874224,
+          "median_distance_px": 35.412326949806534,
+          "mean_seconds": 5.112500000000001
+        },
+        "strict-bbox": {
+          "n": 4,
+          "hits": 2,
+          "schema_valid": 4,
+          "length": 0,
+          "errors": [],
+          "mean_completion_tokens": 658.75,
+          "mean_reasoning_tokens": 550.25,
+          "total_completion_tokens": 2635,
+          "max_distance_px": 106.34613721240652,
+          "median_distance_px": 25.655035846756903,
+          "mean_seconds": 3.28
+        }
+      }
+    }
+  },
+  "total_requests": 112,
+  "raw_responses_verified": 112,
+  "verified": "Actual HTTP images, model, reasoning and budget; paired requests identical except thinking/max_tokens; raw response usage, finish reason, arguments; off responses have no reasoning content/tokens"
+}

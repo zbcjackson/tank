@@ -1,0 +1,2163 @@
+{
+  "options": {
+    "output": "benchmarks/computer_use/reports/20260919-deepseek-holdout-off-4000",
+    "models": [
+      "deepseek"
+    ],
+    "variants": [
+      "point"
+    ],
+    "cases": 16,
+    "seed": 201,
+    "repeats": 2,
+    "max_tokens": 4000,
+    "thinking": "off",
+    "schema_style": "integer"
+  },
+  "results": [
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        855,
+        780
+      ],
+      "crop": null,
+      "bounds": [
+        825,
+        756,
+        885,
+        804
+      ],
+      "radius": 22,
+      "id": "deepseek-212-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 212,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5f744b6bc85086876d8fd2c053860759ce4c1e22e390a1659627d70ec7c08232"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 94,
+        "prompt_tokens": 1386,
+        "total_tokens": 1480,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 128
+        },
+        "prompt_cache_hit_tokens": 128,
+        "prompt_cache_miss_tokens": 1258
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 479, \"y\": 741}",
+      "abstained": false,
+      "point": [
+        804.72,
+        778.05
+      ],
+      "dx": -50.27999999999997,
+      "dy": -1.9500000000000455,
+      "distance": 50.31779903771624,
+      "correct_abstention": false,
+      "seconds": 1.42
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        845,
+        491
+      ],
+      "crop": null,
+      "bounds": [
+        815,
+        467,
+        875,
+        515
+      ],
+      "radius": 22,
+      "id": "deepseek-205-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 205,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c30a01c860e9c438ebfbe5ec2c96583e81186b9ecfdcbe4539108ce95f3d7b5f"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 112,
+        "prompt_tokens": 1216,
+        "total_tokens": 1328,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 960
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 594, \"y\": 550}",
+      "abstained": false,
+      "point": [
+        855.3599999999999,
+        495.0
+      ],
+      "dx": 10.3599999999999,
+      "dy": 4.0,
+      "distance": 11.105386080636634,
+      "correct_abstention": false,
+      "seconds": 1.46
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        671,
+        292
+      ],
+      "crop": null,
+      "bounds": [
+        641,
+        268,
+        701,
+        316
+      ],
+      "radius": 22,
+      "id": "deepseek-213-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 213,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6bcdd088b1283f907c11b55142e6a5ac65dfb53586ec97148a44d3f61eebfc51"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 118,
+        "prompt_tokens": 1216,
+        "total_tokens": 1334,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 960
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 460, \"y\": 324}",
+      "abstained": false,
+      "point": [
+        662.4,
+        291.6
+      ],
+      "dx": -8.600000000000023,
+      "dy": -0.39999999999997726,
+      "distance": 8.609297300012376,
+      "correct_abstention": false,
+      "seconds": 1.42
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        1228,
+        605
+      ],
+      "crop": null,
+      "bounds": [
+        1198,
+        581,
+        1258,
+        629
+      ],
+      "radius": 22,
+      "id": "deepseek-216-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 216,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "878efa6d5e586d005e1216b15fbf6bc0c56d331164ef5ec15eebabad4bf6f932"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 94,
+        "prompt_tokens": 1386,
+        "total_tokens": 1480,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 1130
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 725, \"y\": 577}",
+      "abstained": false,
+      "point": [
+        1218.0,
+        605.85
+      ],
+      "dx": -10.0,
+      "dy": 0.8500000000000227,
+      "distance": 10.036059983878138,
+      "correct_abstention": false,
+      "seconds": 1.26
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        629,
+        699
+      ],
+      "crop": null,
+      "bounds": [
+        599,
+        675,
+        659,
+        723
+      ],
+      "radius": 22,
+      "id": "deepseek-214-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 214,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "d3e6772a51abd9d5b2ddf7c54272c52adeabb8621964e233f245d2ed591e94ab"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 115,
+        "prompt_tokens": 1401,
+        "total_tokens": 1516,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 1145
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 655, \"y\": 440}",
+      "abstained": false,
+      "point": [
+        687.75,
+        739.2
+      ],
+      "dx": 58.75,
+      "dy": 40.200000000000045,
+      "distance": 71.18709503835652,
+      "correct_abstention": false,
+      "seconds": 0.92
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        629,
+        699
+      ],
+      "crop": null,
+      "bounds": [
+        599,
+        675,
+        659,
+        723
+      ],
+      "radius": 22,
+      "id": "deepseek-214-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 214,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "d3e6772a51abd9d5b2ddf7c54272c52adeabb8621964e233f245d2ed591e94ab"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 94,
+        "prompt_tokens": 1401,
+        "total_tokens": 1495,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1152
+        },
+        "prompt_cache_hit_tokens": 1152,
+        "prompt_cache_miss_tokens": 249
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 667, \"y\": 440}",
+      "abstained": false,
+      "point": [
+        700.35,
+        739.2
+      ],
+      "dx": 71.35000000000002,
+      "dy": 40.200000000000045,
+      "distance": 81.8954363807899,
+      "correct_abstention": false,
+      "seconds": 1.19
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        978,
+        583
+      ],
+      "crop": null,
+      "bounds": [
+        948,
+        559,
+        1008,
+        607
+      ],
+      "radius": 22,
+      "id": "deepseek-211-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 211,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "36ff35ae6a5cd050f682cd6871ddf30d0eb8565ad23f2d302fe68ae560bef99f"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 119,
+        "prompt_tokens": 1375,
+        "total_tokens": 1494,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 128
+        },
+        "prompt_cache_hit_tokens": 128,
+        "prompt_cache_miss_tokens": 1247
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 637, \"y\": 570}",
+      "abstained": false,
+      "point": [
+        978.4320000000001,
+        583.68
+      ],
+      "dx": 0.43200000000013006,
+      "dy": 0.67999999999995,
+      "distance": 0.8056202579379719,
+      "correct_abstention": false,
+      "seconds": 1.62
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        856,
+        318
+      ],
+      "crop": null,
+      "bounds": [
+        826,
+        294,
+        886,
+        342
+      ],
+      "radius": 22,
+      "id": "deepseek-204-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 204,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "451949f8a612f4af4a5cd58eb24b6b460ef88480414223d49d358997b0051ec6"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 94,
+        "prompt_tokens": 1386,
+        "total_tokens": 1480,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 1130
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 505, \"y\": 303}",
+      "abstained": false,
+      "point": [
+        848.4,
+        318.15
+      ],
+      "dx": -7.600000000000023,
+      "dy": 0.14999999999997726,
+      "distance": 7.601480119029474,
+      "correct_abstention": false,
+      "seconds": 1.06
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        650,
+        633
+      ],
+      "crop": null,
+      "bounds": [
+        620,
+        609,
+        680,
+        657
+      ],
+      "radius": 22,
+      "id": "deepseek-203-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 203,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c58e55c8e1cd60b95b5a0491dd9c93d161d4e6a2185267d73e1a836dafa977c0"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 85,
+        "prompt_tokens": 1375,
+        "total_tokens": 1460,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 1119
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 644, \"y\": 628}",
+      "abstained": false,
+      "point": [
+        989.1839999999999,
+        643.072
+      ],
+      "dx": 339.18399999999986,
+      "dy": 10.072000000000003,
+      "distance": 339.3335100457954,
+      "correct_abstention": false,
+      "seconds": 1.01
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        761,
+        676
+      ],
+      "crop": null,
+      "bounds": [
+        731,
+        652,
+        791,
+        700
+      ],
+      "radius": 22,
+      "id": "deepseek-208-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 208,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "e36e8581c6a7f4efc6244d3fcc28165dacd8cb7ce56904aec1333e55e17cf259"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 94,
+        "prompt_tokens": 1386,
+        "total_tokens": 1480,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 1130
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 452, \"y\": 643}",
+      "abstained": false,
+      "point": [
+        759.36,
+        675.15
+      ],
+      "dx": -1.6399999999999864,
+      "dy": -0.8500000000000227,
+      "distance": 1.8471870506258954,
+      "correct_abstention": false,
+      "seconds": 0.86
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        671,
+        292
+      ],
+      "crop": null,
+      "bounds": [
+        641,
+        268,
+        701,
+        316
+      ],
+      "radius": 22,
+      "id": "deepseek-213-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 213,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6bcdd088b1283f907c11b55142e6a5ac65dfb53586ec97148a44d3f61eebfc51"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 112,
+        "prompt_tokens": 1216,
+        "total_tokens": 1328,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1024
+        },
+        "prompt_cache_hit_tokens": 1024,
+        "prompt_cache_miss_tokens": 192
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 460, \"y\": 326}",
+      "abstained": false,
+      "point": [
+        662.4,
+        293.4
+      ],
+      "dx": -8.600000000000023,
+      "dy": 1.3999999999999773,
+      "distance": 8.713208364316804,
+      "correct_abstention": false,
+      "seconds": 1.1
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        475,
+        648
+      ],
+      "crop": null,
+      "bounds": [
+        445,
+        624,
+        505,
+        672
+      ],
+      "radius": 22,
+      "id": "deepseek-206-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 206,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5c726f83bf91221fa9715eb83534947cb8d8490dfcc320fb85ff59c671ebaa24"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 90,
+        "prompt_tokens": 1401,
+        "total_tokens": 1491,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 1145
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 500, \"y\": 394}",
+      "abstained": false,
+      "point": [
+        525.0,
+        661.92
+      ],
+      "dx": 50.0,
+      "dy": 13.919999999999959,
+      "distance": 51.90150672186694,
+      "correct_abstention": false,
+      "seconds": 1.07
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        856,
+        318
+      ],
+      "crop": null,
+      "bounds": [
+        826,
+        294,
+        886,
+        342
+      ],
+      "radius": 22,
+      "id": "deepseek-204-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 204,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "451949f8a612f4af4a5cd58eb24b6b460ef88480414223d49d358997b0051ec6"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 94,
+        "prompt_tokens": 1386,
+        "total_tokens": 1480,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1152
+        },
+        "prompt_cache_hit_tokens": 1152,
+        "prompt_cache_miss_tokens": 234
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 500, \"y\": 303}",
+      "abstained": false,
+      "point": [
+        840.0,
+        318.15
+      ],
+      "dx": -16.0,
+      "dy": 0.14999999999997726,
+      "distance": 16.000703109551154,
+      "correct_abstention": false,
+      "seconds": 0.84
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        978,
+        583
+      ],
+      "crop": null,
+      "bounds": [
+        948,
+        559,
+        1008,
+        607
+      ],
+      "radius": 22,
+      "id": "deepseek-211-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 211,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "36ff35ae6a5cd050f682cd6871ddf30d0eb8565ad23f2d302fe68ae560bef99f"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 118,
+        "prompt_tokens": 1375,
+        "total_tokens": 1493,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1152
+        },
+        "prompt_cache_hit_tokens": 1152,
+        "prompt_cache_miss_tokens": 223
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 637, \"y\": 569}",
+      "abstained": false,
+      "point": [
+        978.4320000000001,
+        582.656
+      ],
+      "dx": 0.43200000000013006,
+      "dy": -0.34400000000005093,
+      "distance": 0.5522318353736476,
+      "correct_abstention": false,
+      "seconds": 0.93
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        650,
+        633
+      ],
+      "crop": null,
+      "bounds": [
+        620,
+        609,
+        680,
+        657
+      ],
+      "radius": 22,
+      "id": "deepseek-203-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 203,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c58e55c8e1cd60b95b5a0491dd9c93d161d4e6a2185267d73e1a836dafa977c0"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 159,
+        "prompt_tokens": 1375,
+        "total_tokens": 1534,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1152
+        },
+        "prompt_cache_hit_tokens": 1152,
+        "prompt_cache_miss_tokens": 223
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 422, \"y\": 618}",
+      "abstained": false,
+      "point": [
+        648.192,
+        632.832
+      ],
+      "dx": -1.8079999999999927,
+      "dy": -0.16800000000000637,
+      "distance": 1.8157885339433046,
+      "correct_abstention": false,
+      "seconds": 1.59
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        618,
+        671
+      ],
+      "crop": null,
+      "bounds": [
+        588,
+        647,
+        648,
+        695
+      ],
+      "radius": 22,
+      "id": "deepseek-215-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 215,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "0d7e0929411cd2189215f748fbf7391f124ba1cc13b44e6dbaaba7c15e259c60"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 161,
+        "prompt_tokens": 1375,
+        "total_tokens": 1536,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 1119
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 404, \"y\": 655}",
+      "abstained": false,
+      "point": [
+        620.544,
+        670.72
+      ],
+      "dx": 2.5439999999999827,
+      "dy": -0.2799999999999727,
+      "distance": 2.5593624206039864,
+      "correct_abstention": false,
+      "seconds": 1.33
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        704,
+        994
+      ],
+      "crop": null,
+      "bounds": [
+        674,
+        970,
+        734,
+        1018
+      ],
+      "radius": 22,
+      "id": "deepseek-202-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 202,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "ea0afda222bd63127b5d54d7e8f90e4397e0832b31c484b20ebb84cf7048d2c9"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 94,
+        "prompt_tokens": 1401,
+        "total_tokens": 1495,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 1145
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 712, \"y\": 613}",
+      "abstained": false,
+      "point": [
+        747.6,
+        1029.84
+      ],
+      "dx": 43.60000000000002,
+      "dy": 35.83999999999992,
+      "distance": 56.43992912823329,
+      "correct_abstention": false,
+      "seconds": 1.46
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        619,
+        334
+      ],
+      "crop": null,
+      "bounds": [
+        589,
+        310,
+        649,
+        358
+      ],
+      "radius": 22,
+      "id": "deepseek-201-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 201,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 117,
+        "prompt_tokens": 1216,
+        "total_tokens": 1333,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 960
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 436, \"y\": 372}",
+      "abstained": false,
+      "point": [
+        627.84,
+        334.8
+      ],
+      "dx": 8.840000000000032,
+      "dy": 0.8000000000000114,
+      "distance": 8.876125280774296,
+      "correct_abstention": false,
+      "seconds": 1.43
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        618,
+        671
+      ],
+      "crop": null,
+      "bounds": [
+        588,
+        647,
+        648,
+        695
+      ],
+      "radius": 22,
+      "id": "deepseek-215-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 215,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "0d7e0929411cd2189215f748fbf7391f124ba1cc13b44e6dbaaba7c15e259c60"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 91,
+        "prompt_tokens": 1375,
+        "total_tokens": 1466,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1152
+        },
+        "prompt_cache_hit_tokens": 1152,
+        "prompt_cache_miss_tokens": 223
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 622, \"y\": 663}",
+      "abstained": false,
+      "point": [
+        955.3920000000002,
+        678.912
+      ],
+      "dx": 337.39200000000017,
+      "dy": 7.912000000000035,
+      "distance": 337.48475729727426,
+      "correct_abstention": false,
+      "seconds": 1.13
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        619,
+        334
+      ],
+      "crop": null,
+      "bounds": [
+        589,
+        310,
+        649,
+        358
+      ],
+      "radius": 22,
+      "id": "deepseek-201-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 201,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 106,
+        "prompt_tokens": 1216,
+        "total_tokens": 1322,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1024
+        },
+        "prompt_cache_hit_tokens": 1024,
+        "prompt_cache_miss_tokens": 192
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 437, \"y\": 372}",
+      "abstained": false,
+      "point": [
+        629.28,
+        334.8
+      ],
+      "dx": 10.279999999999973,
+      "dy": 0.8000000000000114,
+      "distance": 10.31108141758174,
+      "correct_abstention": false,
+      "seconds": 1.43
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        589,
+        1030
+      ],
+      "crop": null,
+      "bounds": [
+        559,
+        1006,
+        619,
+        1054
+      ],
+      "radius": 22,
+      "id": "deepseek-210-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 210,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "cb6797dd4ffbbd4ed45fd7edbe2562e9633a1206a0e7fc4a09063746474b4655"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 94,
+        "prompt_tokens": 1401,
+        "total_tokens": 1495,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 1145
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 561, \"y\": 612}",
+      "abstained": false,
+      "point": [
+        589.05,
+        1028.16
+      ],
+      "dx": 0.049999999999954525,
+      "dy": -1.8399999999999181,
+      "distance": 1.8406792224610171,
+      "correct_abstention": false,
+      "seconds": 1.23
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        1228,
+        605
+      ],
+      "crop": null,
+      "bounds": [
+        1198,
+        581,
+        1258,
+        629
+      ],
+      "radius": 22,
+      "id": "deepseek-216-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 216,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "878efa6d5e586d005e1216b15fbf6bc0c56d331164ef5ec15eebabad4bf6f932"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 94,
+        "prompt_tokens": 1386,
+        "total_tokens": 1480,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1152
+        },
+        "prompt_cache_hit_tokens": 1152,
+        "prompt_cache_miss_tokens": 234
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 722, \"y\": 576}",
+      "abstained": false,
+      "point": [
+        1212.96,
+        604.8
+      ],
+      "dx": -15.039999999999964,
+      "dy": -0.20000000000004547,
+      "distance": 15.041329728451501,
+      "correct_abstention": false,
+      "seconds": 0.85
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        937,
+        548
+      ],
+      "crop": null,
+      "bounds": [
+        907,
+        524,
+        967,
+        572
+      ],
+      "radius": 22,
+      "id": "deepseek-207-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 207,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6a0264b59e51ee10b87f1459f8cc1342b4a1228a7adf5e84d15adfaa9562a55a"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 97,
+        "prompt_tokens": 1375,
+        "total_tokens": 1472,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 1119
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 617, \"y\": 537}",
+      "abstained": false,
+      "point": [
+        947.712,
+        549.888
+      ],
+      "dx": 10.711999999999989,
+      "dy": 1.8880000000000337,
+      "distance": 10.877108439286605,
+      "correct_abstention": false,
+      "seconds": 1.04
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        920,
+        215
+      ],
+      "crop": null,
+      "bounds": [
+        890,
+        191,
+        950,
+        239
+      ],
+      "radius": 22,
+      "id": "deepseek-209-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 209,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "842d1bb0c0b09b1aba67773319b374ba4e53beeca5d6e30bdca400dad6f90ab7"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 117,
+        "prompt_tokens": 1216,
+        "total_tokens": 1333,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 960
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 601, \"y\": 240}",
+      "abstained": false,
+      "point": [
+        865.44,
+        216.0
+      ],
+      "dx": -54.559999999999945,
+      "dy": 1.0,
+      "distance": 54.56916345336434,
+      "correct_abstention": false,
+      "seconds": 1.12
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        845,
+        491
+      ],
+      "crop": null,
+      "bounds": [
+        815,
+        467,
+        875,
+        515
+      ],
+      "radius": 22,
+      "id": "deepseek-205-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 205,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c30a01c860e9c438ebfbe5ec2c96583e81186b9ecfdcbe4539108ce95f3d7b5f"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 112,
+        "prompt_tokens": 1216,
+        "total_tokens": 1328,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1024
+        },
+        "prompt_cache_hit_tokens": 1024,
+        "prompt_cache_miss_tokens": 192
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 598, \"y\": 550}",
+      "abstained": false,
+      "point": [
+        861.12,
+        495.0
+      ],
+      "dx": 16.120000000000005,
+      "dy": 4.0,
+      "distance": 16.608865102709462,
+      "correct_abstention": false,
+      "seconds": 1.24
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        475,
+        648
+      ],
+      "crop": null,
+      "bounds": [
+        445,
+        624,
+        505,
+        672
+      ],
+      "radius": 22,
+      "id": "deepseek-206-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 206,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5c726f83bf91221fa9715eb83534947cb8d8490dfcc320fb85ff59c671ebaa24"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 94,
+        "prompt_tokens": 1401,
+        "total_tokens": 1495,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1152
+        },
+        "prompt_cache_hit_tokens": 1152,
+        "prompt_cache_miss_tokens": 249
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 477, \"y\": 405}",
+      "abstained": false,
+      "point": [
+        500.85,
+        680.4
+      ],
+      "dx": 25.850000000000023,
+      "dy": 32.39999999999998,
+      "distance": 41.44855244758253,
+      "correct_abstention": false,
+      "seconds": 0.73
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        589,
+        1030
+      ],
+      "crop": null,
+      "bounds": [
+        559,
+        1006,
+        619,
+        1054
+      ],
+      "radius": 22,
+      "id": "deepseek-210-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 210,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "cb6797dd4ffbbd4ed45fd7edbe2562e9633a1206a0e7fc4a09063746474b4655"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 94,
+        "prompt_tokens": 1401,
+        "total_tokens": 1495,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1152
+        },
+        "prompt_cache_hit_tokens": 1152,
+        "prompt_cache_miss_tokens": 249
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 560, \"y\": 613}",
+      "abstained": false,
+      "point": [
+        588.0,
+        1029.84
+      ],
+      "dx": -1.0,
+      "dy": -0.16000000000008185,
+      "distance": 1.012719112093786,
+      "correct_abstention": false,
+      "seconds": 1.0
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        761,
+        676
+      ],
+      "crop": null,
+      "bounds": [
+        731,
+        652,
+        791,
+        700
+      ],
+      "radius": 22,
+      "id": "deepseek-208-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 208,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "e36e8581c6a7f4efc6244d3fcc28165dacd8cb7ce56904aec1333e55e17cf259"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 94,
+        "prompt_tokens": 1386,
+        "total_tokens": 1480,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1152
+        },
+        "prompt_cache_hit_tokens": 1152,
+        "prompt_cache_miss_tokens": 234
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 452, \"y\": 643}",
+      "abstained": false,
+      "point": [
+        759.36,
+        675.15
+      ],
+      "dx": -1.6399999999999864,
+      "dy": -0.8500000000000227,
+      "distance": 1.8471870506258954,
+      "correct_abstention": false,
+      "seconds": 0.82
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        920,
+        215
+      ],
+      "crop": null,
+      "bounds": [
+        890,
+        191,
+        950,
+        239
+      ],
+      "radius": 22,
+      "id": "deepseek-209-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 209,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "842d1bb0c0b09b1aba67773319b374ba4e53beeca5d6e30bdca400dad6f90ab7"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 85,
+        "prompt_tokens": 1216,
+        "total_tokens": 1301,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1024
+        },
+        "prompt_cache_hit_tokens": 1024,
+        "prompt_cache_miss_tokens": 192
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 613, \"y\": 257}",
+      "abstained": false,
+      "point": [
+        882.72,
+        231.3
+      ],
+      "dx": -37.27999999999997,
+      "dy": 16.30000000000001,
+      "distance": 40.68769347112218,
+      "correct_abstention": false,
+      "seconds": 1.0
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        937,
+        548
+      ],
+      "crop": null,
+      "bounds": [
+        907,
+        524,
+        967,
+        572
+      ],
+      "radius": 22,
+      "id": "deepseek-207-point-1",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 207,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6a0264b59e51ee10b87f1459f8cc1342b4a1228a7adf5e84d15adfaa9562a55a"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 85,
+        "prompt_tokens": 1375,
+        "total_tokens": 1460,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1152
+        },
+        "prompt_cache_hit_tokens": 1152,
+        "prompt_cache_miss_tokens": 223
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 617, \"y\": 540}",
+      "abstained": false,
+      "point": [
+        947.712,
+        552.96
+      ],
+      "dx": 10.711999999999989,
+      "dy": 4.960000000000036,
+      "distance": 11.804598426037208,
+      "correct_abstention": false,
+      "seconds": 0.9
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        704,
+        994
+      ],
+      "crop": null,
+      "bounds": [
+        674,
+        970,
+        734,
+        1018
+      ],
+      "radius": 22,
+      "id": "deepseek-202-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 202,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "ea0afda222bd63127b5d54d7e8f90e4397e0832b31c484b20ebb84cf7048d2c9"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 94,
+        "prompt_tokens": 1401,
+        "total_tokens": 1495,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1152
+        },
+        "prompt_cache_hit_tokens": 1152,
+        "prompt_cache_miss_tokens": 249
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 713, \"y\": 613}",
+      "abstained": false,
+      "point": [
+        748.65,
+        1029.84
+      ],
+      "dx": 44.64999999999998,
+      "dy": 35.83999999999992,
+      "distance": 57.254939524900315,
+      "correct_abstention": false,
+      "seconds": 1.08
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        855,
+        780
+      ],
+      "crop": null,
+      "bounds": [
+        825,
+        756,
+        885,
+        804
+      ],
+      "radius": 22,
+      "id": "deepseek-212-point-0",
+      "model": "deepseek-flash",
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com",
+      "seed": 212,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5f744b6bc85086876d8fd2c053860759ce4c1e22e390a1659627d70ec7c08232"
+      ],
+      "schema_style": "integer",
+      "thinking": false,
+      "max_tokens": 4000,
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 105,
+        "prompt_tokens": 1386,
+        "total_tokens": 1491,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1152
+        },
+        "prompt_cache_hit_tokens": 1152,
+        "prompt_cache_miss_tokens": 234
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 479, \"y\": 748}",
+      "abstained": false,
+      "point": [
+        804.72,
+        785.4
+      ],
+      "dx": -50.27999999999997,
+      "dy": 5.399999999999977,
+      "distance": 50.56914474261946,
+      "correct_abstention": false,
+      "seconds": 1.08
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "code_commit": "a8f63ec11602a253315203b9c4220847573826da",
+  "source_sha256": {
+    "backend/scripts/probe_grounding_matrix.py": "897371fbbdc5a9bf374802f4a69c6a4fe5b480bdbcbf7c88f296ba5939da893e",
+    "backend/scripts/probe_grounding_contract.py": "d6f54f6a4675c6e7c49e165d36cb12fb173c2220aa01560cbaa8d1e2de9ce7d5",
+    "backend/core/src/tank_backend/benchmarks/grounding_probe.py": "204179efb175f1c523e7e66faa7a25e77e420dd86342590c3b7a4ab26aadce46"
+  },
+  "checks": {
+    "grounding_pytest": "48 passed",
+    "backend_pytest": "4476 passed, 1 skipped",
+    "e2e": "14 scenarios, 55 steps passed",
+    "web_lint": "passed",
+    "web_types": "passed",
+    "backend_lint": "passed",
+    "changed_python_types": "passed",
+    "cli_lint": "passed",
+    "docs": "passed",
+    "protocol_sync": "passed",
+    "dev_reload": "passed"
+  },
+  "test_environment": "macOS; DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib; UV_CACHE_DIR=/tmp/tank-uv-cache; complete tests need localhost/network access outside sandbox"
+}

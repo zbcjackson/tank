@@ -1,0 +1,64 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "Locate the requested UI element in the current image."
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "CURRENT image: 1680x1050. Locate the button labeled 7. Call click once with its center of the button in normalized coordinates, x=0..1000, y=0..1000. The origin is the top-left of THIS input image; each axis spans the full image. Use only the CURRENT image, not previous positions. Set found=true when located. If absent or uncertain, set found=false and ALL coordinates=0."
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "sha256:e36e8581c6a7f4efc6244d3fcc28165dacd8cb7ce56904aec1333e55e17cf259",
+            "detail": "auto"
+          }
+        }
+      ]
+    }
+  ],
+  "model": "deepseek-flash",
+  "max_tokens": 16000,
+  "stream": false,
+  "temperature": 0.1,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "click",
+        "description": "Report one target location; no action is executed.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "found": {
+              "type": "boolean"
+            },
+            "x": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            }
+          },
+          "required": [
+            "found",
+            "x",
+            "y"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "thinking": {
+    "type": "enabled"
+  }
+}
