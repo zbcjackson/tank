@@ -11,6 +11,11 @@
 
 ## 条目
 
+2026-09-19：提示冲突、输入/评分、截图像素证据、frame/宿主还原、模型适配、
+规划定位分离、AX/定位器与跨应用/长历史工作已立项，统一移入
+[macOS 适配与定位计划](plans/active/computer-use-adaptation-and-grounding.md)。
+移出本表表示已有执行计划，不表示问题已修复；完整历史核对见该计划 §2。
+
 | 项目 | 触发条件 | 背景/前置 | 来源 |
 |---|---|---|---|
 | Computer-use 多显示器支持 | 单屏限制阻碍实际桌面任务，且可准备多显示器验收环境 | 现有平台原语和 N2 benchmark 固定单屏；需统一截图布局、显示器身份与坐标变换 | [computer-use-improvement-and-n2-plan.md](plans/done/computer-use-improvement-and-n2-plan.md) A16 / §18 |
@@ -24,12 +29,3 @@
 | memory `pinned_soft_cap_kb` 软上限告警 | **前置已满足**（IMP-1 Dream Consolidation 已落地，默认关闭），可随时立项 | 12 KB pinned 软告警当初因无收敛路径而暂缓；现在 consolidator 可收敛超限 pinned 集，告警有意义了 | [memory-context-improvements.md](plans/done/memory-context-improvements.md) §0 |
 
 | macOS 动态几何与高频输入验收 | 产品需要截图后切换主屏/分辨率或无截图高频连点，或这些条件下再次报告错点 | 当前静态主屏九点验收通过；默认尺寸/截图缓存不追踪动态几何，首次校准存在未确定原因的事件缺失；多屏支持沿用上方条目 | [macos-coordinate-chain.md](research/macos-coordinate-chain.md) |
-
-| calc-open 截图像素验收 | 需要把“截图确实展示 56”纳入评分或支持其他 macOS 控件结构 | 当前读取前台 Calculator 的 AX 表达式/结果，拒绝不可读状态；尚未对屏幕遮挡、截图存在与像素做判定 | [macos-grounding-contract.md](plans/done/macos-grounding-contract.md) |
-| 定位候选的跨应用与长历史验收 | 准备将 GPT-5.5 等用于更广泛生产桌面任务，且具备获准外发的隔离环境 | GPT-5.5 合成图 32/32；真实 calc-open 已跑三轮严格 2/3，含两段鼠标序列和一次反馈恢复。尚缺全 14 任务、长历史/compaction、多种按钮尺寸；新严格协议仅在探针中，生产默认未切换 | [完整闭环](plans/done/gpt55-computer-use-loop.md)、[统一结论](design/computer-use.md) |
-| 桌面子代理的 base 委托提示冲突 | 下一次优化或评估子代理提示、准备正式生产选型 | 实际 HTTP 同时包含直接操作桌面的专家指令与 base.md 的“必须委托 computer_use”；工具集无 agent，模型明确提及冲突。需分离主代理调度规则与共享安全规则，补提示/HTTP 回归并独立复测，尚未测量因果影响 | [完整闭环](plans/done/gpt55-computer-use-loop.md) |
-| calc-open 合法粘贴路径与评分约定 | 需要将真实显示 56 的粘贴计算路径计入成功率 | 本地重置后粘贴 7*8 直接显示 56 但无表达式，严格 AX validator 拒绝；7*8= 仍为 0。需明确表达式证据如何验证，不能直接放宽为只读 56 或把这类失败算作错点 | [统一结论](design/computer-use.md) |
-
-| Computer-use 截图引用与宿主坐标还原 | 下一轮定位接口优化立项；当前 crop 要求模型自行还原的前置问题已确认 | 将 frame/窗口/实际尺寸/裁剪变换绑定为不可变观察，按具体模型适配输入输出，宿主还原到 Quartz；保留纯视觉 holdout 对照，不猜测服务端倍率 | [实现对照 P1](research/computer-use-implementation-comparison.md#p1把空间计算从模型移到宿主) |
-| macOS AX 候选与专用定位器对照 | 准备优化同一规划模型的桌面成功率，并可提供隔离验收环境 | 先比较纯截图、AX 候选加 Quartz、AXPress，再决定视觉检测器；纯视觉与混合成绩分开，候选不能泄漏 benchmark 真值 | [实现对照 P2](research/computer-use-implementation-comparison.md#p2比较语义辅助和专用定位器) |
-| Computer-use 输入契约与效果检查 | 下一轮桌面闭环改进立项；输入模式差异已有本机复现 | 明确粘贴/字符/按键语义；状态变化步骤独立检查效果，稳定 batch 单独对照；关联现有 calc-open 评分条目，不追改旧结果 | [实现对照 P0/P3](research/computer-use-implementation-comparison.md#p0先修复已确认问题建立公平对照) |

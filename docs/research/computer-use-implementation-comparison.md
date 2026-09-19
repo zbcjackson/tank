@@ -201,5 +201,6 @@ ToolResult 成功当作应用效果成功，也不要用模型自报 confidence 
 - 本轮未执行以上新实验，也未证明其它项目在本机更可靠。后续真实截图测试
   需沿用各次授权范围，不能将上轮 GPT-5.5 清理桌面的单次授权当成通用许可。
 
-候选工作登记在 [backlog](../backlog.md)；调研检查见
+候选工作已纳入[后续执行计划](../plans/active/computer-use-adaptation-and-grounding.md)，
+当前待执行；条件性范围仍在 [backlog](../backlog.md)。调研检查见
 [完成计划](../plans/done/computer-use-implementation-research.md)。

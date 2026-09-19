@@ -1,9 +1,19 @@
-> 状态：代码修复与本机验证完成，待 macOS 实机复测，2026-09-18
+> 状态：代码修复完成，自研 macOS 静态链/单任务已有部分实测，三路全套复测仍待完成，2026-09-19
 
 # Computer-use benchmark 修复
 
 依据桌面的 Part A、N2 engine、N2 SDK 三组报告修复已确认的问题。
-旧评分不覆盖，真实 macOS benchmark 另行复测；本机为 Linux。
+旧评分不覆盖；2026-09-18 修复时的执行环境为 Linux，后续 macOS 证据见下。
+
+## 2026-09-19 状态核对
+
+后续自研路径已完成 macOS 九点、Calculator 真值点击及 GPT-5.5 calc-open
+三轮（严格 2/3，失败为粘贴路径表达式缺失），见
+[统一验证](../../design/computer-use.md)。它们补充了真实主屏证据，但不是
+Part A、旧 N2、N2 SDK 修复后同版本三路全套重跑，本计划继续 active。
+自研模型适配、规划定位分离及跨应用后续见
+[执行计划](computer-use-adaptation-and-grounding.md)；三路比较仍与
+[SDK 计划](plugin-subagents-and-n2-sdk.md) M1/M6 一起验收。下方保留当时结果。
 
 ## 实施
 

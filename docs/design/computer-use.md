@@ -24,6 +24,8 @@ GPT-5.5 在独立合成布局上最好；本次真实 calc-open 严格评分 2/3
 梳理了 Anthropic、UI-TARS、Cua、Peekaboo、OmniParser、OpenAI 和 browser-use，
 建议先修已确认问题，再分别测试宿主坐标还原、AX 元素寻址和反馈检查。
 这些是待验证方案，尚未改变生产接口；统一协议成绩不代表各模型最佳适配表现。
+后续统一按[适配与定位执行计划](../plans/active/computer-use-adaptation-and-grounding.md)
+推进，含历史完成核对、模型适配、规划定位分离四组对照及分阶段验收；当前待执行。
 
 ## 截图到点击：实际转换
 
@@ -200,4 +202,6 @@ Calculator 重启后位置在 trial 之间变化，新截图后模型适配了�
 
 本次完整后端 **4484 passed/1 skipped**，E2E **14 场景/55 步**，其余要求
 检查通过。[验收计划](../plans/done/gpt55-computer-use-loop.md) 已完成；
-全套跨应用、长历史及上述剩余问题见 [backlog](../backlog.md)。
+全套跨应用、长历史及上述剩余问题已纳入
+[后续执行计划](../plans/active/computer-use-adaptation-and-grounding.md)；
+多屏/压力等条件性范围仍见 [backlog](../backlog.md)。

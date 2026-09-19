@@ -4,6 +4,11 @@
 
 关联：[已归档 computer-use / N2 计划](../done/computer-use-improvement-and-n2-plan.md)、[当前编排设计](../../design/agent-orchestration.md)、[当前 N2 插件](../../../backend/plugins/agent-n2/README.md)、[基准指南](../../../backend/benchmarks/README.md)。
 
+2026-09-19 核对：新增的自研 macOS 校准与 GPT-5.5 单任务闭环不是本 SDK
+路径验收，不能勾选 M1/M4/M6 的三路、真实停止/清理和完整 WS 项。
+[适配与定位计划](computer-use-adaptation-and-grounding.md) 负责自研后续；
+本计划继续负责 N2/SDK 与平台专项，当前状态及历史结果保留。
+
 ## 1. 决策与成功条件
 
 - 新插件直接包装官方 `N2ComputerAgent`，使用 SDK computer adapter；不调用 Tank 的 `DesktopExecutor`，不再自写 N2 loop。
