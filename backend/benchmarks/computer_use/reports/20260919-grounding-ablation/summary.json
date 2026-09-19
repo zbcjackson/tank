@@ -1,0 +1,851 @@
+{
+  "model": "qwen3.7-flash-2026-07-15",
+  "temperature": 0.1,
+  "metric": "Euclidean distance to generated target center in original PNG pixels; normalized uses x*width/1000, y*height/1000; <=15 is not button-hit scoring.",
+  "privacy": "Only locally generated synthetic scenes sent; no desktop screenshots or input execution.",
+  "variants": {
+    "agent-default": {
+      "requests": 8,
+      "transport_errors": 0,
+      "parsed_including_fenced_json": 7,
+      "unfenced_json_points": 7,
+      "points_in_0_1000": 7,
+      "center_within_15px": 2,
+      "error_over_50px": 5,
+      "maximum_error_px": 398.2914229556042,
+      "scores": [
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            298.0,
+            284.0
+          ],
+          "error_px": 12.891237333941184
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            780.0,
+            693.0
+          ],
+          "error_px": 1.65939748101525
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            779.0,
+            497.0
+          ],
+          "error_px": 211.2402423781984
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            750.0,
+            445.0
+          ],
+          "error_px": 139.8290384719855
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            750.0,
+            445.0
+          ],
+          "error_px": 139.8290384719855
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            730.0,
+            945.0
+          ],
+          "error_px": 394.4519235597667
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            730.0,
+            947.0
+          ],
+          "error_px": 398.2914229556042
+        }
+      ]
+    },
+    "agent-off": {
+      "requests": 8,
+      "transport_errors": 0,
+      "parsed_including_fenced_json": 4,
+      "unfenced_json_points": 4,
+      "points_in_0_1000": 4,
+      "center_within_15px": 2,
+      "error_over_50px": 1,
+      "maximum_error_px": 128.88940996063255,
+      "scores": [
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            300.0,
+            285.0
+          ],
+          "error_px": 16.31686244349691
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            778.0,
+            692.0
+          ],
+          "error_px": 2.329635164569771
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            740.0,
+            460.0
+          ],
+          "error_px": 128.88940996063255
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            725.0,
+            740.0
+          ],
+          "error_px": 1.2806248474865414
+        }
+      ]
+    },
+    "formula-default": {
+      "requests": 8,
+      "transport_errors": 0,
+      "parsed_including_fenced_json": 8,
+      "unfenced_json_points": 8,
+      "points_in_0_1000": 8,
+      "center_within_15px": 2,
+      "error_over_50px": 6,
+      "maximum_error_px": 248.91241511824992,
+      "scores": [
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            192.0,
+            265.0
+          ],
+          "error_px": 192.9603316746735
+        },
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            197.0,
+            264.0
+          ],
+          "error_px": 183.59322427584303
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            793.0,
+            599.0
+          ],
+          "error_px": 104.51124341428536
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            793.0,
+            587.0
+          ],
+          "error_px": 117.0920800054384
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            746.0,
+            632.0
+          ],
+          "error_px": 5.735503465259154
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            745.0,
+            626.0
+          ],
+          "error_px": 9.416920940519761
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            734.0,
+            674.0
+          ],
+          "error_px": 126.37549129479189
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            731.0,
+            610.0
+          ],
+          "error_px": 248.91241511824992
+        }
+      ]
+    },
+    "holdout-agent": {
+      "requests": 8,
+      "transport_errors": 0,
+      "parsed_including_fenced_json": 8,
+      "unfenced_json_points": 8,
+      "points_in_0_1000": 8,
+      "center_within_15px": 0,
+      "error_over_50px": 4,
+      "maximum_error_px": 235.83468786419016,
+      "scores": [
+        {
+          "image": "1600x900-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            497.0,
+            358.0
+          ],
+          "error_px": 17.569291391516096
+        },
+        {
+          "image": "1600x900-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            575.0,
+            300.0
+          ],
+          "error_px": 235.83468786419016
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            608.0,
+            592.0
+          ],
+          "error_px": 154.08465205853568
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            651.0,
+            539.0
+          ],
+          "error_px": 21.207781590727457
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            625.0,
+            465.0
+          ],
+          "error_px": 172.38401898087886
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            555.0,
+            507.0
+          ],
+          "error_px": 188.4926789029219
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            735.0,
+            535.0
+          ],
+          "error_px": 26.100766272276374
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            655.0,
+            555.0
+          ],
+          "error_px": 40.37635446644484
+        }
+      ]
+    },
+    "holdout-highres": {
+      "requests": 8,
+      "transport_errors": 0,
+      "parsed_including_fenced_json": 8,
+      "unfenced_json_points": 8,
+      "points_in_0_1000": 8,
+      "center_within_15px": 1,
+      "error_over_50px": 3,
+      "maximum_error_px": 252.0124004885474,
+      "scores": [
+        {
+          "image": "1600x900-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            489.0,
+            357.0
+          ],
+          "error_px": 8.417244204607567
+        },
+        {
+          "image": "1600x900-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            395.0,
+            392.0
+          ],
+          "error_px": 86.44674661316063
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            690.0,
+            485.0
+          ],
+          "error_px": 15.5
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            649.0,
+            542.0
+          ],
+          "error_px": 18.204395073717766
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            615.0,
+            200.0
+          ],
+          "error_px": 252.0124004885474
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            538.0,
+            505.0
+          ],
+          "error_px": 185.06225979383262
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            718.0,
+            527.0
+          ],
+          "error_px": 33.80059171079697
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            650.0,
+            555.0
+          ],
+          "error_px": 40.01249804748511
+        }
+      ]
+    },
+    "minimal-default": {
+      "requests": 8,
+      "transport_errors": 0,
+      "parsed_including_fenced_json": 8,
+      "unfenced_json_points": 8,
+      "points_in_0_1000": 8,
+      "center_within_15px": 2,
+      "error_over_50px": 5,
+      "maximum_error_px": 682.7273130613715,
+      "scores": [
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            370.0,
+            285.0
+          ],
+          "error_px": 150.4340387013524
+        },
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            257.0,
+            354.0
+          ],
+          "error_px": 97.55396455295909
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            778.0,
+            691.0
+          ],
+          "error_px": 2.8241812972966405
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            778.0,
+            691.0
+          ],
+          "error_px": 2.8241812972966405
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            514.0,
+            778.0
+          ],
+          "error_px": 310.66874963536327
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            584.0,
+            882.0
+          ],
+          "error_px": 269.1673680073422
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            727.0,
+            384.0
+          ],
+          "error_px": 682.7273130613715
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            727.0,
+            715.0
+          ],
+          "error_px": 47.30566139480563
+        }
+      ]
+    },
+    "minimal-highres": {
+      "requests": 8,
+      "transport_errors": 0,
+      "parsed_including_fenced_json": 8,
+      "unfenced_json_points": 8,
+      "points_in_0_1000": 8,
+      "center_within_15px": 4,
+      "error_over_50px": 3,
+      "maximum_error_px": 678.9101666641913,
+      "scores": [
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            238.0,
+            302.0
+          ],
+          "error_px": 104.14925443804196
+        },
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            195.0,
+            255.0
+          ],
+          "error_px": 188.9833855131186
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            778.0,
+            691.0
+          ],
+          "error_px": 2.8241812972966405
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            778.0,
+            691.0
+          ],
+          "error_px": 2.8241812972966405
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            735.0,
+            625.0
+          ],
+          "error_px": 15.014659503298802
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            748.0,
+            635.0
+          ],
+          "error_px": 6.118300417599699
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            730.0,
+            386.0
+          ],
+          "error_px": 678.9101666641913
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            730.0,
+            738.0
+          ],
+          "error_px": 7.085308744155013
+        }
+      ]
+    },
+    "minimal-json": {
+      "requests": 8,
+      "transport_errors": 2,
+      "parsed_including_fenced_json": 2,
+      "unfenced_json_points": 0,
+      "points_in_0_1000": 2,
+      "center_within_15px": 1,
+      "error_over_50px": 1,
+      "maximum_error_px": 264.32850167925517,
+      "scores": [
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            154.0,
+            286.0
+          ],
+          "error_px": 264.32850167925517
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            778.0,
+            691.0
+          ],
+          "error_px": 2.8241812972966405
+        }
+      ]
+    },
+    "minimal-off": {
+      "requests": 8,
+      "transport_errors": 0,
+      "parsed_including_fenced_json": 0,
+      "unfenced_json_points": 0,
+      "points_in_0_1000": 0,
+      "center_within_15px": 0,
+      "error_over_50px": 0,
+      "maximum_error_px": null,
+      "scores": []
+    },
+    "minimal-off-wire": {
+      "requests": 4,
+      "transport_errors": 0,
+      "parsed_including_fenced_json": 0,
+      "unfenced_json_points": 0,
+      "points_in_0_1000": 0,
+      "center_within_15px": 0,
+      "error_over_50px": 0,
+      "maximum_error_px": null,
+      "scores": []
+    },
+    "native-bbox-hard": {
+      "requests": 8,
+      "transport_errors": 0,
+      "parsed_including_fenced_json": 8,
+      "unfenced_json_points": 0,
+      "points_in_0_1000": 8,
+      "center_within_15px": 8,
+      "error_over_50px": 0,
+      "maximum_error_px": 11.796948758047563,
+      "scores": [
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            294.5,
+            283.0
+          ],
+          "error_px": 7.6369627470612125
+        },
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            295.5,
+            283.0
+          ],
+          "error_px": 9.104899779788921
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            778.0,
+            690.0
+          ],
+          "error_px": 3.5857495729623654
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            779.5,
+            686.0
+          ],
+          "error_px": 7.148706176644848
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            745.5,
+            630.5
+          ],
+          "error_px": 6.441987271021287
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            746.0,
+            623.0
+          ],
+          "error_px": 11.796948758047563
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            733.0,
+            738.0
+          ],
+          "error_px": 10.107977047856782
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            729.5,
+            735.0
+          ],
+          "error_px": 10.57258719519491
+        }
+      ]
+    },
+    "native-bbox-holdout": {
+      "requests": 8,
+      "transport_errors": 0,
+      "parsed_including_fenced_json": 8,
+      "unfenced_json_points": 0,
+      "points_in_0_1000": 8,
+      "center_within_15px": 4,
+      "error_over_50px": 0,
+      "maximum_error_px": 41.13663209354893,
+      "scores": [
+        {
+          "image": "1600x900-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            489.0,
+            360.0
+          ],
+          "error_px": 6.046486583132377
+        },
+        {
+          "image": "1600x900-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            449.0,
+            420.0
+          ],
+          "error_px": 7.359347797189623
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            693.0,
+            484.5
+          ],
+          "error_px": 16.65660529639816
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            654.5,
+            530.5
+          ],
+          "error_px": 29.995708026316056
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            617.0,
+            357.5
+          ],
+          "error_px": 4.2999999999999545
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            556.0,
+            390.0
+          ],
+          "error_px": 11.44377560073595
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            721.5,
+            522.5
+          ],
+          "error_px": 41.13663209354893
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            652.5,
+            562.5
+          ],
+          "error_px": 28.187985029086416
+        }
+      ]
+    },
+    "nonstream-off": {
+      "requests": 8,
+      "transport_errors": 0,
+      "parsed_including_fenced_json": 0,
+      "unfenced_json_points": 0,
+      "points_in_0_1000": 0,
+      "center_within_15px": 0,
+      "error_over_50px": 0,
+      "maximum_error_px": null,
+      "scores": []
+    }
+  }
+}

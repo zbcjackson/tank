@@ -1,0 +1,600 @@
+{
+  "changed_parameter": {
+    "stream": false
+  },
+  "reference": "minimal-off",
+  "results": [
+    {
+      "image": "1920x1080-0.png",
+      "size": [
+        1920,
+        1080
+      ],
+      "target": "7",
+      "center": [
+        560,
+        311
+      ],
+      "sha256": "92ace28de5d2d614de756768e2e3a0b836d69d91bfe58a8df87048b3a7fb6f07",
+      "repeat": 0,
+      "response": {
+        "id": "chatcmpl-3aac72ef-aebd-9220-a956-5d664c830228",
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "",
+              "refusal": null,
+              "role": "assistant",
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": [
+                {
+                  "id": "call_4cac05055af446f0adfd1714",
+                  "function": {
+                    "arguments": "{\"x\": 291, 287]}",
+                    "name": "click"
+                  },
+                  "type": "function",
+                  "index": 0
+                }
+              ],
+              "reasoning_content": ""
+            }
+          }
+        ],
+        "created": 1789799055,
+        "model": "qwen3.7-flash-2026-07-15",
+        "object": "chat.completion",
+        "service_tier": null,
+        "system_fingerprint": null,
+        "usage": {
+          "completion_tokens": 33,
+          "prompt_tokens": 2523,
+          "total_tokens": 2556,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": null,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 33
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 2042,
+            "text_tokens": 481
+          }
+        }
+      },
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 291, 287]}"
+        }
+      ],
+      "seconds": 1.31
+    },
+    {
+      "image": "1920x1080-0.png",
+      "size": [
+        1920,
+        1080
+      ],
+      "target": "7",
+      "center": [
+        560,
+        311
+      ],
+      "sha256": "92ace28de5d2d614de756768e2e3a0b836d69d91bfe58a8df87048b3a7fb6f07",
+      "repeat": 1,
+      "response": {
+        "id": "chatcmpl-03b3254a-0e40-9e3a-bf56-5edb266a2312",
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "",
+              "refusal": null,
+              "role": "assistant",
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": [
+                {
+                  "id": "call_5700a1afae444241b8b951c4",
+                  "function": {
+                    "arguments": "{\"x\": 290, y=287]}",
+                    "name": "click"
+                  },
+                  "type": "function",
+                  "index": 0
+                }
+              ],
+              "reasoning_content": ""
+            }
+          }
+        ],
+        "created": 1789799056,
+        "model": "qwen3.7-flash-2026-07-15",
+        "object": "chat.completion",
+        "service_tier": null,
+        "system_fingerprint": null,
+        "usage": {
+          "completion_tokens": 34,
+          "prompt_tokens": 2523,
+          "total_tokens": 2557,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": null,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 34
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 2042,
+            "text_tokens": 481
+          }
+        }
+      },
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 290, y=287]}"
+        }
+      ],
+      "seconds": 1.07
+    },
+    {
+      "image": "1920x1080-1.png",
+      "size": [
+        1920,
+        1080
+      ],
+      "target": "7",
+      "center": [
+        1496,
+        748
+      ],
+      "sha256": "5035d6b272c594b4d0dd3ffad87f8603553dedbb5775cc23e9f3614b62979029",
+      "repeat": 0,
+      "response": {
+        "id": "chatcmpl-c3896fbe-b37d-9f1d-8990-a8d5c16228d5",
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "",
+              "refusal": null,
+              "role": "assistant",
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": [
+                {
+                  "id": "call_655e370638a04b6e86484515",
+                  "function": {
+                    "arguments": "{\"x\": 778, y=692]}",
+                    "name": "click"
+                  },
+                  "type": "function",
+                  "index": 0
+                }
+              ],
+              "reasoning_content": ""
+            }
+          }
+        ],
+        "created": 1789799057,
+        "model": "qwen3.7-flash-2026-07-15",
+        "object": "chat.completion",
+        "service_tier": null,
+        "system_fingerprint": null,
+        "usage": {
+          "completion_tokens": 34,
+          "prompt_tokens": 2523,
+          "total_tokens": 2557,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": null,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 34
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 2042,
+            "text_tokens": 481
+          }
+        }
+      },
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 778, y=692]}"
+        }
+      ],
+      "seconds": 0.9
+    },
+    {
+      "image": "1920x1080-1.png",
+      "size": [
+        1920,
+        1080
+      ],
+      "target": "7",
+      "center": [
+        1496,
+        748
+      ],
+      "sha256": "5035d6b272c594b4d0dd3ffad87f8603553dedbb5775cc23e9f3614b62979029",
+      "repeat": 1,
+      "response": {
+        "id": "chatcmpl-86f3785b-81bf-9c95-9c21-996ead4280b9",
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "",
+              "refusal": null,
+              "role": "assistant",
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": [
+                {
+                  "id": "call_298cda5be7a14ab0becd7ca4",
+                  "function": {
+                    "arguments": "{\"x\": 778, y=692]}",
+                    "name": "click"
+                  },
+                  "type": "function",
+                  "index": 0
+                }
+              ],
+              "reasoning_content": ""
+            }
+          }
+        ],
+        "created": 1789799058,
+        "model": "qwen3.7-flash-2026-07-15",
+        "object": "chat.completion",
+        "service_tier": null,
+        "system_fingerprint": null,
+        "usage": {
+          "completion_tokens": 34,
+          "prompt_tokens": 2523,
+          "total_tokens": 2557,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": null,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 34
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 1024,
+            "image_tokens": 2042,
+            "text_tokens": 481
+          }
+        }
+      },
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 778, y=692]}"
+        }
+      ],
+      "seconds": 0.7
+    },
+    {
+      "image": "1280x720-1.png",
+      "size": [
+        1280,
+        720
+      ],
+      "target": "7",
+      "center": [
+        952,
+        460
+      ],
+      "sha256": "e103c80e56b756f157dd0aa1265651d1559fb886e7bac21bfaddbf310fd86505",
+      "repeat": 0,
+      "response": {
+        "id": "chatcmpl-986c9ea0-512f-9ca4-8e29-ebd728549986",
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "",
+              "refusal": null,
+              "role": "assistant",
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": [
+                {
+                  "id": "call_a399ebee85c74b6792b9cbbe",
+                  "function": {
+                    "arguments": "{\"x\": 745, 468}",
+                    "name": "click"
+                  },
+                  "type": "function",
+                  "index": 0
+                }
+              ],
+              "reasoning_content": ""
+            }
+          }
+        ],
+        "created": 1789799059,
+        "model": "qwen3.7-flash-2026-07-15",
+        "object": "chat.completion",
+        "service_tier": null,
+        "system_fingerprint": null,
+        "usage": {
+          "completion_tokens": 32,
+          "prompt_tokens": 1363,
+          "total_tokens": 1395,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": null,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 32
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 882,
+            "text_tokens": 481
+          }
+        }
+      },
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 745, 468}"
+        }
+      ],
+      "seconds": 0.73
+    },
+    {
+      "image": "1280x720-1.png",
+      "size": [
+        1280,
+        720
+      ],
+      "target": "7",
+      "center": [
+        952,
+        460
+      ],
+      "sha256": "e103c80e56b756f157dd0aa1265651d1559fb886e7bac21bfaddbf310fd86505",
+      "repeat": 1,
+      "response": {
+        "id": "chatcmpl-7af752f6-6044-9c31-9c67-966c6f84f262",
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "",
+              "refusal": null,
+              "role": "assistant",
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": [
+                {
+                  "id": "call_b5931bc9c6904b0ab453767d",
+                  "function": {
+                    "arguments": "{\"x\": 745, 463}",
+                    "name": "click"
+                  },
+                  "type": "function",
+                  "index": 0
+                }
+              ],
+              "reasoning_content": ""
+            }
+          }
+        ],
+        "created": 1789799060,
+        "model": "qwen3.7-flash-2026-07-15",
+        "object": "chat.completion",
+        "service_tier": null,
+        "system_fingerprint": null,
+        "usage": {
+          "completion_tokens": 32,
+          "prompt_tokens": 1363,
+          "total_tokens": 1395,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": null,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 32
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 882,
+            "text_tokens": 481
+          }
+        }
+      },
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 745, 463}"
+        }
+      ],
+      "seconds": 1.11
+    },
+    {
+      "image": "1080x1920-1.png",
+      "size": [
+        1080,
+        1920
+      ],
+      "target": "7",
+      "center": [
+        782,
+        1420
+      ],
+      "sha256": "715a72d4cec5272a0da622ce5444adb2f7724fd4c1a1f3f825092e76c5f6a8ba",
+      "repeat": 0,
+      "response": {
+        "id": "chatcmpl-2d120c1e-f50c-9194-bfa2-993455f03ea9",
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "",
+              "refusal": null,
+              "role": "assistant",
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": [
+                {
+                  "id": "call_d4bd74a344a94312a992a71e",
+                  "function": {
+                    "arguments": "{\"x\": 723, y=740]}",
+                    "name": "click"
+                  },
+                  "type": "function",
+                  "index": 0
+                }
+              ],
+              "reasoning_content": ""
+            }
+          }
+        ],
+        "created": 1789799061,
+        "model": "qwen3.7-flash-2026-07-15",
+        "object": "chat.completion",
+        "service_tier": null,
+        "system_fingerprint": null,
+        "usage": {
+          "completion_tokens": 34,
+          "prompt_tokens": 2523,
+          "total_tokens": 2557,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": null,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 34
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 2042,
+            "text_tokens": 481
+          }
+        }
+      },
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 723, y=740]}"
+        }
+      ],
+      "seconds": 2.22
+    },
+    {
+      "image": "1080x1920-1.png",
+      "size": [
+        1080,
+        1920
+      ],
+      "target": "7",
+      "center": [
+        782,
+        1420
+      ],
+      "sha256": "715a72d4cec5272a0da622ce5444adb2f7724fd4c1a1f3f825092e76c5f6a8ba",
+      "repeat": 1,
+      "response": {
+        "id": "chatcmpl-ec442df6-7a8e-916e-af44-1d876148d5f8",
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "",
+              "refusal": null,
+              "role": "assistant",
+              "annotations": null,
+              "audio": null,
+              "function_call": null,
+              "tool_calls": [
+                {
+                  "id": "call_3c91b0aa08f64ee0ba088e5d",
+                  "function": {
+                    "arguments": "{\"x\": 721, 740, \"y\": 740}",
+                    "name": "click"
+                  },
+                  "type": "function",
+                  "index": 0
+                }
+              ],
+              "reasoning_content": ""
+            }
+          }
+        ],
+        "created": 1789799064,
+        "model": "qwen3.7-flash-2026-07-15",
+        "object": "chat.completion",
+        "service_tier": null,
+        "system_fingerprint": null,
+        "usage": {
+          "completion_tokens": 45,
+          "prompt_tokens": 2523,
+          "total_tokens": 2568,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": null,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 45
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 1024,
+            "image_tokens": 2042,
+            "text_tokens": 481
+          }
+        }
+      },
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 721, 740, \"y\": 740}"
+        }
+      ],
+      "seconds": 0.87
+    }
+  ]
+}

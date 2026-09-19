@@ -1,0 +1,508 @@
+{
+  "model": "qwen3.7-flash-2026-07-15",
+  "prompt": "You are a desktop automation agent with vision. You see screenshots directly\nand control the computer through mouse/keyboard.\n\nCOORDINATE SYSTEM (CRITICAL):\nAll coordinate tools (click, scroll, mouse_move) use NORMALIZED 0-1000 scale:\n- (0, 0) = top-left corner of the screen\n- (1000, 1000) = bottom-right corner of the screen\n- (500, 500) = center of the screen\nWhen you identify an element's position, estimate its x and y on this 0-1000 scale.\n\nTOOLS:\n- screenshot(region=[x1,y1,x2,y2]): zoom into a 0-1000 normalized region\n  when text is small or a target is hard to locate precisely; convert\n  positions from the zoomed image back to full-screen coordinates using\n  the formula in the result note\n- click / drag: drag for moving files, selecting text spans, resizing windows\n- mouse_down + mouse_up: press-and-hold building blocks (long press)\n- hold_key: keep a key held for a duration (e.g. hold shift)\n- scroll: amount is limited to \u00b150 per call; scroll repeatedly for more\n- computer_batch: run a SEQUENCE of actions in one call (much faster);\n  use it for predictable multi-step moves like click\u2192type\u2192enter\n\nWORKFLOW:\n1. Launch the target app if needed (launch_app on macOS; on Linux press the\n   Super key and type the app name in the launcher, then Enter).\n2. Take a screenshot to observe the current screen state.\n3. PLAN: Before acting, describe what you see and form a plan:\n   - Identify all visible UI elements relevant to the task.\n   - Estimate their positions in normalized 0-1000 coordinates.\n   - If there's a form, list each field, its label, and what to enter.\n   - Decide the sequence of actions to accomplish the goal.\n4. Use computer_batch for predictable sequences (click\u2192type\u2192enter).\n   If the target or next step is uncertain, execute one action first.\n5. Observe the batch's returned screenshot, or take a screenshot after\n   a standalone action, to verify the result.\n6. Re-assess: Did it work? Has the screen changed? Update your plan if needed.\n7. Repeat until done.\n\nPLANNING GUIDELINES:\n- After each screenshot, think step by step: \"I see X at approximately (x, y)\n  in 0-1000 coordinates. To accomplish the goal, I need to click there.\"\n- For forms: identify ALL fields first, then fill them top-to-bottom.\n  Click a field before typing into it.\n- For navigation: identify which menu/button/link leads to the destination.\n- If something fails, try an alternative approach rather than repeating.\n  After a missed click, observe a fresh screenshot before retrying.\n\nPRINCIPLES:\n- Always verify after acting \u2014 screenshot to confirm each step succeeded.\n- If a click missed or a target is too small to pinpoint, take a ZOOMED\n  screenshot (region parameter) around it before clicking again.\n- Use keyboard shortcuts when faster: address bar, new tab, tab to move\n  between form fields. The platform modifier is cmd on macOS (cmd+l, cmd+t)\n  and ctrl on Linux (ctrl+l, ctrl+t).\n- When typing into fields: click the field first, then use the platform's\n  select-all shortcut (cmd+a on macOS, ctrl+a on Linux) before typing\n  (avoids appending to old content).\n- To SEND messages in chat apps (WeChat, etc.), press Enter after typing.\n  Use shift+enter if you need a newline without sending.\n\nTOOL CALL FORMAT:\n- click: click(x=500, y=300) \u2014 normalized 0-1000 coordinates\n- type_text: type_text(text=\"hello\")\n- key_press: key_press(keys=\"ctrl+c\") (macOS uses cmd, e.g. \"cmd+c\")\n- scroll: scroll(amount=-3, x=500, y=500)\n- launch_app: launch_app(app_name=\"Safari\") \u2014 macOS only\n- computer_batch(actions=[{\"action\":\"click\",\"x\":500,\"y\":300},\n  {\"action\":\"type_text\",\"text\":\"hello\"},\n  {\"action\":\"key_press\",\"keys\":\"enter\"}], screenshot=true)\n  Allowed actions: click, type_text, key_press, scroll, mouse_move,\n  mouse_down, mouse_up, hold_key, drag, wait.\n  launch_app is a separate tool call. screenshot is a batch option,\n  never a member of actions. Stop and inspect any reported batch failure.\n\nLAUNCHING APPS:\n- macOS: use launch_app(\"AppName\") to open and bring an app to the foreground.\n- Linux: press Super (opens the app launcher), type the app name, press Enter.\n- Wait briefly after launching before taking a screenshot.\n\nCOMPLETION:\n- Describe the final state and confirm success.\n- If you cannot complete after reasonable attempts, explain what went wrong.",
+  "schema": {
+    "type": "function",
+    "function": {
+      "name": "click",
+      "description": "Click the mouse at the specified coordinates (normalized 0-1000 scale). Use 'screenshot' first to find the coordinates of the element you want to click.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "y": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "coordinate_note": "When reporting element positions, use NORMALIZED coordinates on a 0-1000 scale where (0, 0) is the top-left corner and (1000, 1000) is the bottom-right corner. For example, the center of the screen is (500, 500). All coordinate tools (click, scroll, mouse_move) expect this 0-1000 normalized format.",
+  "options": {
+    "output": "/tmp/tank-grounding-ablation-20260919/minimal-highres",
+    "repeats": 2,
+    "point_only": true,
+    "prompt_style": "minimal",
+    "thinking": "default",
+    "high_resolution": true,
+    "plain_json": false,
+    "case_set": "hard"
+  },
+  "results": [
+    {
+      "image": "1920x1080-0.png",
+      "size": [
+        1920,
+        1080
+      ],
+      "target": "7",
+      "center": [
+        560,
+        311
+      ],
+      "repeat": 0,
+      "sha256": "92ace28de5d2d614de756768e2e3a0b836d69d91bfe58a8df87048b3a7fb6f07",
+      "question": "Locate the Calculator button labeled 7. Call click once at its center, using full-screen normalized coordinates. Do not call any other tool.",
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 238, \"y\": 302}",
+          "point": [
+            238.0,
+            302.0
+          ],
+          "errors": {
+            "normalized": 104.14925443804196,
+            "pixels": 322.1257518423512,
+            "long_edge_1280": 247.7357463104588
+          }
+        }
+      ],
+      "requests": [
+        {
+          "sha256": [
+            "92ace28de5d2d614de756768e2e3a0b836d69d91bfe58a8df87048b3a7fb6f07"
+          ],
+          "model": "qwen3.7-flash-2026-07-15",
+          "temperature": 0.1,
+          "enable_thinking": null,
+          "vl_high_resolution_images": true,
+          "tools_present": true
+        }
+      ],
+      "responses": [
+        {
+          "file": "1920x1080-0.png-7-0-0.sse",
+          "status": 200
+        }
+      ],
+      "text": "",
+      "thought_chars": 3191,
+      "usage": {
+        "prompt_tokens": 2521,
+        "completion_tokens": 1342,
+        "total_tokens": 3863,
+        "estimated": false,
+        "turn": 1
+      },
+      "seconds": 16.08
+    },
+    {
+      "image": "1920x1080-0.png",
+      "size": [
+        1920,
+        1080
+      ],
+      "target": "7",
+      "center": [
+        560,
+        311
+      ],
+      "repeat": 1,
+      "sha256": "92ace28de5d2d614de756768e2e3a0b836d69d91bfe58a8df87048b3a7fb6f07",
+      "question": "Locate the Calculator button labeled 7. Call click once at its center, using full-screen normalized coordinates. Do not call any other tool.",
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 195, \"y\": 255}",
+          "point": [
+            195.0,
+            255.0
+          ],
+          "errors": {
+            "normalized": 188.9833855131186,
+            "pixels": 369.2709032675063,
+            "long_edge_1280": 276.89077268843755
+          }
+        }
+      ],
+      "requests": [
+        {
+          "sha256": [
+            "92ace28de5d2d614de756768e2e3a0b836d69d91bfe58a8df87048b3a7fb6f07"
+          ],
+          "model": "qwen3.7-flash-2026-07-15",
+          "temperature": 0.1,
+          "enable_thinking": null,
+          "vl_high_resolution_images": true,
+          "tools_present": true
+        }
+      ],
+      "responses": [
+        {
+          "file": "1920x1080-0.png-7-1-0.sse",
+          "status": 200
+        }
+      ],
+      "text": "Looking at the calculator, the button labeled \"7\" is in the second row of buttons (the row with 2nd, x2, x3, xy, ex, 10x, 7, 8, 9, x), at the 7th column position.\n\n",
+      "thought_chars": 4912,
+      "usage": {
+        "prompt_tokens": 2521,
+        "completion_tokens": 2096,
+        "total_tokens": 4617,
+        "estimated": false,
+        "turn": 1
+      },
+      "seconds": 24.25
+    },
+    {
+      "image": "1920x1080-1.png",
+      "size": [
+        1920,
+        1080
+      ],
+      "target": "7",
+      "center": [
+        1496,
+        748
+      ],
+      "repeat": 0,
+      "sha256": "5035d6b272c594b4d0dd3ffad87f8603553dedbb5775cc23e9f3614b62979029",
+      "question": "Locate the Calculator button labeled 7. Call click once at its center, using full-screen normalized coordinates. Do not call any other tool.",
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 778, \"y\": 691}",
+          "point": [
+            778.0,
+            691.0
+          ],
+          "errors": {
+            "normalized": 2.8241812972966405,
+            "pixels": 720.2589812005124,
+            "long_edge_1280": 437.5765647289626
+          }
+        }
+      ],
+      "requests": [
+        {
+          "sha256": [
+            "5035d6b272c594b4d0dd3ffad87f8603553dedbb5775cc23e9f3614b62979029"
+          ],
+          "model": "qwen3.7-flash-2026-07-15",
+          "temperature": 0.1,
+          "enable_thinking": null,
+          "vl_high_resolution_images": true,
+          "tools_present": true
+        }
+      ],
+      "responses": [
+        {
+          "file": "1920x1080-1.png-7-0-0.sse",
+          "status": 200
+        }
+      ],
+      "text": "",
+      "thought_chars": 504,
+      "usage": {
+        "prompt_tokens": 2521,
+        "completion_tokens": 158,
+        "total_tokens": 2679,
+        "estimated": false,
+        "turn": 1
+      },
+      "seconds": 3.58
+    },
+    {
+      "image": "1920x1080-1.png",
+      "size": [
+        1920,
+        1080
+      ],
+      "target": "7",
+      "center": [
+        1496,
+        748
+      ],
+      "repeat": 1,
+      "sha256": "5035d6b272c594b4d0dd3ffad87f8603553dedbb5775cc23e9f3614b62979029",
+      "question": "Locate the Calculator button labeled 7. Call click once at its center, using full-screen normalized coordinates. Do not call any other tool.",
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 778, \"y\": 691}",
+          "point": [
+            778.0,
+            691.0
+          ],
+          "errors": {
+            "normalized": 2.8241812972966405,
+            "pixels": 720.2589812005124,
+            "long_edge_1280": 437.5765647289626
+          }
+        }
+      ],
+      "requests": [
+        {
+          "sha256": [
+            "5035d6b272c594b4d0dd3ffad87f8603553dedbb5775cc23e9f3614b62979029"
+          ],
+          "model": "qwen3.7-flash-2026-07-15",
+          "temperature": 0.1,
+          "enable_thinking": null,
+          "vl_high_resolution_images": true,
+          "tools_present": true
+        }
+      ],
+      "responses": [
+        {
+          "file": "1920x1080-1.png-7-1-0.sse",
+          "status": 200
+        }
+      ],
+      "text": "",
+      "thought_chars": 452,
+      "usage": {
+        "prompt_tokens": 2521,
+        "completion_tokens": 155,
+        "total_tokens": 2676,
+        "estimated": false,
+        "turn": 1
+      },
+      "seconds": 4.05
+    },
+    {
+      "image": "1280x720-1.png",
+      "size": [
+        1280,
+        720
+      ],
+      "target": "7",
+      "center": [
+        952,
+        460
+      ],
+      "repeat": 0,
+      "sha256": "e103c80e56b756f157dd0aa1265651d1559fb886e7bac21bfaddbf310fd86505",
+      "question": "Locate the Calculator button labeled 7. Call click once at its center, using full-screen normalized coordinates. Do not call any other tool.",
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 735, \"y\": 625}",
+          "point": [
+            735.0,
+            625.0
+          ],
+          "errors": {
+            "normalized": 15.014659503298802,
+            "pixels": 272.6059427085184,
+            "long_edge_1280": 272.6059427085184
+          }
+        }
+      ],
+      "requests": [
+        {
+          "sha256": [
+            "e103c80e56b756f157dd0aa1265651d1559fb886e7bac21bfaddbf310fd86505"
+          ],
+          "model": "qwen3.7-flash-2026-07-15",
+          "temperature": 0.1,
+          "enable_thinking": null,
+          "vl_high_resolution_images": true,
+          "tools_present": true
+        }
+      ],
+      "responses": [
+        {
+          "file": "1280x720-1.png-7-0-0.sse",
+          "status": 200
+        }
+      ],
+      "text": "",
+      "thought_chars": 4061,
+      "usage": {
+        "prompt_tokens": 1361,
+        "completion_tokens": 1725,
+        "total_tokens": 3086,
+        "estimated": false,
+        "turn": 1
+      },
+      "seconds": 20.8
+    },
+    {
+      "image": "1280x720-1.png",
+      "size": [
+        1280,
+        720
+      ],
+      "target": "7",
+      "center": [
+        952,
+        460
+      ],
+      "repeat": 1,
+      "sha256": "e103c80e56b756f157dd0aa1265651d1559fb886e7bac21bfaddbf310fd86505",
+      "question": "Locate the Calculator button labeled 7. Call click once at its center, using full-screen normalized coordinates. Do not call any other tool.",
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 748, \"y\": 635}",
+          "point": [
+            748.0,
+            635.0
+          ],
+          "errors": {
+            "normalized": 6.118300417599699,
+            "pixels": 268.7768591229535,
+            "long_edge_1280": 268.7768591229535
+          }
+        }
+      ],
+      "requests": [
+        {
+          "sha256": [
+            "e103c80e56b756f157dd0aa1265651d1559fb886e7bac21bfaddbf310fd86505"
+          ],
+          "model": "qwen3.7-flash-2026-07-15",
+          "temperature": 0.1,
+          "enable_thinking": null,
+          "vl_high_resolution_images": true,
+          "tools_present": true
+        }
+      ],
+      "responses": [
+        {
+          "file": "1280x720-1.png-7-1-0.sse",
+          "status": 200
+        }
+      ],
+      "text": "",
+      "thought_chars": 1108,
+      "usage": {
+        "prompt_tokens": 1361,
+        "completion_tokens": 439,
+        "total_tokens": 1800,
+        "estimated": false,
+        "turn": 1
+      },
+      "seconds": 6.64
+    },
+    {
+      "image": "1080x1920-1.png",
+      "size": [
+        1080,
+        1920
+      ],
+      "target": "7",
+      "center": [
+        782,
+        1420
+      ],
+      "repeat": 0,
+      "sha256": "715a72d4cec5272a0da622ce5444adb2f7724fd4c1a1f3f825092e76c5f6a8ba",
+      "question": "Locate the Calculator button labeled 7. Call click once at its center, using full-screen normalized coordinates. Do not call any other tool.",
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 730, \"y\": 386}",
+          "point": [
+            730.0,
+            386.0
+          ],
+          "errors": {
+            "normalized": 678.9101666641913,
+            "pixels": 1035.3067178377623,
+            "long_edge_1280": 897.3572309844056
+          }
+        }
+      ],
+      "requests": [
+        {
+          "sha256": [
+            "715a72d4cec5272a0da622ce5444adb2f7724fd4c1a1f3f825092e76c5f6a8ba"
+          ],
+          "model": "qwen3.7-flash-2026-07-15",
+          "temperature": 0.1,
+          "enable_thinking": null,
+          "vl_high_resolution_images": true,
+          "tools_present": true
+        }
+      ],
+      "responses": [
+        {
+          "file": "1080x1920-1.png-7-0-0.sse",
+          "status": 200
+        }
+      ],
+      "text": "",
+      "thought_chars": 4338,
+      "usage": {
+        "prompt_tokens": 2521,
+        "completion_tokens": 1743,
+        "total_tokens": 4264,
+        "estimated": false,
+        "turn": 1
+      },
+      "seconds": 21.71
+    },
+    {
+      "image": "1080x1920-1.png",
+      "size": [
+        1080,
+        1920
+      ],
+      "target": "7",
+      "center": [
+        782,
+        1420
+      ],
+      "repeat": 1,
+      "sha256": "715a72d4cec5272a0da622ce5444adb2f7724fd4c1a1f3f825092e76c5f6a8ba",
+      "question": "Locate the Calculator button labeled 7. Call click once at its center, using full-screen normalized coordinates. Do not call any other tool.",
+      "calls": [
+        {
+          "name": "click",
+          "raw": "{\"x\": 730, \"y\": 738}",
+          "point": [
+            730.0,
+            738.0
+          ],
+          "errors": {
+            "normalized": 7.085308744155013,
+            "pixels": 683.9795318574965,
+            "long_edge_1280": 442.64884502277874
+          }
+        }
+      ],
+      "requests": [
+        {
+          "sha256": [
+            "715a72d4cec5272a0da622ce5444adb2f7724fd4c1a1f3f825092e76c5f6a8ba"
+          ],
+          "model": "qwen3.7-flash-2026-07-15",
+          "temperature": 0.1,
+          "enable_thinking": null,
+          "vl_high_resolution_images": true,
+          "tools_present": true
+        }
+      ],
+      "responses": [
+        {
+          "file": "1080x1920-1.png-7-1-0.sse",
+          "status": 200
+        }
+      ],
+      "text": "",
+      "thought_chars": 2092,
+      "usage": {
+        "prompt_tokens": 2521,
+        "completion_tokens": 854,
+        "total_tokens": 3375,
+        "estimated": false,
+        "turn": 1
+      },
+      "seconds": 10.72
+    }
+  ]
+}
