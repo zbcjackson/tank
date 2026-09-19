@@ -16,7 +16,7 @@ class LLMProfile:
     api_key: str
     model: str
     base_url: str
-    temperature: float = 0.7
+    temperature: float | None = 0.7  # Explicit null omits unsupported sampling parameters.
     max_tokens: int = 10000
     extra_headers: dict[str, str] = field(default_factory=dict)
     stream_options: bool = True
@@ -57,7 +57,8 @@ def resolve_profile(name: str, raw: dict[str, Any]) -> LLMProfile:
 
     optional: dict[str, Any] = {}
     if "temperature" in raw:
-        optional["temperature"] = float(raw["temperature"])
+        optional["temperature"] = (None if raw["temperature"] is None
+                                   else float(raw["temperature"]))
     if "max_tokens" in raw:
         optional["max_tokens"] = int(raw["max_tokens"])
     if "extra_headers" in raw and raw["extra_headers"]:

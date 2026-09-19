@@ -352,7 +352,7 @@ class LLM:
         api_key: str,
         model: str,
         base_url: str,
-        temperature: float = 0.7,
+        temperature: float | None = 0.7,
         max_tokens: int = 10000,
         extra_headers: dict[str, str] | None = None,
         stream_options: bool = True,
@@ -564,10 +564,12 @@ class LLM:
             api_kwargs = {
                 "model": self.model,
                 "messages": working_messages,
-                "temperature": temperature if temperature is not None else self.temperature,
                 "max_tokens": max_tokens if max_tokens is not None else self.max_tokens,
                 "stream": True,
             }
+            effective_temperature = temperature if temperature is not None else self.temperature
+            if effective_temperature is not None:
+                api_kwargs["temperature"] = effective_temperature
             if self.stream_options:
                 api_kwargs["stream_options"] = {"include_usage": True}
             if self.extra_body:
@@ -1036,10 +1038,12 @@ class LLM:
         api_kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "temperature": temperature if temperature is not None else self.temperature,
             "max_tokens": max_tokens if max_tokens is not None else self.max_tokens,
             "stream": False,
         }
+        effective_temperature = temperature if temperature is not None else self.temperature
+        if effective_temperature is not None:
+            api_kwargs["temperature"] = effective_temperature
         if self.extra_body:
             api_kwargs["extra_body"] = self.extra_body
         if trace_metadata:

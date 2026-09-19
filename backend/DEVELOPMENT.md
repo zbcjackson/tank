@@ -33,6 +33,12 @@ cp .env.example .env
 
 ### Configuration
 
+LLM profiles accept explicit `temperature: null` to omit the parameter from
+streaming and non-streaming requests, for models/routes that reject sampling
+controls. Omitting the YAML key retains the existing default of 0.7; an explicit
+numeric per-call override still takes precedence. This is required by the tested
+OpenRouter → OpenAI GPT-5.5 route with `require_parameters: true`.
+
 Edit `backend/.env` for secrets:
 
 ```env

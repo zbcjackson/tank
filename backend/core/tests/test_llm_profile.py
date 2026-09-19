@@ -5,6 +5,62 @@ import pytest
 from tank_backend.llm.profile import LLMProfile, create_llm_from_profile, resolve_profile
 
 
+@pytest.mark.parametrize("streaming", [True, False])
+@pytest.mark.parametrize("configured,override,expected", [
+    (None, None, None), ("missing", None, 0.7), (0.4, None, 0.4), (None, 0.0, 0.0),
+])
+async def test_profile_temperature_controls_actual_http_parameter(
+    monkeypatch, streaming, configured, override, expected,
+):
+    import json
+
+    import httpx
+    from openai import AsyncOpenAI
+
+    from tank_backend.llm import llm as llm_module
+
+    seen = []
+
+    def respond(request):
+        body = json.loads(request.content)
+        seen.append(body)
+        if expected is None:
+            assert "temperature" not in body  # Null must omit, not send JSON null.
+        else:
+            assert body["temperature"] == expected
+        assert body["reasoning"] == {"effort": "low"}
+        if streaming:
+            chunk = {"id": "test", "object": "chat.completion.chunk", "created": 1,
+                     "model": "openai/gpt-5.5", "choices": [{"index": 0,
+                         "delta": {"content": "ok"}, "finish_reason": "stop"}]}
+            return httpx.Response(200, content=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n",
+                                  headers={"content-type": "text/event-stream"})
+        return httpx.Response(200, json={"id": "test", "object": "chat.completion",
+            "created": 1, "model": "openai/gpt-5.5", "choices": [{"index": 0,
+                "message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}]})
+
+    client = AsyncOpenAI(api_key="test", base_url="https://probe.invalid/v1",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+    monkeypatch.setattr(llm_module, "AsyncOpenAI", lambda **kwargs: client)
+    monkeypatch.setattr(llm_module, "initialize_langfuse", lambda: None)
+    raw = {"api_key": "test", "model": "openai/gpt-5.5", "base_url": "https://probe.invalid/v1",
+           "extra_body": {"reasoning": {"effort": "low"}}}
+    if configured != "missing":
+        raw["temperature"] = configured
+    try:
+        llm = create_llm_from_profile(resolve_profile("computer_use", raw))
+        if streaming:
+            events = [event async for event in llm.chat_stream(
+                [{"role": "user", "content": "test"}], temperature=override)]
+            assert any(text == "ok" for kind, text, meta in events)
+        else:
+            assert await llm.complete([{"role": "user", "content": "test"}],
+                                      temperature=override) == "ok"
+    finally:
+        await client.close()
+    assert len(seen) == 1
+
+
 class TestResolveProfile:
     """Tests for resolve_profile()."""
 
@@ -63,7 +119,7 @@ class TestResolveProfile:
             "x", {"api_key": "k", "model": "m", "base_url": "http://x"}
         )
         with pytest.raises(AttributeError):
-            profile.model = "changed"
+            profile.model = "changed"  # type: ignore[misc] — intentional frozen mutation
 
     def test_capabilities_parsed(self):
         profile = resolve_profile("x", {
