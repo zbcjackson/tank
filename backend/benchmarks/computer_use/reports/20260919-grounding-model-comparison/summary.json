@@ -1,0 +1,953 @@
+{
+  "fixed_parameters": {
+    "provider": "dashscope.aliyuncs.com",
+    "temperature": 0.1,
+    "enable_thinking": true,
+    "max_tokens": 4000,
+    "prompt_style": "agent"
+  },
+  "metric": "Euclidean original-image pixel distance to generated target center; <=15 is not measured button-hit rate.",
+  "images": "../20260919-grounding-ablation/images",
+  "variants": {
+    "flash-hard": {
+      "model": "qwen3.7-flash-2026-07-15",
+      "schema": "point-only",
+      "requests": 8,
+      "expected_requests": 8,
+      "parsed_requests": 8,
+      "center_within_15px": 4,
+      "error_over_50px": 4,
+      "maximum_error_px": 413.64951347729146,
+      "median_request_seconds": 3.41,
+      "scores": [
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            387.0,
+            205.0
+          ],
+          "error_px": 203.79352688444249
+        },
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            296.0,
+            284.0
+          ],
+          "error_px": 9.356324064503141
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            780.0,
+            695.0
+          ],
+          "error_px": 3.052867504494721
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            780.0,
+            693.0
+          ],
+          "error_px": 1.65939748101525
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            750.0,
+            445.0
+          ],
+          "error_px": 139.8290384719855
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            514.0,
+            829.0
+          ],
+          "error_px": 324.3750619267764
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            730.0,
+            955.0
+          ],
+          "error_px": 413.64951347729146
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            730.0,
+            735.0
+          ],
+          "error_px": 10.881176406988304
+        }
+      ],
+      "failures": []
+    },
+    "flash-holdout": {
+      "model": "qwen3.7-flash-2026-07-15",
+      "schema": "point-only",
+      "requests": 8,
+      "expected_requests": 8,
+      "parsed_requests": 8,
+      "center_within_15px": 1,
+      "error_over_50px": 4,
+      "maximum_error_px": 309.18876111527726,
+      "median_request_seconds": 3.355,
+      "scores": [
+        {
+          "image": "1600x900-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            499.0,
+            360.0
+          ],
+          "error_px": 20.033971149025824
+        },
+        {
+          "image": "1600x900-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            444.0,
+            414.0
+          ],
+          "error_px": 10.720074626605902
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            883.0,
+            485.0
+          ],
+          "error_px": 309.18876111527726
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            833.0,
+            490.0
+          ],
+          "error_px": 301.88083741768037
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            620.0,
+            465.0
+          ],
+          "error_px": 172.14238292762187
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            553.0,
+            507.0
+          ],
+          "error_px": 188.40098195073193
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            735.0,
+            535.0
+          ],
+          "error_px": 26.100766272276374
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            650.0,
+            565.0
+          ],
+          "error_px": 24.020824298928627
+        }
+      ],
+      "failures": []
+    },
+    "flash-production-hard": {
+      "model": "qwen3.7-flash-2026-07-15",
+      "schema": "production",
+      "requests": 8,
+      "expected_requests": 8,
+      "parsed_requests": 8,
+      "center_within_15px": 1,
+      "error_over_50px": 7,
+      "maximum_error_px": 470.52184986459446,
+      "median_request_seconds": 3.3449999999999998,
+      "scores": [
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            379.0,
+            204.0
+          ],
+          "error_px": 190.62907648100273
+        },
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            381.5,
+            205.0
+          ],
+          "error_px": 194.36437533663417
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            997.0,
+            493.0
+          ],
+          "error_px": 470.52184986459446
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            779.0,
+            690.0
+          ],
+          "error_px": 2.8182263926093136
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            747.0,
+            465.0
+          ],
+          "error_px": 125.2690927563539
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            750.0,
+            445.0
+          ],
+          "error_px": 139.8290384719855
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            730.0,
+            955.0
+          ],
+          "error_px": 413.64951347729146
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            730.0,
+            955.0
+          ],
+          "error_px": 413.64951347729146
+        }
+      ],
+      "failures": []
+    },
+    "flash-production-holdout": {
+      "model": "qwen3.7-flash-2026-07-15",
+      "schema": "production",
+      "requests": 8,
+      "expected_requests": 8,
+      "parsed_requests": 8,
+      "center_within_15px": 2,
+      "error_over_50px": 5,
+      "maximum_error_px": 316.1913977324494,
+      "median_request_seconds": 3.1100000000000003,
+      "scores": [
+        {
+          "image": "1600x900-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            637.0,
+            259.0
+          ],
+          "error_px": 258.63652100969813
+        },
+        {
+          "image": "1600x900-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            577.5,
+            300.0
+          ],
+          "error_px": 239.35329536064467
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            887.5,
+            490.0
+          ],
+          "error_px": 316.1913977324494
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            834.0,
+            490.0
+          ],
+          "error_px": 303.44350380260255
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            615.0,
+            355.0
+          ],
+          "error_px": 4.716990566028302
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            550.0,
+            505.0
+          ],
+          "error_px": 185.09727172489605
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            730.0,
+            535.0
+          ],
+          "error_px": 23.706539182259394
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            655.0,
+            575.0
+          ],
+          "error_px": 9.7082439194738
+        }
+      ],
+      "failures": []
+    },
+    "plus-hard": {
+      "model": "qwen3.7-plus-2026-05-26",
+      "schema": "point-only",
+      "requests": 8,
+      "expected_requests": 8,
+      "parsed_requests": 8,
+      "center_within_15px": 7,
+      "error_over_50px": 1,
+      "maximum_error_px": 85.71300951430877,
+      "median_request_seconds": 8.23,
+      "scores": [
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            290.0,
+            288.0
+          ],
+          "error_px": 3.2002499902351835
+        },
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            290.0,
+            285.0
+          ],
+          "error_px": 4.525483399593928
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            780.0,
+            685.0
+          ],
+          "error_px": 8.354639429682196
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            778.0,
+            690.0
+          ],
+          "error_px": 3.5857495729623654
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            740.0,
+            630.0
+          ],
+          "error_px": 7.999999999999955
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            740.0,
+            630.0
+          ],
+          "error_px": 7.999999999999955
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            720.0,
+            695.0
+          ],
+          "error_px": 85.71300951430877
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            715.0,
+            740.0
+          ],
+          "error_px": 9.832598842625435
+        }
+      ],
+      "failures": []
+    },
+    "plus-holdout": {
+      "model": "qwen3.7-plus-2026-05-26",
+      "schema": "point-only",
+      "requests": 8,
+      "expected_requests": 8,
+      "parsed_requests": 8,
+      "center_within_15px": 8,
+      "error_over_50px": 0,
+      "maximum_error_px": 11.180339887498949,
+      "median_request_seconds": 4.695,
+      "scores": [
+        {
+          "image": "1600x900-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            485.0,
+            365.0
+          ],
+          "error_px": 3.0413812651491097
+        },
+        {
+          "image": "1600x900-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            445.0,
+            420.0
+          ],
+          "error_px": 5.0990195135927845
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            690.0,
+            500.0
+          ],
+          "error_px": 2.0
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            650.0,
+            560.0
+          ],
+          "error_px": 2.8284271247461903
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            610.0,
+            355.0
+          ],
+          "error_px": 4.47213595499958
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            543.0,
+            393.0
+          ],
+          "error_px": 5.807753438292597
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            720.0,
+            555.0
+          ],
+          "error_px": 11.180339887498949
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            650.0,
+            580.0
+          ],
+          "error_px": 1.0
+        }
+      ],
+      "failures": []
+    },
+    "plus-production-hard": {
+      "model": "qwen3.7-plus-2026-05-26",
+      "schema": "production",
+      "requests": 8,
+      "expected_requests": 8,
+      "parsed_requests": 8,
+      "center_within_15px": 7,
+      "error_over_50px": 1,
+      "maximum_error_px": 150.4340387013524,
+      "median_request_seconds": 9.375,
+      "scores": [
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            370.0,
+            285.0
+          ],
+          "error_px": 150.4340387013524
+        },
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            290.0,
+            285.0
+          ],
+          "error_px": 4.525483399593928
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            778.0,
+            690.0
+          ],
+          "error_px": 3.5857495729623654
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            778.0,
+            688.0
+          ],
+          "error_px": 5.44235243254242
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            740.0,
+            635.0
+          ],
+          "error_px": 5.556977595779888
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            740.0,
+            630.0
+          ],
+          "error_px": 7.999999999999955
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            720.0,
+            740.0
+          ],
+          "error_px": 4.4721359549995485
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            720.0,
+            745.0
+          ],
+          "error_px": 11.292475370794557
+        }
+      ],
+      "failures": []
+    },
+    "plus-production-holdout": {
+      "model": "qwen3.7-plus-2026-05-26",
+      "schema": "production",
+      "requests": 8,
+      "expected_requests": 8,
+      "parsed_requests": 8,
+      "center_within_15px": 8,
+      "error_over_50px": 0,
+      "maximum_error_px": 5.728001396647881,
+      "median_request_seconds": 15.595,
+      "scores": [
+        {
+          "image": "1600x900-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            485.0,
+            365.0
+          ],
+          "error_px": 3.0413812651491097
+        },
+        {
+          "image": "1600x900-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            445.0,
+            420.0
+          ],
+          "error_px": 5.0990195135927845
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            690.0,
+            500.0
+          ],
+          "error_px": 2.0
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            650.0,
+            560.0
+          ],
+          "error_px": 2.8284271247461903
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            610.0,
+            355.0
+          ],
+          "error_px": 4.47213595499958
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            540.0,
+            390.0
+          ],
+          "error_px": 3.1622776601683795
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            720.0,
+            545.0
+          ],
+          "error_px": 5.385164807134504
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            655.0,
+            581.0
+          ],
+          "error_px": 5.728001396647881
+        }
+      ],
+      "failures": []
+    },
+    "vl-plus-hard": {
+      "model": "qwen3-vl-plus-2025-12-19",
+      "schema": "point-only",
+      "requests": 8,
+      "expected_requests": 8,
+      "parsed_requests": 8,
+      "center_within_15px": 2,
+      "error_over_50px": 0,
+      "maximum_error_px": 33.303453274397825,
+      "median_request_seconds": 32.589999999999996,
+      "scores": [
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            280.0,
+            280.0
+          ],
+          "error_px": 23.994165957582258
+        },
+        {
+          "image": "1920x1080-0.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            285.0,
+            285.0
+          ],
+          "error_px": 13.193938001976466
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            770.0,
+            680.0
+          ],
+          "error_px": 22.242302039132493
+        },
+        {
+          "image": "1920x1080-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            770.0,
+            680.0
+          ],
+          "error_px": 22.242302039132493
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            720.0,
+            620.0
+          ],
+          "error_px": 33.303453274397825
+        },
+        {
+          "image": "1280x720-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            730.0,
+            620.0
+          ],
+          "error_px": 22.242302039132582
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            720.0,
+            730.0
+          ],
+          "error_px": 18.918773744616832
+        },
+        {
+          "image": "1080x1920-1.png",
+          "target": "7",
+          "repeat": 1,
+          "point": [
+            720.0,
+            740.0
+          ],
+          "error_px": 4.4721359549995485
+        }
+      ],
+      "failures": []
+    },
+    "vl-plus-holdout": {
+      "model": "qwen3-vl-plus-2025-12-19",
+      "schema": "point-only",
+      "requests": 8,
+      "expected_requests": 8,
+      "parsed_requests": 8,
+      "center_within_15px": 5,
+      "error_over_50px": 2,
+      "maximum_error_px": 157.01273833673497,
+      "median_request_seconds": 31.425,
+      "scores": [
+        {
+          "image": "1600x900-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            485.0,
+            355.0
+          ],
+          "error_px": 9.962429422585638
+        },
+        {
+          "image": "1600x900-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            440.0,
+            420.0
+          ],
+          "error_px": 10.295630140987
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            690.0,
+            490.0
+          ],
+          "error_px": 11.0
+        },
+        {
+          "image": "1600x900-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            650.0,
+            420.0
+          ],
+          "error_px": 128.01562404644207
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            620.0,
+            370.0
+          ],
+          "error_px": 21.18962010041709
+        },
+        {
+          "image": "900x1600-0.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            530.0,
+            390.0
+          ],
+          "error_px": 12.041594578792296
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "AC",
+          "repeat": 0,
+          "point": [
+            720.0,
+            450.0
+          ],
+          "error_px": 157.01273833673497
+        },
+        {
+          "image": "900x1600-1.png",
+          "target": "7",
+          "repeat": 0,
+          "point": [
+            640.0,
+            580.0
+          ],
+          "error_px": 8.0
+        }
+      ],
+      "failures": []
+    }
+  }
+}

@@ -8,9 +8,10 @@ This is a small, deliberately difficult diagnostic set, not a GUI success benchm
 refers to those images by basename and SHA256. `summary.json` gives per-case
 center distances and distinguishes malformed answers from scored coordinates.
 15 px is a center-precision threshold, not a measured button hit rate.
-The diagnostic uses x*width/1000, y*height/1000; production maps endpoints to
-width-1/height-1 and rounds. That sub-two-pixel distinction cannot explain the
-large observed errors.
+The diagnostic uses x*width/1000, y*height/1000. The macOS tools use
+min(width-1, int(x*width/1000)); the shared executor uses round(x*(width-1)/1000),
+and similarly for y. Those small rounding differences cannot explain the large
+observed errors.
 
 Raw responses captured after adding the response hook are stored losslessly as
 `VARIANT/<responses.file>.gz`. Decompress before replaying. They are original
