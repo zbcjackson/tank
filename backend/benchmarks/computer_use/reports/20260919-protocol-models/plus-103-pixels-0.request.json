@@ -1,0 +1,62 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "Locate the requested UI element in the current image."
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "CURRENT image: 1536x1024. Locate the button labeled AC. Call click once with its center of the button in original input image pixels, x=0..1535, y=0..1023. The origin is the top-left of THIS input image; each axis spans the full image. Use only the CURRENT image, not previous positions. Set found=true when located. If absent or uncertain, set found=false and ALL coordinates=0."
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "sha256:a2b3682a12875196ae4357c4fc111ab931126075bd55dd74db84126918598e11",
+            "detail": "auto"
+          }
+        }
+      ]
+    }
+  ],
+  "model": "qwen3.7-plus-2026-05-26",
+  "max_tokens": 4000,
+  "stream": false,
+  "temperature": 0.1,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "click",
+        "description": "Report one target location; no action is executed.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "found": {
+              "type": "boolean"
+            },
+            "x": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1535
+            },
+            "y": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1023
+            }
+          },
+          "required": [
+            "found",
+            "x",
+            "y"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "enable_thinking": true
+}

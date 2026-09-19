@@ -1,0 +1,266 @@
+{
+  "screen_recording": true,
+  "input_control": true,
+  "trials": [
+    {
+      "trial": 0,
+      "size": [
+        1920,
+        1080
+      ],
+      "clicks": [
+        {
+          "button": "Seven",
+          "center": [
+            955.0,
+            488.0
+          ],
+          "normalized": [
+            497,
+            452
+          ],
+          "cursor": [
+            954.0,
+            488.0
+          ],
+          "tool_result": "Clicked left button at normalized (497, 452) \u2192 pixel (954, 488), clicks=1"
+        },
+        {
+          "button": "Multiply",
+          "center": [
+            1153.0,
+            488.0
+          ],
+          "normalized": [
+            601,
+            452
+          ],
+          "cursor": [
+            1153.0,
+            488.0
+          ],
+          "tool_result": "Clicked left button at normalized (601, 452) \u2192 pixel (1153, 488), clicks=1"
+        },
+        {
+          "button": "Eight",
+          "center": [
+            1021.0,
+            488.0
+          ],
+          "normalized": [
+            532,
+            452
+          ],
+          "cursor": [
+            1021.0,
+            488.0
+          ],
+          "tool_result": "Clicked left button at normalized (532, 452) \u2192 pixel (1021, 488), clicks=1"
+        },
+        {
+          "button": "Equals",
+          "center": [
+            1153.0,
+            650.0
+          ],
+          "normalized": [
+            601,
+            602
+          ],
+          "cursor": [
+            1153.0,
+            650.0
+          ],
+          "tool_result": "Clicked left button at normalized (601, 602) \u2192 pixel (1153, 650), clicks=1"
+        }
+      ],
+      "display": {
+        "expression": "7\u00d78",
+        "result": "56"
+      },
+      "passed": true
+    },
+    {
+      "trial": 1,
+      "size": [
+        1920,
+        1080
+      ],
+      "clicks": [
+        {
+          "button": "Seven",
+          "center": [
+            955.0,
+            488.0
+          ],
+          "normalized": [
+            497,
+            452
+          ],
+          "cursor": [
+            954.0,
+            488.0
+          ],
+          "tool_result": "Clicked left button at normalized (497, 452) \u2192 pixel (954, 488), clicks=1"
+        },
+        {
+          "button": "Multiply",
+          "center": [
+            1153.0,
+            488.0
+          ],
+          "normalized": [
+            601,
+            452
+          ],
+          "cursor": [
+            1153.0,
+            488.0
+          ],
+          "tool_result": "Clicked left button at normalized (601, 452) \u2192 pixel (1153, 488), clicks=1"
+        },
+        {
+          "button": "Eight",
+          "center": [
+            1021.0,
+            488.0
+          ],
+          "normalized": [
+            532,
+            452
+          ],
+          "cursor": [
+            1021.0,
+            488.0
+          ],
+          "tool_result": "Clicked left button at normalized (532, 452) \u2192 pixel (1021, 488), clicks=1"
+        },
+        {
+          "button": "Equals",
+          "center": [
+            1153.0,
+            650.0
+          ],
+          "normalized": [
+            601,
+            602
+          ],
+          "cursor": [
+            1153.0,
+            650.0
+          ],
+          "tool_result": "Clicked left button at normalized (601, 602) \u2192 pixel (1153, 650), clicks=1"
+        }
+      ],
+      "display": {
+        "expression": "7\u00d78",
+        "result": "56"
+      },
+      "passed": true
+    },
+    {
+      "trial": 2,
+      "size": [
+        1920,
+        1080
+      ],
+      "clicks": [
+        {
+          "button": "Seven",
+          "center": [
+            955.0,
+            488.0
+          ],
+          "normalized": [
+            497,
+            452
+          ],
+          "cursor": [
+            954.0,
+            488.0
+          ],
+          "tool_result": "Clicked left button at normalized (497, 452) \u2192 pixel (954, 488), clicks=1"
+        },
+        {
+          "button": "Multiply",
+          "center": [
+            1153.0,
+            488.0
+          ],
+          "normalized": [
+            601,
+            452
+          ],
+          "cursor": [
+            1153.0,
+            488.0
+          ],
+          "tool_result": "Clicked left button at normalized (601, 452) \u2192 pixel (1153, 488), clicks=1"
+        },
+        {
+          "button": "Eight",
+          "center": [
+            1021.0,
+            488.0
+          ],
+          "normalized": [
+            532,
+            452
+          ],
+          "cursor": [
+            1021.0,
+            488.0
+          ],
+          "tool_result": "Clicked left button at normalized (532, 452) \u2192 pixel (1021, 488), clicks=1"
+        },
+        {
+          "button": "Equals",
+          "center": [
+            1153.0,
+            650.0
+          ],
+          "normalized": [
+            601,
+            602
+          ],
+          "cursor": [
+            1153.0,
+            650.0
+          ],
+          "tool_result": "Clicked left button at normalized (601, 602) \u2192 pixel (1153, 650), clicks=1"
+        }
+      ],
+      "display": {
+        "expression": "7\u00d78",
+        "result": "56"
+      },
+      "passed": true
+    }
+  ],
+  "buttons": {
+    "Seven": [
+      925,
+      464,
+      60,
+      48
+    ],
+    "Eight": [
+      991,
+      464,
+      60,
+      48
+    ],
+    "Multiply": [
+      1123,
+      464,
+      60,
+      48
+    ],
+    "Equals": [
+      1123,
+      626,
+      60,
+      48
+    ]
+  }
+}

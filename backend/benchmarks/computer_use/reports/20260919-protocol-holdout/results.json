@@ -1,0 +1,7251 @@
+{
+  "options": {
+    "output": "benchmarks/computer_use/reports/20260919-protocol-holdout",
+    "models": [
+      "qwen38flash",
+      "gptmini",
+      "gpt55"
+    ],
+    "variants": [
+      "point"
+    ],
+    "cases": 16,
+    "seed": 201,
+    "repeats": 2,
+    "schema_style": "integer"
+  },
+  "results": [
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        855,
+        780
+      ],
+      "crop": null,
+      "bounds": [
+        825,
+        756,
+        885,
+        804
+      ],
+      "radius": 22,
+      "id": "qwen38flash-212-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 212,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5f744b6bc85086876d8fd2c053860759ce4c1e22e390a1659627d70ec7c08232"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "05ad6364-7600-9741-8dc4-0b4fc1866ada",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 275,
+        "prompt_tokens": 2196,
+        "total_tokens": 2471,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 220,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 506, \"y\": 743}",
+      "abstained": false,
+      "point": [
+        850.08,
+        780.15
+      ],
+      "dx": -4.919999999999959,
+      "dy": 0.14999999999997726,
+      "distance": 4.92228605426377,
+      "correct_abstention": false,
+      "seconds": 4.26
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        855,
+        780
+      ],
+      "crop": null,
+      "bounds": [
+        825,
+        756,
+        885,
+        804
+      ],
+      "radius": 22,
+      "id": "gptmini-212-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 212,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5f744b6bc85086876d8fd2c053860759ce4c1e22e390a1659627d70ec7c08232"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 242,
+        "prompt_tokens": 2286,
+        "total_tokens": 2528,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 215,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0028035,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0028035,
+          "upstream_inference_prompt_cost": 0.0017145,
+          "upstream_inference_completions_cost": 0.001089
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":515,\"y\":740}",
+      "abstained": false,
+      "point": [
+        865.2,
+        777.0
+      ],
+      "dx": 10.200000000000045,
+      "dy": -3.0,
+      "distance": 10.632027088001655,
+      "correct_abstention": false,
+      "seconds": 7.17
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        855,
+        780
+      ],
+      "crop": null,
+      "bounds": [
+        825,
+        756,
+        885,
+        804
+      ],
+      "radius": 22,
+      "id": "gpt55-212-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 212,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5f744b6bc85086876d8fd2c053860759ce4c1e22e390a1659627d70ec7c08232"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 125,
+        "prompt_tokens": 2286,
+        "total_tokens": 2411,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 98,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01518,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01518,
+          "upstream_inference_prompt_cost": 0.01143,
+          "upstream_inference_completions_cost": 0.00375
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":509,\"y\":744}",
+      "abstained": false,
+      "point": [
+        855.12,
+        781.2
+      ],
+      "dx": 0.12000000000000455,
+      "dy": 1.2000000000000455,
+      "distance": 1.2059850745345526,
+      "correct_abstention": false,
+      "seconds": 4.17
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        845,
+        491
+      ],
+      "crop": null,
+      "bounds": [
+        815,
+        467,
+        875,
+        515
+      ],
+      "radius": 22,
+      "id": "qwen38flash-205-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 205,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c30a01c860e9c438ebfbe5ec2c96583e81186b9ecfdcbe4539108ce95f3d7b5f"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "f64e3dc1-e900-97e7-8043-cd25999a6cb0",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 213,
+        "prompt_tokens": 1738,
+        "total_tokens": 1951,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 158,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1262,
+          "text_tokens": 476
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 587, \"y\": 603}",
+      "abstained": false,
+      "point": [
+        845.28,
+        542.7
+      ],
+      "dx": 0.2799999999999727,
+      "dy": 51.700000000000045,
+      "distance": 51.700758214943086,
+      "correct_abstention": false,
+      "seconds": 4.14
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        845,
+        491
+      ],
+      "crop": null,
+      "bounds": [
+        815,
+        467,
+        875,
+        515
+      ],
+      "radius": 22,
+      "id": "gptmini-205-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 205,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c30a01c860e9c438ebfbe5ec2c96583e81186b9ecfdcbe4539108ce95f3d7b5f"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 128,
+        "prompt_tokens": 1752,
+        "total_tokens": 1880,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 101,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.00189,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.00189,
+          "upstream_inference_prompt_cost": 0.001314,
+          "upstream_inference_completions_cost": 0.000576
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":590,\"y\":544}",
+      "abstained": false,
+      "point": [
+        849.6,
+        489.6
+      ],
+      "dx": 4.600000000000023,
+      "dy": -1.3999999999999773,
+      "distance": 4.8083261120685385,
+      "correct_abstention": false,
+      "seconds": 3.47
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        671,
+        292
+      ],
+      "crop": null,
+      "bounds": [
+        641,
+        268,
+        701,
+        316
+      ],
+      "radius": 22,
+      "id": "qwen38flash-213-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 213,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6bcdd088b1283f907c11b55142e6a5ac65dfb53586ec97148a44d3f61eebfc51"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "8bd0c83c-a73a-9f06-a476-d60e65d39771",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 231,
+        "prompt_tokens": 1738,
+        "total_tokens": 1969,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 176,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1262,
+          "text_tokens": 476
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 463, \"y\": 322}",
+      "abstained": false,
+      "point": [
+        666.72,
+        289.8
+      ],
+      "dx": -4.279999999999973,
+      "dy": -2.1999999999999886,
+      "distance": 4.812317529008213,
+      "correct_abstention": false,
+      "seconds": 3.39
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        845,
+        491
+      ],
+      "crop": null,
+      "bounds": [
+        815,
+        467,
+        875,
+        515
+      ],
+      "radius": 22,
+      "id": "gpt55-205-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 205,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c30a01c860e9c438ebfbe5ec2c96583e81186b9ecfdcbe4539108ce95f3d7b5f"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 120,
+        "prompt_tokens": 1752,
+        "total_tokens": 1872,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 93,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01236,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01236,
+          "upstream_inference_prompt_cost": 0.00876,
+          "upstream_inference_completions_cost": 0.0036
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":586,\"y\":546}",
+      "abstained": false,
+      "point": [
+        843.84,
+        491.4
+      ],
+      "dx": -1.1599999999999682,
+      "dy": 0.39999999999997726,
+      "distance": 1.2270289320141998,
+      "correct_abstention": false,
+      "seconds": 4.71
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        671,
+        292
+      ],
+      "crop": null,
+      "bounds": [
+        641,
+        268,
+        701,
+        316
+      ],
+      "radius": 22,
+      "id": "gptmini-213-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 213,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6bcdd088b1283f907c11b55142e6a5ac65dfb53586ec97148a44d3f61eebfc51"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 124,
+        "prompt_tokens": 1752,
+        "total_tokens": 1876,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 97,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.001872,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.001872,
+          "upstream_inference_prompt_cost": 0.001314,
+          "upstream_inference_completions_cost": 0.000558
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":458,\"y\":324}",
+      "abstained": false,
+      "point": [
+        659.52,
+        291.6
+      ],
+      "dx": -11.480000000000018,
+      "dy": -0.39999999999997726,
+      "distance": 11.486966527330024,
+      "correct_abstention": false,
+      "seconds": 3.86
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        1228,
+        605
+      ],
+      "crop": null,
+      "bounds": [
+        1198,
+        581,
+        1258,
+        629
+      ],
+      "radius": 22,
+      "id": "qwen38flash-216-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 216,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "878efa6d5e586d005e1216b15fbf6bc0c56d331164ef5ec15eebabad4bf6f932"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "dca7e297-e917-94f6-acad-4df1fd2fde32",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 254,
+        "prompt_tokens": 2196,
+        "total_tokens": 2450,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 199,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 731, \"y\": 578}",
+      "abstained": false,
+      "point": [
+        1228.08,
+        606.9
+      ],
+      "dx": 0.07999999999992724,
+      "dy": 1.8999999999999773,
+      "distance": 1.9016834647227445,
+      "correct_abstention": false,
+      "seconds": 3.19
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        671,
+        292
+      ],
+      "crop": null,
+      "bounds": [
+        641,
+        268,
+        701,
+        316
+      ],
+      "radius": 22,
+      "id": "gpt55-213-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 213,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6bcdd088b1283f907c11b55142e6a5ac65dfb53586ec97148a44d3f61eebfc51"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 111,
+        "prompt_tokens": 1752,
+        "total_tokens": 1863,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 84,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01209,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01209,
+          "upstream_inference_prompt_cost": 0.00876,
+          "upstream_inference_completions_cost": 0.00333
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":467,\"y\":326}",
+      "abstained": false,
+      "point": [
+        672.48,
+        293.4
+      ],
+      "dx": 1.4800000000000182,
+      "dy": 1.3999999999999773,
+      "distance": 2.0372530525194925,
+      "correct_abstention": false,
+      "seconds": 4.66
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        629,
+        699
+      ],
+      "crop": null,
+      "bounds": [
+        599,
+        675,
+        659,
+        723
+      ],
+      "radius": 22,
+      "id": "qwen38flash-214-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 214,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "d3e6772a51abd9d5b2ddf7c54272c52adeabb8621964e233f245d2ed591e94ab"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "b58a422a-73db-9ea9-93e1-1879be1ffbd4",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 308,
+        "prompt_tokens": 2196,
+        "total_tokens": 2504,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 253,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 600, \"y\": 417}",
+      "abstained": false,
+      "point": [
+        630.0,
+        700.56
+      ],
+      "dx": 1.0,
+      "dy": 1.5599999999999454,
+      "distance": 1.8529975715040292,
+      "correct_abstention": false,
+      "seconds": 4.14
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        1228,
+        605
+      ],
+      "crop": null,
+      "bounds": [
+        1198,
+        581,
+        1258,
+        629
+      ],
+      "radius": 22,
+      "id": "gpt55-216-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 216,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "878efa6d5e586d005e1216b15fbf6bc0c56d331164ef5ec15eebabad4bf6f932"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 200,
+        "prompt_tokens": 2286,
+        "total_tokens": 2486,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 173,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01743,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01743,
+          "upstream_inference_prompt_cost": 0.01143,
+          "upstream_inference_completions_cost": 0.006
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":731,\"y\":577}",
+      "abstained": false,
+      "point": [
+        1228.08,
+        605.85
+      ],
+      "dx": 0.07999999999992724,
+      "dy": 0.8500000000000227,
+      "distance": 0.8537564055396756,
+      "correct_abstention": false,
+      "seconds": 4.88
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        1228,
+        605
+      ],
+      "crop": null,
+      "bounds": [
+        1198,
+        581,
+        1258,
+        629
+      ],
+      "radius": 22,
+      "id": "gptmini-216-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 216,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "878efa6d5e586d005e1216b15fbf6bc0c56d331164ef5ec15eebabad4bf6f932"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 252,
+        "prompt_tokens": 2286,
+        "total_tokens": 2538,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 225,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0028485,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0028485,
+          "upstream_inference_prompt_cost": 0.0017145,
+          "upstream_inference_completions_cost": 0.001134
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":721,\"y\":576}",
+      "abstained": false,
+      "point": [
+        1211.28,
+        604.8
+      ],
+      "dx": -16.720000000000027,
+      "dy": -0.20000000000004547,
+      "distance": 16.721196129463973,
+      "correct_abstention": false,
+      "seconds": 14.82
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        629,
+        699
+      ],
+      "crop": null,
+      "bounds": [
+        599,
+        675,
+        659,
+        723
+      ],
+      "radius": 22,
+      "id": "qwen38flash-214-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 214,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "d3e6772a51abd9d5b2ddf7c54272c52adeabb8621964e233f245d2ed591e94ab"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "48226eb6-7b8b-9054-8f43-858eb6549f99",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 352,
+        "prompt_tokens": 2196,
+        "total_tokens": 2548,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 298,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 2048,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 571, \"y\": 414}",
+      "abstained": false,
+      "point": [
+        599.55,
+        695.5199999999999
+      ],
+      "dx": -29.450000000000045,
+      "dy": -3.480000000000132,
+      "distance": 29.654896728870995,
+      "correct_abstention": false,
+      "seconds": 4.6
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        629,
+        699
+      ],
+      "crop": null,
+      "bounds": [
+        599,
+        675,
+        659,
+        723
+      ],
+      "radius": 22,
+      "id": "gpt55-214-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 214,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "d3e6772a51abd9d5b2ddf7c54272c52adeabb8621964e233f245d2ed591e94ab"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 247,
+        "prompt_tokens": 2286,
+        "total_tokens": 2533,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 220,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01884,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01884,
+          "upstream_inference_prompt_cost": 0.01143,
+          "upstream_inference_completions_cost": 0.00741
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":599,\"y\":417}",
+      "abstained": false,
+      "point": [
+        628.95,
+        700.56
+      ],
+      "dx": -0.049999999999954525,
+      "dy": 1.5599999999999454,
+      "distance": 1.5608010763706646,
+      "correct_abstention": false,
+      "seconds": 6.32
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        629,
+        699
+      ],
+      "crop": null,
+      "bounds": [
+        599,
+        675,
+        659,
+        723
+      ],
+      "radius": 22,
+      "id": "gptmini-214-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 214,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "d3e6772a51abd9d5b2ddf7c54272c52adeabb8621964e233f245d2ed591e94ab"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 215,
+        "prompt_tokens": 2286,
+        "total_tokens": 2501,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 188,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.002682,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.002682,
+          "upstream_inference_prompt_cost": 0.0017145,
+          "upstream_inference_completions_cost": 0.0009675
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":599,\"y\":416}",
+      "abstained": false,
+      "point": [
+        628.95,
+        698.88
+      ],
+      "dx": -0.049999999999954525,
+      "dy": -0.12000000000000455,
+      "distance": 0.1299999999999867,
+      "correct_abstention": false,
+      "seconds": 4.54
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        978,
+        583
+      ],
+      "crop": null,
+      "bounds": [
+        948,
+        559,
+        1008,
+        607
+      ],
+      "radius": 22,
+      "id": "qwen38flash-211-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 211,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "36ff35ae6a5cd050f682cd6871ddf30d0eb8565ad23f2d302fe68ae560bef99f"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "244a482d-2c32-9239-a59b-45df3a1f5914",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 240,
+        "prompt_tokens": 2015,
+        "total_tokens": 2255,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 185,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1538,
+          "text_tokens": 477
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 634, \"y\": 566}",
+      "abstained": false,
+      "point": [
+        973.824,
+        579.584
+      ],
+      "dx": -4.176000000000045,
+      "dy": -3.4160000000000537,
+      "distance": 5.395186002354389,
+      "correct_abstention": false,
+      "seconds": 3.49
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        629,
+        699
+      ],
+      "crop": null,
+      "bounds": [
+        599,
+        675,
+        659,
+        723
+      ],
+      "radius": 22,
+      "id": "gpt55-214-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 214,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "d3e6772a51abd9d5b2ddf7c54272c52adeabb8621964e233f245d2ed591e94ab"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 192,
+        "prompt_tokens": 2286,
+        "total_tokens": 2478,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 165,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.010278,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.010278,
+          "upstream_inference_prompt_cost": 0.004518,
+          "upstream_inference_completions_cost": 0.00576
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":600,\"y\":417}",
+      "abstained": false,
+      "point": [
+        630.0,
+        700.56
+      ],
+      "dx": 1.0,
+      "dy": 1.5599999999999454,
+      "distance": 1.8529975715040292,
+      "correct_abstention": false,
+      "seconds": 8.18
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        629,
+        699
+      ],
+      "crop": null,
+      "bounds": [
+        599,
+        675,
+        659,
+        723
+      ],
+      "radius": 22,
+      "id": "gptmini-214-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 214,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "d3e6772a51abd9d5b2ddf7c54272c52adeabb8621964e233f245d2ed591e94ab"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 348,
+        "prompt_tokens": 2286,
+        "total_tokens": 2634,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 321,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0022437,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0022437,
+          "upstream_inference_prompt_cost": 0.0006777,
+          "upstream_inference_completions_cost": 0.001566
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":597,\"y\":418}",
+      "abstained": false,
+      "point": [
+        626.85,
+        702.24
+      ],
+      "dx": -2.1499999999999773,
+      "dy": 3.240000000000009,
+      "distance": 3.888457277635947,
+      "correct_abstention": false,
+      "seconds": 7.38
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        856,
+        318
+      ],
+      "crop": null,
+      "bounds": [
+        826,
+        294,
+        886,
+        342
+      ],
+      "radius": 22,
+      "id": "qwen38flash-204-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 204,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "451949f8a612f4af4a5cd58eb24b6b460ef88480414223d49d358997b0051ec6"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "6a4b9cee-6237-9ed4-a214-ffe2a17b442a",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 268,
+        "prompt_tokens": 2196,
+        "total_tokens": 2464,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 213,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 509, \"y\": 302}",
+      "abstained": false,
+      "point": [
+        855.12,
+        317.1
+      ],
+      "dx": -0.8799999999999955,
+      "dy": -0.8999999999999773,
+      "distance": 1.2587295182047455,
+      "correct_abstention": false,
+      "seconds": 4.24
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        978,
+        583
+      ],
+      "crop": null,
+      "bounds": [
+        948,
+        559,
+        1008,
+        607
+      ],
+      "radius": 22,
+      "id": "gpt55-211-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 211,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "36ff35ae6a5cd050f682cd6871ddf30d0eb8565ad23f2d302fe68ae560bef99f"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 133,
+        "prompt_tokens": 2030,
+        "total_tokens": 2163,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 106,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01414,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01414,
+          "upstream_inference_prompt_cost": 0.01015,
+          "upstream_inference_completions_cost": 0.00399
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":638,\"y\":570}",
+      "abstained": false,
+      "point": [
+        979.968,
+        583.68
+      ],
+      "dx": 1.967999999999961,
+      "dy": 0.67999999999995,
+      "distance": 2.082168100802569,
+      "correct_abstention": false,
+      "seconds": 6.62
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        650,
+        633
+      ],
+      "crop": null,
+      "bounds": [
+        620,
+        609,
+        680,
+        657
+      ],
+      "radius": 22,
+      "id": "qwen38flash-203-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 203,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c58e55c8e1cd60b95b5a0491dd9c93d161d4e6a2185267d73e1a836dafa977c0"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "33b009c0-9b41-9d50-8546-d3f594c5a1ec",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 275,
+        "prompt_tokens": 2015,
+        "total_tokens": 2290,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 220,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1538,
+          "text_tokens": 477
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 421, \"y\": 769}",
+      "abstained": false,
+      "point": [
+        646.656,
+        787.456
+      ],
+      "dx": -3.344000000000051,
+      "dy": 154.45600000000002,
+      "distance": 154.4921948578633,
+      "correct_abstention": false,
+      "seconds": 3.51
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        978,
+        583
+      ],
+      "crop": null,
+      "bounds": [
+        948,
+        559,
+        1008,
+        607
+      ],
+      "radius": 22,
+      "id": "gptmini-211-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 211,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "36ff35ae6a5cd050f682cd6871ddf30d0eb8565ad23f2d302fe68ae560bef99f"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 304,
+        "prompt_tokens": 2030,
+        "total_tokens": 2334,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 277,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0028905,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0028905,
+          "upstream_inference_prompt_cost": 0.0015225,
+          "upstream_inference_completions_cost": 0.001368
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":641,\"y\":570}",
+      "abstained": false,
+      "point": [
+        984.576,
+        583.68
+      ],
+      "dx": 6.576000000000022,
+      "dy": 0.67999999999995,
+      "distance": 6.611064664636114,
+      "correct_abstention": false,
+      "seconds": 7.68
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        761,
+        676
+      ],
+      "crop": null,
+      "bounds": [
+        731,
+        652,
+        791,
+        700
+      ],
+      "radius": 22,
+      "id": "qwen38flash-208-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 208,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "e36e8581c6a7f4efc6244d3fcc28165dacd8cb7ce56904aec1333e55e17cf259"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "96efcc46-3d9a-97cd-a1e8-4d0090168045",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 201,
+        "prompt_tokens": 2196,
+        "total_tokens": 2397,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 147,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 449, \"y\": 646}",
+      "abstained": false,
+      "point": [
+        754.32,
+        678.3
+      ],
+      "dx": -6.67999999999995,
+      "dy": 2.2999999999999545,
+      "distance": 7.0648708409990855,
+      "correct_abstention": false,
+      "seconds": 3.1
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        856,
+        318
+      ],
+      "crop": null,
+      "bounds": [
+        826,
+        294,
+        886,
+        342
+      ],
+      "radius": 22,
+      "id": "gpt55-204-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 204,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "451949f8a612f4af4a5cd58eb24b6b460ef88480414223d49d358997b0051ec6"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 169,
+        "prompt_tokens": 2286,
+        "total_tokens": 2455,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 142,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0165,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0165,
+          "upstream_inference_prompt_cost": 0.01143,
+          "upstream_inference_completions_cost": 0.00507
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":510,\"y\":304}",
+      "abstained": false,
+      "point": [
+        856.8,
+        319.2
+      ],
+      "dx": 0.7999999999999545,
+      "dy": 1.1999999999999886,
+      "distance": 1.442220510185561,
+      "correct_abstention": false,
+      "seconds": 7.8
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        671,
+        292
+      ],
+      "crop": null,
+      "bounds": [
+        641,
+        268,
+        701,
+        316
+      ],
+      "radius": 22,
+      "id": "qwen38flash-213-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 213,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6bcdd088b1283f907c11b55142e6a5ac65dfb53586ec97148a44d3f61eebfc51"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "65dc9079-53ad-9ed1-b64a-8df6cf05b5a9",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 223,
+        "prompt_tokens": 1738,
+        "total_tokens": 1961,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 168,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1536,
+          "image_tokens": 1262,
+          "text_tokens": 476
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 462, \"y\": 360}",
+      "abstained": false,
+      "point": [
+        665.28,
+        324.0
+      ],
+      "dx": -5.720000000000027,
+      "dy": 32.0,
+      "distance": 32.50720535512089,
+      "correct_abstention": false,
+      "seconds": 3.63
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        856,
+        318
+      ],
+      "crop": null,
+      "bounds": [
+        826,
+        294,
+        886,
+        342
+      ],
+      "radius": 22,
+      "id": "gptmini-204-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 204,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "451949f8a612f4af4a5cd58eb24b6b460ef88480414223d49d358997b0051ec6"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 141,
+        "prompt_tokens": 2286,
+        "total_tokens": 2427,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 114,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.002349,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.002349,
+          "upstream_inference_prompt_cost": 0.0017145,
+          "upstream_inference_completions_cost": 0.0006345
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":512,\"y\":305}",
+      "abstained": false,
+      "point": [
+        860.1600000000001,
+        320.25
+      ],
+      "dx": 4.160000000000082,
+      "dy": 2.25,
+      "distance": 4.72949257320494,
+      "correct_abstention": false,
+      "seconds": 7.46
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        475,
+        648
+      ],
+      "crop": null,
+      "bounds": [
+        445,
+        624,
+        505,
+        672
+      ],
+      "radius": 22,
+      "id": "qwen38flash-206-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 206,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5c726f83bf91221fa9715eb83534947cb8d8490dfcc320fb85ff59c671ebaa24"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "9ca6fac4-b154-9d88-87b9-2686560d5a08",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 326,
+        "prompt_tokens": 2196,
+        "total_tokens": 2522,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 271,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 431, \"y\": 230}",
+      "abstained": false,
+      "point": [
+        452.55,
+        386.4
+      ],
+      "dx": -22.44999999999999,
+      "dy": -261.6,
+      "distance": 262.5615404052924,
+      "correct_abstention": false,
+      "seconds": 4.39
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        650,
+        633
+      ],
+      "crop": null,
+      "bounds": [
+        620,
+        609,
+        680,
+        657
+      ],
+      "radius": 22,
+      "id": "gpt55-203-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 203,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c58e55c8e1cd60b95b5a0491dd9c93d161d4e6a2185267d73e1a836dafa977c0"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 145,
+        "prompt_tokens": 2030,
+        "total_tokens": 2175,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 118,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0145,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0145,
+          "upstream_inference_prompt_cost": 0.01015,
+          "upstream_inference_completions_cost": 0.00435
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":423,\"y\":619}",
+      "abstained": false,
+      "point": [
+        649.728,
+        633.856
+      ],
+      "dx": -0.2720000000000482,
+      "dy": 0.8559999999999945,
+      "distance": 0.8981759293145285,
+      "correct_abstention": false,
+      "seconds": 7.65
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        856,
+        318
+      ],
+      "crop": null,
+      "bounds": [
+        826,
+        294,
+        886,
+        342
+      ],
+      "radius": 22,
+      "id": "qwen38flash-204-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 204,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "451949f8a612f4af4a5cd58eb24b6b460ef88480414223d49d358997b0051ec6"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "d6e08aca-7eef-9a96-ba41-ab597fc817be",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 213,
+        "prompt_tokens": 2196,
+        "total_tokens": 2409,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 158,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 2048,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 508, \"y\": 305}",
+      "abstained": false,
+      "point": [
+        853.44,
+        320.25
+      ],
+      "dx": -2.5599999999999454,
+      "dy": 2.25,
+      "distance": 3.408240015022375,
+      "correct_abstention": false,
+      "seconds": 3.77
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        650,
+        633
+      ],
+      "crop": null,
+      "bounds": [
+        620,
+        609,
+        680,
+        657
+      ],
+      "radius": 22,
+      "id": "gptmini-203-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 203,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c58e55c8e1cd60b95b5a0491dd9c93d161d4e6a2185267d73e1a836dafa977c0"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 115,
+        "prompt_tokens": 2030,
+        "total_tokens": 2145,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 88,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.00204,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.00204,
+          "upstream_inference_prompt_cost": 0.0015225,
+          "upstream_inference_completions_cost": 0.0005175
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":423,\"y\":618}",
+      "abstained": false,
+      "point": [
+        649.728,
+        632.832
+      ],
+      "dx": -0.2720000000000482,
+      "dy": -0.16800000000000637,
+      "distance": 0.3196998592430537,
+      "correct_abstention": false,
+      "seconds": 7.16
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        761,
+        676
+      ],
+      "crop": null,
+      "bounds": [
+        731,
+        652,
+        791,
+        700
+      ],
+      "radius": 22,
+      "id": "gpt55-208-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 208,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "e36e8581c6a7f4efc6244d3fcc28165dacd8cb7ce56904aec1333e55e17cf259"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 150,
+        "prompt_tokens": 2286,
+        "total_tokens": 2436,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 123,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01593,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01593,
+          "upstream_inference_prompt_cost": 0.01143,
+          "upstream_inference_completions_cost": 0.0045
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":453,\"y\":644}",
+      "abstained": false,
+      "point": [
+        761.04,
+        676.2
+      ],
+      "dx": 0.03999999999996362,
+      "dy": 0.20000000000004547,
+      "distance": 0.20396078054374886,
+      "correct_abstention": false,
+      "seconds": 5.72
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        978,
+        583
+      ],
+      "crop": null,
+      "bounds": [
+        948,
+        559,
+        1008,
+        607
+      ],
+      "radius": 22,
+      "id": "qwen38flash-211-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 211,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "36ff35ae6a5cd050f682cd6871ddf30d0eb8565ad23f2d302fe68ae560bef99f"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "ae0757fc-5ea9-9492-8ca8-b35ddf09e04d",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 216,
+        "prompt_tokens": 2015,
+        "total_tokens": 2231,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 161,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1792,
+          "image_tokens": 1538,
+          "text_tokens": 477
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 633, \"y\": 569}",
+      "abstained": false,
+      "point": [
+        972.288,
+        582.656
+      ],
+      "dx": -5.711999999999989,
+      "dy": -0.34400000000005093,
+      "distance": 5.722349167955405,
+      "correct_abstention": false,
+      "seconds": 5.98
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        761,
+        676
+      ],
+      "crop": null,
+      "bounds": [
+        731,
+        652,
+        791,
+        700
+      ],
+      "radius": 22,
+      "id": "gptmini-208-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 208,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "e36e8581c6a7f4efc6244d3fcc28165dacd8cb7ce56904aec1333e55e17cf259"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 264,
+        "prompt_tokens": 2286,
+        "total_tokens": 2550,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 237,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0029025,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0029025,
+          "upstream_inference_prompt_cost": 0.0017145,
+          "upstream_inference_completions_cost": 0.001188
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":456,\"y\":644}",
+      "abstained": false,
+      "point": [
+        766.08,
+        676.2
+      ],
+      "dx": 5.080000000000041,
+      "dy": 0.20000000000004547,
+      "distance": 5.08393548346165,
+      "correct_abstention": false,
+      "seconds": 5.7
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        650,
+        633
+      ],
+      "crop": null,
+      "bounds": [
+        620,
+        609,
+        680,
+        657
+      ],
+      "radius": 22,
+      "id": "qwen38flash-203-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 203,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c58e55c8e1cd60b95b5a0491dd9c93d161d4e6a2185267d73e1a836dafa977c0"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "13ccd53e-520c-99c2-922f-caab07fcf27f",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 266,
+        "prompt_tokens": 2015,
+        "total_tokens": 2281,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 211,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1792,
+          "image_tokens": 1538,
+          "text_tokens": 477
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 421, \"y\": 620}",
+      "abstained": false,
+      "point": [
+        646.656,
+        634.88
+      ],
+      "dx": -3.344000000000051,
+      "dy": 1.8799999999999955,
+      "distance": 3.836239825662666,
+      "correct_abstention": false,
+      "seconds": 4.55
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        671,
+        292
+      ],
+      "crop": null,
+      "bounds": [
+        641,
+        268,
+        701,
+        316
+      ],
+      "radius": 22,
+      "id": "gptmini-213-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 213,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6bcdd088b1283f907c11b55142e6a5ac65dfb53586ec97148a44d3f61eebfc51"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 224,
+        "prompt_tokens": 1752,
+        "total_tokens": 1976,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 197,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1024,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0016308,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0016308,
+          "upstream_inference_prompt_cost": 0.0006228,
+          "upstream_inference_completions_cost": 0.001008
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":461,\"y\":324}",
+      "abstained": false,
+      "point": [
+        663.84,
+        291.6
+      ],
+      "dx": -7.159999999999968,
+      "dy": -0.39999999999997726,
+      "distance": 7.1711644800547925,
+      "correct_abstention": false,
+      "seconds": 4.19
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        618,
+        671
+      ],
+      "crop": null,
+      "bounds": [
+        588,
+        647,
+        648,
+        695
+      ],
+      "radius": 22,
+      "id": "qwen38flash-215-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 215,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "0d7e0929411cd2189215f748fbf7391f124ba1cc13b44e6dbaaba7c15e259c60"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "569105bd-aa5a-9770-a5cc-8e6d998c00bf",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 253,
+        "prompt_tokens": 2015,
+        "total_tokens": 2268,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 199,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1538,
+          "text_tokens": 477
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 401, \"y\": 654}",
+      "abstained": false,
+      "point": [
+        615.936,
+        669.696
+      ],
+      "dx": -2.0639999999999645,
+      "dy": -1.3039999999999736,
+      "distance": 2.4414159825805566,
+      "correct_abstention": false,
+      "seconds": 3.32
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        475,
+        648
+      ],
+      "crop": null,
+      "bounds": [
+        445,
+        624,
+        505,
+        672
+      ],
+      "radius": 22,
+      "id": "gptmini-206-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 206,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5c726f83bf91221fa9715eb83534947cb8d8490dfcc320fb85ff59c671ebaa24"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 294,
+        "prompt_tokens": 2286,
+        "total_tokens": 2580,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 267,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0030375,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0030375,
+          "upstream_inference_prompt_cost": 0.0017145,
+          "upstream_inference_completions_cost": 0.001323
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":452,\"y\":386}",
+      "abstained": false,
+      "point": [
+        474.6,
+        648.4800000000001
+      ],
+      "dx": -0.39999999999997726,
+      "dy": 0.4800000000001319,
+      "distance": 0.6248199740726191,
+      "correct_abstention": false,
+      "seconds": 6.92
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        704,
+        994
+      ],
+      "crop": null,
+      "bounds": [
+        674,
+        970,
+        734,
+        1018
+      ],
+      "radius": 22,
+      "id": "qwen38flash-202-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 202,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "ea0afda222bd63127b5d54d7e8f90e4397e0832b31c484b20ebb84cf7048d2c9"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "581d06f4-5529-9f31-8d31-ffb884ad34ce",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 273,
+        "prompt_tokens": 2196,
+        "total_tokens": 2469,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 218,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 669, \"y\": 592}",
+      "abstained": false,
+      "point": [
+        702.45,
+        994.56
+      ],
+      "dx": -1.5499999999999545,
+      "dy": 0.5599999999999454,
+      "distance": 1.6480594649465163,
+      "correct_abstention": false,
+      "seconds": 4.01
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        856,
+        318
+      ],
+      "crop": null,
+      "bounds": [
+        826,
+        294,
+        886,
+        342
+      ],
+      "radius": 22,
+      "id": "gptmini-204-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 204,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "451949f8a612f4af4a5cd58eb24b6b460ef88480414223d49d358997b0051ec6"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 115,
+        "prompt_tokens": 2286,
+        "total_tokens": 2401,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 88,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0011952,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0011952,
+          "upstream_inference_prompt_cost": 0.0006777,
+          "upstream_inference_completions_cost": 0.0005175
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":514,\"y\":303}",
+      "abstained": false,
+      "point": [
+        863.5199999999999,
+        318.15
+      ],
+      "dx": 7.519999999999868,
+      "dy": 0.14999999999997726,
+      "distance": 7.52149586186139,
+      "correct_abstention": false,
+      "seconds": 4.29
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        619,
+        334
+      ],
+      "crop": null,
+      "bounds": [
+        589,
+        310,
+        649,
+        358
+      ],
+      "radius": 22,
+      "id": "qwen38flash-201-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 201,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "94f69d39-ada4-9029-b981-5fe16b8fa71f",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 261,
+        "prompt_tokens": 1738,
+        "total_tokens": 1999,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 206,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1262,
+          "text_tokens": 476
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 428, \"y\": 367}",
+      "abstained": false,
+      "point": [
+        616.32,
+        330.3
+      ],
+      "dx": -2.67999999999995,
+      "dy": -3.6999999999999886,
+      "distance": 4.568632180423332,
+      "correct_abstention": false,
+      "seconds": 4.03
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        978,
+        583
+      ],
+      "crop": null,
+      "bounds": [
+        948,
+        559,
+        1008,
+        607
+      ],
+      "radius": 22,
+      "id": "gptmini-211-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 211,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "36ff35ae6a5cd050f682cd6871ddf30d0eb8565ad23f2d302fe68ae560bef99f"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 160,
+        "prompt_tokens": 2030,
+        "total_tokens": 2190,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 133,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0012057,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0012057,
+          "upstream_inference_prompt_cost": 0.0004857,
+          "upstream_inference_completions_cost": 0.00072
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":662,\"y\":569}",
+      "abstained": false,
+      "point": [
+        1016.832,
+        582.656
+      ],
+      "dx": 38.831999999999994,
+      "dy": -0.34400000000005093,
+      "distance": 38.8335236619084,
+      "correct_abstention": false,
+      "seconds": 5.13
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        618,
+        671
+      ],
+      "crop": null,
+      "bounds": [
+        588,
+        647,
+        648,
+        695
+      ],
+      "radius": 22,
+      "id": "qwen38flash-215-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 215,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "0d7e0929411cd2189215f748fbf7391f124ba1cc13b44e6dbaaba7c15e259c60"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "dac734d6-20ac-9ce2-890c-ee6787d5640a",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 233,
+        "prompt_tokens": 2015,
+        "total_tokens": 2248,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 178,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1792,
+          "image_tokens": 1538,
+          "text_tokens": 477
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 400, \"y\": 642}",
+      "abstained": false,
+      "point": [
+        614.4,
+        657.408
+      ],
+      "dx": -3.6000000000000227,
+      "dy": -13.591999999999985,
+      "distance": 14.060670823257322,
+      "correct_abstention": false,
+      "seconds": 3.66
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        650,
+        633
+      ],
+      "crop": null,
+      "bounds": [
+        620,
+        609,
+        680,
+        657
+      ],
+      "radius": 22,
+      "id": "gptmini-203-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 203,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c58e55c8e1cd60b95b5a0491dd9c93d161d4e6a2185267d73e1a836dafa977c0"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 62,
+        "prompt_tokens": 2030,
+        "total_tokens": 2092,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 35,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0007647,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0007647,
+          "upstream_inference_prompt_cost": 0.0004857,
+          "upstream_inference_completions_cost": 0.000279
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":448,\"y\":615}",
+      "abstained": false,
+      "point": [
+        688.128,
+        629.76
+      ],
+      "dx": 38.12800000000004,
+      "dy": -3.240000000000009,
+      "distance": 38.26541498533634,
+      "correct_abstention": false,
+      "seconds": 3.96
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        619,
+        334
+      ],
+      "crop": null,
+      "bounds": [
+        589,
+        310,
+        649,
+        358
+      ],
+      "radius": 22,
+      "id": "qwen38flash-201-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 201,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "b2a0ff0b-06fa-9923-88c1-6152ec3debd6",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 217,
+        "prompt_tokens": 1738,
+        "total_tokens": 1955,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 162,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1536,
+          "image_tokens": 1262,
+          "text_tokens": 476
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 429, \"y\": 394}",
+      "abstained": false,
+      "point": [
+        617.76,
+        354.6
+      ],
+      "dx": -1.240000000000009,
+      "dy": 20.600000000000023,
+      "distance": 20.637286643355054,
+      "correct_abstention": false,
+      "seconds": 5.98
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        618,
+        671
+      ],
+      "crop": null,
+      "bounds": [
+        588,
+        647,
+        648,
+        695
+      ],
+      "radius": 22,
+      "id": "gptmini-215-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 215,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "0d7e0929411cd2189215f748fbf7391f124ba1cc13b44e6dbaaba7c15e259c60"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 89,
+        "prompt_tokens": 2030,
+        "total_tokens": 2119,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 62,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.001923,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.001923,
+          "upstream_inference_prompt_cost": 0.0015225,
+          "upstream_inference_completions_cost": 0.0004005
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":403,\"y\":656}",
+      "abstained": false,
+      "point": [
+        619.008,
+        671.744
+      ],
+      "dx": 1.0080000000000382,
+      "dy": 0.7440000000000282,
+      "distance": 1.2528367810693135,
+      "correct_abstention": false,
+      "seconds": 3.68
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        589,
+        1030
+      ],
+      "crop": null,
+      "bounds": [
+        559,
+        1006,
+        619,
+        1054
+      ],
+      "radius": 22,
+      "id": "qwen38flash-210-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 210,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "cb6797dd4ffbbd4ed45fd7edbe2562e9633a1206a0e7fc4a09063746474b4655"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "b4116415-dfaf-9b38-957c-8ba4cb194898",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 229,
+        "prompt_tokens": 2196,
+        "total_tokens": 2425,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 174,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 560, \"y\": 365}",
+      "abstained": false,
+      "point": [
+        588.0,
+        613.2
+      ],
+      "dx": -1.0,
+      "dy": -416.79999999999995,
+      "distance": 416.80119961439647,
+      "correct_abstention": false,
+      "seconds": 4.04
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        671,
+        292
+      ],
+      "crop": null,
+      "bounds": [
+        641,
+        268,
+        701,
+        316
+      ],
+      "radius": 22,
+      "id": "gpt55-213-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 213,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6bcdd088b1283f907c11b55142e6a5ac65dfb53586ec97148a44d3f61eebfc51"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 111,
+        "prompt_tokens": 1752,
+        "total_tokens": 1863,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 84,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01209,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01209,
+          "upstream_inference_prompt_cost": 0.00876,
+          "upstream_inference_completions_cost": 0.00333
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":467,\"y\":324}",
+      "abstained": false,
+      "point": [
+        672.48,
+        291.6
+      ],
+      "dx": 1.4800000000000182,
+      "dy": -0.39999999999997726,
+      "distance": 1.5331014317389557,
+      "correct_abstention": false,
+      "seconds": 67.58
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        704,
+        994
+      ],
+      "crop": null,
+      "bounds": [
+        674,
+        970,
+        734,
+        1018
+      ],
+      "radius": 22,
+      "id": "gptmini-202-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 202,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "ea0afda222bd63127b5d54d7e8f90e4397e0832b31c484b20ebb84cf7048d2c9"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 136,
+        "prompt_tokens": 2286,
+        "total_tokens": 2422,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 109,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0023265,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0023265,
+          "upstream_inference_prompt_cost": 0.0017145,
+          "upstream_inference_completions_cost": 0.000612
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":670,\"y\":591}",
+      "abstained": false,
+      "point": [
+        703.5,
+        992.88
+      ],
+      "dx": -0.5,
+      "dy": -1.1200000000000045,
+      "distance": 1.2265398485169612,
+      "correct_abstention": false,
+      "seconds": 5.57
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        1228,
+        605
+      ],
+      "crop": null,
+      "bounds": [
+        1198,
+        581,
+        1258,
+        629
+      ],
+      "radius": 22,
+      "id": "qwen38flash-216-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 216,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "878efa6d5e586d005e1216b15fbf6bc0c56d331164ef5ec15eebabad4bf6f932"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "8a7bb64e-3f74-96c6-a0fa-f0fcd0d63a2d",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 256,
+        "prompt_tokens": 2196,
+        "total_tokens": 2452,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 201,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 2048,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 730, \"y\": 579}",
+      "abstained": false,
+      "point": [
+        1226.4,
+        607.95
+      ],
+      "dx": -1.599999999999909,
+      "dy": 2.9500000000000455,
+      "distance": 3.3559648389099634,
+      "correct_abstention": false,
+      "seconds": 4.79
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        619,
+        334
+      ],
+      "crop": null,
+      "bounds": [
+        589,
+        310,
+        649,
+        358
+      ],
+      "radius": 22,
+      "id": "gptmini-201-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 201,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 135,
+        "prompt_tokens": 1752,
+        "total_tokens": 1887,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 108,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0019215,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0019215,
+          "upstream_inference_prompt_cost": 0.001314,
+          "upstream_inference_completions_cost": 0.0006075
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":431,\"y\":371}",
+      "abstained": false,
+      "point": [
+        620.64,
+        333.9
+      ],
+      "dx": 1.6399999999999864,
+      "dy": -0.10000000000002274,
+      "distance": 1.6430459518832574,
+      "correct_abstention": false,
+      "seconds": 4.1
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        475,
+        648
+      ],
+      "crop": null,
+      "bounds": [
+        445,
+        624,
+        505,
+        672
+      ],
+      "radius": 22,
+      "id": "gpt55-206-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 206,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5c726f83bf91221fa9715eb83534947cb8d8490dfcc320fb85ff59c671ebaa24"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 198,
+        "prompt_tokens": 2286,
+        "total_tokens": 2484,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 171,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01737,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01737,
+          "upstream_inference_prompt_cost": 0.01143,
+          "upstream_inference_completions_cost": 0.00594
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":453,\"y\":386}",
+      "abstained": false,
+      "point": [
+        475.65,
+        648.4800000000001
+      ],
+      "dx": 0.6499999999999773,
+      "dy": 0.4800000000001319,
+      "distance": 0.8080222769206905,
+      "correct_abstention": false,
+      "seconds": 9.42
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        937,
+        548
+      ],
+      "crop": null,
+      "bounds": [
+        907,
+        524,
+        967,
+        572
+      ],
+      "radius": 22,
+      "id": "qwen38flash-207-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 207,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6a0264b59e51ee10b87f1459f8cc1342b4a1228a7adf5e84d15adfaa9562a55a"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "4b27de55-8809-9fc3-9031-640ada4e65ef",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 259,
+        "prompt_tokens": 2015,
+        "total_tokens": 2274,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 204,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1538,
+          "text_tokens": 477
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 607, \"y\": 528}",
+      "abstained": false,
+      "point": [
+        932.352,
+        540.672
+      ],
+      "dx": -4.648000000000025,
+      "dy": -7.3279999999999745,
+      "distance": 8.677758235857914,
+      "correct_abstention": false,
+      "seconds": 3.94
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        618,
+        671
+      ],
+      "crop": null,
+      "bounds": [
+        588,
+        647,
+        648,
+        695
+      ],
+      "radius": 22,
+      "id": "gptmini-215-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 215,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "0d7e0929411cd2189215f748fbf7391f124ba1cc13b44e6dbaaba7c15e259c60"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 70,
+        "prompt_tokens": 2030,
+        "total_tokens": 2100,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 43,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0008007,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0008007,
+          "upstream_inference_prompt_cost": 0.0004857,
+          "upstream_inference_completions_cost": 0.000315
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":404,\"y\":655}",
+      "abstained": false,
+      "point": [
+        620.544,
+        670.72
+      ],
+      "dx": 2.5439999999999827,
+      "dy": -0.2799999999999727,
+      "distance": 2.5593624206039864,
+      "correct_abstention": false,
+      "seconds": 4.03
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        920,
+        215
+      ],
+      "crop": null,
+      "bounds": [
+        890,
+        191,
+        950,
+        239
+      ],
+      "radius": 22,
+      "id": "qwen38flash-209-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 209,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "842d1bb0c0b09b1aba67773319b374ba4e53beeca5d6e30bdca400dad6f90ab7"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "54bfe77d-3d52-9013-91ae-24db791f26fa",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 139,
+        "prompt_tokens": 1738,
+        "total_tokens": 1877,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 84,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 256,
+          "image_tokens": 1262,
+          "text_tokens": 476
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 634, \"y\": 236}",
+      "abstained": false,
+      "point": [
+        912.9600000000002,
+        212.4
+      ],
+      "dx": -7.03999999999985,
+      "dy": -2.5999999999999943,
+      "distance": 7.504771815318429,
+      "correct_abstention": false,
+      "seconds": 2.37
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        856,
+        318
+      ],
+      "crop": null,
+      "bounds": [
+        826,
+        294,
+        886,
+        342
+      ],
+      "radius": 22,
+      "id": "gpt55-204-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 204,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "451949f8a612f4af4a5cd58eb24b6b460ef88480414223d49d358997b0051ec6"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 96,
+        "prompt_tokens": 2286,
+        "total_tokens": 2382,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 69,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.007398,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.007398,
+          "upstream_inference_prompt_cost": 0.004518,
+          "upstream_inference_completions_cost": 0.00288
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":510,\"y\":303}",
+      "abstained": false,
+      "point": [
+        856.8,
+        318.15
+      ],
+      "dx": 0.7999999999999545,
+      "dy": 0.14999999999997726,
+      "distance": 0.8139410298049364,
+      "correct_abstention": false,
+      "seconds": 6.65
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        845,
+        491
+      ],
+      "crop": null,
+      "bounds": [
+        815,
+        467,
+        875,
+        515
+      ],
+      "radius": 22,
+      "id": "qwen38flash-205-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 205,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c30a01c860e9c438ebfbe5ec2c96583e81186b9ecfdcbe4539108ce95f3d7b5f"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "aaed4f0c-96fe-9a78-9ee9-f7977e2204e8",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 268,
+        "prompt_tokens": 1738,
+        "total_tokens": 2006,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 213,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1536,
+          "image_tokens": 1262,
+          "text_tokens": 476
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 585, \"y\": 603}",
+      "abstained": false,
+      "point": [
+        842.4,
+        542.7
+      ],
+      "dx": -2.6000000000000227,
+      "dy": 51.700000000000045,
+      "distance": 51.765335891888164,
+      "correct_abstention": false,
+      "seconds": 3.27
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        619,
+        334
+      ],
+      "crop": null,
+      "bounds": [
+        589,
+        310,
+        649,
+        358
+      ],
+      "radius": 22,
+      "id": "gptmini-201-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 201,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 216,
+        "prompt_tokens": 1752,
+        "total_tokens": 1968,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 189,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1024,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0015948,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0015948,
+          "upstream_inference_prompt_cost": 0.0006228,
+          "upstream_inference_completions_cost": 0.000972
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":431,\"y\":371}",
+      "abstained": false,
+      "point": [
+        620.64,
+        333.9
+      ],
+      "dx": 1.6399999999999864,
+      "dy": -0.10000000000002274,
+      "distance": 1.6430459518832574,
+      "correct_abstention": false,
+      "seconds": 5.73
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        978,
+        583
+      ],
+      "crop": null,
+      "bounds": [
+        948,
+        559,
+        1008,
+        607
+      ],
+      "radius": 22,
+      "id": "gpt55-211-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 211,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "36ff35ae6a5cd050f682cd6871ddf30d0eb8565ad23f2d302fe68ae560bef99f"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 144,
+        "prompt_tokens": 2030,
+        "total_tokens": 2174,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 117,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.007558,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.007558,
+          "upstream_inference_prompt_cost": 0.003238,
+          "upstream_inference_completions_cost": 0.00432
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":637,\"y\":569}",
+      "abstained": false,
+      "point": [
+        978.4320000000001,
+        582.656
+      ],
+      "dx": 0.43200000000013006,
+      "dy": -0.34400000000005093,
+      "distance": 0.5522318353736476,
+      "correct_abstention": false,
+      "seconds": 4.86
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        475,
+        648
+      ],
+      "crop": null,
+      "bounds": [
+        445,
+        624,
+        505,
+        672
+      ],
+      "radius": 22,
+      "id": "qwen38flash-206-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 206,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5c726f83bf91221fa9715eb83534947cb8d8490dfcc320fb85ff59c671ebaa24"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "8e2104b8-9de1-9a8d-beae-fefc46550cb4",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 224,
+        "prompt_tokens": 2196,
+        "total_tokens": 2420,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 169,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 2048,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 434, \"y\": 387}",
+      "abstained": false,
+      "point": [
+        455.7,
+        650.1600000000001
+      ],
+      "dx": -19.30000000000001,
+      "dy": 2.160000000000082,
+      "distance": 19.42049432944488,
+      "correct_abstention": false,
+      "seconds": 3.0
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        650,
+        633
+      ],
+      "crop": null,
+      "bounds": [
+        620,
+        609,
+        680,
+        657
+      ],
+      "radius": 22,
+      "id": "gpt55-203-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 203,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c58e55c8e1cd60b95b5a0491dd9c93d161d4e6a2185267d73e1a836dafa977c0"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 113,
+        "prompt_tokens": 2030,
+        "total_tokens": 2143,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 86,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.006628,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.006628,
+          "upstream_inference_prompt_cost": 0.003238,
+          "upstream_inference_completions_cost": 0.00339
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":423,\"y\":619}",
+      "abstained": false,
+      "point": [
+        649.728,
+        633.856
+      ],
+      "dx": -0.2720000000000482,
+      "dy": 0.8559999999999945,
+      "distance": 0.8981759293145285,
+      "correct_abstention": false,
+      "seconds": 4.21
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        589,
+        1030
+      ],
+      "crop": null,
+      "bounds": [
+        559,
+        1006,
+        619,
+        1054
+      ],
+      "radius": 22,
+      "id": "gptmini-210-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 210,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "cb6797dd4ffbbd4ed45fd7edbe2562e9633a1206a0e7fc4a09063746474b4655"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 130,
+        "prompt_tokens": 2286,
+        "total_tokens": 2416,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 103,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0022995,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0022995,
+          "upstream_inference_prompt_cost": 0.0017145,
+          "upstream_inference_completions_cost": 0.000585
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":560,\"y\":613}",
+      "abstained": false,
+      "point": [
+        588.0,
+        1029.84
+      ],
+      "dx": -1.0,
+      "dy": -0.16000000000008185,
+      "distance": 1.012719112093786,
+      "correct_abstention": false,
+      "seconds": 6.64
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        618,
+        671
+      ],
+      "crop": null,
+      "bounds": [
+        588,
+        647,
+        648,
+        695
+      ],
+      "radius": 22,
+      "id": "gpt55-215-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 215,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "0d7e0929411cd2189215f748fbf7391f124ba1cc13b44e6dbaaba7c15e259c60"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 25,
+        "prompt_tokens": 2030,
+        "total_tokens": 2055,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0109,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0109,
+          "upstream_inference_prompt_cost": 0.01015,
+          "upstream_inference_completions_cost": 0.00075
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":403,\"y\":656}",
+      "abstained": false,
+      "point": [
+        619.008,
+        671.744
+      ],
+      "dx": 1.0080000000000382,
+      "dy": 0.7440000000000282,
+      "distance": 1.2528367810693135,
+      "correct_abstention": false,
+      "seconds": 2.38
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        589,
+        1030
+      ],
+      "crop": null,
+      "bounds": [
+        559,
+        1006,
+        619,
+        1054
+      ],
+      "radius": 22,
+      "id": "qwen38flash-210-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 210,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "cb6797dd4ffbbd4ed45fd7edbe2562e9633a1206a0e7fc4a09063746474b4655"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "c4060889-34ed-9bd7-b2c6-89778e4b46f3",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 220,
+        "prompt_tokens": 2196,
+        "total_tokens": 2416,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 165,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 2048,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 532, \"y\": 365}",
+      "abstained": false,
+      "point": [
+        558.6,
+        613.2
+      ],
+      "dx": -30.399999999999977,
+      "dy": -416.79999999999995,
+      "distance": 417.90716672486,
+      "correct_abstention": false,
+      "seconds": 5.11
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        704,
+        994
+      ],
+      "crop": null,
+      "bounds": [
+        674,
+        970,
+        734,
+        1018
+      ],
+      "radius": 22,
+      "id": "gpt55-202-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 202,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "ea0afda222bd63127b5d54d7e8f90e4397e0832b31c484b20ebb84cf7048d2c9"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 205,
+        "prompt_tokens": 2286,
+        "total_tokens": 2491,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 178,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01758,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01758,
+          "upstream_inference_prompt_cost": 0.01143,
+          "upstream_inference_completions_cost": 0.00615
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":671,\"y\":592}",
+      "abstained": false,
+      "point": [
+        704.55,
+        994.56
+      ],
+      "dx": 0.5499999999999545,
+      "dy": 0.5599999999999454,
+      "distance": 0.7849203781275454,
+      "correct_abstention": false,
+      "seconds": 10.02
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        1228,
+        605
+      ],
+      "crop": null,
+      "bounds": [
+        1198,
+        581,
+        1258,
+        629
+      ],
+      "radius": 22,
+      "id": "gptmini-216-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 216,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "878efa6d5e586d005e1216b15fbf6bc0c56d331164ef5ec15eebabad4bf6f932"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 345,
+        "prompt_tokens": 2286,
+        "total_tokens": 2631,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 318,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0022302,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0022302,
+          "upstream_inference_prompt_cost": 0.0006777,
+          "upstream_inference_completions_cost": 0.0015525
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":723,\"y\":576}",
+      "abstained": false,
+      "point": [
+        1214.64,
+        604.8
+      ],
+      "dx": -13.3599999999999,
+      "dy": -0.20000000000004547,
+      "distance": 13.361496922126554,
+      "correct_abstention": false,
+      "seconds": 11.01
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        761,
+        676
+      ],
+      "crop": null,
+      "bounds": [
+        731,
+        652,
+        791,
+        700
+      ],
+      "radius": 22,
+      "id": "qwen38flash-208-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 208,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "e36e8581c6a7f4efc6244d3fcc28165dacd8cb7ce56904aec1333e55e17cf259"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "e0c7ed05-b87c-96e6-8645-b286714fd475",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 196,
+        "prompt_tokens": 2196,
+        "total_tokens": 2392,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 142,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 2048,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 449, \"y\": 645}",
+      "abstained": false,
+      "point": [
+        754.32,
+        677.25
+      ],
+      "dx": -6.67999999999995,
+      "dy": 1.25,
+      "distance": 6.795947321749877,
+      "correct_abstention": false,
+      "seconds": 4.15
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        619,
+        334
+      ],
+      "crop": null,
+      "bounds": [
+        589,
+        310,
+        649,
+        358
+      ],
+      "radius": 22,
+      "id": "gpt55-201-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 201,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 101,
+        "prompt_tokens": 1752,
+        "total_tokens": 1853,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 74,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01179,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01179,
+          "upstream_inference_prompt_cost": 0.00876,
+          "upstream_inference_completions_cost": 0.00303
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":430,\"y\":371}",
+      "abstained": false,
+      "point": [
+        619.2,
+        333.9
+      ],
+      "dx": 0.20000000000004547,
+      "dy": -0.10000000000002274,
+      "distance": 0.2236067977500298,
+      "correct_abstention": false,
+      "seconds": 5.11
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        920,
+        215
+      ],
+      "crop": null,
+      "bounds": [
+        890,
+        191,
+        950,
+        239
+      ],
+      "radius": 22,
+      "id": "qwen38flash-209-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 209,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "842d1bb0c0b09b1aba67773319b374ba4e53beeca5d6e30bdca400dad6f90ab7"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "58a87a7a-e5ec-9e43-bdda-4de07366fd97",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 194,
+        "prompt_tokens": 1738,
+        "total_tokens": 1932,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 140,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1536,
+          "image_tokens": 1262,
+          "text_tokens": 476
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 637, \"y\": 239}",
+      "abstained": false,
+      "point": [
+        917.28,
+        215.1
+      ],
+      "dx": -2.7200000000000273,
+      "dy": 0.09999999999999432,
+      "distance": 2.721837614553842,
+      "correct_abstention": false,
+      "seconds": 3.07
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        937,
+        548
+      ],
+      "crop": null,
+      "bounds": [
+        907,
+        524,
+        967,
+        572
+      ],
+      "radius": 22,
+      "id": "gptmini-207-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 207,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6a0264b59e51ee10b87f1459f8cc1342b4a1228a7adf5e84d15adfaa9562a55a"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 248,
+        "prompt_tokens": 2030,
+        "total_tokens": 2278,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 221,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0026385,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0026385,
+          "upstream_inference_prompt_cost": 0.0015225,
+          "upstream_inference_completions_cost": 0.001116
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":613,\"y\":536}",
+      "abstained": false,
+      "point": [
+        941.5679999999999,
+        548.864
+      ],
+      "dx": 4.56799999999987,
+      "dy": 0.8640000000000327,
+      "distance": 4.648991288440845,
+      "correct_abstention": false,
+      "seconds": 6.23
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        937,
+        548
+      ],
+      "crop": null,
+      "bounds": [
+        907,
+        524,
+        967,
+        572
+      ],
+      "radius": 22,
+      "id": "qwen38flash-207-point-1",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 207,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6a0264b59e51ee10b87f1459f8cc1342b4a1228a7adf5e84d15adfaa9562a55a"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "2c34a297-2a93-95f9-aca6-77f50e12706a",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 268,
+        "prompt_tokens": 2015,
+        "total_tokens": 2283,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 213,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1792,
+          "image_tokens": 1538,
+          "text_tokens": 477
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 609, \"y\": 537}",
+      "abstained": false,
+      "point": [
+        935.424,
+        549.888
+      ],
+      "dx": -1.5760000000000218,
+      "dy": 1.8880000000000337,
+      "distance": 2.4593332429746475,
+      "correct_abstention": false,
+      "seconds": 4.75
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        618,
+        671
+      ],
+      "crop": null,
+      "bounds": [
+        588,
+        647,
+        648,
+        695
+      ],
+      "radius": 22,
+      "id": "gpt55-215-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 215,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "0d7e0929411cd2189215f748fbf7391f124ba1cc13b44e6dbaaba7c15e259c60"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 160,
+        "prompt_tokens": 2030,
+        "total_tokens": 2190,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 133,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.008038,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.008038,
+          "upstream_inference_prompt_cost": 0.003238,
+          "upstream_inference_completions_cost": 0.0048
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":403,\"y\":656}",
+      "abstained": false,
+      "point": [
+        619.008,
+        671.744
+      ],
+      "dx": 1.0080000000000382,
+      "dy": 0.7440000000000282,
+      "distance": 1.2528367810693135,
+      "correct_abstention": false,
+      "seconds": 7.09
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        704,
+        994
+      ],
+      "crop": null,
+      "bounds": [
+        674,
+        970,
+        734,
+        1018
+      ],
+      "radius": 22,
+      "id": "qwen38flash-202-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 202,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "ea0afda222bd63127b5d54d7e8f90e4397e0832b31c484b20ebb84cf7048d2c9"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "2ea00b39-7364-9146-8e21-1ff2bb8e0392",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 311,
+        "prompt_tokens": 2196,
+        "total_tokens": 2507,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 256,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 2048,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 668, \"y\": 591}",
+      "abstained": false,
+      "point": [
+        701.4,
+        992.88
+      ],
+      "dx": -2.6000000000000227,
+      "dy": -1.1200000000000045,
+      "distance": 2.830971564675302,
+      "correct_abstention": false,
+      "seconds": 5.54
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        920,
+        215
+      ],
+      "crop": null,
+      "bounds": [
+        890,
+        191,
+        950,
+        239
+      ],
+      "radius": 22,
+      "id": "gptmini-209-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 209,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "842d1bb0c0b09b1aba67773319b374ba4e53beeca5d6e30bdca400dad6f90ab7"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 114,
+        "prompt_tokens": 1752,
+        "total_tokens": 1866,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 87,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.001827,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.001827,
+          "upstream_inference_prompt_cost": 0.001314,
+          "upstream_inference_completions_cost": 0.000513
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":644,\"y\":237}",
+      "abstained": false,
+      "point": [
+        927.3599999999999,
+        213.3
+      ],
+      "dx": 7.3599999999999,
+      "dy": -1.6999999999999886,
+      "distance": 7.553780510446308,
+      "correct_abstention": false,
+      "seconds": 6.05
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        855,
+        780
+      ],
+      "crop": null,
+      "bounds": [
+        825,
+        756,
+        885,
+        804
+      ],
+      "radius": 22,
+      "id": "qwen38flash-212-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 212,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5f744b6bc85086876d8fd2c053860759ce4c1e22e390a1659627d70ec7c08232"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "846ae710-b457-9275-9508-94a1863fa426",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 136,
+        "prompt_tokens": 2196,
+        "total_tokens": 2332,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 81,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 2048,
+          "image_tokens": 1718,
+          "text_tokens": 478
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": 507, \"y\": 744}",
+      "abstained": false,
+      "point": [
+        851.76,
+        781.2
+      ],
+      "dx": -3.240000000000009,
+      "dy": 1.2000000000000455,
+      "distance": 3.455083211733137,
+      "correct_abstention": false,
+      "seconds": 2.55
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        619,
+        334
+      ],
+      "crop": null,
+      "bounds": [
+        589,
+        310,
+        649,
+        358
+      ],
+      "radius": 22,
+      "id": "gpt55-201-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 201,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 137,
+        "prompt_tokens": 1752,
+        "total_tokens": 1889,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 110,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01287,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01287,
+          "upstream_inference_prompt_cost": 0.00876,
+          "upstream_inference_completions_cost": 0.00411
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":430,\"y\":372}",
+      "abstained": false,
+      "point": [
+        619.2,
+        334.8
+      ],
+      "dx": 0.20000000000004547,
+      "dy": 0.8000000000000114,
+      "distance": 0.8246211251235541,
+      "correct_abstention": false,
+      "seconds": 4.68
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        845,
+        491
+      ],
+      "crop": null,
+      "bounds": [
+        815,
+        467,
+        875,
+        515
+      ],
+      "radius": 22,
+      "id": "gptmini-205-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 205,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c30a01c860e9c438ebfbe5ec2c96583e81186b9ecfdcbe4539108ce95f3d7b5f"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 146,
+        "prompt_tokens": 1752,
+        "total_tokens": 1898,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 119,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1024,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0012798,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0012798,
+          "upstream_inference_prompt_cost": 0.0006228,
+          "upstream_inference_completions_cost": 0.000657
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":579,\"y\":546}",
+      "abstained": false,
+      "point": [
+        833.76,
+        491.4
+      ],
+      "dx": -11.240000000000009,
+      "dy": 0.39999999999997726,
+      "distance": 11.247115185682068,
+      "correct_abstention": false,
+      "seconds": 4.71
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        589,
+        1030
+      ],
+      "crop": null,
+      "bounds": [
+        559,
+        1006,
+        619,
+        1054
+      ],
+      "radius": 22,
+      "id": "gpt55-210-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 210,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "cb6797dd4ffbbd4ed45fd7edbe2562e9633a1206a0e7fc4a09063746474b4655"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 201,
+        "prompt_tokens": 2286,
+        "total_tokens": 2487,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 174,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01746,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01746,
+          "upstream_inference_prompt_cost": 0.01143,
+          "upstream_inference_completions_cost": 0.00603
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":562,\"y\":614}",
+      "abstained": false,
+      "point": [
+        590.1,
+        1031.52
+      ],
+      "dx": 1.1000000000000227,
+      "dy": 1.5199999999999818,
+      "distance": 1.876272901259301,
+      "correct_abstention": false,
+      "seconds": 5.75
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        475,
+        648
+      ],
+      "crop": null,
+      "bounds": [
+        445,
+        624,
+        505,
+        672
+      ],
+      "radius": 22,
+      "id": "gptmini-206-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 206,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5c726f83bf91221fa9715eb83534947cb8d8490dfcc320fb85ff59c671ebaa24"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 177,
+        "prompt_tokens": 2286,
+        "total_tokens": 2463,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 150,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0014742,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0014742,
+          "upstream_inference_prompt_cost": 0.0006777,
+          "upstream_inference_completions_cost": 0.0007965
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":450,\"y\":385}",
+      "abstained": false,
+      "point": [
+        472.5,
+        646.8
+      ],
+      "dx": -2.5,
+      "dy": -1.2000000000000455,
+      "distance": 2.773084924772429,
+      "correct_abstention": false,
+      "seconds": 5.1
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        1228,
+        605
+      ],
+      "crop": null,
+      "bounds": [
+        1198,
+        581,
+        1258,
+        629
+      ],
+      "radius": 22,
+      "id": "gpt55-216-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 216,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "878efa6d5e586d005e1216b15fbf6bc0c56d331164ef5ec15eebabad4bf6f932"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 107,
+        "prompt_tokens": 2286,
+        "total_tokens": 2393,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 80,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.007728,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.007728,
+          "upstream_inference_prompt_cost": 0.004518,
+          "upstream_inference_completions_cost": 0.00321
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":731,\"y\":577}",
+      "abstained": false,
+      "point": [
+        1228.08,
+        605.85
+      ],
+      "dx": 0.07999999999992724,
+      "dy": 0.8500000000000227,
+      "distance": 0.8537564055396756,
+      "correct_abstention": false,
+      "seconds": 6.08
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        589,
+        1030
+      ],
+      "crop": null,
+      "bounds": [
+        559,
+        1006,
+        619,
+        1054
+      ],
+      "radius": 22,
+      "id": "gptmini-210-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 210,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "cb6797dd4ffbbd4ed45fd7edbe2562e9633a1206a0e7fc4a09063746474b4655"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 206,
+        "prompt_tokens": 2286,
+        "total_tokens": 2492,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 179,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0016047,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0016047,
+          "upstream_inference_prompt_cost": 0.0006777,
+          "upstream_inference_completions_cost": 0.000927
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":557,\"y\":612}",
+      "abstained": false,
+      "point": [
+        584.85,
+        1028.16
+      ],
+      "dx": -4.149999999999977,
+      "dy": -1.8399999999999181,
+      "distance": 4.539614521079902,
+      "correct_abstention": false,
+      "seconds": 8.09
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        937,
+        548
+      ],
+      "crop": null,
+      "bounds": [
+        907,
+        524,
+        967,
+        572
+      ],
+      "radius": 22,
+      "id": "gpt55-207-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 207,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6a0264b59e51ee10b87f1459f8cc1342b4a1228a7adf5e84d15adfaa9562a55a"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 168,
+        "prompt_tokens": 2030,
+        "total_tokens": 2198,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 141,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01519,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01519,
+          "upstream_inference_prompt_cost": 0.01015,
+          "upstream_inference_completions_cost": 0.00504
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":610,\"y\":535}",
+      "abstained": false,
+      "point": [
+        936.96,
+        547.84
+      ],
+      "dx": -0.03999999999996362,
+      "dy": -0.15999999999996817,
+      "distance": 0.16492422502466672,
+      "correct_abstention": false,
+      "seconds": 6.43
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        761,
+        676
+      ],
+      "crop": null,
+      "bounds": [
+        731,
+        652,
+        791,
+        700
+      ],
+      "radius": 22,
+      "id": "gptmini-208-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 208,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "e36e8581c6a7f4efc6244d3fcc28165dacd8cb7ce56904aec1333e55e17cf259"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 150,
+        "prompt_tokens": 2286,
+        "total_tokens": 2436,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 123,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0013527,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0013527,
+          "upstream_inference_prompt_cost": 0.0006777,
+          "upstream_inference_completions_cost": 0.000675
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":459,\"y\":647}",
+      "abstained": false,
+      "point": [
+        771.12,
+        679.35
+      ],
+      "dx": 10.120000000000005,
+      "dy": 3.3500000000000227,
+      "distance": 10.660060975435377,
+      "correct_abstention": false,
+      "seconds": 5.47
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        920,
+        215
+      ],
+      "crop": null,
+      "bounds": [
+        890,
+        191,
+        950,
+        239
+      ],
+      "radius": 22,
+      "id": "gpt55-209-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 209,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "842d1bb0c0b09b1aba67773319b374ba4e53beeca5d6e30bdca400dad6f90ab7"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 107,
+        "prompt_tokens": 1752,
+        "total_tokens": 1859,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 80,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01197,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01197,
+          "upstream_inference_prompt_cost": 0.00876,
+          "upstream_inference_completions_cost": 0.00321
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":639,\"y\":240}",
+      "abstained": false,
+      "point": [
+        920.16,
+        216.0
+      ],
+      "dx": 0.15999999999996817,
+      "dy": 1.0,
+      "distance": 1.012719112093768,
+      "correct_abstention": false,
+      "seconds": 5.98
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        920,
+        215
+      ],
+      "crop": null,
+      "bounds": [
+        890,
+        191,
+        950,
+        239
+      ],
+      "radius": 22,
+      "id": "gptmini-209-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 209,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "842d1bb0c0b09b1aba67773319b374ba4e53beeca5d6e30bdca400dad6f90ab7"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 82,
+        "prompt_tokens": 1752,
+        "total_tokens": 1834,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 55,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1024,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0009918,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0009918,
+          "upstream_inference_prompt_cost": 0.0006228,
+          "upstream_inference_completions_cost": 0.000369
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":643,\"y\":240}",
+      "abstained": false,
+      "point": [
+        925.9200000000001,
+        216.0
+      ],
+      "dx": 5.920000000000073,
+      "dy": 1.0,
+      "distance": 6.003865421543097,
+      "correct_abstention": false,
+      "seconds": 4.56
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        937,
+        548
+      ],
+      "crop": null,
+      "bounds": [
+        907,
+        524,
+        967,
+        572
+      ],
+      "radius": 22,
+      "id": "gptmini-207-point-1",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 207,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6a0264b59e51ee10b87f1459f8cc1342b4a1228a7adf5e84d15adfaa9562a55a"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 150,
+        "prompt_tokens": 2030,
+        "total_tokens": 2180,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 123,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0011607,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0011607,
+          "upstream_inference_prompt_cost": 0.0004857,
+          "upstream_inference_completions_cost": 0.000675
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":613,\"y\":535}",
+      "abstained": false,
+      "point": [
+        941.5679999999999,
+        547.84
+      ],
+      "dx": 4.56799999999987,
+      "dy": -0.15999999999996817,
+      "distance": 4.5708012426705675,
+      "correct_abstention": false,
+      "seconds": 5.72
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        845,
+        491
+      ],
+      "crop": null,
+      "bounds": [
+        815,
+        467,
+        875,
+        515
+      ],
+      "radius": 22,
+      "id": "gpt55-205-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 205,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "c30a01c860e9c438ebfbe5ec2c96583e81186b9ecfdcbe4539108ce95f3d7b5f"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 114,
+        "prompt_tokens": 1752,
+        "total_tokens": 1866,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 87,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01218,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01218,
+          "upstream_inference_prompt_cost": 0.00876,
+          "upstream_inference_completions_cost": 0.00342
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":587,\"y\":546}",
+      "abstained": false,
+      "point": [
+        845.28,
+        491.4
+      ],
+      "dx": 0.2799999999999727,
+      "dy": 0.39999999999997726,
+      "distance": 0.48826222462931385,
+      "correct_abstention": false,
+      "seconds": 11.96
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        704,
+        994
+      ],
+      "crop": null,
+      "bounds": [
+        674,
+        970,
+        734,
+        1018
+      ],
+      "radius": 22,
+      "id": "gptmini-202-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 202,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "ea0afda222bd63127b5d54d7e8f90e4397e0832b31c484b20ebb84cf7048d2c9"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 240,
+        "prompt_tokens": 2286,
+        "total_tokens": 2526,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 213,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0017577,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0017577,
+          "upstream_inference_prompt_cost": 0.0006777,
+          "upstream_inference_completions_cost": 0.00108
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":671,\"y\":590}",
+      "abstained": false,
+      "point": [
+        704.55,
+        991.2
+      ],
+      "dx": 0.5499999999999545,
+      "dy": -2.7999999999999545,
+      "distance": 2.8535066146760015,
+      "correct_abstention": false,
+      "seconds": 6.5
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        475,
+        648
+      ],
+      "crop": null,
+      "bounds": [
+        445,
+        624,
+        505,
+        672
+      ],
+      "radius": 22,
+      "id": "gpt55-206-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 206,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5c726f83bf91221fa9715eb83534947cb8d8490dfcc320fb85ff59c671ebaa24"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 215,
+        "prompt_tokens": 2286,
+        "total_tokens": 2501,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 188,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.010968,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.010968,
+          "upstream_inference_prompt_cost": 0.004518,
+          "upstream_inference_completions_cost": 0.00645
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":452,\"y\":386}",
+      "abstained": false,
+      "point": [
+        474.6,
+        648.4800000000001
+      ],
+      "dx": -0.39999999999997726,
+      "dy": 0.4800000000001319,
+      "distance": 0.6248199740726191,
+      "correct_abstention": false,
+      "seconds": 7.22
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        855,
+        780
+      ],
+      "crop": null,
+      "bounds": [
+        825,
+        756,
+        885,
+        804
+      ],
+      "radius": 22,
+      "id": "gptmini-212-point-0",
+      "model": "openai/gpt-5.4-mini",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 212,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5f744b6bc85086876d8fd2c053860759ce4c1e22e390a1659627d70ec7c08232"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.4-mini",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 170,
+        "prompt_tokens": 2286,
+        "total_tokens": 2456,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 143,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.0014427,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.0014427,
+          "upstream_inference_prompt_cost": 0.0006777,
+          "upstream_inference_completions_cost": 0.000765
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":521,\"y\":745}",
+      "abstained": false,
+      "point": [
+        875.28,
+        782.25
+      ],
+      "dx": 20.279999999999973,
+      "dy": 2.25,
+      "distance": 20.404433341800964,
+      "correct_abstention": false,
+      "seconds": 6.76
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        589,
+        1030
+      ],
+      "crop": null,
+      "bounds": [
+        559,
+        1006,
+        619,
+        1054
+      ],
+      "radius": 22,
+      "id": "gpt55-210-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 210,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "cb6797dd4ffbbd4ed45fd7edbe2562e9633a1206a0e7fc4a09063746474b4655"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 215,
+        "prompt_tokens": 2286,
+        "total_tokens": 2501,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 188,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.010968,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.010968,
+          "upstream_inference_prompt_cost": 0.004518,
+          "upstream_inference_completions_cost": 0.00645
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":561,\"y\":614}",
+      "abstained": false,
+      "point": [
+        589.05,
+        1031.52
+      ],
+      "dx": 0.049999999999954525,
+      "dy": 1.5199999999999818,
+      "distance": 1.520822146077555,
+      "correct_abstention": false,
+      "seconds": 6.77
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        761,
+        676
+      ],
+      "crop": null,
+      "bounds": [
+        731,
+        652,
+        791,
+        700
+      ],
+      "radius": 22,
+      "id": "gpt55-208-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 208,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "e36e8581c6a7f4efc6244d3fcc28165dacd8cb7ce56904aec1333e55e17cf259"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 108,
+        "prompt_tokens": 2286,
+        "total_tokens": 2394,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 81,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.007758,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.007758,
+          "upstream_inference_prompt_cost": 0.004518,
+          "upstream_inference_completions_cost": 0.00324
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":454,\"y\":644}",
+      "abstained": false,
+      "point": [
+        762.72,
+        676.2
+      ],
+      "dx": 1.7200000000000273,
+      "dy": 0.20000000000004547,
+      "distance": 1.7315888657531013,
+      "correct_abstention": false,
+      "seconds": 5.14
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        920,
+        215
+      ],
+      "crop": null,
+      "bounds": [
+        890,
+        191,
+        950,
+        239
+      ],
+      "radius": 22,
+      "id": "gpt55-209-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 209,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "842d1bb0c0b09b1aba67773319b374ba4e53beeca5d6e30bdca400dad6f90ab7"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 136,
+        "prompt_tokens": 1752,
+        "total_tokens": 1888,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 109,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.01284,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.01284,
+          "upstream_inference_prompt_cost": 0.00876,
+          "upstream_inference_completions_cost": 0.00408
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":639,\"y\":240}",
+      "abstained": false,
+      "point": [
+        920.16,
+        216.0
+      ],
+      "dx": 0.15999999999996817,
+      "dy": 1.0,
+      "distance": 1.012719112093768,
+      "correct_abstention": false,
+      "seconds": 3.69
+    },
+    {
+      "size": [
+        1536,
+        1024
+      ],
+      "source_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "center": [
+        937,
+        548
+      ],
+      "crop": null,
+      "bounds": [
+        907,
+        524,
+        967,
+        572
+      ],
+      "radius": 22,
+      "id": "gpt55-207-point-1",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 207,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "6a0264b59e51ee10b87f1459f8cc1342b4a1228a7adf5e84d15adfaa9562a55a"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 119,
+        "prompt_tokens": 2030,
+        "total_tokens": 2149,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 92,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.006808,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.006808,
+          "upstream_inference_prompt_cost": 0.003238,
+          "upstream_inference_completions_cost": 0.00357
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":609,\"y\":536}",
+      "abstained": false,
+      "point": [
+        935.424,
+        548.864
+      ],
+      "dx": -1.5760000000000218,
+      "dy": 0.8640000000000327,
+      "distance": 1.7972957463923753,
+      "correct_abstention": false,
+      "seconds": 5.86
+    },
+    {
+      "size": [
+        1050,
+        1680
+      ],
+      "source_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "center": [
+        704,
+        994
+      ],
+      "crop": null,
+      "bounds": [
+        674,
+        970,
+        734,
+        1018
+      ],
+      "radius": 22,
+      "id": "gpt55-202-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 202,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "ea0afda222bd63127b5d54d7e8f90e4397e0832b31c484b20ebb84cf7048d2c9"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 262,
+        "prompt_tokens": 2286,
+        "total_tokens": 2548,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 235,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.012378,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.012378,
+          "upstream_inference_prompt_cost": 0.004518,
+          "upstream_inference_completions_cost": 0.00786
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":671,\"y\":592}",
+      "abstained": false,
+      "point": [
+        704.55,
+        994.56
+      ],
+      "dx": 0.5499999999999545,
+      "dy": 0.5599999999999454,
+      "distance": 0.7849203781275454,
+      "correct_abstention": false,
+      "seconds": 7.26
+    },
+    {
+      "size": [
+        1680,
+        1050
+      ],
+      "source_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "center": [
+        855,
+        780
+      ],
+      "crop": null,
+      "bounds": [
+        825,
+        756,
+        885,
+        804
+      ],
+      "radius": 22,
+      "id": "gpt55-212-point-0",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "endpoint": "https://openrouter.ai/api/v1/",
+      "seed": 212,
+      "variant": "point",
+      "protocol": "point",
+      "images": [
+        "5f744b6bc85086876d8fd2c053860759ce4c1e22e390a1659627d70ec7c08232"
+      ],
+      "schema_style": "integer",
+      "schema_valid": true,
+      "hit": true,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "usage": {
+        "completion_tokens": 178,
+        "prompt_tokens": 2286,
+        "total_tokens": 2464,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 151,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 1536,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.009858,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.009858,
+          "upstream_inference_prompt_cost": 0.004518,
+          "upstream_inference_completions_cost": 0.00534
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\":true,\"x\":509,\"y\":744}",
+      "abstained": false,
+      "point": [
+        855.12,
+        781.2
+      ],
+      "dx": 0.12000000000000455,
+      "dy": 1.2000000000000455,
+      "distance": 1.2059850745345526,
+      "correct_abstention": false,
+      "seconds": 5.2
+    }
+  ]
+}

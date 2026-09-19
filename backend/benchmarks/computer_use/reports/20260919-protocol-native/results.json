@@ -1,0 +1,249 @@
+{
+  "endpoint": "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
+  "results": [
+    {
+      "model": "qwen3.7-flash-2026-07-15",
+      "seed": 101,
+      "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f",
+      "hit": true,
+      "schema_valid": true,
+      "http_verified": true,
+      "status": 200,
+      "request_id": "65d39e52-1740-99ea-84e9-0bbc2b33d9e6",
+      "usage": {
+        "image_tokens": 1262,
+        "input_tokens": 1700,
+        "input_tokens_details": {
+          "image_tokens": 1262,
+          "text_tokens": 438
+        },
+        "output_tokens": 1255,
+        "output_tokens_details": {
+          "reasoning_tokens": 1200,
+          "text_tokens": 55
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "total_tokens": 2955
+      },
+      "arguments": "{\"found\": true, \"x\": 644, \"y\": 312}",
+      "dx": -7.6400000000001,
+      "dy": -1.1999999999999886,
+      "distance": 7.733666659483165
+    },
+    {
+      "model": "qwen3.7-flash-2026-07-15",
+      "seed": 102,
+      "sha256": "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274",
+      "hit": false,
+      "schema_valid": true,
+      "http_verified": true,
+      "status": 200,
+      "request_id": "ca5a0e37-a1ab-96fa-a1e7-f54d9a2077c0",
+      "usage": {
+        "image_tokens": 1718,
+        "input_tokens": 2158,
+        "input_tokens_details": {
+          "image_tokens": 1718,
+          "text_tokens": 440
+        },
+        "output_tokens": 845,
+        "output_tokens_details": {
+          "reasoning_tokens": 790,
+          "text_tokens": 55
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "total_tokens": 3003
+      },
+      "arguments": "{\"found\": true, \"x\": 481, \"y\": 449}",
+      "dx": -12.949999999999989,
+      "dy": -210.67999999999995,
+      "distance": 211.07762766337882
+    },
+    {
+      "model": "qwen3.7-flash-2026-07-15",
+      "seed": 103,
+      "sha256": "a2b3682a12875196ae4357c4fc111ab931126075bd55dd74db84126918598e11",
+      "hit": false,
+      "schema_valid": true,
+      "http_verified": true,
+      "status": 200,
+      "request_id": "826d971c-a926-9660-be5c-f5ddb81fa28b",
+      "usage": {
+        "image_tokens": 1538,
+        "input_tokens": 1977,
+        "input_tokens_details": {
+          "image_tokens": 1538,
+          "text_tokens": 439
+        },
+        "output_tokens": 660,
+        "output_tokens_details": {
+          "reasoning_tokens": 605,
+          "text_tokens": 55
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "total_tokens": 2637
+      },
+      "arguments": "{\"found\": true, \"x\": 693, \"y\": 415}",
+      "dx": -199.5519999999999,
+      "dy": -18.04000000000002,
+      "distance": 200.36577128841134
+    },
+    {
+      "model": "qwen3.7-flash-2026-07-15",
+      "seed": 104,
+      "sha256": "227b3d94734290cd1d1080a85238039c3777e7a436c0df32e30fd410df6b0ae3",
+      "hit": false,
+      "schema_valid": true,
+      "http_verified": true,
+      "status": 200,
+      "request_id": "b45aab12-a93b-91a6-a9da-bfca74cbaeb0",
+      "usage": {
+        "image_tokens": 1718,
+        "input_tokens": 2158,
+        "input_tokens_details": {
+          "image_tokens": 1718,
+          "text_tokens": 440
+        },
+        "output_tokens": 2016,
+        "output_tokens_details": {
+          "reasoning_tokens": 1961,
+          "text_tokens": 55
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "total_tokens": 4174
+      },
+      "arguments": "{\"found\": true, \"x\": 618, \"y\": 617}",
+      "dx": -271.76,
+      "dy": -75.14999999999998,
+      "distance": 281.959252552563
+    },
+    {
+      "model": "qwen3.8-flash",
+      "seed": 101,
+      "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f",
+      "hit": true,
+      "schema_valid": true,
+      "http_verified": true,
+      "status": 200,
+      "request_id": "b3651668-50db-915c-a349-5ed1a7ec2b10",
+      "usage": {
+        "image_tokens": 1262,
+        "input_tokens": 1738,
+        "input_tokens_details": {
+          "image_tokens": 1262,
+          "text_tokens": 476
+        },
+        "output_tokens": 190,
+        "output_tokens_details": {
+          "reasoning_tokens": 135
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 1536
+        },
+        "total_tokens": 1928
+      },
+      "arguments": "{\"found\": true, \"x\": 646, \"y\": 312}",
+      "dx": -4.759999999999991,
+      "dy": -1.1999999999999886,
+      "distance": 4.908930637114349
+    },
+    {
+      "model": "qwen3.8-flash",
+      "seed": 102,
+      "sha256": "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274",
+      "hit": false,
+      "schema_valid": true,
+      "http_verified": true,
+      "status": 200,
+      "request_id": "f3844141-7866-9f04-a3e8-815e3034f1f3",
+      "usage": {
+        "image_tokens": 1718,
+        "input_tokens": 2196,
+        "input_tokens_details": {
+          "image_tokens": 1718,
+          "text_tokens": 478
+        },
+        "output_tokens": 286,
+        "output_tokens_details": {
+          "reasoning_tokens": 231
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 2048
+        },
+        "total_tokens": 2482
+      },
+      "arguments": "{\"found\": true, \"x\": 469, \"y\": 342}",
+      "dx": -25.55000000000001,
+      "dy": -390.44000000000005,
+      "distance": 391.27509005813295
+    },
+    {
+      "model": "qwen3.8-flash",
+      "seed": 103,
+      "sha256": "a2b3682a12875196ae4357c4fc111ab931126075bd55dd74db84126918598e11",
+      "hit": true,
+      "schema_valid": true,
+      "http_verified": true,
+      "status": 200,
+      "request_id": "c682d1bf-711a-9e03-a9eb-e3f52d329684",
+      "usage": {
+        "image_tokens": 1538,
+        "input_tokens": 2015,
+        "input_tokens_details": {
+          "image_tokens": 1538,
+          "text_tokens": 477
+        },
+        "output_tokens": 209,
+        "output_tokens_details": {
+          "reasoning_tokens": 154
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 256
+        },
+        "total_tokens": 2224
+      },
+      "arguments": "{\"found\": true, \"x\": 818, \"y\": 431}",
+      "dx": -7.551999999999907,
+      "dy": -1.656000000000006,
+      "distance": 7.73143195016283
+    },
+    {
+      "model": "qwen3.8-flash",
+      "seed": 104,
+      "sha256": "227b3d94734290cd1d1080a85238039c3777e7a436c0df32e30fd410df6b0ae3",
+      "hit": false,
+      "schema_valid": true,
+      "http_verified": true,
+      "status": 200,
+      "request_id": "be51eea3-6779-989b-bc3b-ed49577dab6a",
+      "usage": {
+        "image_tokens": 1718,
+        "input_tokens": 2196,
+        "input_tokens_details": {
+          "image_tokens": 1718,
+          "text_tokens": 478
+        },
+        "output_tokens": 259,
+        "output_tokens_details": {
+          "reasoning_tokens": 204
+        },
+        "prompt_tokens_details": {
+          "cached_tokens": 256
+        },
+        "total_tokens": 2455
+      },
+      "arguments": "{\"found\": true, \"x\": 463, \"y\": 655}",
+      "dx": -532.1600000000001,
+      "dy": -35.25,
+      "distance": 533.3261929626184
+    }
+  ]
+}

@@ -1,0 +1,311 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a desktop automation agent with vision. You see screenshots directly\nand control the computer through mouse/keyboard.\n\nCOORDINATE SYSTEM (CRITICAL):\nAll coordinate tools (click, scroll, mouse_move) use NORMALIZED 0-1000 scale:\n- (0, 0) = top-left corner of the screen\n- (1000, 1000) = bottom-right corner of the screen\n- (500, 500) = center of the screen\nWhen you identify an element's position, estimate its x and y on this 0-1000 scale.\n\nTOOLS:\n- screenshot(region=[x1,y1,x2,y2]): zoom into a 0-1000 normalized region\n  when text is small or a target is hard to locate precisely; convert\n  positions from the zoomed image back to full-screen coordinates using\n  the formula in the result note\n- click / drag: drag for moving files, selecting text spans, resizing windows\n- mouse_down + mouse_up: press-and-hold building blocks (long press)\n- hold_key: keep a key held for a duration (e.g. hold shift)\n- scroll: amount is limited to \u00b150 per call; scroll repeatedly for more\n- computer_batch: run a SEQUENCE of actions in one call (much faster);\n  use it for predictable multi-step moves like click\u2192type\u2192enter\n\nWORKFLOW:\n1. Launch the target app if needed (launch_app on macOS; on Linux press the\n   Super key and type the app name in the launcher, then Enter).\n2. Take a screenshot to observe the current screen state.\n3. PLAN: Before acting, describe what you see and form a plan:\n   - Identify all visible UI elements relevant to the task.\n   - Estimate their positions in normalized 0-1000 coordinates.\n   - If there's a form, list each field, its label, and what to enter.\n   - Decide the sequence of actions to accomplish the goal.\n4. Use computer_batch for predictable sequences (click\u2192type\u2192enter).\n   If the target or next step is uncertain, execute one action first.\n5. Observe the batch's returned screenshot, or take a screenshot after\n   a standalone action, to verify the result.\n6. Re-assess: Did it work? Has the screen changed? Update your plan if needed.\n7. Repeat until done.\n\nPLANNING GUIDELINES:\n- After each screenshot, think step by step: \"I see X at approximately (x, y)\n  in 0-1000 coordinates. To accomplish the goal, I need to click there.\"\n- For forms: identify ALL fields first, then fill them top-to-bottom.\n  Click a field before typing into it.\n- For navigation: identify which menu/button/link leads to the destination.\n- If something fails, try an alternative approach rather than repeating.\n  After a missed click, observe a fresh screenshot before retrying.\n\nPRINCIPLES:\n- Always verify after acting \u2014 screenshot to confirm each step succeeded.\n- If a click missed or a target is too small to pinpoint, take a ZOOMED\n  screenshot (region parameter) around it before clicking again.\n- Use keyboard shortcuts when faster: address bar, new tab, tab to move\n  between form fields. The platform modifier is cmd on macOS (cmd+l, cmd+t)\n  and ctrl on Linux (ctrl+l, ctrl+t).\n- When typing into fields: click the field first, then use the platform's\n  select-all shortcut (cmd+a on macOS, ctrl+a on Linux) before typing\n  (avoids appending to old content).\n- To SEND messages in chat apps (WeChat, etc.), press Enter after typing.\n  Use shift+enter if you need a newline without sending.\n\nTOOL CALL FORMAT:\n- click: click(x=500, y=300) \u2014 normalized 0-1000 coordinates\n- type_text: type_text(text=\"hello\")\n- key_press: key_press(keys=\"ctrl+c\") (macOS uses cmd, e.g. \"cmd+c\")\n- scroll: scroll(amount=-3, x=500, y=500)\n- launch_app: launch_app(app_name=\"Safari\") \u2014 macOS only\n- computer_batch(actions=[{\"action\":\"click\",\"x\":500,\"y\":300},\n  {\"action\":\"type_text\",\"text\":\"hello\"},\n  {\"action\":\"key_press\",\"keys\":\"enter\"}], screenshot=true)\n  Allowed actions: click, type_text, key_press, scroll, mouse_move,\n  mouse_down, mouse_up, hold_key, drag, wait.\n  launch_app is a separate tool call. screenshot is a batch option,\n  never a member of actions. Stop and inspect any reported batch failure.\n\nLAUNCHING APPS:\n- macOS: use launch_app(\"AppName\") to open and bring an app to the foreground.\n- Linux: press Super (opens the app launcher), type the app name, press Enter.\n- Wait briefly after launching before taking a screenshot.\n\nCOMPLETION:\n- Describe the final state and confirm success.\n- If you cannot complete after reasonable attempts, explain what went wrong."
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "CURRENT image: 1050x1680. Locate the button labeled 7. Call click once with its center of the button in normalized coordinates, x=0..1000, y=0..1000. The origin is the top-left of THIS input image; each axis spans the full image. Use only the CURRENT image, not previous positions. Set found=true when located. If absent or uncertain, set found=false and ALL coordinates=0."
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "sha256:0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274",
+            "detail": "auto"
+          }
+        }
+      ]
+    }
+  ],
+  "model": "qwen3.7-flash-2026-07-15",
+  "max_tokens": 4000,
+  "stream": false,
+  "temperature": 0.1,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "click",
+        "description": "Report one target location; no action is executed.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "found": {
+              "type": "boolean"
+            },
+            "x": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            }
+          },
+          "required": [
+            "found",
+            "x",
+            "y"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "screenshot",
+        "description": "Capture a screenshot of the current screen. Returns the image directly. The calling agent (if vision-capable) can analyze it to identify UI elements and their coordinates.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "task": {
+              "type": "string",
+              "description": "Optional context about what you're looking for on screen. Helps you focus your analysis of the returned image."
+            },
+            "region": {
+              "type": "array",
+              "description": "Optional zoom region [x1, y1, x2, y2] in 0-1000 normalized coordinates. When given, the screenshot is cropped to that region and upscaled \u2014 use it when text is small or a click target is hard to locate precisely.",
+              "items": {}
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "type_text",
+        "description": "Type text at the current cursor/focus position. Click on an input field first using the 'click' tool, then use this to enter text.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "The text to type"
+            }
+          },
+          "required": [
+            "text"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "key_press",
+        "description": "Press a key or key combination. For combinations, separate keys with '+' (e.g. 'cmd+c', 'cmd+space', 'ctrl+alt+delete'). Single keys: 'enter', 'tab', 'escape', 'backspace', 'delete', 'up', 'down', 'left', 'right', 'f1'-'f12', 'space'; modifiers cmd, ctrl, alt, shift.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "keys": {
+              "type": "string",
+              "description": "Key(s) to press, e.g. 'enter', 'cmd+c', 'cmd+space'"
+            },
+            "repeat": {
+              "type": "integer",
+              "description": "Times to press the combination (1-20)"
+            }
+          },
+          "required": [
+            "keys"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "scroll",
+        "description": "Scroll the mouse wheel. Positive amount scrolls up, negative scrolls down. Optionally specify (x, y) in normalized 0-1000 coordinates to move the cursor there first.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "amount": {
+              "type": "integer",
+              "description": "Scroll amount (positive=up, negative=down)"
+            },
+            "x": {
+              "type": "integer",
+              "description": "X coordinate (0-1000 normalized); a bbox array [x1,y1,x2,y2] is accepted (its center is used)"
+            },
+            "y": {
+              "type": "integer",
+              "description": "Y coordinate (0-1000 normalized)"
+            }
+          },
+          "required": [
+            "amount"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "mouse_move",
+        "description": "Move the mouse cursor to the specified coordinates (normalized 0-1000 scale) without clicking.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "integer",
+              "description": "X coordinate (0-1000 normalized); a bbox array [x1,y1,x2,y2] is accepted (its center is used)"
+            },
+            "y": {
+              "type": "integer",
+              "description": "Y coordinate (0-1000 normalized)"
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "mouse_down",
+        "description": "Press and hold a mouse button at the current position.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "button": {
+              "type": "string",
+              "description": "Mouse button: 'left', 'right', or 'middle'"
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "mouse_up",
+        "description": "Release a mouse button held by mouse_down.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "button": {
+              "type": "string",
+              "description": "Mouse button: 'left', 'right', or 'middle'"
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "hold_key",
+        "description": "Press and hold a key combination for a duration, then release (e.g. hold shift for 1 second). Same key format as key_press.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "keys": {
+              "type": "string",
+              "description": "Key(s) to hold, e.g. 'shift', 'cmd+c'"
+            },
+            "duration_s": {
+              "type": "number",
+              "description": "Seconds to hold (0.1-10)"
+            }
+          },
+          "required": [
+            "keys"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "drag",
+        "description": "Press at (x1,y1), drag to (x2,y2), release. Coordinates are 0-1000 normalized like click.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "x1": {
+              "type": "integer",
+              "description": "Start X (0-1000 normalized)"
+            },
+            "y1": {
+              "type": "integer",
+              "description": "Start Y (0-1000 normalized)"
+            },
+            "x2": {
+              "type": "integer",
+              "description": "End X (0-1000 normalized)"
+            },
+            "y2": {
+              "type": "integer",
+              "description": "End Y (0-1000 normalized)"
+            }
+          },
+          "required": [
+            "x1",
+            "y1",
+            "x2",
+            "y2"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "launch_app",
+        "description": "Launch a macOS application by name and bring it to the foreground. Use this before taking screenshots to interact with an app.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "app_name": {
+              "type": "string",
+              "description": "Application name (e.g. \"Safari\", \"Spark Desktop\", \"Arc\")"
+            }
+          },
+          "required": [
+            "app_name"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "computer_batch",
+        "description": "Execute a sequence of computer actions in ONE call \u2014 much faster than one action per turn. Stops at the first failure and reports remaining steps as skipped. A screenshot of the final state is captured automatically after the batch. launch_app must be called separately; screenshot is a batch option, not an action.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "actions": {
+              "type": "array",
+              "description": "Ordered action objects. Each has an 'action' field: click(x,y), type_text(text), key_press(keys), scroll(amount[,x,y]), mouse_move(x,y), mouse_down(button), mouse_up(button), hold_key(keys,duration_s), drag(x1,y1,x2,y2), wait(delay_s). Coordinates use the same 0-1000 normalized form as click. Example: [{\"action\":\"click\",\"x\":500,\"y\":300},{\"action\":\"type_text\",\"text\":\"hello\"},{\"action\":\"key_press\",\"keys\":\"enter\"}].",
+              "items": {}
+            },
+            "screenshot": {
+              "type": "boolean",
+              "description": "Capture a screenshot after the batch"
+            }
+          },
+          "required": [
+            "actions"
+          ]
+        }
+      }
+    }
+  ],
+  "enable_thinking": true
+}

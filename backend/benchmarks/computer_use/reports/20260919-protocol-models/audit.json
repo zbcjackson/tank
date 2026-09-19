@@ -1,0 +1,62 @@
+{
+  "groups": {
+    "20260919-protocol-anyof-preflight": {
+      "requests": 8,
+      "schema_valid": 0,
+      "button_hits": 0,
+      "correct_abstentions": 0,
+      "budget_truncations": 0
+    },
+    "20260919-protocol-detail-repeat": {
+      "requests": 12,
+      "schema_valid": 12,
+      "button_hits": 12,
+      "correct_abstentions": 0,
+      "budget_truncations": 0
+    },
+    "20260919-protocol-holdout": {
+      "requests": 96,
+      "schema_valid": 96,
+      "button_hits": 87,
+      "correct_abstentions": 0,
+      "budget_truncations": 0
+    },
+    "20260919-protocol-isolation": {
+      "requests": 66,
+      "schema_valid": 62,
+      "button_hits": 40,
+      "correct_abstentions": 6,
+      "budget_truncations": 0
+    },
+    "20260919-protocol-models": {
+      "requests": 84,
+      "schema_valid": 84,
+      "button_hits": 56,
+      "correct_abstentions": 0,
+      "budget_truncations": 0
+    },
+    "20260919-protocol-native": {
+      "requests": 8,
+      "schema_valid": 8,
+      "button_hits": 3,
+      "correct_abstentions": 0,
+      "budget_truncations": 0
+    },
+    "20260919-protocol-preflight": {
+      "requests": 14,
+      "schema_valid": 6,
+      "button_hits": 6,
+      "correct_abstentions": 0,
+      "budget_truncations": 0
+    },
+    "20260919-protocol-strict-resolution": {
+      "requests": 16,
+      "schema_valid": 14,
+      "button_hits": 7,
+      "correct_abstentions": 0,
+      "budget_truncations": 2
+    }
+  },
+  "total_requests": 304,
+  "verified": "SDK HTTP images/model and raw response arguments; native pre-HTTP payload/model and raw arguments"
+}

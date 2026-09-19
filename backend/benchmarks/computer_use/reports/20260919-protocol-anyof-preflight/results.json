@@ -1,0 +1,514 @@
+{
+  "options": {
+    "output": "benchmarks/computer_use/reports/20260919-protocol-anyof-preflight",
+    "models": [
+      "flash",
+      "plus",
+      "qwen38flash",
+      "qwen38max"
+    ],
+    "variants": [
+      "anyof-point",
+      "anyof-bbox"
+    ],
+    "cases": 1,
+    "seed": 101,
+    "repeats": 1
+  },
+  "results": [
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        935,
+        282
+      ],
+      "crop": null,
+      "bounds": [
+        905,
+        258,
+        965,
+        306
+      ],
+      "radius": 22,
+      "id": "flash-101-anyof-point-0",
+      "model": "qwen3.7-flash-2026-07-15",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 101,
+      "variant": "anyof-point",
+      "protocol": "point",
+      "images": [
+        "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+      ],
+      "schema_valid": false,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "0c3ecf6d-a9b4-9489-b4ba-6df2c792d4d3",
+      "returned_model": "qwen3.7-flash-2026-07-15",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 407,
+        "prompt_tokens": 1722,
+        "total_tokens": 2129,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 352,
+          "rejected_prediction_tokens": null,
+          "text_tokens": 55
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 460
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": \"587\", \"y\": \"306\"}",
+      "error": "ValueError: Coordinates must be integers",
+      "seconds": 4.71
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        935,
+        282
+      ],
+      "crop": null,
+      "bounds": [
+        905,
+        258,
+        965,
+        306
+      ],
+      "radius": 22,
+      "id": "qwen38flash-101-anyof-point-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 101,
+      "variant": "anyof-point",
+      "protocol": "point",
+      "images": [
+        "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+      ],
+      "schema_valid": false,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "0a19ac2a-ed42-9248-a7df-fcd1776c1aec",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 156,
+        "prompt_tokens": 1760,
+        "total_tokens": 1916,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 102,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 498
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": \"648\", \"y\": \"312\"}",
+      "error": "ValueError: Coordinates must be integers",
+      "seconds": 2.59
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        935,
+        282
+      ],
+      "crop": null,
+      "bounds": [
+        905,
+        258,
+        965,
+        306
+      ],
+      "radius": 22,
+      "id": "plus-101-anyof-point-0",
+      "model": "qwen3.7-plus-2026-05-26",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 101,
+      "variant": "anyof-point",
+      "protocol": "point",
+      "images": [
+        "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+      ],
+      "schema_valid": false,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "6c44a08c-de15-99d4-b684-ab3f2d7c652d",
+      "returned_model": "qwen3.7-plus-2026-05-26",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 540,
+        "prompt_tokens": 1722,
+        "total_tokens": 2262,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 485,
+          "rejected_prediction_tokens": null,
+          "text_tokens": 54
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 460
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": \"648\", \"y\": \"309\"}",
+      "error": "ValueError: Coordinates must be integers",
+      "seconds": 10.16
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        935,
+        282
+      ],
+      "crop": null,
+      "bounds": [
+        905,
+        258,
+        965,
+        306
+      ],
+      "radius": 22,
+      "id": "qwen38max-101-anyof-point-0",
+      "model": "qwen3.8-max-2026-09-02",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 101,
+      "variant": "anyof-point",
+      "protocol": "point",
+      "images": [
+        "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+      ],
+      "schema_valid": false,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "89305b66-8404-9bf4-b8c8-ff49ee887553",
+      "returned_model": "qwen3.8-max-0902",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 476,
+        "prompt_tokens": 1722,
+        "total_tokens": 2198,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 422,
+          "rejected_prediction_tokens": null,
+          "text_tokens": 53
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 460
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"x\": \"647\", \"y\": \"314\"}",
+      "error": "ValueError: Coordinates must be integers",
+      "seconds": 8.58
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        935,
+        282
+      ],
+      "crop": null,
+      "bounds": [
+        905,
+        258,
+        965,
+        306
+      ],
+      "radius": 22,
+      "id": "qwen38flash-101-anyof-bbox-0",
+      "model": "qwen3.8-flash",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 101,
+      "variant": "anyof-bbox",
+      "protocol": "bbox",
+      "images": [
+        "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+      ],
+      "schema_valid": false,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "bd41d08e-05a3-9ace-96fd-79ce3d696e7e",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 333,
+        "prompt_tokens": 1838,
+        "total_tokens": 2171,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 249,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 576
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"left\": \"630\", \"top\": \"289\", \"right\": \"668\", \"bottom\": \"341\"}",
+      "error": "ValueError: Coordinates must be integers",
+      "seconds": 3.96
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        935,
+        282
+      ],
+      "crop": null,
+      "bounds": [
+        905,
+        258,
+        965,
+        306
+      ],
+      "radius": 22,
+      "id": "flash-101-anyof-bbox-0",
+      "model": "qwen3.7-flash-2026-07-15",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 101,
+      "variant": "anyof-bbox",
+      "protocol": "bbox",
+      "images": [
+        "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+      ],
+      "schema_valid": false,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "36f63ce9-935f-9060-a708-96e05d450477",
+      "returned_model": "qwen3.7-flash-2026-07-15",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 1232,
+        "prompt_tokens": 1800,
+        "total_tokens": 3032,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 1148,
+          "rejected_prediction_tokens": null,
+          "text_tokens": 84
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 538
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"left\": \"569\", \"top\": \"294\", \"right\": \"601\", \"bottom\": \"350\"}",
+      "error": "ValueError: Coordinates must be integers",
+      "seconds": 13.4
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        935,
+        282
+      ],
+      "crop": null,
+      "bounds": [
+        905,
+        258,
+        965,
+        306
+      ],
+      "radius": 22,
+      "id": "plus-101-anyof-bbox-0",
+      "model": "qwen3.7-plus-2026-05-26",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 101,
+      "variant": "anyof-bbox",
+      "protocol": "bbox",
+      "images": [
+        "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+      ],
+      "schema_valid": false,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "5af0371c-5e2e-9469-b898-9a18f29eb5b1",
+      "returned_model": "qwen3.7-plus-2026-05-26",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 595,
+        "prompt_tokens": 1800,
+        "total_tokens": 2395,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 511,
+          "rejected_prediction_tokens": null,
+          "text_tokens": 83
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 538
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"left\": \"625\", \"top\": \"289\", \"right\": \"670\", \"bottom\": \"345\"}",
+      "error": "ValueError: Coordinates must be integers",
+      "seconds": 11.13
+    },
+    {
+      "size": [
+        1440,
+        900
+      ],
+      "source_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "center": [
+        935,
+        282
+      ],
+      "crop": null,
+      "bounds": [
+        905,
+        258,
+        965,
+        306
+      ],
+      "radius": 22,
+      "id": "qwen38max-101-anyof-bbox-0",
+      "model": "qwen3.8-max-2026-09-02",
+      "provider": "qwen",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+      "seed": 101,
+      "variant": "anyof-bbox",
+      "protocol": "bbox",
+      "images": [
+        "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+      ],
+      "schema_valid": false,
+      "hit": false,
+      "http_verified": true,
+      "http_status": 200,
+      "request_id": "c7333be8-f711-93ee-8146-72bf7a540372",
+      "returned_model": "qwen3.8-max-0902",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 856,
+        "prompt_tokens": 1800,
+        "total_tokens": 2656,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 772,
+          "rejected_prediction_tokens": null,
+          "text_tokens": 83
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 538
+        }
+      },
+      "finish_reason": "tool_calls",
+      "arguments": "{\"found\": true, \"left\": \"437\", \"top\": \"319\", \"right\": \"465\", \"bottom\": \"379\"}",
+      "error": "ValueError: Coordinates must be integers",
+      "seconds": 15.32
+    }
+  ]
+}

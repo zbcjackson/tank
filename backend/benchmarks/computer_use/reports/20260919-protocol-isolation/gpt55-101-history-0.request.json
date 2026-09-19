@@ -1,0 +1,86 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "Locate the requested UI element in the current image."
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "PREVIOUS image, superseded by the next image."
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "sha256:060be9b6f8c7b51554cf3cded6e992d4667e32f63aad1946150ed1f44ce91ce1",
+            "detail": "auto"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "CURRENT image: 1440x900. Locate the button labeled AC. Call click once with its center of the button in normalized coordinates, x=0..1000, y=0..1000. The origin is the top-left of THIS input image; each axis spans the full image. Use only the CURRENT image, not previous positions. Set found=true when located. If absent or uncertain, set found=false and ALL coordinates=0."
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "sha256:be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f",
+            "detail": "auto"
+          }
+        }
+      ]
+    }
+  ],
+  "model": "openai/gpt-5.5",
+  "max_tokens": 4000,
+  "stream": false,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "click",
+        "description": "Report one target location; no action is executed.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "found": {
+              "type": "boolean"
+            },
+            "x": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            }
+          },
+          "required": [
+            "found",
+            "x",
+            "y"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "reasoning": {
+    "effort": "low"
+  },
+  "provider": {
+    "only": [
+      "openai"
+    ],
+    "allow_fallbacks": false,
+    "require_parameters": true
+  }
+}
