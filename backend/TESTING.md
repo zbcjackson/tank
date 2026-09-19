@@ -539,7 +539,8 @@ model actions. `--point-only` isolates tool schema from the original bbox schema
 Use fresh output directories; compare repeated images and positions rather than
 inferring one global correction factor from a single response.
 
-The same probe accepts `--prompt-style agent|minimal|formula|bbox`,
+The same probe accepts `--model` (request-only model override on the configured
+provider; does not edit production configuration), `--prompt-style agent|minimal|formula|bbox`,
 `--thinking default|on|off`, `--high-resolution`, `--plain-json`, and
 `--case-set all|hard|holdout`. `bbox` requests native `bbox_2d` JSON without
 tools; it is a diagnostic, not a production coordinate protocol. The hard set

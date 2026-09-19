@@ -1,6 +1,41 @@
 import pytest
 
 
+async def test_probe_model_override_preserves_original_profile(tmp_path, monkeypatch):
+    import runpy
+    from pathlib import Path
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from tank_backend.llm.profile import LLMProfile
+
+    monkeypatch.setenv("LANGFUSE_TRACING_ENABLED", "false")
+    script = Path(__file__).resolve().parents[2] / "scripts/probe_grounding_contract.py"
+    probe = runpy.run_path(str(script))
+    main = probe["main"]
+    original = LLMProfile(name="computer_use", model="configured-model", api_key="test",
+                          base_url="https://probe.invalid/v1", temperature=0.1)
+    selected = []
+
+    def create(profile):
+        selected.append(profile)
+        return SimpleNamespace(client=SimpleNamespace(close=AsyncMock()), extra_body={})
+
+    monkeypatch.setitem(main.__globals__, "load_dotenv", lambda path: None)
+    monkeypatch.setitem(main.__globals__, "AppConfig", SimpleNamespace(load=lambda path:
+        SimpleNamespace(get_llm_profile=lambda name: original)))
+    monkeypatch.setitem(main.__globals__, "create_llm_from_profile", create)
+    monkeypatch.setitem(main.__globals__, "scene", lambda size, position: (b"generated", {}))
+    monkeypatch.setattr("sys.argv", [str(script), "--model", "comparison-model", "--output",
+                                   str(tmp_path / "probe"), "--repeats", "0"])
+    await main()
+    assert selected[0].model == "comparison-model"
+    assert original.model == "configured-model"
+    assert selected[0].base_url == original.base_url
+    assert selected[0].api_key == original.api_key
+    assert selected[0].temperature == original.temperature
+
+
 @pytest.mark.parametrize("style", ["agent", "minimal", "formula"])
 def test_probe_prompt_uses_image_dimensions_without_leaking_target(style, monkeypatch):
     import runpy

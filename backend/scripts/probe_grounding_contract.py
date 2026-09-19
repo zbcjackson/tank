@@ -12,6 +12,7 @@ import io
 import json
 import os
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -101,6 +102,7 @@ def scene(size: tuple[int, int], position: tuple[float, float]):
 async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--model", help="Override only the probe model; keep the configured provider")
     parser.add_argument("--repeats", type=int, default=2)
     parser.add_argument("--point-only", action="store_true",
                         help="Diagnostic control: advertise x/y only, without bbox/oneOf")
@@ -116,6 +118,8 @@ async def main() -> None:
     args.output.mkdir(parents=True)
     load_dotenv(ROOT / "core/.env")
     profile = AppConfig.load(ROOT / "core/config.yaml").get_llm_profile("computer_use")
+    if args.model:
+        profile = replace(profile, model=args.model)
     llm = create_llm_from_profile(profile)
     llm.client.max_retries = 0
     llm.extra_body = dict(llm.extra_body)
