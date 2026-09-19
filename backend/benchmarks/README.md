@@ -109,7 +109,7 @@ are smoke tasks, excluded from the strict score; file validators verify complete
 contents/copies. Historical reports cannot be compared as equivalent scoring.
 Re-run computer_use and n2 baselines on the same dedicated desktop before A/B.
 
-Current scoring revision `trial-token-gui-v3` retains that isolation and also
+Scoring revision `trial-token-gui-v3` retains that isolation and also
 checks execution paths. The computer_use suite defaults to `gui_only: true`;
 strict trials that attempt tools other than desktop actions, screenshot,
 launch_app or computer_batch fail even if their side-effect validator passes.
@@ -126,3 +126,17 @@ tool-call limit (currently 15), independently of the SDK's model-turn limit 100.
 Non-streaming TTFT is null in JSON and N/A in Markdown; use RTT for those calls.
 Run metadata includes the model/config, prompt hash, task hash, git revision and
 effective limits. Old scores and latency fields must not be treated as equivalent.
+
+Current scoring revision `trial-token-gui-calc-v4` strengthens macOS calc-open:
+setup opens Calculator, clears restored state and reads back zero; validation
+requires the foreground, non-minimized Calculator display to contain expression
+`7×8` and result `56`. It reads the `StandardResultView` / `StandardInputView`
+Accessibility identifiers locally, never asks an LLM to judge screenshots.
+Unsupported UI structure, missing permission or unreadable state fails closed.
+macOS calc-open is now strict and GUI-only; Linux calc-open remains smoke.
+Task YAML supports `scoring_macos` / `gui_only_macos` platform overrides.
+
+This checks Calculator's accessibility display, not screenshot pixels or all
+possible overlays. A reset is required before every trial to avoid accepting
+a result restored from the previous run. The task instruction still asks the
+agent to take a screenshot, but that screenshot requirement is not scored.

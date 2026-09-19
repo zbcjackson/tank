@@ -31,3 +31,5 @@
 | [history/architecture-evolution.md](history/architecture-evolution.md) | 历史 | 持续追加 | 从单文件脚本到多 connector agentic 平台的架构演进史(按时代划分) |
 
 `superpowers/` 由 superpowers 插件自管(plans/specs),不套用上述规范。
+
+- [plans/done/macos-grounding-contract.md](plans/done/macos-grounding-contract.md)：模型坐标参照系隔离与计算器结果验收（已完成）。

@@ -524,3 +524,17 @@ it as part of synthetic-only model tests. Only the main display is supported.
 
 See [coordinate investigation](../docs/research/macos-coordinate-chain.md) for
 conversion contracts, synthetic-model evidence and limits of the acceptance.
+
+The macOS calc-open validator has unit and real-shell integration tests in
+`core/tests/test_calc_validator.py`; only osascript is substituted in the shell
+test. `test_bench_task.py` checks platform-specific strict/GUI-only scoring.
+Real verification used the actual benchmark trial runner with deterministic
+Calculator keyboard input: 5×7 fails, 7×8 passes, and setup clears prior results.
+The result checker needs macOS Accessibility and permission for System Events.
+
+`core/tests/test_grounding_probe.py` verifies the coordinate-hypothesis scorer.
+`scripts/probe_grounding_contract.py` is an opt-in paid model diagnostic using
+only generated calculator images; it never captures the desktop or executes
+model actions. `--point-only` isolates tool schema from the original bbox schema.
+Use fresh output directories; compare repeated images and positions rather than
+inferring one global correction factor from a single response.
