@@ -194,10 +194,10 @@ Calculator 重启后位置在 trial 之间变化，新截图后模型适配了�
    `7*8` 直接得到 56 而无表达式，粘贴 `7*8=` 不改变 0。生产含标点的
    type_text 走剪贴板，不能等同逐键/逐按钮输入。第二轮满足“显示 56”，
    但不满足额外的表达式校验；保留失败，不归类为错点。
-3. **子代理继承主代理委托指令，未修复。** 实际 HTTP system 同时有桌面
+3. **子代理继承主代理委托指令，已修复提示构建；效果未重测。** 历史 HTTP system 同时有桌面
    专家指令与“ALWAYS delegate to the computer_use agent immediately”；
    [runner](../../backend/core/src/tank_backend/agents/runner.py) 追加的
-   [base.md](../../backend/core/src/tank_backend/prompts/defaults/base.md) 含该规则，
+   [base.md](../../backend/core/src/tank_backend/prompts/defaults/base.md) 当时含该规则，
    而工具集中没有 agent。模型明确指出冲突；其定位影响尚无单因素对照。
 
 本次完整后端 **4484 passed/1 skipped**，E2E **14 场景/55 步**，其余要求
@@ -205,3 +205,14 @@ Calculator 重启后位置在 trial 之间变化，新截图后模型适配了�
 全套跨应用、长历史及上述剩余问题已纳入
 [后续执行计划](../plans/active/computer-use-adaptation-and-grounding.md)；
 多屏/压力等条件性范围仍见 [backlog](../backlog.md)。
+
+### 提示职责隔离（2026-09-19）
+
+共享 `base.md` 只保留安全规则、沙箱说明和环境信息；主代理的桌面委托规则
+由 PromptAssembler 单独加载 `orchestration.md`。AgentRunner 构建子代理
+提示时不加载该主代理规则。`ask_user` 说明依据最终可用工具集注入，受注册、
+allowlist、命名 toolset、disallowed 共同约束；不可用时结束并报告所缺信息。
+
+[离线请求快照](../../backend/benchmarks/computer_use/reports/20260919-adaptation-m0/README.md)
+通过真实 SDK HTTP 边界验证只有 system 改变；主代理委托和共享安全规则均有
+回归。尚未运行提示修复的模型效果 A/B，不据此更改历史分数或认定定位改善。

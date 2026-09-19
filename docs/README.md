@@ -41,4 +41,4 @@
 - [plans/done/gpt55-computer-use-loop.md](plans/done/gpt55-computer-use-loop.md)：验证结论汇总、GPT-5.5 实机 calc-open 2/3 严格通过与 temperature 接入修复（已完成）。
 - [research/computer-use-implementation-comparison.md](research/computer-use-implementation-comparison.md)：模型与宿主责任边界、其它实现的坐标/AX/定位器/反馈设计及实验优先级。
 - [plans/done/computer-use-implementation-research.md](plans/done/computer-use-implementation-research.md)：公开实现对照与改进方案调研（已完成）。
-- [plans/active/computer-use-adaptation-and-grounding.md](plans/active/computer-use-adaptation-and-grounding.md)：完整效果改进计划（待执行）；复用 N2 benchmark，覆盖已知问题、模型适配、规划定位分离、四组对照与真实效果验收。
+- [plans/active/computer-use-adaptation-and-grounding.md](plans/active/computer-use-adaptation-and-grounding.md)：效果改进计划（执行中：M0 离线基线、M1 提示修复）；复用 N2 benchmark，覆盖已知问题、模型适配、规划定位分离、四组对照与真实效果验收。
