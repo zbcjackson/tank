@@ -437,3 +437,43 @@ docs/protocol 与后端 reload 检查通过。完整测试需本机 Opus 库路�
 [DeepSeek strict](https://api-docs.deepseek.com/guides/tool_calls/)、
 [OpenAI Function calling](https://developers.openai.com/api/docs/guides/function-calling)、
 [OpenRouter provider routing](https://openrouter.ai/docs/guides/routing/provider-selection)。
+
+## 2026-09-19 DeepSeek 输出预算与关闭思考复测
+
+4000 来自诊断模块 `grounding_probe.location_request()` 的硬编码，旧的
+`probe_grounding_contract.py` 也单独写死了 4000；不是 DeepSeek 的服务上限。
+本轮矩阵探针新增 `--max-tokens` 与 `--thinking on|off`，默认仍为 4000。
+生产 `core/config.yaml` 的 default/planning DeepSeek 预算分别为 10000/20000，
+computer_use Qwen 为 40000，均未修改。
+
+[官方文档](https://api-docs.deepseek.com/guides/thinking_mode/) 支持通过
+`extra_body={"thinking": {"type": "disabled"}}` 关闭思考；默认开启、high effort，
+开启时 temperature 无效。此次全部采用配置端点的 `deepseek-flash`，响应也报告
+该别名；strict-bbox 仍单独使用 beta 端点。仅发送程序生成合成 PNG。
+
+112 次新增调用与实际 HTTP 参数、图片 hash、原始响应已
+[归档](../../backend/benchmarks/computer_use/reports/20260919-deepseek-budget/README.md)：
+
+- 配对筛选 seeds 101–102，每种 point/strict-bbox/low-detail 重复两次。
+  on/4000：3/12 命中、2 次 length 截断，平均输出 1301.17 token；
+  off/4000：3/12 命中、无截断、106.50 token；
+  on/16000：3/12 命中、无截断、2023.58 token；
+  off/16000：5/12 命中、无截断、106.08 token。
+- 独立 seeds 201–216，与前轮 GPT/Qwen holdout 使用相同图片，auto-detail
+  point 每布局重复两次。off/4000：20/32 命中、32/32 格式有效、平均输出
+  103.94 token、最大偏移 339.33 px。on/16000：23/32 命中、31/32 格式有效、
+  平均输出 736.44 token、已返回坐标最大偏移 134.30 px。
+- `deepseek-206-point-0` 开启思考后消耗全部 16000 token 于推理，仍无点击，
+  finish_reason=length，用时 68.04 秒；不是脚本 90 秒超时。全部 56 次关闭
+  思考的原始响应无 reasoning_content，也无 reasoning_tokens 消耗。
+
+因此，前轮 DeepSeek 的完成率确实受诊断预算影响，不能把无调用的截断算作
+坐标变换错误。关闭思考在独立集节省约 85.9% 输出 token，但未解决定位；提高
+预算也不能保证完成或命中。当前证据仍不足以将偏差进一步归因于模型权重还是
+提供商内部预处理。小样本、随机输出、不同思考模式的有效采样差异均限制因果
+判断；16 个布局重复两次不是 32 个独立布局。尚未测试 low reasoning effort，
+也未执行新的真实模型 GUI 闭环。
+
+新增 CLI → 实际 SDK → HTTP 的回归覆盖独立预算/思考开关、默认变体行为、
+图片/schema 不变、无效预算提前拒绝、保留 length 和 token 用量。Probe 48 passed，
+完整 backend 4476 passed/1 skipped，E2E 14 场景/55 步及其余要求检查全通过。
