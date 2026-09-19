@@ -31,4 +31,5 @@
 | macOS 动态几何与高频输入验收 | 产品需要截图后切换主屏/分辨率或无截图高频连点，或这些条件下再次报告错点 | 当前静态主屏九点验收通过；默认尺寸/截图缓存不追踪动态几何，首次校准存在未确定原因的事件缺失；多屏支持沿用上方条目 | [macos-coordinate-chain.md](research/macos-coordinate-chain.md) |
 
 | N2 SDK Linux adapter 与平台验收 | 产品需要 Linux，且有专用 X11/Wayland 实机环境 | 原 M4/M6 未完成：X11 adapter、来源/许可证、中文/修饰键、截图光标/时延与真实取消/清理分别验收；未通过保持 unsupported，不能套用 macOS 结果 | [SDK 原 M4/M6](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划 §2.3](plans/active/computer-use-adaptation-and-grounding.md) |
-| N2 SDK 采用后同进程暂停与恢复 | 统一计划 S4 确认采用 SDK，且需要暂停/接管/恢复 | 原 M7 未触发：pause_pending/paused、运行实例/trajectory、恢复重新截图/授权/预算/桌面锁、状态与协议展示及停止/过期边界；暂停计入时限，跨重启恢复另立项 | [SDK 原 M7](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划 S4](plans/active/computer-use-adaptation-and-grounding.md) |
+| N2 SDK 采用后同进程暂停与恢复 | 产品使用 SDK 且需要暂停/接管/恢复 | 原 M7 未触发：pause_pending/paused、运行实例/trajectory、恢复重新截图/授权/预算/桌面锁、状态与协议展示及停止/过期边界；暂停计入时限，跨重启恢复另立项 | [SDK 原 M7](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划范围](plans/active/computer-use-adaptation-and-grounding.md) |
+| N2/SDK 特定控制与集成补验 | 修改 SDK/共享派发控制、升级 driver，或出现新的 WS/通知/输入释放/进程清理问题 | N2 已有真实 benchmark，SDK 42 个 trial cleanup=confirmed；普通报告不证明每种中途停止与完整主会话 WS。仅针对受影响 seam/动作补验，保留原 M4/M6 细则，不将全套重验设为效果改进前置 | [SDK 原清单](plans/done/plugin-subagents-and-n2-sdk.md)、[效果改进范围](plans/active/computer-use-adaptation-and-grounding.md) |

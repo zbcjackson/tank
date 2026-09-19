@@ -111,7 +111,11 @@ return 410. Instruction `${BENCH_ASSETS_URL}` is expanded by the runner. Validat
 see only their trial's BENCH_CAPTURE. Process-only calculator/settings validators
 are smoke tasks, excluded from the strict score; file validators verify complete
 contents/copies. Historical reports cannot be compared as equivalent scoring.
-Re-run computer_use and n2 baselines on the same dedicated desktop before A/B.
+Reuse existing computer_use and n2 reports as historical references. New claims
+of improvement require comparable tasks and scoring; rerun the affected comparison
+only when existing data cannot support that claim. A full N2 rerun is not a
+prerequisite for the current
+[effectiveness improvement plan](../../docs/plans/active/computer-use-adaptation-and-grounding.md).
 
 Scoring revision `trial-token-gui-v3` retains that isolation and also
 checks execution paths. The computer_use suite defaults to `gui_only: true`;

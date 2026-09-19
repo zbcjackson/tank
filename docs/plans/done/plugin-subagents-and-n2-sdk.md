@@ -1,21 +1,19 @@
 # 插件子 Agent 与官方 N2ComputerAgent 实施计划
 
-> 状态：实施与移交已完成并归档（2026-09-19）。macOS 剩余验收移交统一执行计划 S1–S4；Linux 与 M7 暂停/恢复移交 backlog。归档不表示这些验收通过或能力已实现，保留旧 n2/engine/executor。
+> 状态：已完成并归档（2026-09-19）。SDK 已实现并有真实 benchmark；按用户要求复用既有 N2 验证，后续聚焦效果改进。条件性平台/控制专项见 backlog，保留旧 n2/engine/executor。
 
 ## 归档处置（2026-09-19）
 
-按用户要求集中剩余工作，不继续维护第二份执行待办：
+用户确认 N2 已验证；本次已读取旧 N2 33/42 和 SDK strict 4/36、smoke 2/6
+的真实 benchmark，SDK 报告 42 个 trial 均记录 cleanup=confirmed。
+报告入口和评分边界见[统一效果改进计划 §2.1/R](../active/computer-use-adaptation-and-grounding.md)。
+不再因历史清单未勾选而否定已存在的验证，或要求先重做 N2 接入、迁移采用
+及完整三路跑批。当前工作转为模型适配、规划定位分离和实际效果改进。
 
-- 旧 M1 baseline、M6 三路报告/compaction/采用与文档 →
-  [统一执行计划 S4/M8](../active/computer-use-adaptation-and-grounding.md)。
-- 旧 M4 macOS 能力/真实输入/授权/预算/关闭、M6 真实任务/停止，以及
-  §§14–16 启动、首次截图、Brain 队列修复后的完整任务 → 同计划 S1/S3。
-- 旧 M6 完整主会话 WS 和旧 DeepSeek/N2 会话通知复测 → 同计划 S2。
-- 旧 M4/M6 Linux adapter 与平台验收、旧 M7 采用后暂停/恢复 →
-  [backlog](../../backlog.md)，保留触发条件和下方原始完整清单。
-
-SDK 实现及自动化成果保留，历史未勾选项不改成通过。下文“active/待验收”
-等为当时记录；当前未完成项的状态与执行责任以上述移交为准。
+原完整 WS/通知、逐种停止/平台能力专项不从普通 benchmark 推断全覆盖，
+也不作为本轮前置；仅在相关变更/新问题触发时按 [backlog](../../backlog.md)
+定向验证。Linux 与原 M7 暂停/恢复同样保留条件和原始清单。
+下文“active/待验收”等为历史记录；当前范围以上述用户决定为准。
 
 关联：[已归档 computer-use / N2 计划](../done/computer-use-improvement-and-n2-plan.md)、[当前编排设计](../../design/agent-orchestration.md)、[当前 N2 插件](../../../backend/plugins/agent-n2/README.md)、[基准指南](../../../backend/benchmarks/README.md)。
 

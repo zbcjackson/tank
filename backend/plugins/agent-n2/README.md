@@ -85,14 +85,15 @@ backend/.venv/bin/ruff check backend/plugins/agent-n2
    uv run --package agent-n2 python -m tank_backend.benchmarks --suite ../benchmarks/computer_use --agent n2 --trials 3 --label n2-macos
    ```
 
-No real desktop actions are used in unit tests. A/B and T5 are pending until
-the dedicated environment is run; plugin implementation does not prove n2's
+No real desktop actions are used in unit tests. Real benchmark reports exist
+separately; use their recorded outcomes and scoring scope when assessing n2's
 task success rate.
 
-The benchmark's per-trial isolation and scoring fixes are implemented; the
-full three-way macOS comparison remains unverified. See the
+The benchmark's per-trial isolation and scoring fixes are implemented. Existing
+N2 benchmark results are reused as historical references. See the
 [archived SDK migration design and N2 test guide](../../../docs/plans/done/plugin-subagents-and-n2-sdk.md)
 for setup, dispatch, smoke commands, and measurement limits. The SDK path is
 implemented; the existing engine and DesktopExecutor remain available.
-Remaining macOS acceptance is tracked in the
-[unified execution plan, S1–S4](../../../docs/plans/active/computer-use-adaptation-and-grounding.md).
+Further grounding and task-quality work is tracked in the
+[effectiveness improvement plan](../../../docs/plans/active/computer-use-adaptation-and-grounding.md),
+which links existing reports and requires new N2 comparisons only when needed.

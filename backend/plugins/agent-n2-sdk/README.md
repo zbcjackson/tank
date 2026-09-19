@@ -131,11 +131,12 @@ status/stop tools, NotificationHub and the existing WebSocket frame converters.
 They cover denial, approval/background completion, cancellation and API failure.
 The live client transport is covered separately by the existing E2E scenarios.
 
-Real macOS acceptance, physical input/process cleanup and same-machine A/B
-reports are still required by the
-[archived implementation plan](../../../docs/plans/done/plugin-subagents-and-n2-sdk.md).
-Remaining macOS acceptance is tracked in the
-[unified execution plan, S1–S4](../../../docs/plans/active/computer-use-adaptation-and-grounding.md).
+Real macOS benchmark results already exist. The
+[effectiveness improvement plan](../../../docs/plans/active/computer-use-adaptation-and-grounding.md)
+links them with their scoring revisions and reuses them as references. Detailed
+control cases in the [archived implementation plan](../../../docs/plans/done/plugin-subagents-and-n2-sdk.md)
+are revisited when relevant changes or new failures require them; SDK onboarding
+and a full three-way rerun are not prerequisites for grounding improvements.
 Run benchmark trials serially with other desktop automation stopped:
 
 ```bash
