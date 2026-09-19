@@ -26,4 +26,4 @@
 | macOS 动态几何与高频输入验收 | 产品需要截图后切换主屏/分辨率或无截图高频连点，或这些条件下再次报告错点 | 当前静态主屏九点验收通过；默认尺寸/截图缓存不追踪动态几何，首次校准存在未确定原因的事件缺失；多屏支持沿用上方条目 | [macos-coordinate-chain.md](research/macos-coordinate-chain.md) |
 
 | calc-open 截图像素验收 | 需要把“截图确实展示 56”纳入评分或支持其他 macOS 控件结构 | 当前读取前台 Calculator 的 AX 表达式/结果，拒绝不可读状态；尚未对屏幕遮挡、截图存在与像素做判定 | [macos-grounding-contract.md](plans/done/macos-grounding-contract.md) |
-| 模型与边框定位候选验收 | 决定替换生产 computer_use 模型或定位路径 | Plus 在生产 click schema 对照中 16 次仍有一次约 150 px 大错；原生 bbox_2d 的留出集最高偏 41.1 px；需更多布局/按钮尺寸、局部图映射与真实离线点击校准，不可直接上线 | [模型对照](plans/done/macos-grounding-model-comparison.md)、[格式消融](plans/done/macos-grounding-ablation.md) |
+| 定位候选的完整模型闭环验收 | 准备采用 GPT-5.5 等生产候选，且获准使用真实画面或具备隔离合成桌面 | 本轮 GPT-5.5 独立合成图 32/32 命中，Mini 30/32、Qwen3.8 Flash 25/32；Calculator 真值点击 3/3。尚缺模型驱动完整 GUI、长历史/compaction、多种按钮大小与跨应用验收；新严格协议仅在探针中，生产未切换 | [协议隔离](plans/done/macos-grounding-protocol-isolation.md)、[研究](research/macos-coordinate-chain.md) |

@@ -328,3 +328,112 @@ pyright、docs/protocol consistency、实际后端 reload 日志检查全部通�
 仍仅发送合成图，生产模型保持 Flash；真实桌面内容未重新发送模型。
 样本数量很少，holdout 是相对原困难集而言，已在先前实验使用过，不能
 作为全新无偏选型集；15 px 为中心精度阈值而不是按钮命中率。
+
+## 2026-09-19 跨提供方与严格协议隔离
+
+结论状态：本轮隔离完成；最有证据的瓶颈是当前模型/定位任务的可靠性，
+不是 macOS 静态坐标链的统一倍率错误。模型权重与服务端视觉处理仍无法
+分开归因，真实模型驱动的完整 calc-open 尚未验收。
+
+[304 次请求的复现说明与原始证据](../../backend/benchmarks/computer_use/reports/20260919-protocol-models/README.md)
+覆盖七个候选、三种坐标协议、nullable schema、strict、标记/打乱布局、
+裁剪/缩放、历史图、agent/完整桌面工具定义、原生/兼容接口及 detail 参数。
+外发内容全部为生成的校准图，没有真实桌面、截图路径或用户文件。
+新探针通过实际 OpenAI SDK 调用，不执行模型返回动作，不修改生产配置。
+
+### 模型与独立布局结果
+
+基线使用四张新布局，每模型/协议四次。归一化点的按钮命中数：当前
+Qwen3.7 Flash 0/4、Plus 2/4、Qwen3.8 Flash 4/4、Max 3/4、DeepSeek 4/4、
+GPT Mini 4/4、GPT-5.5 4/4。三协议的 84 个响应全部符合单一整数约束，
+但存在大量位置错误。边框不普遍更好：Qwen3.8 Flash 2/4、Max 1/4、
+DeepSeek 2/4 命中。这个 flat bbox 工具协议与旧 bbox_2d 文本实验不同。
+
+筛选后用未参与调参的 16 个新布局、每图重复两次，测试归一化点：
+
+- **GPT-5.5：32/32 命中**，中心误差中位数 1.01 px，最大 2.08 px。
+- **GPT-5.4 Mini：30/32 命中**，中位数 4.77 px，最大 38.83 px。
+- **Qwen3.8 Flash：25/32 命中**，中位数 5.56 px，最大 417.91 px。
+
+这 96 个响应全都通过格式校验；“整数且在范围内”显然不等于正确定位。
+留出集沿用四种画布尺寸和两种标签，只改变位置，不是跨应用、跨字体或
+各种小按钮的通用验收。评分使用生成按钮的圆角 mask，并独立记录有符号
+dx/dy 与欧氏中心距离；命中不等于完成计算器任务。
+
+Qwen 使用当前 DashScope 端点；DeepSeek 使用官方 deepseek-flash。
+用户指定 GPT 使用 OpenRouter，读取 OPENROUTER_API_KEY，限定 openai
+provider、禁止 fallback，并在全部返回值中核实 provider=OpenAI。
+GPT 的生产服务直连路径未测试。Qwen3.8 Max 请求快照
+qwen3.8-max-2026-09-02，实际返回官方别名 qwen3.8-max-0902。
+DeepSeek 别名可能变化，不能把旧 Pro 路由算成另一个独立模型。
+
+### 输出约束的效果与兼容陷阱
+
+新候选协议试用了 found + nullable 整数坐标。四个 Qwen 在 type-array
+写法共八次、语义等价 anyOf 写法共八次均输出字符串坐标；设置 strict
+也未阻止。DeepSeek/GPT 在相同预检中返回整数。它是新协议的适配问题，
+不能倒推成生产代码原先就有 nullable schema 的问题。
+
+矩阵默认改为单一 integer 类型；未找到时 found=false 且所有坐标为 0，
+这是明确的“不点击”状态。保留 nullable 作为实验开关，其未找到状态必须
+为 null。两种约定都在宿主严格校验，不猜单位、不交换边框、不将字符串
+或数组修复成数字。host 计算边框中心、裁剪偏移和逐轴缩放。
+这些校验目前只在实验探针中，未宣称生产 ClickTool 已采用新协议。
+
+严格边框追加实验中，当前 Flash 0/2 命中，GPT-5.5 与 Qwen3.8 Flash
+各 2/2；样本太小，不能据此替代更大的重复验收。DeepSeek 一次边框
+定位错误，另一次耗尽 4000 reasoning tokens，没有输出工具调用。
+low-detail 条件也有一次同样的预算截断，两次均保留 finish_reason=length，
+不计为“严格解码仍产生非法整数”的证据。
+
+### 其他原因的隔离
+
+- **视觉识别与空间表达**：当前 Flash 在标记、裁剪、缩放、打乱布局
+  条件各两次都未命中，单纯增加标记或裁剪不能修复。它们没有直接暴露
+  模型内部识别结果，不能严格区分 OCR 与空间表达两种原因。
+- **历史与提示**：GPT-5.5 在所有有目标隔离条件命中，并正确拒绝两个
+  缺失目标；Qwen3.8 Flash 在历史/agent/完整工具定义下各 2/2 命中。
+  当前 Flash 在最小提示中已经失败，完整工具定义不是失败的必要条件。
+  历史实验仅加入一张旧位置图片，不包含完整长会话、compaction 或真实
+  AgentRunner 的所有自动注入；这些仍是生产验收缺口。
+- **思考参数**：Qwen3.8 Flash 关闭思考后两次把整数字段写成数组，宿主
+  均拒绝。当前 Flash 在这两张图关闭思考后 2/2 命中，但之前更大实验
+  已失败，不能以这两个样本证明通用修复。
+- **原生/兼容接口**：原生 DashScope 多模态接口中，当前 Flash 1/4 命中、
+  最大误差 281.96 px；Qwen3.8 Flash 2/4 命中、最大 533.33 px。
+  因此兼容层不是大偏移发生的必要条件。四次随机响应不足以证明哪种
+  API 更好；也不能排除两者共用的视觉预处理或推理服务问题。
+- **服务端图像处理**：GPT-5.5 的 detail=low 首次出现一次 406.94 px 大错；
+  追加同图 auto/low 各六次均命中，low 最大 3.91 px。大错未复现，不能
+  将此宣称为确定的内部缩放错误。实际 HTTP 图片 hash 相同仅证明上传
+  图片相同，不证明内部视觉 token、分块或有效清晰度相同。
+
+### 本地真实 Calculator 对照与验证边界
+
+[本地 oracle 记录](../../backend/benchmarks/computer_use/reports/20260919-calculator-oracle/results.json)
+读取 AXIdentifier 为 Seven、Multiply、Eight、Equals 的按钮位置，以实际
+ScreenshotTool 建立 1920×1080 坐标尺寸，再经生产 ClickTool 输入。三次
+完整操作都被独立 AX 校验为 7×8=56；12 次光标观测最大偏差 1 个逻辑点。
+真实截图仅用于本地内存中的尺寸读取，未外发或归档。
+
+首轮尝试曾因光标不在按钮内的断言失败，当时未在断言前保存坐标，因此
+无法判断是事件观测时序、外部输入还是其他原因。随后已修正实验记录顺序，
+完整三次通过；不能抹去首轮异常或声称所有真实输入问题已排除。
+动态跨屏与分辨率不是这些纯合成、无输入失败的必要条件，按用户提供的
+benchmark 运行条件降为低优先级。
+
+当前可推进的候选为 **GPT-5.5 + 明确点坐标约定 + 本地严格校验 + 点击后反馈**；
+还需在获准的真实画面或隔离合成桌面中运行完整模型闭环，之后才考虑生产
+切换。未把 32/32 合成图命中宣称为 calc-open 已修复。
+
+新增探针相关 pytest 共 **40 passed**；完整 backend **4468 passed, 1 skipped**；
+web lint、tsc -b、backend/CLI ruff、修改文件 pyright、E2E **14 scenarios / 55 steps**、
+docs/protocol 与后端 reload 检查通过。完整测试需本机 Opus 库路径与沙箱外
+本地端口访问；另修复一个通知测试将输出写入真实用户目录的测试隔离问题。
+
+官方参考：[Qwen3.8 Flash](https://help.aliyun.com/zh/model-studio/qwen3-8-flash)、
+[Qwen3.8 Max](https://help.aliyun.com/zh/model-studio/qwen3-8-max)、
+[DeepSeek 版本公告](https://api-docs.deepseek.com/news/news260910/)、
+[DeepSeek strict](https://api-docs.deepseek.com/guides/tool_calls/)、
+[OpenAI Function calling](https://developers.openai.com/api/docs/guides/function-calling)、
+[OpenRouter provider routing](https://openrouter.ai/docs/guides/routing/provider-selection)。

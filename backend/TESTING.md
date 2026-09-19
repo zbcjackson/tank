@@ -551,3 +551,21 @@ The HTTP hook verifies every transmitted PNG hash. Tests cover actual SDK
 serialization of provider parameters and images, JSON/fenced JSON decoding,
 and replay a captured malformed provider response through SDK, LLM and tool
 rejection. Format decoding never repairs invalid JSON or executes model actions.
+
+`scripts/probe_grounding_matrix.py` extends this with Qwen, DeepSeek and GPT via
+OpenRouter, request-only provider selection, integer point/pixel/bbox protocols,
+nullable-schema controls, strict flags, crop/resize/history/marker/shuffle and
+agent/tool-context controls. It uses the actual OpenAI SDK without Tank's agent
+loop; `full-tools` includes production desktop tool schemas but executes none.
+Every SDK HTTP request is checked against the bound PNG hashes and their order.
+Native DashScope replay has a separate, tested payload adapter. Its artifact
+script checks payload image bytes before HTTP serialization, not via that SDK hook.
+
+The matrix defaults to integer fields. `found=false` requires all zeros in this
+explicit protocol; nullable controls require all nulls. No string coercion,
+coordinate-unit guessing, duplicate JSON keys or inverted boxes are accepted.
+Host code computes box centers and reverses crop/resize transforms; hit scores
+use the rendered rounded-button mask separately from center distance. Unit tests
+cover these contracts and real SDK serialization; paid calls remain opt-in.
+See the [protocol isolation results](../docs/research/macos-coordinate-chain.md#2026-09-19-跨提供方与严格协议隔离)
+for model scores and the limits of synthetic, static-screen acceptance.
