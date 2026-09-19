@@ -179,6 +179,9 @@ Tools can require human approval before execution. The approval flow:
 
 ### 4. LLM Integration (`src/tank_backend/llm/`)
 
+Computer-use 的 macOS 截图/坐标链与实测边界见
+[Computer use 说明](../docs/design/computer-use.md)。
+
 **LLM Client** (`llm.py`):
 - OpenAI-compatible API via `AsyncOpenAI`
 - Multiple named profiles (default, summarization) in `config.yaml`

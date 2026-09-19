@@ -8,6 +8,10 @@
 成功率、工具调用数、完成的动作数、模型轮次、耗时、token、截图数。
 首个套件 `computer_use`（桌面 GUI 任务）。
 
+macOS 截图到点击的转换、测试范围、真实校准、跨模型与输出协议实验、
+DeepSeek 预算复测及未排除项统一见
+[Computer use 验证结论](../../docs/design/computer-use.md)。
+
 **不测**（刻意绕开，是 A/B 对比中的恒定量）：WorkerSupervisor 调度/持久化/回注、审批 UI、
 ASR/TTS/语音链路。驱动器直连 `AgentRunner.run_agent`（见 `tank_backend/benchmarks/driver.py`）。
 

@@ -2,6 +2,9 @@
 
 # macOS 从截图到鼠标点击的尺寸与坐标
 
+各轮结论与当前边界统一见 [Computer use 文档](../design/computer-use.md)。
+最新真实 GPT-5.5 calc-open 三轮严格评分 2/3，包含鼠标点击与反馈恢复；见末节。
+
 范围是自研 computer_use 与共享 MacOSDesktopExecutor；官方 N2 SDK 不在本链路。
 此前仅有现状刻画测试，本轮已增加正确性回归并修复明确缺陷。
 
@@ -477,3 +480,31 @@ computer_use Qwen 为 40000，均未修改。
 新增 CLI → 实际 SDK → HTTP 的回归覆盖独立预算/思考开关、默认变体行为、
 图片/schema 不变、无效预算提前拒绝、保留 length 和 token 用量。Probe 48 passed，
 完整 backend 4476 passed/1 skipped，E2E 14 场景/55 步及其余要求检查全通过。
+
+## 2026-09-19 GPT-5.5 生产路径真实闭环
+
+用户明确授权本次清理后桌面截图经 OpenRouter → OpenAI 外发。使用独立配置、
+原 computer_use agent / AgentRunner / 生产工具与严格 validator，calc-open 三次
+得到 **2/3**；原始图片和完整 trace 仅存 `/tmp/tank-gpt55-loop/`，不进仓库。
+[脱敏证据及输入隔离](../../backend/benchmarks/computer_use/reports/20260919-gpt55-loop/README.md)
+记录全部 13 次实际响应的 GPT-5.5/OpenAI 身份、七张截图 hash 与反馈回流。
+
+第一轮四次鼠标点击成功；第二轮粘贴 7*8 后 Enter 显示 56，但无表达式而被
+严格校验拒绝；第三轮粘贴 7*8= 无效，模型看新截图后改四次鼠标点击，成功。
+没有超时或非 GUI 绕路。两次点击序列发生于不同的窗口位置，但位置变化在
+trial 重启、新截图之前；它们不构成跨屏或截图后几何突变验收。
+
+新增证据区分了三类问题：
+
+- 参数接入：生产 LLM 强制发送 temperature，导致 require_parameters 路由
+  404。同一合成请求只去掉此键即成功，已支持 profile 显式 null 省略；
+  默认 0.7 和显式 0.0 覆盖保持。原生产默认模型未切换。
+- 输入/评分：本地工具复现粘贴 7*8 直接得到 56 且无表达式，Enter 不补表达式；
+  粘贴 7*8= 仍为 0。这解释对应路径，不是坐标错误；评分未放宽。
+- 提示冲突：实际 HTTP 含专家直接操作指令以及 base.md 的“必须委托给
+  computer_use”，但工具面无 agent。模型明确提到该冲突；未修复或测量其
+  定位影响，后续已登记 backlog。
+
+此次只验证单任务模型闭环，不覆盖全套 14 任务、长历史、Supervisor 或语音。
+代码回归：profile 30 passed，完整 backend 4484 passed/1 skipped，E2E 14/55；
+其他要求检查通过。统一现行说明见 [Computer use](../design/computer-use.md)。

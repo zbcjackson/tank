@@ -26,4 +26,6 @@
 | macOS 动态几何与高频输入验收 | 产品需要截图后切换主屏/分辨率或无截图高频连点，或这些条件下再次报告错点 | 当前静态主屏九点验收通过；默认尺寸/截图缓存不追踪动态几何，首次校准存在未确定原因的事件缺失；多屏支持沿用上方条目 | [macos-coordinate-chain.md](research/macos-coordinate-chain.md) |
 
 | calc-open 截图像素验收 | 需要把“截图确实展示 56”纳入评分或支持其他 macOS 控件结构 | 当前读取前台 Calculator 的 AX 表达式/结果，拒绝不可读状态；尚未对屏幕遮挡、截图存在与像素做判定 | [macos-grounding-contract.md](plans/done/macos-grounding-contract.md) |
-| 定位候选的完整模型闭环验收 | 准备采用 GPT-5.5 等生产候选，且获准使用真实画面或具备隔离合成桌面 | 本轮 GPT-5.5 独立合成图 32/32 命中，Mini 30/32、Qwen3.8 Flash 25/32；Calculator 真值点击 3/3。尚缺模型驱动完整 GUI、长历史/compaction、多种按钮大小与跨应用验收；新严格协议仅在探针中，生产未切换 | [协议隔离](plans/done/macos-grounding-protocol-isolation.md)、[研究](research/macos-coordinate-chain.md) |
+| 定位候选的跨应用与长历史验收 | 准备将 GPT-5.5 等用于更广泛生产桌面任务，且具备获准外发的隔离环境 | GPT-5.5 合成图 32/32；真实 calc-open 已跑三轮严格 2/3，含两段鼠标序列和一次反馈恢复。尚缺全 14 任务、长历史/compaction、多种按钮尺寸；新严格协议仅在探针中，生产默认未切换 | [完整闭环](plans/done/gpt55-computer-use-loop.md)、[统一结论](design/computer-use.md) |
+| 桌面子代理的 base 委托提示冲突 | 下一次优化或评估子代理提示、准备正式生产选型 | 实际 HTTP 同时包含直接操作桌面的专家指令与 base.md 的“必须委托 computer_use”；工具集无 agent，模型明确提及冲突。需分离主代理调度规则与共享安全规则，补提示/HTTP 回归并独立复测，尚未测量因果影响 | [完整闭环](plans/done/gpt55-computer-use-loop.md) |
+| calc-open 合法粘贴路径与评分约定 | 需要将真实显示 56 的粘贴计算路径计入成功率 | 本地重置后粘贴 7*8 直接显示 56 但无表达式，严格 AX validator 拒绝；7*8= 仍为 0。需明确表达式证据如何验证，不能直接放宽为只读 56 或把这类失败算作错点 | [统一结论](design/computer-use.md) |
