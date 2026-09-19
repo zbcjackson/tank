@@ -505,3 +505,22 @@ acceptance items in the active SDK plan.
 Benchmark regression tests verify per-trial capture/token isolation, rejection of
 stale tabs/late requests, correct PNG/WebP MIME, tool-call step boundaries,
 smoke exclusion and suite abortion after unconfirmed cleanup.
+
+## macOS coordinate chain
+
+`core/tests/test_computer_use_macos.py` covers backing-to-logical sizing, crop
+and upscale pixels, image serialization through the actual OpenAI SDK HTTP
+boundary, fragmented SSE arguments and final Quartz event coordinates. Only OS
+and HTTP boundaries are mocked. Recorded synthetic model replies are replayed
+without network calls; malformed replies must not inject mouse events.
+
+For opt-in real desktop calibration, run from backend:
+`uv run --no-sync python scripts/calibrate_macos_coordinates.py --output /tmp/tank-calibration-new`.
+Use a fresh output directory, grant Screen Recording and Accessibility to the
+host application, and leave the mouse idle. It opens its own target window,
+checks visible target pixels before clicking, records down/up events and cursor
+positions, and restores the cursor. Full desktop PNG stays local; do not upload
+it as part of synthetic-only model tests. Only the main display is supported.
+
+See [coordinate investigation](../docs/research/macos-coordinate-chain.md) for
+conversion contracts, synthetic-model evidence and limits of the acceptance.
