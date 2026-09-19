@@ -13,6 +13,17 @@ from tank_backend.prompts.assembler import (
 from tank_backend.prompts.resolver import AGENTS_FILENAME
 
 
+def test_main_dispatch_rules_are_separate_from_shared_security(tmp_path: Path) -> None:
+    assembler = PromptAssembler(config=AssemblerConfig(user_dir=str(tmp_path)))
+    main = assembler.assemble()
+    shared = assembler.get_base_rules()
+    assert "ALWAYS delegate to the computer_use agent immediately" in main
+    assert 'agent(subagent_type="computer_use"' in main
+    assert "ALWAYS delegate" not in shared
+    assert "NEVER write secrets" in shared
+    assert "SECURITY BOUNDARIES" in main and "ENVIRONMENT:" in main
+
+
 class TestPromptAssembler:
     @pytest.fixture
     def defaults_dir(self, tmp_path):

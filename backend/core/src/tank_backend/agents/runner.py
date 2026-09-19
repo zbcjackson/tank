@@ -251,7 +251,14 @@ class AgentRunner:
 
         effective_budget = token_budget or agent_def.token_budget
 
-        system_prompt = self._build_sub_agent_prompt(agent_def, messages)
+        available_tools: set[str] = set()
+        if not agent_def.engine and not agent_def.extension:
+            available_tools = {
+                tool["function"]["name"]
+                for tool in self._tool_manager.get_openai_tools(exclude=exclude_tools)
+                if tool_filter is None or tool["function"]["name"] in tool_filter
+            }
+        system_prompt = self._build_sub_agent_prompt(agent_def, messages, available_tools)
 
         if agent_def.extension:
             if context is None:
@@ -465,6 +472,7 @@ class AgentRunner:
         self,
         agent_def: AgentDefinition,
         messages: list[dict[str, Any]],
+        available_tools: set[str],
     ) -> str:
         """Build a sub-agent's system prompt.
 
@@ -473,16 +481,22 @@ class AgentRunner:
         """
         parts: list[str] = [agent_def.system_prompt]
 
-        # Inject ask_user guidance so sub-agents know they can pause
-        parts.append(
-            "--- Clarification ---\n"
-            "If you need clarification from the user before you can proceed "
-            "(e.g., choosing between options, missing critical info), call the "
-            "`ask_user` tool with your question. Your execution will pause "
-            "until the user responds. Do NOT write questions in your final "
-            "output — use `ask_user` instead so the system can route the "
-            "question properly and resume your work with the answer."
-        )
+        if "ask_user" in available_tools:
+            parts.append(
+                "--- Clarification ---\n"
+                "If you need clarification from the user before you can proceed "
+                "(e.g., choosing between options, missing critical info), call the "
+                "`ask_user` tool with your question. Your execution will pause "
+                "until the user responds. Do NOT write questions in your final "
+                "output — use `ask_user` instead so the system can route the "
+                "question properly and resume your work with the answer."
+            )
+        else:
+            parts.append(
+                "--- Clarification ---\n"
+                "If critical information is missing and you cannot proceed, "
+                "stop and report what information is needed in your final output."
+            )
 
         # Append workspace rules relevant to paths mentioned in messages
         paths = self._extract_paths_from_messages(messages)

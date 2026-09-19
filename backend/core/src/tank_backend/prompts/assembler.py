@@ -161,6 +161,11 @@ class PromptAssembler:
         if base:
             stable_parts.append(self._fill_platform_context(base))
 
+        # Main-agent dispatch rules are not shared sub-agent security rules.
+        orchestration = self._load_default("orchestration.md")
+        if orchestration:
+            stable_parts.append(orchestration)
+
         # 2. IDENTITY — SOUL.md
         soul = self._load_user_or_default("SOUL.md")
         if soul:

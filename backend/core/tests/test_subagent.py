@@ -25,6 +25,72 @@ from tank_backend.plugin.manifest import ExtensionManifest
 from tank_backend.plugin.registry import ExtensionRegistry
 
 
+@pytest.mark.parametrize("clarification", ["missing", "available", "filtered", "excluded", "named"])
+async def test_desktop_prompt_at_http_has_no_self_delegation(
+    monkeypatch: pytest.MonkeyPatch, clarification: str,
+) -> None:
+    """Exercise Runner → LLMAgent → SDK, replacing only HTTP."""
+    from dataclasses import replace
+    from pathlib import Path
+
+    import httpx
+    from openai import AsyncOpenAI
+
+    from tank_backend.agents.ask_user_tool import AskUserTool
+    from tank_backend.config.models import ToolsetProfileConfig, ToolsetsConfig
+    from tank_backend.llm import llm as llm_module
+    from tank_backend.tools.computer_use_macos import ScreenshotTool
+    from tank_backend.tools.manager import ToolManager
+
+    requests: list[dict[str, Any]] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(json.loads(request.content))
+        chunk = {"id": "offline", "object": "chat.completion.chunk", "created": 1,
+                 "model": "test", "choices": [{"index": 0, "delta": {"content": "done"},
+                                                "finish_reason": "stop"}]}
+        return httpx.Response(200, headers={"content-type": "text/event-stream"},
+                              content=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n")
+
+    client = AsyncOpenAI(api_key="test", base_url="https://offline.invalid/v1",
+                         http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+    monkeypatch.setattr(llm_module, "AsyncOpenAI", lambda **kwargs: client)
+    monkeypatch.setattr(llm_module, "initialize_langfuse", lambda: None)
+    llm = llm_module.LLM(api_key="test", model="test", base_url="https://offline.invalid/v1")
+    manager = ToolManager.__new__(ToolManager)
+    manager.tools = {"screenshot": ScreenshotTool()}
+    if clarification != "missing":
+        manager.tools["ask_user"] = AskUserTool()
+    definition = parse_agent_file(Path(__file__).resolve().parents[2] / "agents/computer_use.md")
+    definition = replace(
+        definition,
+        tool_filter=("screenshot",) if clarification == "filtered" else None,
+        disallowed_tools=frozenset({"ask_user"}) if clarification == "excluded" else frozenset(),
+    )
+    toolsets = ToolsetsConfig(profiles={"computer_use": ToolsetProfileConfig(
+        tools=("screenshot",) if clarification == "named" else ("screenshot", "ask_user"),
+    )})
+    runner = AgentRunner(llm, manager, Bus(), ToolApprovalPolicy(), PendingToolCallStore(),
+                         {definition.name: definition}, toolsets_config=toolsets)
+    try:
+        outputs = [output async for output in runner.run_agent(
+            definition, [{"role": "user", "content": "Inspect the desktop"}],
+        )]
+    finally:
+        await client.close()
+    assert outputs and len(requests) == 1
+    system = requests[0]["messages"][0]["content"]
+    assert "desktop automation agent with vision" in system
+    assert "SECURITY BOUNDARIES" in system
+    assert "NEVER write secrets" in system
+    assert "ENVIRONMENT:" in system
+    assert "ALWAYS delegate" not in system
+    assert 'agent(subagent_type="computer_use"' not in system
+    advertised = {tool["function"]["name"] for tool in requests[0]["tools"]}
+    assert ("ask_user" in advertised) == (clarification == "available")
+    assert ("`ask_user`" in system) == ("ask_user" in advertised)
+
+
 class FakeSubAgent(SubAgent):
     def __init__(self):
         self.reason = "final_answer"

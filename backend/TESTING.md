@@ -576,3 +576,13 @@ CLI-to-HTTP tests verify independent budget/thinking controls, default behavior,
 unchanged images and coordinate schemas, and retention of token-limit failures.
 See the [protocol isolation results](../docs/research/macos-coordinate-chain.md#2026-09-19-跨提供方与严格协议隔离)
 for model scores and the limits of synthetic, static-screen acceptance.
+
+
+`core/tests/test_subagent.py` also sends the built-in desktop agent through the
+real Runner → LLMAgent → OpenAI SDK with a fake HTTP transport. It checks the
+final system prompt for self-delegation conflicts and checks clarification
+instructions against the actual serialized tool schemas (missing, available,
+allowlisted, excluded and named-toolset cases). `test_prompt_assembler.py`
+retains main-agent delegation while shared security stays available to both.
+These tests make no model requests or desktop actions and do not measure model
+success rates.
