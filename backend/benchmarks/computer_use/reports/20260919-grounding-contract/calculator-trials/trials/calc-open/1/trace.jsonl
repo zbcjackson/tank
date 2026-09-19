@@ -1,0 +1,4 @@
+{"ts": 1789797788.451205, "kind": "trial_start", "task": "calc-open", "trial": 1, "instruction": "打开系统计算器应用（macOS: Calculator；Linux: gnome-calculator），\n用它算出 7×8 并截图确认结果显示在屏幕上。完成后保持计算器处于打开状态。\n\n本任务仅允许 GUI 工具操作；不得调用 shell 或文件工具读取答案或完成任务。\n", "scoring_revision": "trial-token-gui-calc-v4", "scoring": "strict", "gui_only": true}
+{"ts": 1789797793.590121, "kind": "setup_done"}
+{"ts": 1789797798.157078, "kind": "validator_failed", "detail": "command failed (exit 1): python -m tank_backend.benchmarks.calc_validator\nstdout: Calculator validation failed\n\nstderr: "}
+{"ts": 1789797798.183172, "kind": "trial_end", "success": false, "error": "validator failed"}

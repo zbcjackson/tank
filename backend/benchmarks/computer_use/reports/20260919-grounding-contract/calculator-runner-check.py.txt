@@ -1,0 +1,18 @@
+import asyncio,json
+from pathlib import Path
+from tank_backend.benchmarks.driver import DriverResult
+from tank_backend.benchmarks.runner import _run_trial
+from tank_backend.benchmarks.shell import run_shell
+from tank_backend.benchmarks.task import load_task
+class DeterministicDriver:
+ def __init__(self, expression): self.expression=expression
+ async def run(self,instruction,trace,**kwargs):
+  await run_shell('osascript -e \'tell application "System Events" to tell process "Calculator" to keystroke "'+self.expression+'"\'', timeout_s=10)
+  return DriverResult(final_text='',steps=1,wall_s=0,tokens=0,screenshots=0,timed_out=False,cleanup='confirmed')
+async def main():
+ out=Path('/tmp/tank-calc-runner-20260919')
+ task=load_task(Path('benchmarks/computer_use/tasks/01-calc-open.yaml'),'macos')
+ for i,expression in enumerate(['5*7=','7*8='],1):
+  record=await _run_trial(DeterministicDriver(expression),task,i,out,{'BENCH_ASSETS_URL':'','BENCH_CAPTURE':str(out/'capture.jsonl')})
+  print(expression,record.success,record.error,flush=True)
+asyncio.run(main())

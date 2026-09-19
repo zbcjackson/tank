@@ -1,0 +1,18 @@
+[
+  {
+    "input": "5*7=",
+    "display": {
+      "expression": "5×7",
+      "result": "35"
+    },
+    "passed": false
+  },
+  {
+    "input": "7*8=",
+    "display": {
+      "expression": "7×8",
+      "result": "56"
+    },
+    "passed": true
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "baseline.json": {
+    "requests": 32,
+    "invalid": 14,
+    "valid": 18,
+    "normalized_over50": 5,
+    "non_square_best_long_edge_1280": 1,
+    "normalized_within15": 12,
+    "non_square_best_normalized": 7,
+    "non_square_no_hypothesis_within15": 5
+  },
+  "point-only.json": {
+    "requests": 16,
+    "valid": 16,
+    "normalized_within15": 8,
+    "non_square_best_normalized": 5,
+    "normalized_over50": 6,
+    "non_square_no_hypothesis_within15": 7
+  }
+}
