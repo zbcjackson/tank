@@ -216,3 +216,30 @@ allowlist、命名 toolset、disallowed 共同约束；不可用时结束并报�
 [离线请求快照](../../backend/benchmarks/computer_use/reports/20260919-adaptation-m0/README.md)
 通过真实 SDK HTTP 边界验证只有 system 改变；主代理委托和共享安全规则均有
 回归。尚未运行提示修复的模型效果 A/B，不据此更改历史分数或认定定位改善。
+
+### 文本输入与 Calculator 证据（M1）
+
+macOS `type_text(text, mode="auto")` 保持原调用行为：ASCII 字母、数字和
+空格走 AppleScript keystroke，其余文本走剪贴板。`mode="paste"` 显式强制
+粘贴，允许用于纯数字；未知模式在操作系统调用前拒绝。工具说明告知剪贴板
+会被替换，以及 Calculator 对粘贴表达式的特殊语义。Enter/快捷键仍通过
+`key_press`，工具返回值只确认输入已派发，不声称应用接受或任务完成。
+
+`trial-token-gui-calc-v4` 的严格总分维持原表达式口径。新增
+`calc-evidence-v1` assessment 独立写入每轮 result.json 和报告 outcomes：
+
+- `strict_expression`：前台 Calculator 的 AX 表达式为 7×8、结果为 56。
+- `business`：本轮已验证清零且有完整成功输入轨迹，再根据表达式/结果判断。
+  允许完整插入 `7*8` 或 `7×8` 后得到 56；直接插入答案 56 不通过。
+  中途失败、未完成动作、未知工具或缺少当轮证据时记 null，不冒充通过。
+- `mouse_only`：在业务证据完整且严格结果成立时，计算输入全部为鼠标点击
+  并至少四次才通过；按键/文本不计为鼠标定位成功。此指标不证明各点击的
+  几何精度，逐按钮命中仍需 oracle/独立边界诊断。
+- `pixels` 当前为 unknown，保留人工核验；AX 和图片 hash 都不是像素评分。
+  `last_screenshot` 记录 hash、捕获时间及最近一次实际 SDK HTTP 序列化时间；
+  后者仅证明图片进入请求，不证明远端模型已读取或截图仍代表最新界面。
+
+内置 benchmark driver 在实际 SDK HTTP 边界记录图片 hash，不记录鉴权头或
+图片内容；真实截图仍只保存在本轮本地目录。插件传输不套用此内置 hook，
+没有匹配证据时不会伪报截图回流。GUI-only 违规使业务/鼠标轨道也失败。
+旧报告不重评分，不把新增业务轨道加入原 strict 分母。

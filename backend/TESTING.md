@@ -586,3 +586,13 @@ allowlisted, excluded and named-toolset cases). `test_prompt_assembler.py`
 retains main-agent delegation while shared security stays available to both.
 These tests make no model requests or desktop actions and do not measure model
 success rates.
+
+
+M1 input/evidence regressions cover explicit macOS `type_text(mode="paste")`,
+invalid-mode zero input, default IME compatibility and paste → Enter batch
+semantics. Calculator tests run the actual shell validator through the trial
+runner and preserve strict failures alongside separate business/mouse evidence.
+They reject answer-only insertion, old-trial evidence and unfinished input.
+Trace tests use the real SDK with fake HTTP to verify image hashes without
+storing credentials or image bytes in request events. Pixel grading remains
+`unknown`; these tests are not a substitute for physical desktop acceptance.

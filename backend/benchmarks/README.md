@@ -148,3 +148,16 @@ This checks Calculator's accessibility display, not screenshot pixels or all
 possible overlays. A reset is required before every trial to avoid accepting
 a result restored from the previous run. The task instruction still asks the
 agent to take a screenshot, but that screenshot requirement is not scored.
+
+
+Calculator `calc-evidence-v1` adds a separate `assessment` to trial results and
+report outcomes while keeping the existing strict score and its denominator.
+It records `business`, `mouse_only`, `strict_expression`, `pixels` and the last
+screenshot hash/capture/HTTP serialization timestamps. Null business/mouse
+values mean insufficient current-trial evidence; `pixels: unknown` requires
+independent manual verification. A pasted expression can pass business while
+failing historical strict, but pasting the answer alone cannot pass business.
+GUI-only violations invalidate business and mouse evidence too. Do not merge
+these tracks or rewrite historical reports. The validator reads only the
+current trace segment after the last `trial_start`, using `BENCH_TRIAL_DIR`
+provided by the runner; setup emits a verified reset record before input.
