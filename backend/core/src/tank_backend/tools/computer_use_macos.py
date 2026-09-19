@@ -180,7 +180,7 @@ _KEYSTROKE_SAFE = frozenset(
 )
 
 
-def _type_macos(text: str) -> None:
+def _type_macos(text: str, mode: str = "auto") -> None:
     """Type text on macOS.
 
     Plain alphanumeric text uses AppleScript keystroke (fast). Anything
@@ -190,7 +190,7 @@ def _type_macos(text: str) -> None:
     in some apps (observed: Terminal.app eats ``-``/``.`` while
     TextEdit types them fine), while the paste path is immune.
     """
-    if all(c in _KEYSTROKE_SAFE for c in text):
+    if mode == "auto" and all(c in _KEYSTROKE_SAFE for c in text):
         escaped = text.replace("\\", "\\\\").replace('"', '\\"')
         script = f'tell application "System Events" to keystroke "{escaped}"'
         result = subprocess.run(
@@ -628,9 +628,13 @@ class TypeTextTool(BaseTool):
         return ToolInfo(
             name="type_text",
             description=(
-                "Type text at the current cursor/focus position. "
-                "Click on an input field first using the 'click' tool, "
-                "then use this to enter text."
+                "Insert text into the focused field on macOS. Click the field first. "
+                "Default auto mode uses keystrokes for ASCII letters, digits and spaces; "
+                "punctuation, newlines and non-ASCII text use clipboard paste to bypass IME. "
+                "Paste replaces the clipboard and may be interpreted by the app (Calculator "
+                "can evaluate a pasted expression without displaying that expression). "
+                "This is not a sequence of key presses. Use key_press for Enter/shortcuts "
+                "or click individual calculator buttons, and observe the result."
             ),
             parameters=[
                 ToolParameter(
@@ -638,19 +642,38 @@ class TypeTextTool(BaseTool):
                     type="string",
                     description="The text to type",
                 ),
+                ToolParameter(
+                    name="mode", type="string", required=False, default="auto",
+                    description="auto: compatible insertion; paste: always use clipboard paste",
+                ),
             ],
         )
 
-    async def execute(self, text: str) -> ToolResult:
+    def get_raw_schema(self) -> dict[str, Any]:
+        return {
+            "type": "object", "required": ["text"],
+            "properties": {
+                "text": {"type": "string", "description": "Text to insert"},
+                "mode": {"type": "string", "enum": ["auto", "paste"], "default": "auto"},
+            },
+            "additionalProperties": False,
+        }
+
+    async def execute(self, text: str, mode: str = "auto") -> ToolResult:
         if not text:
             return ToolResult(content="type_text: 'text' is required", error=True)
+        if mode not in ("auto", "paste"):
+            return ToolResult(content="type_text: mode must be auto or paste", error=True)
         try:
-            await asyncio.to_thread(_type_macos, text)
+            await asyncio.to_thread(_type_macos, text, mode)
         except Exception as e:
             return ToolResult(content=f"type_text: failed: {e}", error=True)
         display_text = text if len(text) <= 30 else text[:27] + "..."
         return ToolResult(
-            content=f"Typed: {text!r}",
+            content=(f"Typed: {text!r}\nInput method: "
+                     + ("keystroke" if mode == "auto" and all(c in _KEYSTROKE_SAFE for c in text)
+                        else "clipboard_paste")
+                     + ". Input dispatched; application effect not verified."),
             display=f"Typed: {display_text!r}",
         )
 

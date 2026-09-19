@@ -240,6 +240,50 @@ class TestClickTool:
 
 
 class TestTypeTextTool:
+    async def test_batch_paste_then_enter_uses_distinct_input_paths(
+        self, fake_quartz: _FakeQuartz,
+    ) -> None:
+        from tank_backend.tools.computer_use_common import ComputerBatchTool
+        from tank_backend.tools.manager import ToolManager
+
+        tool = TypeTextTool()
+        manager = ToolManager.__new__(ToolManager)
+        manager.tools = {"type_text": tool}
+        schema = manager.get_openai_tools()[0]["function"]["parameters"]
+        assert schema["properties"]["mode"]["enum"] == ["auto", "paste"]
+        assert "mode" not in schema["required"]
+        with patch(f"{MODULE}.subprocess.run", return_value=make_run_ok()) as command:
+            batch = ComputerBatchTool({"type_text": tool, "key_press": KeyPressTool()})
+            result = await batch.execute(
+                actions=[{"action": "type_text", "text": "7*8", "mode": "paste"},
+                         {"action": "key_press", "keys": "enter"}], screenshot=False,
+            )
+        assert not result.error
+        assert command.call_args_list[0].args[0] == ["pbcopy"]
+        assert "key code 36" in command.call_args_list[1].args[0][2]
+        assert fake_quartz.CGEventCreateKeyboardEvent.call_count == 2  # cmd+v only
+
+    @pytest.mark.parametrize("mode", ["keys", "", None, []])
+    async def test_invalid_mode_dispatches_no_input(
+        self, mode: str, fake_quartz: _FakeQuartz,
+    ) -> None:
+        with patch(f"{MODULE}.subprocess.run") as command:
+            result = await TypeTextTool().execute(text="56", mode=mode)
+        assert result.error
+        command.assert_not_called()
+        fake_quartz.CGEventPost.assert_not_called()
+
+    async def test_explicit_paste_uses_clipboard_for_alphanumeric(
+        self, fake_quartz: _FakeQuartz,
+    ) -> None:
+        with patch(f"{MODULE}.subprocess.run", return_value=make_run_ok()) as command:
+            result = await TypeTextTool().execute(text="56", mode="paste")
+        assert not result.error
+        assert command.call_args.args[0] == ["pbcopy"]
+        assert command.call_args.kwargs["input"] == "56"
+        assert fake_quartz.CGEventCreateKeyboardEvent.call_count == 2
+        assert "clipboard_paste" in result.content
+
     @pytest.mark.asyncio
     async def test_ascii_uses_applescript_keystroke(self):
         tool = TypeTextTool()
