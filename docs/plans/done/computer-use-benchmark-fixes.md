@@ -1,6 +1,14 @@
-> 状态：代码修复完成，自研 macOS 静态链/单任务已有部分实测，三路全套复测仍待完成，2026-09-19
+> 状态：实施与移交已完成并归档，2026-09-19；三路实机验收尚未通过，已完整移交统一执行计划 S4。
 
 # Computer-use benchmark 修复
+
+## 归档处置（2026-09-19）
+
+按用户要求统一剩余工作：已完成的代码修复/自动化结果保留，未完成的
+同版本自研 Part A、旧 N2、N2 SDK 全套 macOS 复测移交
+[统一执行计划 S4](../active/computer-use-adaptation-and-grounding.md#s4--承接同版本三路-baseline长任务与采用结论)，
+环境与清理由该计划 S1–S3 提供前置。本计划不再承担执行待办。
+归档表示实施与交接完成，不表示三路验收已经通过；下文为历史阶段记录。
 
 依据桌面的 Part A、N2 engine、N2 SDK 三组报告修复已确认的问题。
 旧评分不覆盖；2026-09-18 修复时的执行环境为 Linux，后续 macOS 证据见下。
@@ -12,7 +20,7 @@
 [统一验证](../../design/computer-use.md)。它们补充了真实主屏证据，但不是
 Part A、旧 N2、N2 SDK 修复后同版本三路全套重跑，本计划继续 active。
 自研模型适配、规划定位分离及跨应用后续见
-[执行计划](computer-use-adaptation-and-grounding.md)；三路比较仍与
+[执行计划](../active/computer-use-adaptation-and-grounding.md)；三路比较当时与
 [SDK 计划](plugin-subagents-and-n2-sdk.md) M1/M6 一起验收。下方保留当时结果。
 
 ## 实施

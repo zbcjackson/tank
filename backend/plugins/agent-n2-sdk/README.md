@@ -133,7 +133,9 @@ The live client transport is covered separately by the existing E2E scenarios.
 
 Real macOS acceptance, physical input/process cleanup and same-machine A/B
 reports are still required by the
-[implementation plan](../../../docs/plans/active/plugin-subagents-and-n2-sdk.md).
+[archived implementation plan](../../../docs/plans/done/plugin-subagents-and-n2-sdk.md).
+Remaining macOS acceptance is tracked in the
+[unified execution plan, S1–S4](../../../docs/plans/active/computer-use-adaptation-and-grounding.md).
 Run benchmark trials serially with other desktop automation stopped:
 
 ```bash

@@ -9,7 +9,7 @@
 | [research/macos-coordinate-chain.md](research/macos-coordinate-chain.md) | 调研 | 主屏校准通过、模型偏差复现 | 尺寸坐标链路、真实证据与验收边界 |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
 | [backlog.md](backlog.md) | 登记 | 持续维护 | 条件触发的后续工作登记表:计划关档时移交的暂缓/触发式条目 |
-| [plans/active/computer-use-benchmark-fixes.md](plans/active/computer-use-benchmark-fixes.md) | 计划 | 修复完成，自研 macOS 部分验收，待三路复测 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；单任务通过不替代三路全套 |
+| [plans/done/computer-use-benchmark-fixes.md](plans/done/computer-use-benchmark-fixes.md) | 计划 | 实施与移交已完成 | SDK 签名、Quartz、图像反馈与 GUI 评分修复；三路 macOS 剩余验收移交统一计划 S4 |
 | [plans/done/backend-unit-test-fixes.md](plans/done/backend-unit-test-fixes.md) | 计划 | 单测修复完成 | 后端 workspace 测试收集与单元测试修复；运行日志验证限制见结果 |
 | [design/pipeline-architecture.md](design/pipeline-architecture.md) | 设计 | 现行 | 三层音频管线:GStreamer 风格 processor 链、有界队列与背压、双向事件 |
 | [design/agent-orchestration.md](design/agent-orchestration.md) | 设计 | 现行 | 主 agent + 子 agent 编排:`agent` 工具、WorkerSupervisor、审批继承、Bus 流式输出 |
@@ -19,7 +19,7 @@
 | [design/agentic-harness-features.md](design/agentic-harness-features.md) | 设计 | 现行 | agentic harness 基础设施参考:工具元数据、条件注册、hooks 协议 |
 | [design/vad-smart-turn-design.md](design/vad-smart-turn-design.md) | 设计 | 现行 | VAD / Smart Turn 端点检测 / speculative reopen 的当前实现与设计取舍 |
 | [plans/done/computer-use-improvement-and-n2-plan.md](plans/done/computer-use-improvement-and-n2-plan.md) | 计划 | 实现已完成 | Part A、A17 harness 与现有 N2 插件已落地；完整 A/B 和真机控制验收移交 SDK 计划，处置见 §18 |
-| [plans/active/plugin-subagents-and-n2-sdk.md](plans/active/plugin-subagents-and-n2-sdk.md) | 计划 | 已实现，待实机验收 | 通用 SubAgent/官方 macOS N2 SDK/控制/同尺 benchmark 已落地；Linux、真实 A/B、M6 完整 WS 待验收，M7 未触发；保留 engine/executor |
+| [plans/done/plugin-subagents-and-n2-sdk.md](plans/done/plugin-subagents-and-n2-sdk.md) | 计划 | 实施与移交已完成 | 通用派发/SDK 已实现；macOS 剩余验收移交统一计划 S1–S4，Linux/暂停恢复移交 backlog |
 | [plans/done/n2-macos-config-and-reasoning.md](plans/done/n2-macos-config-and-reasoning.md) | 计划 | 代码与回归完成 | N2 profile 精确查找、模型校验与 DeepSeek 通知思考字段回传；运行日志限制及实机复测见结果 |
 | [plans/done/n2-runtime-config.md](plans/done/n2-runtime-config.md) | 计划 | 配置与回归完成 | 补齐主配置中的 N2 profile 与插件引擎映射；运行日志限制见结果 |
 | [plans/done/n2-notification-and-tracing-fixes.md](plans/done/n2-notification-and-tracing-fixes.md) | 计划 | 代码与回归完成 | N2 完成通知的旧思考历史兼容、Langfuse 重复追踪和 ping/pong 元数据警告；运行检查限制见结果 |
@@ -41,4 +41,4 @@
 - [plans/done/gpt55-computer-use-loop.md](plans/done/gpt55-computer-use-loop.md)：验证结论汇总、GPT-5.5 实机 calc-open 2/3 严格通过与 temperature 接入修复（已完成）。
 - [research/computer-use-implementation-comparison.md](research/computer-use-implementation-comparison.md)：模型与宿主责任边界、其它实现的坐标/AX/定位器/反馈设计及实验优先级。
 - [plans/done/computer-use-implementation-research.md](plans/done/computer-use-implementation-research.md)：公开实现对照与改进方案调研（已完成）。
-- [plans/active/computer-use-adaptation-and-grounding.md](plans/active/computer-use-adaptation-and-grounding.md)：更新后的完整执行计划（待执行）；历史问题核对、模型适配、规划定位分离、四组对照与 macOS 验收。
+- [plans/active/computer-use-adaptation-and-grounding.md](plans/active/computer-use-adaptation-and-grounding.md)：统一执行计划（待执行）；模型适配、规划定位分离、四组对照及承接的 N2/SDK 完整 WS、停止清理、三路 macOS 验收。

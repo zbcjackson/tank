@@ -89,10 +89,10 @@ No real desktop actions are used in unit tests. A/B and T5 are pending until
 the dedicated environment is run; plugin implementation does not prove n2's
 task success rate.
 
-The current benchmark needs per-trial page-event isolation before its repeated
-form/browser scores can serve as a strict baseline; some validators also check
-only part of the requested outcome. See the
-[SDK migration design and current N2 test guide](../../../docs/plans/active/plugin-subagents-and-n2-sdk.md)
-for exact setup, dispatch, smoke commands, measurement limits, and the planned
-comparison. The SDK path is not implemented yet; the existing engine and
-DesktopExecutor remain available.
+The benchmark's per-trial isolation and scoring fixes are implemented; the
+full three-way macOS comparison remains unverified. See the
+[archived SDK migration design and N2 test guide](../../../docs/plans/done/plugin-subagents-and-n2-sdk.md)
+for setup, dispatch, smoke commands, and measurement limits. The SDK path is
+implemented; the existing engine and DesktopExecutor remain available.
+Remaining macOS acceptance is tracked in the
+[unified execution plan, S1–S4](../../../docs/plans/active/computer-use-adaptation-and-grounding.md).

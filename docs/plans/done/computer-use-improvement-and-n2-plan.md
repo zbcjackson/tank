@@ -460,7 +460,7 @@ Baseline 已入档:6/42=14%(label=baseline-macos);terminal-write 0/3 两种死�
 | B3 N2 插件及 benchmark 接入 | §17；`backend/plugins/agent-n2/`、`backend/agents/n2.md`、driver engine 分支 | 已完成；未改成官方 N2ComputerAgent |
 | 主配置、profile 校验和通知历史修复 | `af3c330`、`d4a6eb4`、`f43cdb0`、`b0003ee`；相关已完成修复计划 | 已完成；旧会话通知修复仍待 macOS 复测 |
 | macOS N2 实机冒烟 | 用户 2026-09-17 确认“测试发现操作正常”；日志正确 profile，57×8 任务 9 轮结束，70.2s | 计算器操作已确认；日志不能代替其余任务、取消和逐项 validator 验收 |
-| 严格同尺 N2 A/B、3 个桌面任务、批中取消与输入释放 | 现有资料没有完整通过记录；benchmark 存在 trial 隔离等限制 | 移交[SDK 插件实施计划](../active/plugin-subagents-and-n2-sdk.md) M1/M6，作为旧路径回归与新路径采用的前置 |
+| 严格同尺 N2 A/B、3 个桌面任务、批中取消与输入释放 | 现有资料没有完整通过记录；benchmark 存在 trial 隔离等限制 | 移交[SDK 插件实施计划](plugin-subagents-and-n2-sdk.md) M1/M6，作为旧路径回归与新路径采用的前置 |
 | Linux 中文/修饰键/截图延迟与新 adapter 平台验收 | macOS 成功不能证明 GNOME Wayland/X11 成功 | 移交同一计划 M4/M6 平台验收；未验证平台不得声明支持 |
 | 插件删除后的零耦合验收 | 原清单没有独立删除环境的验收记录 | 移交 M2：核心测试环境不安装 N2 插件时回归通过 |
 | A13 zoom、A14 截图接口、A16 单屏限制 | 两平台 ScreenshotTool 已提供 region/crop，接口已无死 profile 参数；基准环境固定单屏 | 已完成实现/限制记录；多显示器扩展登记 backlog |

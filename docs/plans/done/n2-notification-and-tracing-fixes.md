@@ -46,7 +46,7 @@
   检查正常，不能据此宣称所有运行检查全绿。
 - macOS 已确认 N2 桌面操作正常；同步这些提交并重启后，可继续在旧会话
   验证完成通知是否正常。实机验收继续由
-  [插件子 Agent 计划](../active/plugin-subagents-and-n2-sdk.md)的测试项追踪，
+  [插件子 Agent 计划](plugin-subagents-and-n2-sdk.md)的测试项追踪，
   此次没有实施官方 SDK 迁移或 benchmark 改动。
 
 ## Verification Checklist（最后一步）

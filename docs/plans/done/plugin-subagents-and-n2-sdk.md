@@ -1,12 +1,27 @@
 # 插件子 Agent 与官方 N2ComputerAgent 实施计划
 
-> 状态：SDK 插件与通用派发已实现，自动化验证通过，实机验收待完成（2026-09-17）。保留旧 n2/engine/executor；Linux adapter、M1 真机 baseline、M6 实机 A/B 与采用结论尚未完成，M7 未触发。
+> 状态：实施与移交已完成并归档（2026-09-19）。macOS 剩余验收移交统一执行计划 S1–S4；Linux 与 M7 暂停/恢复移交 backlog。归档不表示这些验收通过或能力已实现，保留旧 n2/engine/executor。
+
+## 归档处置（2026-09-19）
+
+按用户要求集中剩余工作，不继续维护第二份执行待办：
+
+- 旧 M1 baseline、M6 三路报告/compaction/采用与文档 →
+  [统一执行计划 S4/M8](../active/computer-use-adaptation-and-grounding.md)。
+- 旧 M4 macOS 能力/真实输入/授权/预算/关闭、M6 真实任务/停止，以及
+  §§14–16 启动、首次截图、Brain 队列修复后的完整任务 → 同计划 S1/S3。
+- 旧 M6 完整主会话 WS 和旧 DeepSeek/N2 会话通知复测 → 同计划 S2。
+- 旧 M4/M6 Linux adapter 与平台验收、旧 M7 采用后暂停/恢复 →
+  [backlog](../../backlog.md)，保留触发条件和下方原始完整清单。
+
+SDK 实现及自动化成果保留，历史未勾选项不改成通过。下文“active/待验收”
+等为当时记录；当前未完成项的状态与执行责任以上述移交为准。
 
 关联：[已归档 computer-use / N2 计划](../done/computer-use-improvement-and-n2-plan.md)、[当前编排设计](../../design/agent-orchestration.md)、[当前 N2 插件](../../../backend/plugins/agent-n2/README.md)、[基准指南](../../../backend/benchmarks/README.md)。
 
 2026-09-19 核对：新增的自研 macOS 校准与 GPT-5.5 单任务闭环不是本 SDK
 路径验收，不能勾选 M1/M4/M6 的三路、真实停止/清理和完整 WS 项。
-[适配与定位计划](computer-use-adaptation-and-grounding.md) 负责自研后续；
+[适配与定位计划](../active/computer-use-adaptation-and-grounding.md) 当时负责自研后续；
 本计划继续负责 N2/SDK 与平台专项，当前状态及历史结果保留。
 
 ## 1. 决策与成功条件
