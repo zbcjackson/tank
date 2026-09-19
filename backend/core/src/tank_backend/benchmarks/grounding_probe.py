@@ -55,7 +55,7 @@ def location_request(
     protocol: str, *, strict: bool = False, previous: bytes | None = None,
     system: str = "Locate the requested UI element in the current image.",
     marked: bool = False, detail: str = "auto", thinking: bool = True,
-    nullable_style: str = "type-array",
+    nullable_style: str = "type-array", max_tokens: int = 4000,
 ) -> dict[str, Any]:
     """Build a synthetic diagnostic request, not a production executor request.
 
@@ -117,15 +117,16 @@ def location_request(
         "stream": False,
     }
     if provider == "qwen":
-        request.update(temperature=0.1, max_tokens=4000,
+        request.update(temperature=0.1, max_tokens=max_tokens,
                        extra_body={"enable_thinking": thinking})
     elif provider == "deepseek":
-        request.update(temperature=0.1, max_tokens=4000,
+        request.update(temperature=0.1, max_tokens=max_tokens,
                        extra_body={"thinking": {"type": "enabled" if thinking else "disabled"}})
     elif provider == "openai":
-        request.update(max_completion_tokens=4000, reasoning_effort="low" if thinking else "none")
+        request.update(max_completion_tokens=max_tokens,
+                       reasoning_effort="low" if thinking else "none")
     elif provider == "openrouter":
-        request.update(max_tokens=4000, extra_body={
+        request.update(max_tokens=max_tokens, extra_body={
             "reasoning": {"effort": "low" if thinking else "none"},
             "provider": {"only": ["openai"], "allow_fallbacks": False,
                          "require_parameters": True},

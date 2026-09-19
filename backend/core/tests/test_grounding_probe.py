@@ -1,6 +1,96 @@
 import pytest
 
 
+@pytest.mark.parametrize("thinking,budget,variant", [
+    ("on", 4000, "strict-bbox"), ("off", 4000, "strict-bbox"),
+    ("on", 16000, "low-detail"), ("off", 16000, "low-detail"),
+    (None, 4000, "no-thinking"), (None, 4000, "point"),
+])
+async def test_matrix_cli_sends_independent_thinking_and_budget(
+    tmp_path, monkeypatch, thinking, budget, variant,
+):
+    import base64
+    import json
+    import runpy
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    import httpx
+    from openai import AsyncOpenAI
+
+    scripts = Path(__file__).resolve().parents[2] / "scripts"
+    monkeypatch.setenv("LANGFUSE_TRACING_ENABLED", "false")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test")
+    monkeypatch.syspath_prepend(str(scripts))
+    probe = runpy.run_path(str(scripts / "probe_grounding_matrix.py"))
+    main = probe["main"]
+    expected_thinking = thinking == "on" if thinking else variant != "no-thinking"
+    seen = []
+
+    def respond(request):
+        body = json.loads(request.content)
+        seen.append(body)
+        assert body["max_tokens"] == budget
+        assert body["thinking"] == {"type": "enabled" if expected_thinking else "disabled"}
+        assert body["model"] == "deepseek-flash"
+        assert request.url.path == ("/beta/chat/completions" if variant.startswith("strict-")
+                                    else "/chat/completions")
+        image = body["messages"][-1]["content"][1]["image_url"]
+        assert base64.b64decode(image["url"].split(",", 1)[1]) == (
+            probe["make_case"](102, variant)["png"])
+        assert image["detail"] == ("low" if variant == "low-detail" else "auto")
+        fn = body["tools"][0]["function"]
+        assert fn.get("strict", False) == variant.startswith("strict-")
+        assert set(fn["parameters"]["properties"]) == (
+            {"found", "left", "top", "right", "bottom"} if variant == "strict-bbox"
+            else {"found", "x", "y"}
+        )
+        # Replay budget exhaustion: retain usage/finish reason instead of inventing a click.
+        return httpx.Response(200, json={"id": "test", "object": "chat.completion",
+            "created": 1, "model": "deepseek-flash", "choices": [{"index": 0,
+                "finish_reason": "length", "message": {"role": "assistant", "content": None}}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": budget, "total_tokens": 100+budget,
+                      "completion_tokens_details": {"reasoning_tokens": budget}}})
+
+    def create(**kwargs):
+        return AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(respond)))
+
+    monkeypatch.setitem(main.__globals__, "AsyncOpenAI", create)
+    monkeypatch.setitem(main.__globals__, "load_dotenv", lambda path: None)
+    monkeypatch.setitem(main.__globals__, "AppConfig", SimpleNamespace(load=lambda path:
+        SimpleNamespace(get_llm_profile=lambda name:
+            SimpleNamespace(base_url="unused", api_key="test"))))
+    output = tmp_path / "probe"
+    argv = ["probe", "--models", "deepseek", "--variants", variant, "--cases", "1",
+            "--seed", "102", "--output", str(output)]
+    if thinking:
+        argv += ["--thinking", thinking, "--max-tokens", str(budget)]
+    monkeypatch.setattr("sys.argv", argv)
+    await main()
+    row = json.loads((output / "results.json").read_text())["results"][0]
+    assert len(seen) == 1 and row["http_verified"]
+    assert row["thinking"] is expected_thinking and row["max_tokens"] == budget
+    assert row["finish_reason"] == "length" and not row["schema_valid"] and not row["hit"]
+    assert row["usage"]["completion_tokens_details"]["reasoning_tokens"] == budget
+
+
+@pytest.mark.parametrize("budget", [0, -1])
+async def test_matrix_rejects_invalid_budget_before_side_effects(tmp_path, monkeypatch, budget):
+    import runpy
+    from pathlib import Path
+
+    scripts = Path(__file__).resolve().parents[2] / "scripts"
+    monkeypatch.setenv("LANGFUSE_TRACING_ENABLED", "false")
+    monkeypatch.syspath_prepend(str(scripts))
+    main = runpy.run_path(str(scripts / "probe_grounding_matrix.py"))["main"]
+    output = tmp_path / "probe"
+    monkeypatch.setattr("sys.argv", ["probe", "--output", str(output), "--max-tokens", str(budget)])
+    with pytest.raises(SystemExit) as exc:
+        await main()
+    assert exc.value.code == 2 and not output.exists()
+
+
 def test_native_qwen_payload_preserves_images_schema_and_parameters():
     from tank_backend.benchmarks.grounding_probe import location_request, qwen_native_request
 

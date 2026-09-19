@@ -567,5 +567,12 @@ coordinate-unit guessing, duplicate JSON keys or inverted boxes are accepted.
 Host code computes box centers and reverses crop/resize transforms; hit scores
 use the rendered rounded-button mask separately from center distance. Unit tests
 cover these contracts and real SDK serialization; paid calls remain opt-in.
+`--max-tokens` sets the probe output budget (default 4000; reasoning may consume
+this budget). `--thinking on|off` overrides the thinking setting for every variant;
+without it, only the `no-thinking` variant disables thinking. These are diagnostic
+request overrides, not production profile changes. DeepSeek sends the SDK
+`extra_body={"thinking": {"type": "disabled"}}` for `--thinking off`.
+CLI-to-HTTP tests verify independent budget/thinking controls, default behavior,
+unchanged images and coordinate schemas, and retention of token-limit failures.
 See the [protocol isolation results](../docs/research/macos-coordinate-chain.md#2026-09-19-跨提供方与严格协议隔离)
 for model scores and the limits of synthetic, static-screen acceptance.

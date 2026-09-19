@@ -91,8 +91,9 @@ def make_case(seed: int, variant: str) -> dict[str, Any]:
 async def run_trial(
     client: AsyncOpenAI, provider: str, model: str, seed: int, variant: str,
     output: Path, trial_id: str, agent_prompt: str,
-    schema_style: str = "integer",
+    schema_style: str = "integer", *, max_tokens: int = 4000, thinking: bool | None = None,
 ) -> dict[str, Any]:
+    thinking = variant != "no-thinking" if thinking is None else thinking
     case = make_case(seed, variant)
     images = []
     for key in ("previous", "png", "original"):
@@ -113,7 +114,7 @@ async def run_trial(
         strict=variant.startswith("strict-"), previous=case["previous"],
         nullable_style=schema_style,
         marked=variant == "marked", detail="low" if variant == "low-detail" else "auto",
-        thinking=variant != "no-thinking",
+        thinking=thinking, max_tokens=max_tokens,
         system=agent_prompt if variant in {"agent", "full-tools"} else
         "Locate the requested UI element in the current image.",
     )
@@ -129,7 +130,7 @@ async def run_trial(
     row = {key: value for key, value in case.items() if key not in {"png", "previous", "original"}}
     row.update(id=trial_id, model=model, provider=provider, endpoint=str(client.base_url),
                seed=seed, variant=variant, protocol=protocol, images=images, schema_style=schema_style,
-               schema_valid=False, hit=False)
+               thinking=thinking, max_tokens=max_tokens, schema_valid=False, hit=False)
 
     async def capture_request(request: httpx.Request) -> None:
         body = json.loads(request.content)
@@ -195,9 +196,15 @@ async def main() -> None:
     parser.add_argument("--cases", type=int, default=4)
     parser.add_argument("--seed", type=int, default=101)
     parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument("--max-tokens", type=int, default=4000,
+                        help="Output budget, including reasoning where counted by the provider")
+    parser.add_argument("--thinking", choices=["on", "off"],
+                        help="Override thinking for every variant; default follows the variant")
     parser.add_argument("--schema-style", choices=["integer", "type-array", "anyof"],
                         default="integer")
     args = parser.parse_args()
+    if args.max_tokens <= 0:
+        parser.error("--max-tokens must be positive")
     args.output.mkdir(parents=True)
     load_dotenv(ROOT / "core/.env")
     profile = AppConfig.load(ROOT / "core/config.yaml").get_llm_profile("computer_use")
@@ -227,7 +234,9 @@ async def main() -> None:
                 trial_id = f"{alias}-{seed}-{variant}-{repeat}"
                 async with semaphore:
                     row = await run_trial(client, provider, model, seed, variant,
-                                          args.output, trial_id, prompt, args.schema_style)
+                                          args.output, trial_id, prompt, args.schema_style,
+                                          max_tokens=args.max_tokens,
+                                          thinking=None if args.thinking is None else args.thinking == "on")
                 report["results"].append(row)
                 (args.output / "results.json").write_text(json.dumps(report, indent=2))
                 print(json.dumps({key: row[key] for key in (
