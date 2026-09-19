@@ -11,6 +11,7 @@ import hashlib
 import io
 import json
 import os
+import random
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -59,7 +60,8 @@ def probe_messages(
             _build_follow_up_user_message("probe", "screenshot", blocks)]
 
 
-def scene(size: tuple[int, int], position: tuple[float, float]):
+def scene(size: tuple[int, int], position: tuple[float, float], *,
+          shuffle_seed: int | None = None, marked: str | None = None):
     image = Image.new("RGB", size, "#25272c")
     draw = ImageDraw.Draw(image)
     font_path = "/System/Library/Fonts/Supplemental/Arial.ttf"
@@ -83,6 +85,10 @@ def scene(size: tuple[int, int], position: tuple[float, float]):
         ["x!", "sin", "cos", "tan", "e", "EE", "1", "2", "3", "+"],
         ["Rand", "sinh", "cosh", "tanh", "pi", "Rad", "+/-", "0", ".", "="],
     ]
+    if shuffle_seed is not None:
+        shuffled = [label for row in labels for label in row]
+        random.Random(shuffle_seed).shuffle(shuffled)
+        labels = [shuffled[start:start+10] for start in range(0, 50, 10)]
     targets = {}
     for row, labels_row in enumerate(labels):
         for col, label in enumerate(labels_row):
@@ -92,6 +98,9 @@ def scene(size: tuple[int, int], position: tuple[float, float]):
             draw.rounded_rectangle((x-rx, y-ry, x+rx, y+ry), radius=round(22*scale),
                                    fill="#ee9900" if col == 9 else "#555257")
             draw.text((x, y), label, font=font, fill="white", anchor="mm")
+            if label == marked:
+                draw.rounded_rectangle((x-rx, y-ry, x+rx, y+ry), radius=round(22*scale),
+                                       outline="#00ffff", width=3)
             if label in ("AC", "7"):
                 targets[label] = (x, y)
     buffer = io.BytesIO()
