@@ -120,11 +120,11 @@ def load_task(
     setup = pick("setup") or ""
     teardown = pick("teardown") or ""
 
-    scoring = raw.get("scoring", "strict")
+    scoring = raw.get(f"scoring_{platform}", raw.get("scoring", "strict"))
     if scoring not in {"strict", "smoke"}:
         raise TaskError(f"{where}: scoring must be strict or smoke")
 
-    gui_only = raw.get("gui_only", merged.get("gui_only", False))
+    gui_only = raw.get(f"gui_only_{platform}", raw.get("gui_only", merged.get("gui_only", False)))
     if not isinstance(gui_only, bool):
         raise TaskError(f"{where}: gui_only must be a boolean")
 

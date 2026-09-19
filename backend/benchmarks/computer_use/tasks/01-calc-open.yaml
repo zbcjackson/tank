@@ -1,5 +1,6 @@
 id: calc-open
 gui_only: false
+gui_only_macos: true
 category: app
 difficulty: 1
 platforms: [macos, linux]
@@ -8,16 +9,19 @@ instruction: |
   用它算出 7×8 并截图确认结果显示在屏幕上。完成后保持计算器处于打开状态。
 setup: |
   pkill -x Calculator 2>/dev/null; pkill -f gnome-calculator 2>/dev/null; true
+setup_macos: |
+  python -m tank_backend.benchmarks.calc_validator --reset
 validator_linux:
   kind: shell
   command: pgrep -f gnome-calculator >/dev/null
 validator_macos:
   kind: shell
-  command: pgrep -x Calculator >/dev/null
+  command: python -m tank_backend.benchmarks.calc_validator
 teardown: |
   pkill -f gnome-calculator 2>/dev/null || true
 teardown_macos: |
   killall Calculator 2>/dev/null || true
 timeout_s: 120
 
-scoring: smoke  # Process presence does not verify the requested GUI result.
+scoring: smoke  # Linux still checks process presence only.
+scoring_macos: strict  # Foreground Calculator must display 7×8 and 56.

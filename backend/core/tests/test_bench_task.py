@@ -91,6 +91,18 @@ validator:
     assert task.max_steps == 10
 
 
+def test_calc_open_macos_checks_result_and_resets_stale_state():
+    path = Path(__file__).resolve().parents[2] / "benchmarks/computer_use/tasks/01-calc-open.yaml"
+    mac = load_task(path, "macos")
+    linux = load_task(path, "linux")
+    assert mac.scoring == "strict"
+    assert mac.gui_only
+    assert "tank_backend.benchmarks.calc_validator" in mac.validator_command
+    assert "--reset" in mac.setup
+    assert linux.scoring == "smoke"
+    assert "pgrep" in linux.validator_command
+
+
 def test_gui_only_defaults_and_override(tmp_path):
     task = load_task(_write(tmp_path, VALID), "linux", defaults={"gui_only": True})
     assert task.gui_only
