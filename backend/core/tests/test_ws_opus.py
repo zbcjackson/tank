@@ -104,6 +104,16 @@ def test_supported_features_advertise_opus():
     assert supported_protocol_features() == ["opus"]
 
 
+def test_native_encoder_ctl_preserves_bitrate_across_instances():
+    # Exercise native variadic CTL setter and getter, including pointer output.
+    # Missing fixed argtypes in opuslib causes intermittent invalid arguments
+    # on Apple ARM64 even when a single encoder initialization happens to work.
+    for bitrate in (16000, 24000, 32000, 48000) * 25:
+        encoder = opuslib.Encoder(24000, 1, opuslib.APPLICATION_AUDIO)
+        encoder.bitrate = bitrate
+        assert encoder.bitrate == bitrate
+
+
 def test_downlink_encoder_roundtrip_quality_and_rebuffering():
     rate = OPUS_PROFILE["downlink"]["sample_rate"]
     pcm = _speech_noise(rate * 3, rate)  # 3 s

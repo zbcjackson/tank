@@ -39,7 +39,19 @@ __all__ = [
 
 def _opuslib_importable() -> bool:
     try:
-        import opuslib  # noqa: F401
+        import ctypes
+
+        import opuslib.api.decoder
+        import opuslib.api.encoder
+
+        # opuslib 3 omits the fixed arguments of these variadic functions.
+        # Apple ARM64 uses a different ABI for the trailing CTL value.
+        opuslib.api.encoder.libopus_ctl.argtypes = (
+            opuslib.api.encoder.EncoderPointer, ctypes.c_int,
+        )
+        opuslib.api.decoder.libopus_ctl.argtypes = (
+            opuslib.api.decoder.DecoderPointer, ctypes.c_int,
+        )
     except Exception:
         return False
     return True
