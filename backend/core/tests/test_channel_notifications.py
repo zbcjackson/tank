@@ -218,6 +218,7 @@ class TestDeliveryNotification:
         mgr.broadcast = AsyncMock(return_value=1)
 
         delivery = DeliveryManager(
+            output_dir=tmp_path / "output",
             channel_store=tmp_store,
             conversation_store=conv_store,
         )
