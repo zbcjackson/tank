@@ -10,7 +10,7 @@ import subprocess
 import time
 from dataclasses import asdict, replace
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from .driver import BenchmarkDriver, DriverResult
 from .ime import pin_ascii_input_source, restore_saved_input_source, save_current_input_source
@@ -153,7 +153,8 @@ async def run_suite(
         "aborted_cleanup": aborted,
         "outcomes": [{"task": r.task_id, "trial": r.trial, "stop_reason": r.stop_reason,
                       "cleanup": r.cleanup, "scoring": r.scoring, "success": r.success,
-                      "unknown_calls": r.unknown_calls} for r in records],
+                      "unknown_calls": r.unknown_calls, "assessment": r.assessment}
+                     for r in records],
         "limits": [{"task": t.id, "tool_call_limit": t.max_steps,
                     "timeout_s": t.timeout_s, "gui_only": t.gui_only} for t in tasks],
     })
@@ -177,6 +178,7 @@ async def _run_trial(
 ) -> TrialRecord:
     trial_dir = out_dir / "trials" / task.id / str(trial)
     trace = TraceSink(trial_dir)
+    bench_env = {**bench_env, "BENCH_TRIAL_DIR": str(trial_dir.resolve())}
     instruction = task.instruction.replace("${BENCH_ASSETS_URL}", bench_env["BENCH_ASSETS_URL"])
     if task.gui_only:
         instruction += (
@@ -191,11 +193,12 @@ async def _run_trial(
     timed_out = False
     success = False
     result: DriverResult | None = None
+    assessment: dict[str, Any] = {}
 
     try:
         if task.setup:
-            await run_shell(task.setup, timeout_s=_SETUP_TIMEOUT_S, extra_env=bench_env)
-            trace.event("setup_done")
+            setup = await run_shell(task.setup, timeout_s=_SETUP_TIMEOUT_S, extra_env=bench_env)
+            trace.event("setup_done", stdout=setup.stdout)
 
         result = await driver.run(
             instruction, trace, timeout_s=task.timeout_s, max_steps=task.max_steps,
@@ -212,21 +215,27 @@ async def _run_trial(
         # closing narration is not part of the task — if the effect landed,
         # the trial succeeded (A17: validators only check side effects).
         try:
-            await run_shell(
+            validation = await run_shell(
                 task.validator_command,
                 timeout_s=_VALIDATOR_TIMEOUT_S,
                 extra_env=bench_env,
             )
             success = True
+            assessment = _read_assessment(validation.stdout)
             trace.event("validator_passed")
         except ShellError as e:
             success = False
+            assessment = _read_assessment(e.stdout)
             error = error or "validator failed"
             trace.event("validator_failed", detail=str(e)[:2000])
         if task.gui_only and result.non_gui_tools:
             success = False
             error = "GUI-only task attempted non-GUI tools: " + ", ".join(result.non_gui_tools)
+            if assessment:
+                assessment.update(business=False, mouse_only=False, execution_path_valid=False)
             trace.event("execution_path_failed", tools=result.non_gui_tools)
+        if assessment:
+            trace.event("validator_assessment", assessment=assessment)
     except ShellError as e:
         success = False
         error = f"setup failed: {e}"
@@ -268,6 +277,7 @@ async def _run_trial(
         unknown_calls=result.unknown_calls if result else 0,
         tool_call_limit=task.max_steps, gui_only=task.gui_only,
         non_gui_tools=result.non_gui_tools if result else (),
+        assessment=assessment,
         llm_calls=result.llm_calls if result else 0,
         llm_ttft_s=result.llm_ttft_s if result else None,
         llm_call_s=result.llm_call_s if result else 0.0,
@@ -279,3 +289,13 @@ async def _run_trial(
         encoding="utf-8",
     )
     return record
+
+
+def _read_assessment(stdout: str) -> dict[str, Any]:
+    """Optional structured validator evidence; exit status still owns strict scoring."""
+    try:
+        payload = json.loads(stdout)
+    except ValueError:
+        return {}
+    value = payload.get("assessment") if isinstance(payload, dict) else None
+    return value if isinstance(value, dict) else {}

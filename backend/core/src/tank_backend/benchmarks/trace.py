@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import time
 from pathlib import Path
 from typing import Any
+
+import httpx
 
 from ..agents.base import AgentOutput
 
@@ -51,10 +54,28 @@ class TraceSink:
             raise ValueError(f"unsupported screenshot MIME: {mime}")
         name = f"shot_{self.screenshot_count:03d}.{suffix}"
         b64 = data_url.split("base64,", 1)[-1]
-        (self.screenshots_dir / name).write_bytes(base64.b64decode(b64))
+        data = base64.b64decode(b64)
+        (self.screenshots_dir / name).write_bytes(data)
         rel = f"screenshots/{name}"
-        self.event("screenshot", file=rel, mime=mime)
+        self.event("screenshot", file=rel, mime=mime, sha256=hashlib.sha256(data).hexdigest())
         return rel
 
     def close(self) -> None:
         self._file.close()
+
+    async def capture_request(self, request: httpx.Request) -> None:
+        """Record actual serialized image identity, never headers or image bytes."""
+        body = json.loads(request.content)
+        hashes: list[str] = []
+        for message in body.get("messages", []):
+            content = message.get("content")
+            if not isinstance(content, list):
+                continue
+            for part in content:
+                if part.get("type") != "image_url":
+                    continue
+                url = part.get("image_url", {}).get("url", "")
+                if url.startswith("data:") and ";base64," in url:
+                    image = base64.b64decode(url.split(",", 1)[1])
+                    hashes.append(hashlib.sha256(image).hexdigest())
+        self.event("http_request", model=body.get("model"), image_sha256=hashes)

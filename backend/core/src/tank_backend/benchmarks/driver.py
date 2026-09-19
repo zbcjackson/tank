@@ -21,6 +21,8 @@ from pathlib import Path
 from statistics import median
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
+import httpx
+
 from ..agents.approval import PendingToolCallStore
 from ..agents.base import Agent, AgentOutput, AgentOutputType, AgentState
 from ..agents.definition import AgentDefinition, load_agent_definitions
@@ -392,6 +394,15 @@ class SubAgentDriver:
         driver._tool_manager = tool_manager
         driver._trace = None
         driver._runtime_metadata = {}
+
+        # Built-in agents use this exact SDK client. Plugin engines own their
+        # transport and must not be labelled HTTP-verified by this hook.
+        if not agent_def.engine and not agent_def.extension:
+            async def capture_request(request: httpx.Request) -> None:
+                if driver._trace is not None:
+                    await driver._trace.capture_request(request)
+
+            llm.client._client.event_hooks["request"].append(capture_request)
 
         # Archive every screenshot the agent takes for offline diagnosis.
         for name in ("screenshot", "computer_batch"):

@@ -45,6 +45,10 @@ def test_trace_sink_writes_outputs_and_screenshots(tmp_path):
     assert lines[0]["kind"] == "trial_start"
     assert lines[1]["output_type"] == "TOKEN"
     assert any(r["kind"] == "screenshot" and r["file"] == rel for r in lines)
+    import hashlib
+
+    shot = next(r for r in lines if r["kind"] == "screenshot")
+    assert shot["sha256"] == hashlib.sha256((tmp_path / "trial1" / rel).read_bytes()).hexdigest()
     assert sink.screenshot_count == 1
     assert (tmp_path / "trial1" / rel).read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
@@ -52,6 +56,35 @@ def test_trace_sink_writes_outputs_and_screenshots(tmp_path):
 # ---------------------------------------------------------------------------
 # CountingLLM
 # ---------------------------------------------------------------------------
+
+
+async def test_trace_records_actual_sdk_image_hashes_without_image_data(tmp_path: Path) -> None:
+    import base64
+    import hashlib
+
+    import httpx
+    from openai import AsyncOpenAI
+
+    trace = TraceSink(tmp_path)
+    source = "data:image/png;base64," + base64.b64encode(b"controlled image").decode()
+    trace.save_screenshot(source)
+    body = {"id": "test", "object": "chat.completion", "created": 1, "model": "test",
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": "done"},
+                         "finish_reason": "stop"}]}
+    transport = httpx.MockTransport(lambda _: httpx.Response(200, json=body))
+    http = httpx.AsyncClient(transport=transport,
+                            event_hooks={"request": [trace.capture_request]})
+    async with AsyncOpenAI(api_key="secret-test", base_url="https://offline.invalid/v1",
+                           http_client=http) as client:
+        await client.chat.completions.create(model="test", messages=[{"role": "user", "content": [
+            {"type": "image_url", "image_url": {"url": source, "detail": "auto"}},
+        ]}])
+    trace.close()
+    raw = (tmp_path / "trace.jsonl").read_text()
+    events = [json.loads(line) for line in raw.splitlines()]
+    assert events[-1]["kind"] == "http_request"
+    assert events[-1]["image_sha256"] == [hashlib.sha256(b"controlled image").hexdigest()]
+    assert "secret-test" not in raw and "data:image" not in raw
 
 
 class _FakeInnerLLM:
@@ -314,10 +347,14 @@ async def test_gui_trial_rejects_shell_even_when_validator_passes(tmp_path):
             assert "GUI" in instruction
             return DriverResult("done", 1, 0.01, 5, 0, False, non_gui_tools=("bash",))
 
-    task = BenchTask("gui", "file", 1, ("linux",), "create file", "true", gui_only=True)
+    task = BenchTask("gui", "file", 1, ("linux",), "create file",
+                     "printf '%s' '{\"assessment\":{\"business\":true,\"mouse_only\":true}}'",
+                     gui_only=True)
     record = await _run_trial(Driver(), task, 1, tmp_path, {"BENCH_ASSETS_URL": ""})
     assert not record.success and record.error == "GUI-only task attempted non-GUI tools: bash"
     assert record.gui_only and record.non_gui_tools == ("bash",)
+    assert record.assessment["business"] is False
+    assert record.assessment["mouse_only"] is False
 
 
 class _LlmCallingRunner(_StubRunner):

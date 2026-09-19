@@ -54,6 +54,7 @@ class TrialRecord:
     tool_call_limit: int = 0
     gui_only: bool = False
     non_gui_tools: tuple[str, ...] = ()
+    assessment: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
