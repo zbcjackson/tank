@@ -19,6 +19,12 @@
 GPT-5.5 在独立合成布局上最好；本次真实 calc-open 严格评分 2/3，已验证
 鼠标批量点击与一次截图反馈后的恢复，但不是全套 GUI 可靠率结论。
 
+模型差异不排除宿主设计缺陷：提示职责冲突、输入方式语义及 crop 要求模型
+自行还原坐标仍需处理。[外部实现对照](../research/computer-use-implementation-comparison.md)
+梳理了 Anthropic、UI-TARS、Cua、Peekaboo、OmniParser、OpenAI 和 browser-use，
+建议先修已确认问题，再分别测试宿主坐标还原、AX 元素寻址和反馈检查。
+这些是待验证方案，尚未改变生产接口；统一协议成绩不代表各模型最佳适配表现。
+
 ## 截图到点击：实际转换
 
 1. Quartz 读取主屏逻辑尺寸和 backing pixels；`screencapture -m` 仅截主屏。

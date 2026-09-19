@@ -29,3 +29,7 @@
 | 定位候选的跨应用与长历史验收 | 准备将 GPT-5.5 等用于更广泛生产桌面任务，且具备获准外发的隔离环境 | GPT-5.5 合成图 32/32；真实 calc-open 已跑三轮严格 2/3，含两段鼠标序列和一次反馈恢复。尚缺全 14 任务、长历史/compaction、多种按钮尺寸；新严格协议仅在探针中，生产默认未切换 | [完整闭环](plans/done/gpt55-computer-use-loop.md)、[统一结论](design/computer-use.md) |
 | 桌面子代理的 base 委托提示冲突 | 下一次优化或评估子代理提示、准备正式生产选型 | 实际 HTTP 同时包含直接操作桌面的专家指令与 base.md 的“必须委托 computer_use”；工具集无 agent，模型明确提及冲突。需分离主代理调度规则与共享安全规则，补提示/HTTP 回归并独立复测，尚未测量因果影响 | [完整闭环](plans/done/gpt55-computer-use-loop.md) |
 | calc-open 合法粘贴路径与评分约定 | 需要将真实显示 56 的粘贴计算路径计入成功率 | 本地重置后粘贴 7*8 直接显示 56 但无表达式，严格 AX validator 拒绝；7*8= 仍为 0。需明确表达式证据如何验证，不能直接放宽为只读 56 或把这类失败算作错点 | [统一结论](design/computer-use.md) |
+
+| Computer-use 截图引用与宿主坐标还原 | 下一轮定位接口优化立项；当前 crop 要求模型自行还原的前置问题已确认 | 将 frame/窗口/实际尺寸/裁剪变换绑定为不可变观察，按具体模型适配输入输出，宿主还原到 Quartz；保留纯视觉 holdout 对照，不猜测服务端倍率 | [实现对照 P1](research/computer-use-implementation-comparison.md#p1把空间计算从模型移到宿主) |
+| macOS AX 候选与专用定位器对照 | 准备优化同一规划模型的桌面成功率，并可提供隔离验收环境 | 先比较纯截图、AX 候选加 Quartz、AXPress，再决定视觉检测器；纯视觉与混合成绩分开，候选不能泄漏 benchmark 真值 | [实现对照 P2](research/computer-use-implementation-comparison.md#p2比较语义辅助和专用定位器) |
+| Computer-use 输入契约与效果检查 | 下一轮桌面闭环改进立项；输入模式差异已有本机复现 | 明确粘贴/字符/按键语义；状态变化步骤独立检查效果，稳定 batch 单独对照；关联现有 calc-open 评分条目，不追改旧结果 | [实现对照 P0/P3](research/computer-use-implementation-comparison.md#p0先修复已确认问题建立公平对照) |
