@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 
 
@@ -29,6 +30,26 @@ def response_point(arguments: dict) -> tuple[float, float] | None:
     if len(nums) == 4:
         return (nums[0] + nums[2]) / 2, (nums[1] + nums[3]) / 2
     return nums[0], nums[1]
+
+
+def text_response_point(text: str, *, native_bbox: bool = False) -> tuple[float, float] | None:
+    """Score a whole JSON answer, optionally fenced; never repair broken JSON."""
+    text = text.strip()
+    if text.startswith("```json\n") and text.endswith("\n```"):
+        text = text[len("```json\n"):-len("\n```")]
+    try:
+        arguments = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if native_bbox:
+        if not isinstance(arguments, list) or len(arguments) != 1:
+            return None
+        item = arguments[0]
+        box = item.get("bbox_2d") if isinstance(item, dict) else None
+        if not isinstance(box, list) or len(box) != 4:
+            return None
+        return response_point({"bbox": box})
+    return response_point(arguments) if isinstance(arguments, dict) else None
 
 
 def score_point(

@@ -538,3 +538,15 @@ only generated calculator images; it never captures the desktop or executes
 model actions. `--point-only` isolates tool schema from the original bbox schema.
 Use fresh output directories; compare repeated images and positions rather than
 inferring one global correction factor from a single response.
+
+The same probe accepts `--prompt-style agent|minimal|formula|bbox`,
+`--thinking default|on|off`, `--high-resolution`, `--plain-json`, and
+`--case-set all|hard|holdout`. `bbox` requests native `bbox_2d` JSON without
+tools; it is a diagnostic, not a production coordinate protocol. The hard set
+contains four existing images targeting 7; the holdout set uses new 1600×900
+and 900×1600 images, two new placements, and AC/7. Responses are saved as raw
+SSE and buffered before SDK parsing, so these runs are not latency benchmarks.
+The HTTP hook verifies every transmitted PNG hash. Tests cover actual SDK
+serialization of provider parameters and images, JSON/fenced JSON decoding,
+and replay a captured malformed provider response through SDK, LLM and tool
+rejection. Format decoding never repairs invalid JSON or executes model actions.
