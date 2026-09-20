@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-20。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点预检待 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3–M8 待完成。N2 复用既有 benchmark。
+> 状态：执行中，2026-09-20。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 首批十次合成图端点/协议预检已记录，共用生产适配及其余验收待完成；M4–M8 待完成。N2 复用既有 benchmark。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -191,6 +191,11 @@ benchmark，不能仅因历史清单未勾选就写成“还未验证”。
 实际主屏 oracle 再验证落点 ≤1 point/轴；不声明已支持多显示器。
 
 ### M3 — 具体模型的适配器与独立定位基线
+
+首批 [M3 端点预检](../../../backend/benchmarks/computer_use/reports/20260920-m3-preflight/README.md)
+已完成五模型 × 两协议的十次合成图调用；16 次预检上限余 6 次。
+具体可用型号、请求/响应型号、参数、用量与失败已记录；strict、原生框、
+共用生产 adapter 和配置冻结尚未完成，以下整项仍不勾选。
 
 - [ ] 使用当前已配置的 Qwen/DeepSeek/OpenRouter profile，保留现有 Qwen
   基线和 GPT-5.5 对照，补 Qwen3.8 与 DeepSeek V4.1 候选；具体 ID/可用性
@@ -502,6 +507,25 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   pane 日志、文档与协议检查通过。首次全量发现数组 schema 缺少 `items`，
   修复后定向 247 项及完整套件通过；中间一次测试整理缩进错误也已修复并重跑。
   默认模型未切换；下一步 M3 实际端点预检和生产共用模型适配。
+
+### 2026-09-20 — M3 首批端点预检
+
+- 五个模型均返回 HTTP 200：现有 Qwen3.7、Qwen3.8 Flash/Max、DeepSeek
+  Flash（官方版本 V4.1）与 OpenRouter GPT-5.5。请求和响应型号分别归档；
+  仅 OpenRouter 返回 provider=OpenAI，其余响应未提供 provider 字段。
+- 同一开发合成图比较 normalized point 与 pixel point，关闭思考、每次
+  8000 输出 token、零重试，共十次 / 16730 tokens。全部保存实际 SDK 请求、
+  图片 hash、原始响应和离线回放。无真实截图外发、桌面动作或 holdout 调用。
+- Qwen3.8 三次数组坐标被拒绝；七次 schema 合法但仅四次命中。
+  pixel 协议下 Qwen3.7/Max 约 287 px 偏移，DeepSeek 51 px；GPT 两次命中。
+  单布局不能作模型排名或采用结论；不猜测单位、不修补数组，不切默认模型。
+- 费用按实际用量及保守标价估算 $0.026680；OpenRouter 报价 $0.01902，
+  其他提供方实际账单 unknown。请求/费用预算和首次本地目录错误均见报告。
+- 完整验证：backend **4561 passed / 1 skipped**；E2E **14 场景 / 55 步**；
+  web lint/TypeScript、backend/CLI ruff、运行日志、文档及协议通过。无 Python
+  源码改动，定向 pyright 不适用；已有 probe 49 测试与十条离线回放通过。
+- 本步完成 M3 初始可用性预检；下一步提取生产/probe 共用协议与严格解析，
+  分因素测试 native/strict/detail/thinking，冻结后才运行 holdout。M3 不关档。
 
 ## 9. 最终 Verification Checklist
 

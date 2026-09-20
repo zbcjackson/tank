@@ -1,0 +1,31 @@
+{
+  "web_lint": "pass",
+  "web_tsc_build_no_emit": "pass",
+  "backend_ruff_core_src_tests": "pass",
+  "backend_pytest": {
+    "passed": 4561,
+    "skipped": 1,
+    "seconds": 189.44
+  },
+  "python_changed_file_pyright": "N/A: no Python source changes",
+  "cli_ruff": "pass",
+  "backend_runtime_log": {
+    "pane": "tank:1.1",
+    "error_matches": 0,
+    "sandbox_attempt": "tmux socket permission denied; authorized read passed"
+  },
+  "e2e": {
+    "scenarios_passed": 14,
+    "steps_passed": 55
+  },
+  "docs": "pass: 37 files",
+  "protocol_sync": "pass",
+  "grounding_probe_tests": 49,
+  "recorded_response_replays": 10,
+  "environment": {
+    "UV_CACHE_DIR": "/tmp/tank-uv-cache",
+    "DYLD_FALLBACK_LIBRARY_PATH": "/opt/homebrew/lib",
+    "network_and_test_ports": "authorized execution"
+  },
+  "docs_first_attempt": "status-line wording triggered completion detector; corrected to execution-in-progress, rerun passed"
+}

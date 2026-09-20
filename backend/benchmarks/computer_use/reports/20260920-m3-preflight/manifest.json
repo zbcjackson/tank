@@ -1,0 +1,68 @@
+{
+  "revision": "43284a8e22267178f2d122136abe41fab4a05d1f",
+  "scope": "M3 initial endpoint preflight; synthetic development seed 101 only",
+  "requests_max": 5,
+  "output_tokens_per_request": 8000,
+  "seconds_per_request": 90,
+  "total_token_stop": 100000,
+  "retries": 0,
+  "thinking": false,
+  "input_tokens_estimate_per_request": 10000,
+  "estimate_is_not_a_billing_cap": true,
+  "prices_usd_per_million_input_output": {
+    "flash": [
+      0.028,
+      0.11
+    ],
+    "qwen38flash": [
+      0.113,
+      0.382
+    ],
+    "qwen38max": [
+      1.65,
+      4.951
+    ],
+    "deepseek": [
+      0.3,
+      1.2
+    ],
+    "gpt55": [
+      5,
+      30
+    ]
+  },
+  "estimated_cost_usd": 0.364054,
+  "models": {
+    "flash": {
+      "provider": "qwen",
+      "model": "qwen3.7-flash-2026-07-15",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    },
+    "qwen38flash": {
+      "provider": "qwen",
+      "model": "qwen3.8-flash",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    },
+    "qwen38max": {
+      "provider": "qwen",
+      "model": "qwen3.8-max-2026-09-02",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    },
+    "deepseek": {
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "endpoint": "https://api.deepseek.com"
+    },
+    "gpt55": {
+      "provider": "openrouter",
+      "model": "openai/gpt-5.5",
+      "endpoint": "https://openrouter.ai/api/v1"
+    }
+  },
+  "source_sha256": {
+    "scripts/probe_grounding_matrix.py": "897371fbbdc5a9bf374802f4a69c6a4fe5b480bdbcbf7c88f296ba5939da893e",
+    "scripts/probe_grounding_contract.py": "d6f54f6a4675c6e7c49e165d36cb12fb173c2220aa01560cbaa8d1e2de9ce7d5",
+    "core/src/tank_backend/benchmarks/grounding_probe.py": "204179efb175f1c523e7e66faa7a25e77e420dd86342590c3b7a4ab26aadce46"
+  },
+  "stop_policy": "Stop on missing usage, budget, or request failure; never retry automatically"
+}

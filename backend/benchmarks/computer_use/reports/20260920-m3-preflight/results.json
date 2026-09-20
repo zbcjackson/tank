@@ -1,0 +1,351 @@
+[
+  {
+    "size": [
+      1440,
+      900
+    ],
+    "source_size": [
+      1440,
+      900
+    ],
+    "target": "AC",
+    "center": [
+      935,
+      282
+    ],
+    "crop": null,
+    "bounds": [
+      905,
+      258,
+      965,
+      306
+    ],
+    "radius": 22,
+    "id": "flash",
+    "model": "qwen3.7-flash-2026-07-15",
+    "provider": "qwen",
+    "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+    "seed": 101,
+    "variant": "point",
+    "protocol": "point",
+    "images": [
+      "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+    ],
+    "schema_style": "integer",
+    "thinking": false,
+    "max_tokens": 8000,
+    "schema_valid": true,
+    "hit": true,
+    "http_verified": true,
+    "http_status": 200,
+    "request_id": "b62db381-a446-915c-9a4b-cf3a7280bef2",
+    "returned_model": "qwen3.7-flash-2026-07-15",
+    "returned_provider": null,
+    "usage": {
+      "completion_tokens": 52,
+      "prompt_tokens": 1702,
+      "total_tokens": 1754,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": null,
+        "rejected_prediction_tokens": null,
+        "text_tokens": 52
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 0,
+        "image_tokens": 1262,
+        "text_tokens": 440
+      }
+    },
+    "finish_reason": "tool_calls",
+    "arguments": "{\"found\": true, \"x\": 648, \"y\": 310}",
+    "abstained": false,
+    "point": [
+      933.12,
+      279.0
+    ],
+    "dx": -1.8799999999999955,
+    "dy": -3.0,
+    "distance": 3.5403954581374073,
+    "correct_abstention": false,
+    "seconds": 1.82
+  },
+  {
+    "size": [
+      1440,
+      900
+    ],
+    "source_size": [
+      1440,
+      900
+    ],
+    "target": "AC",
+    "center": [
+      935,
+      282
+    ],
+    "crop": null,
+    "bounds": [
+      905,
+      258,
+      965,
+      306
+    ],
+    "radius": 22,
+    "id": "qwen38flash",
+    "model": "qwen3.8-flash",
+    "provider": "qwen",
+    "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+    "seed": 101,
+    "variant": "point",
+    "protocol": "point",
+    "images": [
+      "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+    ],
+    "schema_style": "integer",
+    "thinking": false,
+    "max_tokens": 8000,
+    "schema_valid": false,
+    "hit": false,
+    "http_verified": true,
+    "http_status": 200,
+    "request_id": "5fe9f100-6aa4-99ad-bba1-f8636175cc2a",
+    "returned_model": "qwen3.8-flash",
+    "returned_provider": null,
+    "usage": {
+      "completion_tokens": 62,
+      "prompt_tokens": 1702,
+      "total_tokens": 1764,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": null,
+        "rejected_prediction_tokens": null
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 0,
+        "image_tokens": 1262,
+        "text_tokens": 440
+      }
+    },
+    "finish_reason": "tool_calls",
+    "arguments": "{\"found\": true, \"x\": [648, 312], \"y\": [0, 0]}",
+    "error": "ValueError: Coordinates must be integers",
+    "seconds": 1.48
+  },
+  {
+    "size": [
+      1440,
+      900
+    ],
+    "source_size": [
+      1440,
+      900
+    ],
+    "target": "AC",
+    "center": [
+      935,
+      282
+    ],
+    "crop": null,
+    "bounds": [
+      905,
+      258,
+      965,
+      306
+    ],
+    "radius": 22,
+    "id": "qwen38max",
+    "model": "qwen3.8-max-2026-09-02",
+    "provider": "qwen",
+    "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+    "seed": 101,
+    "variant": "point",
+    "protocol": "point",
+    "images": [
+      "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+    ],
+    "schema_style": "integer",
+    "thinking": false,
+    "max_tokens": 8000,
+    "schema_valid": false,
+    "hit": false,
+    "http_verified": true,
+    "http_status": 200,
+    "request_id": "c9cfe58a-17b9-9ca1-9242-787428f67c17",
+    "returned_model": "qwen3.8-max-0902",
+    "returned_provider": null,
+    "usage": {
+      "completion_tokens": 56,
+      "prompt_tokens": 1702,
+      "total_tokens": 1758,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": null,
+        "rejected_prediction_tokens": null,
+        "text_tokens": 56
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 0,
+        "image_tokens": 1262,
+        "text_tokens": 440
+      }
+    },
+    "finish_reason": "tool_calls",
+    "arguments": "{\"found\": true, \"x\": [649], \"y\": [312]}",
+    "error": "ValueError: Coordinates must be integers",
+    "seconds": 2.64
+  },
+  {
+    "size": [
+      1440,
+      900
+    ],
+    "source_size": [
+      1440,
+      900
+    ],
+    "target": "AC",
+    "center": [
+      935,
+      282
+    ],
+    "crop": null,
+    "bounds": [
+      905,
+      258,
+      965,
+      306
+    ],
+    "radius": 22,
+    "id": "deepseek",
+    "model": "deepseek-flash",
+    "provider": "deepseek",
+    "endpoint": "https://api.deepseek.com",
+    "seed": 101,
+    "variant": "point",
+    "protocol": "point",
+    "images": [
+      "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+    ],
+    "schema_style": "integer",
+    "thinking": false,
+    "max_tokens": 8000,
+    "schema_valid": true,
+    "hit": true,
+    "http_verified": true,
+    "http_status": 200,
+    "request_id": null,
+    "returned_model": "deepseek-flash",
+    "returned_provider": null,
+    "usage": {
+      "completion_tokens": 98,
+      "prompt_tokens": 1216,
+      "total_tokens": 1314,
+      "completion_tokens_details": null,
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 1024
+      },
+      "prompt_cache_hit_tokens": 1024,
+      "prompt_cache_miss_tokens": 192
+    },
+    "finish_reason": "tool_calls",
+    "arguments": "{\"found\": true, \"x\": 668, \"y\": 320}",
+    "abstained": false,
+    "point": [
+      961.9200000000001,
+      288.0
+    ],
+    "dx": 26.920000000000073,
+    "dy": 6.0,
+    "distance": 27.58054386700893,
+    "correct_abstention": false,
+    "seconds": 0.99
+  },
+  {
+    "size": [
+      1440,
+      900
+    ],
+    "source_size": [
+      1440,
+      900
+    ],
+    "target": "AC",
+    "center": [
+      935,
+      282
+    ],
+    "crop": null,
+    "bounds": [
+      905,
+      258,
+      965,
+      306
+    ],
+    "radius": 22,
+    "id": "gpt55",
+    "model": "openai/gpt-5.5",
+    "provider": "openrouter",
+    "endpoint": "https://openrouter.ai/api/v1/",
+    "seed": 101,
+    "variant": "point",
+    "protocol": "point",
+    "images": [
+      "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+    ],
+    "schema_style": "integer",
+    "thinking": false,
+    "max_tokens": 8000,
+    "schema_valid": true,
+    "hit": true,
+    "http_verified": true,
+    "http_status": 200,
+    "request_id": null,
+    "returned_model": "openai/gpt-5.5",
+    "returned_provider": "OpenAI",
+    "usage": {
+      "completion_tokens": 25,
+      "prompt_tokens": 1752,
+      "total_tokens": 1777,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": 0,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": null,
+        "image_tokens": 0
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost": 0.00951,
+      "is_byok": false,
+      "cost_details": {
+        "upstream_inference_cost": 0.00951,
+        "upstream_inference_prompt_cost": 0.00876,
+        "upstream_inference_completions_cost": 0.00075
+      }
+    },
+    "finish_reason": "tool_calls",
+    "arguments": "{\"found\":true,\"x\":648,\"y\":314}",
+    "abstained": false,
+    "point": [
+      933.12,
+      282.6
+    ],
+    "dx": -1.8799999999999955,
+    "dy": 0.6000000000000227,
+    "distance": 1.973423421367044,
+    "correct_abstention": false,
+    "seconds": 3.7
+  }
+]

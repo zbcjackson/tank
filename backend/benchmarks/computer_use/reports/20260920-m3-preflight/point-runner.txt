@@ -1,0 +1,60 @@
+import asyncio
+import hashlib
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path('/Users/zbcjackson/src/tank/backend')
+sys.path.insert(0, str(ROOT / 'scripts'))
+from probe_grounding_matrix import MODELS, ROOT, AppConfig, AsyncOpenAI, load_dotenv, run_trial
+
+OUT = ROOT / 'benchmarks/computer_use/reports/20260920-m3-preflight'
+
+async def main():
+    load_dotenv(ROOT / 'core/.env')
+    profile = AppConfig.load(ROOT / 'core/config.yaml').get_llm_profile('computer_use')
+    endpoints = {'qwen': (profile.base_url, profile.api_key),
+                 'deepseek': ('https://api.deepseek.com', os.environ.get('DEEPSEEK_API_KEY', '')),
+                 'openrouter': ('https://openrouter.ai/api/v1', os.environ.get('OPENROUTER_API_KEY', ''))}
+    aliases = ['flash', 'qwen38flash', 'qwen38max', 'deepseek', 'gpt55']
+    rates = {'flash': [.028, .11], 'qwen38flash': [.113, .382],
+             'qwen38max': [1.65, 4.951], 'deepseek': [.3, 1.2], 'gpt55': [5, 30]}
+    manifest = {'revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+                'scope': 'M3 initial endpoint preflight; synthetic development seed 101 only',
+                'requests_max': 5, 'output_tokens_per_request': 8000, 'seconds_per_request': 90,
+                'total_token_stop': 100000, 'retries': 0, 'thinking': False,
+                'input_tokens_estimate_per_request': 10000, 'estimate_is_not_a_billing_cap': True,
+                'prices_usd_per_million_input_output': rates,
+                'estimated_cost_usd': sum(a*.01+b*.008 for a,b in rates.values()),
+                'models': {a: {'provider': MODELS[a][0], 'model': MODELS[a][1],
+                               'endpoint': endpoints[MODELS[a][0]][0]} for a in aliases},
+                'source_sha256': {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
+                    for p in [ROOT/'scripts/probe_grounding_matrix.py', ROOT/'scripts/probe_grounding_contract.py',
+                              ROOT/'core/src/tank_backend/benchmarks/grounding_probe.py']},
+                'stop_policy': 'Stop on missing usage, budget, or request failure; never retry automatically'}
+    (OUT/'manifest.json').write_text(json.dumps(manifest, indent=2))
+    rows = []
+    total = 0
+    for alias in aliases:
+        provider, model = MODELS[alias]
+        endpoint, key = endpoints[provider]
+        if not key:
+            print('STOP missing credential for', alias)
+            break
+        if total + 18000 > 100000:
+            break
+        async with AsyncOpenAI(api_key=key, base_url=endpoint, max_retries=0, timeout=85) as client:
+            row = await run_trial(client, provider, model, 101, 'point', OUT, alias,
+                                  '', 'integer', max_tokens=8000, thinking=False)
+        rows.append(row)
+        (OUT/'results.json').write_text(json.dumps(rows, indent=2))
+        print(json.dumps({k:row.get(k) for k in ['id','http_status','returned_model','returned_provider','usage','hit','distance','error']}), flush=True)
+        if not row.get('usage'):
+            print('STOP unknown usage')
+            break
+        total += row['usage']['total_tokens']
+    print('TOTAL', total)
+
+asyncio.run(main())

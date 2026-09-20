@@ -1,0 +1,55 @@
+[
+  {
+    "id": "flash",
+    "protocol": "point",
+    "replay": "pass"
+  },
+  {
+    "id": "qwen38flash",
+    "protocol": "point",
+    "replay": "rejected",
+    "reason": "Coordinates must be integers"
+  },
+  {
+    "id": "qwen38max",
+    "protocol": "point",
+    "replay": "rejected",
+    "reason": "Coordinates must be integers"
+  },
+  {
+    "id": "deepseek",
+    "protocol": "point",
+    "replay": "pass"
+  },
+  {
+    "id": "gpt55",
+    "protocol": "point",
+    "replay": "pass"
+  },
+  {
+    "id": "flash",
+    "protocol": "pixels",
+    "replay": "pass"
+  },
+  {
+    "id": "qwen38flash",
+    "protocol": "pixels",
+    "replay": "rejected",
+    "reason": "Coordinates must be integers"
+  },
+  {
+    "id": "qwen38max",
+    "protocol": "pixels",
+    "replay": "pass"
+  },
+  {
+    "id": "deepseek",
+    "protocol": "pixels",
+    "replay": "pass"
+  },
+  {
+    "id": "gpt55",
+    "protocol": "pixels",
+    "replay": "pass"
+  }
+]
