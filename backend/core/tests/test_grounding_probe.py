@@ -1,6 +1,48 @@
 import pytest
 
 
+def test_holdout_export_is_reproducible_and_separates_truth(tmp_path, monkeypatch):
+    import hashlib
+    import json
+    import runpy
+    from collections import Counter
+    from pathlib import Path
+
+    from PIL import Image
+
+    script = Path(__file__).resolve().parents[2] / "scripts/prepare_grounding_holdout.py"
+    main = runpy.run_path(str(script))["main"]
+    outputs = [tmp_path / "first", tmp_path / "second"]
+    for output in outputs:
+        monkeypatch.setattr("sys.argv", [str(script), "--output", str(output)])
+        main()
+    first = outputs[0]
+    for path in first.rglob("*"):
+        if path.is_file():
+            assert path.read_bytes() == (outputs[1] / path.relative_to(first)).read_bytes()
+    inputs = json.loads((first / "inputs.json").read_text())
+    truth = json.loads((first / "truth/labels.json").read_text())
+    assert len(inputs) == len(truth) == 64
+    assert len({row["image_sha256"] for row in inputs}) == 64
+    assert Counter(row["expected"] for row in truth) == {
+        "found": 48, "not_found": 8, "ambiguous": 8,
+    }
+    for request, answer in zip(inputs, truth, strict=True):
+        assert set(request) == {"id", "image", "image_sha256", "size", "target"}
+        assert hashlib.sha256((first / request["image"]).read_bytes()).hexdigest() == (
+            request["image_sha256"])
+        mask = Image.open(first / answer["mask"])
+        assert list(mask.size) == request["size"]
+        if answer["expected"] == "found":
+            assert mask.getpixel(tuple(answer["center"])) == 255
+            assert mask.getbbox() is not None
+        else:
+            assert answer["center"] is None and mask.getbbox() is None
+    monkeypatch.setattr("sys.argv", [str(script), "--output", str(first)])
+    with pytest.raises(FileExistsError):
+        main()
+
+
 @pytest.mark.parametrize("thinking,budget,variant", [
     ("on", 4000, "strict-bbox"), ("off", 4000, "strict-bbox"),
     ("on", 16000, "low-detail"), ("off", 16000, "low-detail"),
