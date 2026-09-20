@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import ctypes
 import importlib
 import logging
 import subprocess
@@ -180,17 +181,39 @@ _KEYSTROKE_SAFE = frozenset(
 )
 
 
-def _type_macos(text: str, mode: str = "auto") -> None:
+def _ascii_input_source() -> bool:
+    """Read the active input source without changing the user's input method."""
+    carbon = ctypes.CDLL("/System/Library/Frameworks/Carbon.framework/Carbon")
+    core = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+    carbon.TISCopyCurrentKeyboardInputSource.restype = ctypes.c_void_p
+    carbon.TISGetInputSourceProperty.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    carbon.TISGetInputSourceProperty.restype = ctypes.c_void_p
+    core.CFBooleanGetValue.argtypes = [ctypes.c_void_p]
+    core.CFBooleanGetValue.restype = ctypes.c_bool
+    core.CFRelease.argtypes = [ctypes.c_void_p]
+    source = carbon.TISCopyCurrentKeyboardInputSource()
+    if not source:
+        return False
+    try:
+        key = ctypes.c_void_p.in_dll(carbon, "kTISPropertyInputSourceIsASCIICapable")
+        value = carbon.TISGetInputSourceProperty(source, key)
+        return bool(value and core.CFBooleanGetValue(value))
+    finally:
+        core.CFRelease(source)
+
+
+def _type_macos(text: str, mode: str = "auto") -> str:
     """Type text on macOS.
 
-    Plain alphanumeric text uses AppleScript keystroke (fast). Anything
+    Plain alphanumeric text with an ASCII-capable input source uses
+    AppleScript keystroke (fast). An IME can rewrite even ASCII letters. Anything
     else — non-ASCII (Chinese, emoji) or ASCII punctuation like ``-``
     and ``.`` — is pasted via clipboard (pbcopy + cmd+v): per-app IME
     stickiness silently eats synthetic keystrokes of bare punctuation
     in some apps (observed: Terminal.app eats ``-``/``.`` while
     TextEdit types them fine), while the paste path is immune.
     """
-    if mode == "auto" and all(c in _KEYSTROKE_SAFE for c in text):
+    if mode == "auto" and all(c in _KEYSTROKE_SAFE for c in text) and _ascii_input_source():
         escaped = text.replace("\\", "\\\\").replace('"', '\\"')
         script = f'tell application "System Events" to keystroke "{escaped}"'
         result = subprocess.run(
@@ -199,6 +222,7 @@ def _type_macos(text: str, mode: str = "auto") -> None:
         )
         if result.returncode != 0:
             raise RuntimeError(f"keystroke failed: {result.stderr.strip()}")
+        return "keystroke"
     else:
         # Non-ASCII — paste via clipboard to bypass IME
         proc = subprocess.run(
@@ -217,6 +241,7 @@ def _type_macos(text: str, mode: str = "auto") -> None:
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
         time.sleep(0.1)
+        return "clipboard_paste"
 
 
 # Key name → macOS virtual keycode mapping
@@ -283,8 +308,10 @@ def _key_applescript(keys: list[str]) -> None:
         return
 
     modifier_str = ", ".join(modifiers)
-    if main_key in _KEYCODE_MAP and (len(main_key) > 1 or not main_key.isalnum()):
-        # Named key — use key code
+    if main_key in _KEYCODE_MAP and (
+        len(main_key) > 1 or not main_key.isalnum() or "shift down" in modifiers
+    ):
+        # Shift modifies a physical key; keystroke "8" can still insert "8".
         keycode = _KEYCODE_MAP[main_key]
         if modifier_str:
             script = (
@@ -629,8 +656,9 @@ class TypeTextTool(BaseTool):
             name="type_text",
             description=(
                 "Insert text into the focused field on macOS. Click the field first. "
-                "Default auto mode uses keystrokes for ASCII letters, digits and spaces; "
-                "punctuation, newlines and non-ASCII text use clipboard paste to bypass IME. "
+                "Default auto mode uses keystrokes for ASCII letters, digits and spaces "
+                "only with an ASCII-capable input source; otherwise it pastes to bypass IME. "
+                "Punctuation, newlines and non-ASCII text also use clipboard paste. "
                 "Paste replaces the clipboard and may be interpreted by the app (Calculator "
                 "can evaluate a pasted expression without displaying that expression). "
                 "This is not a sequence of key presses. Use key_press for Enter/shortcuts "
@@ -665,14 +693,13 @@ class TypeTextTool(BaseTool):
         if mode not in ("auto", "paste"):
             return ToolResult(content="type_text: mode must be auto or paste", error=True)
         try:
-            await asyncio.to_thread(_type_macos, text, mode)
+            method = await asyncio.to_thread(_type_macos, text, mode)
         except Exception as e:
             return ToolResult(content=f"type_text: failed: {e}", error=True)
         display_text = text if len(text) <= 30 else text[:27] + "..."
         return ToolResult(
             content=(f"Typed: {text!r}\nInput method: "
-                     + ("keystroke" if mode == "auto" and all(c in _KEYSTROKE_SAFE for c in text)
-                        else "clipboard_paste")
+                     + method
                      + ". Input dispatched; application effect not verified."),
             display=f"Typed: {display_text!r}",
         )

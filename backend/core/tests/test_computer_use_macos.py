@@ -34,10 +34,20 @@ from tank_backend.tools.computer_use_macos import (  # noqa: E402
     TypeTextTool,
     _normalized_to_pixel,
 )
+from tank_backend.tools.computer_use_macos import (  # noqa: E402
+    _ascii_input_source as _native_ascii_input_source,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def ascii_input_source():
+    """Keep native input-source state out of cross-platform unit tests."""
+    with patch(f"{MODULE}._ascii_input_source", return_value=True):
+        yield
 
 
 @pytest.fixture(autouse=True)
@@ -240,6 +250,42 @@ class TestClickTool:
 
 
 class TestTypeTextTool:
+    @pytest.mark.parametrize("source,value,capable", [
+        (1, 2, True), (1, 2, False), (1, None, False), (None, None, False),
+    ])
+    def test_native_input_source_releases_owned_reference(self, source, value, capable):
+        carbon, core = MagicMock(), MagicMock()
+        carbon.TISCopyCurrentKeyboardInputSource.return_value = source
+        carbon.TISGetInputSourceProperty.return_value = value
+        core.CFBooleanGetValue.return_value = capable
+        with (
+            patch(f"{MODULE}.ctypes.CDLL", side_effect=[carbon, core]),
+            patch(f"{MODULE}.ctypes.c_void_p.in_dll", return_value=123),
+        ):
+            assert _native_ascii_input_source() is capable
+        if source:
+            core.CFRelease.assert_called_once_with(source)
+        else:
+            core.CFRelease.assert_not_called()
+
+    async def test_ascii_text_bypasses_non_ascii_input_source(self, fake_quartz):
+        with (
+            patch(f"{MODULE}._ascii_input_source", return_value=False),
+            patch(f"{MODULE}.subprocess.run", return_value=make_run_ok()) as command,
+        ):
+            result = await TypeTextTool().execute(text="Abc123")
+        assert not result.error
+        assert command.call_args.args[0] == ["pbcopy"]
+        assert command.call_args.kwargs["input"] == "Abc123"
+        assert "clipboard_paste" in result.content
+
+    async def test_shift_digit_dispatches_physical_key_with_modifier(self):
+        with patch(f"{MODULE}.subprocess.run", return_value=make_run_ok()) as command:
+            result = await KeyPressTool().execute(keys="shift+8")
+        assert not result.error
+        script = command.call_args.args[0][2]
+        assert "key code 28 using {shift down}" in script
+
     async def test_batch_paste_then_enter_uses_distinct_input_paths(
         self, fake_quartz: _FakeQuartz,
     ) -> None:
