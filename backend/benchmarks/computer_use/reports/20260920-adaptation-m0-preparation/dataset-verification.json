@@ -1,0 +1,7 @@
+{
+  "historical_png_unique_hashes": 905,
+  "holdout_unique_hashes": 64,
+  "overlap": [],
+  "model_evaluations": 0,
+  "repetitions_are_not_independent_layouts": true
+}

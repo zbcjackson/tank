@@ -1,0 +1,91 @@
+{
+  "git_revision": "b18997cd35c8fa6a3126fda88a96f6e6a7271c2c",
+  "worktree_before_task": "clean",
+  "platform": {
+    "macos": "26.6.2",
+    "display_id": 5,
+    "origin": [
+      0.0,
+      0.0
+    ],
+    "logical_size": [
+      1920.0,
+      1080.0
+    ],
+    "backing_size": [
+      3840,
+      2160
+    ],
+    "screen_recording": true,
+    "input_control": true,
+    "apps": {
+      "Calculator": {
+        "CFBundleShortVersionString": "12.0",
+        "CFBundleVersion": "225"
+      },
+      "TextEdit": {
+        "CFBundleShortVersionString": "1.20",
+        "CFBundleVersion": "415"
+      },
+      "Safari": {
+        "CFBundleShortVersionString": "26.6.2",
+        "CFBundleVersion": "21624.5.1.11.3"
+      }
+    }
+  },
+  "profiles": {
+    "default": {
+      "model": "deepseek-flash",
+      "base_url": "https://api.deepseek.com",
+      "temperature": 0.7,
+      "max_tokens": 10000,
+      "extra_body": {},
+      "stream_options": true,
+      "actual_response_model": "unverified in this batch",
+      "actual_provider": "unverified in this batch"
+    },
+    "planning": {
+      "model": "deepseek-flash",
+      "base_url": "https://api.deepseek.com",
+      "temperature": 0.3,
+      "max_tokens": 20000,
+      "extra_body": {},
+      "stream_options": true,
+      "actual_response_model": "unverified in this batch",
+      "actual_provider": "unverified in this batch"
+    },
+    "computer_use": {
+      "model": "qwen3.7-flash-2026-07-15",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "max_tokens": 40000,
+      "extra_body": {},
+      "stream_options": false,
+      "actual_response_model": "unverified in this batch",
+      "actual_provider": "unverified in this batch"
+    },
+    "n2": {
+      "model": "n2",
+      "base_url": "https://api.yutori.com/v1",
+      "temperature": 0.7,
+      "max_tokens": 10000,
+      "extra_body": {},
+      "stream_options": true,
+      "actual_response_model": "unverified in this batch",
+      "actual_provider": "unverified in this batch"
+    }
+  },
+  "request_capture": {
+    "path": "current-request.json",
+    "transport": "AgentRunner → LLMAgent → actual OpenAI SDK with fake HTTP, final text only",
+    "sha256": "74671d31a856319b55e88b409dddf794b33bd6288b4561ba322552cc9915ea99",
+    "tools": 12,
+    "redactions": [
+      "home",
+      "username"
+    ],
+    "images": 0,
+    "desktop_actions": 0,
+    "live_model_requests": 0
+  }
+}

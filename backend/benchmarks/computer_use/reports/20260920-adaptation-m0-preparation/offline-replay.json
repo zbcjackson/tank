@@ -1,0 +1,251 @@
+{
+  "transport": "none; archived raw response JSON decoded with current probe parser/scorer; no HTTP or desktop actions",
+  "cases": [
+    {
+      "id": "plus-101-point-0",
+      "batch": "20260919-protocol-preflight",
+      "schema_valid": false,
+      "hit": false,
+      "rejection": "Coordinates must be integers",
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "qwen38flash-101-point-0",
+      "batch": "20260919-protocol-preflight",
+      "schema_valid": false,
+      "hit": false,
+      "rejection": "Coordinates must be integers",
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "flash-101-point-0",
+      "batch": "20260919-protocol-preflight",
+      "schema_valid": false,
+      "hit": false,
+      "rejection": "Coordinates must be integers",
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "qwen38max-101-point-0",
+      "batch": "20260919-protocol-preflight",
+      "schema_valid": false,
+      "hit": false,
+      "rejection": "Coordinates must be integers",
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "qwen38flash-101-strict-point-0",
+      "batch": "20260919-protocol-preflight",
+      "schema_valid": false,
+      "hit": false,
+      "rejection": "Coordinates must be integers",
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "plus-101-strict-point-0",
+      "batch": "20260919-protocol-preflight",
+      "schema_valid": false,
+      "hit": false,
+      "rejection": "Coordinates must be integers",
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "flash-101-strict-point-0",
+      "batch": "20260919-protocol-preflight",
+      "schema_valid": false,
+      "hit": false,
+      "rejection": "Coordinates must be integers",
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "qwen38max-101-strict-point-0",
+      "batch": "20260919-protocol-preflight",
+      "schema_valid": false,
+      "hit": false,
+      "rejection": "Coordinates must be integers",
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-102-strict-bbox-1",
+      "batch": "20260919-deepseek-off-4000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": -7.699999999999989,
+      "dy": 41.32000000000005,
+      "distance": 42.031326412569996,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-102-low-detail-0",
+      "batch": "20260919-deepseek-off-4000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": 242.20000000000005,
+      "dy": -12.440000000000055,
+      "distance": 242.51926438945014,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-101-strict-bbox-1",
+      "batch": "20260919-deepseek-off-4000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": -41.48000000000002,
+      "dy": 4.649999999999977,
+      "distance": 41.73982390954712,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-102-low-detail-1",
+      "batch": "20260919-deepseek-off-4000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": 187.60000000000002,
+      "dy": 34.60000000000002,
+      "distance": 190.76404273342501,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-101-strict-bbox-0",
+      "batch": "20260919-deepseek-off-4000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": -42.92000000000007,
+      "dy": 5.550000000000011,
+      "distance": 43.27734857867342,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-101-low-detail-0",
+      "batch": "20260919-deepseek-off-4000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": 32.67999999999995,
+      "dy": -2.1000000000000227,
+      "distance": 32.74740295046306,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-102-strict-bbox-0",
+      "batch": "20260919-deepseek-off-4000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": -2.4500000000000455,
+      "dy": 36.27999999999997,
+      "distance": 36.362630542907624,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-101-point-1",
+      "batch": "20260919-deepseek-off-4000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": 64.3599999999999,
+      "dy": 3.3000000000000114,
+      "distance": 64.44454670489961,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-101-low-detail-1",
+      "batch": "20260919-deepseek-off-4000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": -76.75999999999999,
+      "dy": 10.5,
+      "distance": 77.47481913499378,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-101-point-0",
+      "batch": "20260919-deepseek-on-16000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": -36.440000000000055,
+      "dy": -0.30000000000001137,
+      "distance": 36.44123488577197,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-102-low-detail-0",
+      "batch": "20260919-deepseek-on-16000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": -213.5,
+      "dy": -329.96000000000004,
+      "distance": 393.00871695167274,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-101-strict-bbox-1",
+      "batch": "20260919-deepseek-on-16000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": -169.6400000000001,
+      "dy": 2.3999999999999773,
+      "distance": 169.65697627860763,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-102-low-detail-1",
+      "batch": "20260919-deepseek-on-16000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": -3.5,
+      "dy": -471.08000000000004,
+      "distance": 471.0930018584441,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-101-low-detail-0",
+      "batch": "20260919-deepseek-on-16000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": -65.24000000000001,
+      "dy": 215.7,
+      "distance": 225.35027756805624,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-102-strict-bbox-0",
+      "batch": "20260919-deepseek-on-16000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": -11.375,
+      "dy": 30.399999999999977,
+      "distance": 32.45844458688676,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-102-point-0",
+      "batch": "20260919-deepseek-on-16000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": -3.5,
+      "dy": 34.60000000000002,
+      "distance": 34.77657257407638,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-101-point-1",
+      "batch": "20260919-deepseek-on-16000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": -39.32000000000005,
+      "dy": -0.30000000000001137,
+      "distance": 39.32114443909287,
+      "matches_archived_outcome": true
+    },
+    {
+      "id": "deepseek-101-low-detail-1",
+      "batch": "20260919-deepseek-on-16000",
+      "schema_valid": true,
+      "hit": false,
+      "dx": -171.79999999999995,
+      "dy": -10.199999999999989,
+      "distance": 172.10252758167147,
+      "matches_archived_outcome": true
+    }
+  ],
+  "all_match": true,
+  "m1_legacy": "indexed separately; not claimed replayed by the matrix decoder"
+}

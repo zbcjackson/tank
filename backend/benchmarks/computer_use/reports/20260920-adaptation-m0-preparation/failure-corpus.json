@@ -1,0 +1,3076 @@
+{
+  "policy": "All failures from named source batches retained, not a representative sample or new score. Source paths are repository-relative. Matrix truth is historical development data, never holdout.",
+  "static_failures": [
+    {
+      "id": "plus-101-point-0",
+      "batch": "20260919-protocol-preflight",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "plus-101-point-0",
+        "model": "qwen3.7-plus-2026-05-26",
+        "provider": "qwen",
+        "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+        "seed": 101,
+        "variant": "point",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_valid": false,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": "b6b51821-12e2-92c6-8658-c49109125f14",
+        "returned_model": "qwen3.7-plus-2026-05-26",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 732,
+          "prompt_tokens": 1705,
+          "total_tokens": 2437,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 677,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 54
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 1262,
+            "text_tokens": 443
+          }
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": \"646\", \"y\": \"311\"}",
+        "error": "ValueError: Coordinates must be integers",
+        "seconds": 13.7
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/results.json",
+          "sha256": "12fd1ba651d74c57dbd71b214707068160689cbeb4eae4328a0ab762602ddca5"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/plus-101-point-0.request.json",
+          "sha256": "27e276bf31f0d345bf01bae38d78150b8e5876956000c71bd1707c7af6d84c4c"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/plus-101-point-0.response.json.gz",
+          "sha256": "3b68aadf5484e32def746fe758f047bb73747980c7e864e9b8f55145167ec76d"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "qwen38flash-101-point-0",
+      "batch": "20260919-protocol-preflight",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "qwen38flash-101-point-0",
+        "model": "qwen3.8-flash",
+        "provider": "qwen",
+        "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+        "seed": 101,
+        "variant": "point",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_valid": false,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": "eab0205c-f6d0-9180-9a5e-7f18ef6ea227",
+        "returned_model": "qwen3.8-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 194,
+          "prompt_tokens": 1743,
+          "total_tokens": 1937,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 139,
+            "rejected_prediction_tokens": null
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 1262,
+            "text_tokens": 481
+          }
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": \"650\", \"y\": \"312\"}",
+        "error": "ValueError: Coordinates must be integers",
+        "seconds": 2.99
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/results.json",
+          "sha256": "12fd1ba651d74c57dbd71b214707068160689cbeb4eae4328a0ab762602ddca5"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/qwen38flash-101-point-0.request.json",
+          "sha256": "40da25a796a3ab657878c16d3ee792a8bcd1ea357a6d5fbe43f34c9d31206bc1"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/qwen38flash-101-point-0.response.json.gz",
+          "sha256": "e742645400b2fa33f5b21c156495cca1bb727e2a78b164eb5978161505229517"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "flash-101-point-0",
+      "batch": "20260919-protocol-preflight",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "flash-101-point-0",
+        "model": "qwen3.7-flash-2026-07-15",
+        "provider": "qwen",
+        "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+        "seed": 101,
+        "variant": "point",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_valid": false,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": "66323a07-3c3e-9ba9-85f7-2528c2db2986",
+        "returned_model": "qwen3.7-flash-2026-07-15",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 2296,
+          "prompt_tokens": 1705,
+          "total_tokens": 4001,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 2241,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 55
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 1262,
+            "text_tokens": 443
+          }
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": \"642\", \"y\": \"317\"}",
+        "error": "ValueError: Coordinates must be integers",
+        "seconds": 23.38
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/results.json",
+          "sha256": "12fd1ba651d74c57dbd71b214707068160689cbeb4eae4328a0ab762602ddca5"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/flash-101-point-0.request.json",
+          "sha256": "d778a61030137fef816922a85fd0b0c7e2129930cb472cbcdc150e197b552938"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/flash-101-point-0.response.json.gz",
+          "sha256": "d206b9c89f101a77ad60a019bf4d6ddcd996b4e3453d7f20c540ca730bc3f2b8"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "qwen38max-101-point-0",
+      "batch": "20260919-protocol-preflight",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "qwen38max-101-point-0",
+        "model": "qwen3.8-max-2026-09-02",
+        "provider": "qwen",
+        "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+        "seed": 101,
+        "variant": "point",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_valid": false,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": "5757025b-86d3-93d9-96f6-fd51426fb346",
+        "returned_model": "qwen3.8-max-0902",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 401,
+          "prompt_tokens": 1705,
+          "total_tokens": 2106,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 346,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 54
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 1262,
+            "text_tokens": 443
+          }
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": \"456\", \"y\": \"350\"}",
+        "error": "ValueError: Coordinates must be integers",
+        "seconds": 7.87
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/results.json",
+          "sha256": "12fd1ba651d74c57dbd71b214707068160689cbeb4eae4328a0ab762602ddca5"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/qwen38max-101-point-0.request.json",
+          "sha256": "d83eff96c6fef97da1fef171445916f80019b1bed6c4475648129eb9a953ab40"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/qwen38max-101-point-0.response.json.gz",
+          "sha256": "f8d89d6c44fa929b845bd860a7ede3e48bcd3ac20a9da21062ece9404c6f6ca0"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "qwen38flash-101-strict-point-0",
+      "batch": "20260919-protocol-preflight",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "qwen38flash-101-strict-point-0",
+        "model": "qwen3.8-flash",
+        "provider": "qwen",
+        "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+        "seed": 101,
+        "variant": "strict-point",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_valid": false,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": "b9624172-5870-9b4c-b828-56d2a81a9ba4",
+        "returned_model": "qwen3.8-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 178,
+          "prompt_tokens": 1743,
+          "total_tokens": 1921,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 123,
+            "rejected_prediction_tokens": null
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 1536,
+            "image_tokens": 1262,
+            "text_tokens": 481
+          }
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": \"648\", \"y\": \"314\"}",
+        "error": "ValueError: Coordinates must be integers",
+        "seconds": 2.66
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/results.json",
+          "sha256": "12fd1ba651d74c57dbd71b214707068160689cbeb4eae4328a0ab762602ddca5"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/qwen38flash-101-strict-point-0.request.json",
+          "sha256": "04b479847d763e03d4295eb05a912627ac331550df36e5436cc9c264532fc99c"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/qwen38flash-101-strict-point-0.response.json.gz",
+          "sha256": "60e0e82b9470ad593e07e04997d95169e55c2f576bc7d0f9efda3ae5c591d874"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "plus-101-strict-point-0",
+      "batch": "20260919-protocol-preflight",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "plus-101-strict-point-0",
+        "model": "qwen3.7-plus-2026-05-26",
+        "provider": "qwen",
+        "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+        "seed": 101,
+        "variant": "strict-point",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_valid": false,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": "94390fd6-3e1d-9368-96b6-af5e868071ee",
+        "returned_model": "qwen3.7-plus-2026-05-26",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 431,
+          "prompt_tokens": 1705,
+          "total_tokens": 2136,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 376,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 54
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 1262,
+            "text_tokens": 443
+          }
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": \"646\", \"y\": \"311\"}",
+        "error": "ValueError: Coordinates must be integers",
+        "seconds": 8.41
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/results.json",
+          "sha256": "12fd1ba651d74c57dbd71b214707068160689cbeb4eae4328a0ab762602ddca5"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/plus-101-strict-point-0.request.json",
+          "sha256": "06d2c620a0eab1cd9243d35f9e1f416b5c2ebbcc72dc2fe086ee2e7e3a754b9a"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/plus-101-strict-point-0.response.json.gz",
+          "sha256": "8ecf54597ecaac0f55a7bae93216691bcd9a9ca2249b460494cb65239d829f18"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "flash-101-strict-point-0",
+      "batch": "20260919-protocol-preflight",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "flash-101-strict-point-0",
+        "model": "qwen3.7-flash-2026-07-15",
+        "provider": "qwen",
+        "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+        "seed": 101,
+        "variant": "strict-point",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_valid": false,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": "cc6c5e17-c740-9b06-b984-5e5b8dfab11c",
+        "returned_model": "qwen3.7-flash-2026-07-15",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 1017,
+          "prompt_tokens": 1705,
+          "total_tokens": 2722,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 962,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 55
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 1262,
+            "text_tokens": 443
+          }
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": \"828\", \"y\": \"275\"}",
+        "error": "ValueError: Coordinates must be integers",
+        "seconds": 9.83
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/results.json",
+          "sha256": "12fd1ba651d74c57dbd71b214707068160689cbeb4eae4328a0ab762602ddca5"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/flash-101-strict-point-0.request.json",
+          "sha256": "af060b7cf9bd58ac7034a5edefdf942e45567159ce68e525c286834a43fb2ea1"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/flash-101-strict-point-0.response.json.gz",
+          "sha256": "7cbdb778778caad60783d51c0af3c2686dbeef4b7322c178edf81a8cee869e5d"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "qwen38max-101-strict-point-0",
+      "batch": "20260919-protocol-preflight",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "qwen38max-101-strict-point-0",
+        "model": "qwen3.8-max-2026-09-02",
+        "provider": "qwen",
+        "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+        "seed": 101,
+        "variant": "strict-point",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_valid": false,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": "28702ad7-0df8-97bf-a8ce-3a16d67b0a55",
+        "returned_model": "qwen3.8-max-0902",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 1082,
+          "prompt_tokens": 1705,
+          "total_tokens": 2787,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 1027,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 54
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 1024,
+            "image_tokens": 1262,
+            "text_tokens": 443
+          }
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": \"644\", \"y\": \"350\"}",
+        "error": "ValueError: Coordinates must be integers",
+        "seconds": 20.77
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/results.json",
+          "sha256": "12fd1ba651d74c57dbd71b214707068160689cbeb4eae4328a0ab762602ddca5"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/qwen38max-101-strict-point-0.request.json",
+          "sha256": "fe58eba4c1e1126cea6b78786407b0c85f1d6d4d9fff9379719fa9ce9e48956e"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/qwen38max-101-strict-point-0.response.json.gz",
+          "sha256": "849787887855c21ba1ee4ffa7a0329646e8441e070cc30698743780862f35adb"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-protocol-preflight/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-102-strict-bbox-1",
+      "batch": "20260919-deepseek-off-4000",
+      "original": {
+        "size": [
+          1050,
+          1680
+        ],
+        "source_size": [
+          1050,
+          1680
+        ],
+        "target": "7",
+        "center": [
+          518,
+          965
+        ],
+        "crop": null,
+        "bounds": [
+          488,
+          941,
+          548,
+          989
+        ],
+        "radius": 22,
+        "id": "deepseek-102-strict-bbox-1",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com/beta/",
+        "seed": 102,
+        "variant": "strict-bbox",
+        "protocol": "bbox",
+        "images": [
+          "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        ],
+        "schema_style": "integer",
+        "thinking": false,
+        "max_tokens": 4000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 139,
+          "prompt_tokens": 1454,
+          "total_tokens": 1593,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0
+          },
+          "prompt_cache_hit_tokens": 0,
+          "prompt_cache_miss_tokens": 1454
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"left\": 460, \"top\": 578, \"right\": 512, \"bottom\": 620}",
+        "abstained": false,
+        "point": [
+          510.3,
+          1006.32
+        ],
+        "dx": -7.699999999999989,
+        "dy": 41.32000000000005,
+        "distance": 42.031326412569996,
+        "correct_abstention": false,
+        "seconds": 1.29
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/results.json",
+          "sha256": "8e5ffa545166ffa988387523ff04403c1cd40801841af381623d66290144f45d"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-102-strict-bbox-1.request.json",
+          "sha256": "1699bf290d152678c6cc0b681100176ff78f140e13850200897359f7d5187957"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-102-strict-bbox-1.response.json.gz",
+          "sha256": "b1726deff1d8e61a39cbd98868b641f8d878264e0da367eb53d5dc8525dd9e46"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274.png",
+          "sha256": "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-102-low-detail-0",
+      "batch": "20260919-deepseek-off-4000",
+      "original": {
+        "size": [
+          1050,
+          1680
+        ],
+        "source_size": [
+          1050,
+          1680
+        ],
+        "target": "7",
+        "center": [
+          518,
+          965
+        ],
+        "crop": null,
+        "bounds": [
+          488,
+          941,
+          548,
+          989
+        ],
+        "radius": 22,
+        "id": "deepseek-102-low-detail-0",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com",
+        "seed": 102,
+        "variant": "low-detail",
+        "protocol": "point",
+        "images": [
+          "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        ],
+        "schema_style": "integer",
+        "thinking": false,
+        "max_tokens": 4000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 93,
+          "prompt_tokens": 630,
+          "total_tokens": 723,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 128
+          },
+          "prompt_cache_hit_tokens": 128,
+          "prompt_cache_miss_tokens": 502
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": 724, \"y\": 567}",
+        "abstained": false,
+        "point": [
+          760.2,
+          952.56
+        ],
+        "dx": 242.20000000000005,
+        "dy": -12.440000000000055,
+        "distance": 242.51926438945014,
+        "correct_abstention": false,
+        "seconds": 0.85
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/results.json",
+          "sha256": "8e5ffa545166ffa988387523ff04403c1cd40801841af381623d66290144f45d"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-102-low-detail-0.request.json",
+          "sha256": "6914d746f7adebc0c62ae6d099315818709e5ea78ac3a69451ba1137393f1ebf"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-102-low-detail-0.response.json.gz",
+          "sha256": "30ccbefd7384899c800ee11592a0e69955135ad0c284e5c17b95f54adcd488e0"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274.png",
+          "sha256": "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-101-strict-bbox-1",
+      "batch": "20260919-deepseek-off-4000",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "deepseek-101-strict-bbox-1",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com/beta/",
+        "seed": 101,
+        "variant": "strict-bbox",
+        "protocol": "bbox",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_style": "integer",
+        "thinking": false,
+        "max_tokens": 4000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 119,
+          "prompt_tokens": 1269,
+          "total_tokens": 1388,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 256
+          },
+          "prompt_cache_hit_tokens": 256,
+          "prompt_cache_miss_tokens": 1013
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"left\": 597, \"top\": 296, \"right\": 644, \"bottom\": 341}",
+        "abstained": false,
+        "point": [
+          893.52,
+          286.65
+        ],
+        "dx": -41.48000000000002,
+        "dy": 4.649999999999977,
+        "distance": 41.73982390954712,
+        "correct_abstention": false,
+        "seconds": 1.02
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/results.json",
+          "sha256": "8e5ffa545166ffa988387523ff04403c1cd40801841af381623d66290144f45d"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-101-strict-bbox-1.request.json",
+          "sha256": "81a432215e37fc79979dc7dbd72d3064f007bc0bda843e2f22a78c5f2539ba30"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-101-strict-bbox-1.response.json.gz",
+          "sha256": "3837444de323474d983ef9098e6f67bcda186eb204c9d5b0a70099a3db7b56ca"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-102-low-detail-1",
+      "batch": "20260919-deepseek-off-4000",
+      "original": {
+        "size": [
+          1050,
+          1680
+        ],
+        "source_size": [
+          1050,
+          1680
+        ],
+        "target": "7",
+        "center": [
+          518,
+          965
+        ],
+        "crop": null,
+        "bounds": [
+          488,
+          941,
+          548,
+          989
+        ],
+        "radius": 22,
+        "id": "deepseek-102-low-detail-1",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com",
+        "seed": 102,
+        "variant": "low-detail",
+        "protocol": "point",
+        "images": [
+          "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        ],
+        "schema_style": "integer",
+        "thinking": false,
+        "max_tokens": 4000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 90,
+          "prompt_tokens": 630,
+          "total_tokens": 720,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 384
+          },
+          "prompt_cache_hit_tokens": 384,
+          "prompt_cache_miss_tokens": 246
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": 672, \"y\": 595}",
+        "abstained": false,
+        "point": [
+          705.6,
+          999.6
+        ],
+        "dx": 187.60000000000002,
+        "dy": 34.60000000000002,
+        "distance": 190.76404273342501,
+        "correct_abstention": false,
+        "seconds": 0.96
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/results.json",
+          "sha256": "8e5ffa545166ffa988387523ff04403c1cd40801841af381623d66290144f45d"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-102-low-detail-1.request.json",
+          "sha256": "6914d746f7adebc0c62ae6d099315818709e5ea78ac3a69451ba1137393f1ebf"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-102-low-detail-1.response.json.gz",
+          "sha256": "4395b985c9e643098e2547c4abf3d5b98e5aa4369ef9bce27624c3d918eebbf0"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274.png",
+          "sha256": "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-101-strict-bbox-0",
+      "batch": "20260919-deepseek-off-4000",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "deepseek-101-strict-bbox-0",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com/beta/",
+        "seed": 101,
+        "variant": "strict-bbox",
+        "protocol": "bbox",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_style": "integer",
+        "thinking": false,
+        "max_tokens": 4000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 117,
+          "prompt_tokens": 1269,
+          "total_tokens": 1386,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 1024
+          },
+          "prompt_cache_hit_tokens": 1024,
+          "prompt_cache_miss_tokens": 245
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"left\": 596, \"top\": 296, \"right\": 643, \"bottom\": 343}",
+        "abstained": false,
+        "point": [
+          892.0799999999999,
+          287.55
+        ],
+        "dx": -42.92000000000007,
+        "dy": 5.550000000000011,
+        "distance": 43.27734857867342,
+        "correct_abstention": false,
+        "seconds": 1.04
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/results.json",
+          "sha256": "8e5ffa545166ffa988387523ff04403c1cd40801841af381623d66290144f45d"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-101-strict-bbox-0.request.json",
+          "sha256": "81a432215e37fc79979dc7dbd72d3064f007bc0bda843e2f22a78c5f2539ba30"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-101-strict-bbox-0.response.json.gz",
+          "sha256": "de14def84b4602268b263c99b5b6f55f185b3ac189913120f14cf25faff074de"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-101-low-detail-0",
+      "batch": "20260919-deepseek-off-4000",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "deepseek-101-low-detail-0",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com",
+        "seed": 101,
+        "variant": "low-detail",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_style": "integer",
+        "thinking": false,
+        "max_tokens": 4000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 104,
+          "prompt_tokens": 622,
+          "total_tokens": 726,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 256
+          },
+          "prompt_cache_hit_tokens": 256,
+          "prompt_cache_miss_tokens": 366
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": 672, \"y\": 311}",
+        "abstained": false,
+        "point": [
+          967.68,
+          279.9
+        ],
+        "dx": 32.67999999999995,
+        "dy": -2.1000000000000227,
+        "distance": 32.74740295046306,
+        "correct_abstention": false,
+        "seconds": 0.96
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/results.json",
+          "sha256": "8e5ffa545166ffa988387523ff04403c1cd40801841af381623d66290144f45d"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-101-low-detail-0.request.json",
+          "sha256": "b49f9585c8ba26fe163ab7f107bea819e21948f2bb4ac81ddf7abf462eb451b8"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-101-low-detail-0.response.json.gz",
+          "sha256": "22b1d49cf4f384924215ece5b6ae66ec7e63f320645ec997146044e970ae6eb1"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-102-strict-bbox-0",
+      "batch": "20260919-deepseek-off-4000",
+      "original": {
+        "size": [
+          1050,
+          1680
+        ],
+        "source_size": [
+          1050,
+          1680
+        ],
+        "target": "7",
+        "center": [
+          518,
+          965
+        ],
+        "crop": null,
+        "bounds": [
+          488,
+          941,
+          548,
+          989
+        ],
+        "radius": 22,
+        "id": "deepseek-102-strict-bbox-0",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com/beta/",
+        "seed": 102,
+        "variant": "strict-bbox",
+        "protocol": "bbox",
+        "images": [
+          "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        ],
+        "schema_style": "integer",
+        "thinking": false,
+        "max_tokens": 4000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 113,
+          "prompt_tokens": 1454,
+          "total_tokens": 1567,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 1280
+          },
+          "prompt_cache_hit_tokens": 1280,
+          "prompt_cache_miss_tokens": 174
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"left\": 466, \"top\": 575, \"right\": 516, \"bottom\": 617}",
+        "abstained": false,
+        "point": [
+          515.55,
+          1001.28
+        ],
+        "dx": -2.4500000000000455,
+        "dy": 36.27999999999997,
+        "distance": 36.362630542907624,
+        "correct_abstention": false,
+        "seconds": 1.08
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/results.json",
+          "sha256": "8e5ffa545166ffa988387523ff04403c1cd40801841af381623d66290144f45d"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-102-strict-bbox-0.request.json",
+          "sha256": "1699bf290d152678c6cc0b681100176ff78f140e13850200897359f7d5187957"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-102-strict-bbox-0.response.json.gz",
+          "sha256": "23ea40f411b0542f62e48366077cf9efe2660a20b3b7e521fdf9d0dfa50d0289"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274.png",
+          "sha256": "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-101-point-1",
+      "batch": "20260919-deepseek-off-4000",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "deepseek-101-point-1",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com",
+        "seed": 101,
+        "variant": "point",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_style": "integer",
+        "thinking": false,
+        "max_tokens": 4000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 118,
+          "prompt_tokens": 1216,
+          "total_tokens": 1334,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 1024
+          },
+          "prompt_cache_hit_tokens": 1024,
+          "prompt_cache_miss_tokens": 192
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": 694, \"y\": 317}",
+        "abstained": false,
+        "point": [
+          999.3599999999999,
+          285.3
+        ],
+        "dx": 64.3599999999999,
+        "dy": 3.3000000000000114,
+        "distance": 64.44454670489961,
+        "correct_abstention": false,
+        "seconds": 0.9
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/results.json",
+          "sha256": "8e5ffa545166ffa988387523ff04403c1cd40801841af381623d66290144f45d"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-101-point-1.request.json",
+          "sha256": "1b79770992f26f7dabc7fdbbc430e2e6ebe5c9971e559e64256a076a2d26ac64"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-101-point-1.response.json.gz",
+          "sha256": "69d20f304c727003ca1beef1998eb3b33a98c2850f49a1d2a10093ac7d323f99"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-101-low-detail-1",
+      "batch": "20260919-deepseek-off-4000",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "deepseek-101-low-detail-1",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com",
+        "seed": 101,
+        "variant": "low-detail",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_style": "integer",
+        "thinking": false,
+        "max_tokens": 4000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 96,
+          "prompt_tokens": 622,
+          "total_tokens": 718,
+          "completion_tokens_details": null,
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 384
+          },
+          "prompt_cache_hit_tokens": 384,
+          "prompt_cache_miss_tokens": 238
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": 596, \"y\": 325}",
+        "abstained": false,
+        "point": [
+          858.24,
+          292.5
+        ],
+        "dx": -76.75999999999999,
+        "dy": 10.5,
+        "distance": 77.47481913499378,
+        "correct_abstention": false,
+        "seconds": 0.89
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/results.json",
+          "sha256": "8e5ffa545166ffa988387523ff04403c1cd40801841af381623d66290144f45d"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-101-low-detail-1.request.json",
+          "sha256": "b49f9585c8ba26fe163ab7f107bea819e21948f2bb4ac81ddf7abf462eb451b8"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/deepseek-101-low-detail-1.response.json.gz",
+          "sha256": "749d7a9d8dbfe160ce38845de722e4c58ae6f9a5b914c35319593ef5b5345b89"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-off-4000/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-101-point-0",
+      "batch": "20260919-deepseek-on-16000",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "deepseek-101-point-0",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com",
+        "seed": 101,
+        "variant": "point",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_style": "integer",
+        "thinking": true,
+        "max_tokens": 16000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 146,
+          "prompt_tokens": 1241,
+          "total_tokens": 1387,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 77,
+            "rejected_prediction_tokens": null
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 1024
+          },
+          "prompt_cache_hit_tokens": 1024,
+          "prompt_cache_miss_tokens": 217
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": 624, \"y\": 313}",
+        "abstained": false,
+        "point": [
+          898.56,
+          281.7
+        ],
+        "dx": -36.440000000000055,
+        "dy": -0.30000000000001137,
+        "distance": 36.44123488577197,
+        "correct_abstention": false,
+        "seconds": 1.13
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/results.json",
+          "sha256": "a2eebc55fda9344ca5121b2fe6de932b531f012e1f280f54a5e0d31ea96be2cf"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-101-point-0.request.json",
+          "sha256": "232a5854eecce591103a483f2b3c30410862790e8286b5f9f1293a160f0800d2"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-101-point-0.response.json.gz",
+          "sha256": "246cb7ed17fdd79efaf9af3452dc7a2089bf97685a1fce8daac07ddf94a64c1d"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-102-low-detail-0",
+      "batch": "20260919-deepseek-on-16000",
+      "original": {
+        "size": [
+          1050,
+          1680
+        ],
+        "source_size": [
+          1050,
+          1680
+        ],
+        "target": "7",
+        "center": [
+          518,
+          965
+        ],
+        "crop": null,
+        "bounds": [
+          488,
+          941,
+          548,
+          989
+        ],
+        "radius": 22,
+        "id": "deepseek-102-low-detail-0",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com",
+        "seed": 102,
+        "variant": "low-detail",
+        "protocol": "point",
+        "images": [
+          "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        ],
+        "schema_style": "integer",
+        "thinking": true,
+        "max_tokens": 16000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 436,
+          "prompt_tokens": 655,
+          "total_tokens": 1091,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 367,
+            "rejected_prediction_tokens": null
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 512
+          },
+          "prompt_cache_hit_tokens": 512,
+          "prompt_cache_miss_tokens": 143
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": 290, \"y\": 378}",
+        "abstained": false,
+        "point": [
+          304.5,
+          635.04
+        ],
+        "dx": -213.5,
+        "dy": -329.96000000000004,
+        "distance": 393.00871695167274,
+        "correct_abstention": false,
+        "seconds": 2.06
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/results.json",
+          "sha256": "a2eebc55fda9344ca5121b2fe6de932b531f012e1f280f54a5e0d31ea96be2cf"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-102-low-detail-0.request.json",
+          "sha256": "fb94f82940da454b5258ef9b43d2464178bddccead768b61b073ba725f04343d"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-102-low-detail-0.response.json.gz",
+          "sha256": "41970659630ed828bed6bfea567ab1ab46af982a9d30907b1897c4459cce07f1"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274.png",
+          "sha256": "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-101-strict-bbox-1",
+      "batch": "20260919-deepseek-on-16000",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "deepseek-101-strict-bbox-1",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com/beta/",
+        "seed": 101,
+        "variant": "strict-bbox",
+        "protocol": "bbox",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_style": "integer",
+        "thinking": true,
+        "max_tokens": 16000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 253,
+          "prompt_tokens": 1294,
+          "total_tokens": 1547,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 152,
+            "rejected_prediction_tokens": null
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 1152
+          },
+          "prompt_cache_hit_tokens": 1152,
+          "prompt_cache_miss_tokens": 142
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"left\": 514, \"top\": 294, \"right\": 549, \"bottom\": 338}",
+        "abstained": false,
+        "point": [
+          765.3599999999999,
+          284.4
+        ],
+        "dx": -169.6400000000001,
+        "dy": 2.3999999999999773,
+        "distance": 169.65697627860763,
+        "correct_abstention": false,
+        "seconds": 1.22
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/results.json",
+          "sha256": "a2eebc55fda9344ca5121b2fe6de932b531f012e1f280f54a5e0d31ea96be2cf"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-101-strict-bbox-1.request.json",
+          "sha256": "be69accea3a32f95a2b4d1be868763616c338a8a09fe31db9ce0a522fd0fc287"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-101-strict-bbox-1.response.json.gz",
+          "sha256": "8688da12d0ad1f8fc36f49933d4093c145da7f3cae933b9f90a003b289c84b4b"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-102-low-detail-1",
+      "batch": "20260919-deepseek-on-16000",
+      "original": {
+        "size": [
+          1050,
+          1680
+        ],
+        "source_size": [
+          1050,
+          1680
+        ],
+        "target": "7",
+        "center": [
+          518,
+          965
+        ],
+        "crop": null,
+        "bounds": [
+          488,
+          941,
+          548,
+          989
+        ],
+        "radius": 22,
+        "id": "deepseek-102-low-detail-1",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com",
+        "seed": 102,
+        "variant": "low-detail",
+        "protocol": "point",
+        "images": [
+          "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        ],
+        "schema_style": "integer",
+        "thinking": true,
+        "max_tokens": 16000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 7678,
+          "prompt_tokens": 655,
+          "total_tokens": 8333,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 7446,
+            "rejected_prediction_tokens": null
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 512
+          },
+          "prompt_cache_hit_tokens": 512,
+          "prompt_cache_miss_tokens": 143
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": 490, \"y\": 294}",
+        "abstained": false,
+        "point": [
+          514.5,
+          493.91999999999996
+        ],
+        "dx": -3.5,
+        "dy": -471.08000000000004,
+        "distance": 471.0930018584441,
+        "correct_abstention": false,
+        "seconds": 30.06
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/results.json",
+          "sha256": "a2eebc55fda9344ca5121b2fe6de932b531f012e1f280f54a5e0d31ea96be2cf"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-102-low-detail-1.request.json",
+          "sha256": "fb94f82940da454b5258ef9b43d2464178bddccead768b61b073ba725f04343d"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-102-low-detail-1.response.json.gz",
+          "sha256": "38f1aa71eef966a553888db8e272b6f71d24f0442361410cb9966217a5b0cd70"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274.png",
+          "sha256": "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-101-low-detail-0",
+      "batch": "20260919-deepseek-on-16000",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "deepseek-101-low-detail-0",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com",
+        "seed": 101,
+        "variant": "low-detail",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_style": "integer",
+        "thinking": true,
+        "max_tokens": 16000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 1218,
+          "prompt_tokens": 647,
+          "total_tokens": 1865,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 1149,
+            "rejected_prediction_tokens": null
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 512
+          },
+          "prompt_cache_hit_tokens": 512,
+          "prompt_cache_miss_tokens": 135
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": 604, \"y\": 553}",
+        "abstained": false,
+        "point": [
+          869.76,
+          497.7
+        ],
+        "dx": -65.24000000000001,
+        "dy": 215.7,
+        "distance": 225.35027756805624,
+        "correct_abstention": false,
+        "seconds": 5.68
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/results.json",
+          "sha256": "a2eebc55fda9344ca5121b2fe6de932b531f012e1f280f54a5e0d31ea96be2cf"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-101-low-detail-0.request.json",
+          "sha256": "12ea1499f5ba04c5432401309bdb8f168a5b0477da89a2f323a56e43862e4f96"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-101-low-detail-0.response.json.gz",
+          "sha256": "304131b5195762279c0d909fd39cf982098d0f12a1e394ed37ffdec65395e9f9"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-102-strict-bbox-0",
+      "batch": "20260919-deepseek-on-16000",
+      "original": {
+        "size": [
+          1050,
+          1680
+        ],
+        "source_size": [
+          1050,
+          1680
+        ],
+        "target": "7",
+        "center": [
+          518,
+          965
+        ],
+        "crop": null,
+        "bounds": [
+          488,
+          941,
+          548,
+          989
+        ],
+        "radius": 22,
+        "id": "deepseek-102-strict-bbox-0",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com/beta/",
+        "seed": 102,
+        "variant": "strict-bbox",
+        "protocol": "bbox",
+        "images": [
+          "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        ],
+        "schema_style": "integer",
+        "thinking": true,
+        "max_tokens": 16000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 1107,
+          "prompt_tokens": 1479,
+          "total_tokens": 2586,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 1006,
+            "rejected_prediction_tokens": null
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 1280
+          },
+          "prompt_cache_hit_tokens": 1280,
+          "prompt_cache_miss_tokens": 199
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"left\": 450, \"top\": 571, \"right\": 515, \"bottom\": 614}",
+        "abstained": false,
+        "point": [
+          506.625,
+          995.4
+        ],
+        "dx": -11.375,
+        "dy": 30.399999999999977,
+        "distance": 32.45844458688676,
+        "correct_abstention": false,
+        "seconds": 5.04
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/results.json",
+          "sha256": "a2eebc55fda9344ca5121b2fe6de932b531f012e1f280f54a5e0d31ea96be2cf"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-102-strict-bbox-0.request.json",
+          "sha256": "710c41b312ab79c9518ed2cc2fba10113f1c0fbaf64c5e87584e9f1abba40ed5"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-102-strict-bbox-0.response.json.gz",
+          "sha256": "cbe931bf88892cb48b52a8d2f0831e021054e1fd14f76eac339139262dc5a047"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274.png",
+          "sha256": "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-102-point-0",
+      "batch": "20260919-deepseek-on-16000",
+      "original": {
+        "size": [
+          1050,
+          1680
+        ],
+        "source_size": [
+          1050,
+          1680
+        ],
+        "target": "7",
+        "center": [
+          518,
+          965
+        ],
+        "crop": null,
+        "bounds": [
+          488,
+          941,
+          548,
+          989
+        ],
+        "radius": 22,
+        "id": "deepseek-102-point-0",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com",
+        "seed": 102,
+        "variant": "point",
+        "protocol": "point",
+        "images": [
+          "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        ],
+        "schema_style": "integer",
+        "thinking": true,
+        "max_tokens": 16000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 9691,
+          "prompt_tokens": 1426,
+          "total_tokens": 11117,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 9622,
+            "rejected_prediction_tokens": null
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 1280
+          },
+          "prompt_cache_hit_tokens": 1280,
+          "prompt_cache_miss_tokens": 146
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": 490, \"y\": 595}",
+        "abstained": false,
+        "point": [
+          514.5,
+          999.6
+        ],
+        "dx": -3.5,
+        "dy": 34.60000000000002,
+        "distance": 34.77657257407638,
+        "correct_abstention": false,
+        "seconds": 38.76
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/results.json",
+          "sha256": "a2eebc55fda9344ca5121b2fe6de932b531f012e1f280f54a5e0d31ea96be2cf"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-102-point-0.request.json",
+          "sha256": "8b25d0045569d9ac9e1d83ed1d20d705c1a987ff288fa71d2c05b93bcf6da46a"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-102-point-0.response.json.gz",
+          "sha256": "3a0467b8ab43e94d8b082f6b87ef2faa63553a065c65ae1fe22c9beec2d4ab6f"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274.png",
+          "sha256": "0588336e8d9fc4eeaeea11ebd8bee6b6dbd74bf92f604ae1fc3ab19d7a547274"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-101-point-1",
+      "batch": "20260919-deepseek-on-16000",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "deepseek-101-point-1",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com",
+        "seed": 101,
+        "variant": "point",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_style": "integer",
+        "thinking": true,
+        "max_tokens": 16000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 207,
+          "prompt_tokens": 1241,
+          "total_tokens": 1448,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 138,
+            "rejected_prediction_tokens": null
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 1024
+          },
+          "prompt_cache_hit_tokens": 1024,
+          "prompt_cache_miss_tokens": 217
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": 622, \"y\": 313}",
+        "abstained": false,
+        "point": [
+          895.68,
+          281.7
+        ],
+        "dx": -39.32000000000005,
+        "dy": -0.30000000000001137,
+        "distance": 39.32114443909287,
+        "correct_abstention": false,
+        "seconds": 1.17
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/results.json",
+          "sha256": "a2eebc55fda9344ca5121b2fe6de932b531f012e1f280f54a5e0d31ea96be2cf"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-101-point-1.request.json",
+          "sha256": "232a5854eecce591103a483f2b3c30410862790e8286b5f9f1293a160f0800d2"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-101-point-1.response.json.gz",
+          "sha256": "4fb264e2aab6ae2f722bb6b416916c7be056b8c7fc1947e0914e812a5b9e58d7"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "deepseek-101-low-detail-1",
+      "batch": "20260919-deepseek-on-16000",
+      "original": {
+        "size": [
+          1440,
+          900
+        ],
+        "source_size": [
+          1440,
+          900
+        ],
+        "target": "AC",
+        "center": [
+          935,
+          282
+        ],
+        "crop": null,
+        "bounds": [
+          905,
+          258,
+          965,
+          306
+        ],
+        "radius": 22,
+        "id": "deepseek-101-low-detail-1",
+        "model": "deepseek-flash",
+        "provider": "deepseek",
+        "endpoint": "https://api.deepseek.com",
+        "seed": 101,
+        "variant": "low-detail",
+        "protocol": "point",
+        "images": [
+          "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        ],
+        "schema_style": "integer",
+        "thinking": true,
+        "max_tokens": 16000,
+        "schema_valid": true,
+        "hit": false,
+        "http_verified": true,
+        "http_status": 200,
+        "request_id": null,
+        "returned_model": "deepseek-flash",
+        "returned_provider": null,
+        "usage": {
+          "completion_tokens": 2403,
+          "prompt_tokens": 647,
+          "total_tokens": 3050,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 2308,
+            "rejected_prediction_tokens": null
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 512
+          },
+          "prompt_cache_hit_tokens": 512,
+          "prompt_cache_miss_tokens": 135
+        },
+        "finish_reason": "tool_calls",
+        "arguments": "{\"found\": true, \"x\": 530, \"y\": 302}",
+        "abstained": false,
+        "point": [
+          763.2,
+          271.8
+        ],
+        "dx": -171.79999999999995,
+        "dy": -10.199999999999989,
+        "distance": 172.10252758167147,
+        "correct_abstention": false,
+        "seconds": 9.82
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/results.json",
+          "sha256": "a2eebc55fda9344ca5121b2fe6de932b531f012e1f280f54a5e0d31ea96be2cf"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-101-low-detail-1.request.json",
+          "sha256": "12ea1499f5ba04c5432401309bdb8f168a5b0477da89a2f323a56e43862e4f96"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/deepseek-101-low-detail-1.response.json.gz",
+          "sha256": "766951f1b27f9ed182009f157bf1f59180553e5d7c0de635f72848cda1415ce9"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260919-deepseek-on-16000/be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f.png",
+          "sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f"
+        }
+      ],
+      "missing_artifacts": []
+    },
+    {
+      "id": "m1-legacy-0-0",
+      "batch": "20260920-m1-acceptance",
+      "original": {
+        "variant": "legacy",
+        "repeat": 0,
+        "case": 0,
+        "request_sha256": "210952f54bb47e644b929141d1ffea67b1323f1ba2a6eee8ea522cfb1f98ae37",
+        "image_sha256": "34152cd2385f7ef268e37906cd674e267e63f6dabc6bf79cd261792d7cefa000",
+        "started": 1789873099.849879,
+        "calls": [
+          {
+            "name": "click",
+            "arguments": "{\"x\": \"377\", \"y\": 225}"
+          }
+        ],
+        "content": "",
+        "usage": {
+          "completion_tokens": 138,
+          "prompt_tokens": 5982,
+          "total_tokens": 6120,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 95,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 43
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 2042,
+            "text_tokens": 3940
+          }
+        },
+        "http_serialized_at": 1789873099.9342442,
+        "wire_sha256": "8a6f033cd2b57f54c668cecb04f1e0ecf527ea6df8c9e8197a994bbc2673bc08",
+        "response_model": "qwen3.7-flash-2026-07-15",
+        "finish_reason": "tool_calls",
+        "seconds": 3.594048023223877,
+        "available_tools_only": true,
+        "hit": false,
+        "error_px": 192.99623208757203
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-results.json",
+          "sha256": "119b39da6fcef0da6e6fd70de2734b336960956edd7951c625447dd0d1a4ea8b"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-manifest.json",
+          "sha256": "ae1c6b2ae5fe669401f6ee87de361cb3b4e4f4c188bb2d3b14a832040beb78d6"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-responses/legacy-0-0-response.json",
+          "sha256": "73e65a75e978a6e81a80049dc8bdca1d4485a7fcef103d6ec8d5877d8569fb79"
+        }
+      ],
+      "missing_artifacts": [],
+      "replay_scope": "production legacy click/bbox responses; kept separately from matrix parser protocol"
+    },
+    {
+      "id": "m1-corrected-0-0",
+      "batch": "20260920-m1-acceptance",
+      "original": {
+        "variant": "corrected",
+        "repeat": 0,
+        "case": 0,
+        "request_sha256": "ef2a665296b8774f6e929ccbad45ccba67ebbc49f067f5f19d8d93e2961ddea8",
+        "image_sha256": "34152cd2385f7ef268e37906cd674e267e63f6dabc6bf79cd261792d7cefa000",
+        "started": 1789873103.44832,
+        "calls": [
+          {
+            "name": "click",
+            "arguments": "{\"bbox\": \"\\n[277, 290, 313, 336]]\"}"
+          }
+        ],
+        "content": "",
+        "usage": {
+          "completion_tokens": 135,
+          "prompt_tokens": 5758,
+          "total_tokens": 5893,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 89,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 46
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 2042,
+            "text_tokens": 3716
+          }
+        },
+        "http_serialized_at": 1789873103.4527318,
+        "wire_sha256": "d28a640ad58ed5535bc4b67883133e71de8b9fc8054d203306b2d9fbc6f84390",
+        "response_model": "qwen3.7-flash-2026-07-15",
+        "finish_reason": "tool_calls",
+        "seconds": 3.3381640911102295,
+        "available_tools_only": true,
+        "hit": false
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-results.json",
+          "sha256": "119b39da6fcef0da6e6fd70de2734b336960956edd7951c625447dd0d1a4ea8b"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-manifest.json",
+          "sha256": "ae1c6b2ae5fe669401f6ee87de361cb3b4e4f4c188bb2d3b14a832040beb78d6"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-responses/corrected-0-0-response.json",
+          "sha256": "ae81932c81c0cbb8cc498a09592e38f84fcba86e8e9bf33ef5a1a3e53a37c214"
+        }
+      ],
+      "missing_artifacts": [],
+      "replay_scope": "production legacy click/bbox responses; kept separately from matrix parser protocol"
+    },
+    {
+      "id": "m1-corrected-1-0",
+      "batch": "20260920-m1-acceptance",
+      "original": {
+        "variant": "corrected",
+        "repeat": 0,
+        "case": 1,
+        "request_sha256": "63453f4650e6dc34485a576eb572bbb8e25a41ce5cd0ad2000cfedbf18f1b7d9",
+        "image_sha256": "e74341ca8a55b405cd2d511032815e0ad926e9c88a212205a8910ed433cfb995",
+        "started": 1789873106.792162,
+        "calls": [
+          {
+            "name": "click",
+            "arguments": "{\"x\": \"875\", \"y\": 365}"
+          }
+        ],
+        "content": "Looking at the calculator, I can see the \"7\" button is in the second row of the number pad (the row with 7, 8, 9, ×). I'll click on it.\n\n",
+        "usage": {
+          "completion_tokens": 808,
+          "prompt_tokens": 5758,
+          "total_tokens": 6566,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 721,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 87
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 2042,
+            "text_tokens": 3716
+          }
+        },
+        "http_serialized_at": 1789873106.7967181,
+        "wire_sha256": "bdfc7a60bbb3f6eee4bd3eb54a4600da91e7f2c33e2c21b45073276e5bec6665",
+        "response_model": "qwen3.7-flash-2026-07-15",
+        "finish_reason": "tool_calls",
+        "seconds": 11.699950933456421,
+        "available_tools_only": true,
+        "hit": false,
+        "error_px": 400.8543875274412
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-results.json",
+          "sha256": "119b39da6fcef0da6e6fd70de2734b336960956edd7951c625447dd0d1a4ea8b"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-manifest.json",
+          "sha256": "ae1c6b2ae5fe669401f6ee87de361cb3b4e4f4c188bb2d3b14a832040beb78d6"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-responses/corrected-1-0-response.json",
+          "sha256": "5f13de0d4b8b5e5b198b7817b32063f46dd1644fea7a88d05da39873e2af02e9"
+        }
+      ],
+      "missing_artifacts": [],
+      "replay_scope": "production legacy click/bbox responses; kept separately from matrix parser protocol"
+    },
+    {
+      "id": "m1-legacy-1-0",
+      "batch": "20260920-m1-acceptance",
+      "original": {
+        "variant": "legacy",
+        "repeat": 0,
+        "case": 1,
+        "request_sha256": "4e5ba033a7b15004ddbb2e2e0b9e00c4fe46a760ecac4162983c133878054c0c",
+        "image_sha256": "e74341ca8a55b405cd2d511032815e0ad926e9c88a212205a8910ed433cfb995",
+        "started": 1789873118.4997618,
+        "calls": [
+          {
+            "name": "click",
+            "arguments": "{\"x\": \"875\", \"y\": 355}"
+          }
+        ],
+        "content": "I can see the calculator with the display showing \"35\". The \"7\" button is in the second row of the calculator grid. Let me click it.\n\n",
+        "usage": {
+          "completion_tokens": 603,
+          "prompt_tokens": 5982,
+          "total_tokens": 6585,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 526,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 77
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 2042,
+            "text_tokens": 3940
+          }
+        },
+        "http_serialized_at": 1789873118.505165,
+        "wire_sha256": "d15999496d0b633cd6b074bd0d77e8a65237d3d269c371ec73ade55284806d2f",
+        "response_model": "qwen3.7-flash-2026-07-15",
+        "finish_reason": "tool_calls",
+        "seconds": 9.355151176452637,
+        "available_tools_only": true,
+        "hit": false,
+        "error_px": 405.06759929670994
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-results.json",
+          "sha256": "119b39da6fcef0da6e6fd70de2734b336960956edd7951c625447dd0d1a4ea8b"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-manifest.json",
+          "sha256": "ae1c6b2ae5fe669401f6ee87de361cb3b4e4f4c188bb2d3b14a832040beb78d6"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-responses/legacy-1-0-response.json",
+          "sha256": "e7ed6a889f813a59965c93009165e5859dbc9ff3a08f208a4de40d70b3f64f8b"
+        }
+      ],
+      "missing_artifacts": [],
+      "replay_scope": "production legacy click/bbox responses; kept separately from matrix parser protocol"
+    },
+    {
+      "id": "m1-legacy-2-0",
+      "batch": "20260920-m1-acceptance",
+      "original": {
+        "variant": "legacy",
+        "repeat": 0,
+        "case": 2,
+        "request_sha256": "f07e372ca8fc6fac780ca07c3a6813c083a841f46e5725cc0c49bac39a8aec1f",
+        "image_sha256": "9ad66c1a050a36d0735b381ea24be41659315df7460d221cdf1ebae94af4c64f",
+        "started": 1789873127.858774,
+        "calls": [
+          {
+            "name": "click",
+            "arguments": "{\"x\": \"625\", \"y\": 508}"
+          }
+        ],
+        "content": "",
+        "usage": {
+          "completion_tokens": 140,
+          "prompt_tokens": 5982,
+          "total_tokens": 6122,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 98,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 42
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 2042,
+            "text_tokens": 3940
+          }
+        },
+        "http_serialized_at": 1789873127.8633258,
+        "wire_sha256": "c051752d105b5a8c7d659bccaa467a81c641229f0f56a2a28de9ee915c58935f",
+        "response_model": "qwen3.7-flash-2026-07-15",
+        "finish_reason": "tool_calls",
+        "seconds": 4.1789870262146,
+        "available_tools_only": true,
+        "hit": false,
+        "error_px": 332.416018867924
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-results.json",
+          "sha256": "119b39da6fcef0da6e6fd70de2734b336960956edd7951c625447dd0d1a4ea8b"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-manifest.json",
+          "sha256": "ae1c6b2ae5fe669401f6ee87de361cb3b4e4f4c188bb2d3b14a832040beb78d6"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-responses/legacy-2-0-response.json",
+          "sha256": "7f700da2d06f3ebb5c9a155318ed273173294b4af9166c568468e8ba612bcacb"
+        }
+      ],
+      "missing_artifacts": [],
+      "replay_scope": "production legacy click/bbox responses; kept separately from matrix parser protocol"
+    },
+    {
+      "id": "m1-corrected-2-0",
+      "batch": "20260920-m1-acceptance",
+      "original": {
+        "variant": "corrected",
+        "repeat": 0,
+        "case": 2,
+        "request_sha256": "c574d8484750c1eef65be53589cdcfd6887583ef4f27fc0f4618706b6464b7c9",
+        "image_sha256": "9ad66c1a050a36d0735b381ea24be41659315df7460d221cdf1ebae94af4c64f",
+        "started": 1789873132.041682,
+        "calls": [
+          {
+            "name": "click",
+            "arguments": "{\"bbox\": \"\\n[613, 477, 649, 511]]\"}"
+          }
+        ],
+        "content": "",
+        "usage": {
+          "completion_tokens": 133,
+          "prompt_tokens": 5758,
+          "total_tokens": 5891,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 87,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 46
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 0,
+            "image_tokens": 2042,
+            "text_tokens": 3716
+          }
+        },
+        "http_serialized_at": 1789873132.046755,
+        "wire_sha256": "06a83a7b3d7373ab2989bc751e534ca31734b2f2e986a9331d69d41f6311c219",
+        "response_model": "qwen3.7-flash-2026-07-15",
+        "finish_reason": "tool_calls",
+        "seconds": 3.3798718452453613,
+        "available_tools_only": true,
+        "hit": false
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-results.json",
+          "sha256": "119b39da6fcef0da6e6fd70de2734b336960956edd7951c625447dd0d1a4ea8b"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-manifest.json",
+          "sha256": "ae1c6b2ae5fe669401f6ee87de361cb3b4e4f4c188bb2d3b14a832040beb78d6"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-responses/corrected-2-0-response.json",
+          "sha256": "5f84d9fb33d88e502cd0a65048b4069f017b10746886c1b67301850b270fbf8a"
+        }
+      ],
+      "missing_artifacts": [],
+      "replay_scope": "production legacy click/bbox responses; kept separately from matrix parser protocol"
+    },
+    {
+      "id": "m1-corrected-0-1",
+      "batch": "20260920-m1-acceptance",
+      "original": {
+        "variant": "corrected",
+        "repeat": 1,
+        "case": 0,
+        "request_sha256": "ef2a665296b8774f6e929ccbad45ccba67ebbc49f067f5f19d8d93e2961ddea8",
+        "image_sha256": "34152cd2385f7ef268e37906cd674e267e63f6dabc6bf79cd261792d7cefa000",
+        "started": 1789873135.4247391,
+        "calls": [
+          {
+            "name": "click",
+            "arguments": "{\"bbox\": \"\\n[365, 289, 407, 334]]\"}"
+          }
+        ],
+        "content": "",
+        "usage": {
+          "completion_tokens": 133,
+          "prompt_tokens": 5758,
+          "total_tokens": 5891,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 87,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 46
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 4480,
+            "image_tokens": 2042,
+            "text_tokens": 3716
+          }
+        },
+        "http_serialized_at": 1789873135.429339,
+        "wire_sha256": "d28a640ad58ed5535bc4b67883133e71de8b9fc8054d203306b2d9fbc6f84390",
+        "response_model": "qwen3.7-flash-2026-07-15",
+        "finish_reason": "tool_calls",
+        "seconds": 2.8209829330444336,
+        "available_tools_only": true,
+        "hit": false
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-results.json",
+          "sha256": "119b39da6fcef0da6e6fd70de2734b336960956edd7951c625447dd0d1a4ea8b"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-manifest.json",
+          "sha256": "ae1c6b2ae5fe669401f6ee87de361cb3b4e4f4c188bb2d3b14a832040beb78d6"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-responses/corrected-0-1-response.json",
+          "sha256": "e39170e89b31f752bd6b37d0fdafa99d8dec07fb648f78bf6e6f78c586709d3b"
+        }
+      ],
+      "missing_artifacts": [],
+      "replay_scope": "production legacy click/bbox responses; kept separately from matrix parser protocol"
+    },
+    {
+      "id": "m1-legacy-0-1",
+      "batch": "20260920-m1-acceptance",
+      "original": {
+        "variant": "legacy",
+        "repeat": 1,
+        "case": 0,
+        "request_sha256": "210952f54bb47e644b929141d1ffea67b1323f1ba2a6eee8ea522cfb1f98ae37",
+        "image_sha256": "34152cd2385f7ef268e37906cd674e267e63f6dabc6bf79cd261792d7cefa000",
+        "started": 1789873138.249671,
+        "calls": [
+          {
+            "name": "click",
+            "arguments": "{\"x\": \"377\", \"y\": 225}"
+          }
+        ],
+        "content": "",
+        "usage": {
+          "completion_tokens": 147,
+          "prompt_tokens": 5982,
+          "total_tokens": 6129,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 104,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 43
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 4480,
+            "image_tokens": 2042,
+            "text_tokens": 3940
+          }
+        },
+        "http_serialized_at": 1789873138.254303,
+        "wire_sha256": "8a6f033cd2b57f54c668cecb04f1e0ecf527ea6df8c9e8197a994bbc2673bc08",
+        "response_model": "qwen3.7-flash-2026-07-15",
+        "finish_reason": "tool_calls",
+        "seconds": 3.8639988899230957,
+        "available_tools_only": true,
+        "hit": false,
+        "error_px": 192.99623208757203
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-results.json",
+          "sha256": "119b39da6fcef0da6e6fd70de2734b336960956edd7951c625447dd0d1a4ea8b"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-manifest.json",
+          "sha256": "ae1c6b2ae5fe669401f6ee87de361cb3b4e4f4c188bb2d3b14a832040beb78d6"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-responses/legacy-0-1-response.json",
+          "sha256": "a9de53875228c5974895f8cb23ac22455145d897c6ea64ed00a971c3a9b2eb8a"
+        }
+      ],
+      "missing_artifacts": [],
+      "replay_scope": "production legacy click/bbox responses; kept separately from matrix parser protocol"
+    },
+    {
+      "id": "m1-legacy-1-1",
+      "batch": "20260920-m1-acceptance",
+      "original": {
+        "variant": "legacy",
+        "repeat": 1,
+        "case": 1,
+        "request_sha256": "4e5ba033a7b15004ddbb2e2e0b9e00c4fe46a760ecac4162983c133878054c0c",
+        "image_sha256": "e74341ca8a55b405cd2d511032815e0ad926e9c88a212205a8910ed433cfb995",
+        "started": 1789873142.118429,
+        "calls": [
+          {
+            "name": "click",
+            "arguments": "{\"x\": \"601\", \"y\": 435}"
+          }
+        ],
+        "content": "I can see the calculator with the display showing \"35\". I need to click the \"7\" button, which is in the second row of the number pad (7, 8, 9 row). Let me click it.\n\n",
+        "usage": {
+          "completion_tokens": 857,
+          "prompt_tokens": 5982,
+          "total_tokens": 6839,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 766,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 91
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 4480,
+            "image_tokens": 2042,
+            "text_tokens": 3940
+          }
+        },
+        "http_serialized_at": 1789873142.122602,
+        "wire_sha256": "d15999496d0b633cd6b074bd0d77e8a65237d3d269c371ec73ade55284806d2f",
+        "response_model": "qwen3.7-flash-2026-07-15",
+        "finish_reason": "tool_calls",
+        "seconds": 12.012306213378906,
+        "available_tools_only": true,
+        "hit": false,
+        "error_px": 172.78960153898163
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-results.json",
+          "sha256": "119b39da6fcef0da6e6fd70de2734b336960956edd7951c625447dd0d1a4ea8b"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-manifest.json",
+          "sha256": "ae1c6b2ae5fe669401f6ee87de361cb3b4e4f4c188bb2d3b14a832040beb78d6"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-responses/legacy-1-1-response.json",
+          "sha256": "f99a943ac52a5470ca6acdefb56fbb8c002f20847307b1ff21e1b0ae01305f56"
+        }
+      ],
+      "missing_artifacts": [],
+      "replay_scope": "production legacy click/bbox responses; kept separately from matrix parser protocol"
+    },
+    {
+      "id": "m1-corrected-1-1",
+      "batch": "20260920-m1-acceptance",
+      "original": {
+        "variant": "corrected",
+        "repeat": 1,
+        "case": 1,
+        "request_sha256": "63453f4650e6dc34485a576eb572bbb8e25a41ce5cd0ad2000cfedbf18f1b7d9",
+        "image_sha256": "e74341ca8a55b405cd2d511032815e0ad926e9c88a212205a8910ed433cfb995",
+        "started": 1789873154.135371,
+        "calls": [
+          {
+            "name": "click",
+            "arguments": "{\"bbox\": \"\\n[663, 467, 700, 511]]\"}"
+          }
+        ],
+        "content": "",
+        "usage": {
+          "completion_tokens": 133,
+          "prompt_tokens": 5758,
+          "total_tokens": 5891,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 87,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 46
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 4480,
+            "image_tokens": 2042,
+            "text_tokens": 3716
+          }
+        },
+        "http_serialized_at": 1789873154.1396039,
+        "wire_sha256": "bdfc7a60bbb3f6eee4bd3eb54a4600da91e7f2c33e2c21b45073276e5bec6665",
+        "response_model": "qwen3.7-flash-2026-07-15",
+        "finish_reason": "tool_calls",
+        "seconds": 3.0136032104492188,
+        "available_tools_only": true,
+        "hit": false
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-results.json",
+          "sha256": "119b39da6fcef0da6e6fd70de2734b336960956edd7951c625447dd0d1a4ea8b"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-manifest.json",
+          "sha256": "ae1c6b2ae5fe669401f6ee87de361cb3b4e4f4c188bb2d3b14a832040beb78d6"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-responses/corrected-1-1-response.json",
+          "sha256": "9d1d7cd1a55a7fdcecd4fef8f2f28987ef2c9228cac5413c3ccf692d84a1c10f"
+        }
+      ],
+      "missing_artifacts": [],
+      "replay_scope": "production legacy click/bbox responses; kept separately from matrix parser protocol"
+    },
+    {
+      "id": "m1-corrected-2-1",
+      "batch": "20260920-m1-acceptance",
+      "original": {
+        "variant": "corrected",
+        "repeat": 1,
+        "case": 2,
+        "request_sha256": "c574d8484750c1eef65be53589cdcfd6887583ef4f27fc0f4618706b6464b7c9",
+        "image_sha256": "9ad66c1a050a36d0735b381ea24be41659315df7460d221cdf1ebae94af4c64f",
+        "started": 1789873157.150219,
+        "calls": [
+          {
+            "name": "click",
+            "arguments": "{\"bbox\": \"\\n[613, 475, 649, 511]]\"}"
+          }
+        ],
+        "content": "",
+        "usage": {
+          "completion_tokens": 123,
+          "prompt_tokens": 5758,
+          "total_tokens": 5881,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 77,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 46
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 4480,
+            "image_tokens": 2042,
+            "text_tokens": 3716
+          }
+        },
+        "http_serialized_at": 1789873157.152299,
+        "wire_sha256": "06a83a7b3d7373ab2989bc751e534ca31734b2f2e986a9331d69d41f6311c219",
+        "response_model": "qwen3.7-flash-2026-07-15",
+        "finish_reason": "tool_calls",
+        "seconds": 2.9107189178466797,
+        "available_tools_only": true,
+        "hit": false
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-results.json",
+          "sha256": "119b39da6fcef0da6e6fd70de2734b336960956edd7951c625447dd0d1a4ea8b"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-manifest.json",
+          "sha256": "ae1c6b2ae5fe669401f6ee87de361cb3b4e4f4c188bb2d3b14a832040beb78d6"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-responses/corrected-2-1-response.json",
+          "sha256": "478dbc8dbdec097a569a1546965bc2bae1b0be4b1593bf7d51f7f87a2a70dcda"
+        }
+      ],
+      "missing_artifacts": [],
+      "replay_scope": "production legacy click/bbox responses; kept separately from matrix parser protocol"
+    },
+    {
+      "id": "m1-legacy-2-1",
+      "batch": "20260920-m1-acceptance",
+      "original": {
+        "variant": "legacy",
+        "repeat": 1,
+        "case": 2,
+        "request_sha256": "f07e372ca8fc6fac780ca07c3a6813c083a841f46e5725cc0c49bac39a8aec1f",
+        "image_sha256": "9ad66c1a050a36d0735b381ea24be41659315df7460d221cdf1ebae94af4c64f",
+        "started": 1789873160.06209,
+        "calls": [
+          {
+            "name": "click",
+            "arguments": "{\"x\": \"625\", \"y\": 505}"
+          }
+        ],
+        "content": "",
+        "usage": {
+          "completion_tokens": 150,
+          "prompt_tokens": 5982,
+          "total_tokens": 6132,
+          "completion_tokens_details": {
+            "accepted_prediction_tokens": null,
+            "audio_tokens": null,
+            "reasoning_tokens": 108,
+            "rejected_prediction_tokens": null,
+            "text_tokens": 42
+          },
+          "prompt_tokens_details": {
+            "audio_tokens": null,
+            "cached_tokens": 4480,
+            "image_tokens": 2042,
+            "text_tokens": 3940
+          }
+        },
+        "http_serialized_at": 1789873160.064141,
+        "wire_sha256": "c051752d105b5a8c7d659bccaa467a81c641229f0f56a2a28de9ee915c58935f",
+        "response_model": "qwen3.7-flash-2026-07-15",
+        "finish_reason": "tool_calls",
+        "seconds": 3.519534111022949,
+        "available_tools_only": true,
+        "hit": false,
+        "error_px": 334.3691971459093
+      },
+      "artifacts": [
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-results.json",
+          "sha256": "119b39da6fcef0da6e6fd70de2734b336960956edd7951c625447dd0d1a4ea8b"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-manifest.json",
+          "sha256": "ae1c6b2ae5fe669401f6ee87de361cb3b4e4f4c188bb2d3b14a832040beb78d6"
+        },
+        {
+          "path": "backend/benchmarks/computer_use/reports/20260920-m1-acceptance/prompt-ab-responses/legacy-2-1-response.json",
+          "sha256": "0bc99079e10a98c6e75ff08a531479c1b8dc1215abbbcbc4eb9a5e32ee366386"
+        }
+      ],
+      "missing_artifacts": [],
+      "replay_scope": "production legacy click/bbox responses; kept separately from matrix parser protocol"
+    }
+  ],
+  "historical_gui_failures_index": "historical-trials.json"
+}

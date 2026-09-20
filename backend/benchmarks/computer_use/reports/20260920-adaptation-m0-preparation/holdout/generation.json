@@ -1,0 +1,9 @@
+{
+  "generator_sha256": "a1c81a900c40335ab1675dd54211119dc5e9798e2de5baa7f5e9e8c3f183ee29",
+  "pillow_version": "12.1.1",
+  "font": "Pillow bundled default scalable font",
+  "seed_start": 2026092000,
+  "layouts": 64,
+  "model_requests": 0,
+  "truth_policy": "Only inputs.json and its image may enter the model request. Never send truth/, masks, seed, center or stratum. Freeze adapters on historical/development data before evaluating these layouts."
+}

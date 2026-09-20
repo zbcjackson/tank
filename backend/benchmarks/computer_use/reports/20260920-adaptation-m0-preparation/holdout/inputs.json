@@ -1,0 +1,642 @@
+[
+  {
+    "id": "layout-00",
+    "image": "images/layout-00.png",
+    "image_sha256": "ce6185e6a54520ce36d8a5721312555950734c5bf7622cb70bc54f240469be29",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "AC"
+  },
+  {
+    "id": "layout-01",
+    "image": "images/layout-01.png",
+    "image_sha256": "6e7a12d39b9bba26e919e01d49ca5eb4e0002b3ff57620d04d57f26fc9c644a0",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "7"
+  },
+  {
+    "id": "layout-02",
+    "image": "images/layout-02.png",
+    "image_sha256": "5a2a19c7d9e3d98e2b49348ab72d8d133e1435b23d9331115081f610956e2f8c",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "8"
+  },
+  {
+    "id": "layout-03",
+    "image": "images/layout-03.png",
+    "image_sha256": "23861ae1b60dd217e8220886374a629716f50a930ccfe42c3b4bf7802d9df6c8",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "9"
+  },
+  {
+    "id": "layout-04",
+    "image": "images/layout-04.png",
+    "image_sha256": "ffe0c5223bd135bc26ffd5301f8ec19b367818f7079c21afa98320fc368f5f58",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "4"
+  },
+  {
+    "id": "layout-05",
+    "image": "images/layout-05.png",
+    "image_sha256": "ebe17db8dd93644e90cb498055e2967661b1b1e40d944a6b861c9e1657a6fe00",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "5"
+  },
+  {
+    "id": "layout-06",
+    "image": "images/layout-06.png",
+    "image_sha256": "9338e9dbbcacf4d893e48b5a5678b9e28d00e9eb8e43316eb055fd2432f41f01",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "6"
+  },
+  {
+    "id": "layout-07",
+    "image": "images/layout-07.png",
+    "image_sha256": "c57c0f7f137e87070f9459b7e0b0910490d34313b0b3cff52efa7fc99a2e0327",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "1"
+  },
+  {
+    "id": "layout-08",
+    "image": "images/layout-08.png",
+    "image_sha256": "eab3e33d9346a0353f013af20577af797ab4e0de3335353d1e39a01f1a59049a",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "2"
+  },
+  {
+    "id": "layout-09",
+    "image": "images/layout-09.png",
+    "image_sha256": "1faab01d8d7c1ac61384105feab206c2f64c52bb7193c3c896cabc5183053410",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "3"
+  },
+  {
+    "id": "layout-10",
+    "image": "images/layout-10.png",
+    "image_sha256": "7ebd0be119aef08f8813d25836b36fec2edbcae3d59ff4ccd8b72c84950c3393",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "0"
+  },
+  {
+    "id": "layout-11",
+    "image": "images/layout-11.png",
+    "image_sha256": "5ed9aa6b61ede64a508be9fddf2ece0b381b4445227f205886c324b1243fee87",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "="
+  },
+  {
+    "id": "layout-12",
+    "image": "images/layout-12.png",
+    "image_sha256": "93a2ba915581af803df84bbd7e8079dae89e9b6f4fa059007fe862d91c278805",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "AC"
+  },
+  {
+    "id": "layout-13",
+    "image": "images/layout-13.png",
+    "image_sha256": "d00396e662394a227d266795c15c3a5b09e689f30571feae47290e929425e84b",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "7"
+  },
+  {
+    "id": "layout-14",
+    "image": "images/layout-14.png",
+    "image_sha256": "db69416603235cdbb15c78a08521dd55a8edd7238669909752553f884f1d29e2",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "8"
+  },
+  {
+    "id": "layout-15",
+    "image": "images/layout-15.png",
+    "image_sha256": "7909ca1f85979dd39a6cd8aa169237372c4ec702db94e35302215062fecfffb0",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "9"
+  },
+  {
+    "id": "layout-16",
+    "image": "images/layout-16.png",
+    "image_sha256": "deb2a1de4e6de06030c3c0d5692a8b7c30bafd064370dfcbbd075480d39416d0",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "4"
+  },
+  {
+    "id": "layout-17",
+    "image": "images/layout-17.png",
+    "image_sha256": "ad985beca632c7aef9d5b13300e0e2761dc6b33f28dd1c4b17ebb5ba9ec7270a",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "5"
+  },
+  {
+    "id": "layout-18",
+    "image": "images/layout-18.png",
+    "image_sha256": "928bb2502e4fcfa4a32406d47bc56110ebd4d24a347859813ccf849a6b6359d2",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "6"
+  },
+  {
+    "id": "layout-19",
+    "image": "images/layout-19.png",
+    "image_sha256": "c42cadf63b666e593a1dd1319b81b20265bfb9d9d612333bd9adc4b9b9c81596",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "1"
+  },
+  {
+    "id": "layout-20",
+    "image": "images/layout-20.png",
+    "image_sha256": "fea4b490eaa7c6df673ba1cd43e5f7d370b12ad3465be7f224242bcc0270a201",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "2"
+  },
+  {
+    "id": "layout-21",
+    "image": "images/layout-21.png",
+    "image_sha256": "b1b33ccf26dbf6a7611fa4fc24c5f867563be72215fc70d1b843081f41885fcb",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "3"
+  },
+  {
+    "id": "layout-22",
+    "image": "images/layout-22.png",
+    "image_sha256": "ee9bdc7fb08384a24eb7b273d77f3398712a5da2c59952596f9b394489043671",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "0"
+  },
+  {
+    "id": "layout-23",
+    "image": "images/layout-23.png",
+    "image_sha256": "a4f602de97f05d74e21289b0851a93a8102220f2e83b16229d9c4f7b12b77629",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "="
+  },
+  {
+    "id": "layout-24",
+    "image": "images/layout-24.png",
+    "image_sha256": "9db8d1f711663afab159a83982fa2f5834bc9a73ff79b433ad7caa1d7c82d561",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "AC"
+  },
+  {
+    "id": "layout-25",
+    "image": "images/layout-25.png",
+    "image_sha256": "3da084c77320d5b333b39ff19f2f7aa01c94ed5cbf70bf2544ddbca220d6af9e",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "7"
+  },
+  {
+    "id": "layout-26",
+    "image": "images/layout-26.png",
+    "image_sha256": "52048464737e36e4b87d12f0654cba7f16e574b8b584fc3ff5b1a567410c94f4",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "8"
+  },
+  {
+    "id": "layout-27",
+    "image": "images/layout-27.png",
+    "image_sha256": "788bacf341b197a4a95d37f60bfd804b6477909f89a80a263dcdcfaeee305e0f",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "9"
+  },
+  {
+    "id": "layout-28",
+    "image": "images/layout-28.png",
+    "image_sha256": "44229fe3273c3f42319b4468fadaabb6a34086d7358c76815b0836d3d02d7665",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "4"
+  },
+  {
+    "id": "layout-29",
+    "image": "images/layout-29.png",
+    "image_sha256": "f934001179544666907ecc75b0dda44c25402268a79703faa05b6c653dca2b78",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "5"
+  },
+  {
+    "id": "layout-30",
+    "image": "images/layout-30.png",
+    "image_sha256": "843de6f4c1006f4fb07d771bdaddfa04cbb8f039d1ff03d5b1ce9fca710ba423",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "6"
+  },
+  {
+    "id": "layout-31",
+    "image": "images/layout-31.png",
+    "image_sha256": "97694101f0dd8c536c7375ccdbaa3b17183cf4faf340f828b508f070d75b16e4",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "1"
+  },
+  {
+    "id": "layout-32",
+    "image": "images/layout-32.png",
+    "image_sha256": "9afa722059c64d127917151b38837409082f0b458f6e53b9870ca55356aaff2d",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "2"
+  },
+  {
+    "id": "layout-33",
+    "image": "images/layout-33.png",
+    "image_sha256": "1f19d672cc468696353203c45e47dd32f7e6efd2b1e04aae64a95477a6230778",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "3"
+  },
+  {
+    "id": "layout-34",
+    "image": "images/layout-34.png",
+    "image_sha256": "c3b485c0dfb150e1ae6923cfe05df58f64da39a873fb691ee2eef2c33056ee1d",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "0"
+  },
+  {
+    "id": "layout-35",
+    "image": "images/layout-35.png",
+    "image_sha256": "1769691c01612ffab9442c7bc8ffa21755ab6b180c276ec756b15aecccdc6648",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "="
+  },
+  {
+    "id": "layout-36",
+    "image": "images/layout-36.png",
+    "image_sha256": "2c51ef67fa3e65e06ef825f65f6bea23923b25e64af854cd46e5f0bff1d5f2f2",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "AC"
+  },
+  {
+    "id": "layout-37",
+    "image": "images/layout-37.png",
+    "image_sha256": "6bf7b9bda9cc069c5daff8b5ce55abf2c17a02d4f620defa3d3d3ca4c6d7f1ad",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "7"
+  },
+  {
+    "id": "layout-38",
+    "image": "images/layout-38.png",
+    "image_sha256": "4c4de444ed84cf635843019aefaddf6dd55517154b3afc97890535010ecbe6d9",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "8"
+  },
+  {
+    "id": "layout-39",
+    "image": "images/layout-39.png",
+    "image_sha256": "44e2033b94a22612fbad0a21cee5edd5be4291e82daa6b1d59e16c8fb217bf40",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "9"
+  },
+  {
+    "id": "layout-40",
+    "image": "images/layout-40.png",
+    "image_sha256": "324a8cd7d730d0c9a4fe029a21f3e8f6772a3cc73ec96d42ce89fbc077ddcf54",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "4"
+  },
+  {
+    "id": "layout-41",
+    "image": "images/layout-41.png",
+    "image_sha256": "b60d814e6827584e74115ec2f249afa925d6b2253bc0a2126e3a40935297a20d",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "5"
+  },
+  {
+    "id": "layout-42",
+    "image": "images/layout-42.png",
+    "image_sha256": "d96319e72dd202208be80971cc60314d01a3a05596ddcc9ce116b73562808b18",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "6"
+  },
+  {
+    "id": "layout-43",
+    "image": "images/layout-43.png",
+    "image_sha256": "f22d09692b06a6af47d9983c200005ec427e58a40ca7b9b3a8fd93216529f27e",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "1"
+  },
+  {
+    "id": "layout-44",
+    "image": "images/layout-44.png",
+    "image_sha256": "45684333983b816fa67ac25b0b3915de15f3aa08b59c4074d4f954989321d0bf",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "2"
+  },
+  {
+    "id": "layout-45",
+    "image": "images/layout-45.png",
+    "image_sha256": "0610c5f0cd8e7c5d7cae01f95ad9589fc928610ddfe2294ba9c7b97cc9d37080",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "3"
+  },
+  {
+    "id": "layout-46",
+    "image": "images/layout-46.png",
+    "image_sha256": "a045b119c6e1bdccf6ded911d07090a9538706433ee54cd4d2e2171c24ebe116",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "0"
+  },
+  {
+    "id": "layout-47",
+    "image": "images/layout-47.png",
+    "image_sha256": "e8d2e4b7b396b3bcf4c2c8ec4750b8a7127ecc7813d7d97ae31872940529350c",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "="
+  },
+  {
+    "id": "layout-48",
+    "image": "images/layout-48.png",
+    "image_sha256": "bb39522eb9b950d662f98de8f9ae239c21524452598a2136a10c4d301a051635",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "AC"
+  },
+  {
+    "id": "layout-49",
+    "image": "images/layout-49.png",
+    "image_sha256": "5d6c9503ae9e3c1eb83e22f23fbe8f1fa4b3552fa31e0338f68f7ea81a0309f7",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "7"
+  },
+  {
+    "id": "layout-50",
+    "image": "images/layout-50.png",
+    "image_sha256": "a5ff7732ee6798b6e410470bd8da3cf8ac70065a75d8397fdb12f2e56ce33e18",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "8"
+  },
+  {
+    "id": "layout-51",
+    "image": "images/layout-51.png",
+    "image_sha256": "11bb6219041042632987207c665f8068908076c0fd53920019d7bd126d85af4d",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "9"
+  },
+  {
+    "id": "layout-52",
+    "image": "images/layout-52.png",
+    "image_sha256": "ba735399b30c2ab31d3155cc5ccacb3a36c21da0c3ad2cb03625018ca000f994",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "4"
+  },
+  {
+    "id": "layout-53",
+    "image": "images/layout-53.png",
+    "image_sha256": "425a2a90ccc7b588992885fe88a6241b5a82124449bcb8ec597e73495d22d5fc",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "5"
+  },
+  {
+    "id": "layout-54",
+    "image": "images/layout-54.png",
+    "image_sha256": "171a2703f5a0fba8873cd5d560a6cd8af51c6142a4a53b1ed2bfe14848e522c9",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "6"
+  },
+  {
+    "id": "layout-55",
+    "image": "images/layout-55.png",
+    "image_sha256": "04a03ac7dbceedcca662f2d1e6cdcc04caecc73777d21aeac637ca46d9dbf113",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "1"
+  },
+  {
+    "id": "layout-56",
+    "image": "images/layout-56.png",
+    "image_sha256": "a5bb5032f56e147949ed98f66a1bc2596fee5858ec655dc1500cb99a602fbbd1",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "2"
+  },
+  {
+    "id": "layout-57",
+    "image": "images/layout-57.png",
+    "image_sha256": "8e298eec7405247f45692171f78fe0f44ae57a84cf06b8aa7b88d9830f4e7bae",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "3"
+  },
+  {
+    "id": "layout-58",
+    "image": "images/layout-58.png",
+    "image_sha256": "0d43efd8bc9070352a699798f083f00ba80f33b6e8084e8c441f02708ac57531",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "0"
+  },
+  {
+    "id": "layout-59",
+    "image": "images/layout-59.png",
+    "image_sha256": "a2a8f129b42f68b943c8cdec37e69107241f431503adf89eff602e28126e7a2c",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "="
+  },
+  {
+    "id": "layout-60",
+    "image": "images/layout-60.png",
+    "image_sha256": "e1795ef58925f586a01495ccc6e0374c2d034f5c29ea85c556d1ddce238e97bf",
+    "size": [
+      1201,
+      801
+    ],
+    "target": "AC"
+  },
+  {
+    "id": "layout-61",
+    "image": "images/layout-61.png",
+    "image_sha256": "7e424e09deb19181fe0993e7f8b76a2e321c991051c251e537ccc8c55b6e5f68",
+    "size": [
+      901,
+      1401
+    ],
+    "target": "7"
+  },
+  {
+    "id": "layout-62",
+    "image": "images/layout-62.png",
+    "image_sha256": "7c9ab4706d2a37632e263a93af97123522c892194fb5eea0687bd79d21d946ef",
+    "size": [
+      1601,
+      1001
+    ],
+    "target": "8"
+  },
+  {
+    "id": "layout-63",
+    "image": "images/layout-63.png",
+    "image_sha256": "89509a8278f032e42816133f3cda4232546cd778517ef93c349a65d5169f2115",
+    "size": [
+      1001,
+      1601
+    ],
+    "target": "9"
+  }
+]

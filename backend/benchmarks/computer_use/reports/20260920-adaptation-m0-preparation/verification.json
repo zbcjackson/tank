@@ -1,0 +1,88 @@
+{
+  "date": "2026-09-20",
+  "checks": [
+    {
+      "check": "web lint",
+      "command": "pnpm lint",
+      "result": "pass"
+    },
+    {
+      "check": "web types",
+      "command": "npx tsc -b --noEmit",
+      "result": "pass"
+    },
+    {
+      "check": "backend lint",
+      "command": "uv run --no-sync ruff check core/src/ core/tests/ scripts/prepare_grounding_holdout.py",
+      "result": "pass"
+    },
+    {
+      "check": "backend suite",
+      "command": "uv run --no-sync pytest",
+      "result": "4509 passed, 1 skipped"
+    },
+    {
+      "check": "changed Python types",
+      "command": "uv run --no-sync pyright scripts/prepare_grounding_holdout.py core/tests/test_grounding_probe.py core/tests/test_jobs_integration.py",
+      "result": "0 errors"
+    },
+    {
+      "check": "CLI lint",
+      "command": "uv run --no-sync ruff check src/ tests/",
+      "result": "pass"
+    },
+    {
+      "check": "runtime log",
+      "command": "tmux capture-pane -t tank:1.1 -p -S -50 | rg -i 'error|traceback|exception'",
+      "result": "no matches; pass"
+    },
+    {
+      "check": "E2E",
+      "command": "pnpm test",
+      "result": "14 scenarios and 55 steps passed"
+    },
+    {
+      "check": "docs",
+      "command": "python3 scripts/check_docs.py",
+      "result": "37 files; pass"
+    },
+    {
+      "check": "protocol",
+      "command": "python3 scripts/check_protocol_sync.py",
+      "result": "pass"
+    }
+  ],
+  "targeted_tests": "60 passed: test_jobs_integration.py + test_grounding_probe.py",
+  "tdd": "holdout exporter failed with FileNotFoundError before implementation, then passed",
+  "earlier_failed_attempts": [
+    {
+      "scope": "sandbox backend",
+      "result": "6 failed, 1220 passed before interrupt",
+      "reason": "local server/network restrictions; reran whole suite with execution access"
+    },
+    {
+      "scope": "sandbox E2E",
+      "result": "14 failed before hooks",
+      "reason": "Chromium bootstrap permission denied; rerun passed"
+    },
+    {
+      "scope": "first unsandboxed backend",
+      "result": "1 failed, 4508 passed, 1 skipped",
+      "reason": "manual job trigger collided with periodic cron; isolated test from cron and reran whole suite"
+    },
+    {
+      "scope": "sandbox protocol check",
+      "reason": "uv cache access and system configuration restrictions; unsandboxed check passed"
+    }
+  ],
+  "execution_environment": {
+    "UV_CACHE_DIR": "/tmp/tank-uv-cache",
+    "DYLD_FALLBACK_LIBRARY_PATH": "/opt/homebrew/lib",
+    "production_config_changed": false
+  },
+  "local_test_log_hashes": {
+    "backend": "eb5682ba7fc023b170c29bd98816c3e91a25545a8ef12a74488a94b12a66db6c",
+    "e2e": "847e37da8731547655de191e0e65e197bd9290e3f99c54c4cd2ad8912d3458a6"
+  },
+  "scope": "M0 preparation only. No paid model requests, no desktop actions, no M2 implementation or live accuracy claim."
+}

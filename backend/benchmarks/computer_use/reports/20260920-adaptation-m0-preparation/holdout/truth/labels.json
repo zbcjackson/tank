@@ -1,0 +1,8634 @@
+[
+  {
+    "id": "layout-00",
+    "seed": 2026092000,
+    "stratum": "dense",
+    "expected": "found",
+    "center": [
+      321,
+      422
+    ],
+    "mask": "truth/layout-00-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "5",
+        "bounds": [
+          204,
+          296,
+          279,
+          343
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          283,
+          296,
+          358,
+          343
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          362,
+          296,
+          437,
+          343
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          441,
+          296,
+          516,
+          343
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          204,
+          347,
+          279,
+          394
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          283,
+          347,
+          358,
+          394
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          362,
+          347,
+          437,
+          394
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          441,
+          347,
+          516,
+          394
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          204,
+          398,
+          279,
+          445
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          283,
+          398,
+          358,
+          445
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          362,
+          398,
+          437,
+          445
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          441,
+          398,
+          516,
+          445
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-01",
+    "seed": 2026092001,
+    "stratum": "dense",
+    "expected": "found",
+    "center": [
+      491,
+      947
+    ],
+    "mask": "truth/layout-01-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "7",
+        "bounds": [
+          453,
+          923,
+          528,
+          970
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          532,
+          923,
+          607,
+          970
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          611,
+          923,
+          686,
+          970
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          690,
+          923,
+          765,
+          970
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          453,
+          974,
+          528,
+          1021
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          532,
+          974,
+          607,
+          1021
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          611,
+          974,
+          686,
+          1021
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          690,
+          974,
+          765,
+          1021
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          453,
+          1025,
+          528,
+          1072
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          532,
+          1025,
+          607,
+          1072
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          611,
+          1025,
+          686,
+          1072
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          690,
+          1025,
+          765,
+          1072
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-02",
+    "seed": 2026092002,
+    "stratum": "dense",
+    "expected": "found",
+    "center": [
+      739,
+      102
+    ],
+    "mask": "truth/layout-02-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "8",
+        "bounds": [
+          701,
+          78,
+          776,
+          125
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          780,
+          78,
+          855,
+          125
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          859,
+          78,
+          934,
+          125
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          938,
+          78,
+          1013,
+          125
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          701,
+          129,
+          776,
+          176
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          780,
+          129,
+          855,
+          176
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          859,
+          129,
+          934,
+          176
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          938,
+          129,
+          1013,
+          176
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          701,
+          180,
+          776,
+          227
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          780,
+          180,
+          855,
+          227
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          859,
+          180,
+          934,
+          227
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          938,
+          180,
+          1013,
+          227
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-03",
+    "seed": 2026092003,
+    "stratum": "dense",
+    "expected": "found",
+    "center": [
+      324,
+      1420
+    ],
+    "mask": "truth/layout-03-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "=",
+        "bounds": [
+          207,
+          1294,
+          282,
+          1341
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          286,
+          1294,
+          361,
+          1341
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          365,
+          1294,
+          440,
+          1341
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          444,
+          1294,
+          519,
+          1341
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          207,
+          1345,
+          282,
+          1392
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          286,
+          1345,
+          361,
+          1392
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          365,
+          1345,
+          440,
+          1392
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          444,
+          1345,
+          519,
+          1392
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          207,
+          1396,
+          282,
+          1443
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          286,
+          1396,
+          361,
+          1443
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          365,
+          1396,
+          440,
+          1443
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          444,
+          1396,
+          519,
+          1443
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-04",
+    "seed": 2026092004,
+    "stratum": "dense",
+    "expected": "found",
+    "center": [
+      698,
+      364
+    ],
+    "mask": "truth/layout-04-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "=",
+        "bounds": [
+          423,
+          340,
+          498,
+          387
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          502,
+          340,
+          577,
+          387
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          581,
+          340,
+          656,
+          387
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          660,
+          340,
+          735,
+          387
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          423,
+          391,
+          498,
+          438
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          502,
+          391,
+          577,
+          438
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          581,
+          391,
+          656,
+          438
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          660,
+          391,
+          735,
+          438
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          423,
+          442,
+          498,
+          489
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          502,
+          442,
+          577,
+          489
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          581,
+          442,
+          656,
+          489
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          660,
+          442,
+          735,
+          489
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-05",
+    "seed": 2026092005,
+    "stratum": "dense",
+    "expected": "found",
+    "center": [
+      546,
+      590
+    ],
+    "mask": "truth/layout-05-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "1",
+        "bounds": [
+          271,
+          464,
+          346,
+          511
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          350,
+          464,
+          425,
+          511
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          429,
+          464,
+          504,
+          511
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          508,
+          464,
+          583,
+          511
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          271,
+          515,
+          346,
+          562
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          350,
+          515,
+          425,
+          562
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          429,
+          515,
+          504,
+          562
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          508,
+          515,
+          583,
+          562
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          271,
+          566,
+          346,
+          613
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          350,
+          566,
+          425,
+          613
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          429,
+          566,
+          504,
+          613
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          508,
+          566,
+          583,
+          613
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-06",
+    "seed": 2026092006,
+    "stratum": "dense",
+    "expected": "found",
+    "center": [
+      897,
+      916
+    ],
+    "mask": "truth/layout-06-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "0",
+        "bounds": [
+          622,
+          790,
+          697,
+          837
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          701,
+          790,
+          776,
+          837
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          780,
+          790,
+          855,
+          837
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          859,
+          790,
+          934,
+          837
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          622,
+          841,
+          697,
+          888
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          701,
+          841,
+          776,
+          888
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          780,
+          841,
+          855,
+          888
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          859,
+          841,
+          934,
+          888
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          622,
+          892,
+          697,
+          939
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          701,
+          892,
+          776,
+          939
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          780,
+          892,
+          855,
+          939
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          859,
+          892,
+          934,
+          939
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-07",
+    "seed": 2026092007,
+    "stratum": "dense",
+    "expected": "found",
+    "center": [
+      751,
+      593
+    ],
+    "mask": "truth/layout-07-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "8",
+        "bounds": [
+          476,
+          569,
+          551,
+          616
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          555,
+          569,
+          630,
+          616
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          634,
+          569,
+          709,
+          616
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          713,
+          569,
+          788,
+          616
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          476,
+          620,
+          551,
+          667
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          555,
+          620,
+          630,
+          667
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          634,
+          620,
+          709,
+          667
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          713,
+          620,
+          788,
+          667
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          476,
+          671,
+          551,
+          718
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          555,
+          671,
+          630,
+          718
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          634,
+          671,
+          709,
+          718
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          713,
+          671,
+          788,
+          718
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-08",
+    "seed": 2026092008,
+    "stratum": "sparse",
+    "expected": "found",
+    "center": [
+      414,
+      456
+    ],
+    "mask": "truth/layout-08-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "5",
+        "bounds": [
+          276,
+          432,
+          351,
+          479
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          376,
+          432,
+          451,
+          479
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          476,
+          432,
+          551,
+          479
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          576,
+          432,
+          651,
+          479
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          276,
+          504,
+          351,
+          551
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          376,
+          504,
+          451,
+          551
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          476,
+          504,
+          551,
+          551
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          576,
+          504,
+          651,
+          551
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          276,
+          576,
+          351,
+          623
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          376,
+          576,
+          451,
+          623
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          476,
+          576,
+          551,
+          623
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          576,
+          576,
+          651,
+          623
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-09",
+    "seed": 2026092009,
+    "stratum": "sparse",
+    "expected": "found",
+    "center": [
+      612,
+      1120
+    ],
+    "mask": "truth/layout-09-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "6",
+        "bounds": [
+          274,
+          952,
+          349,
+          999
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          374,
+          952,
+          449,
+          999
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          474,
+          952,
+          549,
+          999
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          574,
+          952,
+          649,
+          999
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          274,
+          1024,
+          349,
+          1071
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          374,
+          1024,
+          449,
+          1071
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          474,
+          1024,
+          549,
+          1071
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          574,
+          1024,
+          649,
+          1071
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          274,
+          1096,
+          349,
+          1143
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          374,
+          1096,
+          449,
+          1143
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          474,
+          1096,
+          549,
+          1143
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          574,
+          1096,
+          649,
+          1143
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-10",
+    "seed": 2026092010,
+    "stratum": "sparse",
+    "expected": "found",
+    "center": [
+      1456,
+      658
+    ],
+    "mask": "truth/layout-10-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "7",
+        "bounds": [
+          1118,
+          634,
+          1193,
+          681
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          1218,
+          634,
+          1293,
+          681
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          1318,
+          634,
+          1393,
+          681
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          1418,
+          634,
+          1493,
+          681
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          1118,
+          706,
+          1193,
+          753
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          1218,
+          706,
+          1293,
+          753
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          1318,
+          706,
+          1393,
+          753
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          1418,
+          706,
+          1493,
+          753
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          1118,
+          778,
+          1193,
+          825
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          1218,
+          778,
+          1293,
+          825
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          1318,
+          778,
+          1393,
+          825
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          1418,
+          778,
+          1493,
+          825
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-11",
+    "seed": 2026092011,
+    "stratum": "sparse",
+    "expected": "found",
+    "center": [
+      697,
+      305
+    ],
+    "mask": "truth/layout-11-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "0",
+        "bounds": [
+          459,
+          137,
+          534,
+          184
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          559,
+          137,
+          634,
+          184
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          659,
+          137,
+          734,
+          184
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          759,
+          137,
+          834,
+          184
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          459,
+          209,
+          534,
+          256
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          559,
+          209,
+          634,
+          256
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          659,
+          209,
+          734,
+          256
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          759,
+          209,
+          834,
+          256
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          459,
+          281,
+          534,
+          328
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          559,
+          281,
+          634,
+          328
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          659,
+          281,
+          734,
+          328
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          759,
+          281,
+          834,
+          328
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-12",
+    "seed": 2026092012,
+    "stratum": "sparse",
+    "expected": "found",
+    "center": [
+      852,
+      529
+    ],
+    "mask": "truth/layout-12-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "4",
+        "bounds": [
+          514,
+          433,
+          589,
+          480
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          614,
+          433,
+          689,
+          480
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          714,
+          433,
+          789,
+          480
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          814,
+          433,
+          889,
+          480
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          514,
+          505,
+          589,
+          552
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          614,
+          505,
+          689,
+          552
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          714,
+          505,
+          789,
+          552
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          814,
+          505,
+          889,
+          552
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          514,
+          577,
+          589,
+          624
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          614,
+          577,
+          689,
+          624
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          714,
+          577,
+          789,
+          624
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          814,
+          577,
+          889,
+          624
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-13",
+    "seed": 2026092013,
+    "stratum": "sparse",
+    "expected": "found",
+    "center": [
+      687,
+      640
+    ],
+    "mask": "truth/layout-13-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "0",
+        "bounds": [
+          349,
+          544,
+          424,
+          591
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          449,
+          544,
+          524,
+          591
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          549,
+          544,
+          624,
+          591
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          649,
+          544,
+          724,
+          591
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          349,
+          616,
+          424,
+          663
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          449,
+          616,
+          524,
+          663
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          549,
+          616,
+          624,
+          663
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          649,
+          616,
+          724,
+          663
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          349,
+          688,
+          424,
+          735
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          449,
+          688,
+          524,
+          735
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          549,
+          688,
+          624,
+          735
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          649,
+          688,
+          724,
+          735
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-14",
+    "seed": 2026092014,
+    "stratum": "sparse",
+    "expected": "found",
+    "center": [
+      800,
+      470
+    ],
+    "mask": "truth/layout-14-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "4",
+        "bounds": [
+          562,
+          446,
+          637,
+          493
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          662,
+          446,
+          737,
+          493
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          762,
+          446,
+          837,
+          493
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          862,
+          446,
+          937,
+          493
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          562,
+          518,
+          637,
+          565
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          662,
+          518,
+          737,
+          565
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          762,
+          518,
+          837,
+          565
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          862,
+          518,
+          937,
+          565
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          562,
+          590,
+          637,
+          637
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          662,
+          590,
+          737,
+          637
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          762,
+          590,
+          837,
+          637
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          862,
+          590,
+          937,
+          637
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-15",
+    "seed": 2026092015,
+    "stratum": "sparse",
+    "expected": "found",
+    "center": [
+      421,
+      1321
+    ],
+    "mask": "truth/layout-15-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "6",
+        "bounds": [
+          283,
+          1225,
+          358,
+          1272
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          383,
+          1225,
+          458,
+          1272
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          483,
+          1225,
+          558,
+          1272
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          583,
+          1225,
+          658,
+          1272
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          283,
+          1297,
+          358,
+          1344
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          383,
+          1297,
+          458,
+          1344
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          483,
+          1297,
+          558,
+          1344
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          583,
+          1297,
+          658,
+          1344
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          283,
+          1369,
+          358,
+          1416
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          383,
+          1369,
+          458,
+          1416
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          483,
+          1369,
+          558,
+          1416
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          583,
+          1369,
+          658,
+          1416
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-16",
+    "seed": 2026092016,
+    "stratum": "small",
+    "expected": "found",
+    "center": [
+      898,
+      728
+    ],
+    "mask": "truth/layout-16-mask.png",
+    "font_size": 11,
+    "buttons": [
+      {
+        "label": "6",
+        "bounds": [
+          838,
+          644,
+          869,
+          667
+        ],
+        "radius": 6
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          882,
+          644,
+          913,
+          667
+        ],
+        "radius": 6
+      },
+      {
+        "label": "7",
+        "bounds": [
+          926,
+          644,
+          957,
+          667
+        ],
+        "radius": 6
+      },
+      {
+        "label": "3",
+        "bounds": [
+          970,
+          644,
+          1001,
+          667
+        ],
+        "radius": 6
+      },
+      {
+        "label": "2",
+        "bounds": [
+          838,
+          680,
+          869,
+          703
+        ],
+        "radius": 6
+      },
+      {
+        "label": "9",
+        "bounds": [
+          882,
+          680,
+          913,
+          703
+        ],
+        "radius": 6
+      },
+      {
+        "label": "0",
+        "bounds": [
+          926,
+          680,
+          957,
+          703
+        ],
+        "radius": 6
+      },
+      {
+        "label": "=",
+        "bounds": [
+          970,
+          680,
+          1001,
+          703
+        ],
+        "radius": 6
+      },
+      {
+        "label": "5",
+        "bounds": [
+          838,
+          716,
+          869,
+          739
+        ],
+        "radius": 6
+      },
+      {
+        "label": "4",
+        "bounds": [
+          882,
+          716,
+          913,
+          739
+        ],
+        "radius": 6
+      },
+      {
+        "label": "8",
+        "bounds": [
+          926,
+          716,
+          957,
+          739
+        ],
+        "radius": 6
+      },
+      {
+        "label": "1",
+        "bounds": [
+          970,
+          716,
+          1001,
+          739
+        ],
+        "radius": 6
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-17",
+    "seed": 2026092017,
+    "stratum": "small",
+    "expected": "found",
+    "center": [
+      563,
+      117
+    ],
+    "mask": "truth/layout-17-mask.png",
+    "font_size": 11,
+    "buttons": [
+      {
+        "label": "5",
+        "bounds": [
+          547,
+          105,
+          578,
+          128
+        ],
+        "radius": 6
+      },
+      {
+        "label": "6",
+        "bounds": [
+          591,
+          105,
+          622,
+          128
+        ],
+        "radius": 6
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          635,
+          105,
+          666,
+          128
+        ],
+        "radius": 6
+      },
+      {
+        "label": "1",
+        "bounds": [
+          679,
+          105,
+          710,
+          128
+        ],
+        "radius": 6
+      },
+      {
+        "label": "3",
+        "bounds": [
+          547,
+          141,
+          578,
+          164
+        ],
+        "radius": 6
+      },
+      {
+        "label": "4",
+        "bounds": [
+          591,
+          141,
+          622,
+          164
+        ],
+        "radius": 6
+      },
+      {
+        "label": "=",
+        "bounds": [
+          635,
+          141,
+          666,
+          164
+        ],
+        "radius": 6
+      },
+      {
+        "label": "0",
+        "bounds": [
+          679,
+          141,
+          710,
+          164
+        ],
+        "radius": 6
+      },
+      {
+        "label": "9",
+        "bounds": [
+          547,
+          177,
+          578,
+          200
+        ],
+        "radius": 6
+      },
+      {
+        "label": "7",
+        "bounds": [
+          591,
+          177,
+          622,
+          200
+        ],
+        "radius": 6
+      },
+      {
+        "label": "2",
+        "bounds": [
+          635,
+          177,
+          666,
+          200
+        ],
+        "radius": 6
+      },
+      {
+        "label": "8",
+        "bounds": [
+          679,
+          177,
+          710,
+          200
+        ],
+        "radius": 6
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-18",
+    "seed": 2026092018,
+    "stratum": "small",
+    "expected": "found",
+    "center": [
+      1121,
+      668
+    ],
+    "mask": "truth/layout-18-mask.png",
+    "font_size": 11,
+    "buttons": [
+      {
+        "label": "AC",
+        "bounds": [
+          973,
+          584,
+          1004,
+          607
+        ],
+        "radius": 6
+      },
+      {
+        "label": "1",
+        "bounds": [
+          1017,
+          584,
+          1048,
+          607
+        ],
+        "radius": 6
+      },
+      {
+        "label": "3",
+        "bounds": [
+          1061,
+          584,
+          1092,
+          607
+        ],
+        "radius": 6
+      },
+      {
+        "label": "4",
+        "bounds": [
+          1105,
+          584,
+          1136,
+          607
+        ],
+        "radius": 6
+      },
+      {
+        "label": "0",
+        "bounds": [
+          973,
+          620,
+          1004,
+          643
+        ],
+        "radius": 6
+      },
+      {
+        "label": "7",
+        "bounds": [
+          1017,
+          620,
+          1048,
+          643
+        ],
+        "radius": 6
+      },
+      {
+        "label": "=",
+        "bounds": [
+          1061,
+          620,
+          1092,
+          643
+        ],
+        "radius": 6
+      },
+      {
+        "label": "5",
+        "bounds": [
+          1105,
+          620,
+          1136,
+          643
+        ],
+        "radius": 6
+      },
+      {
+        "label": "2",
+        "bounds": [
+          973,
+          656,
+          1004,
+          679
+        ],
+        "radius": 6
+      },
+      {
+        "label": "9",
+        "bounds": [
+          1017,
+          656,
+          1048,
+          679
+        ],
+        "radius": 6
+      },
+      {
+        "label": "8",
+        "bounds": [
+          1061,
+          656,
+          1092,
+          679
+        ],
+        "radius": 6
+      },
+      {
+        "label": "6",
+        "bounds": [
+          1105,
+          656,
+          1136,
+          679
+        ],
+        "radius": 6
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-19",
+    "seed": 2026092019,
+    "stratum": "small",
+    "expected": "found",
+    "center": [
+      341,
+      331
+    ],
+    "mask": "truth/layout-19-mask.png",
+    "font_size": 11,
+    "buttons": [
+      {
+        "label": "1",
+        "bounds": [
+          325,
+          319,
+          356,
+          342
+        ],
+        "radius": 6
+      },
+      {
+        "label": "5",
+        "bounds": [
+          369,
+          319,
+          400,
+          342
+        ],
+        "radius": 6
+      },
+      {
+        "label": "7",
+        "bounds": [
+          413,
+          319,
+          444,
+          342
+        ],
+        "radius": 6
+      },
+      {
+        "label": "6",
+        "bounds": [
+          457,
+          319,
+          488,
+          342
+        ],
+        "radius": 6
+      },
+      {
+        "label": "=",
+        "bounds": [
+          325,
+          355,
+          356,
+          378
+        ],
+        "radius": 6
+      },
+      {
+        "label": "2",
+        "bounds": [
+          369,
+          355,
+          400,
+          378
+        ],
+        "radius": 6
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          413,
+          355,
+          444,
+          378
+        ],
+        "radius": 6
+      },
+      {
+        "label": "8",
+        "bounds": [
+          457,
+          355,
+          488,
+          378
+        ],
+        "radius": 6
+      },
+      {
+        "label": "0",
+        "bounds": [
+          325,
+          391,
+          356,
+          414
+        ],
+        "radius": 6
+      },
+      {
+        "label": "3",
+        "bounds": [
+          369,
+          391,
+          400,
+          414
+        ],
+        "radius": 6
+      },
+      {
+        "label": "4",
+        "bounds": [
+          413,
+          391,
+          444,
+          414
+        ],
+        "radius": 6
+      },
+      {
+        "label": "9",
+        "bounds": [
+          457,
+          391,
+          488,
+          414
+        ],
+        "radius": 6
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-20",
+    "seed": 2026092020,
+    "stratum": "small",
+    "expected": "found",
+    "center": [
+      728,
+      494
+    ],
+    "mask": "truth/layout-20-mask.png",
+    "font_size": 11,
+    "buttons": [
+      {
+        "label": "5",
+        "bounds": [
+          580,
+          446,
+          611,
+          469
+        ],
+        "radius": 6
+      },
+      {
+        "label": "1",
+        "bounds": [
+          624,
+          446,
+          655,
+          469
+        ],
+        "radius": 6
+      },
+      {
+        "label": "3",
+        "bounds": [
+          668,
+          446,
+          699,
+          469
+        ],
+        "radius": 6
+      },
+      {
+        "label": "4",
+        "bounds": [
+          712,
+          446,
+          743,
+          469
+        ],
+        "radius": 6
+      },
+      {
+        "label": "0",
+        "bounds": [
+          580,
+          482,
+          611,
+          505
+        ],
+        "radius": 6
+      },
+      {
+        "label": "7",
+        "bounds": [
+          624,
+          482,
+          655,
+          505
+        ],
+        "radius": 6
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          668,
+          482,
+          699,
+          505
+        ],
+        "radius": 6
+      },
+      {
+        "label": "2",
+        "bounds": [
+          712,
+          482,
+          743,
+          505
+        ],
+        "radius": 6
+      },
+      {
+        "label": "6",
+        "bounds": [
+          580,
+          518,
+          611,
+          541
+        ],
+        "radius": 6
+      },
+      {
+        "label": "8",
+        "bounds": [
+          624,
+          518,
+          655,
+          541
+        ],
+        "radius": 6
+      },
+      {
+        "label": "=",
+        "bounds": [
+          668,
+          518,
+          699,
+          541
+        ],
+        "radius": 6
+      },
+      {
+        "label": "9",
+        "bounds": [
+          712,
+          518,
+          743,
+          541
+        ],
+        "radius": 6
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-21",
+    "seed": 2026092021,
+    "stratum": "small",
+    "expected": "found",
+    "center": [
+      304,
+      142
+    ],
+    "mask": "truth/layout-21-mask.png",
+    "font_size": 11,
+    "buttons": [
+      {
+        "label": "7",
+        "bounds": [
+          288,
+          94,
+          319,
+          117
+        ],
+        "radius": 6
+      },
+      {
+        "label": "=",
+        "bounds": [
+          332,
+          94,
+          363,
+          117
+        ],
+        "radius": 6
+      },
+      {
+        "label": "5",
+        "bounds": [
+          376,
+          94,
+          407,
+          117
+        ],
+        "radius": 6
+      },
+      {
+        "label": "0",
+        "bounds": [
+          420,
+          94,
+          451,
+          117
+        ],
+        "radius": 6
+      },
+      {
+        "label": "3",
+        "bounds": [
+          288,
+          130,
+          319,
+          153
+        ],
+        "radius": 6
+      },
+      {
+        "label": "1",
+        "bounds": [
+          332,
+          130,
+          363,
+          153
+        ],
+        "radius": 6
+      },
+      {
+        "label": "9",
+        "bounds": [
+          376,
+          130,
+          407,
+          153
+        ],
+        "radius": 6
+      },
+      {
+        "label": "4",
+        "bounds": [
+          420,
+          130,
+          451,
+          153
+        ],
+        "radius": 6
+      },
+      {
+        "label": "6",
+        "bounds": [
+          288,
+          166,
+          319,
+          189
+        ],
+        "radius": 6
+      },
+      {
+        "label": "2",
+        "bounds": [
+          332,
+          166,
+          363,
+          189
+        ],
+        "radius": 6
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          376,
+          166,
+          407,
+          189
+        ],
+        "radius": 6
+      },
+      {
+        "label": "8",
+        "bounds": [
+          420,
+          166,
+          451,
+          189
+        ],
+        "radius": 6
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-22",
+    "seed": 2026092022,
+    "stratum": "small",
+    "expected": "found",
+    "center": [
+      1373,
+      367
+    ],
+    "mask": "truth/layout-22-mask.png",
+    "font_size": 11,
+    "buttons": [
+      {
+        "label": "6",
+        "bounds": [
+          1225,
+          319,
+          1256,
+          342
+        ],
+        "radius": 6
+      },
+      {
+        "label": "4",
+        "bounds": [
+          1269,
+          319,
+          1300,
+          342
+        ],
+        "radius": 6
+      },
+      {
+        "label": "3",
+        "bounds": [
+          1313,
+          319,
+          1344,
+          342
+        ],
+        "radius": 6
+      },
+      {
+        "label": "7",
+        "bounds": [
+          1357,
+          319,
+          1388,
+          342
+        ],
+        "radius": 6
+      },
+      {
+        "label": "2",
+        "bounds": [
+          1225,
+          355,
+          1256,
+          378
+        ],
+        "radius": 6
+      },
+      {
+        "label": "8",
+        "bounds": [
+          1269,
+          355,
+          1300,
+          378
+        ],
+        "radius": 6
+      },
+      {
+        "label": "1",
+        "bounds": [
+          1313,
+          355,
+          1344,
+          378
+        ],
+        "radius": 6
+      },
+      {
+        "label": "0",
+        "bounds": [
+          1357,
+          355,
+          1388,
+          378
+        ],
+        "radius": 6
+      },
+      {
+        "label": "=",
+        "bounds": [
+          1225,
+          391,
+          1256,
+          414
+        ],
+        "radius": 6
+      },
+      {
+        "label": "5",
+        "bounds": [
+          1269,
+          391,
+          1300,
+          414
+        ],
+        "radius": 6
+      },
+      {
+        "label": "9",
+        "bounds": [
+          1313,
+          391,
+          1344,
+          414
+        ],
+        "radius": 6
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          1357,
+          391,
+          1388,
+          414
+        ],
+        "radius": 6
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-23",
+    "seed": 2026092023,
+    "stratum": "small",
+    "expected": "found",
+    "center": [
+      332,
+      876
+    ],
+    "mask": "truth/layout-23-mask.png",
+    "font_size": 11,
+    "buttons": [
+      {
+        "label": "4",
+        "bounds": [
+          184,
+          792,
+          215,
+          815
+        ],
+        "radius": 6
+      },
+      {
+        "label": "5",
+        "bounds": [
+          228,
+          792,
+          259,
+          815
+        ],
+        "radius": 6
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          272,
+          792,
+          303,
+          815
+        ],
+        "radius": 6
+      },
+      {
+        "label": "3",
+        "bounds": [
+          316,
+          792,
+          347,
+          815
+        ],
+        "radius": 6
+      },
+      {
+        "label": "1",
+        "bounds": [
+          184,
+          828,
+          215,
+          851
+        ],
+        "radius": 6
+      },
+      {
+        "label": "6",
+        "bounds": [
+          228,
+          828,
+          259,
+          851
+        ],
+        "radius": 6
+      },
+      {
+        "label": "9",
+        "bounds": [
+          272,
+          828,
+          303,
+          851
+        ],
+        "radius": 6
+      },
+      {
+        "label": "2",
+        "bounds": [
+          316,
+          828,
+          347,
+          851
+        ],
+        "radius": 6
+      },
+      {
+        "label": "8",
+        "bounds": [
+          184,
+          864,
+          215,
+          887
+        ],
+        "radius": 6
+      },
+      {
+        "label": "7",
+        "bounds": [
+          228,
+          864,
+          259,
+          887
+        ],
+        "radius": 6
+      },
+      {
+        "label": "0",
+        "bounds": [
+          272,
+          864,
+          303,
+          887
+        ],
+        "radius": 6
+      },
+      {
+        "label": "=",
+        "bounds": [
+          316,
+          864,
+          347,
+          887
+        ],
+        "radius": 6
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-24",
+    "seed": 2026092024,
+    "stratum": "typography",
+    "expected": "found",
+    "center": [
+      737,
+      492
+    ],
+    "mask": "truth/layout-24-mask.png",
+    "font_size": 13,
+    "buttons": [
+      {
+        "label": "6",
+        "bounds": [
+          435,
+          468,
+          510,
+          515
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          523,
+          468,
+          598,
+          515
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          611,
+          468,
+          686,
+          515
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          699,
+          468,
+          774,
+          515
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          435,
+          528,
+          510,
+          575
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          523,
+          528,
+          598,
+          575
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          611,
+          528,
+          686,
+          575
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          699,
+          528,
+          774,
+          575
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          435,
+          588,
+          510,
+          635
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          523,
+          588,
+          598,
+          635
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          611,
+          588,
+          686,
+          635
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          699,
+          588,
+          774,
+          635
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-25",
+    "seed": 2026092025,
+    "stratum": "typography",
+    "expected": "found",
+    "center": [
+      295,
+      322
+    ],
+    "mask": "truth/layout-25-mask.png",
+    "font_size": 17,
+    "buttons": [
+      {
+        "label": "AC",
+        "bounds": [
+          169,
+          178,
+          244,
+          225
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          257,
+          178,
+          332,
+          225
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          345,
+          178,
+          420,
+          225
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          433,
+          178,
+          508,
+          225
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          169,
+          238,
+          244,
+          285
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          257,
+          238,
+          332,
+          285
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          345,
+          238,
+          420,
+          285
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          433,
+          238,
+          508,
+          285
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          169,
+          298,
+          244,
+          345
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          257,
+          298,
+          332,
+          345
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          345,
+          298,
+          420,
+          345
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          433,
+          298,
+          508,
+          345
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-26",
+    "seed": 2026092026,
+    "stratum": "typography",
+    "expected": "found",
+    "center": [
+      225,
+      259
+    ],
+    "mask": "truth/layout-26-mask.png",
+    "font_size": 23,
+    "buttons": [
+      {
+        "label": "4",
+        "bounds": [
+          187,
+          175,
+          262,
+          222
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          275,
+          175,
+          350,
+          222
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          363,
+          175,
+          438,
+          222
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          451,
+          175,
+          526,
+          222
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          187,
+          235,
+          262,
+          282
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          275,
+          235,
+          350,
+          282
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          363,
+          235,
+          438,
+          282
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          451,
+          235,
+          526,
+          282
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          187,
+          295,
+          262,
+          342
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          275,
+          295,
+          350,
+          342
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          363,
+          295,
+          438,
+          342
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          451,
+          295,
+          526,
+          342
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-27",
+    "seed": 2026092027,
+    "stratum": "typography",
+    "expected": "found",
+    "center": [
+      456,
+      1144
+    ],
+    "mask": "truth/layout-27-mask.png",
+    "font_size": 27,
+    "buttons": [
+      {
+        "label": "2",
+        "bounds": [
+          330,
+          1120,
+          405,
+          1167
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          418,
+          1120,
+          493,
+          1167
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          506,
+          1120,
+          581,
+          1167
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          594,
+          1120,
+          669,
+          1167
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          330,
+          1180,
+          405,
+          1227
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          418,
+          1180,
+          493,
+          1227
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          506,
+          1180,
+          581,
+          1227
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          594,
+          1180,
+          669,
+          1227
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          330,
+          1240,
+          405,
+          1287
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          418,
+          1240,
+          493,
+          1287
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          506,
+          1240,
+          581,
+          1287
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          594,
+          1240,
+          669,
+          1287
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-28",
+    "seed": 2026092028,
+    "stratum": "typography",
+    "expected": "found",
+    "center": [
+      273,
+      349
+    ],
+    "mask": "truth/layout-28-mask.png",
+    "font_size": 13,
+    "buttons": [
+      {
+        "label": "3",
+        "bounds": [
+          147,
+          205,
+          222,
+          252
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          235,
+          205,
+          310,
+          252
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          323,
+          205,
+          398,
+          252
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          411,
+          205,
+          486,
+          252
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          147,
+          265,
+          222,
+          312
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          235,
+          265,
+          310,
+          312
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          323,
+          265,
+          398,
+          312
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          411,
+          265,
+          486,
+          312
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          147,
+          325,
+          222,
+          372
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          235,
+          325,
+          310,
+          372
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          323,
+          325,
+          398,
+          372
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          411,
+          325,
+          486,
+          372
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-29",
+    "seed": 2026092029,
+    "stratum": "typography",
+    "expected": "found",
+    "center": [
+      359,
+      1042
+    ],
+    "mask": "truth/layout-29-mask.png",
+    "font_size": 17,
+    "buttons": [
+      {
+        "label": "4",
+        "bounds": [
+          233,
+          958,
+          308,
+          1005
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          321,
+          958,
+          396,
+          1005
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          409,
+          958,
+          484,
+          1005
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          497,
+          958,
+          572,
+          1005
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          233,
+          1018,
+          308,
+          1065
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          321,
+          1018,
+          396,
+          1065
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          409,
+          1018,
+          484,
+          1065
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          497,
+          1018,
+          572,
+          1065
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          233,
+          1078,
+          308,
+          1125
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          321,
+          1078,
+          396,
+          1125
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          409,
+          1078,
+          484,
+          1125
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          497,
+          1078,
+          572,
+          1125
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-30",
+    "seed": 2026092030,
+    "stratum": "typography",
+    "expected": "found",
+    "center": [
+      1204,
+      607
+    ],
+    "mask": "truth/layout-30-mask.png",
+    "font_size": 23,
+    "buttons": [
+      {
+        "label": "6",
+        "bounds": [
+          1166,
+          583,
+          1241,
+          630
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          1254,
+          583,
+          1329,
+          630
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          1342,
+          583,
+          1417,
+          630
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          1430,
+          583,
+          1505,
+          630
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          1166,
+          643,
+          1241,
+          690
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          1254,
+          643,
+          1329,
+          690
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          1342,
+          643,
+          1417,
+          690
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          1430,
+          643,
+          1505,
+          690
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          1166,
+          703,
+          1241,
+          750
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          1254,
+          703,
+          1329,
+          750
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          1342,
+          703,
+          1417,
+          750
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          1430,
+          703,
+          1505,
+          750
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-31",
+    "seed": 2026092031,
+    "stratum": "typography",
+    "expected": "found",
+    "center": [
+      511,
+      795
+    ],
+    "mask": "truth/layout-31-mask.png",
+    "font_size": 27,
+    "buttons": [
+      {
+        "label": "4",
+        "bounds": [
+          209,
+          651,
+          284,
+          698
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          297,
+          651,
+          372,
+          698
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          385,
+          651,
+          460,
+          698
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          473,
+          651,
+          548,
+          698
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          209,
+          711,
+          284,
+          758
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          297,
+          711,
+          372,
+          758
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          385,
+          711,
+          460,
+          758
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          473,
+          711,
+          548,
+          758
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          209,
+          771,
+          284,
+          818
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          297,
+          771,
+          372,
+          818
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          385,
+          771,
+          460,
+          818
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          473,
+          771,
+          548,
+          818
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-32",
+    "seed": 2026092032,
+    "stratum": "scale",
+    "expected": "found",
+    "center": [
+      335,
+      734
+    ],
+    "mask": "truth/layout-32-mask.png",
+    "font_size": 14,
+    "buttons": [
+      {
+        "label": "AC",
+        "bounds": [
+          307,
+          620,
+          363,
+          655
+        ],
+        "radius": 9
+      },
+      {
+        "label": "8",
+        "bounds": [
+          376,
+          620,
+          432,
+          655
+        ],
+        "radius": 9
+      },
+      {
+        "label": "4",
+        "bounds": [
+          445,
+          620,
+          501,
+          655
+        ],
+        "radius": 9
+      },
+      {
+        "label": "7",
+        "bounds": [
+          514,
+          620,
+          570,
+          655
+        ],
+        "radius": 9
+      },
+      {
+        "label": "6",
+        "bounds": [
+          307,
+          668,
+          363,
+          703
+        ],
+        "radius": 9
+      },
+      {
+        "label": "1",
+        "bounds": [
+          376,
+          668,
+          432,
+          703
+        ],
+        "radius": 9
+      },
+      {
+        "label": "3",
+        "bounds": [
+          445,
+          668,
+          501,
+          703
+        ],
+        "radius": 9
+      },
+      {
+        "label": "=",
+        "bounds": [
+          514,
+          668,
+          570,
+          703
+        ],
+        "radius": 9
+      },
+      {
+        "label": "2",
+        "bounds": [
+          307,
+          716,
+          363,
+          751
+        ],
+        "radius": 9
+      },
+      {
+        "label": "5",
+        "bounds": [
+          376,
+          716,
+          432,
+          751
+        ],
+        "radius": 9
+      },
+      {
+        "label": "9",
+        "bounds": [
+          445,
+          716,
+          501,
+          751
+        ],
+        "radius": 9
+      },
+      {
+        "label": "0",
+        "bounds": [
+          514,
+          716,
+          570,
+          751
+        ],
+        "radius": 9
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-33",
+    "seed": 2026092033,
+    "stratum": "scale",
+    "expected": "found",
+    "center": [
+      358,
+      962
+    ],
+    "mask": "truth/layout-33-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "5",
+        "bounds": [
+          232,
+          938,
+          307,
+          985
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          320,
+          938,
+          395,
+          985
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          408,
+          938,
+          483,
+          985
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          496,
+          938,
+          571,
+          985
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          232,
+          998,
+          307,
+          1045
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          320,
+          998,
+          395,
+          1045
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          408,
+          998,
+          483,
+          1045
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          496,
+          998,
+          571,
+          1045
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          232,
+          1058,
+          307,
+          1105
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          320,
+          1058,
+          395,
+          1105
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          408,
+          1058,
+          483,
+          1105
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          496,
+          1058,
+          571,
+          1105
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-34",
+    "seed": 2026092034,
+    "stratum": "scale",
+    "expected": "found",
+    "center": [
+      1039,
+      821
+    ],
+    "mask": "truth/layout-34-mask.png",
+    "font_size": 28,
+    "buttons": [
+      {
+        "label": "9",
+        "bounds": [
+          604,
+          617,
+          717,
+          688
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          730,
+          617,
+          843,
+          688
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          856,
+          617,
+          969,
+          688
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          982,
+          617,
+          1095,
+          688
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          604,
+          701,
+          717,
+          772
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          730,
+          701,
+          843,
+          772
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          856,
+          701,
+          969,
+          772
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          982,
+          701,
+          1095,
+          772
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          604,
+          785,
+          717,
+          856
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          730,
+          785,
+          843,
+          856
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          856,
+          785,
+          969,
+          856
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          982,
+          785,
+          1095,
+          856
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-35",
+    "seed": 2026092035,
+    "stratum": "scale",
+    "expected": "found",
+    "center": [
+      549,
+      1299
+    ],
+    "mask": "truth/layout-35-mask.png",
+    "font_size": 38,
+    "buttons": [
+      {
+        "label": "1",
+        "bounds": [
+          309,
+          1143,
+          460,
+          1238
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          473,
+          1143,
+          624,
+          1238
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          637,
+          1143,
+          788,
+          1238
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          801,
+          1143,
+          952,
+          1238
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          309,
+          1251,
+          460,
+          1346
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          473,
+          1251,
+          624,
+          1346
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          637,
+          1251,
+          788,
+          1346
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          801,
+          1251,
+          952,
+          1346
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          309,
+          1359,
+          460,
+          1454
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          473,
+          1359,
+          624,
+          1454
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          637,
+          1359,
+          788,
+          1454
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          801,
+          1359,
+          952,
+          1454
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-36",
+    "seed": 2026092036,
+    "stratum": "scale",
+    "expected": "found",
+    "center": [
+      454,
+      536
+    ],
+    "mask": "truth/layout-36-mask.png",
+    "font_size": 14,
+    "buttons": [
+      {
+        "label": "8",
+        "bounds": [
+          426,
+          470,
+          482,
+          505
+        ],
+        "radius": 9
+      },
+      {
+        "label": "3",
+        "bounds": [
+          495,
+          470,
+          551,
+          505
+        ],
+        "radius": 9
+      },
+      {
+        "label": "5",
+        "bounds": [
+          564,
+          470,
+          620,
+          505
+        ],
+        "radius": 9
+      },
+      {
+        "label": "1",
+        "bounds": [
+          633,
+          470,
+          689,
+          505
+        ],
+        "radius": 9
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          426,
+          518,
+          482,
+          553
+        ],
+        "radius": 9
+      },
+      {
+        "label": "4",
+        "bounds": [
+          495,
+          518,
+          551,
+          553
+        ],
+        "radius": 9
+      },
+      {
+        "label": "2",
+        "bounds": [
+          564,
+          518,
+          620,
+          553
+        ],
+        "radius": 9
+      },
+      {
+        "label": "0",
+        "bounds": [
+          633,
+          518,
+          689,
+          553
+        ],
+        "radius": 9
+      },
+      {
+        "label": "=",
+        "bounds": [
+          426,
+          566,
+          482,
+          601
+        ],
+        "radius": 9
+      },
+      {
+        "label": "9",
+        "bounds": [
+          495,
+          566,
+          551,
+          601
+        ],
+        "radius": 9
+      },
+      {
+        "label": "7",
+        "bounds": [
+          564,
+          566,
+          620,
+          601
+        ],
+        "radius": 9
+      },
+      {
+        "label": "6",
+        "bounds": [
+          633,
+          566,
+          689,
+          601
+        ],
+        "radius": 9
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-37",
+    "seed": 2026092037,
+    "stratum": "scale",
+    "expected": "found",
+    "center": [
+      632,
+      1057
+    ],
+    "mask": "truth/layout-37-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "5",
+        "bounds": [
+          330,
+          913,
+          405,
+          960
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          418,
+          913,
+          493,
+          960
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          506,
+          913,
+          581,
+          960
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          594,
+          913,
+          669,
+          960
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          330,
+          973,
+          405,
+          1020
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          418,
+          973,
+          493,
+          1020
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          506,
+          973,
+          581,
+          1020
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          594,
+          973,
+          669,
+          1020
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          330,
+          1033,
+          405,
+          1080
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          418,
+          1033,
+          493,
+          1080
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          506,
+          1033,
+          581,
+          1080
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          594,
+          1033,
+          669,
+          1080
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-38",
+    "seed": 2026092038,
+    "stratum": "scale",
+    "expected": "found",
+    "center": [
+      1094,
+      352
+    ],
+    "mask": "truth/layout-38-mask.png",
+    "font_size": 28,
+    "buttons": [
+      {
+        "label": "6",
+        "bounds": [
+          785,
+          148,
+          898,
+          219
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          911,
+          148,
+          1024,
+          219
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          1037,
+          148,
+          1150,
+          219
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          1163,
+          148,
+          1276,
+          219
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          785,
+          232,
+          898,
+          303
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          911,
+          232,
+          1024,
+          303
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          1037,
+          232,
+          1150,
+          303
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          1163,
+          232,
+          1276,
+          303
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          785,
+          316,
+          898,
+          387
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          911,
+          316,
+          1024,
+          387
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          1037,
+          316,
+          1150,
+          387
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          1163,
+          316,
+          1276,
+          387
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-39",
+    "seed": 2026092039,
+    "stratum": "scale",
+    "expected": "found",
+    "center": [
+      522,
+      928
+    ],
+    "mask": "truth/layout-39-mask.png",
+    "font_size": 38,
+    "buttons": [
+      {
+        "label": "4",
+        "bounds": [
+          282,
+          880,
+          433,
+          975
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          446,
+          880,
+          597,
+          975
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          610,
+          880,
+          761,
+          975
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          774,
+          880,
+          925,
+          975
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          282,
+          988,
+          433,
+          1083
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          446,
+          988,
+          597,
+          1083
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          610,
+          988,
+          761,
+          1083
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          774,
+          988,
+          925,
+          1083
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          282,
+          1096,
+          433,
+          1191
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          446,
+          1096,
+          597,
+          1191
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          610,
+          1096,
+          761,
+          1191
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          774,
+          1096,
+          925,
+          1191
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-40",
+    "seed": 2026092040,
+    "stratum": "occluded",
+    "expected": "found",
+    "center": [
+      634,
+      326
+    ],
+    "mask": "truth/layout-40-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "5",
+        "bounds": [
+          332,
+          302,
+          407,
+          349
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          420,
+          302,
+          495,
+          349
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          508,
+          302,
+          583,
+          349
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          596,
+          302,
+          671,
+          349
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          332,
+          362,
+          407,
+          409
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          420,
+          362,
+          495,
+          409
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          508,
+          362,
+          583,
+          409
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          596,
+          362,
+          671,
+          409
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          332,
+          422,
+          407,
+          469
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          420,
+          422,
+          495,
+          469
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          508,
+          422,
+          583,
+          469
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          596,
+          422,
+          671,
+          469
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": [
+      593,
+      299,
+      675,
+      308
+    ]
+  },
+  {
+    "id": "layout-41",
+    "seed": 2026092041,
+    "stratum": "occluded",
+    "expected": "found",
+    "center": [
+      581,
+      537
+    ],
+    "mask": "truth/layout-41-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "1",
+        "bounds": [
+          367,
+          393,
+          442,
+          440
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          455,
+          393,
+          530,
+          440
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          543,
+          393,
+          618,
+          440
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          631,
+          393,
+          706,
+          440
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          367,
+          453,
+          442,
+          500
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          455,
+          453,
+          530,
+          500
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          543,
+          453,
+          618,
+          500
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          631,
+          453,
+          706,
+          500
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          367,
+          513,
+          442,
+          560
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          455,
+          513,
+          530,
+          560
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          543,
+          513,
+          618,
+          560
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          631,
+          513,
+          706,
+          560
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": [
+      540,
+      510,
+      622,
+      519
+    ]
+  },
+  {
+    "id": "layout-42",
+    "seed": 2026092042,
+    "stratum": "occluded",
+    "expected": "found",
+    "center": [
+      268,
+      691
+    ],
+    "mask": "truth/layout-42-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "8",
+        "bounds": [
+          230,
+          547,
+          305,
+          594
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          318,
+          547,
+          393,
+          594
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          406,
+          547,
+          481,
+          594
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          494,
+          547,
+          569,
+          594
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          230,
+          607,
+          305,
+          654
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          318,
+          607,
+          393,
+          654
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          406,
+          607,
+          481,
+          654
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          494,
+          607,
+          569,
+          654
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          230,
+          667,
+          305,
+          714
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          318,
+          667,
+          393,
+          714
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          406,
+          667,
+          481,
+          714
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          494,
+          667,
+          569,
+          714
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": [
+      227,
+      664,
+      309,
+      673
+    ]
+  },
+  {
+    "id": "layout-43",
+    "seed": 2026092043,
+    "stratum": "occluded",
+    "expected": "found",
+    "center": [
+      461,
+      471
+    ],
+    "mask": "truth/layout-43-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "7",
+        "bounds": [
+          159,
+          327,
+          234,
+          374
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          247,
+          327,
+          322,
+          374
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          335,
+          327,
+          410,
+          374
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          423,
+          327,
+          498,
+          374
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          159,
+          387,
+          234,
+          434
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          247,
+          387,
+          322,
+          434
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          335,
+          387,
+          410,
+          434
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          423,
+          387,
+          498,
+          434
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          159,
+          447,
+          234,
+          494
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          247,
+          447,
+          322,
+          494
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          335,
+          447,
+          410,
+          494
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          423,
+          447,
+          498,
+          494
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": [
+      420,
+      444,
+      502,
+      453
+    ]
+  },
+  {
+    "id": "layout-44",
+    "seed": 2026092044,
+    "stratum": "occluded",
+    "expected": "found",
+    "center": [
+      819,
+      727
+    ],
+    "mask": "truth/layout-44-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "7",
+        "bounds": [
+          781,
+          583,
+          856,
+          630
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          869,
+          583,
+          944,
+          630
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          957,
+          583,
+          1032,
+          630
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          1045,
+          583,
+          1120,
+          630
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          781,
+          643,
+          856,
+          690
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          869,
+          643,
+          944,
+          690
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          957,
+          643,
+          1032,
+          690
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          1045,
+          643,
+          1120,
+          690
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          781,
+          703,
+          856,
+          750
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          869,
+          703,
+          944,
+          750
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          957,
+          703,
+          1032,
+          750
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          1045,
+          703,
+          1120,
+          750
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": [
+      778,
+      700,
+      860,
+      709
+    ]
+  },
+  {
+    "id": "layout-45",
+    "seed": 2026092045,
+    "stratum": "occluded",
+    "expected": "found",
+    "center": [
+      540,
+      432
+    ],
+    "mask": "truth/layout-45-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "AC",
+        "bounds": [
+          502,
+          348,
+          577,
+          395
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          590,
+          348,
+          665,
+          395
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          678,
+          348,
+          753,
+          395
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          766,
+          348,
+          841,
+          395
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          502,
+          408,
+          577,
+          455
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          590,
+          408,
+          665,
+          455
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          678,
+          408,
+          753,
+          455
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          766,
+          408,
+          841,
+          455
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          502,
+          468,
+          577,
+          515
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          590,
+          468,
+          665,
+          515
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          678,
+          468,
+          753,
+          515
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          766,
+          468,
+          841,
+          515
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": [
+      499,
+      405,
+      581,
+      414
+    ]
+  },
+  {
+    "id": "layout-46",
+    "seed": 2026092046,
+    "stratum": "occluded",
+    "expected": "found",
+    "center": [
+      358,
+      703
+    ],
+    "mask": "truth/layout-46-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "6",
+        "bounds": [
+          56,
+          559,
+          131,
+          606
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          144,
+          559,
+          219,
+          606
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          232,
+          559,
+          307,
+          606
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          320,
+          559,
+          395,
+          606
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          56,
+          619,
+          131,
+          666
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          144,
+          619,
+          219,
+          666
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          232,
+          619,
+          307,
+          666
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          320,
+          619,
+          395,
+          666
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          56,
+          679,
+          131,
+          726
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          144,
+          679,
+          219,
+          726
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          232,
+          679,
+          307,
+          726
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          320,
+          679,
+          395,
+          726
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": [
+      317,
+      676,
+      399,
+      685
+    ]
+  },
+  {
+    "id": "layout-47",
+    "seed": 2026092047,
+    "stratum": "occluded",
+    "expected": "found",
+    "center": [
+      668,
+      1026
+    ],
+    "mask": "truth/layout-47-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "AC",
+        "bounds": [
+          366,
+          882,
+          441,
+          929
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          454,
+          882,
+          529,
+          929
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          542,
+          882,
+          617,
+          929
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          630,
+          882,
+          705,
+          929
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          366,
+          942,
+          441,
+          989
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          454,
+          942,
+          529,
+          989
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          542,
+          942,
+          617,
+          989
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          630,
+          942,
+          705,
+          989
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          366,
+          1002,
+          441,
+          1049
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          454,
+          1002,
+          529,
+          1049
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          542,
+          1002,
+          617,
+          1049
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          630,
+          1002,
+          705,
+          1049
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": [
+      627,
+      999,
+      709,
+      1008
+    ]
+  },
+  {
+    "id": "layout-48",
+    "seed": 2026092048,
+    "stratum": "duplicate",
+    "expected": "ambiguous",
+    "center": null,
+    "mask": "truth/layout-48-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "2",
+        "bounds": [
+          147,
+          497,
+          222,
+          544
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          235,
+          497,
+          310,
+          544
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          323,
+          497,
+          398,
+          544
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          411,
+          497,
+          486,
+          544
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          147,
+          557,
+          222,
+          604
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          235,
+          557,
+          310,
+          604
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          323,
+          557,
+          398,
+          604
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          411,
+          557,
+          486,
+          604
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          147,
+          617,
+          222,
+          664
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          235,
+          617,
+          310,
+          664
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          323,
+          617,
+          398,
+          664
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          411,
+          617,
+          486,
+          664
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-49",
+    "seed": 2026092049,
+    "stratum": "duplicate",
+    "expected": "ambiguous",
+    "center": null,
+    "mask": "truth/layout-49-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "7",
+        "bounds": [
+          486,
+          442,
+          561,
+          489
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          574,
+          442,
+          649,
+          489
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          662,
+          442,
+          737,
+          489
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          750,
+          442,
+          825,
+          489
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          486,
+          502,
+          561,
+          549
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          574,
+          502,
+          649,
+          549
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          662,
+          502,
+          737,
+          549
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          750,
+          502,
+          825,
+          549
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          486,
+          562,
+          561,
+          609
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          574,
+          562,
+          649,
+          609
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          662,
+          562,
+          737,
+          609
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          750,
+          562,
+          825,
+          609
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-50",
+    "seed": 2026092050,
+    "stratum": "duplicate",
+    "expected": "ambiguous",
+    "center": null,
+    "mask": "truth/layout-50-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "7",
+        "bounds": [
+          841,
+          150,
+          916,
+          197
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          929,
+          150,
+          1004,
+          197
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          1017,
+          150,
+          1092,
+          197
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          1105,
+          150,
+          1180,
+          197
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          841,
+          210,
+          916,
+          257
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          929,
+          210,
+          1004,
+          257
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          1017,
+          210,
+          1092,
+          257
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          1105,
+          210,
+          1180,
+          257
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          841,
+          270,
+          916,
+          317
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          929,
+          270,
+          1004,
+          317
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          1017,
+          270,
+          1092,
+          317
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          1105,
+          270,
+          1180,
+          317
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-51",
+    "seed": 2026092051,
+    "stratum": "duplicate",
+    "expected": "ambiguous",
+    "center": null,
+    "mask": "truth/layout-51-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "9",
+        "bounds": [
+          293,
+          461,
+          368,
+          508
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          381,
+          461,
+          456,
+          508
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          469,
+          461,
+          544,
+          508
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          557,
+          461,
+          632,
+          508
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          293,
+          521,
+          368,
+          568
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          381,
+          521,
+          456,
+          568
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          469,
+          521,
+          544,
+          568
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          557,
+          521,
+          632,
+          568
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          293,
+          581,
+          368,
+          628
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          381,
+          581,
+          456,
+          628
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          469,
+          581,
+          544,
+          628
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          557,
+          581,
+          632,
+          628
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-52",
+    "seed": 2026092052,
+    "stratum": "duplicate",
+    "expected": "ambiguous",
+    "center": null,
+    "mask": "truth/layout-52-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "6",
+        "bounds": [
+          242,
+          90,
+          317,
+          137
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          330,
+          90,
+          405,
+          137
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          418,
+          90,
+          493,
+          137
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          506,
+          90,
+          581,
+          137
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          242,
+          150,
+          317,
+          197
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          330,
+          150,
+          405,
+          197
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          418,
+          150,
+          493,
+          197
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          506,
+          150,
+          581,
+          197
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          242,
+          210,
+          317,
+          257
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          330,
+          210,
+          405,
+          257
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          418,
+          210,
+          493,
+          257
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          506,
+          210,
+          581,
+          257
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-53",
+    "seed": 2026092053,
+    "stratum": "duplicate",
+    "expected": "ambiguous",
+    "center": null,
+    "mask": "truth/layout-53-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "5",
+        "bounds": [
+          133,
+          594,
+          208,
+          641
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          221,
+          594,
+          296,
+          641
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          309,
+          594,
+          384,
+          641
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          397,
+          594,
+          472,
+          641
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          133,
+          654,
+          208,
+          701
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          221,
+          654,
+          296,
+          701
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          309,
+          654,
+          384,
+          701
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          397,
+          654,
+          472,
+          701
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          133,
+          714,
+          208,
+          761
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          221,
+          714,
+          296,
+          761
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          309,
+          714,
+          384,
+          761
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          397,
+          714,
+          472,
+          761
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-54",
+    "seed": 2026092054,
+    "stratum": "duplicate",
+    "expected": "ambiguous",
+    "center": null,
+    "mask": "truth/layout-54-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "6",
+        "bounds": [
+          461,
+          216,
+          536,
+          263
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          549,
+          216,
+          624,
+          263
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          637,
+          216,
+          712,
+          263
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          725,
+          216,
+          800,
+          263
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          461,
+          276,
+          536,
+          323
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          549,
+          276,
+          624,
+          323
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          637,
+          276,
+          712,
+          323
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          725,
+          276,
+          800,
+          323
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          461,
+          336,
+          536,
+          383
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          549,
+          336,
+          624,
+          383
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          637,
+          336,
+          712,
+          383
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          725,
+          336,
+          800,
+          383
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-55",
+    "seed": 2026092055,
+    "stratum": "duplicate",
+    "expected": "ambiguous",
+    "center": null,
+    "mask": "truth/layout-55-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "1",
+        "bounds": [
+          501,
+          1012,
+          576,
+          1059
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          589,
+          1012,
+          664,
+          1059
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          677,
+          1012,
+          752,
+          1059
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          765,
+          1012,
+          840,
+          1059
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          501,
+          1072,
+          576,
+          1119
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          589,
+          1072,
+          664,
+          1119
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          677,
+          1072,
+          752,
+          1119
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          765,
+          1072,
+          840,
+          1119
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          501,
+          1132,
+          576,
+          1179
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          589,
+          1132,
+          664,
+          1179
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          677,
+          1132,
+          752,
+          1179
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          765,
+          1132,
+          840,
+          1179
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-56",
+    "seed": 2026092056,
+    "stratum": "absent",
+    "expected": "not_found",
+    "center": null,
+    "mask": "truth/layout-56-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "1",
+        "bounds": [
+          578,
+          366,
+          653,
+          413
+        ],
+        "radius": 10
+      },
+      {
+        "label": "DEL",
+        "bounds": [
+          666,
+          366,
+          741,
+          413
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          754,
+          366,
+          829,
+          413
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          842,
+          366,
+          917,
+          413
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          578,
+          426,
+          653,
+          473
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          666,
+          426,
+          741,
+          473
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          754,
+          426,
+          829,
+          473
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          842,
+          426,
+          917,
+          473
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          578,
+          486,
+          653,
+          533
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          666,
+          486,
+          741,
+          533
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          754,
+          486,
+          829,
+          533
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          842,
+          486,
+          917,
+          533
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-57",
+    "seed": 2026092057,
+    "stratum": "absent",
+    "expected": "not_found",
+    "center": null,
+    "mask": "truth/layout-57-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "6",
+        "bounds": [
+          318,
+          1104,
+          393,
+          1151
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          406,
+          1104,
+          481,
+          1151
+        ],
+        "radius": 10
+      },
+      {
+        "label": "DEL",
+        "bounds": [
+          494,
+          1104,
+          569,
+          1151
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          582,
+          1104,
+          657,
+          1151
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          318,
+          1164,
+          393,
+          1211
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          406,
+          1164,
+          481,
+          1211
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          494,
+          1164,
+          569,
+          1211
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          582,
+          1164,
+          657,
+          1211
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          318,
+          1224,
+          393,
+          1271
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          406,
+          1224,
+          481,
+          1271
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          494,
+          1224,
+          569,
+          1271
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          582,
+          1224,
+          657,
+          1271
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-58",
+    "seed": 2026092058,
+    "stratum": "absent",
+    "expected": "not_found",
+    "center": null,
+    "mask": "truth/layout-58-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "5",
+        "bounds": [
+          346,
+          558,
+          421,
+          605
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          434,
+          558,
+          509,
+          605
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          522,
+          558,
+          597,
+          605
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          610,
+          558,
+          685,
+          605
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          346,
+          618,
+          421,
+          665
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          434,
+          618,
+          509,
+          665
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          522,
+          618,
+          597,
+          665
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          610,
+          618,
+          685,
+          665
+        ],
+        "radius": 10
+      },
+      {
+        "label": "DEL",
+        "bounds": [
+          346,
+          678,
+          421,
+          725
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          434,
+          678,
+          509,
+          725
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          522,
+          678,
+          597,
+          725
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          610,
+          678,
+          685,
+          725
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-59",
+    "seed": 2026092059,
+    "stratum": "absent",
+    "expected": "not_found",
+    "center": null,
+    "mask": "truth/layout-59-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "1",
+        "bounds": [
+          155,
+          221,
+          230,
+          268
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          243,
+          221,
+          318,
+          268
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          331,
+          221,
+          406,
+          268
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          419,
+          221,
+          494,
+          268
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          155,
+          281,
+          230,
+          328
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          243,
+          281,
+          318,
+          328
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          331,
+          281,
+          406,
+          328
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          419,
+          281,
+          494,
+          328
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          155,
+          341,
+          230,
+          388
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          243,
+          341,
+          318,
+          388
+        ],
+        "radius": 10
+      },
+      {
+        "label": "DEL",
+        "bounds": [
+          331,
+          341,
+          406,
+          388
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          419,
+          341,
+          494,
+          388
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-60",
+    "seed": 2026092060,
+    "stratum": "absent",
+    "expected": "not_found",
+    "center": null,
+    "mask": "truth/layout-60-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "8",
+        "bounds": [
+          289,
+          176,
+          364,
+          223
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          377,
+          176,
+          452,
+          223
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          465,
+          176,
+          540,
+          223
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          553,
+          176,
+          628,
+          223
+        ],
+        "radius": 10
+      },
+      {
+        "label": "DEL",
+        "bounds": [
+          289,
+          236,
+          364,
+          283
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          377,
+          236,
+          452,
+          283
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          465,
+          236,
+          540,
+          283
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          553,
+          236,
+          628,
+          283
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          289,
+          296,
+          364,
+          343
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          377,
+          296,
+          452,
+          343
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          465,
+          296,
+          540,
+          343
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          553,
+          296,
+          628,
+          343
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-61",
+    "seed": 2026092061,
+    "stratum": "absent",
+    "expected": "not_found",
+    "center": null,
+    "mask": "truth/layout-61-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "6",
+        "bounds": [
+          109,
+          687,
+          184,
+          734
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          197,
+          687,
+          272,
+          734
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          285,
+          687,
+          360,
+          734
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          373,
+          687,
+          448,
+          734
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          109,
+          747,
+          184,
+          794
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          197,
+          747,
+          272,
+          794
+        ],
+        "radius": 10
+      },
+      {
+        "label": "DEL",
+        "bounds": [
+          285,
+          747,
+          360,
+          794
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          373,
+          747,
+          448,
+          794
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          109,
+          807,
+          184,
+          854
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          197,
+          807,
+          272,
+          854
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          285,
+          807,
+          360,
+          854
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          373,
+          807,
+          448,
+          854
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-62",
+    "seed": 2026092062,
+    "stratum": "absent",
+    "expected": "not_found",
+    "center": null,
+    "mask": "truth/layout-62-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "=",
+        "bounds": [
+          1042,
+          757,
+          1117,
+          804
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          1130,
+          757,
+          1205,
+          804
+        ],
+        "radius": 10
+      },
+      {
+        "label": "2",
+        "bounds": [
+          1218,
+          757,
+          1293,
+          804
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          1306,
+          757,
+          1381,
+          804
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          1042,
+          817,
+          1117,
+          864
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          1130,
+          817,
+          1205,
+          864
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          1218,
+          817,
+          1293,
+          864
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          1306,
+          817,
+          1381,
+          864
+        ],
+        "radius": 10
+      },
+      {
+        "label": "DEL",
+        "bounds": [
+          1042,
+          877,
+          1117,
+          924
+        ],
+        "radius": 10
+      },
+      {
+        "label": "9",
+        "bounds": [
+          1130,
+          877,
+          1205,
+          924
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          1218,
+          877,
+          1293,
+          924
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          1306,
+          877,
+          1381,
+          924
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  },
+  {
+    "id": "layout-63",
+    "seed": 2026092063,
+    "stratum": "absent",
+    "expected": "not_found",
+    "center": null,
+    "mask": "truth/layout-63-mask.png",
+    "font_size": 19,
+    "buttons": [
+      {
+        "label": "2",
+        "bounds": [
+          176,
+          1137,
+          251,
+          1184
+        ],
+        "radius": 10
+      },
+      {
+        "label": "0",
+        "bounds": [
+          264,
+          1137,
+          339,
+          1184
+        ],
+        "radius": 10
+      },
+      {
+        "label": "1",
+        "bounds": [
+          352,
+          1137,
+          427,
+          1184
+        ],
+        "radius": 10
+      },
+      {
+        "label": "=",
+        "bounds": [
+          440,
+          1137,
+          515,
+          1184
+        ],
+        "radius": 10
+      },
+      {
+        "label": "3",
+        "bounds": [
+          176,
+          1197,
+          251,
+          1244
+        ],
+        "radius": 10
+      },
+      {
+        "label": "7",
+        "bounds": [
+          264,
+          1197,
+          339,
+          1244
+        ],
+        "radius": 10
+      },
+      {
+        "label": "8",
+        "bounds": [
+          352,
+          1197,
+          427,
+          1244
+        ],
+        "radius": 10
+      },
+      {
+        "label": "6",
+        "bounds": [
+          440,
+          1197,
+          515,
+          1244
+        ],
+        "radius": 10
+      },
+      {
+        "label": "AC",
+        "bounds": [
+          176,
+          1257,
+          251,
+          1304
+        ],
+        "radius": 10
+      },
+      {
+        "label": "4",
+        "bounds": [
+          264,
+          1257,
+          339,
+          1304
+        ],
+        "radius": 10
+      },
+      {
+        "label": "DEL",
+        "bounds": [
+          352,
+          1257,
+          427,
+          1304
+        ],
+        "radius": 10
+      },
+      {
+        "label": "5",
+        "bounds": [
+          440,
+          1257,
+          515,
+          1304
+        ],
+        "radius": 10
+      }
+    ],
+    "occlusion": null
+  }
+]

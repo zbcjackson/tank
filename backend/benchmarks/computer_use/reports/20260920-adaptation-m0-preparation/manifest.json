@@ -1,0 +1,181 @@
+{
+  "status": "offline preparation complete; live model/provider preflight and priced live manifests pending",
+  "date": "2026-09-20",
+  "baseline_revision": "8c2173bcf4a4dc535109ee5748acb1c6991b0390",
+  "current_revision": "b18997cd35c8fa6a3126fda88a96f6e6a7271c2c",
+  "worktree_before_task": "clean",
+  "batch_changes": [
+    "offline holdout generator and its test",
+    "manual scheduler integration test isolation after observed double firing",
+    "new evidence directory and plan/index updates"
+  ],
+  "snapshot": "snapshot.json",
+  "request": "current-request.json",
+  "scoring_revision": "trial-token-gui-calc-v4; calc-evidence-v1 separate channels; generic pixels unknown",
+  "source_sha256": {
+    "backend/core/src/tank_backend/benchmarks/calc_validator.py": "cd920c9334a92889cca31d88a5f6e5f293205f78fae0b656a747b96ac485725d",
+    "backend/core/src/tank_backend/benchmarks/report.py": "0a4df1d200a3fe2403df6db7a4a96cde1b3c12787d1c4b117937aae71b0260a0",
+    "backend/core/src/tank_backend/benchmarks/grounding_probe.py": "204179efb175f1c523e7e66faa7a25e77e420dd86342590c3b7a4ab26aadce46",
+    "backend/core/src/tank_backend/tools/computer_use_macos.py": "eb79a02c2f962108550c41dc3b3ddfb9018baea7985a0b034f480a4298644b17",
+    "backend/core/src/tank_backend/tools/computer_use_common.py": "dc36651b306a697ebf52bc0858596b3652f05ee1b39b3bdaec1a2ac3c9a4b5a1",
+    "backend/core/src/tank_backend/llm/llm.py": "764e435ca5140568db10451a69fc7edcf628c5b172b22bec630b59e6c6fa2117",
+    "backend/agents/computer_use.md": "bae2d2fd7eafee2012d0e1e5e0028ebdece9fe14784a1a5ec71c3ba49213735a",
+    "backend/scripts/probe_grounding_matrix.py": "897371fbbdc5a9bf374802f4a69c6a4fe5b480bdbcbf7c88f296ba5939da893e",
+    "backend/scripts/probe_grounding_contract.py": "d6f54f6a4675c6e7c49e165d36cb12fb173c2220aa01560cbaa8d1e2de9ce7d5",
+    "backend/scripts/prepare_grounding_holdout.py": "a1c81a900c40335ab1675dd54211119dc5e9798e2de5baa7f5e9e8c3f183ee29",
+    "backend/benchmarks/computer_use/tasks/11-multi-select-copy.yaml": "a3d3c44ec3e59f935b1eda01a13ce42fe6359c18867c25b61105929b136b634b",
+    "backend/benchmarks/computer_use/tasks/06-file-ops.yaml": "d34aa68f567c761c7d988c8a413e83ed2a76211fe324981636e6b39016cb6c9f",
+    "backend/benchmarks/computer_use/tasks/04-local-form.yaml": "98015dbcc1efea85832144fe4cd1e353c9980f33362e81ce1edb347625d4f17e",
+    "backend/benchmarks/computer_use/tasks/02-open-settings.yaml": "8834d0813a3bd9c837fea79c996b4f6997f0db5124efd6eed5ca2ab40c4d20d9",
+    "backend/benchmarks/computer_use/tasks/10-links-history.yaml": "006c288010c77af6388ac19a6698efb2dfe3b7bd347c23f941387cccb53b9db4",
+    "backend/benchmarks/computer_use/tasks/13-small-text-code.yaml": "91e15519f479fa2d28dcbada99c3ba65ec8e8d537dc45cdacd76f6bbf4f98a76",
+    "backend/benchmarks/computer_use/tasks/01-calc-open.yaml": "f362168f6a132a30d7b921f18c107aa7b7995f9fa7f86e3af13762e5eb3e8306",
+    "backend/benchmarks/computer_use/tasks/09-editor-save.yaml": "71cb3b54cc00cf8cdf8aba5d5923d7f02c4ac6e2052f4e573af252268da37869",
+    "backend/benchmarks/computer_use/tasks/14-window-copy.yaml": "73444cacd4e065be8447adb444960716d44d45e9a930196f2a45ba00bc51cf36",
+    "backend/benchmarks/computer_use/tasks/03-browser-navigate.yaml": "a7b3c955560f8c7bc77db5cc213128e8565f56395b2a311b45a433c19418a043",
+    "backend/benchmarks/computer_use/tasks/05-typing-fidelity.yaml": "e4e052ea06755f93e5f6cda6875ce41a798b80c59aaf12fd612714972c405549",
+    "backend/benchmarks/computer_use/tasks/12-drag-file.yaml": "26f2e9c975951d51bf917e2a4cc600db8f1f0fafb55289d3af68c73bb9e53471",
+    "backend/benchmarks/computer_use/tasks/08-settings-toggle.yaml": "76b294cc18359e8fcbf256b8638a9c67690355c456cfc2016dad59fc3d2769d5",
+    "backend/benchmarks/computer_use/tasks/07-terminal-write.yaml": "12993272bebae3b50e7a08edd06483d260955cb98cad4b43351acbc7b78ad96a",
+    "backend/core/tests/test_grounding_probe.py": "238e452252bfda40218fca7664d9ad305ce6d65dbeda39fe1e2d03460376ad21",
+    "backend/core/tests/test_jobs_integration.py": "edecf11647b2623a2c3b2ffb26843a2ef0bfcb15ba973771038abb340c16470b"
+  },
+  "current_batch": {
+    "name": "M0 offline preparation",
+    "outbound_model_requests": 0,
+    "desktop_actions": 0,
+    "desktop_screenshots": 0,
+    "maximum_tokens": 0,
+    "maximum_model_seconds": 0,
+    "estimated_cost_usd": 0,
+    "image_source": "new synthetic images only",
+    "outbound_endpoints": []
+  },
+  "holdout": {
+    "inputs": "holdout/inputs.json",
+    "truth": "holdout/truth/labels.json",
+    "generation": "holdout/generation.json",
+    "independent_layouts": 64,
+    "found": 48,
+    "not_found": 8,
+    "ambiguous": 8,
+    "maximum_candidates": 3,
+    "repetitions_per_layout": 2,
+    "maximum_requests": 384,
+    "request_builder_input_allowlist": [
+      "image bytes",
+      "size",
+      "target"
+    ],
+    "candidate_selection": "Freeze adapters/settings before first holdout request; historical probe images are development only",
+    "scoring": "All attempts retained; group repeated attempts by layout. Positive hits require nonzero mask pixel. Report Euclidean error from recorded center separately. not_found and ambiguous require no executable point; report separately. Never send labels/masks/centers to models.",
+    "scope_limits": [
+      "synthetic keypad, not a cross-application benchmark",
+      "bundled font family with varied sizes; other font families remain M5 coverage work",
+      "partial top-edge occlusion only; broader occlusion remains M5 coverage work",
+      "not wired to a paid driver: M3 adapters must consume frozen inputs rather than matrix make_case"
+    ]
+  },
+  "history": {
+    "trials": "historical-trials.json",
+    "failures": "failure-corpus.json",
+    "replay": "offline-replay.json",
+    "new_layout_check": "dataset-verification.json",
+    "old_scores": "N2 33/42; SDK strict 4/36 plus smoke 2/6; Part A 7/42; never combine scoring revisions",
+    "screenshots": "No historical real screenshot copied or sent"
+  },
+  "comparisons": {
+    "A": {
+      "status": "available legacy production baseline after M1",
+      "planner_grounder": "unified",
+      "coordinates": "normalized legacy"
+    },
+    "B2": {
+      "status": "planned M2; not implemented",
+      "only_factor": "host Observation/transform, same model and external legacy protocol wherever comparison permits"
+    },
+    "B3": {
+      "status": "planned M3; not implemented",
+      "only_factor": "model-matched adapter, fixed host path/model"
+    },
+    "B": {
+      "status": "planned combination after B2/B3",
+      "mode": "unified adapted"
+    },
+    "C": {
+      "status": "planned M4; not implemented",
+      "only_factor": "split planning and grounding; same models and adapter as B"
+    },
+    "D": {
+      "status": "planned M5; not implemented",
+      "only_factor": "grounding model plus matched adapter; planner fixed to C"
+    }
+  },
+  "future_dry_run_caps": {
+    "status": "planning ceilings, not executed or ready-to-send requests; exact live manifest must freeze selected profile, adapter, actual request and price first",
+    "preflight": {
+      "requests": 16,
+      "per_request_seconds": 90,
+      "per_request_max_output_tokens": 40000,
+      "total_token_stop": 300000
+    },
+    "screening": {
+      "requests": 144,
+      "per_request_seconds": 90,
+      "per_request_max_output_tokens": 16000,
+      "total_token_stop": 1000000
+    },
+    "holdout": {
+      "requests": 384,
+      "per_request_seconds": 90,
+      "per_request_max_output_tokens": 16000,
+      "total_token_stop": 3000000
+    },
+    "static_request_total": 544,
+    "static_model_seconds_max": 48960,
+    "static_shared_token_stop": 4300000,
+    "retry_policy": "no automatic retries; all failed requests consume cap; do not start a request whose possible output would exceed remaining cap; input/usage uncertainty stops the batch",
+    "live_cost_estimate_usd": "unknown until candidate routes and current prices verified; no paid request in this batch",
+    "historical_prompt_ab": {
+      "requests": 12,
+      "tokens": 73940,
+      "charged_to": "20260920-m1-acceptance, completed earlier; not repeated or relabeled as M0 preflight"
+    }
+  },
+  "frozen_adoption": {
+    "present_hit_min": 0.95,
+    "center_distance_p95_max_px": 15,
+    "any_error_over_50px": false,
+    "absent_executable_point_allowed": false,
+    "mask_required": true,
+    "denominator": "all attempts including errors, timeouts, truncation and missing outputs; group repetitions by independent layout",
+    "strict_tasks": "not below paired baseline; review every regression",
+    "cleanup_failures_or_actions_after_stop_allowed": false,
+    "uncertain_result": "retain baseline"
+  },
+  "failure_classes": [
+    "planning_wrong_target",
+    "recognition_grounding",
+    "host_transform",
+    "ineffective_dispatch",
+    "input_semantics",
+    "stale_observation",
+    "truncation",
+    "timeout",
+    "missing_output",
+    "cleanup",
+    "business_validation",
+    "unknown_pixel_validation"
+  ],
+  "next": [
+    "M2 deterministic frame and coordinate implementation with offline tests",
+    "M3 actual model/provider and capability preflight; reserve from 16-request cap",
+    "Before each paid batch verify current prices, estimate cost and freeze fully serialized requests; real screenshots require plan section 6 scope confirmation"
+  ],
+  "unknown": [
+    "Current response model/provider identity and endpoint availability: not tested",
+    "Generic automatic real-screen pixel scoring: unknown",
+    "M2-M8 production changes and live acceptance: not completed"
+  ],
+  "implementation_revision": "65c252ed0f0aeaca3e8227d67f4a1f4aa6a4ef0f"
+}
