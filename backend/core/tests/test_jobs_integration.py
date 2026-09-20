@@ -125,7 +125,8 @@ class TestJobEndToEnd:
             delivery=delivery,
         )
 
-        job = _make_job()
+        # Test manual triggering without a competing wall-clock cron firing.
+        job = _make_job(enabled=False)
         job_store.save_job(job)
 
         scheduler = CronScheduler(job_store, runner)
