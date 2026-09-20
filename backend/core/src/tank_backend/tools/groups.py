@@ -399,15 +399,23 @@ class ComputerUseToolGroup(ToolGroup):
             DragTool(),
             LaunchAppTool(),
         ]
+        from .computer_frame import FrameState, FrameTool
+
+        state = FrameState()
+        tools = [FrameTool(tool, state) if tool.get_info().name in {
+            "screenshot", "click", "scroll", "mouse_move", "drag",
+        } else tool for tool in tools]
         by_name = {tool.get_info().name: tool for tool in tools}
-        tools.append(ComputerBatchTool(by_name))
+        tools.append(ComputerBatchTool(by_name, frame_coordinates=True))
         return tools
 
     def _create_linux_tools(self) -> list[BaseTool]:
         """Create tools using Linux backends (portal + ydotool/pyautogui)."""
         try:
-            import mss  # noqa: F401
-            import pyautogui  # noqa: F401
+            import importlib
+
+            importlib.import_module("mss")
+            importlib.import_module("pyautogui")
         except (ImportError, Exception):
             logger.info("ComputerUseToolGroup: mss/pyautogui unavailable, skipping")
             return []

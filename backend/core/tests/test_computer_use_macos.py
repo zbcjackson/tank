@@ -670,6 +670,7 @@ def capture_chain(
 
     width, height, scale, fail_resize = getattr(request, "param", (1920, 1080, 2, False))
     quartz = MagicMock()
+    quartz.CGDisplayModeGetPixelHeight.return_value = height * scale
     quartz.CGDisplayModeGetPixelWidth.return_value = width * scale
     quartz.CGDisplayModeGetWidth.return_value = width
     quartz.CGDisplayModeGetHeight.return_value = height
@@ -907,8 +908,9 @@ async def test_executor_and_tool_keep_maximum_inside_display(capture_chain):
 
 
 @pytest.mark.parametrize("region", [None, [500, 500, 1000, 1000]])
+@pytest.mark.parametrize("image_mode", [False, True])
 async def test_http_tool_loop_preserves_image_and_fragmented_coordinates(
-    capture_chain, monkeypatch, region,
+    capture_chain, monkeypatch, region, image_mode,
 ):
     """Real SDK JSON + SSE parser + ToolManager, fake HTTP and OS only."""
     import httpx
@@ -932,6 +934,49 @@ async def test_http_tool_loop_preserves_image_and_fragmented_coordinates(
             args = json.dumps({"region": region} if region else {}) if turn == 1 else (
                 '{"bbox":[700,700,800,800]}'
             )
+            if image_mode:
+                if turn == 1:
+                    args = json.dumps(
+                        {
+                            "coordinate_space": "image",
+                            **({"region": region} if region else {}),
+                        }
+                    )
+                else:
+                    import hashlib
+
+                    parts = next(
+                        m["content"]
+                        for m in body["messages"]
+                        if isinstance(m.get("content"), list)
+                    )
+                    text = next(p["text"] for p in parts if p["type"] == "text")
+                    metadata = json.loads(text[text.index("{") :])
+                    url = next(
+                        p["image_url"]["url"] for p in parts if p["type"] == "image_url"
+                    )
+                    assert (
+                        hashlib.sha256(
+                            base64.b64decode(url.split(",", 1)[1])
+                        ).hexdigest()
+                        == metadata["image_sha256"]
+                    )
+                    args = json.dumps(
+                        {
+                            "coordinate_space": "image",
+                            "frame_id": metadata["frame_id"],
+                            "x": 960 if region else 1440,
+                            "y": 540 if region else 810,
+                        }
+                    )
+                import jsonschema
+
+                schema = next(
+                    t["function"]["parameters"]
+                    for t in body["tools"]
+                    if t["function"]["name"] == name
+                )
+                jsonschema.validate(json.loads(args), schema)
             deltas.append({"tool_calls": [{"index": 0, "id": f"call-{turn}",
                            "type": "function", "function": {"name": name, "arguments": ""}}]})
             # Split inside numbers/JSON punctuation to exercise accumulation.
@@ -960,6 +1005,13 @@ async def test_http_tool_loop_preserves_image_and_fragmented_coordinates(
     manager._bus = None
     manager._media_store = None
     manager._session_id = None
+    if image_mode:
+        from tank_backend.tools.groups import ComputerUseToolGroup
+
+        quartz.CGMainDisplayID.return_value = 5
+        quartz.CGDisplayBounds.return_value = ((0, 0), (1920, 1080))
+        manager.tools = {t.get_info().name: t for t in ComputerUseToolGroup()._create_macos_tools()}
+        manager.set_session_id("http-frame")
     try:
         updates = [event async for event in llm.chat_stream(
             [{"role": "user", "content": "capture then click the target"}],
@@ -1030,3 +1082,351 @@ async def test_recorded_synthetic_model_coordinates_reach_expected_points(captur
                 assert call["inside_target"] == (
                     box[0] <= point[0] <= box[2] and box[1] <= point[1] <= box[3]
                 )
+
+
+async def test_frame_crop_click_uses_image_pixels_through_tool_manager(capture_chain):
+    from tank_backend.tools.groups import ComputerUseToolGroup
+    from tank_backend.tools.manager import ToolManager
+
+    quartz, _ = capture_chain
+    quartz.CGMainDisplayID.return_value = 5
+    quartz.CGDisplayBounds.return_value = ((0, 0), (1920, 1080))
+    manager = ToolManager.__new__(ToolManager)
+    manager.tools = {
+        t.get_info().name: t for t in ComputerUseToolGroup()._create_macos_tools()
+    }
+    manager._bus = None
+    manager._media_store = None
+    manager.set_session_id("frame-test")
+    shot = await manager.execute_tool(
+        "screenshot",
+        coordinate_space="image",
+        region=[500, 500, 1000, 1000],
+    )
+    assert not isinstance(shot, str) and not shot.error
+    png, note = screenshot_wire_image(shot)
+    metadata = json.loads(note[note.index("{") :])
+    import hashlib
+
+    assert metadata["image_sha256"] == hashlib.sha256(png).hexdigest()
+    result = await manager.execute_tool(
+        "click",
+        coordinate_space="image",
+        frame_id=metadata["frame_id"],
+        x=960,
+        y=540,
+    )
+    assert not isinstance(result, str) and not result.error
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1440, 810)
+
+
+@pytest.fixture
+def frame_manager(capture_chain):
+    from tank_backend.tools.groups import ComputerUseToolGroup
+    from tank_backend.tools.manager import ToolManager
+
+    quartz, _ = capture_chain
+    quartz.CGMainDisplayID.return_value = 5
+    quartz.CGDisplayBounds.return_value = ((0, 0), (1920, 1080))
+    manager = ToolManager.__new__(ToolManager)
+    manager.tools = {
+        t.get_info().name: t for t in ComputerUseToolGroup()._create_macos_tools()
+    }
+    manager._bus = None
+    manager._media_store = None
+    manager.set_session_id("owner")
+    return manager, quartz
+
+
+async def frame_metadata(manager, **kwargs):
+    result = await manager.execute_tool(
+        "screenshot", coordinate_space="image", **kwargs
+    )
+    assert not isinstance(result, str) and not result.error, result
+    _, note = screenshot_wire_image(result)
+    return json.loads(note[note.index("{") :])
+
+
+@pytest.mark.parametrize("change", ["missing", "old", "session", "geometry", "scene"])
+async def test_frame_rejects_unusable_observation_without_input(frame_manager, change):
+    manager, quartz = frame_manager
+    metadata = await frame_metadata(manager)
+    frame_id = metadata["frame_id"]
+    if change == "missing":
+        frame_id = None
+    elif change == "old":
+        await frame_metadata(manager)
+    elif change == "session":
+        manager.set_session_id("other")
+    elif change == "geometry":
+        quartz.CGMainDisplayID.return_value = 6
+    from contextlib import nullcontext
+
+    changed_capture = patch(
+        f"{MODULE}._capture_screenshot_macos", return_value=make_png(1920, 1080)
+    )
+    with changed_capture if change == "scene" else nullcontext():
+        # All previous frames were black with a red rectangle: this is a changed scene.
+        result = await manager.execute_tool(
+            "click",
+            coordinate_space="image",
+            frame_id=frame_id,
+            x=100,
+            y=100,
+        )
+    assert result.error
+    quartz.CGEventCreateMouseEvent.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("name", "args", "points"),
+    [
+        ("click", {"bbox": [900, 500, 1020, 580]}, [(1440, 810)]),
+        ("mouse_move", {"x": 960, "y": 540}, [(1440, 810)]),
+        ("scroll", {"amount": 2, "x": 960, "y": 540}, [(1440, 810)]),
+        ("drag", {"x1": 0, "y1": 0, "x2": 960, "y2": 540}, [(960, 540), (1440, 810)]),
+    ],
+)
+async def test_frame_coordinate_actions_share_crop_mapping(
+    frame_manager, name, args, points
+):
+    manager, quartz = frame_manager
+    metadata = await frame_metadata(manager, region=[500, 500, 1000, 1000])
+    result = await manager.execute_tool(
+        name,
+        coordinate_space="image",
+        frame_id=metadata["frame_id"],
+        **args,
+    )
+    assert not result.error, result
+    delivered = [call.args[2] for call in quartz.CGEventCreateMouseEvent.call_args_list]
+    assert delivered[0] == points[0]
+    assert delivered[-1] == points[-1]
+    if name == "mouse_move":
+        assert len(delivered) == 1
+    if name == "scroll":
+        quartz.CGEventCreateScrollWheelEvent.assert_called_once()
+    if name == "drag":
+        assert len(delivered) > 2
+
+
+@pytest.mark.parametrize("scene_changes", [False, True])
+async def test_frame_batch_keeps_owner_and_stops_after_scene_change(
+    frame_manager, scene_changes
+):
+    manager, quartz = frame_manager
+    metadata = await frame_metadata(manager)
+    original_post = quartz.CGEventPost
+
+    def post(*args):
+        original_post(*args)
+        if scene_changes:
+            quartz.CGMainDisplayID.return_value = 6
+
+    with patch.object(quartz, "CGEventPost", side_effect=post):
+        result = await manager.execute_tool(
+            "computer_batch",
+            coordinate_space="image",
+            frame_id=metadata["frame_id"],
+            actions=[
+                {"action": "click", "x": 100, "y": 100},
+                {"action": "click", "x": 200, "y": 200},
+            ],
+        )
+    assert result.error == scene_changes, result
+    assert quartz.CGEventCreateMouseEvent.call_count == (2 if scene_changes else 4)
+    if not scene_changes:
+        _, note = screenshot_wire_image(result)
+        assert "frame_id" in note
+
+
+@pytest.mark.parametrize("moved", [False, True])
+async def test_frame_window_origin_is_bound_and_revalidated(frame_manager, moved):
+    manager, quartz = frame_manager
+    window = {
+        "kCGWindowNumber": 42,
+        "kCGWindowBounds": {
+            "X": 300,
+            "Y": 200,
+            "Width": 800,
+            "Height": 600,
+        },
+    }
+    quartz.CGWindowListCopyWindowInfo.return_value = [window]
+    metadata = await frame_metadata(manager, window_id=42)
+    assert metadata["window_id"] == 42
+    assert metadata["crop"] == [300, 200, 1100, 800]
+    if moved:
+        window["kCGWindowBounds"]["X"] = 350
+    result = await manager.execute_tool(
+        "click",
+        coordinate_space="image",
+        frame_id=metadata["frame_id"],
+        x=metadata["image_size"][0] / 2,
+        y=metadata["image_size"][1] / 2,
+    )
+    assert result.error == moved, result
+    if moved:
+        quartz.CGEventCreateMouseEvent.assert_not_called()
+    else:
+        assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (700, 500)
+
+
+@pytest.mark.parametrize(
+    "region",
+    [[-1, 0, 100, 100], [0, 0, 1001, 100], [0, 0, True, 100], [999, 999, 999, 1000]],
+)
+async def test_frame_rejects_invalid_crop_instead_of_clamping(frame_manager, region):
+    manager, quartz = frame_manager
+    result = await manager.execute_tool(
+        "screenshot", coordinate_space="image", region=region
+    )
+    assert result.error
+    quartz.CGEventPost.assert_not_called()
+
+
+async def test_frame_scroll_without_coordinates_needs_no_observation(frame_manager):
+    manager, quartz = frame_manager
+    result = await manager.execute_tool("scroll", coordinate_space="image", amount=2)
+    assert not result.error
+    quartz.CGEventCreateMouseEvent.assert_not_called()
+    quartz.CGEventCreateScrollWheelEvent.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"x": -1, "y": 3},
+        {"x": 1920, "y": 3},
+        {"x": True, "y": 3},
+        {"x": "1", "y": 3},
+        {"x": float("nan"), "y": 3},
+        {"bbox": [300, 300, 200, 400]},
+        {"bbox": [0, 0, 2000, 400]},
+        {"bbox": [1, 2, 3, 4], "x": 2, "y": 3},
+        {"x": 1, "y": 2, "surprise": 3},
+    ],
+)
+async def test_frame_bad_arguments_never_reach_os(frame_manager, bad):
+    manager, quartz = frame_manager
+    metadata = await frame_metadata(manager)
+    result = await manager.execute_tool(
+        "click", coordinate_space="image", frame_id=metadata["frame_id"], **bad
+    )
+    assert result.error
+    quartz.CGEventPost.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "capture_chain",
+    [
+        (1920, 1080, 1, False),
+        (1600, 1000, 1.5, False),
+        (1512, 982, 2, False),
+    ],
+    indirect=True,
+)
+@pytest.mark.parametrize("region", [None, [500, 500, 1000, 1000], [700, 700, 800, 800]])
+async def test_frame_retina_crop_and_edge_rounding(capture_chain, region):
+    from tank_backend.tools.base import ToolContext
+    from tank_backend.tools.computer_frame import FrameState, FrameTool
+
+    quartz, _ = capture_chain
+    width = quartz.CGDisplayModeGetWidth()
+    height = quartz.CGDisplayModeGetHeight()
+    quartz.CGMainDisplayID.return_value = 5
+    quartz.CGDisplayBounds.return_value = ((0, 0), (width, height))
+    state = FrameState()
+    ctx = ToolContext(session_id="scale")
+    shot = await FrameTool(ScreenshotTool(), state).execute(
+        coordinate_space="image",
+        ctx=ctx,
+        **({"region": region} if region else {}),
+    )
+    png, note = screenshot_wire_image(shot)
+    metadata = json.loads(note[note.index("{") :])
+    image_w, image_h = metadata["image_size"]
+    left, top, right, bottom = metadata["crop"]
+    for x, y, expected in [
+        (0, 0, (left, top)),
+        (image_w - 1, image_h - 1, (right - 1, bottom - 1)),
+    ]:
+        result = await FrameTool(ClickTool(), state).execute(
+            coordinate_space="image",
+            frame_id=metadata["frame_id"],
+            ctx=ctx,
+            x=x,
+            y=y,
+        )
+        assert not isinstance(result, str) and not result.error
+        assert quartz.CGEventCreateMouseEvent.call_args.args[2] == expected
+
+
+@pytest.mark.parametrize(
+    "rect", [(-10, 20, 100, 100), (1920, 20, 100, 100), (10, -1, 100, 100)]
+)
+async def test_frame_rejects_non_main_window(frame_manager, rect):
+    manager, quartz = frame_manager
+    quartz.CGWindowListCopyWindowInfo.return_value = [
+        {
+            "kCGWindowNumber": 42,
+            "kCGWindowBounds": dict(
+                zip(("X", "Y", "Width", "Height"), rect, strict=True)
+            ),
+        }
+    ]
+    result = await manager.execute_tool(
+        "screenshot", coordinate_space="image", window_id=42
+    )
+    assert result.error
+    quartz.CGEventPost.assert_not_called()
+
+
+async def test_frame_cancel_during_revalidation_never_dispatches(frame_manager):
+    import asyncio
+    import threading
+
+    manager, quartz = frame_manager
+    metadata = await frame_metadata(manager)
+    started, release = threading.Event(), threading.Event()
+
+    def capture(**kwargs):
+        started.set()
+        assert release.wait(5)
+        return make_png(1920, 1080)
+
+    with patch(f"{MODULE}._capture_screenshot_macos", side_effect=capture):
+        pending = asyncio.create_task(
+            manager.execute_tool(
+                "click",
+                coordinate_space="image",
+                frame_id=metadata["frame_id"],
+                x=1,
+                y=2,
+            )
+        )
+        assert await asyncio.to_thread(started.wait, 5)
+        pending.cancel()
+        await asyncio.sleep(0)
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+    quartz.CGEventPost.assert_not_called()
+
+
+async def test_frame_crop_ignores_pixels_outside_observed_region(frame_manager):
+    from PIL import Image
+
+    manager, quartz = frame_manager
+    metadata = await frame_metadata(manager, region=[500, 500, 1000, 1000])
+    original = cu_macos._capture_screenshot_macos(include_cursor=False)
+    with Image.open(io.BytesIO(original)) as image:
+        image.putpixel((10, 10), (1, 2, 3))
+        changed = io.BytesIO()
+        image.save(changed, format="PNG")
+    with patch(f"{MODULE}._capture_screenshot_macos", return_value=changed.getvalue()):
+        result = await manager.execute_tool(
+            "click", coordinate_space="image", frame_id=metadata["frame_id"], x=960, y=540,
+        )
+    assert not result.error
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1440, 810)

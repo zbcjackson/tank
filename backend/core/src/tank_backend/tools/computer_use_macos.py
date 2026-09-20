@@ -75,7 +75,7 @@ def _get_display_scale_factor() -> float:
     return 1.0
 
 
-def _capture_screenshot_macos() -> bytes:
+def _capture_screenshot_macos(*, include_cursor: bool = True) -> bytes:
     """Capture the screen and return PNG bytes scaled to point-resolution.
 
     macOS screencapture produces Retina (2x) images, but CGEvent uses
@@ -87,7 +87,7 @@ def _capture_screenshot_macos() -> bytes:
 
     try:
         result = subprocess.run(
-            ["screencapture", "-x", "-C", "-m", tmp_path],
+            ["screencapture", "-x", *(["-C"] if include_cursor else []), "-m", tmp_path],
             capture_output=True, text=True, timeout=10,
         )
         if result.returncode != 0:

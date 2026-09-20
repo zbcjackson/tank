@@ -230,3 +230,40 @@ async def test_macos_repeat_presses_multiple_times():
     assert result.error is False
     assert mock.call_count == 3
     mock.assert_called_with(["cmd", "c"])
+
+
+def test_observation_maps_actual_crop_pixels_to_screen():
+    """Non-even crop edges must match the pixels actually sent to the model."""
+    import io
+
+    from PIL import Image
+
+    from tank_backend.tools.computer_observation import Observation
+
+    source = io.BytesIO()
+    Image.new("RGB", (1001, 701), "red").save(source, format="PNG")
+    observation, png = Observation.capture(
+        source.getvalue(), session_id="one", display_id=5,
+        region=(333, 200, 666, 800),
+    )
+    with Image.open(io.BytesIO(png)) as image:
+        assert observation.image_size == image.size
+    assert observation.map_point(0, 0) == (333, 140)
+    width, height = observation.image_size
+    assert observation.map_point(width / 2, height / 2) == (500, 351)
+
+
+@pytest.mark.parametrize("point", [(-1, 0), (640, 0), (0, 480), (True, 2),
+                                   ("1", 2), (float("nan"), 2), (float("inf"), 2)])
+def test_observation_rejects_invalid_image_points(point):
+    import io
+
+    from PIL import Image
+
+    from tank_backend.tools.computer_observation import Observation
+
+    source = io.BytesIO()
+    Image.new("RGB", (640, 480)).save(source, format="PNG")
+    observation, _ = Observation.capture(source.getvalue(), session_id="one", display_id=5)
+    with pytest.raises(ValueError, match="image"):
+        observation.map_point(*point)

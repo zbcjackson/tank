@@ -17,11 +17,12 @@ into strict range validation; Linux retains legacy clamping.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 from typing import Any, cast
 
 from ..core.content import ContentBlocks, ImageBlock, TextBlock
-from .base import BaseTool, ToolInfo
+from .base import BaseTool, ToolContext, ToolInfo
 
 # Canonical spellings for keys that models write inconsistently.
 _KEY_SYNONYMS = {"return": "enter", "esc": "escape"}
@@ -263,10 +264,6 @@ def crop_and_upscale(
     The crop's long edge is scaled toward the full screenshot's long
     edge, capped at ``max_zoom``. Returns PNG bytes.
     """
-    import io
-
-    from PIL import Image
-
     x1, y1, x2, y2 = region
     w, h = screen_px
     px1 = round(x1 * w / 1000)
@@ -274,8 +271,20 @@ def crop_and_upscale(
     px2 = max(round(x2 * w / 1000), px1 + 1)
     py2 = max(round(y2 * h / 1000), py1 + 1)
 
+    return crop_pixels_and_upscale(png_bytes, (px1, py1, px2, py2), max_zoom)
+
+
+def crop_pixels_and_upscale(
+    png_bytes: bytes, bounds: tuple[int, int, int, int], max_zoom: float = 3.0,
+) -> bytes:
+    """Crop exact pixel edges; retain the full-image zoom policy for all callers."""
+    import io
+
+    from PIL import Image
+
     img = Image.open(io.BytesIO(png_bytes))
-    crop = img.crop((px1, py1, px2, py2))
+    w, h = img.size
+    crop = img.crop(bounds)
 
     long_full = max(w, h)
     long_crop = max(crop.width, crop.height)
@@ -322,8 +331,9 @@ class ComputerBatchTool(BaseTool):
     screenshot after the batch so the model sees the combined effect.
     """
 
-    def __init__(self, tools: dict[str, Any]) -> None:
+    def __init__(self, tools: dict[str, Any], *, frame_coordinates: bool = False) -> None:
         self._tools = tools
+        self._frame_coordinates = frame_coordinates
 
     # -- BaseTool-compatible surface -----------------------------------
 
@@ -345,7 +355,12 @@ class ComputerBatchTool(BaseTool):
                 " launch_app must be called separately; screenshot is a "
                 "batch option, not an action."
             ),
-            parameters=[
+            parameters=[*([
+                ToolParameter(name="coordinate_space", type="string", required=False,
+                              description="legacy (default) or image; image uses frame_id"),
+                ToolParameter(name="frame_id", type="string", required=False,
+                              description="Current image frame for all batch targets"),
+            ] if self._frame_coordinates else []),
                 ToolParameter(
                     name="actions",
                     type="array",
@@ -374,6 +389,8 @@ class ComputerBatchTool(BaseTool):
 
     async def execute(
         self, actions: Any = None, screenshot: bool = True,
+        coordinate_space: str = "legacy", frame_id: str | None = None,
+        ctx: ToolContext | None = None,
     ) -> Any:
         import json as json_mod
 
@@ -383,6 +400,20 @@ class ComputerBatchTool(BaseTool):
             return ToolResult(
                 content="computer_batch: 'actions' must be a non-empty list",
                 error=True,
+            )
+
+        if coordinate_space not in ("legacy", "image") or (
+            coordinate_space == "image" and (not self._frame_coordinates or not frame_id)
+        ) or (coordinate_space == "legacy" and frame_id is not None):
+            return ToolResult(content="computer_batch: invalid coordinate mode/frame", error=True)
+        if coordinate_space == "image" and any(
+            isinstance(a, dict) and (
+                a.get("frame_id", frame_id) != frame_id
+                or a.get("coordinate_space", "image") != "image"
+            ) for a in actions
+        ):
+            return ToolResult(
+                content="computer_batch: targets must share one image frame", error=True,
             )
 
         steps: list[dict[str, Any]] = []
@@ -419,6 +450,15 @@ class ComputerBatchTool(BaseTool):
                     error=True,
                 )
             kwargs = {k: v for k, v in raw.items() if k != "action"}
+            if coordinate_space == "image":
+                kwargs.pop("coordinate_space", None)
+                kwargs.pop("frame_id", None)
+                if name in {"click", "mouse_move", "drag"} or (
+                    name == "scroll" and ("x" in kwargs or "y" in kwargs)
+                ):
+                    kwargs.update(coordinate_space="image", frame_id=frame_id)
+            if "ctx" in inspect.signature(tool.execute).parameters:
+                kwargs["ctx"] = ctx
             result = await tool.execute(**kwargs)
             failed = isinstance(result, ToolResult) and result.error
             steps.append({
@@ -434,7 +474,10 @@ class ComputerBatchTool(BaseTool):
         shot_text = ""
         images: ContentBlocks = []
         if screenshot and "screenshot" in self._tools:
-            shot = await self._tools["screenshot"].execute(task="batch result")
+            shot_kwargs: dict[str, Any] = {"task": "batch result"}
+            if coordinate_space == "image":
+                shot_kwargs.update(coordinate_space="image", ctx=ctx)
+            shot = await self._tools["screenshot"].execute(**shot_kwargs)
             if isinstance(shot, ToolResult) and isinstance(shot.content, list):
                 for block in shot.content:
                     if isinstance(block, TextBlock):

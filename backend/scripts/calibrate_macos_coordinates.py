@@ -13,18 +13,25 @@ import importlib
 import io
 import json
 import threading
+import time
 from pathlib import Path
 
 from PIL import Image
 
-from tank_backend.core.content import ImageBlock
+from tank_backend.core.content import ImageBlock, TextBlock
+from tank_backend.tools.base import ToolContext
+from tank_backend.tools.computer_frame import FrameState, FrameTool
 from tank_backend.tools.computer_use_macos import ClickTool, ScreenshotTool
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--coordinate-space", choices=("legacy", "image"), default="legacy")
+    parser.add_argument("--window", action="store_true", help="Bind image mode to the test window")
     args = parser.parse_args()
+    if args.window and args.coordinate_space != "image":
+        parser.error("--window requires --coordinate-space image")
     args.output.mkdir(parents=True)
     quartz = importlib.import_module("Quartz")
     appkit = importlib.import_module("AppKit")
@@ -81,6 +88,7 @@ def main() -> None:
             })
 
     app = appkit.NSApplication.sharedApplication()
+    original_front = appkit.NSWorkspace.sharedWorkspace().frontmostApplication()
     app.setActivationPolicy_(appkit.NSApplicationActivationPolicyRegular)
     window = appkit.NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
         appkit.NSMakeRect(100, 150, 800, 500),
@@ -96,7 +104,7 @@ def main() -> None:
     def observe(event):
         point = event.locationInWindow()
         delivered.append({"type": int(event.type()), "window": event.windowNumber(),
-                          "point": [point.x, point.y]})
+                          "point": [point.x, point.y], "timestamp": time.time()})
         return event
 
     monitor = appkit.NSEvent.addLocalMonitorForEventsMatchingMask_handler_(
@@ -109,20 +117,42 @@ def main() -> None:
         screen_targets.append((global_point.x, bounds.size.height - global_point.y))
     initial_mouse = quartz.CGEventGetLocation(quartz.CGEventCreate(None))
 
+    frame_state = FrameState()
+    frame_context = ToolContext(session_id="local-calibration")
+    frame_shot = FrameTool(ScreenshotTool(), frame_state)
+    frame_click = FrameTool(ClickTool(), frame_state)
+
     async def calibrate() -> None:
         await asyncio.sleep(1)
         rows = []
         for index, ((x, y), local) in enumerate(zip(screen_targets, targets, strict=True)):
             if not window.isKeyWindow():
                 raise RuntimeError("Calibration window lost focus; stopped before next click")
-            shot = await ScreenshotTool().execute()
+            metadata = None
+            if args.coordinate_space == "image":
+                shot = await frame_shot.execute(
+                    coordinate_space="image", ctx=frame_context,
+                    **({"window_id": window.windowNumber()} if args.window else {}),
+                )
+            else:
+                shot = await ScreenshotTool().execute()
+            if isinstance(shot, str):
+                raise RuntimeError(shot)
             if shot.error or not isinstance(shot.content, list):
                 raise RuntimeError(f"Screenshot failed: {shot.display}")
             block = next(b for b in shot.content if isinstance(b, ImageBlock))
             png = base64.b64decode(block.source.split(",", 1)[1])
+            point_x, point_y = x, y
+            if args.coordinate_space == "image":
+                text = next(b.text for b in shot.content if isinstance(b, TextBlock))
+                metadata = json.loads(text[text.index("{"):])
+                left, top, right, bottom = metadata["crop"]
+                image_w, image_h = metadata["image_size"]
+                point_x = (x - left) * image_w / (right - left)
+                point_y = (y - top) * image_h / (bottom - top)
             with Image.open(io.BytesIO(png)) as image:
                 size = image.size
-                color = image.convert("RGB").getpixel((round(x), round(y)))
+                color = image.convert("RGB").getpixel((round(point_x), round(point_y)))
                 assert isinstance(color, tuple) and len(color) == 3
             # Independently verify the visible target before issuing any input.
             if not (color[0] > 200 and color[1] < 80 and color[2] < 80):
@@ -132,7 +162,15 @@ def main() -> None:
             normalized = (round(x / size[0] * 1000), round(y / size[1] * 1000))
             before = len(events)
             before_delivered = len(delivered)
-            result = await ClickTool().execute(x=normalized[0], y=normalized[1])
+            if metadata is not None:
+                result = await frame_click.execute(
+                    coordinate_space="image", frame_id=metadata["frame_id"], ctx=frame_context,
+                    x=point_x, y=point_y,
+                )
+            else:
+                result = await ClickTool().execute(x=normalized[0], y=normalized[1])
+            if isinstance(result, str):
+                raise RuntimeError(result)
             if result.error:
                 raise RuntimeError(str(result.content))
             for _ in range(20):
@@ -146,6 +184,7 @@ def main() -> None:
             received = events[before:]
             row = {"target": index, "expected_screen": [x, y], "expected_view": local,
                    "normalized": normalized, "screenshot_size": size,
+                   "observation": metadata, "timestamp": time.time(),
                    "actual_mouse": [actual.x, actual.y], "received": received,
                    "delivered_events": delivered[before_delivered:],
                    "error_points": [actual.x - x, actual.y - y],
@@ -155,12 +194,15 @@ def main() -> None:
             rows.append(row)
             (args.output / "results.json").write_text(json.dumps(rows, indent=2))
             print(json.dumps(row), flush=True)
-            if not row["hit"] or not row["released"]:
+            if (not row["hit"] or not row["released"]
+                    or (metadata is not None and max(abs(v) for v in row["error_points"]) > 1)):
                 raise RuntimeError("Target did not receive the expected click; stopping")
             await asyncio.sleep(0.1)
 
     def finish() -> None:
         window.close()
+        if original_front is not None:
+            original_front.activateWithOptions_(appkit.NSApplicationActivateIgnoringOtherApps)
         app.stop_(None)
         # Wake NSApplication's pending nextEvent call so run() can return.
         wake = appkit.NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
@@ -184,6 +226,13 @@ def main() -> None:
     app.run()
     appkit.NSEvent.removeMonitor_(monitor)
     thread.join(timeout=3)
+    restored_mouse = quartz.CGEventGetLocation(quartz.CGEventCreate(None))
+    cleanup = {"window_closed": not window.isVisible(),
+               "cursor_restored": abs(restored_mouse.x - initial_mouse.x) <= 1
+               and abs(restored_mouse.y - initial_mouse.y) <= 1}
+    (args.output / "cleanup.json").write_text(json.dumps(cleanup, indent=2))
+    if not all(cleanup.values()):
+        raise SystemExit("Calibration cleanup unconfirmed")
     if (args.output / "error.txt").exists():
         raise SystemExit(1)
 
