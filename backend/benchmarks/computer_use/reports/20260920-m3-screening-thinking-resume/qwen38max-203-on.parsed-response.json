@@ -1,0 +1,53 @@
+{
+  "id": "chatcmpl-7a2a73cc-c9f2-9228-90dc-0a1108083b2e",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_3f09d34265c449a39e6ea1c7",
+            "function": {
+              "arguments": "{\"found\": true, \"x\": 419, \"y\": 613}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": "The user wants to find the button labeled \"AC\" on the calculator UI. Looking at the image, there's a row of buttons: (, ), mc, m+, m-, mr, DEL, AC, %, /.\n\nThe AC button is in the first row of buttons. Let me estimate the pixel coordinates. The button row is at y \u2248 628 (center of the first row). The AC button's x \u2248 643.\n\nLooking at the image: the buttons are laid out in columns. Column centers: ( is ~187, ) is ~253, mc is ~318, m+ is ~384, m- is ~450, mr is ~515, DEL is ~581, AC is ~646, % is ~712, / is ~777.\n\nRow 1 center y \u2248 628.\n\nSo the AC center in pixels: (646, 628). Normalized: x = 646/1536*1000 \u2248 420.6, y = 628/1024*1000 \u2248 613.3.\n\nLet me look at the image once more and check coordinates more carefully. The image is 1536x1024. The AC button label appears around (643, 628). So normalized: x = 643/1536*1000 = 418.6, y = 628/1024*1000 = 613.3.\n\nTherefore the answer: click(found=true, x=419, y=613).\n"
+      }
+    }
+  ],
+  "created": 1789902916,
+  "model": "qwen3.8-max-0902",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 435,
+    "prompt_tokens": 1977,
+    "total_tokens": 2412,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 381,
+      "rejected_prediction_tokens": null,
+      "text_tokens": 53
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 0,
+      "image_tokens": 1538,
+      "text_tokens": 439
+    }
+  }
+}

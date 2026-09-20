@@ -1,0 +1,11 @@
+{
+  "fake_http_calls": 26,
+  "combined_thinking_only_pairs": 16,
+  "all_requests_equal_original_frozen_bodies": true,
+  "prior_known_tokens": 91012,
+  "unknown_usage_reservation": 26000,
+  "accounted_before_batch": 117012,
+  "holdout_hash_overlap": 0,
+  "all_valid_fake_responses": true,
+  "model_calls": 0
+}

@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-20。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 十六次预检及四十次点/框筛选已记录，thinking 批第七次因 DeepSeek 余额不足停止（25 次未发送），共用适配与生产 LLM 单次调用接口已实现，其余模型验收待完成；M4–M8 待完成。N2 复用既有 benchmark。
+> 状态：执行中，2026-09-20。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 十六次预检及四十次点/框筛选已记录，thinking 中止后已在余额恢复时补跑 26 次、完成 32 设置对照（历史 402 保留），共用适配与生产 LLM 单次调用接口已实现，其余模型验收待完成；M4–M8 待完成。N2 复用既有 benchmark。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -198,8 +198,10 @@ benchmark，不能仅因历史清单未勾选就写成“还未验证”。
 六次，共 16/16 次；预检额度已用完，不重置预检额度。独立调参筛选已完成
 [首批四十次点/框对照](../../../backend/benchmarks/computer_use/reports/20260920-m3-screening-protocol/README.md)，
 使用 79357 tokens；后续 [thinking 批](../../../backend/benchmarks/computer_use/reports/20260920-m3-screening-thinking/README.md)
-第七次因 DeepSeek HTTP 402 余额不足停止。筛选累计 47/144 次、91012 已知
-tokens 加一次未知用量，剩余请求 97；剩余可用 token 未确认，不能将失败计零。
+第七次因 DeepSeek HTTP 402 余额不足停止；余额恢复后的
+[26 次续跑](../../../backend/benchmarks/computer_use/reports/20260920-m3-screening-thinking-resume/README.md)
+已补齐 32 设置。筛选累计 73/144 次、150614 已知 tokens；历史未知用量保留，
+按完整请求估算预留 26000 tokens，剩余 71 次 / 823386 tokens（扣预留后）。
 具体可用型号、请求/响应型号、参数、用量与失败已记录；共用生产 adapter
 的离线实现见下；strict 小样本结果已记录，原生框实测、配置冻结与模型效果验收尚未完成。
 
@@ -636,6 +638,30 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   六份完成响应及一份 402 回放通过。无 Python 源码改动，pyright 为 N/A。
   **真实后端日志检查未通过**：tank:1.1 的 Brain 也记录 DeepSeek 402 余额错误；
   需恢复账户后重新验收，不能以 E2E 通过将本批或全清单标为完成。
+
+### 2026-09-20 — M3 thinking 恢复与完整配对
+
+- 用户确认余额恢复后，新建 [续跑报告](../../../backend/benchmarks/computer_use/reports/20260920-m3-screening-thinking-resume/README.md)，
+  发送原 25 个未发请求加一次明确重试，共 26 次；与原冻结请求逐字段一致，
+  未重跑原六份完成响应。旧 402 及其 usage unknown 原样保留；为它预留完整
+  10000 输入估算 + 16000 输出 = 26000 tokens，作为预算扣留而非实际消费。
+- 26 次均 HTTP 200、usage 已知，32 个配对设置已补齐；完整 33 次尝试均回放
+  一致（含旧 402）。完成响应 off/on 命中：Qwen3.7 3/4、0/4；Qwen3.8 Flash
+  0/4、4/4；Max 4/4、3/4；DeepSeek 2/4、3/4。含余额失败的 DeepSeek off
+  分母为 5、命中 2；全部尝试合法 27/33、命中 19/33，不以恢复后数据覆盖失败。
+- Flash off 四次数组被拒绝；DeepSeek off 一次没有函数调用，被保留为格式
+  失败。32 份完成响应无截断，16 个 on 均有 reasoning 内容/计数。Flash on
+  保留为后续候选，四布局不作采用结论，thinking 不宣称为通用改善。
+- 本批 59602 tokens，筛选累计 150614 已知 + 26000 预留，计账 176614；
+  余 **71/144 次 / 823386 tokens**（扣预留后）。本批预估 $0.807588，已知
+  实际用量标价估算 $0.042842553；实际账单及旧失败实际用量仍 unknown。
+  不重置预检额度，也不把预算预留冒充已消费。
+- 默认模型不变；下一步隔离图像/detail 与 status 缺失/歧义，选定配置后才跑
+  holdout，native 协议仍待验证。无真实截图外发、桌面动作或 holdout 调用。
+- 验证：backend **4595 passed / 1 skipped**，E2E **14 场景 / 55 步**；
+  web lint/TypeScript、backend/CLI ruff、文档、协议及 **真实后端日志** 均通过，
+  上批运行时余额阻塞已解除。定位测试 83 项、26 份 SDK 假请求及完整 33 次
+  尝试回放通过；无 Python 源码/测试改动，changed-file pyright 为 N/A。
 
 ## 9. 最终 Verification Checklist
 

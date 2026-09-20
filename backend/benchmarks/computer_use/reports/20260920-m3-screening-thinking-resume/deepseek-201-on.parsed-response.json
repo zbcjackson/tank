@@ -1,0 +1,52 @@
+{
+  "id": "2ce64418-7463-441b-a2b7-d639852f4081",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_00_sZTuHoWTmlA8xFL3l7AB9322",
+            "function": {
+              "arguments": "{\"found\": true, \"x\": 430, \"y\": 370}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": "The image shows a calculator. The AC button is in the first row of the keypad, labeled \"AC\", located around x=618, y=333 in the 1440x900 image.\n\nNormalized: x = 618/1440 * 1000 = 429, y = 333/900 * 1000 = 370.\n\nLet me verify: The AC button appears at approximately x from 593 to 645, y from 315 to 351. Center ~619, 333.\n\nNormalized: 619/1440 = 0.4299 \u2192 430. 333/900 = 0.37 \u2192 370."
+      }
+    }
+  ],
+  "created": 1789902861,
+  "model": "deepseek-flash",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
+  "usage": {
+    "completion_tokens": 206,
+    "prompt_tokens": 1241,
+    "total_tokens": 1447,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 137,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 1024
+    },
+    "prompt_cache_hit_tokens": 1024,
+    "prompt_cache_miss_tokens": 217
+  }
+}

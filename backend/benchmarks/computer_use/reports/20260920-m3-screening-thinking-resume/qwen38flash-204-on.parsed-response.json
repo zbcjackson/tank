@@ -1,0 +1,52 @@
+{
+  "id": "chatcmpl-cd94c0f3-7fbc-9501-9d25-aa0518ff392e",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_279468de828849eca9226719",
+            "function": {
+              "arguments": "{\"found\": true, \"x\": 507, \"y\": 303}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": "The user wants me to locate the button labeled \"7\" on the calculator. Looking at the image, I can see a calculator interface. The second row of buttons contains: 2nd, x2, x3, xy, ex, 10x, 7, 8, 9, x. The \"7\" button is in that row. Let me estimate its pixel position. The button appears centered around x=852, y=318 in the 1680x1050 image. Normalizing: x = 852/1680*1000 \u2248 507, y = 318/1050*1000 \u2248 303. Let me refine by looking at the column alignment. The \"7\" column aligns with \"10x\" above and \"4\" below. The center looks to be around x=852, y=318. Normalized x \u2248 507, y \u2248 303."
+      }
+    }
+  ],
+  "created": 1789902977,
+  "model": "qwen3.8-flash",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 278,
+    "prompt_tokens": 2196,
+    "total_tokens": 2474,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 223,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 256,
+      "image_tokens": 1718,
+      "text_tokens": 478
+    }
+  }
+}

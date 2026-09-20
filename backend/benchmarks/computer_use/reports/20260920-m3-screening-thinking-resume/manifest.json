@@ -1,0 +1,633 @@
+{
+  "revision": "28a7f60e5acb754453483b88d7cdef295317f949",
+  "date": "2026-09-20",
+  "scope": "M3 thinking continuation: 25 unsent requests plus one explicit retry after balance recovery",
+  "specs": [
+    {
+      "id": "deepseek-201-off",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": false,
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "disabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-201-on",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": true,
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "qwen38flash-202-on",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": true,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "qwen38flash-202-off",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": false,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38max-202-on",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": true,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "qwen38max-202-off",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": false,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "deepseek-202-on",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": true,
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-202-off",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": false,
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "disabled"
+        }
+      }
+    },
+    {
+      "id": "flash-202-on",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": true,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "flash-202-off",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": false,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38max-203-off",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": false,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38max-203-on",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": true,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "deepseek-203-off",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": false,
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "disabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-203-on",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": true,
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "flash-203-off",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": false,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "flash-203-on",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": true,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "qwen38flash-203-off",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": false,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38flash-203-on",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": true,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "deepseek-204-on",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": true,
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-204-off",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": false,
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "disabled"
+        }
+      }
+    },
+    {
+      "id": "flash-204-on",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": true,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "flash-204-off",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": false,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38flash-204-on",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": true,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "qwen38flash-204-off",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": false,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38max-204-on",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": true,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "qwen38max-204-off",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": false,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    }
+  ],
+  "layouts": {
+    "201": {
+      "seed": 201,
+      "image_sha256": "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8",
+      "size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "bounds": [
+        589,
+        310,
+        649,
+        358
+      ],
+      "radius": 22,
+      "center": [
+        619,
+        334
+      ]
+    },
+    "202": {
+      "seed": 202,
+      "image_sha256": "ea0afda222bd63127b5d54d7e8f90e4397e0832b31c484b20ebb84cf7048d2c9",
+      "size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "bounds": [
+        674,
+        970,
+        734,
+        1018
+      ],
+      "radius": 22,
+      "center": [
+        704,
+        994
+      ]
+    },
+    "203": {
+      "seed": 203,
+      "image_sha256": "c58e55c8e1cd60b95b5a0491dd9c93d161d4e6a2185267d73e1a836dafa977c0",
+      "size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "bounds": [
+        620,
+        609,
+        680,
+        657
+      ],
+      "radius": 22,
+      "center": [
+        650,
+        633
+      ]
+    },
+    "204": {
+      "seed": 204,
+      "image_sha256": "451949f8a612f4af4a5cd58eb24b6b460ef88480414223d49d358997b0051ec6",
+      "size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "bounds": [
+        826,
+        294,
+        886,
+        342
+      ],
+      "radius": 22,
+      "center": [
+        856,
+        318
+      ]
+    }
+  },
+  "previous_screening_requests": 47,
+  "requests_max": 26,
+  "prior_sha256": {
+    "manifest.json": "100468c5b06b7a1878dfcd8ad647435a9905551bba3159c64ab6ba441a132418",
+    "results.json": "7cb826fd7cdfc6d99b3459ea26f8da6291dc21de1ce5a0c2477616e3c4898f3b",
+    "summary.json": "dce5881d829a535f32044377b67b760aabd9327346768260135e97568dfc90ca"
+  },
+  "prior_unknown_usage_reservation": 26000,
+  "reservation_basis": "Full original estimated input 10000 + output 16000; conservative accounting, not actual usage or exact input tokenizer bound",
+  "previous_known_screening_tokens": 91012,
+  "previous_accounted_tokens": 117012,
+  "prior_summary_sha256": "dce5881d829a535f32044377b67b760aabd9327346768260135e97568dfc90ca",
+  "stage_requests_max": 144,
+  "previous_screening_tokens": 91012,
+  "total_tokens_stop": 1000000,
+  "completed_preflight": {
+    "requests": 16,
+    "tokens": 26398
+  },
+  "thinking_factor": "enable_thinking false/true or thinking.type disabled/enabled",
+  "provider_caveat": "DeepSeek thinking ignores temperature; default thinking effort high",
+  "order": "models rotated per layout; each model has two off-first and two on-first pairs",
+  "independent_layouts": 4,
+  "repetitions_per_layout_setting": 1,
+  "strict": false,
+  "detail": "auto",
+  "nullable_style": "integer",
+  "status_field": false,
+  "thinking": "paired off/on",
+  "max_output_tokens_per_call": 16000,
+  "per_call_seconds": 90,
+  "batch_seconds_stop": 3600,
+  "retries": 0,
+  "input_token_reservation_per_call": 10000,
+  "input_reservation_is_estimate_not_exact_tokenization": true,
+  "stop": "API/timeout/missing usage/over-reservation stops batch; parser failures with usage retained",
+  "estimated_cost_usd": 0.807588,
+  "cost_basis": "uncached peak list prices; billed cost unknown without provider usage.cost",
+  "price_sources_checked_2026_09_20": [
+    "https://www.alibabacloud.com/help/en/model-studio/qwen3-7-flash",
+    "https://www.alibabacloud.com/help/en/model-studio/qwen3-8-flash",
+    "https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max",
+    "https://api-docs.deepseek.com/quick_start/pricing/",
+    "https://www.alibabacloud.com/help/en/model-studio/deep-thinking",
+    "https://api-docs.deepseek.com/api/create-chat-completion/"
+  ],
+  "source_sha256": {
+    "core/src/tank_backend/tools/computer_grounding.py": "15d8c03041879de335d0f912a466537b5ff376cdd91e319561e34ea9303aacd0",
+    "core/src/tank_backend/tools/computer_observation.py": "60694fb5d0d86b344c56809310112078eed1fe8acf199eb63b3a5bf97377a4ef",
+    "core/src/tank_backend/llm/llm.py": "f3ff022ad9c22ddca903261539f80a772918d52349b595b0d4d7ccd7e282ee04",
+    "core/src/tank_backend/llm/profile.py": "61542ffdc166d4010f76e7941db00d49f65695848c7dddcb16f0b65c859b9862",
+    "core/src/tank_backend/benchmarks/grounding_probe.py": "11fae97cb0898e55b53e45458792e4b7b46b203018288458c7b968b63c6e2df6",
+    "scripts/probe_grounding_matrix.py": "80b6ef05c699ffdc7866f4b4d07e914c3e5fb84787792b9e93ff1dea99847830",
+    "scripts/probe_grounding_contract.py": "d6f54f6a4675c6e7c49e165d36cb12fb173c2220aa01560cbaa8d1e2de9ce7d5"
+  },
+  "holdout_input_sha256": "b518da6fcb2c096032b2bb6c1138e24a1425ead6a057e19af30599d69f56add5",
+  "holdout_image_hash_overlap": 0,
+  "holdout_calls": 0,
+  "desktop_actions": 0,
+  "real_screenshots_sent": 0
+}

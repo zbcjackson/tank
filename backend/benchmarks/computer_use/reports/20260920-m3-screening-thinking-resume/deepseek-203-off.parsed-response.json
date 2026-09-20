@@ -1,0 +1,46 @@
+{
+  "id": "fdba195d-6efc-4811-902f-4917a9f34114",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "I'll locate the AC button in the calculator keypad.\n\nThe AC button is in the top row of the calculator, positioned between DEL and %. Looking at the image, it's at approximately x=650, y=633 in pixel coordinates.\n\nConverting to normalized coordinates (0..1000):\n- x = 650/1536 \u00d7 1000 \u2248 423\n- y = 633/1024 \u00d7 1000 \u2248 618",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_00_rjPPhIV4MyqiZVoLMNel2441",
+            "function": {
+              "arguments": "{\"found\": true, \"x\": 423, \"y\": 618}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1789902925,
+  "model": "deepseek-flash",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
+  "usage": {
+    "completion_tokens": 158,
+    "prompt_tokens": 1375,
+    "total_tokens": 1533,
+    "completion_tokens_details": null,
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 1152
+    },
+    "prompt_cache_hit_tokens": 1152,
+    "prompt_cache_miss_tokens": 223
+  }
+}

@@ -130,7 +130,11 @@ DeepSeek bbox 仅 1/4。合法率与命中率分别记录；四布局不能作�
 后续 [thinking 批](../../backend/benchmarks/computer_use/reports/20260920-m3-screening-thinking/README.md)
 在第七次 DeepSeek 请求遇到 402 余额不足后停止，只完成一个布局的三对 Qwen；
 Flash on 命中而另两组 on 失误，不能作通用收益结论。缺失用量保持 unknown，
-尚未恢复付费筛选。
+[余额恢复后续跑](../../backend/benchmarks/computer_use/reports/20260920-m3-screening-thinking-resume/README.md)
+已补齐 32 个设置，保留旧 402 并为其未知用量预留完整估算额度。四布局 off/on
+命中为：Qwen3.7 3/4、0/4；Flash 0/4、4/4；Max 4/4、3/4；DeepSeek
+完成响应 2/4、3/4（含旧 402 时 off 为 2/5）。Flash on 是后续候选，
+未因此切换生产配置；真实后端日志已重新通过。
 
 ## 已修复与测试覆盖
 
