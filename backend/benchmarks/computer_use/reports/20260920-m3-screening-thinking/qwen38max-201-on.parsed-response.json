@@ -1,0 +1,53 @@
+{
+  "id": "chatcmpl-9362884a-ed01-902b-8024-f4110436527c",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_47dc99aa67ec4041a51fe324",
+            "function": {
+              "arguments": "{\"found\": true, \"x\": 298, \"y\": 372}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": "The user wants to find the button labeled \"AC\" in the calculator image. Looking at the image, there's a row of buttons: (, ), mc, m+, m-, mr, DEL, AC, %, /.\n\nThe AC button appears to be at approximately pixel coordinates (429, 335) in the 1440x900 image.\n\nLet me check: the button row is at y\u2248335. The AC button's center is around x=429, y=335.\n\nNormalization: x = 429/1440 * 1000 = 297.9 \u2248 298. y = 335/900 * 1000 = 372.2 \u2248 372.\n\nTherefore, click at (298, 372)."
+      }
+    }
+  ],
+  "created": 1789900736,
+  "model": "qwen3.8-max-0902",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 246,
+    "prompt_tokens": 1700,
+    "total_tokens": 1946,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 191,
+      "rejected_prediction_tokens": null,
+      "text_tokens": 54
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 0,
+      "image_tokens": 1262,
+      "text_tokens": 438
+    }
+  }
+}

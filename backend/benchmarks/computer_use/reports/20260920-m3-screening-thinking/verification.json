@@ -1,0 +1,48 @@
+{
+  "date": "2026-09-20",
+  "source_revision": "d070e71",
+  "overall": "incomplete: model batch stopped and real backend reports provider balance failure",
+  "checks": {
+    "web_pnpm_lint": "passed",
+    "web_npx_tsc_b_noEmit": "passed",
+    "backend_ruff_core_src_tests": "passed",
+    "backend_pytest": {
+      "passed": 4595,
+      "skipped": 1,
+      "warnings": 21
+    },
+    "changed_python_pyright": "N/A: no Python source or test changes",
+    "cli_ruff": "passed",
+    "backend_runtime_log": {
+      "status": "failed: external provider account balance",
+      "pane": "tank:1.1",
+      "last_lines": 50,
+      "error": "HTTP 402 Insufficient Balance in Brain agent stream/input processing",
+      "resolution": "Restore the DeepSeek account balance; runtime acceptance remains open. No default-model switch or billing mutation performed."
+    },
+    "e2e": {
+      "scenarios_passed": 14,
+      "steps_passed": 55
+    },
+    "docs_consistency": "passed: 37 files",
+    "protocol_sync": "passed",
+    "grounding_suite": {
+      "passed": 83
+    },
+    "frozen_sdk_request_pairs": {
+      "requests": 32,
+      "thinking_only_pairs": 16
+    },
+    "archived_replay": {
+      "requests_verified": 7,
+      "completion_scores_verified": 6,
+      "http_402_verified": 1
+    }
+  },
+  "test_environment": {
+    "UV_CACHE_DIR": "/tmp/tank-uv-cache",
+    "DYLD_FALLBACK_LIBRARY_PATH": "/opt/homebrew/lib",
+    "backend_command": "uv run --no-sync pytest",
+    "local_ports_and_network": "allowed for backend and E2E tests"
+  }
+}

@@ -127,6 +127,10 @@ control 失败/strict 命中，不能认定收益。见
 使用四个开发布局：Max bbox 与 GPT 两协议均 4/4 命中，Flash 仍有数组，
 DeepSeek bbox 仅 1/4。合法率与命中率分别记录；四布局不能作为采用结论，
 自定义函数 bbox 不代表原生接口验收。生产默认与适配器未因此改变。
+后续 [thinking 批](../../backend/benchmarks/computer_use/reports/20260920-m3-screening-thinking/README.md)
+在第七次 DeepSeek 请求遇到 402 余额不足后停止，只完成一个布局的三对 Qwen；
+Flash on 命中而另两组 on 失误，不能作通用收益结论。缺失用量保持 unknown，
+尚未恢复付费筛选。
 
 ## 已修复与测试覆盖
 

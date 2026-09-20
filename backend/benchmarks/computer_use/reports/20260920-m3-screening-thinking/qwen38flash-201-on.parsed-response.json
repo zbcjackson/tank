@@ -1,0 +1,52 @@
+{
+  "id": "chatcmpl-49e3872d-7cc7-98e2-9196-a6e54a61aecd",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_06f9e1c37c0c404a9858ba59",
+            "function": {
+              "arguments": "{\"found\": true, \"x\": 427, \"y\": 368}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": "The user wants the AC button located. Looking at the calculator interface, the AC button is in the top row of buttons, between DEL and %. Its center appears around x=615, y=331 in pixel coordinates. Normalizing: x = 615/1440*1000 \u2248 427, y = 331/900*1000 \u2248 368. Let me verify against the image dimensions 1440x900. The AC button center looks to be at approximately (615, 331). Normalized: 427, 368."
+      }
+    }
+  ],
+  "created": 1789900730,
+  "model": "qwen3.8-flash",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 198,
+    "prompt_tokens": 1738,
+    "total_tokens": 1936,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 143,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 0,
+      "image_tokens": 1262,
+      "text_tokens": 476
+    }
+  }
+}

@@ -1,0 +1,100 @@
+"""Offline audit and summary of the frozen M3 thinking screening artifacts."""
+import gzip
+import hashlib
+import json
+import math
+from pathlib import Path
+import statistics
+import sys
+from openai.types.chat import ChatCompletion
+from tank_backend.tools.computer_grounding import GroundingAdapter
+from tank_backend.benchmarks.grounding_probe import score_location
+
+out=Path(sys.argv[1])
+manifest=json.loads((out/'manifest.json').read_text())
+results=json.loads((out/'results.json').read_text())
+rows=results['results']
+specs={s['id']:s for s in manifest['specs']}
+assert len({r['id'] for r in rows})==len(rows)
+assert [r['id'] for r in rows]==[s['id'] for s in manifest['specs']][:len(rows)]
+checks=[]
+for row in rows:
+    ident=row['id']
+    spec=specs[ident]
+    layout=manifest['layouts'][str(row['seed'])]
+    sha=layout['image_sha256']
+    assert hashlib.sha256((out/f'{sha}.png').read_bytes()).hexdigest()==sha
+    request=json.loads((out/f'{ident}.request.json').read_text())
+    assert request==json.loads((out/f'{ident}.frozen-request.json').read_text())
+    assert request['messages'][1]['content'][1]['image_url']['url']=='sha256:'+sha
+    assert row['http_attempts']==1
+    if row.get('usage') is None:
+        assert row['http_status']==402
+        error=json.loads(gzip.decompress((out/f'{ident}.response.json.gz').read_bytes()))
+        assert error['error']['message']=='Insufficient Balance'
+        checks.append({'id':ident,'http_error_verified':True,'request_verified':True,'response_score':'HTTP failure retained in denominator; no usage/SDK completion'})
+        continue
+    response=ChatCompletion.model_validate_json(gzip.decompress((out/f'{ident}.response.json.gz').read_bytes()))
+    assert response.model_dump()==json.loads((out/f'{ident}.parsed-response.json').read_text())
+    assert response.model==row['returned_model']
+    assert response.usage.model_dump()==row['usage']
+    assert [c.model_dump() for c in response.choices]==row['choices']
+    adapter=GroundingAdapter(protocol=spec['protocol'])
+    try:
+        location=adapter.parse_response(response,tuple(layout['size']))
+    except ValueError as exc:
+        assert not row['schema_valid'] and not row['hit']
+        assert str(exc)==row['parse_error']
+    else:
+        assert row['schema_valid'] and location.status==row['location_status']
+        assert (list(location.point) if location.point else None)==row['point']
+        assert (list(location.box) if location.box else None)==row['box']
+        if location.point is not None:
+            score=score_location(location.point,tuple(layout['bounds']),layout['radius'])
+            assert score['hit']==row['hit']
+            assert math.isclose(score['distance'],row['distance'],rel_tol=0,abs_tol=1e-10)
+        else:
+            assert not row['hit']
+    checks.append({'id':ident,'request_verified':True,'response_and_score_verified':True})
+groups=[]
+for alias in dict.fromkeys(s['alias'] for s in manifest['specs']):
+    for thinking in (False,True):
+        subset=[r for r in rows if r['alias']==alias and r['thinking']==thinking]
+        distances=[r['distance'] for r in subset if 'distance' in r]
+        groups.append({'alias':alias,'protocol':'point','thinking':thinking,'attempts':len(subset),
+            'schema_valid':sum(r['schema_valid'] for r in subset),'hits':sum(r['hit'] for r in subset),
+            'truncations':sum(any(c['finish_reason']=='length' for c in r.get('choices',[])) for r in subset),
+            'returned_coordinates':len(distances),'median_distance_px_given_coordinates':statistics.median(distances) if distances else None,
+            'max_distance_px_given_coordinates':max(distances) if distances else None,
+            'known_tokens':sum(r['usage']['total_tokens'] for r in subset if r.get('usage')),
+            'unknown_usage':sum(r.get('usage') is None for r in subset),
+            'known_completion_tokens':sum(r['usage']['completion_tokens'] for r in subset if r.get('usage')),
+            'reported_reasoning_tokens':sum((r['usage'].get('completion_tokens_details') or {}).get('reasoning_tokens') or 0 for r in subset if r.get('usage')),
+            'responses_with_reasoning_token_count':sum((r.get('usage') or {}).get('completion_tokens_details') is not None and r['usage']['completion_tokens_details'].get('reasoning_tokens') is not None for r in subset),
+            'responses_with_nonempty_reasoning_content':sum(any(bool(c['message'].get('reasoning_content')) for c in r.get('choices',[])) for r in subset),
+            'returned_models':sorted({r['returned_model'] for r in subset if 'returned_model' in r}),
+            'returned_providers':sorted({r['returned_provider'] for r in subset if r.get('returned_provider')})})
+known=sum(r['usage']['total_tokens'] for r in rows if r.get('usage'))
+assert known==results['known_batch_tokens']
+assert known+manifest['previous_screening_tokens']==results['known_screening_tokens']
+summary={'requests':len(rows),'http_attempts':sum(r['http_attempts'] for r in rows),
+         'planned_independent_layouts':4,'attempted_layouts':len({r['seed'] for r in rows}),'repetitions_per_setting':1,
+         'previous_screening_requests':40,'cumulative_screening_requests':40+len(rows),
+         'stage_requests_remaining':144-40-len(rows),'known_batch_tokens':known,
+         'known_screening_tokens':known+79357,
+         'token_capacity_before_unknown_usage':1000000-known-79357,
+         'spendable_stage_token_remainder':'unknown: failed request has no usage; do not treat it as zero',
+         'unknown_usage':sum(r.get('usage') is None for r in rows),
+         'stop_reason':results['stop_reason'],'groups':groups,
+         'usage_based_uncached_peak_estimate_usd':sum((r['usage']['prompt_tokens']*specs[r['id']]['rates'][0]+r['usage']['completion_tokens']*specs[r['id']]['rates'][1])/1000000 for r in rows if r.get('usage')),
+         'provider_reported_cost_usd':sum(r['usage']['cost'] for r in rows if (r.get('usage') or {}).get('cost') is not None),
+         'responses_with_provider_cost':sum((r.get('usage') or {}).get('cost') is not None for r in rows),
+         'actual_total_billed_cost':'unknown: direct providers do not return cost',
+         'preflight_totals_unchanged':manifest['completed_preflight'],
+         'holdout_calls':0,'desktop_actions':0,'real_screenshots_sent':0}
+if not summary['responses_with_provider_cost']:
+    summary['provider_reported_cost_usd']=None
+for name,data in [('offline-replay.json',{'checks':checks,'requests':len(checks)}),('summary.json',summary)]:
+    (out/name).write_text(json.dumps(data,indent=2)+'\n')
+(out/'replay.txt').write_bytes(Path(__file__).read_bytes())
+print(json.dumps(summary,indent=2))

@@ -1,0 +1,433 @@
+{
+  "results": [
+    {
+      "id": "flash-201-off",
+      "alias": "flash",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": false,
+      "image_sha256": "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8",
+      "schema_valid": true,
+      "hit": true,
+      "http_attempts": 1,
+      "http_status": 200,
+      "request_id": "401f730b-52e2-9cac-868c-9933a19f5afb",
+      "returned_model": "qwen3.7-flash-2026-07-15",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 52,
+        "prompt_tokens": 1702,
+        "total_tokens": 1754,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": null,
+          "rejected_prediction_tokens": null,
+          "text_tokens": 52
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 440
+        }
+      },
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": [
+              {
+                "id": "call_e2c84d832bdb4dbdbbe0769e",
+                "function": {
+                  "arguments": "{\"found\": true, \"x\": 430, \"y\": 368}",
+                  "name": "click"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ],
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "location_status": "found",
+      "point": [
+        619.2,
+        331.2
+      ],
+      "box": null,
+      "dx": 0.20000000000004547,
+      "dy": -2.8000000000000114,
+      "distance": 2.8071337695236545,
+      "seconds": 1.788
+    },
+    {
+      "id": "flash-201-on",
+      "alias": "flash",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": true,
+      "image_sha256": "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8",
+      "schema_valid": true,
+      "hit": false,
+      "http_attempts": 1,
+      "http_status": 200,
+      "request_id": "2bd3e3ff-a5ac-9b65-a19d-1e7c14ed562f",
+      "returned_model": "qwen3.7-flash-2026-07-15",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 807,
+        "prompt_tokens": 1700,
+        "total_tokens": 2507,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 752,
+          "rejected_prediction_tokens": null,
+          "text_tokens": 55
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 438
+        }
+      },
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": [
+              {
+                "id": "call_4565461f5e3d41548362ca4d",
+                "function": {
+                  "arguments": "{\"found\": true, \"x\": 389, \"y\": 402}",
+                  "name": "click"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ],
+            "reasoning_content": "The user wants me to locate the \"AC\" button in the calculator interface. Looking at the image, I can see a calculator with various buttons. The \"AC\" button appears to be in the top row of the calculator, between \"DEL\" and \"%\". Let me identify its position.\n\nLooking at the calculator layout:\n- Row 1: (, ), mc, m+, m-, mr, DEL, AC, %, /\n- The AC button is in the first row of buttons\n\nLet me estimate the coordinates. The calculator appears to start around x=120, y=300. The AC button is the 8th button in the first row (0-indexed: 7th).\n\nLooking more carefully at the image:\n- The calculator panel is roughly from x=120 to x=710, y=195 to y=640\n- The first row of buttons (with (, ), mc, etc.) is around y=340-385\n- AC appears to be at approximately x=560, y=360\n\nLet me be more precise. The buttons in the first row:\n- ( at ~x=155\n- ) at ~x=210\n- mc at ~x=265\n- m+ at ~x=320\n- m- at ~x=375\n- mr at ~x=430\n- DEL at ~x=485\n- AC at ~x=540\n- % at ~x=595\n- / at ~x=650\n\nSo AC is approximately at x=540, y=360.\n\nIn normalized coordinates (0-1000):\n- x: 540/1440 * 1000 \u2248 375\n- y: 360/900 * 1000 \u2248 400\n\nLet me refine. Looking at the image dimensions 1440x900:\n- The AC button center appears to be around x=560, y=362 in pixel coordinates\n- Normalized: x = 560/1440 * 1000 \u2248 389, y = 362/900 * 1000 \u2248 402\n\nLet me look more carefully. The calculator display shows \"35\" at the top right. The AC button is in the row with DEL, %, /. \n\nLooking at the button positions more carefully:\n- The calculator grid starts around x=125, y=335\n- Each button is about 55px wide and 45px tall\n- AC is the 8th button in row 1 (0-indexed position 7)\n- x position: 125 + 7*55 + 27 = 125 + 385 + 27 = 537... \n\nLet me just estimate: AC button center is approximately at pixel (560, 362) in the 1440x900 image.\nNormalized: x = 560/1440*1000 = 389, y = 362/900*1000 = 402\n\nI'll go with approximately (389, 402)."
+          }
+        }
+      ],
+      "location_status": "found",
+      "point": [
+        560.16,
+        361.8
+      ],
+      "box": null,
+      "dx": -58.84000000000003,
+      "dy": 27.80000000000001,
+      "distance": 65.0767669756266,
+      "seconds": 11.561
+    },
+    {
+      "id": "qwen38flash-201-off",
+      "alias": "qwen38flash",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": false,
+      "image_sha256": "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8",
+      "schema_valid": false,
+      "hit": false,
+      "http_attempts": 1,
+      "http_status": 200,
+      "request_id": "e751a8f6-270b-9d7a-8ddd-1de2d84d4f3a",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 56,
+        "prompt_tokens": 1702,
+        "total_tokens": 1758,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": null,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 440
+        }
+      },
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": [
+              {
+                "id": "call_929338224d8a43669c8b8959",
+                "function": {
+                  "arguments": "{\"found\": true, \"x\": [429], \"y\": [368]}",
+                  "name": "click"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ],
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "parse_error": "Coordinates must be integers",
+      "seconds": 1.656
+    },
+    {
+      "id": "qwen38flash-201-on",
+      "alias": "qwen38flash",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": true,
+      "image_sha256": "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8",
+      "schema_valid": true,
+      "hit": true,
+      "http_attempts": 1,
+      "http_status": 200,
+      "request_id": "49e3872d-7cc7-98e2-9196-a6e54a61aecd",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 198,
+        "prompt_tokens": 1738,
+        "total_tokens": 1936,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 143,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 476
+        }
+      },
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": [
+              {
+                "id": "call_06f9e1c37c0c404a9858ba59",
+                "function": {
+                  "arguments": "{\"found\": true, \"x\": 427, \"y\": 368}",
+                  "name": "click"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ],
+            "reasoning_content": "The user wants the AC button located. Looking at the calculator interface, the AC button is in the top row of buttons, between DEL and %. Its center appears around x=615, y=331 in pixel coordinates. Normalizing: x = 615/1440*1000 \u2248 427, y = 331/900*1000 \u2248 368. Let me verify against the image dimensions 1440x900. The AC button center looks to be at approximately (615, 331). Normalized: 427, 368."
+          }
+        }
+      ],
+      "location_status": "found",
+      "point": [
+        614.88,
+        331.2
+      ],
+      "box": null,
+      "dx": -4.1200000000000045,
+      "dy": -2.8000000000000114,
+      "distance": 4.981405424174999,
+      "seconds": 3.266
+    },
+    {
+      "id": "qwen38max-201-off",
+      "alias": "qwen38max",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": false,
+      "image_sha256": "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8",
+      "schema_valid": true,
+      "hit": true,
+      "http_attempts": 1,
+      "http_status": 200,
+      "request_id": "639763a4-c7f4-968d-8219-ea65e45b8acd",
+      "returned_model": "qwen3.8-max-0902",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 52,
+        "prompt_tokens": 1702,
+        "total_tokens": 1754,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": null,
+          "rejected_prediction_tokens": null,
+          "text_tokens": 52
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 440
+        }
+      },
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": [
+              {
+                "id": "call_fa9948ff11f547659a218232",
+                "function": {
+                  "arguments": "{\"found\": true, \"x\": 428, \"y\": 370}",
+                  "name": "click"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ],
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "location_status": "found",
+      "point": [
+        616.32,
+        333.0
+      ],
+      "box": null,
+      "dx": -2.67999999999995,
+      "dy": -1.0,
+      "distance": 2.860489468604933,
+      "seconds": 2.846
+    },
+    {
+      "id": "qwen38max-201-on",
+      "alias": "qwen38max",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": true,
+      "image_sha256": "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8",
+      "schema_valid": true,
+      "hit": false,
+      "http_attempts": 1,
+      "http_status": 200,
+      "request_id": "9362884a-ed01-902b-8024-f4110436527c",
+      "returned_model": "qwen3.8-max-0902",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 246,
+        "prompt_tokens": 1700,
+        "total_tokens": 1946,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 191,
+          "rejected_prediction_tokens": null,
+          "text_tokens": 54
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 438
+        }
+      },
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": [
+              {
+                "id": "call_47dc99aa67ec4041a51fe324",
+                "function": {
+                  "arguments": "{\"found\": true, \"x\": 298, \"y\": 372}",
+                  "name": "click"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ],
+            "reasoning_content": "The user wants to find the button labeled \"AC\" in the calculator image. Looking at the image, there's a row of buttons: (, ), mc, m+, m-, mr, DEL, AC, %, /.\n\nThe AC button appears to be at approximately pixel coordinates (429, 335) in the 1440x900 image.\n\nLet me check: the button row is at y\u2248335. The AC button's center is around x=429, y=335.\n\nNormalization: x = 429/1440 * 1000 = 297.9 \u2248 298. y = 335/900 * 1000 = 372.2 \u2248 372.\n\nTherefore, click at (298, 372)."
+          }
+        }
+      ],
+      "location_status": "found",
+      "point": [
+        429.12,
+        334.8
+      ],
+      "box": null,
+      "dx": -189.88,
+      "dy": 0.8000000000000114,
+      "distance": 189.88168526743172,
+      "seconds": 4.89
+    },
+    {
+      "id": "deepseek-201-off",
+      "alias": "deepseek",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": false,
+      "image_sha256": "040dcbb026aad405de9e48b0eb5f4391d9788cccd2cf4076eb86ad3e1824c7d8",
+      "schema_valid": false,
+      "hit": false,
+      "http_attempts": 1,
+      "http_status": 402,
+      "request_id": null,
+      "error": "APIStatusError",
+      "usage": null,
+      "seconds": 0.685
+    }
+  ],
+  "stop_reason": "request failure; usage unknown",
+  "known_screening_tokens": 91012,
+  "known_batch_tokens": 11655
+}
