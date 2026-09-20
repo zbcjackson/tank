@@ -1,0 +1,196 @@
+{
+  "scope": "controlled Calculator display ROI only; not generic benchmark automatic grading",
+  "rows": [
+    {
+      "id": "calc-digits",
+      "sha256": "08d638bdca74592b018ba75e1a2b92dc5d2c8d8cb6a552a7d2e1198af7fef415",
+      "captured_at": 1789872895.114531,
+      "ocr_at": 1789873123.7650151,
+      "roi": [
+        0.2604166666666667,
+        0.6990740740740741,
+        0.35104166666666664,
+        0.11574074074074074
+      ],
+      "engine": "Apple Vision accurate, language correction disabled",
+      "expected": "123",
+      "pixels": "unknown",
+      "recognized": []
+    },
+    {
+      "id": "calc-letters",
+      "sha256": "f88b2de9a80f65758af17436a9051f897235aad0149505b27d5aebe89a69af61",
+      "captured_at": 1789872904.402358,
+      "ocr_at": 1789873123.942508,
+      "roi": [
+        0.2604166666666667,
+        0.6990740740740741,
+        0.35104166666666664,
+        0.11574074074074074
+      ],
+      "engine": "Apple Vision accurate, language correction disabled",
+      "expected": "0",
+      "pixels": "unknown",
+      "recognized": []
+    },
+    {
+      "id": "calc-punctuation",
+      "sha256": "210f184380c10f49675cb3f82a89420de21390bb9c643c0437a23c0d11e3fdaa",
+      "captured_at": 1789872913.825214,
+      "ocr_at": 1789873124.128343,
+      "roi": [
+        0.2604166666666667,
+        0.6990740740740741,
+        0.35104166666666664,
+        0.11574074074074074
+      ],
+      "engine": "Apple Vision accurate, language correction disabled",
+      "expected": "56",
+      "pixels": "fail",
+      "recognized": [
+        {
+          "box": [
+            0.925816017938959,
+            0.03174600204384881,
+            0.06231455137892361,
+            0.2063492668999567
+          ],
+          "confidence": 1,
+          "text": "99"
+        }
+      ],
+      "actual": "99"
+    },
+    {
+      "id": "calc-chinese",
+      "sha256": "87d73a7a976b2e7f6f9ba777ecbf9a59afdebc53d7c2aeda2c136001d47a7446",
+      "captured_at": 1789872923.286886,
+      "ocr_at": 1789873124.3016489,
+      "roi": [
+        0.2604166666666667,
+        0.6990740740740741,
+        0.35104166666666664,
+        0.11574074074074074
+      ],
+      "engine": "Apple Vision accurate, language correction disabled",
+      "expected": "0",
+      "pixels": "unknown",
+      "recognized": []
+    },
+    {
+      "id": "calc-paste-digits",
+      "sha256": "c61b1957e8cb43c0c994b234e5485134a1cf9840298cae4bce836c289cc9f0f7",
+      "captured_at": 1789872932.971214,
+      "ocr_at": 1789873124.485513,
+      "roi": [
+        0.2604166666666667,
+        0.6990740740740741,
+        0.35104166666666664,
+        0.11574074074074074
+      ],
+      "engine": "Apple Vision accurate, language correction disabled",
+      "expected": "123",
+      "pixels": "unknown",
+      "recognized": []
+    },
+    {
+      "id": "calc-paste-expression",
+      "sha256": "b125fd0f2cf7ddb8276c18f0fcb29ec5ee3cb58fc33a01c9a7293b3d14322fee",
+      "captured_at": 1789872942.822473,
+      "ocr_at": 1789873124.6690361,
+      "roi": [
+        0.2604166666666667,
+        0.6990740740740741,
+        0.35104166666666664,
+        0.11574074074074074
+      ],
+      "engine": "Apple Vision accurate, language correction disabled",
+      "expected": "56",
+      "pixels": "fail",
+      "recognized": [
+        {
+          "box": [
+            0.925816017938959,
+            0.03174600204384881,
+            0.06231455137892361,
+            0.2063492668999567
+          ],
+          "confidence": 1,
+          "text": "99"
+        }
+      ],
+      "actual": "99"
+    },
+    {
+      "id": "calc-decimal",
+      "sha256": "477214ca50f6d805d031ee15d25cd7fa22ed7f5e45ad7dfa5f3739d35fd89e1a",
+      "captured_at": 1789872952.7076108,
+      "ocr_at": 1789873124.85276,
+      "roi": [
+        0.2604166666666667,
+        0.6990740740740741,
+        0.35104166666666664,
+        0.11574074074074074
+      ],
+      "engine": "Apple Vision accurate, language correction disabled",
+      "expected": "1.5",
+      "pixels": "unknown",
+      "recognized": [
+        {
+          "box": [
+            0.9258160179224736,
+            0.01587298621492461,
+            0.06231455137892372,
+            0.2222222827729725
+          ],
+          "confidence": 0.30000001192092896,
+          "text": "S'L"
+        }
+      ]
+    },
+    {
+      "id": "calc-enter",
+      "sha256": "7c7b37b5463bc67cb782c5f59e3cbf013bc7d6c84a699f9832d88d1afd094136",
+      "captured_at": 1789872963.037998,
+      "ocr_at": 1789873125.0354838,
+      "roi": [
+        0.2604166666666667,
+        0.6990740740740741,
+        0.35104166666666664,
+        0.11574074074074074
+      ],
+      "engine": "Apple Vision accurate, language correction disabled",
+      "expected": "56",
+      "pixels": "pass",
+      "recognized": [
+        {
+          "box": [
+            0.9258160232047477,
+            0.33333333492063477,
+            0.05934718100890213,
+            0.15873015873015883
+          ],
+          "confidence": 1,
+          "text": "7x8"
+        },
+        {
+          "box": [
+            0.9287833826409494,
+            0.031746032319224016,
+            0.05934718100890213,
+            0.20634920634920628
+          ],
+          "confidence": 1,
+          "text": "56"
+        }
+      ],
+      "actual": "56",
+      "expression_pixels": true
+    }
+  ],
+  "negative_control": {
+    "source_id": "calc-letters",
+    "wrong_expected": "56",
+    "correctly_rejected": false
+  }
+}

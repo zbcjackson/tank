@@ -1,0 +1,11 @@
+{
+  "outbound_requests": 0,
+  "rows": [],
+  "cleanup": {
+    "document_closed": true,
+    "clipboard_restored": true,
+    "frontmost_restored": true,
+    "confirmed": true
+  },
+  "error": "IndexError('NSRangeException - *** -[__NSArray0 objectAtIndex:]: index 0 beyond bounds for empty array')"
+}

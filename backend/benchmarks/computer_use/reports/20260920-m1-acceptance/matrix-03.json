@@ -1,0 +1,81 @@
+{
+  "outbound_requests": 0,
+  "rows": [
+    {
+      "id": "text-letters",
+      "app": "TextEdit",
+      "text": "Abc123",
+      "mode": "auto",
+      "actual": "啊A编程23",
+      "passed": false,
+      "dispatch": "Typed: 'Abc123'\nInput method: keystroke. Input dispatched; application effect not verified.",
+      "captured_at": 1789872477.446764,
+      "screenshot": "text-letters/screenshots/shot_001.png",
+      "sha256": "4c86c8a385d87e2a14965f46f96a6dc50c78f8279a363efd05edbbbccfc31951"
+    },
+    {
+      "id": "text-punctuation",
+      "app": "TextEdit",
+      "text": "7*8 - . !?",
+      "mode": "auto",
+      "actual": "7*8 - . !?",
+      "passed": true,
+      "dispatch": "Typed: '7*8 - . !?'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "captured_at": 1789872478.7928052,
+      "screenshot": "text-punctuation/screenshots/shot_001.png",
+      "sha256": "ab925cd9863100e932d6a5bbc61f61e126f4b8fb0a98c508ca594049c93bedee"
+    },
+    {
+      "id": "text-chinese",
+      "app": "TextEdit",
+      "text": "你好，世界",
+      "mode": "auto",
+      "actual": "你好，世界",
+      "passed": true,
+      "dispatch": "Typed: '你好，世界'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "captured_at": 1789872480.127145,
+      "screenshot": "text-chinese/screenshots/shot_001.png",
+      "sha256": "cf20b583d7a7fb4d055e14dd59b1a0d2e744df0dbf11cdcf54732ea1dff1b723"
+    },
+    {
+      "id": "text-multiline",
+      "app": "TextEdit",
+      "text": "line1\nline2",
+      "mode": "auto",
+      "actual": "line1\nline2",
+      "passed": true,
+      "dispatch": "Typed: 'line1\\nline2'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "captured_at": 1789872481.362041,
+      "screenshot": "text-multiline/screenshots/shot_001.png",
+      "sha256": "a9829682403b9841504f0f41849c25426ba1e44dca6aeffe121cdf01e46583a4"
+    },
+    {
+      "id": "text-paste",
+      "app": "TextEdit",
+      "text": "Abc123",
+      "mode": "paste",
+      "actual": "Abc123",
+      "passed": true,
+      "dispatch": "Typed: 'Abc123'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "captured_at": 1789872482.660334,
+      "screenshot": "text-paste/screenshots/shot_001.png",
+      "sha256": "d515e44fec18317fb38b528ac709befac099bbc8d864eead67bd2dfeffc7bedd"
+    },
+    {
+      "id": "text-enter",
+      "app": "TextEdit",
+      "actual": "firstsecond",
+      "passed": false,
+      "captured_at": 1789872484.5507221,
+      "screenshot": "text-enter/screenshots/shot_001.png",
+      "sha256": "720afecc6322de98c91bdc258097da96102472731a1713d790ccc7f0070e2529"
+    }
+  ],
+  "cleanup": {
+    "document_closed": true,
+    "clipboard_restored": true,
+    "frontmost_restored": false,
+    "confirmed": false
+  },
+  "error": "Traceback (most recent call last):\n  File \"/tmp/tank-m1-20260920/input-matrix.py\", line 79, in <module>\n    asyncio.run(main())\n    ~~~~~~~~~~~^^^^^^^^\n  File \"/Users/zbcjackson/.local/share/uv/python/cpython-3.13.7-macos-aarch64-none/lib/python3.13/asyncio/runners.py\", line 195, in run\n    return runner.run(main)\n           ~~~~~~~~~~^^^^^^\n  File \"/Users/zbcjackson/.local/share/uv/python/cpython-3.13.7-macos-aarch64-none/lib/python3.13/asyncio/runners.py\", line 118, in run\n    return self._loop.run_until_complete(task)\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\n  File \"/Users/zbcjackson/.local/share/uv/python/cpython-3.13.7-macos-aarch64-none/lib/python3.13/asyncio/base_events.py\", line 725, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File \"/tmp/tank-m1-20260920/input-matrix.py\", line 67, in main\n    assert reset_calculator(),'reset failed'; check('Calculator')\n           ~~~~~~~~~~~~~~~~^^\nAssertionError: reset failed\n"
+}

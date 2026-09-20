@@ -1,0 +1,104 @@
+{
+  "transport": "actual OpenAI SDK, fake in-process HTTP; saved image replay, not live provider receipt",
+  "outbound_requests": 0,
+  "rows": [
+    {
+      "id": "text-letters",
+      "sha256": "c3043c6b00e1ea2cc564313fd8a8725d911baa3681733601c1b104b1179bcefd",
+      "captured_at": 1789872877.039638,
+      "http_serialized_at": 1789873335.300054,
+      "matches": true
+    },
+    {
+      "id": "text-punctuation",
+      "sha256": "c8cdfe37e1606aa78ed2dbb3c7081002d64527787d81c8bd6e7c2094d3b3131c",
+      "captured_at": 1789872878.471752,
+      "http_serialized_at": 1789873335.312746,
+      "matches": true
+    },
+    {
+      "id": "text-chinese",
+      "sha256": "247675c4007ea326c20b7a83f5fff6f1da7cd86d15a4ae461fff6f63f779dc16",
+      "captured_at": 1789872879.900377,
+      "http_serialized_at": 1789873335.322248,
+      "matches": true
+    },
+    {
+      "id": "text-multiline",
+      "sha256": "afe0f125bb2715f2eeea297291fc9244f682f0bf1ccf8bf507ab6110f33ffdf2",
+      "captured_at": 1789872881.291462,
+      "http_serialized_at": 1789873335.331997,
+      "matches": true
+    },
+    {
+      "id": "text-paste",
+      "sha256": "712ce60af58bff5a434a2d2da158119c97df89c4cf85798e5a97d3712054ab27",
+      "captured_at": 1789872882.78418,
+      "http_serialized_at": 1789873335.341227,
+      "matches": true
+    },
+    {
+      "id": "text-enter",
+      "sha256": "656c1e79e6138d1412a1818b9cfb04e52418960944e9e61f9fe4ffb3e83e9950",
+      "captured_at": 1789872884.9244852,
+      "http_serialized_at": 1789873335.350228,
+      "matches": true
+    },
+    {
+      "id": "calc-digits",
+      "sha256": "08d638bdca74592b018ba75e1a2b92dc5d2c8d8cb6a552a7d2e1198af7fef415",
+      "captured_at": 1789872895.114531,
+      "http_serialized_at": 1789873335.359654,
+      "matches": true
+    },
+    {
+      "id": "calc-letters",
+      "sha256": "f88b2de9a80f65758af17436a9051f897235aad0149505b27d5aebe89a69af61",
+      "captured_at": 1789872904.402358,
+      "http_serialized_at": 1789873335.369212,
+      "matches": true
+    },
+    {
+      "id": "calc-punctuation",
+      "sha256": "210f184380c10f49675cb3f82a89420de21390bb9c643c0437a23c0d11e3fdaa",
+      "captured_at": 1789872913.825214,
+      "http_serialized_at": 1789873335.379273,
+      "matches": true
+    },
+    {
+      "id": "calc-chinese",
+      "sha256": "87d73a7a976b2e7f6f9ba777ecbf9a59afdebc53d7c2aeda2c136001d47a7446",
+      "captured_at": 1789872923.286886,
+      "http_serialized_at": 1789873335.389172,
+      "matches": true
+    },
+    {
+      "id": "calc-paste-digits",
+      "sha256": "c61b1957e8cb43c0c994b234e5485134a1cf9840298cae4bce836c289cc9f0f7",
+      "captured_at": 1789872932.971214,
+      "http_serialized_at": 1789873335.399282,
+      "matches": true
+    },
+    {
+      "id": "calc-paste-expression",
+      "sha256": "b125fd0f2cf7ddb8276c18f0fcb29ec5ee3cb58fc33a01c9a7293b3d14322fee",
+      "captured_at": 1789872942.822473,
+      "http_serialized_at": 1789873335.409149,
+      "matches": true
+    },
+    {
+      "id": "calc-decimal",
+      "sha256": "477214ca50f6d805d031ee15d25cd7fa22ed7f5e45ad7dfa5f3739d35fd89e1a",
+      "captured_at": 1789872952.7076108,
+      "http_serialized_at": 1789873335.418874,
+      "matches": true
+    },
+    {
+      "id": "calc-enter",
+      "sha256": "7c7b37b5463bc67cb782c5f59e3cbf013bc7d6c84a699f9832d88d1afd094136",
+      "captured_at": 1789872963.037998,
+      "http_serialized_at": 1789873335.428763,
+      "matches": true
+    }
+  ]
+}

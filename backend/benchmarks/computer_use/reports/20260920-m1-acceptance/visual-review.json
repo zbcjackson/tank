@@ -1,0 +1,76 @@
+{
+  "reviewer": "assistant independent visual inspection of local display-only crops; not action model or human sign-off",
+  "automatic_pixels": "unknown where OCR disagrees or has no confident result; do not change generic benchmark pixels field",
+  "rows": [
+    {
+      "id": "calc-digits",
+      "source_sha256": "08d638bdca74592b018ba75e1a2b92dc5d2c8d8cb6a552a7d2e1198af7fef415",
+      "crop_sha256": "a4c7d4ee6ffda9701c347b7414fcd1ab51f575fbd77dcfc90ffc30bac0b3b4e5",
+      "visible_result": "123",
+      "matches_expected": true,
+      "visible_expression": null
+    },
+    {
+      "id": "calc-letters",
+      "source_sha256": "f88b2de9a80f65758af17436a9051f897235aad0149505b27d5aebe89a69af61",
+      "crop_sha256": "3bfe7fff13e4d587a76d3ba17a2c76124f3d2531e7d2540eefb77c2ff65f9917",
+      "visible_result": "0",
+      "matches_expected": true,
+      "visible_expression": null
+    },
+    {
+      "id": "calc-punctuation",
+      "source_sha256": "210f184380c10f49675cb3f82a89420de21390bb9c643c0437a23c0d11e3fdaa",
+      "crop_sha256": "0a04d7c105444814c048087fc9643a91cd3de584e450bc2131415b97f705c47f",
+      "visible_result": "56",
+      "matches_expected": true,
+      "visible_expression": null
+    },
+    {
+      "id": "calc-chinese",
+      "source_sha256": "87d73a7a976b2e7f6f9ba777ecbf9a59afdebc53d7c2aeda2c136001d47a7446",
+      "crop_sha256": "3bfe7fff13e4d587a76d3ba17a2c76124f3d2531e7d2540eefb77c2ff65f9917",
+      "visible_result": "0",
+      "matches_expected": true,
+      "visible_expression": null
+    },
+    {
+      "id": "calc-paste-digits",
+      "source_sha256": "c61b1957e8cb43c0c994b234e5485134a1cf9840298cae4bce836c289cc9f0f7",
+      "crop_sha256": "a4c7d4ee6ffda9701c347b7414fcd1ab51f575fbd77dcfc90ffc30bac0b3b4e5",
+      "visible_result": "123",
+      "matches_expected": true,
+      "visible_expression": null
+    },
+    {
+      "id": "calc-paste-expression",
+      "source_sha256": "b125fd0f2cf7ddb8276c18f0fcb29ec5ee3cb58fc33a01c9a7293b3d14322fee",
+      "crop_sha256": "0a04d7c105444814c048087fc9643a91cd3de584e450bc2131415b97f705c47f",
+      "visible_result": "56",
+      "matches_expected": true,
+      "visible_expression": null
+    },
+    {
+      "id": "calc-decimal",
+      "source_sha256": "477214ca50f6d805d031ee15d25cd7fa22ed7f5e45ad7dfa5f3739d35fd89e1a",
+      "crop_sha256": "07428fbf4029c5d7bae8c483f4091617217be117c0a9fedcb76106040fb8a9d1",
+      "visible_result": "1.5",
+      "matches_expected": true,
+      "visible_expression": null
+    },
+    {
+      "id": "calc-enter",
+      "source_sha256": "7c7b37b5463bc67cb782c5f59e3cbf013bc7d6c84a699f9832d88d1afd094136",
+      "crop_sha256": "e17247644d5cb71369f2d052d385b0f3bd4b50ac770f69ab8bcc2acec8e39bad",
+      "visible_result": "56",
+      "matches_expected": true,
+      "visible_expression": "7×8"
+    }
+  ],
+  "negative_control": {
+    "source_id": "calc-letters",
+    "visible": "0",
+    "wrong_expected": "56",
+    "rejected": true
+  }
+}

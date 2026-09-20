@@ -215,15 +215,21 @@ allowlist、命名 toolset、disallowed 共同约束；不可用时结束并报�
 
 [离线请求快照](../../backend/benchmarks/computer_use/reports/20260919-adaptation-m0/README.md)
 通过真实 SDK HTTP 边界验证只有 system 改变；主代理委托和共享安全规则均有
-回归。尚未运行提示修复的模型效果 A/B，不据此更改历史分数或认定定位改善。
+回归。[M1 首步 A/B](../../backend/benchmarks/computer_use/reports/20260920-m1-acceptance/README.md)
+在三个合成布局各重复两次，旧/新提示均 0/6 命中，未观察到定位收益；
+不据此更改历史分数。完整真实任务效果仍待后续对照。
 
 ### 文本输入与 Calculator 证据（M1）
 
-macOS `type_text(text, mode="auto")` 保持原调用行为：ASCII 字母、数字和
-空格走 AppleScript keystroke，其余文本走剪贴板。`mode="paste"` 显式强制
+macOS `type_text(text, mode="auto")` 在当前输入源支持 ASCII 时，ASCII 字母、
+数字和空格走 AppleScript keystroke；非 ASCII 输入源或其能力未知时走剪贴板，
+避免字母被 IME 改写。标点、换行和非 ASCII 文本始终走剪贴板。不切换用户
+输入法。`mode="paste"` 显式强制
 粘贴，允许用于纯数字；未知模式在操作系统调用前拒绝。工具说明告知剪贴板
 会被替换，以及 Calculator 对粘贴表达式的特殊语义。Enter/快捷键仍通过
-`key_press`，工具返回值只确认输入已派发，不声称应用接受或任务完成。
+`key_press`，其中带 Shift 的映射键使用物理 key code，避免 `shift+8` 被
+AppleScript keystroke 当成 `8`。工具报告实际输入路径，只确认已派发，
+不声称应用接受或任务完成。M1 主屏实测覆盖 TextEdit 六项和 Calculator 八项。
 
 `trial-token-gui-calc-v4` 的严格总分维持原表达式口径。新增
 `calc-evidence-v1` assessment 独立写入每轮 result.json 和报告 outcomes：
@@ -236,6 +242,8 @@ macOS `type_text(text, mode="auto")` 保持原调用行为：ASCII 字母、数�
   并至少四次才通过；按键/文本不计为鼠标定位成功。此指标不证明各点击的
   几何精度，逐按钮命中仍需 oracle/独立边界诊断。
 - `pixels` 当前为 unknown，保留人工核验；AX 和图片 hash 都不是像素评分。
+  M1 受控截图另有本地 OCR 与独立助手视觉复核；OCR 对部分孤立数字误识别，
+  未将其推广为通用自动评分，也不将助手复核称为人工签字验收。
   `last_screenshot` 记录 hash、捕获时间及最近一次实际 SDK HTTP 序列化时间；
   后者仅证明图片进入请求，不证明远端模型已读取或截图仍代表最新界面。
 

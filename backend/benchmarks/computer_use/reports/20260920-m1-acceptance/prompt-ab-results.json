@@ -1,0 +1,489 @@
+[
+  {
+    "variant": "legacy",
+    "repeat": 0,
+    "case": 0,
+    "request_sha256": "210952f54bb47e644b929141d1ffea67b1323f1ba2a6eee8ea522cfb1f98ae37",
+    "image_sha256": "34152cd2385f7ef268e37906cd674e267e63f6dabc6bf79cd261792d7cefa000",
+    "started": 1789873099.849879,
+    "calls": [
+      {
+        "name": "click",
+        "arguments": "{\"x\": \"377\", \"y\": 225}"
+      }
+    ],
+    "content": "",
+    "usage": {
+      "completion_tokens": 138,
+      "prompt_tokens": 5982,
+      "total_tokens": 6120,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 95,
+        "rejected_prediction_tokens": null,
+        "text_tokens": 43
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 0,
+        "image_tokens": 2042,
+        "text_tokens": 3940
+      }
+    },
+    "http_serialized_at": 1789873099.9342442,
+    "wire_sha256": "8a6f033cd2b57f54c668cecb04f1e0ecf527ea6df8c9e8197a994bbc2673bc08",
+    "response_model": "qwen3.7-flash-2026-07-15",
+    "finish_reason": "tool_calls",
+    "seconds": 3.594048023223877,
+    "available_tools_only": true,
+    "hit": false,
+    "error_px": 192.99623208757203
+  },
+  {
+    "variant": "corrected",
+    "repeat": 0,
+    "case": 0,
+    "request_sha256": "ef2a665296b8774f6e929ccbad45ccba67ebbc49f067f5f19d8d93e2961ddea8",
+    "image_sha256": "34152cd2385f7ef268e37906cd674e267e63f6dabc6bf79cd261792d7cefa000",
+    "started": 1789873103.44832,
+    "calls": [
+      {
+        "name": "click",
+        "arguments": "{\"bbox\": \"\\n[277, 290, 313, 336]]\"}"
+      }
+    ],
+    "content": "",
+    "usage": {
+      "completion_tokens": 135,
+      "prompt_tokens": 5758,
+      "total_tokens": 5893,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 89,
+        "rejected_prediction_tokens": null,
+        "text_tokens": 46
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 0,
+        "image_tokens": 2042,
+        "text_tokens": 3716
+      }
+    },
+    "http_serialized_at": 1789873103.4527318,
+    "wire_sha256": "d28a640ad58ed5535bc4b67883133e71de8b9fc8054d203306b2d9fbc6f84390",
+    "response_model": "qwen3.7-flash-2026-07-15",
+    "finish_reason": "tool_calls",
+    "seconds": 3.3381640911102295,
+    "available_tools_only": true,
+    "hit": false
+  },
+  {
+    "variant": "corrected",
+    "repeat": 0,
+    "case": 1,
+    "request_sha256": "63453f4650e6dc34485a576eb572bbb8e25a41ce5cd0ad2000cfedbf18f1b7d9",
+    "image_sha256": "e74341ca8a55b405cd2d511032815e0ad926e9c88a212205a8910ed433cfb995",
+    "started": 1789873106.792162,
+    "calls": [
+      {
+        "name": "click",
+        "arguments": "{\"x\": \"875\", \"y\": 365}"
+      }
+    ],
+    "content": "Looking at the calculator, I can see the \"7\" button is in the second row of the number pad (the row with 7, 8, 9, ×). I'll click on it.\n\n",
+    "usage": {
+      "completion_tokens": 808,
+      "prompt_tokens": 5758,
+      "total_tokens": 6566,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 721,
+        "rejected_prediction_tokens": null,
+        "text_tokens": 87
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 0,
+        "image_tokens": 2042,
+        "text_tokens": 3716
+      }
+    },
+    "http_serialized_at": 1789873106.7967181,
+    "wire_sha256": "bdfc7a60bbb3f6eee4bd3eb54a4600da91e7f2c33e2c21b45073276e5bec6665",
+    "response_model": "qwen3.7-flash-2026-07-15",
+    "finish_reason": "tool_calls",
+    "seconds": 11.699950933456421,
+    "available_tools_only": true,
+    "hit": false,
+    "error_px": 400.8543875274412
+  },
+  {
+    "variant": "legacy",
+    "repeat": 0,
+    "case": 1,
+    "request_sha256": "4e5ba033a7b15004ddbb2e2e0b9e00c4fe46a760ecac4162983c133878054c0c",
+    "image_sha256": "e74341ca8a55b405cd2d511032815e0ad926e9c88a212205a8910ed433cfb995",
+    "started": 1789873118.4997618,
+    "calls": [
+      {
+        "name": "click",
+        "arguments": "{\"x\": \"875\", \"y\": 355}"
+      }
+    ],
+    "content": "I can see the calculator with the display showing \"35\". The \"7\" button is in the second row of the calculator grid. Let me click it.\n\n",
+    "usage": {
+      "completion_tokens": 603,
+      "prompt_tokens": 5982,
+      "total_tokens": 6585,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 526,
+        "rejected_prediction_tokens": null,
+        "text_tokens": 77
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 0,
+        "image_tokens": 2042,
+        "text_tokens": 3940
+      }
+    },
+    "http_serialized_at": 1789873118.505165,
+    "wire_sha256": "d15999496d0b633cd6b074bd0d77e8a65237d3d269c371ec73ade55284806d2f",
+    "response_model": "qwen3.7-flash-2026-07-15",
+    "finish_reason": "tool_calls",
+    "seconds": 9.355151176452637,
+    "available_tools_only": true,
+    "hit": false,
+    "error_px": 405.06759929670994
+  },
+  {
+    "variant": "legacy",
+    "repeat": 0,
+    "case": 2,
+    "request_sha256": "f07e372ca8fc6fac780ca07c3a6813c083a841f46e5725cc0c49bac39a8aec1f",
+    "image_sha256": "9ad66c1a050a36d0735b381ea24be41659315df7460d221cdf1ebae94af4c64f",
+    "started": 1789873127.858774,
+    "calls": [
+      {
+        "name": "click",
+        "arguments": "{\"x\": \"625\", \"y\": 508}"
+      }
+    ],
+    "content": "",
+    "usage": {
+      "completion_tokens": 140,
+      "prompt_tokens": 5982,
+      "total_tokens": 6122,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 98,
+        "rejected_prediction_tokens": null,
+        "text_tokens": 42
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 0,
+        "image_tokens": 2042,
+        "text_tokens": 3940
+      }
+    },
+    "http_serialized_at": 1789873127.8633258,
+    "wire_sha256": "c051752d105b5a8c7d659bccaa467a81c641229f0f56a2a28de9ee915c58935f",
+    "response_model": "qwen3.7-flash-2026-07-15",
+    "finish_reason": "tool_calls",
+    "seconds": 4.1789870262146,
+    "available_tools_only": true,
+    "hit": false,
+    "error_px": 332.416018867924
+  },
+  {
+    "variant": "corrected",
+    "repeat": 0,
+    "case": 2,
+    "request_sha256": "c574d8484750c1eef65be53589cdcfd6887583ef4f27fc0f4618706b6464b7c9",
+    "image_sha256": "9ad66c1a050a36d0735b381ea24be41659315df7460d221cdf1ebae94af4c64f",
+    "started": 1789873132.041682,
+    "calls": [
+      {
+        "name": "click",
+        "arguments": "{\"bbox\": \"\\n[613, 477, 649, 511]]\"}"
+      }
+    ],
+    "content": "",
+    "usage": {
+      "completion_tokens": 133,
+      "prompt_tokens": 5758,
+      "total_tokens": 5891,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 87,
+        "rejected_prediction_tokens": null,
+        "text_tokens": 46
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 0,
+        "image_tokens": 2042,
+        "text_tokens": 3716
+      }
+    },
+    "http_serialized_at": 1789873132.046755,
+    "wire_sha256": "06a83a7b3d7373ab2989bc751e534ca31734b2f2e986a9331d69d41f6311c219",
+    "response_model": "qwen3.7-flash-2026-07-15",
+    "finish_reason": "tool_calls",
+    "seconds": 3.3798718452453613,
+    "available_tools_only": true,
+    "hit": false
+  },
+  {
+    "variant": "corrected",
+    "repeat": 1,
+    "case": 0,
+    "request_sha256": "ef2a665296b8774f6e929ccbad45ccba67ebbc49f067f5f19d8d93e2961ddea8",
+    "image_sha256": "34152cd2385f7ef268e37906cd674e267e63f6dabc6bf79cd261792d7cefa000",
+    "started": 1789873135.4247391,
+    "calls": [
+      {
+        "name": "click",
+        "arguments": "{\"bbox\": \"\\n[365, 289, 407, 334]]\"}"
+      }
+    ],
+    "content": "",
+    "usage": {
+      "completion_tokens": 133,
+      "prompt_tokens": 5758,
+      "total_tokens": 5891,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 87,
+        "rejected_prediction_tokens": null,
+        "text_tokens": 46
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 4480,
+        "image_tokens": 2042,
+        "text_tokens": 3716
+      }
+    },
+    "http_serialized_at": 1789873135.429339,
+    "wire_sha256": "d28a640ad58ed5535bc4b67883133e71de8b9fc8054d203306b2d9fbc6f84390",
+    "response_model": "qwen3.7-flash-2026-07-15",
+    "finish_reason": "tool_calls",
+    "seconds": 2.8209829330444336,
+    "available_tools_only": true,
+    "hit": false
+  },
+  {
+    "variant": "legacy",
+    "repeat": 1,
+    "case": 0,
+    "request_sha256": "210952f54bb47e644b929141d1ffea67b1323f1ba2a6eee8ea522cfb1f98ae37",
+    "image_sha256": "34152cd2385f7ef268e37906cd674e267e63f6dabc6bf79cd261792d7cefa000",
+    "started": 1789873138.249671,
+    "calls": [
+      {
+        "name": "click",
+        "arguments": "{\"x\": \"377\", \"y\": 225}"
+      }
+    ],
+    "content": "",
+    "usage": {
+      "completion_tokens": 147,
+      "prompt_tokens": 5982,
+      "total_tokens": 6129,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 104,
+        "rejected_prediction_tokens": null,
+        "text_tokens": 43
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 4480,
+        "image_tokens": 2042,
+        "text_tokens": 3940
+      }
+    },
+    "http_serialized_at": 1789873138.254303,
+    "wire_sha256": "8a6f033cd2b57f54c668cecb04f1e0ecf527ea6df8c9e8197a994bbc2673bc08",
+    "response_model": "qwen3.7-flash-2026-07-15",
+    "finish_reason": "tool_calls",
+    "seconds": 3.8639988899230957,
+    "available_tools_only": true,
+    "hit": false,
+    "error_px": 192.99623208757203
+  },
+  {
+    "variant": "legacy",
+    "repeat": 1,
+    "case": 1,
+    "request_sha256": "4e5ba033a7b15004ddbb2e2e0b9e00c4fe46a760ecac4162983c133878054c0c",
+    "image_sha256": "e74341ca8a55b405cd2d511032815e0ad926e9c88a212205a8910ed433cfb995",
+    "started": 1789873142.118429,
+    "calls": [
+      {
+        "name": "click",
+        "arguments": "{\"x\": \"601\", \"y\": 435}"
+      }
+    ],
+    "content": "I can see the calculator with the display showing \"35\". I need to click the \"7\" button, which is in the second row of the number pad (7, 8, 9 row). Let me click it.\n\n",
+    "usage": {
+      "completion_tokens": 857,
+      "prompt_tokens": 5982,
+      "total_tokens": 6839,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 766,
+        "rejected_prediction_tokens": null,
+        "text_tokens": 91
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 4480,
+        "image_tokens": 2042,
+        "text_tokens": 3940
+      }
+    },
+    "http_serialized_at": 1789873142.122602,
+    "wire_sha256": "d15999496d0b633cd6b074bd0d77e8a65237d3d269c371ec73ade55284806d2f",
+    "response_model": "qwen3.7-flash-2026-07-15",
+    "finish_reason": "tool_calls",
+    "seconds": 12.012306213378906,
+    "available_tools_only": true,
+    "hit": false,
+    "error_px": 172.78960153898163
+  },
+  {
+    "variant": "corrected",
+    "repeat": 1,
+    "case": 1,
+    "request_sha256": "63453f4650e6dc34485a576eb572bbb8e25a41ce5cd0ad2000cfedbf18f1b7d9",
+    "image_sha256": "e74341ca8a55b405cd2d511032815e0ad926e9c88a212205a8910ed433cfb995",
+    "started": 1789873154.135371,
+    "calls": [
+      {
+        "name": "click",
+        "arguments": "{\"bbox\": \"\\n[663, 467, 700, 511]]\"}"
+      }
+    ],
+    "content": "",
+    "usage": {
+      "completion_tokens": 133,
+      "prompt_tokens": 5758,
+      "total_tokens": 5891,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 87,
+        "rejected_prediction_tokens": null,
+        "text_tokens": 46
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 4480,
+        "image_tokens": 2042,
+        "text_tokens": 3716
+      }
+    },
+    "http_serialized_at": 1789873154.1396039,
+    "wire_sha256": "bdfc7a60bbb3f6eee4bd3eb54a4600da91e7f2c33e2c21b45073276e5bec6665",
+    "response_model": "qwen3.7-flash-2026-07-15",
+    "finish_reason": "tool_calls",
+    "seconds": 3.0136032104492188,
+    "available_tools_only": true,
+    "hit": false
+  },
+  {
+    "variant": "corrected",
+    "repeat": 1,
+    "case": 2,
+    "request_sha256": "c574d8484750c1eef65be53589cdcfd6887583ef4f27fc0f4618706b6464b7c9",
+    "image_sha256": "9ad66c1a050a36d0735b381ea24be41659315df7460d221cdf1ebae94af4c64f",
+    "started": 1789873157.150219,
+    "calls": [
+      {
+        "name": "click",
+        "arguments": "{\"bbox\": \"\\n[613, 475, 649, 511]]\"}"
+      }
+    ],
+    "content": "",
+    "usage": {
+      "completion_tokens": 123,
+      "prompt_tokens": 5758,
+      "total_tokens": 5881,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 77,
+        "rejected_prediction_tokens": null,
+        "text_tokens": 46
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 4480,
+        "image_tokens": 2042,
+        "text_tokens": 3716
+      }
+    },
+    "http_serialized_at": 1789873157.152299,
+    "wire_sha256": "06a83a7b3d7373ab2989bc751e534ca31734b2f2e986a9331d69d41f6311c219",
+    "response_model": "qwen3.7-flash-2026-07-15",
+    "finish_reason": "tool_calls",
+    "seconds": 2.9107189178466797,
+    "available_tools_only": true,
+    "hit": false
+  },
+  {
+    "variant": "legacy",
+    "repeat": 1,
+    "case": 2,
+    "request_sha256": "f07e372ca8fc6fac780ca07c3a6813c083a841f46e5725cc0c49bac39a8aec1f",
+    "image_sha256": "9ad66c1a050a36d0735b381ea24be41659315df7460d221cdf1ebae94af4c64f",
+    "started": 1789873160.06209,
+    "calls": [
+      {
+        "name": "click",
+        "arguments": "{\"x\": \"625\", \"y\": 505}"
+      }
+    ],
+    "content": "",
+    "usage": {
+      "completion_tokens": 150,
+      "prompt_tokens": 5982,
+      "total_tokens": 6132,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 108,
+        "rejected_prediction_tokens": null,
+        "text_tokens": 42
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 4480,
+        "image_tokens": 2042,
+        "text_tokens": 3940
+      }
+    },
+    "http_serialized_at": 1789873160.064141,
+    "wire_sha256": "c051752d105b5a8c7d659bccaa467a81c641229f0f56a2a28de9ee915c58935f",
+    "response_model": "qwen3.7-flash-2026-07-15",
+    "finish_reason": "tool_calls",
+    "seconds": 3.519534111022949,
+    "available_tools_only": true,
+    "hit": false,
+    "error_px": 334.3691971459093
+  }
+]

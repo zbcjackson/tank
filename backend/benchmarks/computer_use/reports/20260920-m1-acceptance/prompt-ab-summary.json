@@ -1,0 +1,24 @@
+{
+  "legacy": {
+    "requests": 6,
+    "hits": 0,
+    "unavailable_tool_calls": 0,
+    "input_tokens": 35892,
+    "output_tokens": 2035,
+    "cached_input_tokens": 13440,
+    "seconds_sum": 36.524025440216064
+  },
+  "corrected": {
+    "requests": 6,
+    "hits": 0,
+    "unavailable_tool_calls": 0,
+    "input_tokens": 34548,
+    "output_tokens": 1465,
+    "cached_input_tokens": 13440,
+    "seconds_sum": 27.163291931152344
+  },
+  "uncached_list_price_estimate_usd": 0.00235732,
+  "layout_count": 3,
+  "repetitions_per_layout": 2,
+  "no_accuracy_improvement_observed": true
+}

@@ -594,5 +594,12 @@ semantics. Calculator tests run the actual shell validator through the trial
 runner and preserve strict failures alongside separate business/mouse evidence.
 They reject answer-only insertion, old-trial evidence and unfinished input.
 Trace tests use the real SDK with fake HTTP to verify image hashes without
-storing credentials or image bytes in request events. Pixel grading remains
-`unknown`; these tests are not a substitute for physical desktop acceptance.
+storing credentials or image bytes in request events. Additional regressions
+cover ASCII text under a non-ASCII input source, native input-source reference
+release and shifted physical keys (`shift+8`). The
+[M1 acceptance report](benchmarks/computer_use/reports/20260920-m1-acceptance/README.md)
+records real TextEdit/Calculator input, verified cleanup, local screenshot review
+and synthetic prompt-only A/B. Generic pixel grading remains `unknown`: local
+OCR misreads some isolated digits, and independent visual review is kept separate.
+Unit tests and saved-image SDK replay do not establish real-model closed-loop
+accuracy or live screenshot freshness.

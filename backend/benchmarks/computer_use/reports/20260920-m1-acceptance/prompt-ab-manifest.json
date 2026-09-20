@@ -1,0 +1,84 @@
+{
+  "status": "completed",
+  "scope": "synthetic first-action prompt-only paired comparison; no GUI actions; not a closed-loop score",
+  "model": "qwen3.7-flash-2026-07-15",
+  "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "request_cap": 12,
+  "per_request_seconds": 60,
+  "per_request_output_tokens": 40000,
+  "total_token_stop": 300000,
+  "retries": 0,
+  "stream_options": {
+    "include_usage": true
+  },
+  "image_source": "existing synthetic scene generator; no desktop pixels",
+  "price_source": "https://www.alibabacloud.com/help/en/model-studio/qwen3-7-flash",
+  "price_checked": "2026-09-20",
+  "usd_per_million_input": 0.028,
+  "usd_per_million_output": 0.11,
+  "estimated_usd": 0.018,
+  "conservative_usd_at_request_caps": 0.064,
+  "images": [
+    {
+      "id": 0,
+      "sha256": "34152cd2385f7ef268e37906cd674e267e63f6dabc6bf79cd261792d7cefa000",
+      "target": [
+        560,
+        345
+      ]
+    },
+    {
+      "id": 1,
+      "sha256": "e74341ca8a55b405cd2d511032815e0ad926e9c88a212205a8910ed433cfb995",
+      "target": [
+        1309,
+        546
+      ]
+    },
+    {
+      "id": 2,
+      "sha256": "9ad66c1a050a36d0735b381ea24be41659315df7460d221cdf1ebae94af4c64f",
+      "target": [
+        934,
+        748
+      ]
+    }
+  ],
+  "scoring": "tool name available; first click point hits rounded button mask; all failed/truncated outputs retained; paired by three layouts, two repetitions",
+  "variant_order": "alternates legacy/corrected per layout and repetition",
+  "actual_requests": 12,
+  "budget_tokens_charged": 73940,
+  "reported_tokens": 73940,
+  "usage_complete": true,
+  "synthetic_size": [
+    1920,
+    1080
+  ],
+  "positions": [
+    [
+      0.1,
+      0.2
+    ],
+    [
+      0.7,
+      0.5
+    ],
+    [
+      0.4,
+      0.8
+    ]
+  ],
+  "target": "7",
+  "task": "Using the GUI shown, click the Calculator button labeled 7.",
+  "original_requests": "../20260919-adaptation-m0/{legacy,corrected}-request.json",
+  "common_overrides": {
+    "user_task": "Using the GUI shown, click the Calculator button labeled 7.",
+    "stream_options": {
+      "include_usage": true
+    },
+    "image_message_text": "Current screenshot (synthetic controlled desktop)."
+  },
+  "generator": "backend/scripts/probe_grounding_contract.py:scene",
+  "production_fix_revision": "dac426f",
+  "replay_source_local": "/tmp/tank-m1-20260920/prompt-ab.py"
+}

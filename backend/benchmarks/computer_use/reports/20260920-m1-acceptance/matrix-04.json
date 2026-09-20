@@ -1,0 +1,345 @@
+{
+  "outbound_requests": 0,
+  "rows": [
+    {
+      "id": "text-letters",
+      "app": "TextEdit",
+      "text": "Abc123",
+      "mode": "auto",
+      "actual": "Abc123",
+      "passed": true,
+      "dispatch": "Typed: 'Abc123'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "captured_at": 1789872695.225527,
+      "window_bounds": [
+        {
+          "X": 2008.0,
+          "Height": 439.0,
+          "Y": -465.0,
+          "Width": 673.0
+        },
+        {
+          "X": 213.0,
+          "Height": 505.0,
+          "Y": 77.0,
+          "Width": 603.0
+        }
+      ],
+      "screenshot": "text-letters/screenshots/shot_001.png",
+      "sha256": "f8006f6098230bb439d540e09e1f81848a8e4fa9a7116dc04bec97216ceb5206"
+    },
+    {
+      "id": "text-punctuation",
+      "app": "TextEdit",
+      "text": "7*8 - . !?",
+      "mode": "auto",
+      "actual": "7*8 - . !?",
+      "passed": true,
+      "dispatch": "Typed: '7*8 - . !?'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "captured_at": 1789872696.719281,
+      "window_bounds": [
+        {
+          "X": 2008.0,
+          "Height": 439.0,
+          "Y": -465.0,
+          "Width": 673.0
+        },
+        {
+          "X": 213.0,
+          "Height": 505.0,
+          "Y": 77.0,
+          "Width": 603.0
+        }
+      ],
+      "screenshot": "text-punctuation/screenshots/shot_001.png",
+      "sha256": "7e09aae98ea11a3a02da546cc3d2342fc0b8c9bff4eabcbdb2c8d328cd5192e8"
+    },
+    {
+      "id": "text-chinese",
+      "app": "TextEdit",
+      "text": "你好，世界",
+      "mode": "auto",
+      "actual": "你好，世界",
+      "passed": true,
+      "dispatch": "Typed: '你好，世界'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "captured_at": 1789872698.203342,
+      "window_bounds": [
+        {
+          "X": 2008.0,
+          "Height": 439.0,
+          "Y": -465.0,
+          "Width": 673.0
+        },
+        {
+          "X": 213.0,
+          "Height": 505.0,
+          "Y": 77.0,
+          "Width": 603.0
+        }
+      ],
+      "screenshot": "text-chinese/screenshots/shot_001.png",
+      "sha256": "7e09aae98ea11a3a02da546cc3d2342fc0b8c9bff4eabcbdb2c8d328cd5192e8"
+    },
+    {
+      "id": "text-multiline",
+      "app": "TextEdit",
+      "text": "line1\nline2",
+      "mode": "auto",
+      "actual": "line1\nline2",
+      "passed": true,
+      "dispatch": "Typed: 'line1\\nline2'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "captured_at": 1789872699.59454,
+      "window_bounds": [
+        {
+          "X": 2008.0,
+          "Height": 439.0,
+          "Y": -465.0,
+          "Width": 673.0
+        },
+        {
+          "X": 213.0,
+          "Height": 505.0,
+          "Y": 77.0,
+          "Width": 603.0
+        }
+      ],
+      "screenshot": "text-multiline/screenshots/shot_001.png",
+      "sha256": "373725d797ce9836dc403da77a28f3153afb1b4a8a4aafd8f857bac3cec7c215"
+    },
+    {
+      "id": "text-paste",
+      "app": "TextEdit",
+      "text": "Abc123",
+      "mode": "paste",
+      "actual": "Abc123",
+      "passed": true,
+      "dispatch": "Typed: 'Abc123'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "captured_at": 1789872701.071114,
+      "window_bounds": [
+        {
+          "X": 2008.0,
+          "Height": 439.0,
+          "Y": -465.0,
+          "Width": 673.0
+        },
+        {
+          "X": 213.0,
+          "Height": 505.0,
+          "Y": 77.0,
+          "Width": 603.0
+        }
+      ],
+      "screenshot": "text-paste/screenshots/shot_001.png",
+      "sha256": "7e09aae98ea11a3a02da546cc3d2342fc0b8c9bff4eabcbdb2c8d328cd5192e8"
+    },
+    {
+      "id": "text-enter",
+      "app": "TextEdit",
+      "actual": "first\nsecond",
+      "passed": true,
+      "captured_at": 1789872703.292812,
+      "window_bounds": [
+        {
+          "X": 2008.0,
+          "Height": 439.0,
+          "Y": -465.0,
+          "Width": 673.0
+        },
+        {
+          "X": 213.0,
+          "Height": 505.0,
+          "Y": 77.0,
+          "Width": 603.0
+        }
+      ],
+      "screenshot": "text-enter/screenshots/shot_001.png",
+      "sha256": "373725d797ce9836dc403da77a28f3153afb1b4a8a4aafd8f857bac3cec7c215"
+    },
+    {
+      "id": "calc-digits",
+      "app": "Calculator",
+      "text": "123",
+      "mode": "auto",
+      "display": {
+        "result": "123"
+      },
+      "dispatch": "Typed: '123'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "reset_verified": true,
+      "captured_at": 1789872713.075656,
+      "window_bounds": [
+        {
+          "X": 2089.0,
+          "Height": 408.0,
+          "Y": -2.0,
+          "Width": 674.0
+        }
+      ],
+      "screenshot": "calc-digits/screenshots/shot_001.png",
+      "sha256": "f8c48368f0da8f6a068fa9135c5540d08194ef0a8853dcbb938a3de0a6248b5f"
+    },
+    {
+      "id": "calc-letters",
+      "app": "Calculator",
+      "text": "Abc",
+      "mode": "auto",
+      "display": {
+        "result": "0"
+      },
+      "dispatch": "Typed: 'Abc'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "reset_verified": true,
+      "captured_at": 1789872722.5451782,
+      "window_bounds": [
+        {
+          "X": 2089.0,
+          "Height": 408.0,
+          "Y": -2.0,
+          "Width": 674.0
+        }
+      ],
+      "screenshot": "calc-letters/screenshots/shot_001.png",
+      "sha256": "fed6007da64612ee4469c22fea9a44385ad7e25eb8f0b91226f328a682b0dc5e"
+    },
+    {
+      "id": "calc-punctuation",
+      "app": "Calculator",
+      "text": "7*8",
+      "mode": "auto",
+      "display": {
+        "result": "56"
+      },
+      "dispatch": "Typed: '7*8'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "reset_verified": true,
+      "captured_at": 1789872731.7714949,
+      "window_bounds": [
+        {
+          "X": 2089.0,
+          "Height": 408.0,
+          "Y": -2.0,
+          "Width": 674.0
+        }
+      ],
+      "screenshot": "calc-punctuation/screenshots/shot_001.png",
+      "sha256": "8db4f880dffa4b19dea0c5d7a09e70d779e0ad8430ebe844c10344f696824d28"
+    },
+    {
+      "id": "calc-chinese",
+      "app": "Calculator",
+      "text": "你好",
+      "mode": "auto",
+      "display": {
+        "result": "0"
+      },
+      "dispatch": "Typed: '你好'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "reset_verified": true,
+      "captured_at": 1789872741.0947149,
+      "window_bounds": [
+        {
+          "X": 2089.0,
+          "Height": 408.0,
+          "Y": -2.0,
+          "Width": 674.0
+        }
+      ],
+      "screenshot": "calc-chinese/screenshots/shot_001.png",
+      "sha256": "4b49c66314b1d4aaeb68b3fbe2bc5a5415a476f34930d70a121ef0e055c28213"
+    },
+    {
+      "id": "calc-paste-digits",
+      "app": "Calculator",
+      "text": "123",
+      "mode": "paste",
+      "display": {
+        "result": "123"
+      },
+      "dispatch": "Typed: '123'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "reset_verified": true,
+      "captured_at": 1789872750.344741,
+      "window_bounds": [
+        {
+          "X": 2089.0,
+          "Height": 408.0,
+          "Y": -2.0,
+          "Width": 674.0
+        }
+      ],
+      "screenshot": "calc-paste-digits/screenshots/shot_001.png",
+      "sha256": "6af351f8fb013eb5257c2dcc6fb88d70db0e733fc115d5ce921dcb5bd545cec6"
+    },
+    {
+      "id": "calc-paste-expression",
+      "app": "Calculator",
+      "text": "7*8",
+      "mode": "paste",
+      "display": {
+        "result": "56"
+      },
+      "dispatch": "Typed: '7*8'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "reset_verified": true,
+      "captured_at": 1789872759.6915672,
+      "window_bounds": [
+        {
+          "X": 2089.0,
+          "Height": 408.0,
+          "Y": -2.0,
+          "Width": 674.0
+        }
+      ],
+      "screenshot": "calc-paste-expression/screenshots/shot_001.png",
+      "sha256": "a42105e178e163add0fabdc96e88a096c56610e878a1300a1a343f7726eb5dbb"
+    },
+    {
+      "id": "calc-decimal",
+      "app": "Calculator",
+      "text": "1.5",
+      "mode": "auto",
+      "display": {
+        "result": "1.5"
+      },
+      "dispatch": "Typed: '1.5'\nInput method: clipboard_paste. Input dispatched; application effect not verified.",
+      "reset_verified": true,
+      "captured_at": 1789872769.007212,
+      "window_bounds": [
+        {
+          "X": 2089.0,
+          "Height": 408.0,
+          "Y": -2.0,
+          "Width": 674.0
+        }
+      ],
+      "screenshot": "calc-decimal/screenshots/shot_001.png",
+      "sha256": "0d2d9fdab5080250e63c3a1c0a2f06ef3c872ba9b134dbec48c88a952cba8869"
+    },
+    {
+      "id": "calc-enter",
+      "app": "Calculator",
+      "keys": [
+        "7",
+        "shift+8",
+        "8",
+        "enter"
+      ],
+      "display": {
+        "result": "788"
+      },
+      "passed": false,
+      "reset_verified": true,
+      "captured_at": 1789872778.719262,
+      "window_bounds": [
+        {
+          "X": 2089.0,
+          "Height": 408.0,
+          "Y": -2.0,
+          "Width": 674.0
+        }
+      ],
+      "screenshot": "calc-enter/screenshots/shot_001.png",
+      "sha256": "4ec6e12eb17d33e06c40d5f6cae875bd78ebb53f14d2c63788d8195ab8f1ce2d"
+    }
+  ],
+  "cleanup": {
+    "calculator_reset": true,
+    "document_closed": true,
+    "clipboard_restored": true,
+    "frontmost_restored": true,
+    "confirmed": true
+  }
+}

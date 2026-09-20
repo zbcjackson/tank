@@ -1,0 +1,18 @@
+{
+  "ts": 1789872265.026915,
+  "prior_document_was_open": true,
+  "prior_document_modified": false,
+  "close_returncode": 1,
+  "remaining": "",
+  "error": "100:155: execution error: TextEdit got an error: Can\u2019t get item 2 of every document. Invalid index. (-1719)",
+  "frontmost": "sh.paseo.desktop",
+  "historical_clipboard_restoration": "unverifiable: no saved snapshot; old trial dispatched no inputs",
+  "outbound_requests": 0,
+  "independent_verification": {
+    "ts": 1789872285.529693,
+    "returncode": 0,
+    "remaining": "0",
+    "error": ""
+  },
+  "temporary_document_cleanup": "confirmed"
+}
