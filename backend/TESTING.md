@@ -617,3 +617,21 @@ restoration. The [M2 report](benchmarks/computer_use/reports/20260920-m2-observa
 records 9/9 hits with zero per-axis error and the initial rejected full-screen
 attempt. Scene checks are conservative and do not prove dynamic-UI reliability,
 model accuracy, physical drag/scroll or the M6 stop/cleanup matrix.
+
+
+M3 shared-adapter regressions extend `core/tests/test_grounding_probe.py` with
+actual LLMProfile → LLM → SDK HTTP serialization for Qwen, DeepSeek and OpenRouter,
+image/hash/size binding, image-to-M2 mapping, distinct explicit outcomes, invalid
+configuration, and refusal/truncation rejection. Ten archived M3 responses replay
+through the production adapter with identical requests and image hashes; malformed
+arrays remain failures and legal misses retain their scores. Floating distance
+comparisons allow only arithmetic roundoff. Cancellation propagates and a 429
+causes exactly one HTTP request (wrapper and SDK retries both disabled).
+
+The matrix now rejects `finish_reason=length` even with syntactically complete
+tool arguments, retaining raw arguments and usage. This is tested via real SDK
+HTTP, not a mock completion. Existing LLM retry/profile/trace tests cover the
+unchanged `complete()` text API. No new planner dispatch exists yet, so existing
+E2E scenarios are regression coverage; shared task accounting, locate dispatch
+and physical cancellation remain M4/M6 acceptance work. These tests use no paid
+model calls or desktop actions.

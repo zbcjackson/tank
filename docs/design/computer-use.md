@@ -82,6 +82,42 @@ ToolManager 注入会话身份。缺失/旧/跨会话 frame、窗口不匹配或
 [frame 工具适配](../../backend/core/src/tank_backend/tools/computer_frame.py)
 由实际 SDK HTTP/ToolManager/Quartz 回归覆盖；未进行本批模型截图请求。
 
+## 共用定位适配器（M3 实现，尚未启用 locate）
+
+[GroundingAdapter](../../backend/core/src/tank_backend/tools/computer_grounding.py)
+位于 computer-use 工具层，按显式协议构建图片、提示、schema 并解析响应。
+它与 probe 共用代码，不按型号建立继承树，也不根据坐标数值猜测单位。
+模型、端点、temperature、输出预算及 thinking/provider 参数继续由已有
+`LLMProfile` 提供；没有新增默认 profile 或修改当前模型。
+
+- `point` 为 0–1000 点，`pixels` 为图片内整数点，`bbox` 为 0–1000 框；
+  统一返回不可变 `ImageLocation`。点为图片内像素；框保留图片内边界，最大
+  边界可等于图片宽/高，执行取单独提供的中心点。旧端点 1000 的点仍映射到
+  最后一个有效像素。裁剪还原与 Quartz 取整继续由 M2 Observation 完成。
+- 兼容旧 `found` schema（默认）：`false` 同时表示缺失或不确定，所以内部
+  保守记为 `ambiguous`，不能宣称已证明目标不存在。显式 `status_field=True`
+  使用 `found/not_found/ambiguous`，非 found 结果没有点/框。nullable/整数
+  哨兵规则与旧探针一致；模型可用性和 strict 效果仍需独立实验。
+- `request(llm, observation, png, target)` 先核验 PNG hash、格式和实际尺寸，
+  再调用通用 `LLM.complete_response()`，只上传当前图与目标，不发送聊天历史。
+  `build_request()` 的 previous/marked 等选项只保留给离线 probe 对照；
+  `request()` 不开放这些历史/标记参数。API 仅返回位置声明，不执行 `click`。
+- LLM 层新增的完整响应接口保留工具参数、结束原因、实际模型与 usage，
+  不理解坐标。适配器关闭 SDK/封装层重试，取消直接传播。调用者先持有完整
+  响应、记录用量，再 `parse_response()`；解析失败不会丢掉原响应及费用证据。
+- 完整响应解析拒绝 length、content_filter、refusal、多 choice、缺失/多工具、
+  错工具及非法坐标。数组、字符串、重复字段、越界、倒置框不自动修补。
+  矩阵 probe 已使用同一检查，完整 JSON 也不能覆盖 length 失败。
+
+本步是可调用的生产协议/LLM 接口；AgentRunner 尚未注册定位工具，默认一体
+模式与桌面动作保持原路径。M4 才把返回值绑定当前任务/frame，并接入共享
+预算、截止时间、重新观察、审批和动作派发。适配器的图片一致性检查不代表
+屏幕仍然新鲜，不能替代 M2 执行前校验；调用者也不得自行相信模型 frame_id。
+
+十份 M3 真实响应通过实际 SDK 的本地 HTTP 回放，与历史请求逐字段、图片 hash
+一致；三份数组响应仍拒绝，合法错点仍是错点。没有新增付费调用、真实截图
+外发或 holdout 结果，也未验证 strict/native bbox 模型效果。
+
 ## 已修复与测试覆盖
 
 - 主屏截取、Retina 缩放失败处理、缩放后宽高检查、边界点不超屏，以及非法
@@ -97,7 +133,7 @@ ToolManager 注入会话身份。缺失/旧/跨会话 frame、窗口不匹配或
   被工具层拒绝且不注入事件；真实模型坐标回放验证本地落点，不把错点修正成真值。
 - 新探针覆盖独立 point/pixel/bbox、严格整数/范围/重复字段/边框顺序、缺失
   目标、host bbox 中心/crop 还原、圆角按钮 mask 评分、CLI 到 HTTP 的思考与
-  预算参数、length 用量保留。新协议仍属探针，未替换生产 click schema。
+  预算参数、length 用量保留。协议构建/解析现已与 M3 适配器共用，未替换默认生产 click schema。
 
 入口：[macOS 测试](../../backend/core/tests/test_computer_use_macos.py)、
 [探针测试](../../backend/core/tests/test_grounding_probe.py)、

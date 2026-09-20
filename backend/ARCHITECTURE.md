@@ -182,6 +182,12 @@ Tools can require human approval before execution. The approval flow:
 Computer-use 的 macOS 截图/坐标链与实测边界见
 [Computer use 说明](../docs/design/computer-use.md)。
 
+Computer-use grounding protocols live in `tools/computer_grounding.py`, shared
+with the probe. Provider settings remain in `LLMProfile`; the generic
+`LLM.complete_response()` returns tool arguments, finish reason and usage without
+executing tools. The adapter exposes a single-call API; planner `locate` wiring
+and the shared task budget are still M4 work. Default desktop calls are unchanged.
+
 **LLM Client** (`llm.py`):
 - OpenAI-compatible API via `AsyncOpenAI`
 - Multiple named profiles (default, summarization) in `config.yaml`

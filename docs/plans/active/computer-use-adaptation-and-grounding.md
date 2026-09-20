@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-20。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 首批十次合成图端点/协议预检已记录，共用生产适配及其余验收待完成；M4–M8 待完成。N2 复用既有 benchmark。
+> 状态：执行中，2026-09-20。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 首批十次合成图端点/协议预检已记录，共用适配与生产 LLM 单次调用接口已实现，其余模型验收待完成；M4–M8 待完成。N2 复用既有 benchmark。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -194,8 +194,8 @@ benchmark，不能仅因历史清单未勾选就写成“还未验证”。
 
 首批 [M3 端点预检](../../../backend/benchmarks/computer_use/reports/20260920-m3-preflight/README.md)
 已完成五模型 × 两协议的十次合成图调用；16 次预检上限余 6 次。
-具体可用型号、请求/响应型号、参数、用量与失败已记录；strict、原生框、
-共用生产 adapter 和配置冻结尚未完成，以下整项仍不勾选。
+具体可用型号、请求/响应型号、参数、用量与失败已记录；共用生产 adapter
+的离线实现见下；strict/原生框实测、配置冻结与模型效果验收尚未完成。
 
 - [ ] 使用当前已配置的 Qwen/DeepSeek/OpenRouter profile，保留现有 Qwen
   基线和 GPT-5.5 对照，补 Qwen3.8 与 DeepSeek V4.1 候选；具体 ID/可用性
@@ -203,7 +203,7 @@ benchmark，不能仅因历史清单未勾选就写成“还未验证”。
 - [ ] 为每个候选记录官方契约和实际预检：图片参数、坐标参照系、原生点/框、
   strict 支持、thinking/temperature/预算、失败响应。OpenRouter 自定义工具
   不等于 Responses computer；没有支持证据不发送后者的专用字段。
-- [ ] 从已有 probe 提取最小可复用契约，接到生产调用路径，避免复制一套
+- [x] 从已有 probe 提取最小可复用契约，接到生产调用路径，避免复制一套
   与生产不同的探针适配逻辑。模型外部协议可不同，内部图片点/框类型统一。
 - [ ] 在调参集分别改变 schema、图片/detail、提示和思考设置，选定配置后
   冻结 adapter 再跑 holdout。来源不明的服务端缩图不进入补偿公式。
@@ -526,6 +526,37 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   源码改动，定向 pyright 不适用；已有 probe 49 测试与十条离线回放通过。
 - 本步完成 M3 初始可用性预检；下一步提取生产/probe 共用协议与严格解析，
   分因素测试 native/strict/detail/thinking，冻结后才运行 holdout。M3 不关档。
+
+### 2026-09-20 — M3 共用协议与生产 LLM 单次调用
+
+- 按已确认的分层实现 `tools/computer_grounding.py`：profile 管模型/端点/参数，
+  共用 adapter 管图片、schema、严格点框解析；没有型号专属类和坐标猜测。
+  M2 的 Observation/宿主转换保持不变。实现边界见
+  [现行设计](../../design/computer-use.md#共用定位适配器m3-实现尚未启用-locate)。
+- 通用 `LLM.complete_response()` 保留工具调用、结束原因、型号与 usage；
+  原 `complete()` 仍返回文本。adapter 的单次请求先检查实际 PNG/hash/尺寸，
+  再使用此接口，关闭两层重试、直接传播取消。完整响应先交调用者计账和留证，
+  再做定位解析，不注册动作工具、不自动重试定位。
+- 旧 found schema 保留；false 的内部状态保守为 ambiguous。新显式 status
+  区分 found/not_found/ambiguous；点框统一成图片内单位，非 found 无坐标。
+  实際模型对新 schema/strict 的遵循程度仍未测试，不能视为收益结论。
+- TDD 复现并修复 probe 把 length + 完整参数视为合法定位的问题；本批仍保留
+  原始参数、finish_reason 和 usage。图片错配零 HTTP、拒绝/截断无坐标、
+  三提供方 SDK 请求和十份历史响应回放均有测试，旧失败不改分。
+- 这是 M3 共享协议及可调用生产接口子任务。Runner 的 locate 工具、任务/frame
+  绑定、共享预算/截止时间和动作衔接仍属 M4，尚未上线；M3 模型筛选、原生
+  协议/strict/detail/thinking 对照及冻结 holdout 配置仍待完成。
+- 本批模型请求、桌面动作、截图外发均为 0；预检上限仍余 6 次，默认模式不变。
+  不把离线实现等同于 M3 全阶段验收。
+- 验证：backend **4595 passed / 1 skipped**（含旧 N2/SDK），E2E **14 场景 /
+  55 步**；web lint/TypeScript、backend/CLI ruff、全部五个修改 Python 文件
+  pyright、后端实际 pane 日志、文档及协议检查通过。定向集成 **198 项**通过，
+  进一步收紧浮点回放误差到绝对 1e-10 后十份记录再次通过。完整测试使用
+  既有临时 uv cache、Opus 动态库路径及允许本地端口/网络的执行环境。
+- 首轮回放断言有约 1e-13 的浮点运算差异，改为只容许舍入误差；命中 mask
+  和原始响应保持完全一致。TDD 红灯包括缺失适配器、图片错配仍发 HTTP、
+  未区分结果状态、非法配置/尺寸、length 仍合法以及拒绝响应仍返回坐标，
+  均在对应最小实现后转绿。本轮没有用类型忽略或坐标修补掩盖错误。
 
 ## 9. 最终 Verification Checklist
 

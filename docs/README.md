@@ -41,4 +41,4 @@
 - [plans/done/gpt55-computer-use-loop.md](plans/done/gpt55-computer-use-loop.md)：验证结论汇总、GPT-5.5 实机 calc-open 2/3 严格通过与 temperature 接入修复（已完成）。
 - [research/computer-use-implementation-comparison.md](research/computer-use-implementation-comparison.md)：模型与宿主责任边界、其它实现的坐标/AX/定位器/反馈设计及实验优先级。
 - [plans/done/computer-use-implementation-research.md](plans/done/computer-use-implementation-research.md)：公开实现对照与改进方案调研（已完成）。
-- [plans/active/computer-use-adaptation-and-grounding.md](plans/active/computer-use-adaptation-and-grounding.md)：效果改进计划（执行中：M1 输入/本地图像验收及首步提示 A/B 完成，未观察到定位收益；M0 离线失败集/64 布局 holdout/manifest 已补齐，M2 frame/宿主还原及主屏九点验收已完成，M3 首批十次合成图端点/协议预检已完成，下一步生产共用适配与配置验证）；复用 N2 benchmark，覆盖已知问题、模型适配、规划定位分离、四组对照与真实效果验收。
+- [plans/active/computer-use-adaptation-and-grounding.md](plans/active/computer-use-adaptation-and-grounding.md)：效果改进计划（执行中：M1 输入/本地图像验收及首步提示 A/B 完成，未观察到定位收益；M0 离线失败集/64 布局 holdout/manifest 已补齐，M2 frame/宿主还原及主屏九点验收已完成，M3 首批十次合成图端点/协议预检已完成，生产共用协议/LLM 单次调用接口已实现，下一步候选配置与模型效果验证）；复用 N2 benchmark，覆盖已知问题、模型适配、规划定位分离、四组对照与真实效果验收。
