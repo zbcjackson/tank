@@ -542,3 +542,323 @@ async def test_real_provider_sse_preserves_bad_arguments_and_refuses_execution(m
     result = await manager.execute_openai_tool_call(SimpleNamespace(function=SimpleNamespace(**fn)))
     assert not isinstance(result, str) and result.error
     manager.execute_tool.assert_not_called()
+
+
+@pytest.mark.parametrize("provider", ["qwen", "deepseek", "openrouter"])
+async def test_grounding_adapter_uses_profile_and_bound_image_over_real_sdk(monkeypatch, provider):
+    import base64
+    import io
+    import json
+
+    import httpx
+    from openai import AsyncOpenAI
+    from PIL import Image
+
+    from tank_backend.benchmarks.grounding_probe import location_request
+    from tank_backend.llm.profile import LLMProfile, create_llm_from_profile
+    from tank_backend.tools.computer_grounding import GroundingAdapter
+    from tank_backend.tools.computer_observation import Observation
+
+    monkeypatch.setenv("LANGFUSE_TRACING_ENABLED", "false")
+    png = io.BytesIO()
+    Image.new("RGB", (800, 600), "white").save(png, format="PNG")
+    observation, image = Observation.capture(
+        png.getvalue(), session_id="test", display_id=1, region=(250, 250, 750, 750),
+    )
+    adapter = GroundingAdapter(protocol="point", nullable_style="integer")
+    profile = LLMProfile(
+        name="grounder", api_key="test", model="candidate", base_url="https://probe.invalid/v1",
+        temperature=None if provider == "openrouter" else 0.1, max_tokens=8000,
+        extra_body={
+            "qwen": {"enable_thinking": False},
+            "deepseek": {"thinking": {"type": "disabled"}},
+            "openrouter": {"reasoning": {"effort": "none"}, "provider": {
+                "only": ["openai"], "allow_fallbacks": False, "require_parameters": True}},
+        }[provider],
+    )
+    seen = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        seen.append(body)
+        expected = location_request(
+            provider, "candidate", image, observation.image_size, "AC", "point",
+            nullable_style="integer", thinking=False, max_tokens=8000,
+        )
+        extra = expected.pop("extra_body")
+        assert body == expected | extra
+        assert base64.b64decode(body["messages"][-1]["content"][1]["image_url"]["url"]
+                                .split(",", 1)[1]) == image
+        return httpx.Response(200, json={"id": "test", "object": "chat.completion",
+            "created": 1, "model": "candidate", "choices": [{"index": 0,
+                "finish_reason": "tool_calls", "message": {"role": "assistant",
+                    "content": None, "tool_calls": [{"id": "one", "type": "function",
+                        "function": {"name": "click", "arguments":
+                            '{"found":true,"x":250,"y":750}'}}]}}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120}})
+
+    llm = create_llm_from_profile(profile)
+    await llm.client.close()
+    async with AsyncOpenAI(api_key="test", base_url=profile.base_url,
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond))) as client:
+        llm.client = client
+        response = await adapter.request(llm, observation, image, "AC")
+    location = adapter.parse_response(response, observation.image_size)
+    assert location.status == "found"
+    assert location.point == (observation.image_size[0] * .25, observation.image_size[1] * .75)
+    assert location.point is not None
+    assert observation.map_point(*location.point) == (300, 375)
+    assert response.usage is not None and response.usage.total_tokens == 120
+    assert len(seen) == 1
+
+
+@pytest.mark.parametrize("mismatch", ["bytes", "size", "not-png"])
+async def test_grounding_rejects_unbound_image_before_http(monkeypatch, mismatch):
+    import hashlib
+    import io
+    from dataclasses import replace
+
+    import httpx
+    from openai import AsyncOpenAI
+    from PIL import Image
+
+    from tank_backend.llm.profile import LLMProfile, create_llm_from_profile
+    from tank_backend.tools.computer_grounding import GroundingAdapter
+    from tank_backend.tools.computer_observation import Observation
+
+    monkeypatch.setenv("LANGFUSE_TRACING_ENABLED", "false")
+    buffer = io.BytesIO()
+    Image.new("RGB", (31, 17)).save(buffer, format="PNG")
+    observation, png = Observation.capture(buffer.getvalue(), session_id="a", display_id=1)
+    if mismatch == "bytes":
+        png += b"different"
+    elif mismatch == "size":
+        observation = replace(observation, image_size=(30, 17))
+    else:
+        png = b"not a PNG"
+        observation = replace(observation, image_sha256=hashlib.sha256(png).hexdigest())
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        pytest.fail("An unbound image must not cause an HTTP request")
+
+    llm = create_llm_from_profile(LLMProfile(
+        name="test", api_key="test", model="test", base_url="https://probe.invalid/v1",
+    ))
+    await llm.client.close()
+    async with AsyncOpenAI(api_key="test", base_url=llm.base_url,
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond))) as client:
+        llm.client = client
+        with pytest.raises(ValueError, match="image|PNG"):
+            await GroundingAdapter().request(llm, observation, png, "AC")
+
+
+@pytest.mark.parametrize("status", ["found", "not_found", "ambiguous"])
+def test_grounding_explicit_outcome_keeps_absence_and_ambiguity_distinct(status):
+    import json
+
+    from tank_backend.tools.computer_grounding import GroundingAdapter
+
+    adapter = GroundingAdapter(protocol="bbox", status_field=True, strict=True)
+    request = adapter.build_request(b"png", (800, 400), "Save button in toolbar")
+    schema = request["tools"][0]["function"]["parameters"]
+    assert schema["properties"]["status"]["enum"] == ["found", "not_found", "ambiguous"]
+    assert "found" not in schema["properties"]
+    assert "Save button in toolbar" in request["messages"][-1]["content"][0]["text"]
+    box = [100, 200, 500, 600] if status == "found" else [0, 0, 0, 0]
+    fields = dict(zip(["left", "top", "right", "bottom"], box, strict=True))
+    raw = json.dumps(fields | {"status": status})
+    result = adapter.parse(raw, (800, 400))
+    assert result.status == status
+    if status == "found":
+        assert result.box == (80, 80, 400, 240)
+        assert result.point == (240, 160)
+    else:
+        assert result.point is None and result.box is None
+        with pytest.raises(ValueError):
+            adapter.parse(json.dumps({"status": status, "left": 10, "top": 0,
+                                      "right": 0, "bottom": 0}), (800, 400))
+    with pytest.raises(ValueError):
+        adapter.parse('{"found":true,"left":100,"top":200,"right":500,"bottom":600}',
+                      (800, 400))
+
+
+async def test_matrix_rejects_complete_looking_truncated_location(tmp_path, monkeypatch):
+    import json
+    import runpy
+    from pathlib import Path
+
+    import httpx
+    from openai import AsyncOpenAI
+
+    scripts = Path(__file__).resolve().parents[2] / "scripts"
+    monkeypatch.setenv("LANGFUSE_TRACING_ENABLED", "false")
+    monkeypatch.syspath_prepend(str(scripts))
+    run_trial = runpy.run_path(str(scripts / "probe_grounding_matrix.py"))["run_trial"]
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"id": "test", "object": "chat.completion",
+            "created": 1, "model": "candidate", "choices": [{"index": 0,
+                "finish_reason": "length", "message": {"role": "assistant",
+                    "content": None, "tool_calls": [{"id": "one", "type": "function",
+                        "function": {"name": "click", "arguments":
+                            '{"found":true,"x":250,"y":750}'}}]}}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 8000, "total_tokens": 8100}})
+
+    async with AsyncOpenAI(api_key="test", base_url="https://probe.invalid/v1",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond))) as client:
+        row = await run_trial(client, "qwen", "candidate", 101, "point", tmp_path, "test", "")
+    assert row["schema_valid"] is False and row["hit"] is False
+    assert row["finish_reason"] == "length" and row["usage"]["total_tokens"] == 8100
+    assert "Incomplete location response" in row["error"]
+    assert json.loads(row["arguments"]) == {"found": True, "x": 250, "y": 750}
+    assert (tmp_path / "test.response.json.gz").exists()
+
+
+@pytest.mark.parametrize("options", [
+    {"protocol": "guess"}, {"nullable_style": "coerce"}, {"detail": "invented"},
+    {"strict": "true"}, {"status_field": "false"},
+])
+def test_grounding_invalid_configuration_is_rejected(options):
+    from tank_backend.tools.computer_grounding import GroundingAdapter
+
+    with pytest.raises(ValueError):
+        GroundingAdapter(**options)
+
+
+@pytest.mark.parametrize("size", [(0, 20), (20, -1), (True, 20), (20.5, 10)])
+def test_grounding_rejects_invalid_dimensions_even_for_abstention(size):
+    from tank_backend.tools.computer_grounding import GroundingAdapter
+
+    adapter = GroundingAdapter()
+    with pytest.raises(ValueError, match="image size"):
+        adapter.build_request(b"png", size, "AC")
+    with pytest.raises(ValueError, match="image size"):
+        adapter.parse('{"found":false,"x":0,"y":0}', size)
+
+
+@pytest.mark.parametrize("finish,refusal", [
+    ("length", None), ("content_filter", None), ("tool_calls", "Refused"),
+])
+def test_grounding_incomplete_or_refused_response_never_yields_a_point(finish, refusal):
+    from openai.types.chat import ChatCompletion
+
+    from tank_backend.tools.computer_grounding import GroundingAdapter
+
+    response = ChatCompletion.model_validate({"id": "test", "object": "chat.completion",
+        "created": 1, "model": "test", "choices": [{"index": 0, "finish_reason": finish,
+            "message": {"role": "assistant", "refusal": refusal, "tool_calls": [
+                {"id": "one", "type": "function", "function": {"name": "click",
+                    "arguments": '{"found":true,"x":250,"y":750}'}}]}}],
+        "usage": {"prompt_tokens": 100, "completion_tokens": 8000, "total_tokens": 8100}})
+    with pytest.raises(ValueError):
+        GroundingAdapter().parse_response(response, (800, 600))
+    assert response.usage is not None and response.usage.total_tokens == 8100
+
+
+@pytest.mark.parametrize("failure", ["rate_limit", "cancel"])
+async def test_grounding_single_call_does_not_retry_or_swallow_cancellation(monkeypatch, failure):
+    import asyncio
+    import io
+
+    import httpx
+    from openai import AsyncOpenAI, RateLimitError
+    from PIL import Image
+
+    from tank_backend.llm.profile import LLMProfile, create_llm_from_profile
+    from tank_backend.tools.computer_grounding import GroundingAdapter
+    from tank_backend.tools.computer_observation import Observation
+
+    monkeypatch.setenv("LANGFUSE_TRACING_ENABLED", "false")
+    buffer = io.BytesIO()
+    Image.new("RGB", (31, 17)).save(buffer, format="PNG")
+    observation, png = Observation.capture(buffer.getvalue(), session_id="a", display_id=1)
+    started = asyncio.Event()
+    requests = []
+
+    async def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        started.set()
+        if failure == "cancel":
+            await asyncio.Event().wait()
+        return httpx.Response(429, json={"error": {"message": "Rate limited"}})
+
+    llm = create_llm_from_profile(LLMProfile(
+        name="test", api_key="test", model="test", base_url="https://probe.invalid/v1",
+    ))
+    await llm.client.close()
+    async with AsyncOpenAI(api_key="test", base_url=llm.base_url,
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond))) as client:
+        llm.client = client
+        task = asyncio.create_task(GroundingAdapter().request(llm, observation, png, "AC"))
+        await asyncio.wait_for(started.wait(), 1)
+        if failure == "cancel":
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        else:
+            with pytest.raises(RateLimitError):
+                await task
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize("batch", ["", "pixels"])
+@pytest.mark.parametrize("alias", ["flash", "qwen38flash", "qwen38max", "deepseek", "gpt55"])
+async def test_recorded_m3_responses_replay_through_production_adapter(monkeypatch, batch, alias):
+    import base64
+    import gzip
+    import hashlib
+    import json
+    from pathlib import Path
+
+    import httpx
+    from openai import AsyncOpenAI
+
+    from tank_backend.benchmarks.grounding_probe import score_location
+    from tank_backend.llm.profile import LLMProfile, create_llm_from_profile
+    from tank_backend.tools.computer_grounding import GroundingAdapter
+    from tank_backend.tools.computer_observation import Observation
+
+    monkeypatch.setenv("LANGFUSE_TRACING_ENABLED", "false")
+    report = (Path(__file__).resolve().parents[2] / "benchmarks/computer_use/reports"
+              / "20260920-m3-preflight" / batch)
+    row = next(r for r in json.loads((report / "results.json").read_text()) if r["id"] == alias)
+    recorded = json.loads((report / f"{alias}.request.json").read_text())
+    raw = gzip.decompress((report / f"{alias}.response.json.gz").read_bytes())
+    png = (report / f"{row['images'][0]}.png").read_bytes()
+    observation, image = Observation.capture(png, session_id="replay", display_id=1)
+    adapter = GroundingAdapter(protocol=row["protocol"])
+    extra = {k: v for k, v in recorded.items() if k not in {
+        "model", "messages", "tools", "temperature", "max_tokens", "stream",
+    }}
+    llm = create_llm_from_profile(LLMProfile(
+        name="replay", api_key="test", model=recorded["model"],
+        base_url="https://probe.invalid/v1", temperature=recorded.get("temperature"),
+        max_tokens=recorded["max_tokens"], extra_body=extra,
+    ))
+    await llm.client.close()
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        part = body["messages"][-1]["content"][1]["image_url"]
+        digest = hashlib.sha256(base64.b64decode(part["url"].split(",", 1)[1])).hexdigest()
+        assert digest == observation.image_sha256
+        part["url"] = f"sha256:{digest}"
+        assert body == recorded
+        return httpx.Response(200, content=raw, headers={"content-type": "application/json"})
+
+    async with AsyncOpenAI(api_key="test", base_url=llm.base_url,
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond))) as client:
+        llm.client = client
+        response = await adapter.request(llm, observation, image, row["target"])
+    assert response.model == row["returned_model"]
+    assert response.usage is not None
+    assert response.usage.total_tokens == row["usage"]["total_tokens"]
+    if not row["schema_valid"]:
+        with pytest.raises(ValueError, match="Coordinates must be integers"):
+            adapter.parse_response(response, observation.image_size)
+    else:
+        point = adapter.parse_response(response, observation.image_size).point
+        assert point is not None
+        score = score_location(point, row["bounds"], row["radius"])
+        assert score["hit"] == row["hit"]
+        assert score["distance"] == pytest.approx(row["distance"], rel=0, abs=1e-10)

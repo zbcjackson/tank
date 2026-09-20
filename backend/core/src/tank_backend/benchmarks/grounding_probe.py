@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import math
 from typing import Any
 
 from PIL import Image, ImageDraw
+
+from ..tools.computer_grounding import GroundingAdapter
 
 
 def qwen_native_request(request: dict[str, Any]) -> dict[str, Any]:
@@ -57,65 +58,11 @@ def location_request(
     marked: bool = False, detail: str = "auto", thinking: bool = True,
     nullable_style: str = "type-array", max_tokens: int = 4000,
 ) -> dict[str, Any]:
-    """Build a synthetic diagnostic request, not a production executor request.
-
-    Provider defaults are deliberately explicit. GPT omits sampling parameters;
-    equivalent reasoning budgets across providers are not assumed.
-    """
-    if protocol not in {"point", "pixels", "bbox"}:
-        raise ValueError("Unknown coordinate protocol")
-    fields = ("left", "top", "right", "bottom") if protocol == "bbox" else ("x", "y")
-    limits = (size[0] - 1, size[1] - 1) if protocol == "pixels" else (1000,) * len(fields)
-    properties: dict[str, Any] = {"found": {"type": "boolean"}}
-    properties.update({field: {"type": ["integer", "null"], "minimum": 0, "maximum": limit}
-                       for field, limit in zip(fields, limits, strict=True)})
-    if nullable_style == "anyof":
-        for field, limit in zip(fields, limits, strict=True):
-            properties[field] = {"anyOf": [
-                {"type": "integer", "minimum": 0, "maximum": limit}, {"type": "null"},
-            ]}
-    elif nullable_style == "integer":
-        for field in fields:
-            properties[field]["type"] = "integer"
-    elif nullable_style != "type-array":
-        raise ValueError("Unknown nullable schema style")
-    function: dict[str, Any] = {
-        "name": "click", "description": "Report one target location; no action is executed.",
-        "parameters": {"type": "object", "properties": properties,
-                       "required": ["found", *fields], "additionalProperties": False},
-    }
-    if strict:
-        function["strict"] = True
-    units = (f"original input image pixels, x=0..{size[0]-1}, y=0..{size[1]-1}"
-             if protocol == "pixels" else "normalized coordinates, x=0..1000, y=0..1000")
-    what = "tight bounding box of the button" if protocol == "bbox" else "center of the button"
-    question = (
-        f"CURRENT image: {size[0]}x{size[1]}. Locate the button labeled {target}. "
-        + ("It is outlined in cyan. " if marked else "")
-        + f"Call click once with its {what} in {units}. "
-        "The origin is the top-left of THIS input image; each axis spans the full image. "
-        "Use only the CURRENT image, not previous positions. Set found=true when located. "
-        "If absent or uncertain, set found=false and ALL coordinates="
-        + ("0." if nullable_style == "integer" else "null.")
+    """Compatibility probe API using the production location protocol builder."""
+    request = GroundingAdapter(protocol, nullable_style, strict, detail).build_request(
+        png, size, target, previous=previous, system=system, marked=marked,
     )
-
-    def image_message(data: bytes, text: str) -> dict[str, Any]:
-        return {"role": "user", "content": [{"type": "text", "text": text}, {
-            "type": "image_url", "image_url": {
-                "url": "data:image/png;base64," + base64.b64encode(data).decode(),
-                "detail": detail,
-            },
-        }]}
-
-    messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
-    if previous is not None:
-        # Image-only history isolates stale visual positions, without fabricated CoT.
-        messages.append(image_message(previous, "PREVIOUS image, superseded by the next image."))
-    messages.append(image_message(png, question))
-    request: dict[str, Any] = {
-        "model": model, "messages": messages, "tools": [{"type": "function", "function": function}],
-        "stream": False,
-    }
+    request.update(model=model, stream=False)
     if provider == "qwen":
         request.update(temperature=0.1, max_tokens=max_tokens,
                        extra_body={"enable_thinking": thinking})
@@ -136,57 +83,19 @@ def location_request(
     return request
 
 
-def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"Duplicate field: {key}")
-        result[key] = value
-    return result
-
-
 def decode_location(
     raw: str, protocol: str, size: tuple[int, int],
     crop: tuple[int, int, int, int] | None = None,
     *, abstention_zero: bool = False,
 ) -> tuple[float, float] | None:
-    """Validate one protocol, then map image coordinates to the source frame.
-
-    crop is (left, top, source_width, source_height) before image resizing.
-    None means an explicit abstention; invalid output raises, never repairs.
-    """
-    if protocol not in {"point", "pixels", "bbox"}:
-        raise ValueError("Unknown coordinate protocol")
-    fields = ("left", "top", "right", "bottom") if protocol == "bbox" else ("x", "y")
-    obj = json.loads(raw, object_pairs_hook=_unique_object)
-    if not isinstance(obj, dict) or set(obj) != {"found", *fields}:
-        raise ValueError("Unexpected location fields")
-    if type(obj["found"]) is not bool:
-        raise ValueError("found must be boolean")
-    values = [obj[key] for key in fields]
-    if not obj["found"]:
-        valid = (all(type(value) is int and value == 0 for value in values) if abstention_zero
-                 else all(value is None for value in values))
-        if not valid:
-            raise ValueError("Abstention coordinates do not match the declared protocol")
+    """Compatibility scorer: shared image parsing, then benchmark-only crop mapping."""
+    location = GroundingAdapter(
+        protocol, "integer" if abstention_zero else "type-array",
+    ).parse(raw, size)
+    if location.point is None:
         return None
-    if any(type(value) is not int for value in values):
-        raise ValueError("Coordinates must be integers")
+    x, y = location.point
     w, h = size
-    if w <= 0 or h <= 0:
-        raise ValueError("Invalid image size")
-    limits = [w - 1, h - 1] if protocol == "pixels" else [1000] * len(fields)
-    if any(not 0 <= value <= limit for value, limit in zip(values, limits, strict=True)):
-        raise ValueError("Coordinates outside declared range")
-    if protocol == "bbox":
-        left, top, right, bottom = values
-        if left >= right or top >= bottom:
-            raise ValueError("Bounding box must have positive area")
-        x, y = (left + right) / 2, (top + bottom) / 2
-    else:
-        x, y = values
-    if protocol != "pixels":
-        x, y = min(w - 1, x * w / 1000), min(h - 1, y * h / 1000)
     ox, oy, cw, ch = crop or (0, 0, w, h)
     if cw <= 0 or ch <= 0:
         raise ValueError("Invalid crop extent")

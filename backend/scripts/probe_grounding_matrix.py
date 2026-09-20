@@ -27,11 +27,11 @@ from PIL import Image
 from probe_grounding_contract import scene
 
 from tank_backend.benchmarks.grounding_probe import (
-    decode_location,
     location_request,
     score_location,
 )
 from tank_backend.config.app_config import AppConfig
+from tank_backend.tools.computer_grounding import GroundingAdapter
 
 ROOT = Path(__file__).resolve().parents[1]
 MODELS = {
@@ -172,8 +172,12 @@ async def run_trial(
             raise ValueError("Expected exactly one click function call")
         raw = calls[0].function.arguments
         row["arguments"] = raw
-        point = decode_location(raw, protocol, case["size"], case["crop"],
-                                abstention_zero=schema_style == "integer")
+        location = GroundingAdapter(protocol, schema_style).parse_response(result, case["size"])
+        point = location.point
+        if point is not None and case["crop"] is not None:
+            ox, oy, width, height = case["crop"]
+            point = (ox + point[0] * width / case["size"][0],
+                     oy + point[1] * height / case["size"][1])
         row["schema_valid"] = True
         row["abstained"] = point is None
         if point is not None:

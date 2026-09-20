@@ -21,7 +21,7 @@ from openai import (
     InternalServerError,
     RateLimitError,
 )
-from openai.types.chat import ChatCompletionMessageParam
+from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
 
 from ..core.content import (
     ContentBlock,
@@ -1035,6 +1035,26 @@ class LLM:
         ``_create_with_retry`` with ``chat_stream`` for consistent
         retry behavior.
         """
+        response = await self.complete_response(
+            messages, temperature=temperature, max_tokens=max_tokens, trace_metadata=trace_metadata,
+        )
+        return response.choices[0].message.content or ""
+
+    async def complete_response(
+        self,
+        messages: list[ChatCompletionMessageParam],
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        trace_metadata: dict[str, Any] | None = None,
+        *,
+        tools: list[dict[str, Any]] | None = None,
+        retry: bool = True,
+    ) -> ChatCompletion:
+        """One-shot response including tools, finish reason and usage; never execute tools.
+
+        ``retry=False`` disables both wrapper and SDK retries for budgeted callers.
+        Provider parameters still come from the configured profile.
+        """
         api_kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
@@ -1046,14 +1066,18 @@ class LLM:
             api_kwargs["temperature"] = effective_temperature
         if self.extra_body:
             api_kwargs["extra_body"] = self.extra_body
-        if trace_metadata:
+        if tools is not None:
+            api_kwargs["tools"] = tools
+        if trace_metadata and is_tracing_registered():
             if "trace_name" in trace_metadata:
                 api_kwargs["name"] = trace_metadata["trace_name"]
             if "metadata" in trace_metadata:
                 api_kwargs["metadata"] = trace_metadata["metadata"]
 
-        response = await self._create_with_retry(**api_kwargs)
-        return response.choices[0].message.content or ""
+        if not retry:
+            client = self.client.with_options(max_retries=0)
+            return await client.chat.completions.create(**api_kwargs)
+        return await self._create_with_retry(**api_kwargs)
 
     async def chat_completion_async(
         self,
