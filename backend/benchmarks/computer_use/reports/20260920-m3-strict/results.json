@@ -1,0 +1,360 @@
+{
+  "results": [
+    {
+      "id": "qwen38flash-control",
+      "schema_valid": false,
+      "hit": false,
+      "http_attempts": 1,
+      "http_status": 200,
+      "request_id": "3dc68dcc-91b1-9cf0-8eac-f5c216439ff1",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 64,
+        "prompt_tokens": 1702,
+        "total_tokens": 1766,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": null,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 440
+        }
+      },
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": [
+              {
+                "id": "call_bd8686b21ea3447dafad14a3",
+                "function": {
+                  "arguments": "{\"found\": true, \"x\": [647, 312], \"y\": [0, 312]}",
+                  "name": "click"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ],
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "parse_error": "Coordinates must be integers",
+      "seconds": 1.985
+    },
+    {
+      "id": "qwen38flash-strict",
+      "schema_valid": false,
+      "hit": false,
+      "http_attempts": 1,
+      "http_status": 200,
+      "request_id": "e05bf609-50e9-91d4-a388-64b0769e8d5d",
+      "returned_model": "qwen3.8-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 56,
+        "prompt_tokens": 1702,
+        "total_tokens": 1758,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": null,
+          "rejected_prediction_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1536,
+          "image_tokens": 1262,
+          "text_tokens": 440
+        }
+      },
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": [
+              {
+                "id": "call_8eab3bfcacca4fdd8a096f88",
+                "function": {
+                  "arguments": "{\"found\": true, \"x\": [647], \"y\": [312]}",
+                  "name": "click"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ],
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "parse_error": "Coordinates must be integers",
+      "seconds": 1.527
+    },
+    {
+      "id": "qwen38max-control",
+      "schema_valid": true,
+      "hit": true,
+      "http_attempts": 1,
+      "http_status": 200,
+      "request_id": "bfd790f3-dd48-9fd1-8cba-ca15b879e72f",
+      "returned_model": "qwen3.8-max-0902",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 52,
+        "prompt_tokens": 1702,
+        "total_tokens": 1754,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": null,
+          "rejected_prediction_tokens": null,
+          "text_tokens": 52
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1262,
+          "text_tokens": 440
+        }
+      },
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": [
+              {
+                "id": "call_82408985e3f244198a8449d4",
+                "function": {
+                  "arguments": "{\"found\": true, \"x\": 649, \"y\": 312}",
+                  "name": "click"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ],
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "location_status": "found",
+      "point": [
+        934.56,
+        280.8
+      ],
+      "dx": -0.44000000000005457,
+      "dy": -1.1999999999999886,
+      "distance": 1.2781236246936447,
+      "seconds": 3.185
+    },
+    {
+      "id": "qwen38max-strict",
+      "schema_valid": true,
+      "hit": true,
+      "http_attempts": 1,
+      "http_status": 200,
+      "request_id": "1a9f7968-66f8-922f-9bd1-e1f7b600823f",
+      "returned_model": "qwen3.8-max-0902",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 52,
+        "prompt_tokens": 1702,
+        "total_tokens": 1754,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": null,
+          "rejected_prediction_tokens": null,
+          "text_tokens": 52
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1024,
+          "image_tokens": 1262,
+          "text_tokens": 440
+        }
+      },
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": [
+              {
+                "id": "call_f672b139ba1743ca8b544b9d",
+                "function": {
+                  "arguments": "{\"found\": true, \"x\": 649, \"y\": 312}",
+                  "name": "click"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ],
+            "reasoning_content": ""
+          }
+        }
+      ],
+      "location_status": "found",
+      "point": [
+        934.56,
+        280.8
+      ],
+      "dx": -0.44000000000005457,
+      "dy": -1.1999999999999886,
+      "distance": 1.2781236246936447,
+      "seconds": 2.599
+    },
+    {
+      "id": "deepseek-control",
+      "schema_valid": true,
+      "hit": false,
+      "http_attempts": 1,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 118,
+        "prompt_tokens": 1216,
+        "total_tokens": 1334,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 1024
+        },
+        "prompt_cache_hit_tokens": 1024,
+        "prompt_cache_miss_tokens": 192
+      },
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "The AC button is located in the calculator keypad, in the top row of buttons. Its center is approximately at (1008, 283) in the 1440x900 image, which normalizes to x=700, y=314.",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": [
+              {
+                "id": "call_00_VId7JLTesMIi8rAcSar19980",
+                "function": {
+                  "arguments": "{\"found\": true, \"x\": 700, \"y\": 314}",
+                  "name": "click"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ]
+          }
+        }
+      ],
+      "location_status": "found",
+      "point": [
+        1008.0,
+        282.6
+      ],
+      "dx": 73.0,
+      "dy": 0.6000000000000227,
+      "distance": 73.00246571178263,
+      "seconds": 1.024
+    },
+    {
+      "id": "deepseek-strict",
+      "schema_valid": true,
+      "hit": true,
+      "http_attempts": 1,
+      "http_status": 200,
+      "request_id": null,
+      "returned_model": "deepseek-flash",
+      "returned_provider": null,
+      "usage": {
+        "completion_tokens": 85,
+        "prompt_tokens": 1217,
+        "total_tokens": 1302,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 128
+        },
+        "prompt_cache_hit_tokens": 128,
+        "prompt_cache_miss_tokens": 1089
+      },
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "The AC button is located in the calculator keypad, in the top row of buttons.",
+            "refusal": null,
+            "role": "assistant",
+            "annotations": null,
+            "audio": null,
+            "function_call": null,
+            "tool_calls": [
+              {
+                "id": "call_00_JaBShtFDAMNPz4ebVMRX3969",
+                "function": {
+                  "arguments": "{\"found\": true, \"x\": 649, \"y\": 318}",
+                  "name": "click"
+                },
+                "type": "function",
+                "index": 0
+              }
+            ]
+          }
+        }
+      ],
+      "location_status": "found",
+      "point": [
+        934.56,
+        286.2
+      ],
+      "dx": -0.44000000000005457,
+      "dy": 4.199999999999989,
+      "distance": 4.222984726470124,
+      "seconds": 1.08
+    }
+  ],
+  "stop_reason": null,
+  "known_tokens_including_previous": 26398
+}

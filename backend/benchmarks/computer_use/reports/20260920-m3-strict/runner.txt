@@ -1,0 +1,195 @@
+"""One-off M3 strict preflight; uses production adapter/LLM and synthetic scene only."""
+import argparse
+import asyncio
+import base64
+import copy
+import gzip
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+os.environ['LANGFUSE_TRACING_ENABLED'] = 'false'
+ROOT = Path('/Users/zbcjackson/src/tank/backend')
+sys.path.insert(0, str(ROOT / 'scripts'))
+import httpx
+from openai import APIError, AsyncOpenAI
+from dotenv import load_dotenv
+from probe_grounding_matrix import make_case
+from tank_backend.config.app_config import AppConfig
+from tank_backend.llm.profile import LLMProfile, create_llm_from_profile
+from tank_backend.tools.computer_grounding import GroundingAdapter
+from tank_backend.tools.computer_observation import Observation
+from tank_backend.benchmarks.grounding_probe import score_location
+
+ALIASES = [('qwen38flash', 'qwen3.8-flash', [.113, .382]),
+           ('qwen38max', 'qwen3.8-max-2026-09-02', [1.65, 4.951]),
+           ('deepseek', 'deepseek-flash', [.3, 1.2])]
+SOURCE = ['core/src/tank_backend/tools/computer_grounding.py',
+          'core/src/tank_backend/llm/llm.py', 'core/src/tank_backend/llm/profile.py',
+          'core/src/tank_backend/benchmarks/grounding_probe.py',
+          'scripts/probe_grounding_matrix.py', 'scripts/probe_grounding_contract.py']
+
+def save(path, data):
+    path.write_text(json.dumps(data, indent=2))
+
+def sanitized(request, digest):
+    body = json.loads(request.content)
+    images = []
+    for msg in body['messages']:
+        if not isinstance(msg['content'], list):
+            continue
+        for part in msg['content']:
+            if part['type'] == 'image_url':
+                image = base64.b64decode(part['image_url']['url'].split(',', 1)[1], validate=True)
+                sha = hashlib.sha256(image).hexdigest()
+                images.append(sha)
+                part['image_url']['url'] = 'sha256:' + sha
+    assert images == [digest], 'outbound image mismatch'
+    return body
+
+async def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--live', action='store_true')
+    args = parser.parse_args()
+    out = args.output
+    case = make_case(101, 'point')
+    observation, png = Observation.capture(case['png'], session_id='m3-strict', display_id=1)
+    sha = observation.image_sha256
+    specs = []
+    for alias, model, rates in ALIASES:
+        for strict in [False, True]:
+            specs.append({'id': alias + ('-strict' if strict else '-control'), 'alias': alias,
+                          'model': model, 'strict': strict, 'rates': rates,
+                          'endpoint': ('https://api.deepseek.com/beta' if alias == 'deepseek'
+                            else 'https://dashscope.aliyuncs.com/compatible-mode/v1'),
+                          'extra_body': ({'thinking': {'type': 'disabled'}} if alias == 'deepseek'
+                            else {'enable_thinking': False})})
+    if args.live:
+        manifest = json.loads((out/'manifest.json').read_text())
+        assert manifest['specs'] == specs
+        assert manifest['image_sha256'] == sha
+        for name, digest in manifest['source_sha256'].items():
+            assert hashlib.sha256((ROOT/name).read_bytes()).hexdigest() == digest
+        with (out/'live-started.json').open('x') as f:
+            json.dump({'started_unix': time.time()}, f)
+        load_dotenv(ROOT/'core/.env')
+        qwen = AppConfig.load(ROOT/'core/config.yaml').get_llm_profile('computer_use')
+        assert qwen.base_url.rstrip('/') == specs[0]['endpoint']
+        keys = {'qwen': qwen.api_key, 'deepseek': os.environ.get('DEEPSEEK_API_KEY', '')}
+        assert all(keys.values()), 'missing credential'
+    else:
+        out.mkdir(parents=True, exist_ok=False)
+        (out/'runner.txt').write_text(Path(__file__).read_text())
+        (out/f'{sha}.png').write_bytes(png)
+        manifest = {'revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+            'date': '2026-09-20', 'scope': 'M3 strict flag preflight via production adapter',
+            'specs': specs, 'seed': 101, 'image_sha256': sha, 'image_size': observation.image_size,
+            'target': case['target'], 'bounds': case['bounds'], 'radius': case['radius'],
+            'pair_only_factor': 'absence versus true of tools[0].function.strict',
+            'requests_max': 6, 'previous_preflight_requests': 10, 'stage_requests_max': 16,
+            'max_output_tokens_per_call': 8000, 'per_call_seconds': 90, 'retries': 0,
+            'total_tokens_stop_including_previous': 300000, 'previous_tokens': 16730,
+            'input_token_reservation_per_call': 10000,
+            'input_reservation_is_estimate_not_exact_tokenization': True,
+            'stop': 'API/timeout/missing usage/over-reservation stops batch; parser failures with usage retained',
+            'estimated_cost_usd': sum(a*.01+b*.008 for _,_,(a,b) in ALIASES)*2,
+            'cost_basis': 'uncached input and peak list prices; actual billed cost unknown without provider field',
+            'sources': ['https://api-docs.deepseek.com/guides/tool_calls/',
+                        'https://api-docs.deepseek.com/quick_start/pricing/',
+                        'https://www.alibabacloud.com/help/en/model-studio/qwen3-8-flash',
+                        'https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max'],
+            'source_sha256': {name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in SOURCE},
+            'holdout_calls': 0, 'desktop_actions': 0, 'real_screenshots_sent': 0}
+        save(out/'manifest.json', manifest)
+        keys = {'qwen': 'test', 'deepseek': 'test'}
+    rows = []
+    total = 16730
+    stop = None
+    for spec in specs:
+        if total + 18000 > 300000:
+            stop = 'remaining token budget below reservation'
+            break
+        row = {'id':spec['id'], 'schema_valid':False, 'hit':False, 'http_attempts':0}
+        adapter = GroundingAdapter(strict=spec['strict'])
+        profile = LLMProfile(name=spec['id'], api_key=keys['deepseek' if spec['alias']=='deepseek' else 'qwen'],
+            model=spec['model'], base_url=spec['endpoint'], temperature=.1,
+            max_tokens=8000, extra_body=spec['extra_body'])
+        llm = create_llm_from_profile(profile)
+        await llm.client.close()
+        async def request_hook(request):
+            body = sanitized(request, sha)
+            assert str(request.url) == spec['endpoint'].rstrip('/') + '/chat/completions'
+            if args.live:
+                assert body == json.loads((out/(spec['id']+'.frozen-request.json')).read_text())
+                row['http_attempts'] += 1
+                save(out/(spec['id']+'.request.json'), body)
+            else:
+                save(out/(spec['id']+'.frozen-request.json'), body)
+        async def response_hook(response):
+            raw = await response.aread()
+            if args.live:
+                (out/(spec['id']+'.response.json.gz')).write_bytes(gzip.compress(raw))
+                row['http_status'] = response.status_code
+                row['request_id'] = response.headers.get('x-request-id')
+        def fake(request):
+            return httpx.Response(200,json={'id':'dry','object':'chat.completion','created':1,
+                'model':spec['model'],'choices':[{'index':0,'finish_reason':'tool_calls','message':{
+                'role':'assistant','tool_calls':[{'id':'one','type':'function','function':{
+                'name':'click','arguments':'{"found":true,"x":648,"y":314}'}}]}}],
+                'usage':{'prompt_tokens':100,'completion_tokens':20,'total_tokens':120}})
+        http = httpx.AsyncClient(transport=None if args.live else httpx.MockTransport(fake),
+            event_hooks={'request':[request_hook], 'response':[response_hook]})
+        started = time.monotonic()
+        async with AsyncOpenAI(api_key=profile.api_key,base_url=profile.base_url,
+                max_retries=0,timeout=85,http_client=http) as client:
+            llm.client = client
+            try:
+                async with asyncio.timeout(90):
+                    response = await adapter.request(llm, observation, png, case['target'])
+                row.update(returned_model=response.model,
+                    returned_provider=(response.model_extra or {}).get('provider'),
+                    usage=response.usage.model_dump() if response.usage else None,
+                    choices=[c.model_dump() for c in response.choices])
+                if args.live:
+                    save(out/(spec['id']+'.parsed-response.json'), response.model_dump())
+                try:
+                    location=adapter.parse_response(response, observation.image_size)
+                    row.update(schema_valid=True, location_status=location.status, point=location.point)
+                    if location.point is not None:
+                        row.update(score_location(location.point, case['bounds'], case['radius']))
+                except ValueError as exc:
+                    row['parse_error']=str(exc)
+                if response.usage is None:
+                    stop='missing usage'
+                else:
+                    total += response.usage.total_tokens
+                    if response.usage.prompt_tokens > 10000 or total > 300000:
+                        stop='input reservation or token budget exceeded'
+            except (APIError, TimeoutError) as exc:
+                row['error']=type(exc).__name__+': '+str(exc)[:800]
+                row['usage']=None
+                stop='request failure; usage unknown'
+        row['seconds']=round(time.monotonic()-started,3)
+        rows.append(row)
+        if args.live:
+            save(out/'results.json',{'results':rows,'stop_reason':stop,'known_tokens_including_previous':total})
+            print(json.dumps(row),flush=True)
+        if stop:
+            break
+    if not args.live:
+        for alias,_,_ in ALIASES:
+            control=json.loads((out/(alias+'-control.frozen-request.json')).read_text())
+            strict=json.loads((out/(alias+'-strict.frozen-request.json')).read_text())
+            assert strict['tools'][0]['function'].pop('strict') is True
+            assert control == strict
+        save(out/'offline-check.json',{'fake_http_calls':len(rows),'pairs_differ_only_by_strict':True,
+            'all_valid_fake_responses':all(r['schema_valid'] for r in rows),
+            'model_calls':0,'estimated_cost_usd':manifest['estimated_cost_usd']})
+    print('DONE',len(rows),stop, flush=True)
+
+asyncio.run(main())

@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-20。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 首批十次合成图端点/协议预检已记录，共用适配与生产 LLM 单次调用接口已实现，其余模型验收待完成；M4–M8 待完成。N2 复用既有 benchmark。
+> 状态：执行中，2026-09-20。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 十六次端点/协议预检已记录，共用适配与生产 LLM 单次调用接口已实现，其余模型验收待完成；M4–M8 待完成。N2 复用既有 benchmark。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -193,9 +193,11 @@ benchmark，不能仅因历史清单未勾选就写成“还未验证”。
 ### M3 — 具体模型的适配器与独立定位基线
 
 首批 [M3 端点预检](../../../backend/benchmarks/computer_use/reports/20260920-m3-preflight/README.md)
-已完成五模型 × 两协议的十次合成图调用；16 次预检上限余 6 次。
+首批五模型 × 两协议十次调用，加本批
+[strict 配对预检](../../../backend/benchmarks/computer_use/reports/20260920-m3-strict/README.md)
+六次，共 16/16 次；预检额度已用完，下一批进入独立调参筛选，不重置预检额度。
 具体可用型号、请求/响应型号、参数、用量与失败已记录；共用生产 adapter
-的离线实现见下；strict/原生框实测、配置冻结与模型效果验收尚未完成。
+的离线实现见下；strict 小样本结果已记录，原生框实测、配置冻结与模型效果验收尚未完成。
 
 - [ ] 使用当前已配置的 Qwen/DeepSeek/OpenRouter profile，保留现有 Qwen
   基线和 GPT-5.5 对照，补 Qwen3.8 与 DeepSeek V4.1 候选；具体 ID/可用性
@@ -557,6 +559,28 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   和原始响应保持完全一致。TDD 红灯包括缺失适配器、图片错配仍发 HTTP、
   未区分结果状态、非法配置/尺寸、length 仍合法以及拒绝响应仍返回坐标，
   均在对应最小实现后转绿。本轮没有用类型忽略或坐标修补掩盖错误。
+
+### 2026-09-20 — M3 strict 单因素预检
+
+- [报告、manifest 与原始响应](../../../backend/benchmarks/computer_use/reports/20260920-m3-strict/README.md)：
+  通过生产 GroundingAdapter → LLM → SDK 调用 Qwen3.8 Flash/Max 与 DeepSeek，
+  各 control/strict 一对；实际 HTTP 仅 strict 字段不同，DeepSeek 两次都固定
+  beta 端点。图片、提示、温度、关闭思考、8000 输出预算均相同，零重试。
+- 六次均 HTTP 200 且 usage 已知，共 9668 tokens；累计预检 16/16 次、26398
+  tokens。本批保守标价用量估算 $0.007535496，实际账单 unknown。仅合成图，
+  无桌面动作/真实截图/holdout 调用。六份响应离线回放结果一致。
+- Qwen3.8 Flash 开关 strict 都返回数组，被拒绝；Max 两次均命中，但保留上批
+  数组失败。DeepSeek control 偏移 73.002 px、strict 命中且误差 4.223 px；
+  一张图、无重复且固定顺序，不能将差异归因为 strict 收益或作采用结论。
+- 继续保留默认模型与本地严格解析。预检额度归零；下一步进入 M3 调参筛选，
+  沿用已规划的独立 144 请求/1000000 token 上限，先冻结新 manifest 和费用，
+  分因素比较 schema、image/detail、thinking/native 协议；配置未定不跑 holdout。
+  M3/M0 的其余验收仍未关档，不把本批计为完整模型适配成功。
+
+- 验证：backend **4595 passed / 1 skipped**，E2E **14 场景 / 55 步**；
+  web lint/TypeScript、backend/CLI ruff、实际后端日志、文档与协议检查通过。
+  定位测试 **83 项**、六份响应离线回放及三对请求单因素检查通过。
+  本轮无 Python 源码/测试改动，changed-file pyright 为 N/A。
 
 ## 9. 最终 Verification Checklist
 

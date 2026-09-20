@@ -118,6 +118,13 @@ ToolManager 注入会话身份。缺失/旧/跨会话 frame、窗口不匹配或
 一致；三份数组响应仍拒绝，合法错点仍是错点。没有新增付费调用、真实截图
 外发或 holdout 结果，也未验证 strict/native bbox 模型效果。
 
+M3 随后用同一生产调用路径完成六次 strict 配对预检：Qwen3.8 Flash 即使
+strict=true 仍返回数组；Max 两次命中与历史失败并存；DeepSeek 只有一对
+control 失败/strict 命中，不能认定收益。见
+[strict 报告](../../backend/benchmarks/computer_use/reports/20260920-m3-strict/README.md)。
+当前 16 次预检额度用完，下一批进入独立调参筛选；没有因此切换模型或宣称
+所有 strict/native 协议已经验收。
+
 ## 已修复与测试覆盖
 
 - 主屏截取、Retina 缩放失败处理、缩放后宽高检查、边界点不超屏，以及非法

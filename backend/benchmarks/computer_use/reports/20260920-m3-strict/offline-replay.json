@@ -1,0 +1,38 @@
+[
+  {
+    "id": "qwen38flash-control",
+    "request_exact": true,
+    "response_replay": "rejected",
+    "usage_retained": true
+  },
+  {
+    "id": "qwen38flash-strict",
+    "request_exact": true,
+    "response_replay": "rejected",
+    "usage_retained": true
+  },
+  {
+    "id": "qwen38max-control",
+    "request_exact": true,
+    "response_replay": "valid",
+    "usage_retained": true
+  },
+  {
+    "id": "qwen38max-strict",
+    "request_exact": true,
+    "response_replay": "valid",
+    "usage_retained": true
+  },
+  {
+    "id": "deepseek-control",
+    "request_exact": true,
+    "response_replay": "valid",
+    "usage_retained": true
+  },
+  {
+    "id": "deepseek-strict",
+    "request_exact": true,
+    "response_replay": "valid",
+    "usage_retained": true
+  }
+]

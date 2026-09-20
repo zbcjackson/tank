@@ -1,0 +1,12 @@
+{
+  "requests": 6,
+  "http_attempts": 6,
+  "known_tokens": 9668,
+  "schema_valid": 4,
+  "hits": 3,
+  "stop_reason": null,
+  "preflight_requests_total": 16,
+  "preflight_remaining": 0,
+  "billed_cost_usd": "unknown",
+  "uncached_peak_list_estimate_usd": 0.007535495999999999
+}

@@ -82,7 +82,7 @@ Official sources checked on 2026-09-20:
 
 Ten calls of the M0 16-call preflight ceiling have been consumed; six remain.
 Each five-call batch estimated 10000 input + 8000 output tokens per request,
-about $0.335 USD (uncached/peak list rates, no discounts). This is an estimate,
+about $0.364 USD (uncached/peak list rates, no discounts). This is an estimate,
 not a guaranteed input cap. Actual total usage was 16730 tokens; list-price
 usage estimate is $0.026680, while only OpenRouter reported billed cost ($0.01902
 for its two calls). Other actual billed costs remain unknown; never recorded as zero.

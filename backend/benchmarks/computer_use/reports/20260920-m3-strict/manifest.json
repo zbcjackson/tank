@@ -1,0 +1,140 @@
+{
+  "revision": "6ccc3cf92f867cb7d78f5b35f6e80b56205b662f",
+  "date": "2026-09-20",
+  "scope": "M3 strict flag preflight via production adapter",
+  "specs": [
+    {
+      "id": "qwen38flash-control",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "strict": false,
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38flash-strict",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "strict": true,
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38max-control",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "strict": false,
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38max-strict",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "strict": true,
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "deepseek-control",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "strict": false,
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "endpoint": "https://api.deepseek.com/beta",
+      "extra_body": {
+        "thinking": {
+          "type": "disabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-strict",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "strict": true,
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "endpoint": "https://api.deepseek.com/beta",
+      "extra_body": {
+        "thinking": {
+          "type": "disabled"
+        }
+      }
+    }
+  ],
+  "seed": 101,
+  "image_sha256": "be8a0930be0d097b483b11e8a6696c05d79ea654806283f5fe5a1cf2e18f991f",
+  "image_size": [
+    1440,
+    900
+  ],
+  "target": "AC",
+  "bounds": [
+    905,
+    258,
+    965,
+    306
+  ],
+  "radius": 22,
+  "pair_only_factor": "absence versus true of tools[0].function.strict",
+  "requests_max": 6,
+  "previous_preflight_requests": 10,
+  "stage_requests_max": 16,
+  "max_output_tokens_per_call": 8000,
+  "per_call_seconds": 90,
+  "retries": 0,
+  "total_tokens_stop_including_previous": 300000,
+  "previous_tokens": 16730,
+  "input_token_reservation_per_call": 10000,
+  "input_reservation_is_estimate_not_exact_tokenization": true,
+  "stop": "API/timeout/missing usage/over-reservation stops batch; parser failures with usage retained",
+  "estimated_cost_usd": 0.145788,
+  "cost_basis": "uncached input and peak list prices; actual billed cost unknown without provider field",
+  "sources": [
+    "https://api-docs.deepseek.com/guides/tool_calls/",
+    "https://api-docs.deepseek.com/quick_start/pricing/",
+    "https://www.alibabacloud.com/help/en/model-studio/qwen3-8-flash",
+    "https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max"
+  ],
+  "source_sha256": {
+    "core/src/tank_backend/tools/computer_grounding.py": "15d8c03041879de335d0f912a466537b5ff376cdd91e319561e34ea9303aacd0",
+    "core/src/tank_backend/llm/llm.py": "f3ff022ad9c22ddca903261539f80a772918d52349b595b0d4d7ccd7e282ee04",
+    "core/src/tank_backend/llm/profile.py": "61542ffdc166d4010f76e7941db00d49f65695848c7dddcb16f0b65c859b9862",
+    "core/src/tank_backend/benchmarks/grounding_probe.py": "11fae97cb0898e55b53e45458792e4b7b46b203018288458c7b968b63c6e2df6",
+    "scripts/probe_grounding_matrix.py": "80b6ef05c699ffdc7866f4b4d07e914c3e5fb84787792b9e93ff1dea99847830",
+    "scripts/probe_grounding_contract.py": "d6f54f6a4675c6e7c49e165d36cb12fb173c2220aa01560cbaa8d1e2de9ce7d5"
+  },
+  "holdout_calls": 0,
+  "desktop_actions": 0,
+  "real_screenshots_sent": 0
+}

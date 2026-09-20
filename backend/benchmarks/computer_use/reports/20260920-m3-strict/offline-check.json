@@ -1,0 +1,7 @@
+{
+  "fake_http_calls": 6,
+  "pairs_differ_only_by_strict": true,
+  "all_valid_fake_responses": true,
+  "model_calls": 0,
+  "estimated_cost_usd": 0.145788
+}
