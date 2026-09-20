@@ -1,0 +1,94 @@
+{
+  "checks": [
+    {
+      "name": "web lint",
+      "command": "cd web && pnpm lint",
+      "result": "passed"
+    },
+    {
+      "name": "web typecheck",
+      "command": "cd web && npx tsc -b --noEmit",
+      "result": "passed"
+    },
+    {
+      "name": "backend lint",
+      "command": "cd backend && uv run --no-sync ruff check core/src/ core/tests/ scripts/calibrate_macos_coordinates.py",
+      "result": "passed"
+    },
+    {
+      "name": "backend workspace",
+      "command": "cd backend && uv run --no-sync pytest",
+      "result": "4561 passed, 1 skipped, 21 warnings"
+    },
+    {
+      "name": "changed Python typecheck",
+      "command": "cd backend && uv run --no-sync pyright <8 changed Python files>",
+      "result": "0 errors, 0 warnings"
+    },
+    {
+      "name": "CLI lint",
+      "command": "cd cli && uv run --no-sync ruff check src/ tests/",
+      "result": "passed"
+    },
+    {
+      "name": "dev reload log",
+      "command": "tmux capture-pane -t tank:1.1 -p -S -50 | rg -i 'error|traceback|exception'",
+      "result": "no matches; exit 1 is pass"
+    },
+    {
+      "name": "E2E",
+      "command": "cd test && pnpm test",
+      "result": "14 scenarios and 55 steps passed"
+    },
+    {
+      "name": "docs",
+      "command": "python3 scripts/check_docs.py",
+      "result": "passed; 37 documents"
+    },
+    {
+      "name": "protocol",
+      "command": "python3 scripts/check_protocol_sync.py",
+      "result": "passed"
+    }
+  ],
+  "env": {
+    "UV_CACHE_DIR": "/tmp/tank-uv-cache",
+    "DYLD_FALLBACK_LIBRARY_PATH": "/opt/homebrew/lib"
+  },
+  "targeted_regression": "247 passed",
+  "failed_attempts": [
+    {
+      "stage": "initial full backend",
+      "result": "4559 passed, 1 skipped, 1 failed",
+      "reason": "new screenshot raw schema omitted array items; fixed"
+    },
+    {
+      "stage": "test cleanup targeted and full collection",
+      "result": "collection error",
+      "reason": "indentation error while limiting changes to existing test; repaired before final suite"
+    },
+    {
+      "stage": "first real full-screen calibration",
+      "result": "scene mismatch before input",
+      "reason": "guard rejection; retained separately, not a passed trial"
+    }
+  ],
+  "physical_window_calibration": {
+    "hits": 9,
+    "trials": 9,
+    "max_error_points_per_axis": [
+      0,
+      0
+    ],
+    "down_up_confirmed": true,
+    "window_closed": true,
+    "cursor_restored": true,
+    "foreground_restore_verified": false
+  },
+  "limits": [
+    "No new grounding model requests or screenshot uploads",
+    "Not a model accuracy result",
+    "Not multi-display support",
+    "Not full M6 physical stop/cleanup or Calculator acceptance"
+  ]
+}

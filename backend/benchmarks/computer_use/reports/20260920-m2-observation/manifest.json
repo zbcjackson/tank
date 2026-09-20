@@ -1,0 +1,24 @@
+{
+  "stage": "M2",
+  "date": "2026-09-20",
+  "baseline_revision": "48f2d7526c7df736fcf3b3ca2e8f6d065f5a7124",
+  "source_sha256": {
+    "backend/core/src/tank_backend/tools/computer_observation.py": "60694fb5d0d86b344c56809310112078eed1fe8acf199eb63b3a5bf97377a4ef",
+    "backend/core/src/tank_backend/tools/computer_frame.py": "9b839ca4927410bf939ab1c7a6218193b82bcb0695e4946c9338980f87820795",
+    "backend/core/src/tank_backend/tools/computer_use_common.py": "8f6e95974e0e9fd90d237b2453ecd782dea91fa7bfdb21bb11a9c9f7fc971ca9",
+    "backend/core/src/tank_backend/tools/computer_use_macos.py": "67f5030b6cb03728dd2839ec35a2a19dc12217c3c35a30deef88021f8c1506e9",
+    "backend/core/src/tank_backend/tools/groups.py": "f0a2d607655bbef3a76a8603b5975bc9ed6f7b8ca10aec50ed4b5278f14a3f58",
+    "backend/core/tests/test_computer_use_common.py": "ca6db620c1d8704e2255a9f481640db1c40b829293539a5c001f51758508afad",
+    "backend/core/tests/test_computer_use_macos.py": "6281e6e655f113c95f332fdd9e36b9f7e39bef80f4fa320752b7e93e81188e64",
+    "backend/scripts/calibrate_macos_coordinates.py": "65d96773be5d3be5aea02c291d076c552ef74dcd5330ff327e4da1b0b0ad55f4"
+  },
+  "experimental_model_requests": 0,
+  "experimental_model_tokens": 0,
+  "experimental_model_cost_usd": 0,
+  "real_screenshots_uploaded": 0,
+  "default_model_changed": false,
+  "legacy_default_retained": true,
+  "live_main_display_trials": 9,
+  "live_fullscreen_rejected_attempts": 1,
+  "implementation_commit": "977fe77"
+}

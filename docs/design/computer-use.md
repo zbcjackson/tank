@@ -1,6 +1,6 @@
 # Computer use：macOS 坐标链与验证结论
 
-更新：2026-09-19。本文汇总自研 `computer_use` 与共享 `MacOSDesktopExecutor`
+更新：2026-09-20。本文汇总自研 `computer_use` 与共享 `MacOSDesktopExecutor`
 的现行行为及验证边界；官方 N2 SDK 是另一条路径，不能直接套用结论。
 逐轮原始证据、历史测试数量和异常记录见
 [macOS 调研](../research/macos-coordinate-chain.md)，复现入口见
@@ -19,15 +19,15 @@
 GPT-5.5 在独立合成布局上最好；本次真实 calc-open 严格评分 2/3，已验证
 鼠标批量点击与一次截图反馈后的恢复，但不是全套 GUI 可靠率结论。
 
-模型差异不排除宿主设计缺陷：提示职责冲突、输入方式语义及 crop 要求模型
-自行还原坐标仍需处理。[外部实现对照](../research/computer-use-implementation-comparison.md)
+模型差异不排除宿主设计缺陷：M1 已修复提示职责冲突与输入语义；M2
+新增显式 image/frame 接口由宿主还原 crop，默认 legacy 路径仍由模型换算。[外部实现对照](../research/computer-use-implementation-comparison.md)
 梳理了 Anthropic、UI-TARS、Cua、Peekaboo、OmniParser、OpenAI 和 browser-use，
 建议先修已确认问题，再分别测试宿主坐标还原、AX 元素寻址和反馈检查。
-这些是待验证方案，尚未改变生产接口；统一协议成绩不代表各模型最佳适配表现。
+模型适配、AX 与定位拆分仍待验证；统一协议成绩不代表各模型最佳适配表现。
 后续统一按[适配与定位执行计划](../plans/active/computer-use-adaptation-and-grounding.md)
-推进，含历史完成核对、模型适配、规划定位分离四组对照及分阶段验收；当前待执行。
+推进，含历史完成核对、模型适配、规划定位分离四组对照及分阶段验收。
 
-## 截图到点击：实际转换
+## 截图到点击：默认 legacy 转换
 
 1. Quartz 读取主屏逻辑尺寸和 backing pixels；`screencapture -m` 仅截主屏。
    已校准环境为 1920×1080 points、3840×2160 pixels。
@@ -54,6 +54,33 @@ GPT-5.5 在独立合成布局上最好；本次真实 calc-open 严格评分 2/3
 [共用转换](../../backend/core/src/tank_backend/tools/computer_use_common.py)、
 [executor](../../backend/core/src/tank_backend/computer/executor.py)、
 [LLM 消息链](../../backend/core/src/tank_backend/llm/llm.py)。
+
+## 显式 image/frame 接口（M2）
+
+macOS 工具组提供兼容默认 legacy 的可选 `coordinate_space="image"`。截图
+返回不可变 Observation：会话/frame、主屏/窗口身份、实际图片尺寸、整数裁剪
+矩形、显示几何及 PNG hash。`region` 为所选屏幕或窗口内的 0–1000 裁剪范围；
+可选 `window_id` 必须是完整位于主屏的可见 Quartz 窗口。截图不含光标。
+
+点击、框中心、移动、定位滚动与拖拽使用同一 `frame_id` 和图片内零起点像素
+坐标；允许有限小数，拒绝字符串、布尔值、越界和倒置框。框中心先计算，再按
+实际 `crop` 与 `image_size` 逐轴还原；最终在 Quartz 边界四舍五入（half up），
+末端限制为裁剪区域最后一个有效源像素。Retina 不重复相乘；不使用全局默认尺寸。
+
+ToolManager 注入会话身份。缺失/旧/跨会话 frame、窗口不匹配或几何失效时
+零输入并要求重观察。每次坐标动作前重新无光标截屏，比对实际观察区域的
+像素与显示/窗口几何；batch 共享 frame，逐步检查，首错即停并返回新截图。
+键盘、文本和不带坐标的滚动不引入虚构参考系。
+
+这是保守检查：动画、闪烁等可能造成拒绝，每步增加一次本地捕获成本，也无法
+排除检查到投递之间的变化。多屏支持、模型效果、跨应用和完整停止验收不在
+本次通过结论内。旧 normalized 调用及独立 DesktopExecutor 保持旧语义。
+
+[M2 报告](../../backend/benchmarks/computer_use/reports/20260920-m2-observation/README.md)
+保留初次全屏场景变化拒绝及窗口九点 9/9、每轴 0 point 的实机证据。
+[Observation](../../backend/core/src/tank_backend/tools/computer_observation.py) 与
+[frame 工具适配](../../backend/core/src/tank_backend/tools/computer_frame.py)
+由实际 SDK HTTP/ToolManager/Quartz 回归覆盖；未进行本批模型截图请求。
 
 ## 已修复与测试覆盖
 
@@ -146,10 +173,12 @@ token 也不保证定位。off 与 on 的有效采样不同，不能用小分差
 ## 仍未确定或未验收
 
 - 多显示器、非主屏、跨屏、旋转、截图后切主屏/分辨率；全局尺寸缓存及多
-  会话覆盖风险仍在。当前静态实验不依赖这些因素，所以它们不是已复现大错
+  会话覆盖风险在 legacy 路径仍在；image 接口已有身份/几何失效拒绝，未实现
+  多屏执行。当前静态实验不依赖这些因素，所以它们不是已复现大错
   的必要条件，但也没有被所有场景排除。
 - 窗口移动、动画、抢焦点、并发鼠标，以及无截图高频 batch 连点。旧坐标
-  可失效；batch 通常仅在末尾截图。静态校准中的早期异常原因仍未知。
+  可失效；legacy batch 通常仅在末尾截图，image batch 每步检查观察区域。
+  静态校准中的早期异常原因仍未知。
 - 模型权重与服务端预处理、OCR 与空间表达仍无法独立归因；未采用猜测倍率
   进行运行时补偿。跨部署同权重控制及更多按钮尺寸需要另行实验。
 - 全套跨应用任务、长历史/compaction、生产可靠率与官方 N2 SDK 的独立验收。

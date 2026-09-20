@@ -603,3 +603,17 @@ and synthetic prompt-only A/B. Generic pixel grading remains `unknown`: local
 OCR misreads some isolated digits, and independent visual review is kept separate.
 Unit tests and saved-image SDK replay do not establish real-model closed-loop
 accuracy or live screenshot freshness.
+
+
+M2 opt-in frame-coordinate tests extend `test_computer_use_common.py` and
+`test_computer_use_macos.py`: immutable PNG identity, actual crop/window mapping,
+strict image-point rejection, display/session/window freshness, batch frame
+binding, and cancellation during validation. Real SDK HTTP tests compare the
+transmitted PNG hash with the observation and exercise fragmented image-coordinate
+responses through ToolManager to Quartz. Legacy interfaces remain covered.
+`calibrate_macos_coordinates.py --coordinate-space image --window --output <new-dir>`
+uses its own window and checks nine real click targets, release events and cursor
+restoration. The [M2 report](benchmarks/computer_use/reports/20260920-m2-observation/README.md)
+records 9/9 hits with zero per-axis error and the initial rejected full-screen
+attempt. Scene checks are conservative and do not prove dynamic-UI reliability,
+model accuracy, physical drag/scroll or the M6 stop/cleanup matrix.

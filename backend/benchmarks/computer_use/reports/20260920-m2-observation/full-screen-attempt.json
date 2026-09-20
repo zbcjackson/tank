@@ -1,0 +1,8 @@
+{
+  "status": "rejected_before_input",
+  "reason": "Scene or geometry changed since observation; re-observe with coordinate_space=image",
+  "trials_completed": 0,
+  "mouse_events_dispatched": 0,
+  "cause": "scene mismatch; changing pixels not localized",
+  "screenshot": "kept local; not committed or uploaded"
+}

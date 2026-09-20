@@ -1,0 +1,911 @@
+[
+  {
+    "target": 0,
+    "expected_screen": [
+      180.0,
+      500.0
+    ],
+    "expected_view": [
+      80,
+      70
+    ],
+    "normalized": [
+      94,
+      395
+    ],
+    "screenshot_size": [
+      1920,
+      1267
+    ],
+    "observation": {
+      "frame_id": "f98b569c3ac84ff996d2afe6ab467d4c",
+      "session_id": "local-calibration",
+      "display_id": 5,
+      "screen_size": [
+        1920,
+        1080
+      ],
+      "image_size": [
+        1920,
+        1267
+      ],
+      "crop": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "image_sha256": "e4fb7bd579163807fe2f9347954326f7ee632f426173b527f6d5e4d05545c1ab",
+      "captured_at": 1789876077.727784,
+      "display_geometry": [
+        5,
+        0,
+        0,
+        1920,
+        1080,
+        3840,
+        2160
+      ],
+      "window_id": 14515,
+      "window_bounds": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "scene_sha256": "89340593e0e372906cbc953a6e1f9bae1bd8631bc8fb4d5235221bdb1255bc31"
+    },
+    "timestamp": 1789876078.090799,
+    "actual_mouse": [
+      180.0,
+      500.0
+    ],
+    "received": [
+      {
+        "view_point": [
+          80.0,
+          70.0
+        ],
+        "event_point": [
+          180.0,
+          500.0
+        ],
+        "hit": 0
+      }
+    ],
+    "delivered_events": [
+      {
+        "type": 1,
+        "window": 14515,
+        "point": [
+          80.0,
+          430.0
+        ],
+        "timestamp": 1789876078.0332649
+      },
+      {
+        "type": 2,
+        "window": 14515,
+        "point": [
+          80.0,
+          430.0
+        ],
+        "timestamp": 1789876078.0418491
+      }
+    ],
+    "error_points": [
+      0.0,
+      0.0
+    ],
+    "hit": true,
+    "released": true
+  },
+  {
+    "target": 1,
+    "expected_screen": [
+      500.0,
+      500.0
+    ],
+    "expected_view": [
+      400,
+      70
+    ],
+    "normalized": [
+      260,
+      395
+    ],
+    "screenshot_size": [
+      1920,
+      1267
+    ],
+    "observation": {
+      "frame_id": "00158fd7c6ba46d991e86d34e890154b",
+      "session_id": "local-calibration",
+      "display_id": 5,
+      "screen_size": [
+        1920,
+        1080
+      ],
+      "image_size": [
+        1920,
+        1267
+      ],
+      "crop": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "image_sha256": "e4fb7bd579163807fe2f9347954326f7ee632f426173b527f6d5e4d05545c1ab",
+      "captured_at": 1789876078.531303,
+      "display_geometry": [
+        5,
+        0,
+        0,
+        1920,
+        1080,
+        3840,
+        2160
+      ],
+      "window_id": 14515,
+      "window_bounds": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "scene_sha256": "89340593e0e372906cbc953a6e1f9bae1bd8631bc8fb4d5235221bdb1255bc31"
+    },
+    "timestamp": 1789876078.887862,
+    "actual_mouse": [
+      500.0,
+      500.0
+    ],
+    "received": [
+      {
+        "view_point": [
+          400.0,
+          70.0
+        ],
+        "event_point": [
+          500.0,
+          500.0
+        ],
+        "hit": 1
+      }
+    ],
+    "delivered_events": [
+      {
+        "type": 1,
+        "window": 14515,
+        "point": [
+          400.0,
+          430.0
+        ],
+        "timestamp": 1789876078.8132632
+      },
+      {
+        "type": 2,
+        "window": 14515,
+        "point": [
+          400.0,
+          430.0
+        ],
+        "timestamp": 1789876078.842162
+      }
+    ],
+    "error_points": [
+      0.0,
+      0.0
+    ],
+    "hit": true,
+    "released": true
+  },
+  {
+    "target": 2,
+    "expected_screen": [
+      820.0,
+      500.0
+    ],
+    "expected_view": [
+      720,
+      70
+    ],
+    "normalized": [
+      427,
+      395
+    ],
+    "screenshot_size": [
+      1920,
+      1267
+    ],
+    "observation": {
+      "frame_id": "57f152bbfa1a47238704dba0e8b1282e",
+      "session_id": "local-calibration",
+      "display_id": 5,
+      "screen_size": [
+        1920,
+        1080
+      ],
+      "image_size": [
+        1920,
+        1267
+      ],
+      "crop": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "image_sha256": "e4fb7bd579163807fe2f9347954326f7ee632f426173b527f6d5e4d05545c1ab",
+      "captured_at": 1789876079.32973,
+      "display_geometry": [
+        5,
+        0,
+        0,
+        1920,
+        1080,
+        3840,
+        2160
+      ],
+      "window_id": 14515,
+      "window_bounds": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "scene_sha256": "89340593e0e372906cbc953a6e1f9bae1bd8631bc8fb4d5235221bdb1255bc31"
+    },
+    "timestamp": 1789876079.7108412,
+    "actual_mouse": [
+      820.0,
+      500.0
+    ],
+    "received": [
+      {
+        "view_point": [
+          720.0,
+          70.0
+        ],
+        "event_point": [
+          820.0,
+          500.0
+        ],
+        "hit": 2
+      }
+    ],
+    "delivered_events": [
+      {
+        "type": 1,
+        "window": 14515,
+        "point": [
+          720.0,
+          430.0
+        ],
+        "timestamp": 1789876079.63645
+      },
+      {
+        "type": 2,
+        "window": 14515,
+        "point": [
+          720.0,
+          430.0
+        ],
+        "timestamp": 1789876079.660196
+      }
+    ],
+    "error_points": [
+      0.0,
+      0.0
+    ],
+    "hit": true,
+    "released": true
+  },
+  {
+    "target": 3,
+    "expected_screen": [
+      180.0,
+      680.0
+    ],
+    "expected_view": [
+      80,
+      250
+    ],
+    "normalized": [
+      94,
+      537
+    ],
+    "screenshot_size": [
+      1920,
+      1267
+    ],
+    "observation": {
+      "frame_id": "7ec05c78c1e44828a276718c4ff8c4cb",
+      "session_id": "local-calibration",
+      "display_id": 5,
+      "screen_size": [
+        1920,
+        1080
+      ],
+      "image_size": [
+        1920,
+        1267
+      ],
+      "crop": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "image_sha256": "e4fb7bd579163807fe2f9347954326f7ee632f426173b527f6d5e4d05545c1ab",
+      "captured_at": 1789876080.146834,
+      "display_geometry": [
+        5,
+        0,
+        0,
+        1920,
+        1080,
+        3840,
+        2160
+      ],
+      "window_id": 14515,
+      "window_bounds": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "scene_sha256": "89340593e0e372906cbc953a6e1f9bae1bd8631bc8fb4d5235221bdb1255bc31"
+    },
+    "timestamp": 1789876080.507013,
+    "actual_mouse": [
+      180.0,
+      680.0
+    ],
+    "received": [
+      {
+        "view_point": [
+          80.0,
+          250.0
+        ],
+        "event_point": [
+          180.0,
+          680.0
+        ],
+        "hit": 3
+      }
+    ],
+    "delivered_events": [
+      {
+        "type": 1,
+        "window": 14515,
+        "point": [
+          80.0,
+          250.0
+        ],
+        "timestamp": 1789876080.431221
+      },
+      {
+        "type": 2,
+        "window": 14515,
+        "point": [
+          80.0,
+          250.0
+        ],
+        "timestamp": 1789876080.459125
+      }
+    ],
+    "error_points": [
+      0.0,
+      0.0
+    ],
+    "hit": true,
+    "released": true
+  },
+  {
+    "target": 4,
+    "expected_screen": [
+      500.0,
+      680.0
+    ],
+    "expected_view": [
+      400,
+      250
+    ],
+    "normalized": [
+      260,
+      537
+    ],
+    "screenshot_size": [
+      1920,
+      1267
+    ],
+    "observation": {
+      "frame_id": "bbcc1aa39a3f4172adee23db706d4901",
+      "session_id": "local-calibration",
+      "display_id": 5,
+      "screen_size": [
+        1920,
+        1080
+      ],
+      "image_size": [
+        1920,
+        1267
+      ],
+      "crop": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "image_sha256": "e4fb7bd579163807fe2f9347954326f7ee632f426173b527f6d5e4d05545c1ab",
+      "captured_at": 1789876080.962925,
+      "display_geometry": [
+        5,
+        0,
+        0,
+        1920,
+        1080,
+        3840,
+        2160
+      ],
+      "window_id": 14515,
+      "window_bounds": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "scene_sha256": "89340593e0e372906cbc953a6e1f9bae1bd8631bc8fb4d5235221bdb1255bc31"
+    },
+    "timestamp": 1789876081.313687,
+    "actual_mouse": [
+      500.0,
+      680.0
+    ],
+    "received": [
+      {
+        "view_point": [
+          400.0,
+          250.0
+        ],
+        "event_point": [
+          500.0,
+          680.0
+        ],
+        "hit": 4
+      }
+    ],
+    "delivered_events": [
+      {
+        "type": 1,
+        "window": 14515,
+        "point": [
+          400.0,
+          250.0
+        ],
+        "timestamp": 1789876081.2425442
+      },
+      {
+        "type": 2,
+        "window": 14515,
+        "point": [
+          400.0,
+          250.0
+        ],
+        "timestamp": 1789876081.266648
+      }
+    ],
+    "error_points": [
+      0.0,
+      0.0
+    ],
+    "hit": true,
+    "released": true
+  },
+  {
+    "target": 5,
+    "expected_screen": [
+      820.0,
+      680.0
+    ],
+    "expected_view": [
+      720,
+      250
+    ],
+    "normalized": [
+      427,
+      537
+    ],
+    "screenshot_size": [
+      1920,
+      1267
+    ],
+    "observation": {
+      "frame_id": "d36a70b25730494cbdee9acf0aa1c92e",
+      "session_id": "local-calibration",
+      "display_id": 5,
+      "screen_size": [
+        1920,
+        1080
+      ],
+      "image_size": [
+        1920,
+        1267
+      ],
+      "crop": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "image_sha256": "e4fb7bd579163807fe2f9347954326f7ee632f426173b527f6d5e4d05545c1ab",
+      "captured_at": 1789876081.7515872,
+      "display_geometry": [
+        5,
+        0,
+        0,
+        1920,
+        1080,
+        3840,
+        2160
+      ],
+      "window_id": 14515,
+      "window_bounds": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "scene_sha256": "89340593e0e372906cbc953a6e1f9bae1bd8631bc8fb4d5235221bdb1255bc31"
+    },
+    "timestamp": 1789876082.1027951,
+    "actual_mouse": [
+      820.0,
+      680.0
+    ],
+    "received": [
+      {
+        "view_point": [
+          720.0,
+          250.0
+        ],
+        "event_point": [
+          820.0,
+          680.0
+        ],
+        "hit": 5
+      }
+    ],
+    "delivered_events": [
+      {
+        "type": 1,
+        "window": 14515,
+        "point": [
+          720.0,
+          250.0
+        ],
+        "timestamp": 1789876082.027025
+      },
+      {
+        "type": 2,
+        "window": 14515,
+        "point": [
+          720.0,
+          250.0
+        ],
+        "timestamp": 1789876082.052195
+      }
+    ],
+    "error_points": [
+      0.0,
+      0.0
+    ],
+    "hit": true,
+    "released": true
+  },
+  {
+    "target": 6,
+    "expected_screen": [
+      180.0,
+      860.0
+    ],
+    "expected_view": [
+      80,
+      430
+    ],
+    "normalized": [
+      94,
+      679
+    ],
+    "screenshot_size": [
+      1920,
+      1267
+    ],
+    "observation": {
+      "frame_id": "8cd9b945e20e44c1a59fd0f746f960ce",
+      "session_id": "local-calibration",
+      "display_id": 5,
+      "screen_size": [
+        1920,
+        1080
+      ],
+      "image_size": [
+        1920,
+        1267
+      ],
+      "crop": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "image_sha256": "e4fb7bd579163807fe2f9347954326f7ee632f426173b527f6d5e4d05545c1ab",
+      "captured_at": 1789876082.575825,
+      "display_geometry": [
+        5,
+        0,
+        0,
+        1920,
+        1080,
+        3840,
+        2160
+      ],
+      "window_id": 14515,
+      "window_bounds": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "scene_sha256": "89340593e0e372906cbc953a6e1f9bae1bd8631bc8fb4d5235221bdb1255bc31"
+    },
+    "timestamp": 1789876082.9272408,
+    "actual_mouse": [
+      180.0,
+      860.0
+    ],
+    "received": [
+      {
+        "view_point": [
+          80.0,
+          430.0
+        ],
+        "event_point": [
+          180.0,
+          860.0
+        ],
+        "hit": 6
+      }
+    ],
+    "delivered_events": [
+      {
+        "type": 1,
+        "window": 14515,
+        "point": [
+          80.0,
+          70.0
+        ],
+        "timestamp": 1789876082.851362
+      },
+      {
+        "type": 2,
+        "window": 14515,
+        "point": [
+          80.0,
+          70.0
+        ],
+        "timestamp": 1789876082.87676
+      }
+    ],
+    "error_points": [
+      0.0,
+      0.0
+    ],
+    "hit": true,
+    "released": true
+  },
+  {
+    "target": 7,
+    "expected_screen": [
+      500.0,
+      860.0
+    ],
+    "expected_view": [
+      400,
+      430
+    ],
+    "normalized": [
+      260,
+      679
+    ],
+    "screenshot_size": [
+      1920,
+      1267
+    ],
+    "observation": {
+      "frame_id": "8d9351eedafc4d1ebe1c90f0721ab56b",
+      "session_id": "local-calibration",
+      "display_id": 5,
+      "screen_size": [
+        1920,
+        1080
+      ],
+      "image_size": [
+        1920,
+        1267
+      ],
+      "crop": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "image_sha256": "e4fb7bd579163807fe2f9347954326f7ee632f426173b527f6d5e4d05545c1ab",
+      "captured_at": 1789876083.410829,
+      "display_geometry": [
+        5,
+        0,
+        0,
+        1920,
+        1080,
+        3840,
+        2160
+      ],
+      "window_id": 14515,
+      "window_bounds": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "scene_sha256": "89340593e0e372906cbc953a6e1f9bae1bd8631bc8fb4d5235221bdb1255bc31"
+    },
+    "timestamp": 1789876083.773129,
+    "actual_mouse": [
+      500.0,
+      860.0
+    ],
+    "received": [
+      {
+        "view_point": [
+          400.0,
+          430.0
+        ],
+        "event_point": [
+          500.0,
+          860.0
+        ],
+        "hit": 7
+      }
+    ],
+    "delivered_events": [
+      {
+        "type": 1,
+        "window": 14515,
+        "point": [
+          400.0,
+          70.0
+        ],
+        "timestamp": 1789876083.6970649
+      },
+      {
+        "type": 2,
+        "window": 14515,
+        "point": [
+          400.0,
+          70.0
+        ],
+        "timestamp": 1789876083.724824
+      }
+    ],
+    "error_points": [
+      0.0,
+      0.0
+    ],
+    "hit": true,
+    "released": true
+  },
+  {
+    "target": 8,
+    "expected_screen": [
+      820.0,
+      860.0
+    ],
+    "expected_view": [
+      720,
+      430
+    ],
+    "normalized": [
+      427,
+      679
+    ],
+    "screenshot_size": [
+      1920,
+      1267
+    ],
+    "observation": {
+      "frame_id": "8d9765bd3ad74f67acb840ed9be49dea",
+      "session_id": "local-calibration",
+      "display_id": 5,
+      "screen_size": [
+        1920,
+        1080
+      ],
+      "image_size": [
+        1920,
+        1267
+      ],
+      "crop": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "image_sha256": "e4fb7bd579163807fe2f9347954326f7ee632f426173b527f6d5e4d05545c1ab",
+      "captured_at": 1789876084.225368,
+      "display_geometry": [
+        5,
+        0,
+        0,
+        1920,
+        1080,
+        3840,
+        2160
+      ],
+      "window_id": 14515,
+      "window_bounds": [
+        100,
+        402,
+        900,
+        930
+      ],
+      "scene_sha256": "89340593e0e372906cbc953a6e1f9bae1bd8631bc8fb4d5235221bdb1255bc31"
+    },
+    "timestamp": 1789876084.571428,
+    "actual_mouse": [
+      820.0,
+      860.0
+    ],
+    "received": [
+      {
+        "view_point": [
+          720.0,
+          430.0
+        ],
+        "event_point": [
+          820.0,
+          860.0
+        ],
+        "hit": 8
+      }
+    ],
+    "delivered_events": [
+      {
+        "type": 1,
+        "window": 14515,
+        "point": [
+          720.0,
+          70.0
+        ],
+        "timestamp": 1789876084.499852
+      },
+      {
+        "type": 2,
+        "window": 14515,
+        "point": [
+          720.0,
+          70.0
+        ],
+        "timestamp": 1789876084.524006
+      }
+    ],
+    "error_points": [
+      0.0,
+      0.0
+    ],
+    "hit": true,
+    "released": true
+  }
+]
