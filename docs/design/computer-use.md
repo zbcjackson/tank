@@ -122,8 +122,11 @@ M3 随后用同一生产调用路径完成六次 strict 配对预检：Qwen3.8 F
 strict=true 仍返回数组；Max 两次命中与历史失败并存；DeepSeek 只有一对
 control 失败/strict 命中，不能认定收益。见
 [strict 报告](../../backend/benchmarks/computer_use/reports/20260920-m3-strict/README.md)。
-当前 16 次预检额度用完，下一批进入独立调参筛选；没有因此切换模型或宣称
-所有 strict/native 协议已经验收。
+16 次预检额度用完；独立调参筛选首批 40 次已完成。
+[点/框对照](../../backend/benchmarks/computer_use/reports/20260920-m3-screening-protocol/README.md)
+使用四个开发布局：Max bbox 与 GPT 两协议均 4/4 命中，Flash 仍有数组，
+DeepSeek bbox 仅 1/4。合法率与命中率分别记录；四布局不能作为采用结论，
+自定义函数 bbox 不代表原生接口验收。生产默认与适配器未因此改变。
 
 ## 已修复与测试覆盖
 

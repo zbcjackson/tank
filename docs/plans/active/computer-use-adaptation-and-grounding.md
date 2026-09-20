@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-20。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 十六次端点/协议预检已记录，共用适配与生产 LLM 单次调用接口已实现，其余模型验收待完成；M4–M8 待完成。N2 复用既有 benchmark。
+> 状态：执行中，2026-09-20。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 十六次预检及首批四十次点/框调参筛选已记录，共用适配与生产 LLM 单次调用接口已实现，其余模型验收待完成；M4–M8 待完成。N2 复用既有 benchmark。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -195,7 +195,9 @@ benchmark，不能仅因历史清单未勾选就写成“还未验证”。
 首批 [M3 端点预检](../../../backend/benchmarks/computer_use/reports/20260920-m3-preflight/README.md)
 首批五模型 × 两协议十次调用，加本批
 [strict 配对预检](../../../backend/benchmarks/computer_use/reports/20260920-m3-strict/README.md)
-六次，共 16/16 次；预检额度已用完，下一批进入独立调参筛选，不重置预检额度。
+六次，共 16/16 次；预检额度已用完，不重置预检额度。独立调参筛选已完成
+[首批四十次点/框对照](../../../backend/benchmarks/computer_use/reports/20260920-m3-screening-protocol/README.md)，
+使用 79357 tokens，阶段剩余 104 次 / 920643 tokens；后续批次必须累计计账。
 具体可用型号、请求/响应型号、参数、用量与失败已记录；共用生产 adapter
 的离线实现见下；strict 小样本结果已记录，原生框实测、配置冻结与模型效果验收尚未完成。
 
@@ -581,6 +583,31 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   web lint/TypeScript、backend/CLI ruff、实际后端日志、文档与协议检查通过。
   定位测试 **83 项**、六份响应离线回放及三对请求单因素检查通过。
   本轮无 Python 源码/测试改动，changed-file pyright 为 N/A。
+
+### 2026-09-20 — M3 多布局点/框调参筛选
+
+- [报告、冻结请求与回放](../../../backend/benchmarks/computer_use/reports/20260920-m3-screening-protocol/README.md)：
+  五模型 × 四开发布局 × point/bbox 共 40 次，生产共享调用路径；20 对请求仅
+  改坐标 schema 与配套中心点/紧框说明。固定图片、关闭思考、detail=auto、
+  strict 缺省和 8000 输出预算；模型顺序轮换，每模型两对点先、两对框先。
+- 点/框命中：Qwen3.7 为 3/4、2/4；Qwen3.8 Flash 为 0/4、2/4；Max 为
+  3/4、4/4；DeepSeek 为 3/4、1/4；GPT-5.5 均 4/4。合法 33/40、命中
+  26/40；六次数组和一次非法 JSON 保留为失败，不修补坐标。Qwen3.7 有
+  合法但超过 600 px 的偏移，不能用格式合法率替代命中率。
+- 全部 HTTP 200、usage 已知，无截断/超时；79357 tokens。预估 $2.912432，
+  实际用量标价估算 $0.127608331；OpenRouter 回报 $0.09118，其余实际费用
+  unknown。筛选剩余 104/144 次、920643/1000000 tokens；预检仍为 16/16。
+- 四布局、每设置单次，无统计采用结论；横竖与目标未正交，不归因具体尺寸。
+  此处为自定义函数 bbox，不冒充原生协议验收。holdout hash 无重合且零调用；
+  没有真实截图外发/桌面动作。40 份响应离线重算与原始记录完全一致。
+- 默认模型不变；Max bbox/GPT 保留为开发候选，不冻结 holdout。下一步分开
+  对照 thinking 或图像设置，并累计筛选预算；status/缺失/歧义与 native 协议
+  仍待验证，M3 及后续阶段不关档。
+- 验证：backend **4595 passed / 1 skipped**，E2E **14 场景 / 55 步**；
+  web lint/TypeScript、backend/CLI ruff、后端实际 pane 日志、文档及协议检查
+  通过。定向定位 **83 项**、40 份 SDK 假请求与真实响应回放通过；本轮无
+  Python 源码/测试改动，changed-file pyright 为 N/A。回放脚本首次使用了
+  错误距离字段名，已改为既有 distance 字段后重跑；未改变原始数据或评分。
 
 ## 9. 最终 Verification Checklist
 

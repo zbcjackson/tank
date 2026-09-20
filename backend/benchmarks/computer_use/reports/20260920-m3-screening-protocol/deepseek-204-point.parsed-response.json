@@ -1,0 +1,46 @@
+{
+  "id": "24e989a2-0cca-4633-a07b-62dff5d7d4bb",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The button labeled \"7\" is located in the calculator keypad, in the row containing 7, 8, 9.",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_00_58WyCUPtQCXCwMBWBbRo8865",
+            "function": {
+              "arguments": "{\"found\": true, \"x\": 505, \"y\": 303}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1789886998,
+  "model": "deepseek-flash",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
+  "usage": {
+    "completion_tokens": 94,
+    "prompt_tokens": 1386,
+    "total_tokens": 1480,
+    "completion_tokens_details": null,
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 1152
+    },
+    "prompt_cache_hit_tokens": 1152,
+    "prompt_cache_miss_tokens": 234
+  }
+}

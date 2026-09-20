@@ -1,0 +1,46 @@
+{
+  "id": "aed3cbad-1491-41cf-abc1-e4764f13d51e",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The AC button is located in the calculator keypad, in the top row of buttons.",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_00_3E22NyAyE2TrKvJCakrl6954",
+            "function": {
+              "arguments": "{\"found\": true, \"left\": 633, \"top\": 610, \"right\": 684, \"bottom\": 658}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1789886975,
+  "model": "deepseek-flash",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
+  "usage": {
+    "completion_tokens": 117,
+    "prompt_tokens": 1427,
+    "total_tokens": 1544,
+    "completion_tokens_details": null,
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 128
+    },
+    "prompt_cache_hit_tokens": 128,
+    "prompt_cache_miss_tokens": 1299
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "date": "2026-09-20",
+  "source_revision": "0df06d9",
+  "checks": {
+    "web_pnpm_lint": "passed",
+    "web_npx_tsc_b_noEmit": "passed",
+    "backend_ruff_core_src_tests": "passed",
+    "backend_pytest": {
+      "passed": 4595,
+      "skipped": 1,
+      "warnings": 21
+    },
+    "changed_python_pyright": "N/A: no Python source or test changes",
+    "cli_ruff": "passed",
+    "backend_runtime_log": {
+      "pane": "tank:1.1",
+      "last_lines": 50,
+      "error_traceback_exception_matches": 0
+    },
+    "e2e": {
+      "scenarios_passed": 14,
+      "steps_passed": 55
+    },
+    "docs_consistency": "passed: 37 files",
+    "protocol_sync": "passed",
+    "grounding_suite": {
+      "passed": 83
+    },
+    "frozen_sdk_request_pairs": {
+      "requests": 40,
+      "protocol_only_pairs": 20
+    },
+    "archived_replay": {
+      "requests_and_responses_passed": 40
+    }
+  },
+  "test_environment": {
+    "UV_CACHE_DIR": "/tmp/tank-uv-cache",
+    "DYLD_FALLBACK_LIBRARY_PATH": "/opt/homebrew/lib",
+    "backend_command": "uv run --no-sync pytest",
+    "local_ports_and_network": "allowed for backend and E2E tests"
+  },
+  "audit_correction": "One-off replay script initially referenced distance_px instead of the existing distance field. Corrected, all 40 rerun successfully; no model response or score changed."
+}
