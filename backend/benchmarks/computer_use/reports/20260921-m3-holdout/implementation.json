@@ -1,0 +1,21 @@
+{
+  "implementation_revision": "dbd1a16812c0c7f1a826b84465a09b5c1a6fd451",
+  "source_sha256": {
+    "backend/scripts/run_grounding_holdout.py": "63bd4fab321279c6aa54ae8daa133248ef1faffdbb0af1f837d7ff97081e68eb",
+    "backend/core/src/tank_backend/benchmarks/grounding_probe.py": "8af0b19e7c05b4dc53cd273bd90bf4c9d4a11964b9d552cc4384dec7f581699a",
+    "backend/core/tests/test_grounding_probe.py": "308d8de3345a0ea6544b21b95a45e1eed4184a39429493a22c6857eb2d68f061"
+  },
+  "scorer_sha256": "65d461c815bb6b43b16138edfae2724110cd9e292c05bb434f7d1abd315871ee",
+  "scoring_truth_access": "deferred until execution completes or stops",
+  "model_request_inputs": "unchanged frozen 9cd07e1",
+  "offline_driver": {
+    "mock_calls": 384,
+    "complete": true,
+    "true_model_calls": 0
+  },
+  "tdd_red_green": [
+    "missing score_holdout_location import reproduced then mask test passed",
+    "missing HoldoutBudget import reproduced then budget test passed",
+    "missing driver file reproduced then HTTP failure test passed"
+  ]
+}

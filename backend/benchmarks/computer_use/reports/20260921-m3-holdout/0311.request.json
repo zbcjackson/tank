@@ -1,0 +1,70 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "Locate the requested UI element in the current image."
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "CURRENT image: 1001x1601. Locate the button labeled 9. Call click once with its center of the button in normalized coordinates, x=0..1000, y=0..1000. The origin is the top-left of THIS input image; each axis spans the full image. Use only the CURRENT image, not previous positions. Set found=true when located. If absent or uncertain, set found=false and ALL coordinates=0."
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "sha256:44e2033b94a22612fbad0a21cee5edd5be4291e82daa6b1d59e16c8fb217bf40",
+            "detail": "auto"
+          }
+        }
+      ]
+    }
+  ],
+  "model": "openai/gpt-5.5",
+  "max_tokens": 8000,
+  "stream": false,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "click",
+        "description": "Report one target location; no action is executed.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "found": {
+              "type": "boolean"
+            },
+            "x": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            }
+          },
+          "required": [
+            "found",
+            "x",
+            "y"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "reasoning": {
+    "effort": "none"
+  },
+  "provider": {
+    "only": [
+      "openai"
+    ],
+    "allow_fallbacks": false,
+    "require_parameters": true
+  }
+}

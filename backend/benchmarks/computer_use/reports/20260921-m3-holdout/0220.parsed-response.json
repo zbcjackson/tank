@@ -1,0 +1,53 @@
+{
+  "id": "chatcmpl-430e515b-d1a3-9f5b-8dfa-ec3c9798c874",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_ea6dffb6b08942cc836d7c3b",
+            "function": {
+              "arguments": "{\"found\": true, \"left\": 636, \"top\": 781, \"right\": 720, \"bottom\": 815}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": ""
+      }
+    }
+  ],
+  "created": 1789990004,
+  "model": "qwen3.8-max-0902",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 81,
+    "prompt_tokens": 1731,
+    "total_tokens": 1812,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": null,
+      "rejected_prediction_tokens": null,
+      "text_tokens": 81
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 1024,
+      "image_tokens": 1234,
+      "text_tokens": 497
+    }
+  }
+}

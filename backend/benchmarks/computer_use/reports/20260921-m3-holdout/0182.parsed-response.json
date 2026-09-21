@@ -1,0 +1,53 @@
+{
+  "id": "chatcmpl-d1debfd4-983d-9d29-9d42-fe7b84dc09a1",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The button labeled \"AC\" is not present in the current image. The keypad shows buttons for numbers 0-9, \"DEL\", and \"=\", but no \"AC\" button.\n\n",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_098c9d8a5914458c91d1a0b5",
+            "function": {
+              "arguments": "{\"found\": false, \"left\": 0, \"top\": 0, \"right\": 0, \"bottom\": 0}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": ""
+      }
+    }
+  ],
+  "created": 1789989917,
+  "model": "qwen3.8-max-0902",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 111,
+    "prompt_tokens": 1448,
+    "total_tokens": 1559,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": null,
+      "rejected_prediction_tokens": null,
+      "text_tokens": 111
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 0,
+      "image_tokens": 952,
+      "text_tokens": 496
+    }
+  }
+}

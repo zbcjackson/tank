@@ -1,0 +1,53 @@
+{
+  "id": "chatcmpl-74416dd7-2653-92a5-b821-9a414c32ae9a",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The button labeled \"8\" is not present in the current image. The visible buttons are \"=\", \"AC\", \"2\", \"7\", \"1\", \"0\", \"4\", \"3\", \"DEL\", \"9\", \"5\", and \"6\".\n\n",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_687fd61d60b1451fb9ce2c2b",
+            "function": {
+              "arguments": "{\"found\": false, \"left\": 0, \"top\": 0, \"right\": 0, \"bottom\": 0}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": ""
+      }
+    }
+  ],
+  "created": 1789990379,
+  "model": "qwen3.8-max-0902",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 127,
+    "prompt_tokens": 2050,
+    "total_tokens": 2177,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": null,
+      "rejected_prediction_tokens": null,
+      "text_tokens": 127
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 2048,
+      "image_tokens": 1552,
+      "text_tokens": 498
+    }
+  }
+}

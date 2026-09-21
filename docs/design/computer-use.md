@@ -148,8 +148,16 @@ DeepSeek low 的总用量反而增加；保留默认设置，不猜测服务端�
 
 [holdout 冻结](../../backend/benchmarks/computer_use/reports/20260921-m3-holdout-freeze/README.md)
 保留 Qwen3.7 point 基线、Max bbox 与 GPT point，使用已实测旧 found schema
-和 8000 输出上限。64 布局各重复两次的 384 份请求已离线核对；尚无模型
-holdout 成绩。缺失与同名拒绝按真值分层，旧 false 不区分二者的语义状态。
+和 8000 输出上限。64 布局各重复两次的 384 份请求先经离线核对，
+实测结果见下。缺失与同名拒绝按真值分层，旧 false 不区分二者的语义状态。
+
+[冻结 holdout 实测](../../backend/benchmarks/computer_use/reports/20260921-m3-holdout/README.md)
+已完成 384 次：Qwen3.7/Max/GPT 正例为 57/96、96/96、96/96，缺失拒绝
+均 16/16，同名歧义拒绝均 0/16；全部配置未通过完整门槛。旧提示未明确
+要求多匹配拒绝，不能把失败单独归为视觉识别能力。默认不变；该 holdout
+已用于评估，后续调参不得继续用它宣称独立验收。
+冻结输入执行器已支持真实 SDK、逐请求预算和原始响应保留；独立 mask 评分
+在执行结束后读取真值。这是 benchmark 能力，尚未注册 AgentRunner locate。
 
 ## 已修复与测试覆盖
 

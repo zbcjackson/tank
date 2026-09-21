@@ -1,0 +1,6 @@
+{
+  "freeze_manifest_sha256": "2b7c563ea8a8e89a008d0f18547bf0392b2ce3d66d81590b5c86c9bd36249073",
+  "driver_sha256": "63bd4fab321279c6aa54ae8daa133248ef1faffdbb0af1f837d7ff97081e68eb",
+  "started_unix": 1789989514.4465191,
+  "mock_transport": false
+}

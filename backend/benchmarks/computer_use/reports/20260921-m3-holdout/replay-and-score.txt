@@ -1,0 +1,127 @@
+"""Offline raw-response replay and independent mask scoring after frozen execution stops."""
+import gzip
+import hashlib
+import json
+import math
+from pathlib import Path
+import random
+import statistics
+import subprocess
+import sys
+from PIL import Image
+from openai.types.chat import ChatCompletion
+from tank_backend.benchmarks.grounding_probe import score_holdout_location
+from tank_backend.tools.computer_grounding import GroundingAdapter
+
+root=Path('/Users/zbcjackson/src/tank')
+out=Path(sys.argv[1]).resolve()
+freeze=root/'backend/benchmarks/computer_use/reports/20260921-m3-holdout-freeze'
+manifest=json.loads((freeze/'manifest.json').read_text())
+result=json.loads((out/'results.json').read_text())
+assert result['pending']==0 or result['stop_reason'] is not None,'Cannot score a running batch'
+assert not json.loads((out/'execution.json').read_text())['mock_transport']
+data=(root/manifest['holdout_inputs']).parent
+# Verify scoring truth against the committed freeze revision before parsing it.
+truth_paths=[data/'truth/labels.json',*sorted((data/'truth').glob('*-mask.png'))]
+truth_hashes={}
+for path in truth_paths:
+    frozen=subprocess.check_output(['git','show','9cd07e1:'+str(path.relative_to(root))],cwd=root)
+    assert path.read_bytes()==frozen
+    truth_hashes[str(path.relative_to(data))]=hashlib.sha256(frozen).hexdigest()
+truth={x['id']:x for x in json.loads((data/'truth/labels.json').read_text())}
+inputs={x['id']:x for x in json.loads((data/'inputs.json').read_text())}
+specs={x['alias']:x for x in manifest['candidates']}
+requests={x['id']:x for x in json.loads((freeze/'requests.json').read_text())}
+schedule=json.loads((freeze/'schedule.json').read_text())
+rows=[]
+for index,row in enumerate(result['results']):
+    step=schedule[index]
+    assert all(row[k]==v for k,v in step.items())
+    prefix=f'{row["attempt"]:04d}'
+    actual=json.loads((out/f'{prefix}.request.json').read_text())
+    assert actual==requests[row['request_id']]['body'] and row['http_attempts']==1
+    spec=specs[row['candidate']];entry=inputs[row['layout_id']];label=truth[row['layout_id']]
+    point=None;valid=False
+    if 'returned_model' in row:
+        response=ChatCompletion.model_validate_json(gzip.decompress((out/f'{prefix}.response.json.gz').read_bytes()))
+        assert response.model_dump()==json.loads((out/f'{prefix}.parsed-response.json').read_text())
+        assert (response.usage.model_dump() if response.usage else None)==row['usage']
+        assert response.model==row['returned_model']
+        try:
+            location=GroundingAdapter(**spec['adapter']).parse_response(response,tuple(entry['size']))
+        except ValueError as exc:
+            assert not row['schema_valid'] and str(exc)==row['parse_error']
+        else:
+            valid=True;point=location.point
+            assert row['schema_valid'] and row['point']==(list(point) if point is not None else None)
+            assert row['box']==(list(location.box) if location.box is not None else None)
+    with Image.open(data/label['mask']) as mask:
+        assert list(mask.size)==entry['size'] and mask.mode=='L'
+        score=score_holdout_location(label['expected'],point,valid,mask,tuple(label['center']) if label['center'] else None)
+    rows.append(dict(row,expected=label['expected'],stratum=label['stratum'],**score))
+
+def percentile(values,p):
+    return sorted(values)[max(0,math.ceil(p*len(values))-1)] if values else None
+
+groups=[]
+for alias in specs:
+    subset=[r for r in rows if r['candidate']==alias]
+    positive=[r for r in subset if r['expected']=='found']
+    distances=[r['distance'] for r in positive if r['distance'] is not None]
+    negatives={e:[r for r in subset if r['expected']==e] for e in ('not_found','ambiguous')}
+    hit_rate=sum(r['hit'] for r in positive)/len(positive) if positive else None
+    p95=percentile(distances,.95)
+    complete=len(subset)==128
+    passes=bool(complete and hit_rate is not None and hit_rate>=.95 and p95 is not None and p95<=15
+                and not any(d>50 for d in distances) and not any(r['false_positive'] for r in subset)
+                and all(r['success'] for n in negatives.values() for r in n))
+    groups.append({'candidate':alias,'attempts':len(subset),'complete':complete,
+        'schema_valid':sum(r['schema_valid'] for r in subset),'positive_attempts':len(positive),
+        'positive_hits':sum(r['hit'] for r in positive),'positive_hit_rate':hit_rate,
+        'center_error_p95_given_point':p95,'max_error_given_point':max(distances) if distances else None,
+        'positive_without_valid_point':len(positive)-len(distances),'errors_over_50px':sum(d>50 for d in distances),
+        'negative':{e:{'attempts':len(n),'correct_refusals':sum(r['success'] for r in n),
+                      'executable_false_positives':sum(r['false_positive'] for r in n)} for e,n in negatives.items()},
+        'successes':sum(r['success'] for r in subset),'static_gate_pass':passes if complete else None,
+        'known_tokens':sum(r['usage']['total_tokens'] for r in subset if r.get('usage')),
+        'unknown_usage':sum(r.get('usage') is None for r in subset),
+        'median_seconds':statistics.median(r['seconds'] for r in subset) if subset else None,
+        'p95_seconds':percentile([r['seconds'] for r in subset],.95),
+        'truncations':sum('length' in r.get('finish_reasons',[]) for r in subset),
+        'returned_models':sorted({r['returned_model'] for r in subset if 'returned_model' in r}),
+        'returned_providers':sorted({r['returned_provider'] for r in subset if r.get('returned_provider')}),
+        'strata':{s:{'attempts':len(n:=[r for r in subset if r['stratum']==s]),'successes':sum(r['success'] for r in n)}
+                  for s in sorted({r['stratum'] for r in subset})}})
+paired=[]
+for alias in specs:
+    if alias=='flash':continue
+    for cohort in ('positive','negative','all'):
+        diffs=[]
+        for ident,label in truth.items():
+            if cohort=='positive' and label['expected']!='found':continue
+            if cohort=='negative' and label['expected']=='found':continue
+            base=[r for r in rows if r['candidate']=='flash' and r['layout_id']==ident]
+            candidate=[r for r in rows if r['candidate']==alias and r['layout_id']==ident]
+            if len(base)==len(candidate)==2:
+                diffs.append((sum(r['success'] for r in candidate)-sum(r['success'] for r in base))/2)
+        rng=random.Random(20260921)
+        samples=[sum(rng.choice(diffs) for _ in diffs)/len(diffs) for _ in range(10000)] if diffs else []
+        paired.append({'candidate':alias,'baseline':'flash','cohort':cohort,'paired_independent_layouts':len(diffs),
+            'mean_success_difference':statistics.mean(diffs) if diffs else None,
+            'cluster_bootstrap_95_interval':[percentile(samples,.025),percentile(samples,.975)],
+            'partial_pairs_only':result['pending']!=0})
+prices=json.loads((out/'prices.json').read_text())
+known=sum(r['usage']['total_tokens'] for r in rows if r.get('usage'))
+assert known==result['budget']['known_tokens']
+summary={'attempts':len(rows),'pending':result['pending'],'stop_reason':result['stop_reason'],
+    'budget':result['budget'],'groups':groups,'paired':paired,
+    'usage_based_uncached_list_estimate_usd':sum((r['usage']['prompt_tokens']*prices['rates'][r['candidate']][0]+
+        r['usage']['completion_tokens']*prices['rates'][r['candidate']][1])/1e6 for r in rows if r.get('usage')),
+    'reported_partial_cost_usd':sum(r['usage'].get('cost',0) or 0 for r in rows if r.get('usage')),
+    'responses_with_cost':sum((r.get('usage') or {}).get('cost') is not None for r in rows),
+    'full_actual_billed_cost':'unknown; not all providers return cost',
+    'production_adoption':False,'truth_sha256':truth_hashes,'scorer_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+for name,value in [('scored-results.json',rows),('summary.json',summary)]:
+    (out/name).write_text(json.dumps(value,indent=2)+'\n')
+(out/'replay-and-score.txt').write_bytes(Path(__file__).read_bytes())
+print(json.dumps(summary,indent=2))

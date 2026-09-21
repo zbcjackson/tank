@@ -1,0 +1,376 @@
+{
+  "attempts": 384,
+  "pending": 0,
+  "stop_reason": null,
+  "budget": {
+    "max_requests": 384,
+    "max_tokens": 3000000,
+    "reservation": 18000,
+    "input_limit": 10000,
+    "requests": 384,
+    "known_tokens": 715802,
+    "unknown_reservation": 0,
+    "stop_reason": null
+  },
+  "groups": [
+    {
+      "candidate": "flash",
+      "attempts": 128,
+      "complete": true,
+      "schema_valid": 112,
+      "positive_attempts": 96,
+      "positive_hits": 57,
+      "positive_hit_rate": 0.59375,
+      "center_error_p95_given_point": 469.6753318293393,
+      "max_error_given_point": 523.280816882293,
+      "positive_without_valid_point": 14,
+      "errors_over_50px": 25,
+      "negative": {
+        "not_found": {
+          "attempts": 16,
+          "correct_refusals": 16,
+          "executable_false_positives": 0
+        },
+        "ambiguous": {
+          "attempts": 16,
+          "correct_refusals": 0,
+          "executable_false_positives": 14
+        }
+      },
+      "successes": 73,
+      "static_gate_pass": false,
+      "known_tokens": 232376,
+      "unknown_usage": 0,
+      "median_seconds": 1.1284999999999998,
+      "p95_seconds": 1.901,
+      "truncations": 0,
+      "returned_models": [
+        "qwen3.7-flash-2026-07-15"
+      ],
+      "returned_providers": [],
+      "strata": {
+        "absent": {
+          "attempts": 16,
+          "successes": 16
+        },
+        "dense": {
+          "attempts": 16,
+          "successes": 9
+        },
+        "duplicate": {
+          "attempts": 16,
+          "successes": 0
+        },
+        "occluded": {
+          "attempts": 16,
+          "successes": 9
+        },
+        "scale": {
+          "attempts": 16,
+          "successes": 7
+        },
+        "small": {
+          "attempts": 16,
+          "successes": 12
+        },
+        "sparse": {
+          "attempts": 16,
+          "successes": 14
+        },
+        "typography": {
+          "attempts": 16,
+          "successes": 6
+        }
+      }
+    },
+    {
+      "candidate": "qwen38max",
+      "attempts": 128,
+      "complete": true,
+      "schema_valid": 124,
+      "positive_attempts": 96,
+      "positive_hits": 96,
+      "positive_hit_rate": 1.0,
+      "center_error_p95_given_point": 2.294970152311292,
+      "max_error_given_point": 2.6295205361434326,
+      "positive_without_valid_point": 0,
+      "errors_over_50px": 0,
+      "negative": {
+        "not_found": {
+          "attempts": 16,
+          "correct_refusals": 16,
+          "executable_false_positives": 0
+        },
+        "ambiguous": {
+          "attempts": 16,
+          "correct_refusals": 0,
+          "executable_false_positives": 12
+        }
+      },
+      "successes": 112,
+      "static_gate_pass": false,
+      "known_tokens": 244024,
+      "unknown_usage": 0,
+      "median_seconds": 2.5140000000000002,
+      "p95_seconds": 3.352,
+      "truncations": 0,
+      "returned_models": [
+        "qwen3.8-max-0902"
+      ],
+      "returned_providers": [],
+      "strata": {
+        "absent": {
+          "attempts": 16,
+          "successes": 16
+        },
+        "dense": {
+          "attempts": 16,
+          "successes": 16
+        },
+        "duplicate": {
+          "attempts": 16,
+          "successes": 0
+        },
+        "occluded": {
+          "attempts": 16,
+          "successes": 16
+        },
+        "scale": {
+          "attempts": 16,
+          "successes": 16
+        },
+        "small": {
+          "attempts": 16,
+          "successes": 16
+        },
+        "sparse": {
+          "attempts": 16,
+          "successes": 16
+        },
+        "typography": {
+          "attempts": 16,
+          "successes": 16
+        }
+      }
+    },
+    {
+      "candidate": "gpt55",
+      "attempts": 128,
+      "complete": true,
+      "schema_valid": 128,
+      "positive_attempts": 96,
+      "positive_hits": 96,
+      "positive_hit_rate": 1.0,
+      "center_error_p95_given_point": 1.8187009099905274,
+      "max_error_given_point": 2.823425224793439,
+      "positive_without_valid_point": 0,
+      "errors_over_50px": 0,
+      "negative": {
+        "not_found": {
+          "attempts": 16,
+          "correct_refusals": 16,
+          "executable_false_positives": 0
+        },
+        "ambiguous": {
+          "attempts": 16,
+          "correct_refusals": 0,
+          "executable_false_positives": 16
+        }
+      },
+      "successes": 112,
+      "static_gate_pass": false,
+      "known_tokens": 239402,
+      "unknown_usage": 0,
+      "median_seconds": 2.692,
+      "p95_seconds": 3.709,
+      "truncations": 0,
+      "returned_models": [
+        "openai/gpt-5.5"
+      ],
+      "returned_providers": [
+        "OpenAI"
+      ],
+      "strata": {
+        "absent": {
+          "attempts": 16,
+          "successes": 16
+        },
+        "dense": {
+          "attempts": 16,
+          "successes": 16
+        },
+        "duplicate": {
+          "attempts": 16,
+          "successes": 0
+        },
+        "occluded": {
+          "attempts": 16,
+          "successes": 16
+        },
+        "scale": {
+          "attempts": 16,
+          "successes": 16
+        },
+        "small": {
+          "attempts": 16,
+          "successes": 16
+        },
+        "sparse": {
+          "attempts": 16,
+          "successes": 16
+        },
+        "typography": {
+          "attempts": 16,
+          "successes": 16
+        }
+      }
+    }
+  ],
+  "paired": [
+    {
+      "candidate": "qwen38max",
+      "baseline": "flash",
+      "cohort": "positive",
+      "paired_independent_layouts": 48,
+      "mean_success_difference": 0.40625,
+      "cluster_bootstrap_95_interval": [
+        0.28125,
+        0.5416666666666666
+      ],
+      "partial_pairs_only": false
+    },
+    {
+      "candidate": "qwen38max",
+      "baseline": "flash",
+      "cohort": "negative",
+      "paired_independent_layouts": 16,
+      "mean_success_difference": 0.0,
+      "cluster_bootstrap_95_interval": [
+        0.0,
+        0.0
+      ],
+      "partial_pairs_only": false
+    },
+    {
+      "candidate": "qwen38max",
+      "baseline": "flash",
+      "cohort": "all",
+      "paired_independent_layouts": 64,
+      "mean_success_difference": 0.3046875,
+      "cluster_bootstrap_95_interval": [
+        0.203125,
+        0.4140625
+      ],
+      "partial_pairs_only": false
+    },
+    {
+      "candidate": "gpt55",
+      "baseline": "flash",
+      "cohort": "positive",
+      "paired_independent_layouts": 48,
+      "mean_success_difference": 0.40625,
+      "cluster_bootstrap_95_interval": [
+        0.28125,
+        0.5416666666666666
+      ],
+      "partial_pairs_only": false
+    },
+    {
+      "candidate": "gpt55",
+      "baseline": "flash",
+      "cohort": "negative",
+      "paired_independent_layouts": 16,
+      "mean_success_difference": 0.0,
+      "cluster_bootstrap_95_interval": [
+        0.0,
+        0.0
+      ],
+      "partial_pairs_only": false
+    },
+    {
+      "candidate": "gpt55",
+      "baseline": "flash",
+      "cohort": "all",
+      "paired_independent_layouts": 64,
+      "mean_success_difference": 0.3046875,
+      "cluster_bootstrap_95_interval": [
+        0.203125,
+        0.4140625
+      ],
+      "partial_pairs_only": false
+    }
+  ],
+  "usage_based_uncached_list_estimate_usd": 1.723292706,
+  "reported_partial_cost_usd": 1.180242,
+  "responses_with_cost": 128,
+  "full_actual_billed_cost": "unknown; not all providers return cost",
+  "production_adoption": false,
+  "truth_sha256": {
+    "truth/labels.json": "6ed18956f23cb9f60e79c7ff19405ce1feb1079fff9d588fc2ef9b071f876310",
+    "truth/layout-00-mask.png": "39d26dae3f668f759d81eed79be5b2a4650aae87463031080fde0810a7bef215",
+    "truth/layout-01-mask.png": "328566b0c721f546a31ddf31072acf89649510250cfb6e78632f7ed3fd5e1a3a",
+    "truth/layout-02-mask.png": "61538e3821d9c74ec060c799f6df8e98dd63a832c4e7750d66b9dc7d5d13d613",
+    "truth/layout-03-mask.png": "0e3e3b29ade56d794d1aa134085d22dcc209f04bafefe8fb0ac612ab0df48604",
+    "truth/layout-04-mask.png": "6bea664051a862d5a5a08276a9313cfa85368fa2571113c2e3b4de28106e3bfb",
+    "truth/layout-05-mask.png": "0652139d566ecf7324fc2800b374ade15cb745340e5e64020167ba9942657959",
+    "truth/layout-06-mask.png": "0c490dbaf17716edff5f08856b83f8cd40cff744e5c49451395b95994a4872de",
+    "truth/layout-07-mask.png": "8cf83507b4a2fe3a0a55527fc446b7f5fa325095b5404939a347b9e8f46f4a5e",
+    "truth/layout-08-mask.png": "681ef69bb4ce2f5e99ebbb297f0e2f6c59299c2c3394e64d506536387dfedca0",
+    "truth/layout-09-mask.png": "882396d896baab2618d1476b673d3d87b03cc0416bc630459d1f7d8f9bb95463",
+    "truth/layout-10-mask.png": "b7c72744b9edc2992e84632896de207819f76d33f7316282a473798654096ada",
+    "truth/layout-11-mask.png": "4a0f25af688fe610a745a139722ae8c55f11d59f8c936962b0509cb14fdb39d3",
+    "truth/layout-12-mask.png": "9e9c8c49358108637c0b28946775d19efac3661fcc9eecebec67ae7afaacad00",
+    "truth/layout-13-mask.png": "0a421519fe61e5845f65ca6277ec7b82d809e0893a4c8cda163a63610dea88cc",
+    "truth/layout-14-mask.png": "202f7c538b4fd91649fb565685d3fa29a79f54c7cda678833eb024327717a2a2",
+    "truth/layout-15-mask.png": "9a974a672156e49fbaa1455f38545cefd13c559b7cd9121088784d26f30798fb",
+    "truth/layout-16-mask.png": "3ad4da00f16bcff6209b77a31d3c68ddc8afafff33f0760928a3434699807b2e",
+    "truth/layout-17-mask.png": "b1c885dc09794c17cf122691a6486a54de4e315c34c51cef857ab985f8a47b6d",
+    "truth/layout-18-mask.png": "a5ea480ceb1c839c392b2427d13ddb0a9291060e30e42f97bc8f5c7bcb521f58",
+    "truth/layout-19-mask.png": "73099ea90fe1b516990f427f360ee560f6b68a1ce9e3367d0431b9dbba1dedbe",
+    "truth/layout-20-mask.png": "1cb9bf12bff4881395cece3744c251183a05a845bee154e04123279aa01c3ffd",
+    "truth/layout-21-mask.png": "f257aec19780ab96565660e8f98bbd2b50ad2b92542e401fd21cd9c8bedd662b",
+    "truth/layout-22-mask.png": "c35dbce652bed9a648dc413b0a19edc7db2b6ccc3ce5d81db34ddc493911e5f4",
+    "truth/layout-23-mask.png": "024960e1e01ba09e50ff1b616f2a40a4c85bfb0841aa25b7aeef6298b1492efd",
+    "truth/layout-24-mask.png": "6253b1114534c6de52a482ff425d2188f8b28f3a4484b09f2f5c237b79773f87",
+    "truth/layout-25-mask.png": "c00e4bfe3e43bcf96474f6ed9403b572c02cf23a37bdcb63aef319a93d56cbd3",
+    "truth/layout-26-mask.png": "2a52259476ef06103d2335c590f392393b793b94cc657c9c4bd746b414c9484b",
+    "truth/layout-27-mask.png": "379a0dca68f666d6a0c8f4c29ee54c5aa1892eee44141a72539066b0163ab66d",
+    "truth/layout-28-mask.png": "993a37ad4f566ca12f7d187ecfdd96727ed138212dc466a39d67d88ae975e124",
+    "truth/layout-29-mask.png": "f0c5729ab5fa0fc1ee1559a27d67665a6a466714692ce7cb500f5b4696c5399e",
+    "truth/layout-30-mask.png": "26a0902007afb672b87cd35f86342585d1bce112dce27a7ee6ee3a4f182114f1",
+    "truth/layout-31-mask.png": "dedf2e0f9aecda5919f5e5d56e4167cef0e3512d453587604a83020c8f7fcad4",
+    "truth/layout-32-mask.png": "a132361679ae08328eb2ca2a93af4a7fd21bf6d5096eee37e846bff4a016ff25",
+    "truth/layout-33-mask.png": "8e691ce182c046fd38ebbb9cb8846b249e3731787ed17eac9bddd145d53d0679",
+    "truth/layout-34-mask.png": "b2df5c83be3663debe521e328eaeebba8042b5ebb941afeb31bd2210056f3d37",
+    "truth/layout-35-mask.png": "ca4dba0dabb41fee2e4c694b63213cdc8dbdfcece1d884ec0d9ec4b7a981e82f",
+    "truth/layout-36-mask.png": "947e93fedea5ba1bba2a0f003ee5d0612de6f9c18e5f23cecf834ac97c4fbf53",
+    "truth/layout-37-mask.png": "78675401342355e9b07028fcca0d5d4bd7ccc132fe3a81ea8dee5f239deb3e5a",
+    "truth/layout-38-mask.png": "94ac007c8b2934567ac7e2a70ecbef9b54f44df7f8ab1ac07d33c5df28755163",
+    "truth/layout-39-mask.png": "f07fd65aa1c895266a8316651c8a64170ee0e2033384b5feb33f281f5c221f53",
+    "truth/layout-40-mask.png": "8cee6337b9ce504401f96555c96d59a3baf536ac6792d43ec8ca9b7f7c11d4cc",
+    "truth/layout-41-mask.png": "5561bbf64697261361ebbfd0a741b82bdb9ad7c9bf82cae3add027db45de51a7",
+    "truth/layout-42-mask.png": "eea7138403b6a8a7b92d0d817e63be714420b94ee52f91d2ee989e4bf57d5957",
+    "truth/layout-43-mask.png": "61a662e268dc1fad583d3a93420aff2ed682d044bcd661ded05c4f470feaf10d",
+    "truth/layout-44-mask.png": "c398563359e55065b0d2c3c3c248ebdca7d43d6f48ecb301ea586e67ef1b3fff",
+    "truth/layout-45-mask.png": "82cb01e73772dd3ddd22cd486ab90a886ebfd6f413381b65dd7f0439c0e96e42",
+    "truth/layout-46-mask.png": "acb94bbafa5b42364d8ca377cabdca8f39e8450414cc3e5c033e53e495fb87fb",
+    "truth/layout-47-mask.png": "bf4e65300708685c0085d7b4e3308ee67b3e6ab99e07b79a9d71817ea5c99147",
+    "truth/layout-48-mask.png": "972b8e5eaf56d3921f5eb2dbe0d9db0cce005dc71aea3660a927fa0f0c836864",
+    "truth/layout-49-mask.png": "0fd553f8c84f5c456975c294331bec7e5d9e00df108e89cd7c656f232565a72c",
+    "truth/layout-50-mask.png": "1ede610b6cdf85edd5dc9bfeb9bf3e06696f8041e6482af422582e22e09c994f",
+    "truth/layout-51-mask.png": "dd4e644e77ec3f59326ae2e391446d05b95e6512fe6b0b62852e82220f522283",
+    "truth/layout-52-mask.png": "972b8e5eaf56d3921f5eb2dbe0d9db0cce005dc71aea3660a927fa0f0c836864",
+    "truth/layout-53-mask.png": "0fd553f8c84f5c456975c294331bec7e5d9e00df108e89cd7c656f232565a72c",
+    "truth/layout-54-mask.png": "1ede610b6cdf85edd5dc9bfeb9bf3e06696f8041e6482af422582e22e09c994f",
+    "truth/layout-55-mask.png": "dd4e644e77ec3f59326ae2e391446d05b95e6512fe6b0b62852e82220f522283",
+    "truth/layout-56-mask.png": "972b8e5eaf56d3921f5eb2dbe0d9db0cce005dc71aea3660a927fa0f0c836864",
+    "truth/layout-57-mask.png": "0fd553f8c84f5c456975c294331bec7e5d9e00df108e89cd7c656f232565a72c",
+    "truth/layout-58-mask.png": "1ede610b6cdf85edd5dc9bfeb9bf3e06696f8041e6482af422582e22e09c994f",
+    "truth/layout-59-mask.png": "dd4e644e77ec3f59326ae2e391446d05b95e6512fe6b0b62852e82220f522283",
+    "truth/layout-60-mask.png": "972b8e5eaf56d3921f5eb2dbe0d9db0cce005dc71aea3660a927fa0f0c836864",
+    "truth/layout-61-mask.png": "0fd553f8c84f5c456975c294331bec7e5d9e00df108e89cd7c656f232565a72c",
+    "truth/layout-62-mask.png": "1ede610b6cdf85edd5dc9bfeb9bf3e06696f8041e6482af422582e22e09c994f",
+    "truth/layout-63-mask.png": "dd4e644e77ec3f59326ae2e391446d05b95e6512fe6b0b62852e82220f522283"
+  },
+  "scorer_sha256": "65d461c815bb6b43b16138edfae2724110cd9e292c05bb434f7d1abd315871ee"
+}

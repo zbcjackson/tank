@@ -1,0 +1,53 @@
+{
+  "id": "chatcmpl-57e27664-07de-93d6-9192-95a3241327a2",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The button labeled \"2\" is not present in the current image. The keypad shows buttons for 1, DEL, 7, =, 4, 6, 0, 9, 3, 5, 8, and AC, but there is no button labeled \"2\".\n\n",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_0fe11ea17ba54f5bb799a1b3",
+            "function": {
+              "arguments": "{\"found\": false, \"left\": 0, \"top\": 0, \"right\": 0, \"bottom\": 0}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": ""
+      }
+    }
+  ],
+  "created": 1789990322,
+  "model": "qwen3.8-max-0902",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 136,
+    "prompt_tokens": 1449,
+    "total_tokens": 1585,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": null,
+      "rejected_prediction_tokens": null,
+      "text_tokens": 136
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 1024,
+      "image_tokens": 952,
+      "text_tokens": 497
+    }
+  }
+}

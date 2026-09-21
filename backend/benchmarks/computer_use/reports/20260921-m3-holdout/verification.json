@@ -1,0 +1,55 @@
+{
+  "date": "2026-09-21",
+  "implementation_revision": "dbd1a16",
+  "checks": {
+    "web_lint": "passed",
+    "web_tsc_build_no_emit": "passed",
+    "backend_ruff_including_driver": "passed",
+    "backend_pytest": {
+      "passed": 4605,
+      "skipped": 1,
+      "warnings": 21
+    },
+    "changed_python_pyright": {
+      "status": "passed",
+      "errors": 0,
+      "files": [
+        "core/src/tank_backend/benchmarks/grounding_probe.py",
+        "core/tests/test_grounding_probe.py",
+        "scripts/run_grounding_holdout.py"
+      ]
+    },
+    "cli_ruff": "passed",
+    "backend_runtime_log": {
+      "status": "passed",
+      "pane": "tank:1.1",
+      "last_lines": 50,
+      "matches": 0
+    },
+    "e2e": {
+      "scenarios_passed": 14,
+      "steps_passed": 55
+    },
+    "protocol_sync": "passed",
+    "docs_consistency": "passed: 37 files",
+    "holdout_targeted_tests": 11,
+    "offline_driver_mock_requests": 384,
+    "nearest_rank_fixture": "passed without truth access",
+    "raw_response_request_and_mask_replay": 384,
+    "scorer_frozen_before_calls_and_unchanged": true,
+    "truth_matches_freeze_revision": "9cd07e1, 65 files verified after execution"
+  },
+  "test_environment": {
+    "UV_CACHE_DIR": "/tmp/tank-uv-cache",
+    "DYLD_FALLBACK_LIBRARY_PATH": "/opt/homebrew/lib"
+  },
+  "tdd": "red imports/missing driver reproduced before implementation; all focused and full tests now pass",
+  "desktop_actions": 0,
+  "real_screenshots_sent": 0,
+  "visual_review_after_scoring": {
+    "layout": "layout-50",
+    "target": "8",
+    "visible_matching_buttons": 2,
+    "sample_changed": false
+  }
+}
