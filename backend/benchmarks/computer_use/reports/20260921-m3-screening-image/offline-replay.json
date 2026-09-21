@@ -1,0 +1,165 @@
+{
+  "checks": [
+    {
+      "id": "flash-201-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "flash-201-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38flash-201-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38flash-201-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38max-201-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38max-201-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "deepseek-201-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "deepseek-201-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38flash-202-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38flash-202-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38max-202-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38max-202-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "deepseek-202-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "deepseek-202-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "flash-202-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "flash-202-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38max-203-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38max-203-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "deepseek-203-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "deepseek-203-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "flash-203-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "flash-203-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38flash-203-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38flash-203-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "deepseek-204-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "deepseek-204-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "flash-204-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "flash-204-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38flash-204-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38flash-204-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38max-204-treatment",
+      "request_verified": true,
+      "response_and_score_verified": true
+    },
+    {
+      "id": "qwen38max-204-control",
+      "request_verified": true,
+      "response_and_score_verified": true
+    }
+  ],
+  "requests": 32
+}

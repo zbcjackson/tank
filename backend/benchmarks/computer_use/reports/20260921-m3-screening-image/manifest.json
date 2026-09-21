@@ -1,0 +1,840 @@
+{
+  "revision": "14c05e91c0c904fd200685d110a87fa047179cd6",
+  "date": "2026-09-21",
+  "scope": "M3 image screening: Qwen high-resolution false/true; DeepSeek detail auto/low",
+  "specs": [
+    {
+      "id": "flash-201-control",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": false
+      }
+    },
+    {
+      "id": "flash-201-treatment",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "treatment",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": true
+      }
+    },
+    {
+      "id": "qwen38flash-201-control",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true,
+        "vl_high_resolution_images": false
+      }
+    },
+    {
+      "id": "qwen38flash-201-treatment",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "treatment",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true,
+        "vl_high_resolution_images": true
+      }
+    },
+    {
+      "id": "qwen38max-201-control",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": false
+      }
+    },
+    {
+      "id": "qwen38max-201-treatment",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "treatment",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": true
+      }
+    },
+    {
+      "id": "deepseek-201-control",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-201-treatment",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 201,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "treatment",
+      "detail": "low",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "qwen38flash-202-treatment",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "treatment",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true,
+        "vl_high_resolution_images": true
+      }
+    },
+    {
+      "id": "qwen38flash-202-control",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true,
+        "vl_high_resolution_images": false
+      }
+    },
+    {
+      "id": "qwen38max-202-treatment",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "treatment",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": true
+      }
+    },
+    {
+      "id": "qwen38max-202-control",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": false
+      }
+    },
+    {
+      "id": "deepseek-202-treatment",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "treatment",
+      "detail": "low",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-202-control",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "flash-202-treatment",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "treatment",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": true
+      }
+    },
+    {
+      "id": "flash-202-control",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 202,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": false
+      }
+    },
+    {
+      "id": "qwen38max-203-control",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": false
+      }
+    },
+    {
+      "id": "qwen38max-203-treatment",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "treatment",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": true
+      }
+    },
+    {
+      "id": "deepseek-203-control",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-203-treatment",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "treatment",
+      "detail": "low",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "flash-203-control",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": false
+      }
+    },
+    {
+      "id": "flash-203-treatment",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "treatment",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": true
+      }
+    },
+    {
+      "id": "qwen38flash-203-control",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true,
+        "vl_high_resolution_images": false
+      }
+    },
+    {
+      "id": "qwen38flash-203-treatment",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 203,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "treatment",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true,
+        "vl_high_resolution_images": true
+      }
+    },
+    {
+      "id": "deepseek-204-treatment",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "treatment",
+      "detail": "low",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-204-control",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "flash-204-treatment",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "treatment",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": true
+      }
+    },
+    {
+      "id": "flash-204-control",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": false
+      }
+    },
+    {
+      "id": "qwen38flash-204-treatment",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "treatment",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true,
+        "vl_high_resolution_images": true
+      }
+    },
+    {
+      "id": "qwen38flash-204-control",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": true,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true,
+        "vl_high_resolution_images": false
+      }
+    },
+    {
+      "id": "qwen38max-204-treatment",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "treatment",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": true
+      }
+    },
+    {
+      "id": "qwen38max-204-control",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 204,
+      "protocol": "point",
+      "thinking": false,
+      "arm": "control",
+      "detail": "auto",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false,
+        "vl_high_resolution_images": false
+      }
+    }
+  ],
+  "layouts": {
+    "201": {
+      "seed": 201,
+      "image_sha256": "061aad9aa92d206de8a2814381bf71104241403a0cc6e6b9a359f049308bccbe",
+      "size": [
+        2880,
+        1800
+      ],
+      "original_size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "bounds": [
+        589,
+        310,
+        649,
+        358
+      ],
+      "radius": 22,
+      "center": [
+        619,
+        334
+      ]
+    },
+    "202": {
+      "seed": 202,
+      "image_sha256": "e1bc380b42ce8e5bc926d5cf4919cef7e087ba6abf56eef666e0d70ee60ca97b",
+      "size": [
+        2100,
+        3360
+      ],
+      "original_size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "bounds": [
+        674,
+        970,
+        734,
+        1018
+      ],
+      "radius": 22,
+      "center": [
+        704,
+        994
+      ]
+    },
+    "203": {
+      "seed": 203,
+      "image_sha256": "a0504c9dffe3bdf1ddecd00bc40ab57fceed8896d499c9f4fdf2a157c7f9733e",
+      "size": [
+        3072,
+        2048
+      ],
+      "original_size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "bounds": [
+        620,
+        609,
+        680,
+        657
+      ],
+      "radius": 22,
+      "center": [
+        650,
+        633
+      ]
+    },
+    "204": {
+      "seed": 204,
+      "image_sha256": "4f41da4ee28617d425fbf144873378ea90c65214d3bfa31eca0cfaf624c26930",
+      "size": [
+        3360,
+        2100
+      ],
+      "original_size": [
+        1680,
+        1050
+      ],
+      "target": "7",
+      "bounds": [
+        826,
+        294,
+        886,
+        342
+      ],
+      "radius": 22,
+      "center": [
+        856,
+        318
+      ]
+    }
+  },
+  "previous_screening_requests": 73,
+  "requests_max": 32,
+  "prior_summary_sha256": "a2b708083e94f2c35d70c5bffb23d79e595abeff07315a14a6f4617d60970b25",
+  "stage_requests_max": 144,
+  "previous_screening_tokens": 150614,
+  "prior_unknown_usage_reservation": 26000,
+  "previous_accounted_tokens": 176614,
+  "total_tokens_stop": 1000000,
+  "completed_preflight": {
+    "requests": 16,
+    "tokens": 26398
+  },
+  "image_factor": "Qwen vl_high_resolution_images false/true or DeepSeek image_url.detail auto/low",
+  "client_resize": "2x nearest for both arms; score known inverse point/2 in original layout pixels",
+  "input_geometry": "5.18-7.06 megapixels, all exceed Qwen default 2621440-pixel threshold",
+  "provider_caveat": "DeepSeek thinking ignores temperature; default thinking effort high",
+  "order": "models rotated per layout; each model has two control-first and two treatment-first pairs",
+  "independent_layouts": 4,
+  "repetitions_per_layout_setting": 1,
+  "strict": false,
+  "detail": "provider-specific paired settings",
+  "nullable_style": "integer",
+  "status_field": false,
+  "thinking": "fixed per model: Qwen3.7/Max off, Qwen3.8 Flash/DeepSeek on",
+  "max_output_tokens_per_call": 16000,
+  "per_call_seconds": 90,
+  "batch_seconds_stop": 3600,
+  "retries": 0,
+  "input_token_reservation_per_call": 10000,
+  "input_reservation_is_estimate_not_exact_tokenization": true,
+  "stop": "API/timeout/missing usage/over-reservation stops batch; parser failures with usage retained",
+  "estimated_cost_usd": 1.017584,
+  "cost_basis": "uncached peak list prices; billed cost unknown without provider usage.cost",
+  "price_sources_checked_2026_09_21": [
+    "https://www.alibabacloud.com/help/en/model-studio/qwen3-7-flash",
+    "https://www.alibabacloud.com/help/en/model-studio/qwen3-8-flash",
+    "https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max",
+    "https://api-docs.deepseek.com/quick_start/pricing/",
+    "https://www.alibabacloud.com/help/en/model-studio/vision",
+    "https://api-docs.deepseek.com/api/create-chat-completion/"
+  ],
+  "source_sha256": {
+    "core/src/tank_backend/tools/computer_grounding.py": "15d8c03041879de335d0f912a466537b5ff376cdd91e319561e34ea9303aacd0",
+    "core/src/tank_backend/tools/computer_observation.py": "60694fb5d0d86b344c56809310112078eed1fe8acf199eb63b3a5bf97377a4ef",
+    "core/src/tank_backend/llm/llm.py": "f3ff022ad9c22ddca903261539f80a772918d52349b595b0d4d7ccd7e282ee04",
+    "core/src/tank_backend/llm/profile.py": "61542ffdc166d4010f76e7941db00d49f65695848c7dddcb16f0b65c859b9862",
+    "core/src/tank_backend/benchmarks/grounding_probe.py": "11fae97cb0898e55b53e45458792e4b7b46b203018288458c7b968b63c6e2df6",
+    "scripts/probe_grounding_matrix.py": "80b6ef05c699ffdc7866f4b4d07e914c3e5fb84787792b9e93ff1dea99847830",
+    "scripts/probe_grounding_contract.py": "d6f54f6a4675c6e7c49e165d36cb12fb173c2220aa01560cbaa8d1e2de9ce7d5"
+  },
+  "holdout_input_sha256": "b518da6fcb2c096032b2bb6c1138e24a1425ead6a057e19af30599d69f56add5",
+  "holdout_image_hash_overlap": 0,
+  "holdout_calls": 0,
+  "desktop_actions": 0,
+  "real_screenshots_sent": 0
+}

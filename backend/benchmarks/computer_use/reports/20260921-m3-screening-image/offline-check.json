@@ -1,0 +1,7 @@
+{
+  "fake_http_calls": 32,
+  "image_parameter_only_pairs": 16,
+  "holdout_hash_overlap": 0,
+  "all_valid_fake_responses": true,
+  "model_calls": 0
+}

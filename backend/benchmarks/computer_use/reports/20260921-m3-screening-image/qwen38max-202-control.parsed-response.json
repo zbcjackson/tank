@@ -1,0 +1,53 @@
+{
+  "id": "chatcmpl-2608f6ea-9c23-9d85-814f-7c76b0439e4d",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_8452611928b047879e80da9c",
+            "function": {
+              "arguments": "{\"found\": true, \"x\": 670, \"y\": 591}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": ""
+      }
+    }
+  ],
+  "created": 1789966749,
+  "model": "qwen3.8-max-0902",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 52,
+    "prompt_tokens": 3004,
+    "total_tokens": 3056,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": null,
+      "rejected_prediction_tokens": null,
+      "text_tokens": 52
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 0,
+      "image_tokens": 2562,
+      "text_tokens": 442
+    }
+  }
+}

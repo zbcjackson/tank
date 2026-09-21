@@ -1,0 +1,46 @@
+{
+  "date": "2026-09-21",
+  "source_revision": "14c05e9",
+  "checks": {
+    "web_pnpm_lint": "passed",
+    "web_npx_tsc_b_noEmit": "passed",
+    "backend_ruff_core_src_tests": "passed",
+    "backend_pytest": {
+      "passed": 4595,
+      "skipped": 1,
+      "warnings": 21
+    },
+    "changed_python_pyright": "N/A: no Python source or test changes",
+    "cli_ruff": "passed",
+    "backend_runtime_log": {
+      "status": "passed",
+      "pane": "tank:1.1",
+      "last_lines": 50,
+      "error_traceback_exception_matches": 0
+    },
+    "e2e": {
+      "scenarios_passed": 14,
+      "steps_passed": 55
+    },
+    "docs_consistency": "passed: 37 files",
+    "protocol_sync": "passed",
+    "grounding_suite": {
+      "passed": 83
+    },
+    "frozen_sdk_request_pairs": {
+      "new_requests": 32,
+      "image_parameter_only_pairs": 16
+    },
+    "archived_replay": {
+      "requests_and_scores_verified": 32,
+      "exact_2x_replication_and_inverse_transform": "passed"
+    }
+  },
+  "test_environment": {
+    "UV_CACHE_DIR": "/tmp/tank-uv-cache",
+    "DYLD_FALLBACK_LIBRARY_PATH": "/opt/homebrew/lib",
+    "backend_command": "uv run --no-sync pytest",
+    "local_ports_and_network": "allowed for backend and E2E tests"
+  },
+  "offline_bootstrap": "First launch from repository root failed importing PIL before any request; rerun with backend virtualenv passed."
+}

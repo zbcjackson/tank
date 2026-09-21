@@ -1,0 +1,268 @@
+{
+  "requests": 32,
+  "http_attempts": 32,
+  "independent_layouts": 4,
+  "repetitions_per_setting": 1,
+  "stage_requests_remaining": 39,
+  "cumulative_screening_requests": 105,
+  "known_batch_tokens": 168914,
+  "known_screening_tokens": 319528,
+  "prior_unknown_usage_reservation": 26000,
+  "accounted_screening_tokens": 345528,
+  "remaining_tokens_after_reservation": 654472,
+  "unknown_usage": 0,
+  "stop_reason": null,
+  "groups": [
+    {
+      "alias": "flash",
+      "protocol": "point",
+      "arm": "control",
+      "attempts": 4,
+      "schema_valid": 4,
+      "hits": 4,
+      "truncations": 0,
+      "returned_coordinates": 4,
+      "median_distance_px_given_coordinates": 3.656425453793717,
+      "max_distance_px_given_coordinates": 4.666915469558028,
+      "known_tokens": 12163,
+      "unknown_usage": 0,
+      "prompt_tokens": [
+        3003,
+        3004,
+        2944,
+        3004
+      ],
+      "reported_image_tokens": [
+        2562,
+        2562,
+        2503,
+        2562
+      ],
+      "returned_models": [
+        "qwen3.7-flash-2026-07-15"
+      ],
+      "returned_providers": []
+    },
+    {
+      "alias": "flash",
+      "protocol": "point",
+      "arm": "treatment",
+      "attempts": 4,
+      "schema_valid": 4,
+      "hits": 3,
+      "truncations": 0,
+      "returned_coordinates": 4,
+      "median_distance_px_given_coordinates": 4.421140976970648,
+      "max_distance_px_given_coordinates": 394.1955154488696,
+      "known_tokens": 27026,
+      "unknown_usage": 0,
+      "prompt_tokens": [
+        5483,
+        7374,
+        6587,
+        7374
+      ],
+      "reported_image_tokens": [
+        5042,
+        6932,
+        6146,
+        6932
+      ],
+      "returned_models": [
+        "qwen3.7-flash-2026-07-15"
+      ],
+      "returned_providers": []
+    },
+    {
+      "alias": "qwen38flash",
+      "protocol": "point",
+      "arm": "control",
+      "attempts": 4,
+      "schema_valid": 4,
+      "hits": 3,
+      "truncations": 0,
+      "returned_coordinates": 4,
+      "median_distance_px_given_coordinates": 3.3381862411113854,
+      "max_distance_px_given_coordinates": 459.18276629682,
+      "known_tokens": 13888,
+      "unknown_usage": 0,
+      "prompt_tokens": [
+        3039,
+        3040,
+        2980,
+        3040
+      ],
+      "reported_image_tokens": [
+        2562,
+        2562,
+        2503,
+        2562
+      ],
+      "returned_models": [
+        "qwen3.8-flash"
+      ],
+      "returned_providers": []
+    },
+    {
+      "alias": "qwen38flash",
+      "protocol": "point",
+      "arm": "treatment",
+      "attempts": 4,
+      "schema_valid": 4,
+      "hits": 3,
+      "truncations": 0,
+      "returned_coordinates": 4,
+      "median_distance_px_given_coordinates": 3.1681601701534223,
+      "max_distance_px_given_coordinates": 113.95754802556962,
+      "known_tokens": 28084,
+      "unknown_usage": 0,
+      "prompt_tokens": [
+        5519,
+        7410,
+        6623,
+        7410
+      ],
+      "reported_image_tokens": [
+        5042,
+        6932,
+        6146,
+        6932
+      ],
+      "returned_models": [
+        "qwen3.8-flash"
+      ],
+      "returned_providers": []
+    },
+    {
+      "alias": "qwen38max",
+      "protocol": "point",
+      "arm": "control",
+      "attempts": 4,
+      "schema_valid": 4,
+      "hits": 4,
+      "truncations": 0,
+      "returned_coordinates": 4,
+      "median_distance_px_given_coordinates": 1.2352827858618456,
+      "max_distance_px_given_coordinates": 1.2587295182047455,
+      "known_tokens": 12163,
+      "unknown_usage": 0,
+      "prompt_tokens": [
+        3003,
+        3004,
+        2944,
+        3004
+      ],
+      "reported_image_tokens": [
+        2562,
+        2562,
+        2503,
+        2562
+      ],
+      "returned_models": [
+        "qwen3.8-max-0902"
+      ],
+      "returned_providers": []
+    },
+    {
+      "alias": "qwen38max",
+      "protocol": "point",
+      "arm": "treatment",
+      "attempts": 4,
+      "schema_valid": 4,
+      "hits": 4,
+      "truncations": 0,
+      "returned_coordinates": 4,
+      "median_distance_px_given_coordinates": 1.2513776207057377,
+      "max_distance_px_given_coordinates": 2.1655779828950954,
+      "known_tokens": 27026,
+      "unknown_usage": 0,
+      "prompt_tokens": [
+        5483,
+        7374,
+        6587,
+        7374
+      ],
+      "reported_image_tokens": [
+        5042,
+        6932,
+        6146,
+        6932
+      ],
+      "returned_models": [
+        "qwen3.8-max-0902"
+      ],
+      "returned_providers": []
+    },
+    {
+      "alias": "deepseek",
+      "protocol": "point",
+      "arm": "control",
+      "attempts": 4,
+      "schema_valid": 4,
+      "hits": 2,
+      "truncations": 0,
+      "returned_coordinates": 4,
+      "median_distance_px_given_coordinates": 36.29024005614545,
+      "max_distance_px_given_coordinates": 613.3586308188709,
+      "known_tokens": 16415,
+      "unknown_usage": 0,
+      "prompt_tokens": [
+        1410,
+        1426,
+        1425,
+        1411
+      ],
+      "reported_image_tokens": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "returned_models": [
+        "deepseek-flash"
+      ],
+      "returned_providers": []
+    },
+    {
+      "alias": "deepseek",
+      "protocol": "point",
+      "arm": "treatment",
+      "attempts": 4,
+      "schema_valid": 4,
+      "hits": 1,
+      "truncations": 0,
+      "returned_coordinates": 4,
+      "median_distance_px_given_coordinates": 126.63482222447985,
+      "max_distance_px_given_coordinates": 500.7624271049097,
+      "known_tokens": 32149,
+      "unknown_usage": 0,
+      "prompt_tokens": [
+        648,
+        655,
+        637,
+        649
+      ],
+      "reported_image_tokens": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "returned_models": [
+        "deepseek-flash"
+      ],
+      "returned_providers": []
+    }
+  ],
+  "usage_based_uncached_peak_estimate_usd": 0.12353426499999999,
+  "provider_reported_cost_usd": null,
+  "responses_with_provider_cost": 0,
+  "actual_total_billed_cost": "unknown: direct providers do not return cost",
+  "preflight_totals_unchanged": {
+    "requests": 16,
+    "tokens": 26398
+  },
+  "holdout_calls": 0,
+  "desktop_actions": 0,
+  "real_screenshots_sent": 0
+}

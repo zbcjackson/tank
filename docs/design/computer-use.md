@@ -135,6 +135,10 @@ Flash on 命中而另两组 on 失误，不能作通用收益结论。缺失用�
 命中为：Qwen3.7 3/4、0/4；Flash 0/4、4/4；Max 4/4、3/4；DeepSeek
 完成响应 2/4、3/4（含旧 402 时 off 为 2/5）。Flash on 是后续候选，
 未因此切换生产配置；真实后端日志已重新通过。
+[图像处理对照](../../backend/benchmarks/computer_use/reports/20260921-m3-screening-image/README.md)
+在相同 2 倍放大合成图上分别比较 Qwen 高分辨率开关和 DeepSeek auto/low：
+32 次格式均合法但仅 24 次命中，未观察到普遍收益。Qwen 图像 token 增加，
+DeepSeek low 的总用量反而增加；保留默认设置，不猜测服务端坐标补偿。
 
 ## 已修复与测试覆盖
 

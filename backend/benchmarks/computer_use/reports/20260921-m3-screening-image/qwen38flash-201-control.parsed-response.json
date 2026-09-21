@@ -1,0 +1,52 @@
+{
+  "id": "chatcmpl-9adc2cc6-2716-9a06-a12f-f82e677e01d3",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_0ff90f077c3649848bb6faae",
+            "function": {
+              "arguments": "{\"found\": true, \"x\": 427, \"y\": 369}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": "The user wants the AC button. Looking at the calculator, the top row contains: (, ), mc, m+, m-, mr, DEL, AC, %, /. The AC button is at approximately x=1231, y=664 in pixel coordinates. Normalizing: 1231/2880 \u2248 427, 664/1800 \u2248 369. Let me verify against the image dimensions 2880x1800. The AC circle center looks around (1231, 664). So x \u2248 427, y \u2248 369."
+      }
+    }
+  ],
+  "created": 1789966693,
+  "model": "qwen3.8-flash",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 195,
+    "prompt_tokens": 3039,
+    "total_tokens": 3234,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 140,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 0,
+      "image_tokens": 2562,
+      "text_tokens": 477
+    }
+  }
+}

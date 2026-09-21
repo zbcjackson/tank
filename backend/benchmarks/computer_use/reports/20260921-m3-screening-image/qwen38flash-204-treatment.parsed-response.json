@@ -1,0 +1,52 @@
+{
+  "id": "chatcmpl-d3f42476-7fa6-9f8a-a3ff-00b44c5614bf",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_6f0aa5e7d3b5483f83f1ddbb",
+            "function": {
+              "arguments": "{\"found\": true, \"x\": 509, \"y\": 301}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": "The user wants me to locate the button labeled \"7\" on a calculator interface. Looking at the image, I can see a calculator with rows of buttons. The second row contains \"2nd\", \"x2\", \"x3\", \"xy\", \"ex\", \"10x\", \"7\", \"8\", \"9\", and \"x\". The \"7\" button is in that row, positioned after \"10x\". I need to estimate its center coordinates in normalized space (0-1000). The \"7\" button appears to be around x=510, y=300 in the original pixel space, which I'll convert to normalized coordinates. The image is 3360x2100. The \"7\" button center looks to be around pixel x=1710, y=630. Normalized: x = 1710/3360*1000 \u2248 509, y = 630/2100*1000 = 300."
+      }
+    }
+  ],
+  "created": 1789966938,
+  "model": "qwen3.8-flash",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 282,
+    "prompt_tokens": 7410,
+    "total_tokens": 7692,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 227,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 256,
+      "image_tokens": 6932,
+      "text_tokens": 478
+    }
+  }
+}

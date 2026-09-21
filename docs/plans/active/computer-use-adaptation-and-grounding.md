@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-20。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 十六次预检及四十次点/框筛选已记录，thinking 中止后已在余额恢复时补跑 26 次、完成 32 设置对照（历史 402 保留），共用适配与生产 LLM 单次调用接口已实现，其余模型验收待完成；M4–M8 待完成。N2 复用既有 benchmark。
+> 状态：执行中，2026-09-21。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 十六次预检及四十次点/框筛选已记录，thinking 中止后已在余额恢复时补跑 26 次、完成 32 设置对照（历史 402 保留），共用适配与生产 LLM 单次调用接口已实现，图像参数单因素 32 次未见普遍命中收益，其余模型验收待完成；M4–M8 待完成。N2 复用既有 benchmark。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -201,7 +201,10 @@ benchmark，不能仅因历史清单未勾选就写成“还未验证”。
 第七次因 DeepSeek HTTP 402 余额不足停止；余额恢复后的
 [26 次续跑](../../../backend/benchmarks/computer_use/reports/20260920-m3-screening-thinking-resume/README.md)
 已补齐 32 设置。筛选累计 73/144 次、150614 已知 tokens；历史未知用量保留，
-按完整请求估算预留 26000 tokens，剩余 71 次 / 823386 tokens（扣预留后）。
+按完整请求估算预留 26000 tokens。后续
+[图像参数 32 次对照](../../../backend/benchmarks/computer_use/reports/20260921-m3-screening-image/README.md)
+已完成；筛选现累计 105/144 次、319528 已知 tokens + 26000 预留，
+剩余 **39 次 / 654472 tokens**（扣预留后），未改变默认配置。
 具体可用型号、请求/响应型号、参数、用量与失败已记录；共用生产 adapter
 的离线实现见下；strict 小样本结果已记录，原生框实测、配置冻结与模型效果验收尚未完成。
 
@@ -662,6 +665,31 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   web lint/TypeScript、backend/CLI ruff、文档、协议及 **真实后端日志** 均通过，
   上批运行时余额阻塞已解除。定位测试 83 项、26 份 SDK 假请求及完整 33 次
   尝试回放通过；无 Python 源码/测试改动，changed-file pyright 为 N/A。
+
+### 2026-09-21 — M3 图像处理参数对照
+
+- [报告、请求与回放](../../../backend/benchmarks/computer_use/reports/20260921-m3-screening-image/README.md)：
+  四模型 × 四开发布局 × 两设置，共 32 次；Qwen 比较官方高分辨率开关，
+  DeepSeek 比较 detail=auto/low，分别归因。固定配对内图片/提示/协议/思考。
+  Qwen3.7/Max 关闭思考，Flash/DeepSeek 开启；未改变生产 profile。
+- 图像统一精确 2 倍像素复制，5.18–7.06 MP，超过 Qwen 默认像素上限；
+  已知客户端逆变换 point/2 后沿用原始圆角 mask。16 对实际 SDK 假请求
+  仅图像参数不同；真实 HTTP body/hash 一致，32 份响应及逆变换回放通过。
+  不从服务端用量猜测缩图尺寸，不比较旧原尺寸分数来归因图像参数收益。
+- 全部合法、HTTP 200、usage 已知，无截断；命中 24/32。control/treatment：
+  Qwen3.7 4/4、3/4；Flash 3/4、3/4；Max 4/4、4/4；DeepSeek 2/4、1/4。
+  Qwen image tokens 从约 2500 增至 5042–6932，未见命中数改善；DeepSeek
+  low 输入下降但总用量 32149，高于 auto 的 16415，不宣称 low 必然省成本。
+- 本批 168914 tokens；阶段累计 **105/144 次、319528 已知 + 26000 预留**，
+  余 **39 次 / 654472 tokens**（扣预留后）。本批预估 $1.017584，按实际
+  用量标价估算 $0.123534265，实际账单 unknown；历史 402 未改分/未计零。
+- 保留默认图像设置，四布局不作通用能力或采用结论；下一步显式 status 与
+  目标存在/缺失/歧义对照，仍在剩余额度内。native 协议与 holdout 未验收；
+  本批无真实截图外发、桌面动作或 holdout 请求。
+- 验证：backend **4595 passed / 1 skipped**，E2E **14 场景 / 55 步**；
+  web lint/TypeScript、backend/CLI ruff、真实后端日志、文档、协议通过。
+  定位测试 83 项通过；无 Python 源码/测试改动，pyright 为 N/A。首次离线
+  启动误用仓库根目录环境，PIL 导入失败且零请求；在 backend 环境重跑通过。
 
 ## 9. 最终 Verification Checklist
 
