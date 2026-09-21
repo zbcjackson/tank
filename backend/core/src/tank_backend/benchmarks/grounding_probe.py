@@ -4,11 +4,67 @@ from __future__ import annotations
 
 import json
 import math
+from dataclasses import dataclass
 from typing import Any
 
 from PIL import Image, ImageDraw
 
 from ..tools.computer_grounding import GroundingAdapter
+
+
+@dataclass
+class HoldoutBudget:
+    """Count every attempt; unknown usage retains its full reservation and stops."""
+
+    max_requests: int = 384
+    max_tokens: int = 3000000
+    reservation: int = 18000
+    input_limit: int = 10000
+    requests: int = 0
+    known_tokens: int = 0
+    unknown_reservation: int = 0
+    stop_reason: str | None = None
+
+    def can_start(self) -> bool:
+        return (
+            self.stop_reason is None and self.requests < self.max_requests
+            and self.known_tokens + self.unknown_reservation + self.reservation <= self.max_tokens
+        )
+
+    def record(self, prompt_tokens: int | None, total_tokens: int | None) -> str | None:
+        self.requests += 1
+        if prompt_tokens is None or total_tokens is None:
+            self.unknown_reservation += self.reservation
+            self.stop_reason = "unknown_usage"
+        else:
+            self.known_tokens += total_tokens
+            if prompt_tokens > self.input_limit:
+                self.stop_reason = "input_reservation_exceeded"
+            elif self.known_tokens + self.unknown_reservation > self.max_tokens:
+                self.stop_reason = "token_budget_exceeded"
+        return self.stop_reason
+
+
+def score_holdout_location(
+    expected: str, point: tuple[float, float] | None, valid: bool,
+    mask: Image.Image, center: tuple[float, float] | None,
+) -> dict[str, float | bool | None]:
+    """Score a parsed attempt against isolated visible pixels, never a bounding box."""
+    hit = False
+    distance = None
+    if valid and point is not None:
+        x, y = (math.floor(value + 0.5) for value in point)
+        hit = expected == "found" and 0 <= x < mask.width and 0 <= y < mask.height and bool(
+            mask.getpixel((x, y)),
+        )
+        if expected == "found" and center is not None:
+            distance = math.dist(point, center)
+    return {
+        "success": valid and (hit if expected == "found" else point is None),
+        "hit": hit,
+        "false_positive": valid and expected != "found" and point is not None,
+        "distance": distance,
+    }
 
 
 def qwen_native_request(request: dict[str, Any]) -> dict[str, Any]:

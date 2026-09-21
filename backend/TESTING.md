@@ -635,3 +635,12 @@ unchanged `complete()` text API. No new planner dispatch exists yet, so existing
 E2E scenarios are regression coverage; shared task accounting, locate dispatch
 and physical cancellation remain M4/M6 acceptance work. These tests use no paid
 model calls or desktop actions.
+
+`run_grounding_holdout.py` consumes a frozen request schedule with the production
+adapter, verifies image/source/body hashes, preserves raw HTTP before parsing,
+and never reads scoring truth. It defaults to a fake transport; `--live` requires
+a reviewed price manifest. `test_grounding_probe.py` covers visible-mask rounding
+and occlusion, invalid-response refusal scoring, request/token reservations,
+429/no retry, timeout, cancellation, missing usage and retained truncations.
+Unknown usage retains the full request reservation and stops the batch. Real
+model quality is scored separately after execution, never inferred from mocks.

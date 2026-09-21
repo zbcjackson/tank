@@ -862,3 +862,136 @@ async def test_recorded_m3_responses_replay_through_production_adapter(monkeypat
         score = score_location(point, row["bounds"], row["radius"])
         assert score["hit"] == row["hit"]
         assert score["distance"] == pytest.approx(row["distance"], rel=0, abs=1e-10)
+
+
+def test_holdout_mask_scoring_keeps_occlusion_and_rounding():
+    from PIL import Image
+
+    from tank_backend.benchmarks.grounding_probe import score_holdout_location
+
+    mask = Image.new("L", (5, 5), 255)
+    mask.putpixel((2, 2), 0)
+    score = score_holdout_location("found", (1.5, 2.0), True, mask, (2, 2))
+    assert score == {"success": False, "hit": False, "false_positive": False, "distance": 0.5}
+    assert score_holdout_location("found", (1.49, 2), True, mask, (2, 2))["hit"]
+    assert not score_holdout_location("found", (4.9, 2), True, mask, (2, 2))["hit"]
+
+
+@pytest.mark.parametrize("expected", ["not_found", "ambiguous"])
+def test_holdout_invalid_response_is_not_a_correct_refusal(expected):
+    from PIL import Image
+
+    from tank_backend.benchmarks.grounding_probe import score_holdout_location
+
+    mask = Image.new("L", (5, 5))
+    assert not score_holdout_location(expected, None, False, mask, None)["success"]
+    assert score_holdout_location(expected, None, True, mask, None)["success"]
+    assert score_holdout_location(expected, (2, 2), True, mask, None)["false_positive"]
+
+
+def test_holdout_budget_reserves_unknown_usage_and_stops():
+    from tank_backend.benchmarks.grounding_probe import HoldoutBudget
+
+    budget = HoldoutBudget(max_requests=3, max_tokens=36000)
+    assert budget.can_start()
+    assert budget.record(1000, 18000) is None
+    assert budget.can_start()
+    assert budget.record(None, None) == "unknown_usage"
+    assert budget.requests == 2 and budget.known_tokens == 18000
+    assert budget.unknown_reservation == 18000
+    assert not budget.can_start()
+
+
+async def test_holdout_driver_keeps_http_failure_and_never_retries(tmp_path, monkeypatch):
+    import gzip
+    import json
+    import runpy
+    from pathlib import Path
+
+    import httpx
+
+    monkeypatch.setenv("LANGFUSE_TRACING_ENABLED", "false")
+    root = Path(__file__).resolve().parents[3]
+    script = root / "backend/scripts/run_grounding_holdout.py"
+    execute = runpy.run_path(str(script))["execute_holdout"]
+    calls = []
+
+    def fail(request):
+        calls.append(request)
+        return httpx.Response(429, json={"error": {"message": "fixture rate limit"}})
+
+    output = tmp_path / "run"
+    result = await execute(
+        root / "backend/benchmarks/computer_use/reports/20260921-m3-holdout-freeze",
+        root, output, {"qwen": "test", "openrouter": "test"}, httpx.MockTransport(fail),
+    )
+    assert len(calls) == len(result["results"]) == 1
+    assert result["budget"]["unknown_reservation"] == 18000
+    assert result["pending"] == 383 and result["stop_reason"] == "unknown_usage"
+    assert result["results"][0]["http_status"] == 429
+    assert json.loads(gzip.decompress((output / "0001.response.json.gz").read_bytes())) == {
+        "error": {"message": "fixture rate limit"},
+    }
+
+
+@pytest.mark.parametrize("failure", ["timeout", "cancel", "missing_usage", "truncated"])
+async def test_holdout_driver_preserves_failed_attempts(tmp_path, monkeypatch, failure):
+    import asyncio
+    import json
+    import runpy
+    from pathlib import Path
+
+    import httpx
+
+    monkeypatch.setenv("LANGFUSE_TRACING_ENABLED", "false")
+    root = Path(__file__).resolve().parents[3]
+    script = root / "backend/scripts/run_grounding_holdout.py"
+    execute = runpy.run_path(str(script))["execute_holdout"]
+    calls = []
+
+    def respond(request):
+        calls.append(request)
+        if failure == "timeout":
+            raise httpx.ReadTimeout("fixture", request=request)
+        if failure == "cancel":
+            raise asyncio.CancelledError
+        if len(calls) == 2:
+            return httpx.Response(429, json={"error": {"message": "stop after truncation"}})
+        body = {"id": "fixture", "object": "chat.completion", "created": 1, "model": "fixture",
+                "choices": [{"index": 0, "finish_reason": "length", "message": {
+                    "role": "assistant", "tool_calls": [{"id": "one", "type": "function",
+                        "function": {"name": "click", "arguments": '{"found":false,"x":0,"y":0}'}}],
+                }}]}
+        if failure == "truncated":
+            body["usage"] = {"prompt_tokens": 100, "completion_tokens": 8000, "total_tokens": 8100}
+        return httpx.Response(200, json=body)
+
+    output = tmp_path / "run"
+    call = execute(
+        root / "backend/benchmarks/computer_use/reports/20260921-m3-holdout-freeze",
+        root, output, {"qwen": "test", "openrouter": "test"}, httpx.MockTransport(respond),
+    )
+    if failure == "cancel":
+        with pytest.raises(asyncio.CancelledError):
+            await call
+    else:
+        await call
+    result = json.loads((output / "results.json").read_text())
+    assert len(calls) == len(result["results"]) == (2 if failure == "truncated" else 1)
+    assert result["budget"]["known_tokens"] == (8100 if failure == "truncated" else 0)
+    assert result["budget"]["unknown_reservation"] == 18000
+    assert not result["results"][0]["schema_valid"]
+
+
+def test_holdout_budget_checks_next_reservation_and_input_limit():
+    from tank_backend.benchmarks.grounding_probe import HoldoutBudget
+
+    budget = HoldoutBudget(max_requests=1)
+    budget.record(100, 150)
+    assert not budget.can_start()
+    budget = HoldoutBudget(max_tokens=18000)
+    budget.record(100, 150)
+    assert not budget.can_start()
+    budget = HoldoutBudget()
+    assert budget.record(10001, 10100) == "input_reservation_exceeded"
+    assert not budget.can_start()
