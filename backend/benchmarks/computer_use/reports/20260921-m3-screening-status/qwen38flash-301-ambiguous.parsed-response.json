@@ -1,0 +1,52 @@
+{
+  "id": "chatcmpl-5087a256-7ff2-9343-8c88-5885e4d2d49d",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_8b4c0878c03a4efbacc6d3d3",
+            "function": {
+              "arguments": "{\"status\": \"ambiguous\", \"x\": 0, \"y\": 0}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": "There are two \"AC\" buttons visible: one in the top row at approximately x=818, y=527, and another in the second row at approximately x=753, y=575. This creates ambiguity. Let me check coordinates carefully.\n\nRow 1: ( at 360, ) at 429, mc at 494, m+ at 558, m- at 622, mr at 688, DEL at 752, AC at 818, % at 884, / at 950.\nRow 2: 2nd at 360, x2 at 425, x3 at 490, xy at 556, ex at 622, 10x at 688, AC at 753, 8 at 819, 9 at 885, x at 950.\n\nSo two AC buttons exist. Ambiguous.\n"
+      }
+    }
+  ],
+  "created": 1789971696,
+  "model": "qwen3.8-flash",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 279,
+    "prompt_tokens": 1767,
+    "total_tokens": 2046,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 230,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 256,
+      "image_tokens": 1262,
+      "text_tokens": 505
+    }
+  }
+}

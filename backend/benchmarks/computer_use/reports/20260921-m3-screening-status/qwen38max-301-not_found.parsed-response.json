@@ -1,0 +1,53 @@
+{
+  "id": "chatcmpl-8dedf12f-19c3-911c-9241-988cffa3a43c",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The target \"AC\" is not present on the calculator keypad in the image. The available buttons include `(`, `)`, `mc`, `m+`, `m-`, `mr`, `DEL`, `%`, `/`, `2nd`, `x2`, `x3`, `xy`, `ex`, `10x`, numbers, operators, and scientific functions, but no \"AC\" button is visible.\n\n",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_669fc908020c486db5d8f45d",
+            "function": {
+              "arguments": "{\"status\": \"not_found\", \"x\": 0, \"y\": 0}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": ""
+      }
+    }
+  ],
+  "created": 1789971706,
+  "model": "qwen3.8-max-0902",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 136,
+    "prompt_tokens": 1731,
+    "total_tokens": 1867,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": null,
+      "rejected_prediction_tokens": null,
+      "text_tokens": 136
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 0,
+      "image_tokens": 1262,
+      "text_tokens": 469
+    }
+  }
+}

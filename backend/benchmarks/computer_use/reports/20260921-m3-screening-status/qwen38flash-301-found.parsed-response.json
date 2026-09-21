@@ -1,0 +1,52 @@
+{
+  "id": "chatcmpl-72d6136a-76c5-9545-a3d7-43499070a2c5",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_4462da78331943b98c82af27",
+            "function": {
+              "arguments": "{\"status\": \"found\", \"x\": 569, \"y\": 577}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": "The AC button is in the calculator's top row, between DEL and %. Its center appears around x=820, y=519 in pixel coordinates. Normalizing: 820/1440 \u2248 569, 519/900 \u2248 577."
+      }
+    }
+  ],
+  "created": 1789971687,
+  "model": "qwen3.8-flash",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 120,
+    "prompt_tokens": 1767,
+    "total_tokens": 1887,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 66,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 0,
+      "image_tokens": 1262,
+      "text_tokens": 505
+    }
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "Locate the requested UI element in the current image."
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "CURRENT image: 1440x900. Locate this target: AC. Call click once with its center of the button in normalized coordinates, x=0..1000, y=0..1000. The origin is the top-left of THIS input image; each axis spans the full image. Use only the CURRENT image. Set status=found for one unambiguous target, status=not_found when absent, or status=ambiguous when uncertain or multiple targets match. For not_found/ambiguous set ALL coordinates=0."
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "sha256:fc64152ad19cb7f794ff95308c4a36ba5e5037f0c627f8fbde8bf23baf3c3271",
+            "detail": "auto"
+          }
+        }
+      ]
+    }
+  ],
+  "model": "qwen3.8-max-2026-09-02",
+  "max_tokens": 16000,
+  "stream": false,
+  "temperature": 0.1,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "click",
+        "description": "Report one target location; no action is executed.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "found",
+                "not_found",
+                "ambiguous"
+              ]
+            },
+            "x": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            },
+            "y": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000
+            }
+          },
+          "required": [
+            "status",
+            "x",
+            "y"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "enable_thinking": false
+}

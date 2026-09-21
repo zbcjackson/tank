@@ -1,0 +1,280 @@
+{
+  "requests": 36,
+  "http_attempts": 36,
+  "independent_layouts": 3,
+  "condition_images": 9,
+  "repetitions_per_setting": 1,
+  "stage_requests_remaining": 3,
+  "cumulative_screening_requests": 141,
+  "known_batch_tokens": 86783,
+  "known_screening_tokens": 406311,
+  "prior_unknown_usage_reservation": 26000,
+  "accounted_screening_tokens": 432311,
+  "remaining_tokens_after_reservation": 567689,
+  "unknown_usage": 0,
+  "stop_reason": null,
+  "groups": [
+    {
+      "alias": "flash",
+      "expected": "found",
+      "attempts": 3,
+      "schema_valid": 3,
+      "status_correct": 3,
+      "case_success": 1,
+      "positive_hits": 1,
+      "accepted_location_on_negative": 0,
+      "returned_status_counts": {
+        "found": 3,
+        "not_found": 0,
+        "ambiguous": 0
+      },
+      "truncations": 0,
+      "known_tokens": 6081,
+      "unknown_usage": 0,
+      "returned_models": [
+        "qwen3.7-flash-2026-07-15"
+      ]
+    },
+    {
+      "alias": "flash",
+      "expected": "not_found",
+      "attempts": 3,
+      "schema_valid": 3,
+      "status_correct": 3,
+      "case_success": 3,
+      "positive_hits": null,
+      "accepted_location_on_negative": 0,
+      "returned_status_counts": {
+        "found": 0,
+        "not_found": 3,
+        "ambiguous": 0
+      },
+      "truncations": 0,
+      "known_tokens": 6072,
+      "unknown_usage": 0,
+      "returned_models": [
+        "qwen3.7-flash-2026-07-15"
+      ]
+    },
+    {
+      "alias": "flash",
+      "expected": "ambiguous",
+      "attempts": 3,
+      "schema_valid": 3,
+      "status_correct": 0,
+      "case_success": 0,
+      "positive_hits": null,
+      "accepted_location_on_negative": 3,
+      "returned_status_counts": {
+        "found": 3,
+        "not_found": 0,
+        "ambiguous": 0
+      },
+      "truncations": 0,
+      "known_tokens": 6081,
+      "unknown_usage": 0,
+      "returned_models": [
+        "qwen3.7-flash-2026-07-15"
+      ]
+    },
+    {
+      "alias": "qwen38flash",
+      "expected": "found",
+      "attempts": 3,
+      "schema_valid": 3,
+      "status_correct": 3,
+      "case_success": 2,
+      "positive_hits": 2,
+      "accepted_location_on_negative": 0,
+      "returned_status_counts": {
+        "found": 3,
+        "not_found": 0,
+        "ambiguous": 0
+      },
+      "truncations": 0,
+      "known_tokens": 6717,
+      "unknown_usage": 0,
+      "returned_models": [
+        "qwen3.8-flash"
+      ]
+    },
+    {
+      "alias": "qwen38flash",
+      "expected": "not_found",
+      "attempts": 3,
+      "schema_valid": 3,
+      "status_correct": 3,
+      "case_success": 3,
+      "positive_hits": null,
+      "accepted_location_on_negative": 0,
+      "returned_status_counts": {
+        "found": 0,
+        "not_found": 3,
+        "ambiguous": 0
+      },
+      "truncations": 0,
+      "known_tokens": 8097,
+      "unknown_usage": 0,
+      "returned_models": [
+        "qwen3.8-flash"
+      ]
+    },
+    {
+      "alias": "qwen38flash",
+      "expected": "ambiguous",
+      "attempts": 3,
+      "schema_valid": 3,
+      "status_correct": 2,
+      "case_success": 2,
+      "positive_hits": null,
+      "accepted_location_on_negative": 1,
+      "returned_status_counts": {
+        "found": 1,
+        "not_found": 0,
+        "ambiguous": 2
+      },
+      "truncations": 0,
+      "known_tokens": 7087,
+      "unknown_usage": 0,
+      "returned_models": [
+        "qwen3.8-flash"
+      ]
+    },
+    {
+      "alias": "qwen38max",
+      "expected": "found",
+      "attempts": 3,
+      "schema_valid": 3,
+      "status_correct": 3,
+      "case_success": 3,
+      "positive_hits": 3,
+      "accepted_location_on_negative": 0,
+      "returned_status_counts": {
+        "found": 3,
+        "not_found": 0,
+        "ambiguous": 0
+      },
+      "truncations": 0,
+      "known_tokens": 6081,
+      "unknown_usage": 0,
+      "returned_models": [
+        "qwen3.8-max-0902"
+      ]
+    },
+    {
+      "alias": "qwen38max",
+      "expected": "not_found",
+      "attempts": 3,
+      "schema_valid": 3,
+      "status_correct": 2,
+      "case_success": 2,
+      "positive_hits": null,
+      "accepted_location_on_negative": 1,
+      "returned_status_counts": {
+        "found": 1,
+        "not_found": 2,
+        "ambiguous": 0
+      },
+      "truncations": 0,
+      "known_tokens": 6255,
+      "unknown_usage": 0,
+      "returned_models": [
+        "qwen3.8-max-0902"
+      ]
+    },
+    {
+      "alias": "qwen38max",
+      "expected": "ambiguous",
+      "attempts": 3,
+      "schema_valid": 3,
+      "status_correct": 3,
+      "case_success": 3,
+      "positive_hits": null,
+      "accepted_location_on_negative": 0,
+      "returned_status_counts": {
+        "found": 0,
+        "not_found": 0,
+        "ambiguous": 3
+      },
+      "truncations": 0,
+      "known_tokens": 6110,
+      "unknown_usage": 0,
+      "returned_models": [
+        "qwen3.8-max-0902"
+      ]
+    },
+    {
+      "alias": "deepseek",
+      "expected": "found",
+      "attempts": 3,
+      "schema_valid": 3,
+      "status_correct": 3,
+      "case_success": 2,
+      "positive_hits": 2,
+      "accepted_location_on_negative": 0,
+      "returned_status_counts": {
+        "found": 3,
+        "not_found": 0,
+        "ambiguous": 0
+      },
+      "truncations": 0,
+      "known_tokens": 12360,
+      "unknown_usage": 0,
+      "returned_models": [
+        "deepseek-flash"
+      ]
+    },
+    {
+      "alias": "deepseek",
+      "expected": "not_found",
+      "attempts": 3,
+      "schema_valid": 3,
+      "status_correct": 3,
+      "case_success": 3,
+      "positive_hits": null,
+      "accepted_location_on_negative": 0,
+      "returned_status_counts": {
+        "found": 0,
+        "not_found": 3,
+        "ambiguous": 0
+      },
+      "truncations": 0,
+      "known_tokens": 9506,
+      "unknown_usage": 0,
+      "returned_models": [
+        "deepseek-flash"
+      ]
+    },
+    {
+      "alias": "deepseek",
+      "expected": "ambiguous",
+      "attempts": 3,
+      "schema_valid": 3,
+      "status_correct": 3,
+      "case_success": 3,
+      "positive_hits": null,
+      "accepted_location_on_negative": 0,
+      "returned_status_counts": {
+        "found": 0,
+        "not_found": 0,
+        "ambiguous": 3
+      },
+      "truncations": 0,
+      "known_tokens": 6336,
+      "unknown_usage": 0,
+      "returned_models": [
+        "deepseek-flash"
+      ]
+    }
+  ],
+  "usage_based_uncached_peak_estimate_usd": 0.059274144,
+  "provider_reported_cost_usd": null,
+  "actual_total_billed_cost": "unknown: direct providers do not return cost",
+  "preflight_totals_unchanged": {
+    "requests": 16,
+    "tokens": 26398
+  },
+  "holdout_calls": 0,
+  "desktop_actions": 0,
+  "real_screenshots_sent": 0
+}

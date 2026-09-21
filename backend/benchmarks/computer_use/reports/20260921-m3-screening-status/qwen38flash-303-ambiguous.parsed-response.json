@@ -1,0 +1,52 @@
+{
+  "id": "chatcmpl-8ad0602c-31cb-9344-94d5-a650779e13ca",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_447951e6597d4bc2a29e2767",
+            "function": {
+              "arguments": "{\"status\": \"ambiguous\", \"x\": 0, \"y\": 0}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": "The user wants me to locate the \"AC\" button on the calculator interface. Looking at the image, I can see two \"AC\" buttons: one in the top row of the keypad (at approximately x=505, y=693) and another in the second row (at approximately x=432, y=747). Since there are two matching targets, this is ambiguous.\n\nWait, let me look more carefully. The top row has: (, ), mc, m+, m-, mr, DEL, AC, %, /. The second row has: 2nd, x2, x3, xy, ex, 10x, AC, 8, 9, x. So yes, there are two \"AC\" buttons visible. This makes the target ambiguous.\n\nHmm, but typically \"AC\" refers to the clear button. Both are labeled \"AC\". Since there are two identical labels, I should mark it as ambiguous."
+      }
+    }
+  ],
+  "created": 1789971850,
+  "model": "qwen3.8-flash",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 252,
+    "prompt_tokens": 2044,
+    "total_tokens": 2296,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 202,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 256,
+      "image_tokens": 1538,
+      "text_tokens": 506
+    }
+  }
+}

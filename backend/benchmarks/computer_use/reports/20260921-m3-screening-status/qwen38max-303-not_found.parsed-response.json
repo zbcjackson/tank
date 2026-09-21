@@ -1,0 +1,53 @@
+{
+  "id": "chatcmpl-ccd6b590-84b3-9790-86ab-ed2646edb6b0",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The target \"AC\" is not visible on the calculator keypad in the current image. The available buttons include parentheses, memory functions (mc, m+, m-, mr), delete (DEL), percentage (%), division (/), 2nd, powers (x2, x3), roots, logarithms, trigonometric functions, constants (e, pi), and basic arithmetic operators, but there is no \"AC\" (All Clear) button present.\n\n",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_070a2210d5024f7a80fe8e62",
+            "function": {
+              "arguments": "{\"status\": \"not_found\", \"x\": 0, \"y\": 0}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": ""
+      }
+    }
+  ],
+  "created": 1789971832,
+  "model": "qwen3.8-max-0902",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 140,
+    "prompt_tokens": 2008,
+    "total_tokens": 2148,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": null,
+      "rejected_prediction_tokens": null,
+      "text_tokens": 140
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 0,
+      "image_tokens": 1538,
+      "text_tokens": 470
+    }
+  }
+}

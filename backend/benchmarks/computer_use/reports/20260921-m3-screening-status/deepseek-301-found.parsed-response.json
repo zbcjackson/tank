@@ -1,0 +1,52 @@
+{
+  "id": "35739b9e-2e7c-493a-81ca-991b88b517f0",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_00_OGTdbfSaGycLsOtde8zO5178",
+            "function": {
+              "arguments": "{\"status\": \"found\", \"x\": 578, \"y\": 574}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": "The image is 1440x900. Need to locate the \"AC\" button on the calculator. The AC button appears in the row with (, ), mc, m+, m-, mr, DEL, AC, %, /.\n\nLooking at coordinates: AC appears around x=843, y=517 in pixel coordinates.\n\nLet me estimate more precisely. The buttons in that row: \"(\" at ~360, \")\" at ~420, \"mc\" at ~484, \"m+\" at ~560, \"m-\" at ~630, \"mr\" at ~703, \"DEL\" at ~768, \"AC\" at ~834, \"%\" at ~897, \"/\" at ~956.\n\nThe AC button center looks like around x=834, y=517.\n\nNormalized: x = 834/1440 * 1000 = 579, y = 517/900 * 1000 = 574.\n\nLet me refine. The AC label center appears at roughly x=833, y=517. So normalized x \u2248 578, y \u2248 574."
+      }
+    }
+  ],
+  "created": 1789971713,
+  "model": "deepseek-flash",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669",
+  "usage": {
+    "completion_tokens": 289,
+    "prompt_tokens": 1272,
+    "total_tokens": 1561,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 220,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 128
+    },
+    "prompt_cache_hit_tokens": 128,
+    "prompt_cache_miss_tokens": 1144
+  }
+}

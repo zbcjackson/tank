@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-21。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 十六次预检及四十次点/框筛选已记录，thinking 中止后已在余额恢复时补跑 26 次、完成 32 设置对照（历史 402 保留），共用适配与生产 LLM 单次调用接口已实现，图像参数单因素 32 次未见普遍命中收益，其余模型验收待完成；M4–M8 待完成。N2 复用既有 benchmark。
+> 状态：执行中，2026-09-21。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 十六次预检及四十次点/框筛选已记录，thinking 中止后已在余额恢复时补跑 26 次、完成 32 设置对照（历史 402 保留），共用适配与生产 LLM 单次调用接口已实现，图像参数单因素 32 次未见普遍命中收益，显式 status 36 次发现 5/24 负例仍误报坐标，其余模型验收待完成；M4–M8 待完成。N2 复用既有 benchmark。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -203,8 +203,9 @@ benchmark，不能仅因历史清单未勾选就写成“还未验证”。
 已补齐 32 设置。筛选累计 73/144 次、150614 已知 tokens；历史未知用量保留，
 按完整请求估算预留 26000 tokens。后续
 [图像参数 32 次对照](../../../backend/benchmarks/computer_use/reports/20260921-m3-screening-image/README.md)
-已完成；筛选现累计 105/144 次、319528 已知 tokens + 26000 预留，
-剩余 **39 次 / 654472 tokens**（扣预留后），未改变默认配置。
+已完成；再完成 [显式 status 36 次筛选](../../../backend/benchmarks/computer_use/reports/20260921-m3-screening-status/README.md)，
+24 个负例中 5 次仍误报可用坐标。筛选现累计 141/144 次、406311 已知 tokens
+另加 26000 预留，剩余 **3 次 / 567689 tokens**（扣预留后），未改变默认配置。
 具体可用型号、请求/响应型号、参数、用量与失败已记录；共用生产 adapter
 的离线实现见下；strict 小样本结果已记录，原生框实测、配置冻结与模型效果验收尚未完成。
 
@@ -690,6 +691,29 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   web lint/TypeScript、backend/CLI ruff、真实后端日志、文档、协议通过。
   定位测试 83 项通过；无 Python 源码/测试改动，pyright 为 N/A。首次离线
   启动误用仓库根目录环境，PIL 导入失败且零请求；在 backend 环境重跑通过。
+
+### 2026-09-21 — M3 显式 status：存在、缺失与同名歧义
+
+- [报告与完整请求回放](../../../backend/benchmarks/computer_use/reports/20260921-m3-screening-status/README.md)：
+  四模型 × 三新开发布局 × 三条件，36 次。每布局只替换按钮文字，提示和
+  几何一致；9 张图视觉核对及修改区域像素校验通过。独立布局只有 3 个，
+  不是 36 个独立样本；这是 status 行为筛选，不是与旧 found schema 的 A/B。
+- 共用生产 adapter，point/integer、status_field=true、strict=false、detail=auto；
+  Qwen3.7/Max thinking off，Flash/DeepSeek on。所有请求 HTTP 200、schema
+  合法且 usage 已知，无截断/重试。36 个原始响应及实际请求、评分回放一致。
+- 正例命中 / 缺失状态正确 / 歧义状态正确（各分母 3）：Qwen3.7 为 1/3、
+  3/3、0/3；Flash 为 2/3、3/3、2/3；Max 为 3/3、2/3、3/3；DeepSeek
+  为 2/3、3/3、3/3。总成功 27/36；24 个负例中仍有 **5 次合法 found 坐标**。
+  schema 合法不保证视觉判断；不得仅凭 found 或非空坐标推断执行正确。
+- 本批 86783 tokens；累计 **141/144 次、406311 已知 + 26000 预留**，余
+  **3 次 / 567689 tokens**。请求前估计 $1.144782，按实际用量标价估算
+  $0.059274144，实际账单 unknown。历史 402 仍未知，不计零或清空预留。
+- 默认配置未改变，无 holdout 调用、真实截图或桌面动作。下一步收敛冻结
+  开发候选与未测试能力边界，再跑独立 holdout；native 协议仍未验收。
+- 验证：backend **4595 passed / 1 skipped**，E2E **14 场景 / 55 步**；
+  web lint/TypeScript、backend/CLI ruff、真实后端日志、文档、协议通过；
+  定位测试 83 项。无 Python 源码/测试改动，pyright 为 N/A。协议检查先因
+  uv 缓存权限及系统配置沙箱限制失败，设置临时缓存并在授权环境重跑通过。
 
 ## 9. 最终 Verification Checklist
 

@@ -1,0 +1,7 @@
+{
+  "fake_http_calls": 36,
+  "image_only_condition_triplets": 12,
+  "all_truth_fixture_status_and_scores_pass": true,
+  "holdout_hash_overlap": 0,
+  "model_calls": 0
+}

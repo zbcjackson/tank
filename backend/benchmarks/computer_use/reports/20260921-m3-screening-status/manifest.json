@@ -1,0 +1,1045 @@
+{
+  "revision": "cc3ba0e2bd4430363c11977e55b61b2fdea168ab",
+  "date": "2026-09-21",
+  "scope": "M3 explicit status screening: target present, absent and duplicate",
+  "specs": [
+    {
+      "id": "flash-301-found",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 301,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "301-found",
+      "expected": "found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "flash-301-not_found",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 301,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "301-not_found",
+      "expected": "not_found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "flash-301-ambiguous",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 301,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "301-ambiguous",
+      "expected": "ambiguous",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38flash-301-found",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 301,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "301-found",
+      "expected": "found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "qwen38flash-301-not_found",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 301,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "301-not_found",
+      "expected": "not_found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "qwen38flash-301-ambiguous",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 301,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "301-ambiguous",
+      "expected": "ambiguous",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "qwen38max-301-found",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 301,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "301-found",
+      "expected": "found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38max-301-not_found",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 301,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "301-not_found",
+      "expected": "not_found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38max-301-ambiguous",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 301,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "301-ambiguous",
+      "expected": "ambiguous",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "deepseek-301-found",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 301,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "301-found",
+      "expected": "found",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-301-not_found",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 301,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "301-not_found",
+      "expected": "not_found",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-301-ambiguous",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 301,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "301-ambiguous",
+      "expected": "ambiguous",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "qwen38flash-302-not_found",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 302,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "302-not_found",
+      "expected": "not_found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "qwen38flash-302-ambiguous",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 302,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "302-ambiguous",
+      "expected": "ambiguous",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "qwen38flash-302-found",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 302,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "302-found",
+      "expected": "found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "qwen38max-302-not_found",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 302,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "302-not_found",
+      "expected": "not_found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38max-302-ambiguous",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 302,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "302-ambiguous",
+      "expected": "ambiguous",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38max-302-found",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 302,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "302-found",
+      "expected": "found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "deepseek-302-not_found",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 302,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "302-not_found",
+      "expected": "not_found",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-302-ambiguous",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 302,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "302-ambiguous",
+      "expected": "ambiguous",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-302-found",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 302,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "302-found",
+      "expected": "found",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "flash-302-not_found",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 302,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "302-not_found",
+      "expected": "not_found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "flash-302-ambiguous",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 302,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "302-ambiguous",
+      "expected": "ambiguous",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "flash-302-found",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 302,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "302-found",
+      "expected": "found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38max-303-ambiguous",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 303,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "303-ambiguous",
+      "expected": "ambiguous",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38max-303-found",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 303,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "303-found",
+      "expected": "found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38max-303-not_found",
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "rates": [
+        1.65,
+        4.951
+      ],
+      "provider": "qwen",
+      "seed": 303,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "303-not_found",
+      "expected": "not_found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "deepseek-303-ambiguous",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 303,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "303-ambiguous",
+      "expected": "ambiguous",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-303-found",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 303,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "303-found",
+      "expected": "found",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "deepseek-303-not_found",
+      "alias": "deepseek",
+      "model": "deepseek-flash",
+      "rates": [
+        0.3,
+        1.2
+      ],
+      "provider": "deepseek",
+      "seed": 303,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "303-not_found",
+      "expected": "not_found",
+      "endpoint": "https://api.deepseek.com/beta",
+      "temperature": 0.1,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    {
+      "id": "flash-303-ambiguous",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 303,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "303-ambiguous",
+      "expected": "ambiguous",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "flash-303-found",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 303,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "303-found",
+      "expected": "found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "flash-303-not_found",
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "rates": [
+        0.028,
+        0.11
+      ],
+      "provider": "qwen",
+      "seed": 303,
+      "protocol": "point",
+      "thinking": false,
+      "case_id": "303-not_found",
+      "expected": "not_found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    },
+    {
+      "id": "qwen38flash-303-ambiguous",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 303,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "303-ambiguous",
+      "expected": "ambiguous",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "qwen38flash-303-found",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 303,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "303-found",
+      "expected": "found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    },
+    {
+      "id": "qwen38flash-303-not_found",
+      "alias": "qwen38flash",
+      "model": "qwen3.8-flash",
+      "rates": [
+        0.113,
+        0.382
+      ],
+      "provider": "qwen",
+      "seed": 303,
+      "protocol": "point",
+      "thinking": true,
+      "case_id": "303-not_found",
+      "expected": "not_found",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": true
+      }
+    }
+  ],
+  "layouts": {
+    "301-found": {
+      "seed": 301,
+      "condition": "found",
+      "target_count": 1,
+      "image_sha256": "c3280109573a2fdc4ac4298fe13569ee1cbdd6d87f137a2f5c1c6dd15428fa18",
+      "changed_center": null,
+      "replacement": null,
+      "expected": "found",
+      "size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "bounds": [
+        793,
+        497,
+        853,
+        545
+      ],
+      "radius": 22,
+      "center": [
+        823,
+        521
+      ]
+    },
+    "301-not_found": {
+      "seed": 301,
+      "condition": "not_found",
+      "target_count": 0,
+      "image_sha256": "dba83efd239c5d250af568ce20f31315819b59a29e2c4c9ad51a7deb6b56fda6",
+      "changed_center": [
+        823,
+        521
+      ],
+      "replacement": "DEL",
+      "expected": "not_found",
+      "size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "bounds": [
+        793,
+        497,
+        853,
+        545
+      ],
+      "radius": 22,
+      "center": [
+        823,
+        521
+      ]
+    },
+    "301-ambiguous": {
+      "seed": 301,
+      "condition": "ambiguous",
+      "target_count": 2,
+      "image_sha256": "fc64152ad19cb7f794ff95308c4a36ba5e5037f0c627f8fbde8bf23baf3c3271",
+      "changed_center": [
+        757,
+        575
+      ],
+      "replacement": "AC",
+      "expected": "ambiguous",
+      "size": [
+        1440,
+        900
+      ],
+      "target": "AC",
+      "bounds": [
+        793,
+        497,
+        853,
+        545
+      ],
+      "radius": 22,
+      "center": [
+        823,
+        521
+      ]
+    },
+    "302-found": {
+      "seed": 302,
+      "condition": "found",
+      "target_count": 1,
+      "image_sha256": "37797e8359da885d050bf0cd730ac6c00d8806603520f9e2776d87a20c1c1146",
+      "changed_center": null,
+      "replacement": null,
+      "expected": "found",
+      "size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "bounds": [
+        735,
+        862,
+        795,
+        910
+      ],
+      "radius": 22,
+      "center": [
+        765,
+        886
+      ]
+    },
+    "302-not_found": {
+      "seed": 302,
+      "condition": "not_found",
+      "target_count": 0,
+      "image_sha256": "a49ff08d6b4064936d23e5a08e478f9ccf280aa8abd83db92f906afc01c4c51c",
+      "changed_center": [
+        765,
+        886
+      ],
+      "replacement": "DEL",
+      "expected": "not_found",
+      "size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "bounds": [
+        735,
+        862,
+        795,
+        910
+      ],
+      "radius": 22,
+      "center": [
+        765,
+        886
+      ]
+    },
+    "302-ambiguous": {
+      "seed": 302,
+      "condition": "ambiguous",
+      "target_count": 2,
+      "image_sha256": "bd533176f515a7336d95bc00808195474efcf4c69a101aaf92b128261ce9c077",
+      "changed_center": [
+        831,
+        832
+      ],
+      "replacement": "7",
+      "expected": "ambiguous",
+      "size": [
+        1050,
+        1680
+      ],
+      "target": "7",
+      "bounds": [
+        735,
+        862,
+        795,
+        910
+      ],
+      "radius": 22,
+      "center": [
+        765,
+        886
+      ]
+    },
+    "303-found": {
+      "seed": 303,
+      "condition": "found",
+      "target_count": 1,
+      "image_sha256": "abbd6c5cdd3a3bb06d27e9c44b0d058e9aa8c5dfe5569d5b269711b71b3c182c",
+      "changed_center": null,
+      "replacement": null,
+      "expected": "found",
+      "size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "bounds": [
+        579,
+        672,
+        639,
+        720
+      ],
+      "radius": 22,
+      "center": [
+        609,
+        696
+      ]
+    },
+    "303-not_found": {
+      "seed": 303,
+      "condition": "not_found",
+      "target_count": 0,
+      "image_sha256": "aa2a9b5434daa5e79ec68e12805600c02bfb355975833c75823048a924d86ac9",
+      "changed_center": [
+        609,
+        696
+      ],
+      "replacement": "DEL",
+      "expected": "not_found",
+      "size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "bounds": [
+        579,
+        672,
+        639,
+        720
+      ],
+      "radius": 22,
+      "center": [
+        609,
+        696
+      ]
+    },
+    "303-ambiguous": {
+      "seed": 303,
+      "condition": "ambiguous",
+      "target_count": 2,
+      "image_sha256": "0c44a09b6eb2f6c5bdaf6a0b72974843fc02c89ab4065dc1d550214b63683a3b",
+      "changed_center": [
+        543,
+        750
+      ],
+      "replacement": "AC",
+      "expected": "ambiguous",
+      "size": [
+        1536,
+        1024
+      ],
+      "target": "AC",
+      "bounds": [
+        579,
+        672,
+        639,
+        720
+      ],
+      "radius": 22,
+      "center": [
+        609,
+        696
+      ]
+    }
+  },
+  "previous_screening_requests": 105,
+  "requests_max": 36,
+  "prior_summary_sha256": "d678f5aaa3ba4683f54cf82975bfa61fe4ec97a640ef073dabba6d0bb3397fa8",
+  "stage_requests_max": 144,
+  "previous_screening_tokens": 319528,
+  "prior_unknown_usage_reservation": 26000,
+  "previous_accounted_tokens": 345528,
+  "total_tokens_stop": 1000000,
+  "completed_preflight": {
+    "requests": 16,
+    "tokens": 26398
+  },
+  "status_contract": "found/not_found/ambiguous with integer coordinates; non-found requires zeros",
+  "case_factor": "replace only one existing button label per condition; same target prompt per base layout",
+  "provider_caveat": "DeepSeek thinking ignores temperature; default thinking effort high",
+  "order": "models and condition sequence rotate across three layouts; no randomization",
+  "independent_base_layouts": 3,
+  "condition_images": 9,
+  "repetitions_per_layout_setting": 1,
+  "strict": false,
+  "detail": "auto",
+  "nullable_style": "integer",
+  "status_field": true,
+  "thinking": "Qwen3.7/Max off; Qwen3.8 Flash/DeepSeek on",
+  "max_output_tokens_per_call": 16000,
+  "per_call_seconds": 90,
+  "batch_seconds_stop": 3600,
+  "retries": 0,
+  "input_token_reservation_per_call": 10000,
+  "input_reservation_is_estimate_not_exact_tokenization": true,
+  "stop": "API/timeout/missing usage/over-reservation stops batch; parser failures with usage retained",
+  "estimated_cost_usd": 1.144782,
+  "cost_basis": "uncached peak list prices; billed cost unknown without provider usage.cost",
+  "price_sources_checked_2026_09_21": [
+    "https://www.alibabacloud.com/help/en/model-studio/qwen3-7-flash",
+    "https://www.alibabacloud.com/help/en/model-studio/qwen3-8-flash",
+    "https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max",
+    "https://api-docs.deepseek.com/quick_start/pricing/",
+    "https://www.alibabacloud.com/help/en/model-studio/deep-thinking",
+    "https://api-docs.deepseek.com/api/create-chat-completion/"
+  ],
+  "source_sha256": {
+    "core/src/tank_backend/tools/computer_grounding.py": "15d8c03041879de335d0f912a466537b5ff376cdd91e319561e34ea9303aacd0",
+    "core/src/tank_backend/tools/computer_observation.py": "60694fb5d0d86b344c56809310112078eed1fe8acf199eb63b3a5bf97377a4ef",
+    "core/src/tank_backend/llm/llm.py": "f3ff022ad9c22ddca903261539f80a772918d52349b595b0d4d7ccd7e282ee04",
+    "core/src/tank_backend/llm/profile.py": "61542ffdc166d4010f76e7941db00d49f65695848c7dddcb16f0b65c859b9862",
+    "core/src/tank_backend/benchmarks/grounding_probe.py": "11fae97cb0898e55b53e45458792e4b7b46b203018288458c7b968b63c6e2df6",
+    "scripts/probe_grounding_matrix.py": "80b6ef05c699ffdc7866f4b4d07e914c3e5fb84787792b9e93ff1dea99847830",
+    "scripts/probe_grounding_contract.py": "d6f54f6a4675c6e7c49e165d36cb12fb173c2220aa01560cbaa8d1e2de9ce7d5"
+  },
+  "holdout_input_sha256": "b518da6fcb2c096032b2bb6c1138e24a1425ead6a057e19af30599d69f56add5",
+  "holdout_image_hash_overlap": 0,
+  "holdout_calls": 0,
+  "desktop_actions": 0,
+  "real_screenshots_sent": 0
+}

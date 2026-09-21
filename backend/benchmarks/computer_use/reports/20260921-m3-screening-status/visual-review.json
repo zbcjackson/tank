@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-21",
+  "reviewer": "assistant visual inspection before live requests",
+  "contact_sheet": "contact-sheet.png",
+  "cases": 9,
+  "independent_layouts": 3,
+  "observed_target_counts": {
+    "found": 1,
+    "not_found": 0,
+    "ambiguous": 2
+  },
+  "changed_labels_only": true,
+  "human_review": false,
+  "contact_sheet_sent_to_models": false
+}

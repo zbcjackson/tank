@@ -1,0 +1,276 @@
+"""One-off M3 development screening: explicit present/absent/ambiguous status via production adapter."""
+import argparse
+import asyncio
+import base64
+import gzip
+import io
+from PIL import Image, ImageDraw, ImageFont
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+os.environ['LANGFUSE_TRACING_ENABLED'] = 'false'
+ROOT = Path('/Users/zbcjackson/src/tank/backend')
+sys.path.insert(0, str(ROOT / 'scripts'))
+import httpx
+from openai import APIError, AsyncOpenAI
+from dotenv import load_dotenv
+from probe_grounding_matrix import make_case
+from probe_grounding_contract import scene
+from tank_backend.config.app_config import AppConfig
+from tank_backend.llm.profile import LLMProfile, create_llm_from_profile
+from tank_backend.tools.computer_grounding import GroundingAdapter
+from tank_backend.tools.computer_observation import Observation
+from tank_backend.benchmarks.grounding_probe import score_location
+
+ALIASES = [('flash', 'qwen3.7-flash-2026-07-15', [.028, .11]),
+           ('qwen38flash', 'qwen3.8-flash', [.113, .382]),
+           ('qwen38max', 'qwen3.8-max-2026-09-02', [1.65, 4.951]),
+           ('deepseek', 'deepseek-flash', [.3, 1.2])]
+SEEDS = [301, 302, 303]
+CONDITIONS = ['found','not_found','ambiguous']
+SOURCE = ['core/src/tank_backend/tools/computer_grounding.py',
+          'core/src/tank_backend/tools/computer_observation.py',
+          'core/src/tank_backend/llm/llm.py', 'core/src/tank_backend/llm/profile.py',
+          'core/src/tank_backend/benchmarks/grounding_probe.py',
+          'scripts/probe_grounding_matrix.py', 'scripts/probe_grounding_contract.py']
+HOLDOUT = ROOT/'benchmarks/computer_use/reports/20260920-adaptation-m0-preparation/holdout/inputs.json'
+SOURCES = ['https://www.alibabacloud.com/help/en/model-studio/qwen3-7-flash',
+           'https://www.alibabacloud.com/help/en/model-studio/qwen3-8-flash',
+           'https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max',
+           'https://api-docs.deepseek.com/quick_start/pricing/',
+           'https://www.alibabacloud.com/help/en/model-studio/deep-thinking',
+           'https://api-docs.deepseek.com/api/create-chat-completion/']
+
+PRIOR = ROOT/'benchmarks/computer_use/reports/20260921-m3-screening-image'
+
+def save(path, data):
+    path.write_text(json.dumps(data, indent=2)+'\n')
+
+def sanitized(request, digest):
+    body = json.loads(request.content)
+    images = []
+    for msg in body['messages']:
+        if not isinstance(msg['content'], list):
+            continue
+        for part in msg['content']:
+            if part['type'] == 'image_url':
+                image = base64.b64decode(part['image_url']['url'].split(',', 1)[1], validate=True)
+                sha = hashlib.sha256(image).hexdigest()
+                images.append(sha)
+                part['image_url']['url'] = 'sha256:' + sha
+    assert images == [digest], 'outbound image mismatch'
+    return body
+
+async def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--live', action='store_true')
+    args = parser.parse_args()
+    out = args.output
+    cases={}
+    observations={}
+    layouts={}
+    import random
+    for seed in SEEDS:
+        original=make_case(seed,'point')
+        rng=random.Random(seed)
+        position=(rng.uniform(.1,.9),rng.uniform(.1,.9))
+        base_png,centers=scene(original['size'],position)
+        assert base_png==original['png']
+        target=original['target']
+        other='7' if target=='AC' else 'AC'
+        font=ImageFont.truetype('/System/Library/Fonts/Supplemental/Arial.ttf',24)
+        for expected in CONDITIONS:
+            image=Image.open(io.BytesIO(base_png)).copy()
+            changed_center=None
+            replacement=None
+            if expected!='found':
+                changed_center=centers[target if expected=='not_found' else other]
+                replacement='DEL' if expected=='not_found' else target
+                x,y=changed_center
+                draw=ImageDraw.Draw(image)
+                draw.rectangle((x-24,y-14,x+24,y+14),fill='#555257')
+                draw.text((x,y),replacement,font=font,fill='white',anchor='mm')
+            buf=io.BytesIO();image.save(buf,format='PNG')
+            case=dict(original,png=buf.getvalue(),expected=expected)
+            case_id=f'{seed}-{expected}'
+            cases[case_id]=case
+            observations[case_id]=Observation.capture(case['png'],session_id='m3-status',display_id=1)
+            layouts[case_id]=dict(seed=seed,condition=expected,target_count={'found':1,'not_found':0,'ambiguous':2}[expected],
+                image_sha256=observations[case_id][0].image_sha256,changed_center=changed_center,replacement=replacement,
+                expected=expected,**{key:case[key] for key in ('size','target','bounds','radius','center')})
+    holdout_hashes={r['image_sha256'] for r in json.loads(HOLDOUT.read_text())}
+    assert len({r['image_sha256'] for r in layouts.values()})==9
+    assert not holdout_hashes.intersection(r['image_sha256'] for r in layouts.values())
+    prior=json.loads((PRIOR/'summary.json').read_text())
+    assert prior['cumulative_screening_requests']==105 and prior['known_screening_tokens']==319528
+    assert prior['prior_unknown_usage_reservation']==26000 and prior['unknown_usage']==0
+    specs = []
+    for i, seed in enumerate(SEEDS):
+        models = ALIASES[i:]+ALIASES[:i]
+        for alias, model, rates in models:
+            for expected in CONDITIONS[i:]+CONDITIONS[:i]:
+                thinking=alias in ('qwen38flash','deepseek')
+                provider = 'deepseek' if alias=='deepseek' else 'qwen'
+                specs.append({'id': f'{alias}-{seed}-{expected}', 'alias':alias,'model':model,
+                    'rates':rates,'provider':provider,'seed':seed,'protocol':'point','thinking':thinking,'case_id':f'{seed}-{expected}','expected':expected,
+                    'endpoint': {'deepseek':'https://api.deepseek.com/beta',
+                        'qwen':'https://dashscope.aliyuncs.com/compatible-mode/v1'}[provider],
+                    'temperature':.1,
+                    'extra_body': {'deepseek':{'thinking':{'type':'enabled' if thinking else 'disabled'}},
+                        'qwen':{'enable_thinking':thinking}}[provider]})
+    if args.live:
+        manifest = json.loads((out/'manifest.json').read_text())
+        assert manifest['specs'] == specs
+        assert hashlib.sha256((PRIOR/'summary.json').read_bytes()).hexdigest()==manifest['prior_summary_sha256']
+        assert manifest['layouts'] == json.loads(json.dumps(layouts))
+        assert (out/'runner.txt').read_bytes() == Path(__file__).read_bytes()
+        for name,digest in manifest['source_sha256'].items():
+            assert hashlib.sha256((ROOT/name).read_bytes()).hexdigest() == digest
+        assert hashlib.sha256(HOLDOUT.read_bytes()).hexdigest() == manifest['holdout_input_sha256']
+        load_dotenv(ROOT/'core/.env')
+        qwen = AppConfig.load(ROOT/'core/config.yaml').get_llm_profile('computer_use')
+        assert qwen.base_url.rstrip('/') == 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+        assert qwen.model == ALIASES[0][1]
+        keys = {'qwen':qwen.api_key,'deepseek':os.environ.get('DEEPSEEK_API_KEY','')}
+        assert all(keys.values()), 'missing credential'
+        with (out/'live-started.json').open('x') as f:
+            json.dump({'started_unix':time.time()},f)
+    else:
+        out.mkdir(parents=True, exist_ok=False)
+        (out/'runner.txt').write_bytes(Path(__file__).read_bytes())
+        for observation,png in observations.values():
+            (out/f'{observation.image_sha256}.png').write_bytes(png)
+        manifest = {'revision':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
+            'date':'2026-09-21','scope':'M3 explicit status screening: target present, absent and duplicate',
+            'specs':specs,'layouts':layouts,'previous_screening_requests':105,'requests_max':36,
+            'prior_summary_sha256':hashlib.sha256((PRIOR/'summary.json').read_bytes()).hexdigest(),
+            'stage_requests_max':144,'previous_screening_tokens':319528,'prior_unknown_usage_reservation':26000,
+            'previous_accounted_tokens':345528,'total_tokens_stop':1000000,
+            'completed_preflight':{'requests':16,'tokens':26398},
+            'status_contract':'found/not_found/ambiguous with integer coordinates; non-found requires zeros',
+            'case_factor':'replace only one existing button label per condition; same target prompt per base layout',
+            'provider_caveat':'DeepSeek thinking ignores temperature; default thinking effort high' ,
+            'order':'models and condition sequence rotate across three layouts; no randomization',
+            'independent_base_layouts':3,'condition_images':9,'repetitions_per_layout_setting':1,
+            'strict':False,'detail':'auto','nullable_style':'integer','status_field':True,
+            'thinking':'Qwen3.7/Max off; Qwen3.8 Flash/DeepSeek on','max_output_tokens_per_call':16000,'per_call_seconds':90,
+            'batch_seconds_stop':3600,'retries':0,'input_token_reservation_per_call':10000,
+            'input_reservation_is_estimate_not_exact_tokenization':True,
+            'stop':'API/timeout/missing usage/over-reservation stops batch; parser failures with usage retained',
+            'estimated_cost_usd':round(sum(a*.01+b*.016 for _,_,(a,b) in ALIASES)*9,6),
+            'cost_basis':'uncached peak list prices; billed cost unknown without provider usage.cost',
+            'price_sources_checked_2026_09_21':SOURCES,
+            'source_sha256':{name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in SOURCE},
+            'holdout_input_sha256':hashlib.sha256(HOLDOUT.read_bytes()).hexdigest(),
+            'holdout_image_hash_overlap':0,'holdout_calls':0,'desktop_actions':0,'real_screenshots_sent':0}
+        save(out/'manifest.json',manifest)
+        keys = dict.fromkeys(['qwen','deepseek'],'test')
+    rows=[]
+    total=319528
+    stop=None
+    batch_start=time.monotonic()
+    for spec in specs:
+        if total+26000+26000>1000000 or time.monotonic()-batch_start>=3600 or len(rows)>=36:
+            stop='token, time or request budget exhausted'
+            break
+        case=cases[spec['case_id']]
+        observation,png=observations[spec['case_id']]
+        row={'id':spec['id'],'alias':spec['alias'],'seed':spec['seed'],'protocol':spec['protocol'],'thinking':spec['thinking'],'case_id':spec['case_id'],'expected':spec['expected'],
+             'status_correct':False,'case_success':False,'accepted_location_on_negative':False,
+             'image_sha256':observation.image_sha256,'schema_valid':False,'hit':False,'http_attempts':0}
+        adapter=GroundingAdapter(protocol=spec['protocol'],status_field=True)
+        profile=LLMProfile(name=spec['id'],api_key=keys[spec['provider']],model=spec['model'],
+            base_url=spec['endpoint'],temperature=spec['temperature'],max_tokens=16000,
+            extra_body=spec['extra_body'])
+        llm=create_llm_from_profile(profile)
+        await llm.client.close()
+        async def request_hook(request):
+            body=sanitized(request,observation.image_sha256)
+            assert str(request.url)==spec['endpoint'].rstrip('/')+'/chat/completions'
+            if args.live:
+                assert body==json.loads((out/(spec['id']+'.frozen-request.json')).read_text())
+                row['http_attempts']+=1
+                save(out/(spec['id']+'.request.json'),body)
+            else:
+                save(out/(spec['id']+'.frozen-request.json'),body)
+        async def response_hook(response):
+            raw=await response.aread()
+            if args.live:
+                (out/(spec['id']+'.response.json.gz')).write_bytes(gzip.compress(raw))
+                row['http_status']=response.status_code
+                row['request_id']=response.headers.get('x-request-id')
+        def fake(request):
+            arguments={'status':spec['expected'],'x':0,'y':0}
+            if spec['expected']=='found':
+                arguments.update(x=round(case['center'][0]/case['size'][0]*1000),
+                                 y=round(case['center'][1]/case['size'][1]*1000))
+            return httpx.Response(200,json={'id':'dry','object':'chat.completion','created':1,
+                'model':spec['model'],'choices':[{'index':0,'finish_reason':'tool_calls','message':{
+                'role':'assistant','tool_calls':[{'id':'one','type':'function','function':{
+                'name':'click','arguments':json.dumps(arguments)}}]}}],
+                'usage':{'prompt_tokens':100,'completion_tokens':20,'total_tokens':120}})
+        http=httpx.AsyncClient(transport=None if args.live else httpx.MockTransport(fake),
+                              event_hooks={'request':[request_hook],'response':[response_hook]})
+        started=time.monotonic()
+        async with AsyncOpenAI(api_key=profile.api_key,base_url=profile.base_url,max_retries=0,
+                               timeout=85,http_client=http) as client:
+            llm.client=client
+            try:
+                async with asyncio.timeout(min(90,3600-(time.monotonic()-batch_start))):
+                    response=await adapter.request(llm,observation,png,case['target'])
+                row.update(returned_model=response.model,returned_provider=(response.model_extra or {}).get('provider'),
+                    usage=response.usage.model_dump() if response.usage else None,
+                    choices=[c.model_dump() for c in response.choices])
+                if args.live:
+                    save(out/(spec['id']+'.parsed-response.json'),response.model_dump())
+                try:
+                    location=adapter.parse_response(response,observation.image_size)
+                    row.update(schema_valid=True,location_status=location.status,point=location.point,box=location.box)
+                    if location.point is not None:
+                        row.update(score_location(location.point,case['bounds'],case['radius']))
+                    row['status_correct']=location.status==spec['expected']
+                    row['accepted_location_on_negative']=spec['expected']!='found' and location.point is not None
+                    row['case_success']=row['status_correct'] and (row['hit'] if spec['expected']=='found' else location.point is None)
+                except ValueError as exc:
+                    row['parse_error']=str(exc)
+                if response.usage is None:
+                    stop='missing usage'
+                else:
+                    total+=response.usage.total_tokens
+                    if response.usage.prompt_tokens>10000 or total+26000>1000000:
+                        stop='input reservation or token budget exceeded'
+            except (APIError,TimeoutError) as exc:
+                row['error']=type(exc).__name__
+                row['usage']=None
+                stop='request failure; usage unknown'
+        row['seconds']=round(time.monotonic()-started,3)
+        rows.append(row)
+        if args.live:
+            save(out/'results.json',{'results':rows,'stop_reason':stop,'known_screening_tokens':total,'known_batch_tokens':total-319528,'accounted_screening_tokens':total+26000})
+            print(json.dumps({k:row[k] for k in ('id','schema_valid','status_correct','case_success','seconds','usage')}),flush=True)
+        if stop:
+            break
+    if not args.live:
+        groups=0
+        for seed in SEEDS:
+            for alias,_,_ in ALIASES:
+                bodies=[]
+                for expected in CONDITIONS:
+                    body=json.loads((out/f'{alias}-{seed}-{expected}.frozen-request.json').read_text())
+                    assert body['tools'][0]['function']['parameters']['properties']['status']['enum']==CONDITIONS
+                    body['messages'][1]['content'][1]['image_url']['url']='same-image-placeholder'
+                    bodies.append(body)
+                assert bodies[0]==bodies[1]==bodies[2]
+                groups+=1
+        assert len(rows)==36 and all(r['case_success'] for r in rows)
+        save(out/'offline-check.json',{'fake_http_calls':len(rows),'image_only_condition_triplets':groups,
+             'all_truth_fixture_status_and_scores_pass':True,'holdout_hash_overlap':0,'model_calls':0})
+    print('DONE',len(rows),stop,flush=True)
+
+asyncio.run(main())

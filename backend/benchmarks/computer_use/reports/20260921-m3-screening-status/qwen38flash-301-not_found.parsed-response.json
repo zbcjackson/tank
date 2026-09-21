@@ -1,0 +1,52 @@
+{
+  "id": "chatcmpl-8772e78b-97c4-98e2-9fab-034373ddb8d5",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The calculator keypad shown contains buttons such as `(`, `)`, `mc`, `m+`, `m-`, `mr`, `DEL`, `%`, `/`, `2nd`, `x2`, `x3`, `xy`, `ex`, `10x`, `1/x`, `sqrt`, `cbrt`, `root`, `ln`, `log`, `x!`, `sin`, `cos`, `tan`, `e`, `EE`, `Rand`, `sinh`, `cosh`, `tanh`, `pi`, `Rad`, `+/-`, digits, `.`, and `=`. There is no \"AC\" (all clear) button present \u2014 only \"DEL\" keys appear in the top row.\n\n",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_6ea0e4af1eed4d13b886de4a",
+            "function": {
+              "arguments": "{\"status\": \"not_found\", \"x\": 0, \"y\": 0}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": "The target is \"AC\" - all clear button on a calculator. Looking at the calculator interface, I see buttons: (, ), mc, m+, m-, mr, DEL, DEL, %, /, then 2nd, x2, x3, xy, ex, 10x, 7, 8, 9, x, then 1/x, sqrt, cbrt, root, ln, log, 4, 5, 6, -, then x!, sin, cos, tan, e, EE, 1, 2, 3, +, then Rand, sinh, cosh, tanh, pi, Rad, +/-, 0, ., =.\n\nThere is no \"AC\" button visible. The calculator has DEL buttons instead of AC. So the target is not found."
+      }
+    }
+  ],
+  "created": 1789971690,
+  "model": "qwen3.8-flash",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 380,
+    "prompt_tokens": 1767,
+    "total_tokens": 2147,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 174,
+      "rejected_prediction_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 256,
+      "image_tokens": 1262,
+      "text_tokens": 505
+    }
+  }
+}
