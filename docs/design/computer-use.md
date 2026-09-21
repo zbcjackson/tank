@@ -146,6 +146,11 @@ DeepSeek low 的总用量反而增加；保留默认设置，不猜测服务端�
 正例命中 8/12；DeepSeek 六个负例未误报，但不能据此宣称可靠拒绝率。
 显式状态提供可表达的结果类别，不验证视觉真值；生产默认及执行保护未改变。
 
+[holdout 冻结](../../backend/benchmarks/computer_use/reports/20260921-m3-holdout-freeze/README.md)
+保留 Qwen3.7 point 基线、Max bbox 与 GPT point，使用已实测旧 found schema
+和 8000 输出上限。64 布局各重复两次的 384 份请求已离线核对；尚无模型
+holdout 成绩。缺失与同名拒绝按真值分层，旧 false 不区分二者的语义状态。
+
 ## 已修复与测试覆盖
 
 - 主屏截取、Retina 缩放失败处理、缩放后宽高检查、边界点不超屏，以及非法

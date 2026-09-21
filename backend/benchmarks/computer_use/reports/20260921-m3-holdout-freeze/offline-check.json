@@ -1,0 +1,11 @@
+{
+  "sdk_http_mock_calls": 384,
+  "unique_requests": 192,
+  "repetitions_identical": true,
+  "source_settings_and_tool_schema_exact_match": true,
+  "images_hash_and_size_match": 64,
+  "fixture_response": "all abstain; checks parsing only, no model accuracy score",
+  "network_and_truth_open_guard": "enabled; no attempted network or truth reads",
+  "outbound_model_calls": 0,
+  "raw_truth_consumed": false
+}

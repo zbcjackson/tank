@@ -1,0 +1,40 @@
+{
+  "date": "2026-09-21",
+  "source_revision": "426dff028d5d078a7af7c1604f25470afe28f54f",
+  "checks": {
+    "web_lint": "passed",
+    "web_tsc_build_no_emit": "passed",
+    "backend_ruff": "passed",
+    "backend_pytest": {
+      "passed": 4595,
+      "skipped": 1,
+      "warnings": 21
+    },
+    "changed_python_pyright": "N/A: no source/test Python changes",
+    "cli_ruff": "passed",
+    "backend_runtime_log": {
+      "status": "passed",
+      "pane": "tank:1.1",
+      "last_lines": 50,
+      "matches": 0
+    },
+    "e2e": {
+      "scenarios_passed": 14,
+      "steps_passed": 55
+    },
+    "protocol_sync": "passed",
+    "docs_consistency": "passed: 37 files",
+    "grounding_suite": {
+      "passed": 83
+    },
+    "offline_sdk_calls": 384,
+    "independent_archive_consistency": "passed"
+  },
+  "model_calls": 0,
+  "truth_reads": 0,
+  "test_environment": {
+    "UV_CACHE_DIR": "/tmp/tank-uv-cache",
+    "DYLD_FALLBACK_LIBRARY_PATH": "/opt/homebrew/lib",
+    "backend_command": "uv run --no-sync pytest"
+  }
+}

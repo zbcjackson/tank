@@ -1,0 +1,151 @@
+{
+  "date": "2026-09-21",
+  "status": "candidate and request freeze complete; paid execution and scoring pending",
+  "source_revision": "426dff028d5d078a7af7c1604f25470afe28f54f",
+  "candidates": [
+    {
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "provider": "qwen",
+      "protocol": "point",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      },
+      "source_request": "backend/benchmarks/computer_use/reports/20260920-m3-screening-protocol/flash-201-point.frozen-request.json",
+      "source_request_sha256": "2bd92872eb729f5e288ff4ebf19b7f130913128216cc8f28b27517efdbecaba8",
+      "adapter": {
+        "protocol": "point",
+        "nullable_style": "integer",
+        "strict": false,
+        "detail": "auto",
+        "status_field": false
+      },
+      "max_tokens": 8000
+    },
+    {
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "provider": "qwen",
+      "protocol": "bbox",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      },
+      "source_request": "backend/benchmarks/computer_use/reports/20260920-m3-screening-protocol/qwen38max-201-bbox.frozen-request.json",
+      "source_request_sha256": "c02668a0d33c8d2f636b4c9a166b40efcae5f1a190a2b64522dcd24364f68104",
+      "adapter": {
+        "protocol": "bbox",
+        "nullable_style": "integer",
+        "strict": false,
+        "detail": "auto",
+        "status_field": false
+      },
+      "max_tokens": 8000
+    },
+    {
+      "alias": "gpt55",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "protocol": "point",
+      "endpoint": "https://openrouter.ai/api/v1",
+      "temperature": null,
+      "extra_body": {
+        "reasoning": {
+          "effort": "none"
+        },
+        "provider": {
+          "only": [
+            "openai"
+          ],
+          "allow_fallbacks": false,
+          "require_parameters": true
+        }
+      },
+      "source_request": "backend/benchmarks/computer_use/reports/20260920-m3-screening-protocol/gpt55-201-point.frozen-request.json",
+      "source_request_sha256": "f595d7f2d5958ee11faf8cecb5e2baeb0eb23bd2bc2716ec208319f8d85c59d6",
+      "adapter": {
+        "protocol": "point",
+        "nullable_style": "integer",
+        "strict": false,
+        "detail": "auto",
+        "status_field": false
+      },
+      "max_tokens": 8000
+    }
+  ],
+  "holdout_inputs": "backend/benchmarks/computer_use/reports/20260920-adaptation-m0-preparation/holdout/inputs.json",
+  "holdout_inputs_sha256": "b518da6fcb2c096032b2bb6c1138e24a1425ead6a057e19af30599d69f56add5",
+  "source_sha256": {
+    "backend/core/src/tank_backend/tools/computer_grounding.py": "15d8c03041879de335d0f912a466537b5ff376cdd91e319561e34ea9303aacd0",
+    "backend/core/src/tank_backend/tools/computer_observation.py": "60694fb5d0d86b344c56809310112078eed1fe8acf199eb63b3a5bf97377a4ef",
+    "backend/core/src/tank_backend/llm/llm.py": "f3ff022ad9c22ddca903261539f80a772918d52349b595b0d4d7ccd7e282ee04",
+    "backend/core/src/tank_backend/llm/profile.py": "61542ffdc166d4010f76e7941db00d49f65695848c7dddcb16f0b65c859b9862"
+  },
+  "generation_record_sha256": "8aa720f0749cd7e579e0433271e174d65ed9c7210962ad8368280c20b5a78153",
+  "independent_layouts": 64,
+  "repetitions": 2,
+  "planned_model_requests": 384,
+  "unique_serialized_requests": 192,
+  "ordering": "repeat, input order, candidates rotated by (layout index + zero-based repeat) modulo 3",
+  "scope": "static synthetic grounding; model-plus-adapter comparison, not pure model weights or A/B/C/D closed loop",
+  "frozen_adoption": {
+    "present_hit_min": 0.95,
+    "center_distance_p95_max_px": 15,
+    "any_error_over_50px": false,
+    "absent_executable_point_allowed": false,
+    "mask_required": true,
+    "denominator": "all attempts including errors, timeouts, truncation and missing outputs; group repetitions by independent layout",
+    "strict_tasks": "not below paired baseline; review every regression",
+    "cleanup_failures_or_actions_after_stop_allowed": false,
+    "uncertain_result": "retain baseline"
+  },
+  "holdout_caps": {
+    "requests": 384,
+    "per_request_seconds": 90,
+    "per_request_max_output_tokens": 16000,
+    "total_token_stop": 3000000
+  },
+  "input_token_reservation_per_call": 10000,
+  "reservation_is_estimate": true,
+  "output_cap_per_call": 8000,
+  "next_call_reservation": 18000,
+  "start_rule": "known holdout tokens + all unknown-usage reservations + 18000 <= 3000000",
+  "stop_rule": "stop on API failure, timeout, unknown usage, input above reservation, token/time/request ceiling; save raw evidence; no automatic retries",
+  "batch_model_seconds_max": 34560,
+  "http_timeout_seconds": 85,
+  "request_deadline_seconds": 90,
+  "live_prerequisites": [
+    "revalidate hashes and exact request bodies",
+    "verify current endpoint prices and write live cost estimate",
+    "wire frozen schedule to raw-response-preserving execution and separately tested mask scorer before first paid call"
+  ],
+  "scoring_policy": {
+    "positive": "visible mask at nearest pixel (floor(value+0.5)); center Euclidean error separately",
+    "negative": "parsed non-found with no executable point; report absent and duplicate strata separately",
+    "legacy_false": "internal ambiguous; cannot distinguish not_found from ambiguous semantics",
+    "invalid_or_missing": "failure in attempted denominator; unattempted explicitly pending, never discarded",
+    "p95": "nearest-rank across positive attempts with valid point; missing points separately failed, cannot pass hit threshold via omission",
+    "paired_intervals": "cluster bootstrap independent layout IDs with both repeats together; fixed seed 20260921, 10000 resamples",
+    "no_peeking": "finish frozen execution or budget stop before evaluating truth; never tune configurations or replace images from holdout results"
+  },
+  "screening_ledger_unchanged": {
+    "requests": 141,
+    "cap": 144,
+    "known_tokens": 406311,
+    "unknown_reservation": 26000
+  },
+  "this_batch": {
+    "model_requests": 0,
+    "model_tokens": 0,
+    "cost_usd": 0,
+    "truth_reads": 0,
+    "desktop_actions": 0,
+    "real_screenshots": 0
+  },
+  "future_live_cost_usd": null,
+  "requests_sha256": "215b584932a41a5e214145cf35d9dced007dc304a4b2396e7c2e4567794074b7",
+  "schedule_sha256": "eee614a3fb32b965eec3dbaad5145903c2573e7afcaf0ca82c9ab5eac133780d"
+}

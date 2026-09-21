@@ -1,0 +1,152 @@
+"""Offline candidate freeze: real production SDK serialization, synthetic holdout inputs only."""
+import asyncio
+import base64
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+os.environ['LANGFUSE_TRACING_ENABLED']='false'
+import httpx
+from openai import AsyncOpenAI
+from tank_backend.llm.profile import LLMProfile, create_llm_from_profile
+from tank_backend.tools.computer_grounding import GroundingAdapter
+from tank_backend.tools.computer_observation import Observation
+
+ROOT=Path('/Users/zbcjackson/src/tank')
+REPORTS=ROOT/'backend/benchmarks/computer_use/reports'
+DATA=REPORTS/'20260920-adaptation-m0-preparation/holdout'
+DEV=REPORTS/'20260920-m3-screening-protocol'
+OUT=REPORTS/'20260921-m3-holdout-freeze'
+
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+def encode(value):
+    return json.dumps(value,sort_keys=True,separators=(',',':')).encode()
+
+def save(name,value):
+    (OUT/name).write_text(json.dumps(value,indent=2)+'\n')
+
+def guard(event,args):
+    if event=='open' and isinstance(args[0],(str,bytes,os.PathLike)):
+        path=Path(os.fsdecode(args[0])).resolve()
+        if path.is_relative_to(DATA/'truth'):
+            raise RuntimeError('Frozen request generation must not read holdout truth')
+    if event in ('socket.connect','socket.getaddrinfo'):
+        raise RuntimeError('Offline freeze must not access network')
+
+async def main():
+    sys.addaudithook(guard)
+    inputs=json.loads((DATA/'inputs.json').read_text())
+    assert len(inputs)==64
+    assert len({r['id'] for r in inputs})==64
+    assert len({r['image_sha256'] for r in inputs})==64
+    assert all(set(r)=={'id','image','image_sha256','size','target'} for r in inputs)
+    dev=json.loads((DEV/'manifest.json').read_text())
+    selected=['flash-201-point','qwen38max-201-bbox','gpt55-201-point']
+    candidates=[]
+    for ident in selected:
+        spec=next(s for s in dev['specs'] if s['id']==ident)
+        candidates.append({k:spec[k] for k in ('alias','model','provider','protocol','endpoint','temperature','extra_body')} | {
+            'source_request':str((DEV/f'{ident}.frozen-request.json').relative_to(ROOT)),
+            'source_request_sha256':digest((DEV/f'{ident}.frozen-request.json').read_bytes()),
+            'adapter':{'protocol':spec['protocol'],'nullable_style':'integer','strict':False,'detail':'auto','status_field':False},
+            'max_tokens':8000})
+    OUT.mkdir(exist_ok=False)
+    (OUT/'freeze.txt').write_bytes(Path(__file__).read_bytes())
+    requests={};schedule=[];counter=0
+    for repeat in range(2):
+        for index,entry in enumerate(inputs):
+            path=(DATA/entry['image']).resolve()
+            assert path.is_relative_to(DATA/'images')
+            png=path.read_bytes();assert digest(png)==entry['image_sha256']
+            observation,returned=Observation.capture(png,session_id='holdout-offline-freeze',display_id=1)
+            assert returned==png and list(observation.image_size)==entry['size']
+            offset=(index+repeat)%3
+            for spec in candidates[offset:]+candidates[:offset]:
+                captured=[]
+                def fake(request):
+                    nonlocal counter
+                    counter+=1
+                    assert str(request.url)==spec['endpoint']+'/chat/completions'
+                    body=json.loads(request.content)
+                    assert len(body['messages'])==2
+                    content=body['messages'][1]['content']
+                    assert len(content)==2 and content[0]['type']=='text' and content[1]['type']=='image_url'
+                    image=base64.b64decode(content[1]['image_url']['url'].split(',',1)[1],validate=True)
+                    assert image==png
+                    content[1]['image_url']['url']='sha256:'+digest(image)
+                    old=json.loads((ROOT/spec['source_request']).read_text())
+                    assert {k:v for k,v in body.items() if k!='messages'}=={k:v for k,v in old.items() if k!='messages'}
+                    assert body['messages'][0]==old['messages'][0]
+                    captured.append(body)
+                    fields=('left','top','right','bottom') if spec['protocol']=='bbox' else ('x','y')
+                    arguments={'found':False,**dict.fromkeys(fields,0)}
+                    return httpx.Response(200,json={'id':'offline','object':'chat.completion','created':1,'model':spec['model'],
+                        'choices':[{'index':0,'finish_reason':'tool_calls','message':{'role':'assistant','tool_calls':[
+                            {'id':'one','type':'function','function':{'name':'click','arguments':json.dumps(arguments)}}]}}],
+                        'usage':{'prompt_tokens':1,'completion_tokens':1,'total_tokens':2}})
+                profile=LLMProfile(name=spec['alias'],api_key='offline-placeholder',model=spec['model'],base_url=spec['endpoint'],
+                                   temperature=spec['temperature'],max_tokens=spec['max_tokens'],extra_body=spec['extra_body'])
+                llm=create_llm_from_profile(profile);await llm.client.close()
+                async with AsyncOpenAI(api_key='offline-placeholder',base_url=spec['endpoint'],max_retries=0,
+                                      http_client=httpx.AsyncClient(transport=httpx.MockTransport(fake))) as client:
+                    llm.client=client
+                    adapter=GroundingAdapter(**spec['adapter'])
+                    response=await adapter.request(llm,observation,png,entry['target'])
+                    location=adapter.parse_response(response,observation.image_size)
+                    assert location.status=='ambiguous' and location.point is None and location.box is None
+                assert len(captured)==1
+                body=captured[0];sha=digest(encode(body));key=spec['alias']+'-'+entry['id']
+                if key in requests:
+                    assert requests[key]['body']==body
+                else:
+                    requests[key]={'id':key,'image_sha256':entry['image_sha256'],'body_sha256':sha,'body':body}
+                schedule.append({'attempt':len(schedule)+1,'repeat':repeat+1,'layout_id':entry['id'],'candidate':spec['alias'],
+                                 'request_id':key,'body_sha256':sha})
+    assert counter==384 and len(requests)==192
+    m0=json.loads((DATA.parent/'manifest.json').read_text())
+    sources=['backend/core/src/tank_backend/tools/computer_grounding.py','backend/core/src/tank_backend/tools/computer_observation.py',
+             'backend/core/src/tank_backend/llm/llm.py','backend/core/src/tank_backend/llm/profile.py']
+    manifest={'date':'2026-09-21','status':'candidate and request freeze complete; paid execution and scoring pending',
+              'source_revision':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+              'candidates':candidates,'holdout_inputs':str((DATA/'inputs.json').relative_to(ROOT)),
+              'holdout_inputs_sha256':digest((DATA/'inputs.json').read_bytes()),
+              'source_sha256':{s:digest((ROOT/s).read_bytes()) for s in sources},
+              'generation_record_sha256':digest((DATA/'generation.json').read_bytes()),
+              'independent_layouts':64,'repetitions':2,'planned_model_requests':384,'unique_serialized_requests':192,
+              'ordering':'repeat, input order, candidates rotated by (layout index + zero-based repeat) modulo 3',
+              'scope':'static synthetic grounding; model-plus-adapter comparison, not pure model weights or A/B/C/D closed loop',
+              'frozen_adoption':m0['frozen_adoption'],'holdout_caps':m0['future_dry_run_caps']['holdout'],
+              'input_token_reservation_per_call':10000,'reservation_is_estimate':True,
+              'output_cap_per_call':8000,'next_call_reservation':18000,
+              'start_rule':'known holdout tokens + all unknown-usage reservations + 18000 <= 3000000',
+              'stop_rule':'stop on API failure, timeout, unknown usage, input above reservation, token/time/request ceiling; save raw evidence; no automatic retries',
+              'batch_model_seconds_max':34560,'http_timeout_seconds':85,'request_deadline_seconds':90,
+              'live_prerequisites':['revalidate hashes and exact request bodies','verify current endpoint prices and write live cost estimate',
+                  'wire frozen schedule to raw-response-preserving execution and separately tested mask scorer before first paid call'],
+              'scoring_policy':{'positive':'visible mask at nearest pixel (floor(value+0.5)); center Euclidean error separately',
+                 'negative':'parsed non-found with no executable point; report absent and duplicate strata separately',
+                 'legacy_false':'internal ambiguous; cannot distinguish not_found from ambiguous semantics',
+                 'invalid_or_missing':'failure in attempted denominator; unattempted explicitly pending, never discarded',
+                 'p95':'nearest-rank across positive attempts with valid point; missing points separately failed, cannot pass hit threshold via omission',
+                 'paired_intervals':'cluster bootstrap independent layout IDs with both repeats together; fixed seed 20260921, 10000 resamples',
+                 'no_peeking':'finish frozen execution or budget stop before evaluating truth; never tune configurations or replace images from holdout results'},
+              'screening_ledger_unchanged':{'requests':141,'cap':144,'known_tokens':406311,'unknown_reservation':26000},
+              'this_batch':{'model_requests':0,'model_tokens':0,'cost_usd':0,'truth_reads':0,'desktop_actions':0,'real_screenshots':0},
+              'future_live_cost_usd':None}
+    save('requests.json',list(requests.values()));save('schedule.json',schedule)
+    manifest['requests_sha256']=digest((OUT/'requests.json').read_bytes())
+    manifest['schedule_sha256']=digest((OUT/'schedule.json').read_bytes())
+    save('manifest.json',manifest)
+    save('offline-check.json',{'sdk_http_mock_calls':counter,'unique_requests':192,'repetitions_identical':True,
+         'source_settings_and_tool_schema_exact_match':True,'images_hash_and_size_match':64,
+         'fixture_response':'all abstain; checks parsing only, no model accuracy score',
+         'network_and_truth_open_guard':'enabled; no attempted network or truth reads',
+         'outbound_model_calls':0,'raw_truth_consumed':False})
+    print('Frozen 3 candidates, 64 inputs, 192 unique bodies, 384 SDK calls; zero network/truth access.')
+
+asyncio.run(main())
