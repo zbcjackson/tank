@@ -267,11 +267,14 @@ M4–M8 的既定集成、对照与真实任务验收仍在本计划内，不随
   profile、共享计量和截图证据。见本节对应执行记录。
 - [x] 实现 B 一体适配及独立 protocol/host_restore 开关；保留原 A，增加
   A-control 共同框架控制组；补一体/分离 batch 实际成功动作计量。
-- [ ] 冻结 A、A-control、B-host-only、B-protocol-only、B-combined、C、D 的
-  实际 profile、最终请求和环境。原始定位响应/失败归因及串行配对调度仍须
-  补齐，之后才做模型效果对照。A→A-control 单独量框架变化，不归因给还原。
+- [x] 冻结七组独立实验 profile、定义和代表性最终 SDK 请求；单独归档原始
+  生产 profile。仅 fake HTTP/合成图的离线契约，不是未来完整模型请求序列。
+- [ ] 补齐真实环境、原始定位响应/失败归因、串行配对调度、预算/重试门禁和
+  可验证清理，之后才做模型效果对照。A→A-control 单独量框架变化，不归因给还原。
 - [ ] 基于新批次明确样本、顺序、请求/token/时间上限、端点价格和图片范围；
   既有 544 次静态额度不重置。真实图出站按 §6 确认，尚无本轮授权请求。
+  已记录 5 个单因素 pilot + 原 12 个核心 trial 的待执行提案及 8 USD 预算，
+  尚未授权或落实执行门禁，详见 [离线冻结及批次提案](../../../backend/benchmarks/computer_use/reports/20260922-m5-contract-freeze/README.md)。
 
 全部组在同一 M1 基线上运行、采用相同任务/评分；先记录历史原始基线，
 再执行以下比较，不能与旧 revision 分数直接相减。
@@ -930,6 +933,29 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   连接时记录 ConnectionClosedError。停止所有 Python 改动、确认新进程
   启动完成后，全套 E2E 重跑通过且当前 pane 无错误；未修改等待时间或
   语音代码，保留首次失败记录。
+
+### 2026-09-22 — M5 配置及代表性请求离线冻结
+
+- 新增离线生成器 `prepare_computer_comparison.py`，真实 Runner/LLM/SDK
+  走 screenshot → 可选 locate → done；仅 HTTP、像素和身份/时钟边界使用
+  固定假数据。不执行桌面输入、任务 setup/validator 或真实模型调用。
+  实现及测试提交 `6865142`。
+- [冻结报告及新批次提案](../../../backend/benchmarks/computer_use/reports/20260922-m5-contract-freeze/README.md)
+  保存原始 profile 与七组独立实验定义、实际 allowlist、20 个代表性 SDK
+  请求、PNG、源码/产物哈希和依赖版本。原始配置关闭 usage；所有实验组
+  统一开启 usage、关闭 thinking、输出上限 8000，默认配置未改动。
+  D 固定 M3 的 Max+bbox 候选，status_field=false；不重开候选搜索。
+- 实际 production 公开配置独立导出两次，所有生成文件逐字节相同。
+  五个新增用例验证重复生成、profile/工具协议配对、locator 历史隔离、密钥
+  不输出、未知 headers/body/provider 拒绝及拒绝覆盖；定向跨层共 106 项通过。
+- 新批次仅提案：5 个单因素 pilot 加原定 12 个核心 calc trial，串行重置，
+  明列配对顺序、≤362 HTTP、≤5.1M token、任务时间≤2040 秒及拟定 8 USD
+  费用上限。现有通用 CLI 尚不能保证这些门禁；原始响应/失败归因、预算/重试、
+  配对执行、可验证清理和真实环境仍待实现/冻结，再按 §6 确认 live 范围。
+  M5 效果对照未运行，既有 544 次静态额度和真实图授权范围均未扩展。
+- 完整验证：backend **4723 passed / 1 skipped**；E2E **16 场景 / 63 步**；
+  web lint/TypeScript、backend/CLI ruff、新增脚本及测试 pyright、实际 backend
+  pane、docs 与协议一致性检查通过。本轮仅新增五个离线用例，未更改生产行为。
 
 ## 9. 最终 Verification Checklist
 
