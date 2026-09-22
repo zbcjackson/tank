@@ -1,0 +1,35 @@
+import json, subprocess, time
+import Quartz
+from tank_backend.tools.computer_use_macos import _type_macos, _key_macos
+from tank_backend.benchmarks.calc_validator import reset_calculator, read_calculator
+from tank_backend.benchmarks.runner import save_current_input_source, pin_ascii_input_source, restore_saved_input_source
+
+def keys():
+    return [i for i in range(128) if Quartz.CGEventSourceKeyState(Quartz.kCGEventSourceStateCombinedSessionState,i)]
+result={'before':keys()}
+if result['before']: raise RuntimeError('Keys already held; abort')
+clipboard=subprocess.run(['pbpaste'],capture_output=True,check=True).stdout
+save_current_input_source()
+try:
+    pin_ascii_input_source()
+    result['reset']=reset_calculator()
+    if not result['reset']: raise RuntimeError('Reset failed')
+    result['paste_path']=_type_macos('56',mode='paste')
+    time.sleep(.3)
+    result['after_paste_keys']=keys()
+    result['after_paste_display']=read_calculator()
+    _key_macos(['escape'])
+    _type_macos('7')
+    time.sleep(.3)
+    result['after_digit_display']=read_calculator()
+finally:
+    for key in (9,55):
+        event=Quartz.CGEventCreateKeyboardEvent(None,key,False)
+        Quartz.CGEventSetFlags(event,0)
+        Quartz.CGEventPost(Quartz.kCGHIDEventTap,event)
+    time.sleep(.2)
+    restore_saved_input_source()
+    subprocess.run(['pbcopy'],input=clipboard,check=True)
+    subprocess.run(['osascript','-e','tell application "Calculator" to quit'],capture_output=True,timeout=20)
+    result['cleanup_keys']=keys()
+    print(json.dumps(result,ensure_ascii=False))

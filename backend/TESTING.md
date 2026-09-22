@@ -798,3 +798,13 @@ passed local nine-point and deterministic Calculator preparation but failed the
 model task (final display zero, 15 steps, 16 requests, 295443 tokens). Post-run
 Command key 55 required explicit operator release. This is failed live acceptance
 evidence; it does not replace regression tests or establish automatic cleanup.
+
+The [local paste recovery](benchmarks/computer_use/reports/20260922-m5-paste-recovery/README.md)
+reproduces key 55 remaining down after a successful numeric paste and verifies
+the corrected balanced Command/V sequence leaves no held keys. Three stateful
+unit cases cover success and partial dispatch failures; two integrated protocol
+cases replay the pilot's unsupported batch argument and string location, preserving
+zero-click rejection with accurate errors. A local replay of the six text inputs
+still ends at zero because Calculator ignores pasted operators/expressions.
+No model requests were added. Scene-rejection attribution and general physical
+cleanup remain unverified.

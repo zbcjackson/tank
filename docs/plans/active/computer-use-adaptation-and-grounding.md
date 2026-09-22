@@ -1288,6 +1288,24 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   **4978 passed / 1 skipped**、E2E **16 场景 / 63 步**，web lint/TypeScript、
   backend/CLI ruff、实际 backend pane、docs 与协议一致性检查通过；pyright N/A。
 
+### 2026-09-22 — 本地复现并修复粘贴后的 Command 残留
+
+- [x] 同一 Calculator 本地脚本修复前后对比：粘贴 `56` 均显示正确，
+  Command(55) 从残留按下变为无按键残留；共享 macOS 粘贴路径改为
+  成对 Command/V 事件，并在异常路径释放两键。[证据报告](../../../backend/benchmarks/computer_use/reports/20260922-m5-paste-recovery/README.md)。
+- [x] 修复后重放 pilot 六次文本输入，显示依次为 `7/7/78/78/0/0`，
+  每步按键均释放。Calculator 忽略粘贴的运算符/表达式；不能把输入派发成功
+  当作计算成功，也不能把原轮所有无效输入归因于 modifier 残留。
+- [x] 原 pilot 的多余 batch 参数与字符串 location 加入回归，保持拒绝；
+  未知参数报错改为列出字段，消除 integrated 被误报为 split-mode 的歧义。
+- scene/geometry 拒绝保持原校验：原 trace 缺少拒绝时校验截图，无法确定是
+  时钟、动画还是其他变化。下一步补本地前后帧证据，再决定稳定场景处理。
+- 无新增模型请求/截图外发；旧失败 trial 与 freeze 不变。生产 token 配置不变。
+  自动物理清理、更新 source pins、剩余 pilot 与核心配对实验仍待完成。
+- Tests：backend **4983 passed / 1 skipped**、E2E **16 场景 / 63 步**；
+  web lint/TypeScript、backend/CLI ruff、四个改动 Python 文件 pyright、
+  实际 backend 日志、docs/协议一致性检查通过。实现提交 `210dd46`。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。
