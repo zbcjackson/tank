@@ -175,6 +175,15 @@ tool overhead, so these are not pure HTTP latency measurements.
 
 Scoring revision `trial-token-gui-grounding-v5` allows `locate` as GUI observation
 without counting it as an input primitive, and preserves Runner terminal errors.
-It does not rescore old reports. Integrated B adaptation, split batch primitive
-reporting, raw locator failure attribution and paired A/B/C/D execution still
+It does not rescore old reports. Integrated B adaptation and split/integrated batch primitive reporting are now
+implemented; raw locator failure attribution and paired A/B/C/D execution still
 require work before the M5 effect comparison. No new model results are implied.
+
+
+For B experiments, use a separate agent definition with `grounding.mode: integrated`,
+`protocol: legacy|point|pixels|bbox`, and `host_restore: true|false`. Keep the model,
+base prompt, toolset, status/sentinel settings and detail fixed across paired groups.
+The same-framework legacy/no-restoration A-control separates frame/feedback/tool
+wrapping changes from the two-factor comparison; original A remains unchanged.
+See [integrated configuration](../../docs/design/computer-use.md#一体适配实验m5-b).
+These are executable configuration options, not a frozen or authorized live batch.

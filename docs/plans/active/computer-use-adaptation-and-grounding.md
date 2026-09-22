@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-22。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 已启动，先补 benchmark 分离模式测量链路，四组模型对照尚未运行；M6–M8 待完成，整份计划继续保持 active。
+> 状态：执行中，2026-09-22。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；M6–M8 待完成，整份计划继续保持 active。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -265,9 +265,11 @@ M4–M8 的既定集成、对照与真实任务验收仍在本计划内，不随
 - [x] 接通既有 benchmark 的 C/D 分离模式，先用 fake HTTP/OS 验证真实
   SubAgentDriver.create → Runner → SDK → 定位 → 动作与反馈；保留独立
   profile、共享计量和截图证据。见本节对应执行记录。
-- [ ] 冻结 A、B-host-only、B-protocol-only、B-combined、C、D 的可执行配置与
-  最终请求；B 的一体适配协议不能用 M4 的 locate 模式冒充。补 batch 计量、
-  原始定位响应/失败归因及串行配对调度后，才做模型效果对照。
+- [x] 实现 B 一体适配及独立 protocol/host_restore 开关；保留原 A，增加
+  A-control 共同框架控制组；补一体/分离 batch 实际成功动作计量。
+- [ ] 冻结 A、A-control、B-host-only、B-protocol-only、B-combined、C、D 的
+  实际 profile、最终请求和环境。原始定位响应/失败归因及串行配对调度仍须
+  补齐，之后才做模型效果对照。A→A-control 单独量框架变化，不归因给还原。
 - [ ] 基于新批次明确样本、顺序、请求/token/时间上限、端点价格和图片范围；
   既有 544 次静态额度不重置。真实图出站按 §6 确认，尚无本轮授权请求。
 
@@ -887,6 +889,47 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   改动 Python 文件 pyright、实际后端 pane、docs 和协议一致性检查均通过。
   benchmark 回归的首次 sandbox 运行因无法绑定回环端口失败，授权环境
   重跑全部 77 项通过；保留环境失败记录，未修改测试规避断言。
+
+### 2026-09-22 — M5 B 组一体适配与单因素开关
+
+- `grounding.mode=integrated` 让同一规划模型直接输出 location；无 locate
+  工具、无第二次定位 HTTP。默认省略 grounding 仍为原 A；已有 `grounding: {}`
+  仍为 split。四个实验配置使用相同的任务局部 frame、动作反馈和预算框架：
+  A-control=`legacy/false`、B-host=`legacy/true`、B-protocol=`point/false`、
+  B-combined=`point/true`（依次为 protocol/host_restore）。
+- 增加 A-control 是为单列新框架影响：location 包装、帧新鲜度检查、当前观察
+  内的输入约束、反馈、统一取整和截断拒绝均不同于原 A。不能直接把 A 到
+  B-host 的全部差异归为坐标还原。框架内 host 开关不改变工具 schema。
+- B 支持 legacy、point、pixels、bbox；适配 schema/解析复用 M3。关闭宿主
+  还原时模型需恢复到主屏坐标，再经相同当前帧校验执行；观察区域外不点击。
+  像素 schema 在首次截图前不声明尺寸上限，解析时按当前 frame 严格检查。
+  对 C 的定位请求仍带具体尺寸上限，最终冻结须保留此接口结构差异。
+- 一体和分离复用短 batch、取消、共享预算与反馈。拒绝定位不能被 batch
+  当作执行成功后继续输入；内部成功派发事件使 batch primitive 不再漏计。
+  既有 screenshot primitive 口径保留，locate 不计输入，dispatch 不等于效果成功。
+- 实验任务的流式响应先保留 usage，再拒绝不完整 finish_reason、重复 JSON
+  字段及非对象参数；截断但 JSON 完整也零输入。该检查对有任务上下文的
+  一体/分离模式生效，原 A 的默认流式行为不变。集成模式不支持独立定位
+  profile、fallback 或 strict=true，配置错误直接拒绝，不静默忽略。
+- TDD 先复现缺配置、错误映射、截断执行、拒绝后继续批次及 primitive 漏计，
+  再实现。新增配置/实际 SDK/假 OS 的单动作与 batch、四协议、两种还原、
+  截断/重复字段、缺失/歧义/非法坐标/陈旧帧/场景变化、schema 配对用例。
+  本轮付费定位/闭环实验、真实截图外发及桌面动作均为 0；旧 544 次额度、
+  默认模型不变。常规 E2E 服务调用不计作定位实验。
+  A-control 只增加可选配置，不扩充 M6 的 12 个 calc trial 上限；实际
+  单因素/配对批次仍须各自列明预算。
+- 四组实际模型/参数及最终请求尚未冻结，未宣称效果收益；单因素实现不等于
+  模型因果实测完成。实现提交 `95962a1`，嵌套 batch 重复字段补强提交
+  `7804df7`。
+- 最终验证：backend **4718 passed / 1 skipped**；新增 **55** 项离线用例，
+  定向跨层回归 261 项通过后新增 schema 配对亦通过；补强的重复字段 16 项
+  通过。E2E **16 场景 / 63 步**；web lint/TypeScript、backend/CLI ruff、
+  九个改动 Python 文件 pyright、实际后端 pane、docs 和协议检查通过。
+- 首次 E2E 语音转写超时（15/16 场景通过）：日志确认 WatchFiles 因
+  `tests/test_computer_locate.py` 修改重载，断开 WebSocket，并在关闭 ASR
+  连接时记录 ConnectionClosedError。停止所有 Python 改动、确认新进程
+  启动完成后，全套 E2E 重跑通过且当前 pane 无错误；未修改等待时间或
+  语音代码，保留首次失败记录。
 
 ## 9. 最终 Verification Checklist
 

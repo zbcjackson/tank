@@ -423,5 +423,51 @@ M5 的 benchmark 入口支持上述分离模式：Runner 的可选 LLM 工厂让
 定位请求失败/取消/无 usage 计为 unknown；非流式定位不伪造 TTFT，嵌套 RTT
 从规划计时区间扣除。规划区间仍含部分本地工具时间，不代表纯 HTTP 延迟。
 评分 revision 为 `trial-token-gui-grounding-v5`：locate 允许用于 GUI 任务但
-不计输入 primitive，Runner 终止错误会记录为 trial error。完整 A/B/C/D 配对、
-B 一体适配和 batch primitive 计量尚未验收，默认 agent/profile 不变。
+不计输入 primitive，Runner 终止错误会记录为 trial error。完整 A/B/C/D 模型配对尚未验收；B 一体接口与 batch primitive 计量的软件
+实现见下节，默认 agent/profile 不变。
+
+
+## 一体适配实验（M5 B）
+
+在独立实验 agent 定义中配置：
+
+```yaml
+grounding:
+  mode: integrated
+  protocol: point
+  host_restore: true
+  status_field: true
+  detail: auto
+```
+
+模型直接调用 `click(frame_id, location={status: found, x: 500, y: 500})`，
+或使用同样的 location 进行 mouse_move/scroll；drag 另传 end_location。
+这是工具对象示意，JSON 使用正常引号。截图可绑定 window_id，后续定位动作
+携带相同窗口身份。内部仅用宿主引用复用 M4 的派发代码，不发起定位模型调用，
+不向规划器提供 locate。键盘工具和短 batch 仍使用原允许的工具集合。
+
+复用原 agent 的模型、任务提示和工具范围时，以下配置提供共同框架内的
+两个因子；其他 GroundingConfig 字段保持一致：
+
+- A-control：`mode: integrated, protocol: legacy, host_restore: false`。
+- B-host-only：`mode: integrated, protocol: legacy, host_restore: true`。
+- B-protocol-only：`mode: integrated, protocol: point, host_restore: false`。
+- B-combined：`mode: integrated, protocol: point, host_restore: true`。
+
+原 A 仍省略 grounding。共同框架增加 location 包装、帧校验、反馈、统一
+取整和截断拒绝，A→A-control 必须独立报告。框架内还原开关保持 schema
+相同：true 使用当前图坐标并由宿主逆变换；false 要求模型利用截图返回的
+crop/image_size/screen_size 自行还原主屏坐标。两者都拒绝当前观察区域外
+的输入，并在派发前复核几何/场景。它们没有复刻旧驱动的全部执行行为。
+
+legacy location 保留 x/y、数组和 bbox 解析；point/pixels/bbox 使用共用
+GroundingAdapter 的字段、整数约束和拒绝哨兵。像素 schema 在截图前没有
+宽高上限，执行时仍按实际尺寸校验；分离定位的 SDK schema 有当前图上限。
+集成截图采用 detail 配置；冻结 B/C 对照需固定共同 detail（首轮用 auto），
+并保存各自完整提示/工具 schema，不把工具包装和目标提示差异隐藏起来。
+
+集成模式禁止定位 profile/fallback/strict=true。未知字段、无效/过期 frame、
+非法坐标、拒绝定位及失败 batch 都不会继续派发。拒绝定位在动作工具中返回
+error=true 以停止当前 batch，并不表示模型的拒绝判断本身错误。一体/分离
+任务对不完整流式工具响应和重复 JSON 字段在派发前拒绝，usage 先保留。
+成功 batch 通过任务 observer 计量实际已派发动作；效果正确性仍需独立评分。

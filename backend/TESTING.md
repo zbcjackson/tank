@@ -676,4 +676,16 @@ and feedback screenshot archives, actual request count, GUI classification and
 single accounting of planner plus locator usage. `test_bench_runner.py` also
 checks missing/cancelled locator usage and excludes nested locator time from
 planner intervals. These are measurement-contract tests, not paid A/B/C/D
-results. Batch primitive reporting and the integrated B adapter remain pending.
+results. Integrated B and batch accounting now have the additional coverage below.
+
+
+M5 integrated cases in `test_computer_locate.py` exercise actual streamed SDK
+requests through Runner and the benchmark driver: four protocols × host restoration
+on/off × single/batch × complete/truncated/duplicate-key replies. Successful cases
+use exactly one model and archive initial/feedback images; truncated/duplicate
+arguments stop before input while retaining usage. Missing/ambiguous/invalid/stale
+or changed-frame batches stop before typing. Schema pairing verifies that host
+restoration changes no tool schema, adapted locations share GroundingAdapter, and
+batch schemas preserve the tool allowlist. Config tests preserve split defaults
+and reject unsupported integrated locator/fallback/strict settings. These fake
+HTTP/OS checks do not establish real model effectiveness or a frozen A/B/C/D run.
