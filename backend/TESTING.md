@@ -719,3 +719,11 @@ latched/closed budgets and rejection of unsupported engine/extension transports.
 `test_llm_retry.py` adds a real SDK 429 regression proving one HTTP attempt with
 both retry layers disabled. These tests do not establish token/cost reservations,
 batch-wide enforcement, real model effectiveness or physical desktop cleanup.
+
+`core/tests/test_spend_ledger.py` adds 51 deterministic reservation cases without
+HTTP or OS mocks. They cover trial/batch token and cost limits, exact boundaries,
+known-usage release, unknown/partial/invalid-usage retention, observed bound
+violations, duplicate settlement/IDs, serial lifecycle, unfinished-request closure,
+cross-trial spending, integer monetary arithmetic and detached JSON snapshots.
+These test the offline ledger API only; actual request bounds, price/usage
+normalization, HTTP admission integration and physical stopping remain unverified.

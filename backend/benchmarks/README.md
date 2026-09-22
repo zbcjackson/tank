@@ -289,3 +289,43 @@ Token/input reservations, conservative unknown-usage reserves, cost and batch-wi
 limits, paired scheduling and verified cleanup remain pending. Existing task token
 accounting occurs after responses and is not a hard token/cost reservation. These
 offline controls do not authorize a live M5 batch or reset historical allowances.
+
+### Token/cost reservation ledger (M5, offline foundation)
+
+`tank_backend.benchmarks.spend_ledger.SpendLedger` provides in-memory arithmetic
+for one serial batch. It is **not yet connected to SubAgentDriver or HTTP**, and
+does not estimate input tokens, validate payload bounds, load prices or persist
+state across process restarts. No current benchmark run gains a token/cost hard
+limit merely because this module exists.
+
+Create it with a batch `SpendLimit(tokens, nano_usd)`, then call
+`start_trial(trial_id, trial_limit)`. Before each request, call
+`reserve(request_id, TokenAllowance(input_tokens, output_tokens,
+input_nano_usd, output_nano_usd))`. Allowance tokens must be independently verified
+upper bounds for the final payload and output; prices are upper rates in integer
+nano-USD per token (one USD is 1,000,000,000 nano-USD). Round fractional nano-USD
+rates upward before constructing an allowance. Rates must cover the applicable
+endpoint, pricing tier, reasoning and other billed tokens. No model prices or
+tokenizer assumptions are embedded here.
+
+Reservation checks both trial and batch totals before changing either. A failed
+admission latches the entire batch stopped, even if a smaller request could fit.
+`settle(request_id, input_tokens=..., output_tokens=...)` replaces the reservation
+with complete validated usage at the reserved rates, releasing only the unused
+portion. Known cost is a calculation at these rates, not an account invoice.
+Missing/partial/invalid usage retains the full allowance and stops admission;
+valid partial counts above the allowance increase the retained amount. Complete
+usage above either declared bound is recorded without clamping and stops the
+batch as `bound_exceeded`, even if total tokens remain below the combined bound.
+An observed bound violation is a failed precondition, not successful enforcement.
+
+Only one trial and one unsettled request may be active. IDs cannot be reused,
+settlement cannot be repeated, and a new trial does not reset batch spending.
+Call `finish_trial()` in the executor's `finally` path: unsettled requests become
+unknown without releasing their allowance. Later settlement cannot reopen them.
+`snapshot()` returns a detached, JSON-compatible report of limits, known and
+reserved amounts, per-request allowances/status and the first stop reason.
+The caller must still stop dispatch on settlement failure, save reports, verify
+complete usage including reasoning, and bind allowances to actual HTTP requests.
+Reliable request bounds, transport integration, scheduling, recovery and physical
+cleanup remain prerequisites for live M5 budget enforcement.

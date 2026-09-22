@@ -275,6 +275,8 @@ M4–M8 的既定集成、对照与真实任务验收仍在本计划内，不随
   响应；模型报告状态与真值正确性分开，不推断未观测到的原因。
 - [x] built-in benchmark 每轮规划/定位/总 HTTP 准入限额及双层零重试；
   超额发送前拒绝，失败不退次数，旧 trial 上下文不能复用新额度。
+- [x] trial/批次共享 token/费用预留账本的离线算术与生命周期验收；
+  完整 usage 结算、未知预留保留及上界违例停批。尚未接入 HTTP 请求。
 - [ ] 补齐真实环境、语义失败归因、串行配对调度、token/费用预留与批次门禁和
   可验证清理，之后才做模型效果对照。A→A-control 单独量框架变化，不归因给还原。
 - [ ] 基于新批次明确样本、顺序、请求/token/时间上限、端点价格和图片范围；
@@ -1035,6 +1037,28 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   **4763 passed / 1 skipped**，E2E **16 场景 / 63 步**。web lint/TypeScript、
   backend/CLI ruff、六个改动 Python 文件 pyright、实际 backend pane、docs
   和协议一致性检查全部通过。
+
+### 2026-09-22 — M5 token/费用预留账本（离线基础）
+
+- 新增 `SpendLedger`：调用前同时检查 trial 和批次的 token/费用额度，
+  任一不足拒绝且锁住全批；完整有效 usage 按预留单价结算，只释放未用部分。
+  金额使用整数 nano-USD，单价为每 token 的 nano-USD；不内嵌模型现价。
+- 缺失、部分或非法 usage 不退预留并停批；部分有效计数已超过上界时，
+  保留较大的观测值及其余预留。完整用量超过任一输入/输出声明上界时不截断
+  数字，按观测值记账并标记 `bound_exceeded`，不能称为守住预算。
+- 每批串行、每轮一个未结算请求；trial/request ID 不复用、不可重复结算。
+  `finish_trial` 将未结算项转 unknown，后续结算不能释放；新 trial 保留批次
+  累计。快照区分 known 与 reserved，保存各请求预留、状态及首个停止原因。
+- TDD 新增 **51 项**离线账本测试，连同原请求次数测试 **58 passed**；覆盖
+  双层双维度上限、缺失/非法/超额 usage、取消收尾所需 API、复用隔离和精确
+  整数费用。测试没有触发真实取消或 HTTP；尚未验证实际传输接线。
+- 本步仅完成内存账本。可靠的最终请求输入上界、输出/推理 token 约束、
+  价格适用范围及 usage 归一化、HTTP 预留/结算接线、持久化与串行配对调度
+  仍待完成；账本需要调用者在 finally 收尾并依据停止状态阻止后续派发。
+  未修改生产默认配置，无付费模型请求、真实截图出站或桌面动作；M5 仍 active。
+- 实现及测试提交 `bc2ba1f`。完整 backend **4814 passed / 1 skipped**，
+  E2E **16 场景 / 63 步**；web lint/TypeScript、backend/CLI ruff、两个新增
+  Python 文件 pyright、实际 backend pane、docs 和协议一致性检查全部通过。
 
 ## 9. 最终 Verification Checklist
 
