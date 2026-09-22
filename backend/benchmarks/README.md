@@ -374,3 +374,48 @@ request. A tighter independently justified bound is still required; do not lower
 the declared ceiling or increase approved budgets merely to pass admission.
 Price/region review, complete billing semantics, paired scheduling, durable
 recovery, real environment and physical cleanup remain live-run prerequisites.
+
+### Serial batches and durable spend evidence (M5)
+
+`benchmarks.batch.run_batch` accepts an ordered tuple of
+`BatchTrial(key, suite_dir, task_id, agent_name, config_path, platform)`, plus an
+unused `out_dir`, explicit batch/trial `SpendLimit`, per-trial `RequestLimits`
+and `ContextWindowContract` tuple. It creates each built-in `SubAgentDriver`
+with the same `SpendControl` and runs exactly one matching task via `run_suite`.
+Keys must be unique lowercase letters/digits/hyphens. All entries are checked
+for a unique task/platform match before any driver starts. The caller supplies
+the pairing/order; the API does not randomize or infer a paired experiment.
+
+The output contains `batch-plan.json` (ordered inputs and limits),
+`batch-events.jsonl` (started/finished entries), `spend.jsonl` (cumulative
+snapshots), `batch-result.json` (finished entries and final accounting), and
+each entry's existing suite report/trial artifacts under its key. `completed`
+means the suite invocation returned, including failed trials; it does not mean
+task success or confirmed cleanup. Budget stops and any cleanup other than
+`confirmed` prevent starting the next entry. Exceptions/cancellation stop the
+batch and are re-raised after accounting finalization.
+
+`SpendLedger(limit, journal=path)` also enables persistence independently of the
+batch API; callers must `close()` it in a finally block. Each mutation appends
+a full JSON snapshot, flushes and fsyncs before returning, so an HTTP reservation
+is persisted before transport and settlement before subsequent tool dispatch.
+Journal creation is exclusive and its directory is synced. Sync/write failures
+stop admission; driver request/spend contexts still close if finalization fails.
+The default ledger remains in-memory. No prompts, credentials or screenshots
+are added to the spend journal.
+
+Existing journals and batch directories are refused, including cleanly completed
+batches. There is **no automatic resume or ledger restore API**. After process
+death, retain the journal and review its complete records; a pending reservation
+remains fully charged. A partial trailing record cannot authorize releasing an
+earlier reservation. The process-exit test verifies an acknowledged reservation
+survives exit without Python cleanup; it does not test machine power loss.
+Directory identity prevents replay within that output location, not globally
+across copied/deleted artifacts or a different batch directory.
+
+This API has no live defaults or CLI entry point. It records paths/order and
+limits, but does not verify frozen input hashes or provider contracts. A batch
+HTTP-count ceiling (in addition to the existing per-trial caps), tighter input
+bounds, price review and verified physical cleanup remain required before the
+proposed live experiment. Built-in cleanup currently remains unknown, so this
+scheduler conservatively stops after that trial.

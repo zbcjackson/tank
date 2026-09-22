@@ -281,6 +281,8 @@ M4–M8 的既定集成、对照与真实任务验收仍在本计划内，不随
   usage 后再派发工具；fake HTTP/OS 验收，未验证可用于 live 的更紧输入上界。
 - [x] 核查 DashScope 本地/远程 tokenizer 的输入上界适用性；现有公开证据
   不足以降低两种快照的多模态请求预留，记录缺口及后续接入条件。
+- [x] 显式顺序的串行批次 API 与 fsync 预留日志；中断证据保留、已有目录
+  拒绝重放，预算/未知清理停批。fake HTTP/OS 验收，不支持自动恢复。
 - [ ] 补齐真实环境、语义失败归因、串行配对调度、可执行的输入上界与批次门禁和
   可验证清理，之后才做模型效果对照。A→A-control 单独量框架变化，不归因给还原。
 - [ ] 基于新批次明确样本、顺序、请求/token/时间上限、端点价格和图片范围；
@@ -1124,6 +1126,34 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   **4860 passed / 1 skipped**，E2E **16 场景 / 63 步**；web lint/TypeScript、
   backend/CLI ruff、实际 backend pane、docs 和协议一致性检查全部通过。
   没有修改 Python 文件，改动文件 pyright 为 N/A。
+
+### 2026-09-22 — M5 串行批次与预留日志持久化
+
+- 新增 `run_batch` / `BatchTrial`，按调用者给定顺序执行每个 task/agent 一次，
+  复用 `run_suite`，所有 built-in driver 共用同一 `SpendControl`。启动前校验
+  非空计划、唯一安全 key、平台和任务唯一匹配；不自行随机化或推断配对。
+- 输出独立批次目录，保存计划、started/finished 事件、累计 spend 日志、
+  最终摘要和各条目的原有报告。`completed` 表示调用返回，不代表任务成功；
+  预算停止或 cleanup 非 confirmed 时不启动下一项，取消/异常收尾后继续抛出。
+- `SpendLedger(..., journal=path)` 可选日志持久化；每次变更追加完整快照并
+  flush/fsync，预留成功落盘才返回到 HTTP hook，结算成功落盘才允许后续工具。
+  首次创建同步目录，关闭保留未结算请求；默认内存模式不变。
+- 日志或目录已存在即拒绝。没有恢复/续跑 API；进程退出后的 pending 仍按
+  完整预留处理，尾部不完整记录不能作为退额依据。只保护该输出位置，不是
+  跨目录的全局预算或桌面锁，也不支持删除证据后重开额度。
+- 写盘失败停批。回归发现并修复了持久化收尾异常导致 trial ContextVar 未释放
+  的问题；费用 session 与次数上下文现在在 finally 中关闭。
+- Tests：新增 **36 项**：账本持久化/强制进程退出 5 项，真实 SDK/HTTP 的
+  持久化分支及写盘失败零发送/零动作、收尾异常上下文释放共 21 项，串行
+  顺序/共享费用/取消/停批/防重放及非法计划预检 10 项。定向 **304 passed**。
+  进程测试使用 `os._exit`，不声称完成机器断电验证；HTTP/OS 均为假边界。
+- 本轮没有付费请求、真实截图出站或桌面动作。built-in cleanup 仍 unknown，
+  因此该执行器目前会保守地在该轮后停止，不能据此运行完整 live 提案。
+  下一步补**批次 HTTP 总次数上限与冻结输入一致性预检**；可执行输入上界、
+  价格/区域、独立真值、真实环境和物理清理仍未完成，M5 保持 active。
+- 实现及测试提交 `72f7907`。完整 backend **4896 passed / 1 skipped**，
+  E2E **16 场景 / 63 步**；web lint/TypeScript、backend/CLI ruff、七个改动
+  Python 文件 pyright、实际 backend pane、docs 和协议一致性检查全部通过。
 
 ## 9. 最终 Verification Checklist
 

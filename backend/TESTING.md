@@ -720,15 +720,17 @@ latched/closed budgets and rejection of unsupported engine/extension transports.
 both retry layers disabled. These tests do not establish token/cost reservations,
 batch-wide enforcement, real model effectiveness or physical desktop cleanup.
 
-`core/tests/test_spend_ledger.py` adds 51 deterministic reservation cases without
-HTTP or OS mocks. They cover trial/batch token and cost limits, exact boundaries,
+`core/tests/test_spend_ledger.py` includes 56 reservation/persistence cases without
+model HTTP or desktop operations. They cover trial/batch token and cost limits, exact boundaries,
 known-usage release, unknown/partial/invalid-usage retention, observed bound
 violations, duplicate settlement/IDs, serial lifecycle, unfinished-request closure,
 cross-trial spending, integer monetary arithmetic and detached JSON snapshots.
+Persistence cases use real files and process exit, inject fsync failures, verify
+pending reservations survive exit, and refuse reopening an existing journal.
 These test the offline ledger API only; HTTP integration has the additional
 coverage below. Actual provider bounds/prices and physical stopping remain unverified.
 
-`test_spend_http.py` adds 33 cases through real LLM/SDK/HTTP hooks or request
+`test_spend_http.py` includes 54 cases through real LLM/SDK/HTTP hooks or request
 contract validation. They check pre-transport reservation/refusal, fragmented SSE
 without prefetch, settlement before tool execution, raw usage validation despite
 SDK coercion, missing/inconsistent/over-bound usage, cancellation and read failures.
@@ -736,5 +738,14 @@ Contract tests reject mismatched parameters, malformed JSON and missing evidence
 The 13 create/Runner/SDK request-gate cases in `test_computer_locate.py` also run
 with spend control enabled, covering legacy/integrated/split and independent
 locator clients, 429/503 without retry, shared accounting and driver reuse.
-All HTTP and OS boundaries are fake. Synthetic ceilings/prices exercise the gate;
+Model HTTP and desktop boundaries are fake. Synthetic ceilings/prices exercise the gate;
 they do not establish usable input bounds for the proposed live M5 batch.
+
+The 10 serial-batch cases in `test_bench_runner.py` use the real suite orchestration
+with fake drivers/shell/IME boundaries. They verify explicit order, one shared
+durable ledger, no replay of an existing directory, cancellation accounting,
+budget/unknown-usage/unconfirmed-cleanup stops and invalid schedule preflight.
+The HTTP cases also cover durable reservation visibility at transport entry,
+sync failure causing zero HTTP sends/tool actions, and driver context cleanup
+when final journal sync fails. No test establishes automatic recovery, a global
+desktop lock, machine power-loss durability or a batch HTTP-count ceiling.
