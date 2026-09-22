@@ -294,7 +294,7 @@ offline controls do not authorize a live M5 batch or reset historical allowances
 
 `tank_backend.benchmarks.spend_ledger.SpendLedger` provides in-memory arithmetic
 for one serial batch. The optional HTTP integration below now uses this ledger;
-the arithmetic module itself does not estimate tokens, load prices or persist
+the arithmetic module itself does not estimate tokens, load prices or restore
 state across process restarts. Default benchmark runs do not enable it.
 
 Create it with a batch `SpendLimit(tokens, nano_usd)`, then call
@@ -379,8 +379,9 @@ recovery, real environment and physical cleanup remain live-run prerequisites.
 
 `benchmarks.batch.run_batch` accepts an ordered tuple of
 `BatchTrial(key, suite_dir, task_id, agent_name, config_path, platform)`, plus an
-unused `out_dir`, explicit batch/trial `SpendLimit`, per-trial `RequestLimits`
-and `ContextWindowContract` tuple. It creates each built-in `SubAgentDriver`
+unused `out_dir`, explicit batch/trial `SpendLimit`, per-trial `RequestLimits`,
+`ContextWindowContract` tuple, `batch_request_limit` and `frozen_inputs`.
+It creates each built-in `SubAgentDriver`
 with the same `SpendControl` and runs exactly one matching task via `run_suite`.
 Keys must be unique lowercase letters/digits/hyphens. All entries are checked
 for a unique task/platform match before any driver starts. The caller supplies
@@ -413,9 +414,40 @@ survives exit without Python cleanup; it does not test machine power loss.
 Directory identity prevents replay within that output location, not globally
 across copied/deleted artifacts or a different batch directory.
 
-This API has no live defaults or CLI entry point. It records paths/order and
-limits, but does not verify frozen input hashes or provider contracts. A batch
-HTTP-count ceiling (in addition to the existing per-trial caps), tighter input
-bounds, price review and verified physical cleanup remain required before the
+This API has no live defaults or CLI entry point. Tighter input bounds, resolved
+runtime configuration checks, price review and verified physical cleanup remain required before the
 proposed live experiment. Built-in cleanup currently remains unknown, so this
 scheduler conservatively stops after that trial.
+
+### Batch request ceiling and pinned input preflight (M5)
+
+`run_batch` requires an explicit nonnegative integer `batch_request_limit`.
+`SpendLedger(..., request_limit=...)` also supports this independently; omitting
+it preserves the previous ledger behavior. Each admitted reservation consumes
+one slot, shared by all trials and planner/locator clients. Zero-token usage,
+HTTP failure or unknown usage never refunds a slot. Rejection happens before
+transport; after the last slot the scheduler cannot start another entry. The
+final admitted response may still dispatch tools. This counts admitted requests,
+not proof of provider receipt or billing. Contract/token rejection may occur
+before batch admission; a journal failure after reservation can consume a slot
+without sending. Snapshots persist `limit_requests` and `admitted_requests`.
+
+Supply `FrozenInputs(files=(FrozenFile(path, reviewed_sha256), ...), trees=(...))`
+with previously reviewed hashes, preferably using absolute paths. No hashes are
+updated or inferred by admission. Files must be unique, present, and match their
+SHA-256. Every declared directory must have exactly the listed file inventory.
+The scheduler additionally requires pins for each selected config, an existing
+adjacent `.env`, suite YAML, all task YAMLs and the suite's asset files. It checks
+all declared pins before creating the batch output, before each driver creation,
+and again after driver creation before entering `run_suite`. Drift stops the
+batch with `frozen_inputs`; zero HTTP allowance skips driver creation entirely.
+The pinned files/directories and batch limit are saved in `batch-plan.json`.
+
+Caller-supplied source, agent definition, validator and frozen-artifact files are
+checked too, but dependency discovery outside the mandatory files is not automatic.
+Declare directories when newly added files must also be detected. These are file
+preflight checks, not a filesystem lock or a proof about already imported modules,
+environment-variable expansion, dynamic inputs or the final live HTTP body.
+They do not compare resolved profiles/agent definitions/toolsets with the frozen
+experiment variants or authorize a live batch. Historical freeze artifacts remain
+unchanged; source drift requires a separately reviewed new freeze.

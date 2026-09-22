@@ -720,7 +720,7 @@ latched/closed budgets and rejection of unsupported engine/extension transports.
 both retry layers disabled. These tests do not establish token/cost reservations,
 batch-wide enforcement, real model effectiveness or physical desktop cleanup.
 
-`core/tests/test_spend_ledger.py` includes 56 reservation/persistence cases without
+`core/tests/test_spend_ledger.py` includes 61 reservation/persistence cases without
 model HTTP or desktop operations. They cover trial/batch token and cost limits, exact boundaries,
 known-usage release, unknown/partial/invalid-usage retention, observed bound
 violations, duplicate settlement/IDs, serial lifecycle, unfinished-request closure,
@@ -730,7 +730,7 @@ pending reservations survive exit, and refuse reopening an existing journal.
 These test the offline ledger API only; HTTP integration has the additional
 coverage below. Actual provider bounds/prices and physical stopping remain unverified.
 
-`test_spend_http.py` includes 54 cases through real LLM/SDK/HTTP hooks or request
+`test_spend_http.py` includes 58 cases through real LLM/SDK/HTTP hooks or request
 contract validation. They check pre-transport reservation/refusal, fragmented SSE
 without prefetch, settlement before tool execution, raw usage validation despite
 SDK coercion, missing/inconsistent/over-bound usage, cancellation and read failures.
@@ -741,11 +741,23 @@ locator clients, 429/503 without retry, shared accounting and driver reuse.
 Model HTTP and desktop boundaries are fake. Synthetic ceilings/prices exercise the gate;
 they do not establish usable input bounds for the proposed live M5 batch.
 
-The 10 serial-batch cases in `test_bench_runner.py` use the real suite orchestration
+The 22 serial-batch cases in `test_bench_runner.py` use the real suite orchestration
 with fake drivers/shell/IME boundaries. They verify explicit order, one shared
 durable ledger, no replay of an existing directory, cancellation accounting,
 budget/unknown-usage/unconfirmed-cleanup stops and invalid schedule preflight.
 The HTTP cases also cover durable reservation visibility at transport entry,
 sync failure causing zero HTTP sends/tool actions, and driver context cleanup
 when final journal sync fails. No test establishes automatic recovery, a global
-desktop lock, machine power-loss durability or a batch HTTP-count ceiling.
+desktop lock or machine power-loss durability.
+
+Batch count cases verify persisted admission across trial boundaries, no refund
+for zero-token settlement, invalid limits, zero HTTP sends at a zero ceiling,
+and no next driver after exhaustion. Existing separate-locator cases also assert
+shared batch counts for both SDK clients, including HTTP failures and driver reuse.
+Eight `test_comparison_freeze.py` cases check file hashes, inventory changes,
+required coverage and invalid pins. Batch regressions reject changed config,
+suite/task, assets, `.env`, explicitly pinned agent files, added tasks, missing
+config pins and mutations during driver construction or between trials.
+The initial construction-drift red test omitted IME isolation and reached a host
+API (connection errors); all IME/page-server/shell boundaries were then isolated
+before the passing run. This is not physical cleanup or desktop-effect evidence.

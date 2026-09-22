@@ -283,6 +283,8 @@ M4–M8 的既定集成、对照与真实任务验收仍在本计划内，不随
   不足以降低两种快照的多模态请求预留，记录缺口及后续接入条件。
 - [x] 显式顺序的串行批次 API 与 fsync 预留日志；中断证据保留、已有目录
   拒绝重放，预算/未知清理停批。fake HTTP/OS 验收，不支持自动恢复。
+- [x] 全批 HTTP 准入次数上限及声明文件的冻结预检；首轮/每轮/driver 构造后
+  核对文件，超额或变化阻止后续启动。解析后的运行配置与实验契约对齐仍待完成。
 - [ ] 补齐真实环境、语义失败归因、串行配对调度、可执行的输入上界与批次门禁和
   可验证清理，之后才做模型效果对照。A→A-control 单独量框架变化，不归因给还原。
 - [ ] 基于新批次明确样本、顺序、请求/token/时间上限、端点价格和图片范围；
@@ -1153,6 +1155,35 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   价格/区域、独立真值、真实环境和物理清理仍未完成，M5 保持 active。
 - 实现及测试提交 `72f7907`。完整 backend **4896 passed / 1 skipped**，
   E2E **16 场景 / 63 步**；web lint/TypeScript、backend/CLI ruff、七个改动
+  Python 文件 pyright、实际 backend pane、docs 和协议一致性检查全部通过。
+
+### 2026-09-22 — M5 全批请求次数与冻结文件预检
+
+- `run_batch` 必须显式传入 `batch_request_limit`；`SpendLedger` 的可选
+  `request_limit` 在每次预留前检查，全批规划/定位共用次数，成功/失败/未知
+  usage 或退回 token 均不退次数。快照和日志保存上限与 admitted_requests。
+  零额度不构造 driver；耗尽后不启动下一项，单轮内超额在 HTTP transport 前拒绝。
+  计数是准入次数，不证明线上送达；最后一个已准入响应仍可能派发工具。
+- 新增 `FrozenFile` / `FrozenInputs`，只核对预先固定的 SHA-256，不自动改写。
+  校验唯一文件、内容和声明目录的文件清单；批次强制覆盖配置、已有相邻
+  `.env`、suite、所有 task YAML 与静态资源。首次输出前、每轮 driver 构造前后
+  复查；变化锁批为 frozen_inputs，拒绝进入后续任务 setup/执行。
+- 额外声明的 agent/源码/validator/冻结产物同样校验，但未自动发现全部依赖。
+  文件检查不构成文件系统锁，也不证明已导入模块、环境变量解析、动态输入
+  或最终 live 请求一致。下一步生成**可加载的实验配置，并核对解析后的
+  profile、agent 定义和工具集与冻结契约的一致性**。
+- 只读核查旧冻结：5 个 artifact 哈希均匹配；289 个原 sources 中 5 项变化：
+  benchmarks/driver.py、benchmarks/trace.py、llm/llm.py、
+  tools/computer_grounding.py、tools/computer_locate.py（均在 core/src/tank_backend 下）。
+  历史冻结未改写，也没有把当前源码自动重新冻结为可执行批次。
+- Tests：新增 **29 项**（账本 5、SDK/HTTP 4、文件预检 8、批次调度 12），
+  并强化独立定位客户端共用次数的既有回归；定向 **338 passed**。
+  构造期变化的首次红测漏隔离 IME，触发宿主 API 并报连接错误；已补齐
+  IME/page-server/shell 假边界后重跑。该红测不算真实环境或物理清理验收。
+- 没有付费模型请求或真实截图出站；可用输入上界、价格/区域、独立评分和
+  物理清理仍待完成。M5 仍 active，未运行模型效果对照。
+- 实现及测试提交 `56a2b85`。完整 backend **4925 passed / 1 skipped**，
+  E2E **16 场景 / 63 步**；web lint/TypeScript、backend/CLI ruff、八个改动
   Python 文件 pyright、实际 backend pane、docs 和协议一致性检查全部通过。
 
 ## 9. 最终 Verification Checklist
