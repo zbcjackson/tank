@@ -161,3 +161,20 @@ GUI-only violations invalidate business and mouse evidence too. Do not merge
 these tracks or rewrite historical reports. The validator reads only the
 current trace segment after the last `trial_start`, using `BENCH_TRIAL_DIR`
 provided by the runner; setup emits a verified reset record before input.
+
+
+### Split grounding measurement (M5 preparation)
+
+Built-in agent definitions with `grounding` now work through `SubAgentDriver`:
+profile-created planner/locator clients share one benchmark counter and actual
+SDK request image-hash tracing. Initial observations and post-action feedback
+are archived through the task observer. Locator failures or missing usage retain
+an unknown-call count; non-streaming calls have no TTFT, and nested locator RTT
+is subtracted from planner intervals. Planner intervals can still include local
+tool overhead, so these are not pure HTTP latency measurements.
+
+Scoring revision `trial-token-gui-grounding-v5` allows `locate` as GUI observation
+without counting it as an input primitive, and preserves Runner terminal errors.
+It does not rescore old reports. Integrated B adaptation, split batch primitive
+reporting, raw locator failure attribution and paired A/B/C/D execution still
+require work before the M5 effect comparison. No new model results are implied.

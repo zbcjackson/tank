@@ -413,3 +413,15 @@ grounding:
 
 验证覆盖离线真实 Runner/ToolManager/SDK 和 M2 macOS 边界；不代表模型会选对
 目标、识别正确或真实动态 UI 稳定。M5 因果对照与 M6 真机停止/效果仍待执行。
+
+
+M5 的 benchmark 入口支持上述分离模式：Runner 的可选 LLM 工厂让 benchmark
+对命名规划/定位客户端使用同一个计量器，生产默认仍使用原 profile 工厂。
+任务拥有的命名客户端在任务退出时关闭。分离截图通过任务 observer 保存，
+避免外围截图包装遮蔽 FrameTool；真实图仍只写本轮本地 trace。
+`describe()` 保留 grounding 配置，HTTP hook 同时覆盖规划和定位图片 hash。
+定位请求失败/取消/无 usage 计为 unknown；非流式定位不伪造 TTFT，嵌套 RTT
+从规划计时区间扣除。规划区间仍含部分本地工具时间，不代表纯 HTTP 延迟。
+评分 revision 为 `trial-token-gui-grounding-v5`：locate 允许用于 GUI 任务但
+不计输入 primitive，Runner 终止错误会记录为 trial error。完整 A/B/C/D 配对、
+B 一体适配和 batch primitive 计量尚未验收，默认 agent/profile 不变。

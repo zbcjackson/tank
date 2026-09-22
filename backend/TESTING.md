@@ -667,3 +667,13 @@ No paid model call or physical desktop event occurs in these tests.
 On this host, full pytest needs the installed Opus library search path:
 `uv run --no-sync env DYLD_LIBRARY_PATH=/opt/homebrew/Cellar/opus/1.6.1/lib pytest`.
 This is an environment setting, not an audio-code workaround.
+
+
+M5 benchmark split-mode regressions extend `test_computer_locate.py` through
+`SubAgentDriver.create` → real Runner/SDK with fake HTTP/macOS. Same-model and
+separate-profile cases check four token budgets, current image bytes, initial
+and feedback screenshot archives, actual request count, GUI classification and
+single accounting of planner plus locator usage. `test_bench_runner.py` also
+checks missing/cancelled locator usage and excludes nested locator time from
+planner intervals. These are measurement-contract tests, not paid A/B/C/D
+results. Batch primitive reporting and the integrated B adapter remain pending.

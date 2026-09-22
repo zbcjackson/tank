@@ -92,15 +92,16 @@ class CountingLLM:
 
     AgentRunner consumes USAGE outputs internally (budget enforcement)
     without forwarding them, so token totals are captured here at the
-    transport seam instead. ``run_agent`` only uses ``self._llm`` when
-    ``app_config`` is None — SubAgentDriver relies on exactly that.
+    transport seam instead. Profile-created clients share the same counter
+    through the Runner factory; non-streaming locator calls are measured too.
 
     Timing unit = one model round-trip (API call), not one chat_stream:
     ``LLM.chat_stream`` runs the whole tool loop internally, so a single
     call spans N model round-trips delimited by USAGE updates. Each
     round-trip is timed from the previous boundary to its USAGE update;
     a stream cancelled mid-round (task timeout) still records the
-    in-flight round so timeout trials show the time the LLM really ate.
+    in-flight round so timeout trials retain elapsed time. Nested locator time
+    is excluded from planner intervals; other local tool overhead may remain.
     """
 
     def __init__(self, inner: LLM, counter: CountingLLM | None = None) -> None:
@@ -184,7 +185,6 @@ class CountingLLM:
                     0.0, time.monotonic() - round_start - counter.nonstream_s + nested_start,
                 ))
             raise
-
 
     async def complete_response(self, *args: Any, **kwargs: Any) -> ChatCompletion:
         """Measure a locator response, including failures and missing usage."""
