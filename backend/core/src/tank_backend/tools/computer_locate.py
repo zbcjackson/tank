@@ -436,9 +436,10 @@ class LocateTool(BaseTool):
 
     async def execute(self, **kwargs: Any) -> ToolResult | str:
         allowed = {p.name for p in self.get_info().parameters}
-        if kwargs.keys() - allowed:
+        unknown = kwargs.keys() - allowed
+        if unknown:
             return ToolResult(
-                content="Unknown split-mode arguments; coordinates are not accepted", error=True
+                content=f"Unknown tool arguments: {', '.join(sorted(unknown))}", error=True
             )
         self.session.context.check("desktop")
         operation = asyncio.create_task(self.session.execute(self.name, kwargs))

@@ -1064,6 +1064,34 @@ async def test_integrated_batch_stops_without_input_on_failed_location(
     assert not c.requests  # no locator HTTP
 
 
+@pytest.mark.parametrize("malformed", ["batch_screenshot", "string_location"])
+async def test_integrated_rejects_live_pilot_malformed_arguments(locator, malformed):
+    from tank_backend.agents.definition import GroundingConfig
+    from tank_backend.tools.computer_integrated import IntegratedSession, IntegratedTool
+
+    c = locator
+    session = IntegratedSession(c.session.tools, {}, c.session.adapter, c.context, "integrated")
+    session.config = GroundingConfig(mode="integrated", protocol="legacy", host_restore=False)
+    c.session = session
+    c.manager.tools = {n: IntegratedTool(session, n) for n in session.tools}
+    c.manager.tools["computer_batch"] = IntegratedTool(session, "computer_batch")
+    frame = await observe(c)
+    if malformed == "batch_screenshot":
+        result = await c.manager.execute_tool(
+            "computer_batch", screenshot="true",
+            actions=[{"action": "click", "frame_id": frame, "location": {"x": 750, "y": 290}}],
+        )
+        assert result.content == "Unknown tool arguments: screenshot"
+    else:
+        result = await c.manager.execute_tool(
+            "click", frame_id=frame, location='{"x":991,"y":180}',
+        )
+        assert "Invalid legacy location" in result.content
+    assert result.error
+    c.click.assert_not_called()
+    assert not c.requests
+
+
 async def test_integrated_factor_schema_reuses_adapter_and_preserves_tool_allowlist(locator):
     from tank_backend.agents.definition import GroundingConfig
     from tank_backend.tools.computer_grounding import GroundingAdapter

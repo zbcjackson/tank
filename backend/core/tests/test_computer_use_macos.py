@@ -307,7 +307,7 @@ class TestTypeTextTool:
         assert not result.error
         assert command.call_args_list[0].args[0] == ["pbcopy"]
         assert "key code 36" in command.call_args_list[1].args[0][2]
-        assert fake_quartz.CGEventCreateKeyboardEvent.call_count == 2  # cmd+v only
+        assert fake_quartz.CGEventCreateKeyboardEvent.call_count == 4  # balanced cmd+v
 
     @pytest.mark.parametrize("mode", ["keys", "", None, []])
     async def test_invalid_mode_dispatches_no_input(
@@ -327,7 +327,7 @@ class TestTypeTextTool:
         assert not result.error
         assert command.call_args.args[0] == ["pbcopy"]
         assert command.call_args.kwargs["input"] == "56"
-        assert fake_quartz.CGEventCreateKeyboardEvent.call_count == 2
+        assert fake_quartz.CGEventCreateKeyboardEvent.call_count == 4
         assert "clipboard_paste" in result.content
 
     @pytest.mark.asyncio
@@ -362,9 +362,38 @@ class TestTypeTextTool:
         assert pbcopy_call[0][0][0] == "pbcopy"
         assert pbcopy_call[1]["input"] == "你好，世界"
         # cmd+v keyboard events posted via Quartz
-        assert fake_quartz.CGEventCreateKeyboardEvent.call_count == 2  # down + up
-        assert fake_quartz.CGEventSetFlags.call_count == 2
+        assert fake_quartz.CGEventCreateKeyboardEvent.call_count == 4
+        assert fake_quartz.CGEventSetFlags.call_count == 4
         assert result.error is False
+
+    @pytest.mark.parametrize("fail_key", [None, 9, 55])
+    async def test_paste_releases_keys_even_when_posting_fails(self, fake_quartz, fail_key):
+        pressed = set()
+        flags = {}
+
+        def set_flags(event, value):
+            flags[event] = value
+
+        def post(_tap, event):
+            key, down = event
+            if down:
+                pressed.add(key)
+            else:
+                pressed.discard(key)
+            # Quartz modifier flags also affect the session's modifier state.
+            if flags[event] & fake_quartz.kCGEventFlagMaskCommand:
+                pressed.add(55)
+            else:
+                pressed.discard(55)
+            if down and key == fail_key:
+                raise RuntimeError("Post failed after delivery")
+
+        fake_quartz.CGEventSetFlags.side_effect = set_flags
+        fake_quartz.CGEventPost.side_effect = post
+        with patch(f"{MODULE}.subprocess.run", return_value=make_run_ok()):
+            result = await TypeTextTool().execute(text="56", mode="paste")
+        assert result.error is (fail_key is not None)
+        assert pressed == set()
 
     @pytest.mark.asyncio
     async def test_keystroke_failure_raises(self):

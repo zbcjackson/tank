@@ -234,12 +234,24 @@ def _type_macos(text: str, mode: str = "auto") -> str:
         # Cmd+V to paste
         Quartz = _load_quartz()
         src = Quartz.CGEventSourceCreate(Quartz.kCGEventSourceStateHIDSystemState)
+        command_down = Quartz.CGEventCreateKeyboardEvent(src, 55, True)
+        command_up = Quartz.CGEventCreateKeyboardEvent(src, 55, False)
         down = Quartz.CGEventCreateKeyboardEvent(src, 9, True)  # 9 = 'v'
         up = Quartz.CGEventCreateKeyboardEvent(src, 9, False)
+        Quartz.CGEventSetFlags(command_down, Quartz.kCGEventFlagMaskCommand)
+        Quartz.CGEventSetFlags(command_up, 0)
         Quartz.CGEventSetFlags(down, Quartz.kCGEventFlagMaskCommand)
         Quartz.CGEventSetFlags(up, Quartz.kCGEventFlagMaskCommand)
-        Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
-        Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+        try:
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, command_down)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+        finally:
+            # A V-up carrying Command still leaves the session modifier down.
+            # Release both keys even if dispatch raises after partial delivery.
+            try:
+                Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+            finally:
+                Quartz.CGEventPost(Quartz.kCGHIDEventTap, command_up)
         time.sleep(0.1)
         return "clipboard_paste"
 
