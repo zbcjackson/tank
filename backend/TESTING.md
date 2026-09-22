@@ -761,3 +761,15 @@ config pins and mutations during driver construction or between trials.
 The initial construction-drift red test omitted IME isolation and reached a host
 API (connection errors); all IME/page-server/shell boundaries were then isolated
 before the passing run. This is not physical cleanup or desktop-effect evidence.
+
+
+### M5 resolved comparison configuration
+
+`test_comparison_freeze.py` adds 31 cases: seven production-parser round trips,
+16 resolved-drift/credential cases, refusal before client/tool construction, and
+seven generated-config → real driver/Runner/SDK checks. SDK HTTP transport is
+mocked; screenshot, click and Quartz boundaries explicitly reject host access.
+The SDK checks compare model, tool schemas and generation settings with the
+exported first request. Existing export tests additionally verify deterministic
+runtime files and absence of credentials. These are offline contract tests, not
+physical desktop cleanup or live model acceptance.

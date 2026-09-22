@@ -1186,6 +1186,31 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   E2E **16 场景 / 63 步**；web lint/TypeScript、backend/CLI ruff、八个改动
   Python 文件 pyright、实际 backend pane、docs 和协议一致性检查全部通过。
 
+### 2026-09-22 — M5 可加载配置与解析后的实验契约
+
+- [x] 为七组实验生成独立 config.yaml 与 agent Markdown，使用生产解析器
+  回读校验；historical original 只保留归档，不生成第八组运行配置。
+- 新增显式 `ComparisonContract`：driver 构造 LLM/ToolManager 前，核对完整
+  agent 定义、解析后的 default/planner/locator profile、agent 搜索设置和
+  声明工具列表。比较排除 API key；错误不打印可能包含秘密的解析值。
+  BatchTrial 可传入该契约，并强制冻结对应 manifest/JSON/agent 文件。
+  未传契约的既有调用仍仅执行原有检查，不自动获得 M5 配置核对。
+- 新增[独立离线产物](../../../backend/benchmarks/computer_use/reports/20260922-m5-runtime-config/README.md)，
+  manifest 覆盖 19 个产物及当前源码；旧冻结未改写。配置仅保存
+  `${M5_DASHSCOPE_API_KEY}` 引用。产物不验证账号/密钥、区域价格、完整
+  live 消息历史或物理桌面效果；源码依赖仍须显式固定。
+- Tests：新增 **31 项**：七组生产解析器、16 项解析漂移/密钥、构造资源前
+  拒绝、七组真实 driver/Runner/SDK 首请求对照；既有导出回归验证可重复性
+  和密钥不落盘。HTTP 为离线 transport，宿主截图/点击/Quartz 有拒绝护栏。
+- 本轮没有付费请求、真实截图出站或桌面实验，默认配置不变。M5 保持 active。
+  下一步将 17-trial 提案固化为可校验的批次清单并完成离线预检；可用输入
+  上界、价格/区域、独立真值、真实环境及物理清理仍是实际执行的前置条件。
+
+- 实现及测试提交 `046e7d9`；定向 **369 passed**，完整 backend
+  **4956 passed / 1 skipped**，E2E **16 场景 / 63 步**。web lint/TypeScript、
+  backend/CLI ruff、六个改动 Python 文件 pyright、开发服务日志、docs 与
+  协议一致性检查全部通过。新冻结 19 个产物、295 个源码哈希均匹配。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。

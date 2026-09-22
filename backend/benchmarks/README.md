@@ -448,6 +448,34 @@ checked too, but dependency discovery outside the mandatory files is not automat
 Declare directories when newly added files must also be detected. These are file
 preflight checks, not a filesystem lock or a proof about already imported modules,
 environment-variable expansion, dynamic inputs or the final live HTTP body.
-They do not compare resolved profiles/agent definitions/toolsets with the frozen
-experiment variants or authorize a live batch. Historical freeze artifacts remain
+Without an explicit comparison contract, they do not compare resolved profiles,
+agent definitions or toolsets with the frozen experiment variants. They do not
+authorize a live batch. Historical freeze artifacts remain
 unchanged; source drift requires a separately reviewed new freeze.
+
+
+### Resolved comparison configuration (offline M5)
+
+`prepare_computer_comparison.py` also exports `runtime/<variant>/config.yaml`
+and `agents/computer-use.md` for A, A-control, B-host-only, B-protocol-only,
+B-combined, C and D. Historical `original` remains an archived definition/request,
+not an eighth runnable experiment. Each generated config uses the environment
+reference `${M5_DASHSCOPE_API_KEY}`; no credential is exported. The exporter
+round-trips each config and definition through the production parsers before
+capturing synthetic SDK requests. The manifest covers all 19 generated artifacts.
+
+Pass `comparison=ComparisonContract(freeze_dir, variant)` to
+`SubAgentDriver.create` or `BatchTrial` to opt into runtime verification. Before
+constructing LLM clients or ToolManager, the driver compares the resolved agent
+(including prompt/grounding), default/planner/locator profiles (except API keys
+and profile names), agent search configuration and declared tool list against
+frozen JSON. Mismatch raises without printing resolved values. Batch admission
+also requires frozen pins for the comparison manifest, definitions, profiles,
+toolset and local agent Markdown files. Pin source dependencies separately.
+
+The [runtime export](computer_use/reports/20260922-m5-runtime-config/README.md)
+is a new offline snapshot; older freezes are unchanged. Seven real driver/SDK
+regressions compare the first serialized request's model, tools and generation
+settings with the frozen requests. This does not verify credentials, provider
+availability, full live message history, physical cleanup or model effectiveness.
+The proposed paid batch remains unexecuted.
