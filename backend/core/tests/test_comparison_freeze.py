@@ -338,3 +338,74 @@ async def test_comparison_rejects_unreviewed_profile_before_export(tmp_path, fie
     with pytest.raises(ValueError):
         await prepare(config, output)
     assert not list(output.iterdir())
+
+
+async def test_batch_proposal_preflight_is_offline_and_preserves_budget(
+    runtime_bundle, monkeypatch,
+):
+    from unittest.mock import Mock
+
+    from tank_backend.benchmarks.driver import SubAgentDriver
+
+    forbidden = Mock(side_effect=AssertionError("offline preflight must not construct a driver"))
+    monkeypatch.setattr(SubAgentDriver, "create", forbidden)
+    script = Path(__file__).resolve().parents[2] / "scripts/prepare_computer_batch.py"
+    api = runpy.run_path(str(script))
+    output = runtime_bundle.parent / "proposal"
+    api["prepare"](runtime_bundle, output)
+    report = api["preflight"](runtime_bundle, output / "proposal.json")
+    proposal = json.loads((output / "proposal.json").read_text())
+    assert [row["variant"] for row in proposal["trials"]] == [
+        "A-control", "B-protocol-only", "A", "B-host-only", "B-combined",
+        "A", "B-combined", "C", "D", "B-combined", "C", "D", "A",
+        "C", "D", "A", "B-combined",
+    ]
+    assert report["totals"] == {
+        "trials": 17, "planner_requests": 272, "locator_requests": 90,
+        "max_locator_requests": 45, "http_requests": 362,
+        "tokens": 5100000, "task_seconds": 2040,
+    }
+    assert report["live_ready"] is False
+    assert report["first_request"] == {
+        "reserved_tokens": 999808, "trial_limit": 300000, "stop_reason": "trial_tokens",
+    }
+    assert proposal["budget_nano_usd"] == 8000000000
+    assert len(report["blockers"]) >= 5
+    forbidden.assert_not_called()
+    with pytest.raises(FileExistsError):
+        api["prepare"](runtime_bundle, output)
+
+
+@pytest.mark.parametrize("change", [
+    "order", "budget", "requests", "authorization", "missing_pin", "config_bytes",
+    "manifest_bytes", "agent_bytes", "adjacent_env", "extra_agent",
+])
+async def test_batch_proposal_rejects_drift(runtime_bundle, change):
+    script = Path(__file__).resolve().parents[2] / "scripts/prepare_computer_batch.py"
+    api = runpy.run_path(str(script))
+    output = runtime_bundle.parent / "proposal"
+    api["prepare"](runtime_bundle, output)
+    path = output / "proposal.json"
+    proposal = json.loads(path.read_text())
+    if change == "order":
+        proposal["trials"].reverse()
+    elif change == "budget":
+        proposal["budget_nano_usd"] += 1
+    elif change == "requests":
+        proposal["trials"][0]["request_limits"]["locator"] = 15
+    elif change == "authorization":
+        proposal["live_authorized"] = True
+    elif change == "missing_pin":
+        proposal["files"].pop(next(key for key in proposal["files"] if key.endswith("suite.yaml")))
+    elif change in {"config_bytes", "manifest_bytes", "agent_bytes"}:
+        relative = {"config_bytes": "runtime/a/config.yaml", "manifest_bytes": "manifest.json",
+                    "agent_bytes": "runtime/a/agents/computer-use.md"}[change]
+        target = runtime_bundle / relative
+        target.write_text(target.read_text() + "\n")
+    elif change == "adjacent_env":
+        (runtime_bundle / "runtime/a/.env").write_text("M5_DASHSCOPE_API_KEY=secret")
+    elif change == "extra_agent":
+        (runtime_bundle / "runtime/a/agents/extra.md").write_text("---\nname: extra\n---\nx")
+    path.write_text(json.dumps(proposal))
+    with pytest.raises(ValueError):
+        api["preflight"](runtime_bundle, path)

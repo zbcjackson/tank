@@ -1,0 +1,159 @@
+"""Materialize and recheck the M5 proposal offline; deliberately no execution mode."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+from typing import Any
+from unittest.mock import patch
+
+from tank_backend.agents.definition import load_agent_definitions
+from tank_backend.benchmarks.comparison_contract import ComparisonContract
+from tank_backend.benchmarks.frozen_inputs import FrozenFile, FrozenInputs
+from tank_backend.benchmarks.spend_ledger import (
+    SpendLedger,
+    SpendLimit,
+    SpendLimitExceeded,
+    TokenAllowance,
+)
+from tank_backend.benchmarks.task import load_suite, load_suite_tasks
+from tank_backend.config import AppConfig
+
+BACKEND = Path(__file__).resolve().parents[1]
+SUITE = BACKEND / "benchmarks/computer_use"
+BLOCKERS = [
+    "usable_input_bound", "account_region_and_prices", "independent_scoring",
+    "real_environment_and_physical_cleanup", "pilot_acceptance_before_core",
+    "live_budget_endpoint_and_image_scope_authorization",
+]
+
+
+def _relative(path: Path) -> str:
+    return os.path.relpath(path.resolve(), BACKEND)
+
+
+def _spec(freeze: Path) -> dict[str, Any]:
+    rounds = [
+        ("pilot", ["A-control", "B-protocol-only", "A", "B-host-only", "B-combined"]),
+        ("pair-1", ["A", "B-combined", "C", "D"]),
+        ("pair-2", ["B-combined", "C", "D", "A"]),
+        ("pair-3", ["C", "D", "A", "B-combined"]),
+    ]
+    trials = []
+    for phase, variants in rounds:
+        for variant in variants:
+            locator = 15 if variant in {"C", "D"} else 0
+            trials.append({
+                "key": f"{phase}-{variant.lower()}", "phase": phase, "variant": variant,
+                "suite_dir": _relative(SUITE), "task_id": "calc-open", "platform": "macos",
+                "agent_name": "computer_use",
+                "config_path": _relative(freeze / "runtime" / variant.lower() / "config.yaml"),
+                "request_limits": {"planner": 16, "locator": locator, "total": 16 + locator},
+                "tokens": 300000, "timeout_s": 120, "max_steps": 15,
+            })
+    return {
+        "schema_version": 1, "live_authorized": False,
+        "freeze_dir": _relative(freeze), "budget_nano_usd": 8000000000,
+        "batch_tokens": 5100000, "batch_requests": 362,
+        "core_requires_pilot_acceptance": True, "trials": trials,
+    }
+
+
+def _required(freeze: Path) -> tuple[set[Path], FrozenInputs]:
+    manifest = json.loads((freeze / "manifest.json").read_text())
+    evidence = FrozenInputs(tuple(
+        FrozenFile(root / name, digest)
+        for group, root in (("sources", BACKEND), ("artifacts", freeze))
+        for name, digest in manifest[group].items()
+    ), trees=(freeze / "runtime",))
+    required = {item.path for item in evidence.files}
+    required.update({freeze / "manifest.json", Path(__file__), SUITE / "suite.yaml"})
+    for directory in (SUITE / "tasks", SUITE / "assets"):
+        required.update(path for path in directory.rglob("*") if path.is_file())
+    return required, evidence
+
+
+def preflight(freeze: Path, proposal_path: Path) -> dict[str, Any]:
+    """Verify saved pins and resolved inputs without clients, shell, IME or scoring."""
+    proposal = json.loads(proposal_path.read_text())
+    pins = proposal.pop("files")
+    if proposal != _spec(freeze):
+        raise ValueError("Batch proposal differs from the fixed M5 schedule or limits")
+    required, evidence = _required(freeze)
+    frozen = FrozenInputs(tuple(FrozenFile(BACKEND / name, digest) for name, digest in pins.items()))
+    frozen.verify(required)
+    evidence.verify()
+    suite = load_suite(SUITE / "suite.yaml")
+    tasks = [task for task in load_suite_tasks(SUITE / "tasks", "macos", suite.defaults)
+             if task.id == "calc-open"]
+    if len(tasks) != 1:
+        raise ValueError("Batch proposal requires exactly one Calculator task")
+    task = tasks[0]
+    if (task.timeout_s, task.max_steps, task.gui_only, task.scoring) != (120, 15, True, "strict"):
+        raise ValueError("Batch proposal Calculator task limits/scoring mismatch")
+    for variant in dict.fromkeys(row["variant"] for row in proposal["trials"]):
+        runtime = freeze / "runtime" / variant.lower()
+        if (runtime / ".env").exists():
+            raise ValueError("Offline proposal does not accept adjacent credential files")
+        with patch.dict(os.environ, {"M5_DASHSCOPE_API_KEY": "offline-placeholder"}):
+            config = AppConfig.load(runtime / "config.yaml")
+        definition = load_agent_definitions([runtime / "agents"])["computer_use"]
+        ComparisonContract(freeze, variant).verify(config, definition)
+    rows = proposal["trials"]
+    totals = {
+        "trials": len(rows),
+        "planner_requests": sum(row["request_limits"]["planner"] for row in rows),
+        "locator_requests": sum(row["request_limits"]["locator"] for row in rows),
+        "max_locator_requests": sum(row["request_limits"]["locator"] for row in rows
+                                    if row["variant"] == "D"),
+        "http_requests": sum(row["request_limits"]["total"] for row in rows),
+        "tokens": sum(row["tokens"] for row in rows),
+        "task_seconds": sum(row["timeout_s"] for row in rows),
+    }
+    # Recorded full-context bound, not a new provider guarantee. Zero prices only
+    # isolate token admission; this deliberately does not validate cost admission.
+    ledger = SpendLedger(SpendLimit(proposal["batch_tokens"], proposal["budget_nano_usd"]))
+    ledger.start_trial("first", SpendLimit(300000, proposal["budget_nano_usd"]))
+    try:
+        ledger.reserve("first-request", TokenAllowance(991808, 8000, 0, 0))
+    except SpendLimitExceeded:
+        pass
+    finally:
+        ledger.close()
+    return {
+        "offline_checks_passed": True, "live_ready": False, "totals": totals,
+        "blockers": BLOCKERS, "checked_files": len(pins),
+        "first_request": {"reserved_tokens": 999808, "trial_limit": 300000,
+                          "stop_reason": ledger.snapshot()["stop_reason"]},
+    }
+
+
+def prepare(freeze: Path, output: Path) -> None:
+    required, evidence = _required(freeze)
+    evidence.verify()
+    proposal = _spec(freeze)
+    proposal["files"] = {
+        _relative(path): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(required)
+    }
+    output.mkdir(parents=True, exist_ok=False)
+    path = output / "proposal.json"
+    path.write_text(json.dumps(proposal, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+    report = preflight(freeze, path)
+    (output / "preflight.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--freeze", type=Path, required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--output", type=Path)
+    mode.add_argument("--check", type=Path)
+    args = parser.parse_args()
+    if args.check:
+        print(json.dumps(preflight(args.freeze, args.check), indent=2))
+    else:
+        prepare(args.freeze, args.output)
