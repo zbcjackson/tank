@@ -1,0 +1,116 @@
+"""Local-only screenshot preparation. No HTTP or model invocation."""
+import asyncio, base64, hashlib, json, os, subprocess, threading, time
+from pathlib import Path
+import AppKit, Quartz, objc
+from PyObjCTools import AppHelper
+from tank_backend.benchmarks.calc_validator import reset_calculator
+from tank_backend.tools import computer_use_macos as macos
+from tank_backend.core.content import ImageBlock
+
+OUT=Path('/tmp/tank-m5-scene-20260922'); OUT.mkdir(exist_ok=False)
+app=AppKit.NSApplication.sharedApplication(); app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)
+workspace=AppKit.NSWorkspace.sharedWorkspace(); original_front=workspace.frontmostApplication()
+original_mouse=Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
+hidden=[]
+for other in workspace.runningApplications():
+    if other.activationPolicy()==AppKit.NSApplicationActivationPolicyRegular and not other.isHidden() and other.bundleIdentifier() not in ('com.apple.calculator','com.apple.finder') and other.processIdentifier()!=os.getpid():
+        if other.hide(): hidden.append(other)
+screen=next(s for s in AppKit.NSScreen.screens() if int(s.deviceDescription()['NSScreenNumber'])==int(Quartz.CGMainDisplayID()))
+window=AppKit.NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(screen.frame(), AppKit.NSWindowStyleMaskBorderless, AppKit.NSBackingStoreBuffered, False)
+window.setBackgroundColor_(AppKit.NSColor.blackColor()); window.setOpaque_(True)
+window.setHidesOnDeactivate_(False); window.setCanHide_(False)
+window.setTitle_('Tank M5 controlled background'); window.orderFrontRegardless()
+clipboard=AppKit.NSPasteboard.generalPasteboard()
+saved_clipboard=[[(str(t),bytes(item.dataForType_(t))) for t in item.types() if item.dataForType_(t) is not None] for item in (clipboard.pasteboardItems() or [])]
+original_capture=macos._capture_screenshot_macos
+
+def check_scope():
+    visible=[a for a in workspace.runningApplications() if a.activationPolicy()==AppKit.NSApplicationActivationPolicyRegular and not a.isHidden() and a.bundleIdentifier() not in ('com.apple.calculator','com.apple.finder') and a.processIdentifier()!=os.getpid()]
+    if visible: raise RuntimeError('Visible regular apps: '+','.join(str(a.bundleIdentifier()) for a in visible))
+
+captures=[]
+def capture(*, include_cursor=True):
+    check_scope()
+    image=original_capture(include_cursor=include_cursor)
+    check_scope()
+    captures.append(image)
+    return image
+macos._capture_screenshot_macos=capture
+
+async def pilot():
+    import io
+    from dataclasses import asdict
+    from PIL import Image, ImageChops
+    from tank_backend.tools.computer_frame import FrameTool, FrameState
+    from tank_backend.tools.base import ToolContext
+    if not reset_calculator(): raise RuntimeError('Calculator reset failed')
+    subprocess.run(['osascript','-e','tell application "System Events" to tell process "Calculator" to set position of window 1 to {600, 100}'],check=True,capture_output=True,timeout=20)
+    await asyncio.sleep(1)
+    windows=Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionOnScreenOnly,0)
+    calc=next(w for w in windows if w.get('kCGWindowOwnerName')=='Calculator' and w.get('kCGWindowLayer')==0)
+    window_id=int(calc['kCGWindowNumber'])
+    bounds=calc['kCGWindowBounds']; x,y,w,h=[int(bounds[k]) for k in ('X','Y','Width','Height')]
+    rows=[]
+    for name, window_bound, change in [('full-idle-'+str(i),False,False) for i in range(5)]+[('window-idle-'+str(i),True,False) for i in range(3)]+[('window-input',True,True)]:
+        state=FrameState(); tool=FrameTool(macos.ScreenshotTool(),state)
+        args={'window_id':window_id} if window_bound else {}
+        result=await tool.execute(coordinate_space='image',ctx=ToolContext(session_id='scene-probe'),**args)
+        if result.error: raise RuntimeError(str(result.content))
+        observation=state.observation
+        before=captures[-1]
+        if change: macos._key_macos(['7'])
+        await asyncio.sleep(1.2)
+        reason=None
+        try: tool._validate_observation('scene-probe',observation.frame_id,args)
+        except ValueError as exc: reason=str(exc)
+        after=captures[-1]
+        first=Image.open(io.BytesIO(before)).convert('RGB'); second=Image.open(io.BytesIO(after)).convert('RGB')
+        diff=ImageChops.difference(first,second)
+        mask=diff.convert('L').point(lambda p:255 if p else 0)
+        row={'name':name,'rejected':reason is not None,'reason':reason,'observation':asdict(observation),'changed_bbox':diff.getbbox(),'calculator_changed_bbox':diff.crop((x,y,x+w,y+h)).getbbox(),'changed_pixels':sum(mask.histogram()[1:]),'before_sha256':hashlib.sha256(before).hexdigest(),'after_sha256':hashlib.sha256(after).hexdigest()}
+        (OUT/(name+'-before.png')).write_bytes(before); (OUT/(name+'-after.png')).write_bytes(after)
+        rows.append(row)
+        (OUT/'result.json').write_text(json.dumps({'model_requests':0,'calculator_bounds':[x,y,x+w,y+h],'cases':rows},indent=2))
+        print(json.dumps({k:v for k,v in row.items() if k!='observation'}),flush=True)
+
+error=[]
+def finish():
+    cleanup={}
+    try:
+        subprocess.run(['osascript','-e','tell application "Calculator" to quit'],capture_output=True,timeout=20)
+        time.sleep(.5)
+        cleanup['calculator_closed']=not any(a.bundleIdentifier()=='com.apple.calculator' for a in workspace.runningApplications())
+        cleanup['pressed_keys']=[i for i in range(128) if Quartz.CGEventSourceKeyState(Quartz.kCGEventSourceStateCombinedSessionState,i)]
+        cleanup['pressed_mouse_buttons']=[i for i in range(3) if Quartz.CGEventSourceButtonState(Quartz.kCGEventSourceStateCombinedSessionState,i)]
+        window.close(); cleanup['background_closed']=not window.isVisible()
+        restored=[]
+        for other in hidden: restored.append(bool(other.unhide()))
+        cleanup['hidden_apps_restored']=all(restored)
+        items=[]
+        for values in saved_clipboard:
+            item=AppKit.NSPasteboardItem.alloc().init()
+            for kind,data in values: item.setData_forType_(data,kind)
+            items.append(item)
+        clipboard.clearContents()
+        cleanup['clipboard_restored']=bool(clipboard.writeObjects_(items)) if items else True
+        Quartz.CGWarpMouseCursorPosition(original_mouse)
+        restored_mouse=Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
+        cleanup['cursor_restored']=abs(restored_mouse.x-original_mouse.x)<=1 and abs(restored_mouse.y-original_mouse.y)<=1
+        if original_front is not None: original_front.activateWithOptions_(AppKit.NSApplicationActivateIgnoringOtherApps)
+        cleanup['worker_finished']=True
+        (OUT/'cleanup.json').write_text(json.dumps(cleanup,indent=2))
+    finally:
+        app.stop_(None)
+        event=AppKit.NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(AppKit.NSEventTypeApplicationDefined,(0,0),0,0,0,None,0,0,0)
+        app.postEvent_atStart_(event,True)
+
+def worker():
+    with objc.autorelease_pool():
+        try: asyncio.run(pilot())
+        except Exception as exc:
+            error.append(type(exc).__name__)
+            (OUT/'error.txt').write_text(str(exc))
+            print('Pilot stopped: '+str(exc),flush=True)
+        finally: AppHelper.callAfter(finish)
+thread=threading.Thread(target=worker,daemon=True);thread.start();app.run();thread.join(timeout=3)
+if error: raise SystemExit(1)

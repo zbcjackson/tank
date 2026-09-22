@@ -1,0 +1,468 @@
+{
+  "model_requests": 0,
+  "calculator_bounds": [
+    600,
+    100,
+    1274,
+    508
+  ],
+  "cases": [
+    {
+      "name": "full-idle-0",
+      "rejected": true,
+      "reason": "Scene or geometry changed since observation",
+      "observation": {
+        "frame_id": "d8bede201e8345ed9e495499bba1e3c2",
+        "session_id": "scene-probe",
+        "display_id": 5,
+        "screen_size": [
+          1920,
+          1080
+        ],
+        "image_size": [
+          1920,
+          1080
+        ],
+        "crop": [
+          0,
+          0,
+          1920,
+          1080
+        ],
+        "image_sha256": "08869cef3342555841e31953cd3c46fe8afa858efeaabbb9ca6d08641ef828b2",
+        "captured_at": 1790084915.699892,
+        "display_geometry": [
+          5,
+          0,
+          0,
+          1920,
+          1080,
+          3840,
+          2160
+        ],
+        "window_id": null,
+        "window_bounds": null,
+        "scene_sha256": "ff4e356d9ccafe3f38207f7a3c0e5f3e72143e878c81c441d9f6ffbec51c75b3"
+      },
+      "changed_bbox": [
+        1750,
+        7,
+        1775,
+        23
+      ],
+      "calculator_changed_bbox": null,
+      "changed_pixels": 228,
+      "before_sha256": "08869cef3342555841e31953cd3c46fe8afa858efeaabbb9ca6d08641ef828b2",
+      "after_sha256": "f0ded97078401eb0d08283d59c0ea1a53c14d652f0aa0ddf5cd475208473c2ba"
+    },
+    {
+      "name": "full-idle-1",
+      "rejected": true,
+      "reason": "Scene or geometry changed since observation",
+      "observation": {
+        "frame_id": "0d5a17b150004bf29dd19f743aa22d22",
+        "session_id": "scene-probe",
+        "display_id": 5,
+        "screen_size": [
+          1920,
+          1080
+        ],
+        "image_size": [
+          1920,
+          1080
+        ],
+        "crop": [
+          0,
+          0,
+          1920,
+          1080
+        ],
+        "image_sha256": "7c2b92d3a16bf4ca88cda88dd62550caddbe125571d6861749277ba304ef1c13",
+        "captured_at": 1790084917.448461,
+        "display_geometry": [
+          5,
+          0,
+          0,
+          1920,
+          1080,
+          3840,
+          2160
+        ],
+        "window_id": null,
+        "window_bounds": null,
+        "scene_sha256": "7fc9abaa2c1033219a0ac9aaf9f58bb9c126e9be52c37d65d4af8b1d2afc4bfe"
+      },
+      "changed_bbox": [
+        1750,
+        7,
+        1775,
+        23
+      ],
+      "calculator_changed_bbox": null,
+      "changed_pixels": 228,
+      "before_sha256": "7c2b92d3a16bf4ca88cda88dd62550caddbe125571d6861749277ba304ef1c13",
+      "after_sha256": "e3656ad6bf072d238d8ccec0fbf61005a8b4524b02a62c3e45796f8b3d7e1420"
+    },
+    {
+      "name": "full-idle-2",
+      "rejected": true,
+      "reason": "Scene or geometry changed since observation",
+      "observation": {
+        "frame_id": "23962b6e60714ae682f873a7013a5b64",
+        "session_id": "scene-probe",
+        "display_id": 5,
+        "screen_size": [
+          1920,
+          1080
+        ],
+        "image_size": [
+          1920,
+          1080
+        ],
+        "crop": [
+          0,
+          0,
+          1920,
+          1080
+        ],
+        "image_sha256": "7c2b92d3a16bf4ca88cda88dd62550caddbe125571d6861749277ba304ef1c13",
+        "captured_at": 1790084921.213957,
+        "display_geometry": [
+          5,
+          0,
+          0,
+          1920,
+          1080,
+          3840,
+          2160
+        ],
+        "window_id": null,
+        "window_bounds": null,
+        "scene_sha256": "7fc9abaa2c1033219a0ac9aaf9f58bb9c126e9be52c37d65d4af8b1d2afc4bfe"
+      },
+      "changed_bbox": [
+        1687,
+        7,
+        1775,
+        25
+      ],
+      "calculator_changed_bbox": null,
+      "changed_pixels": 258,
+      "before_sha256": "7c2b92d3a16bf4ca88cda88dd62550caddbe125571d6861749277ba304ef1c13",
+      "after_sha256": "cd2782272dbc0f8361c82c97b89dd726ea7e0e04492293615051e95894e87394"
+    },
+    {
+      "name": "full-idle-3",
+      "rejected": true,
+      "reason": "Scene or geometry changed since observation",
+      "observation": {
+        "frame_id": "34f21b8ff9b64582aa70ec4748d41857",
+        "session_id": "scene-probe",
+        "display_id": 5,
+        "screen_size": [
+          1920,
+          1080
+        ],
+        "image_size": [
+          1920,
+          1080
+        ],
+        "crop": [
+          0,
+          0,
+          1920,
+          1080
+        ],
+        "image_sha256": "688c53fba1fa3c794ee183c5a12dcd3f5009d09b0194ccc4397500e3832cdb4d",
+        "captured_at": 1790084922.9085062,
+        "display_geometry": [
+          5,
+          0,
+          0,
+          1920,
+          1080,
+          3840,
+          2160
+        ],
+        "window_id": null,
+        "window_bounds": null,
+        "scene_sha256": "e342bd0673ecae092d0de67540b2e6e78a152110ebb89b80a90b0a0e4fcc1713"
+      },
+      "changed_bbox": [
+        1687,
+        7,
+        1775,
+        25
+      ],
+      "calculator_changed_bbox": null,
+      "changed_pixels": 243,
+      "before_sha256": "688c53fba1fa3c794ee183c5a12dcd3f5009d09b0194ccc4397500e3832cdb4d",
+      "after_sha256": "b0e52a52ba792e24ed06089bf8d3756dc4af14ac483dd0c2ac22280c5d2dbae1"
+    },
+    {
+      "name": "full-idle-4",
+      "rejected": true,
+      "reason": "Scene or geometry changed since observation",
+      "observation": {
+        "frame_id": "0365540cc99f463c8a8bee5d122e8606",
+        "session_id": "scene-probe",
+        "display_id": 5,
+        "screen_size": [
+          1920,
+          1080
+        ],
+        "image_size": [
+          1920,
+          1080
+        ],
+        "crop": [
+          0,
+          0,
+          1920,
+          1080
+        ],
+        "image_sha256": "b0e52a52ba792e24ed06089bf8d3756dc4af14ac483dd0c2ac22280c5d2dbae1",
+        "captured_at": 1790084925.117238,
+        "display_geometry": [
+          5,
+          0,
+          0,
+          1920,
+          1080,
+          3840,
+          2160
+        ],
+        "window_id": null,
+        "window_bounds": null,
+        "scene_sha256": "c15f5cabf9bb9d7d8f2f551f5ab5beaeadc49f9de09dd03382717340429f39c7"
+      },
+      "changed_bbox": [
+        1687,
+        7,
+        1775,
+        25
+      ],
+      "calculator_changed_bbox": null,
+      "changed_pixels": 250,
+      "before_sha256": "b0e52a52ba792e24ed06089bf8d3756dc4af14ac483dd0c2ac22280c5d2dbae1",
+      "after_sha256": "5714304dae6e6eb21e0903fd720e8d29542442a7e2ecff6e14321fdf06d8227e"
+    },
+    {
+      "name": "window-idle-0",
+      "rejected": false,
+      "reason": null,
+      "observation": {
+        "frame_id": "e45a304b046a4c9395455e898aacee33",
+        "session_id": "scene-probe",
+        "display_id": 5,
+        "screen_size": [
+          1920,
+          1080
+        ],
+        "image_size": [
+          1920,
+          1162
+        ],
+        "crop": [
+          600,
+          100,
+          1274,
+          508
+        ],
+        "image_sha256": "516eb50998b488bac384530c9fab0ca1915fd9613097d41fe3d503cb2ec9be2e",
+        "captured_at": 1790084928.9797702,
+        "display_geometry": [
+          5,
+          0,
+          0,
+          1920,
+          1080,
+          3840,
+          2160
+        ],
+        "window_id": 17853,
+        "window_bounds": [
+          600,
+          100,
+          1274,
+          508
+        ],
+        "scene_sha256": "02f2cdb75d0c0bbfddcb1b7bffba3b556dfc8a42e4dde38ce568991c843036fe"
+      },
+      "changed_bbox": [
+        1750,
+        7,
+        1775,
+        23
+      ],
+      "calculator_changed_bbox": null,
+      "changed_pixels": 228,
+      "before_sha256": "612050ea8a2dba3676c71e720d53ed262a7d39661b084a71c32e69c1516f89cf",
+      "after_sha256": "fca3d268635d2335ca84b7dd5fd871b4b90bc78d696c91d8c72c7601edd9a52e"
+    },
+    {
+      "name": "window-idle-1",
+      "rejected": false,
+      "reason": null,
+      "observation": {
+        "frame_id": "888e0a4f6ed1490ab287c96c2626a88b",
+        "session_id": "scene-probe",
+        "display_id": 5,
+        "screen_size": [
+          1920,
+          1080
+        ],
+        "image_size": [
+          1920,
+          1162
+        ],
+        "crop": [
+          600,
+          100,
+          1274,
+          508
+        ],
+        "image_sha256": "516eb50998b488bac384530c9fab0ca1915fd9613097d41fe3d503cb2ec9be2e",
+        "captured_at": 1790084931.2695098,
+        "display_geometry": [
+          5,
+          0,
+          0,
+          1920,
+          1080,
+          3840,
+          2160
+        ],
+        "window_id": 17853,
+        "window_bounds": [
+          600,
+          100,
+          1274,
+          508
+        ],
+        "scene_sha256": "02f2cdb75d0c0bbfddcb1b7bffba3b556dfc8a42e4dde38ce568991c843036fe"
+      },
+      "changed_bbox": [
+        1686,
+        11,
+        1775,
+        26
+      ],
+      "calculator_changed_bbox": null,
+      "changed_pixels": 26,
+      "before_sha256": "013ef14b3b670164a4f58a7f10cd49eb0d97382aa9787e9857dbd6e8c75742e7",
+      "after_sha256": "75e33a751d6f4bf66bc3f60d9d015d326f3b00466f6f6f07a9cf4344fa954aff"
+    },
+    {
+      "name": "window-idle-2",
+      "rejected": false,
+      "reason": null,
+      "observation": {
+        "frame_id": "06d986f50e1a4996940955cc50f953aa",
+        "session_id": "scene-probe",
+        "display_id": 5,
+        "screen_size": [
+          1920,
+          1080
+        ],
+        "image_size": [
+          1920,
+          1162
+        ],
+        "crop": [
+          600,
+          100,
+          1274,
+          508
+        ],
+        "image_sha256": "516eb50998b488bac384530c9fab0ca1915fd9613097d41fe3d503cb2ec9be2e",
+        "captured_at": 1790084933.034183,
+        "display_geometry": [
+          5,
+          0,
+          0,
+          1920,
+          1080,
+          3840,
+          2160
+        ],
+        "window_id": 17853,
+        "window_bounds": [
+          600,
+          100,
+          1274,
+          508
+        ],
+        "scene_sha256": "02f2cdb75d0c0bbfddcb1b7bffba3b556dfc8a42e4dde38ce568991c843036fe"
+      },
+      "changed_bbox": [
+        1750,
+        7,
+        1775,
+        23
+      ],
+      "calculator_changed_bbox": null,
+      "changed_pixels": 228,
+      "before_sha256": "75e33a751d6f4bf66bc3f60d9d015d326f3b00466f6f6f07a9cf4344fa954aff",
+      "after_sha256": "c108ebecac7ff41e7d887e9fd078fec5475d1a3e1dc4de7a308f569495556e70"
+    },
+    {
+      "name": "window-input",
+      "rejected": true,
+      "reason": "Scene or geometry changed since observation",
+      "observation": {
+        "frame_id": "f29ad988c37242b48493363bf2626464",
+        "session_id": "scene-probe",
+        "display_id": 5,
+        "screen_size": [
+          1920,
+          1080
+        ],
+        "image_size": [
+          1920,
+          1162
+        ],
+        "crop": [
+          600,
+          100,
+          1274,
+          508
+        ],
+        "image_sha256": "516eb50998b488bac384530c9fab0ca1915fd9613097d41fe3d503cb2ec9be2e",
+        "captured_at": 1790084935.835847,
+        "display_geometry": [
+          5,
+          0,
+          0,
+          1920,
+          1080,
+          3840,
+          2160
+        ],
+        "window_id": 17853,
+        "window_bounds": [
+          600,
+          100,
+          1274,
+          508
+        ],
+        "scene_sha256": "02f2cdb75d0c0bbfddcb1b7bffba3b556dfc8a42e4dde38ce568991c843036fe"
+      },
+      "changed_bbox": [
+        1087,
+        7,
+        1775,
+        267
+      ],
+      "calculator_changed_bbox": [
+        487,
+        95,
+        664,
+        167
+      ],
+      "changed_pixels": 1063,
+      "before_sha256": "c1d2d0b2926bb80895fab4dc5516099ebccabb45e8e7cbb80c5f142448a9649d",
+      "after_sha256": "e9a3bbb5318153b5cf66a1d45957fa70acbe53582dac5054dcb704ca9164c79a"
+    }
+  ]
+}

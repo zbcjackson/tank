@@ -1306,6 +1306,25 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   web lint/TypeScript、backend/CLI ruff、四个改动 Python 文件 pyright、
   实际 backend 日志、docs/协议一致性检查通过。实现提交 `210dd46`。
 
+### 2026-09-22 — 场景拒绝的本地前后帧取证
+
+- [x] 使用真实 FrameTool observation/validation 链保留成对 PNG：全屏静置
+  **5/5 拒绝**，Calculator crop 像素均未变化；差异仅在菜单栏状态图标区域。
+  窗口绑定静置 **3/3 通过**，窗口内输入后的旧帧 **1/1 拒绝**。
+  [原始证据与边界](../../../backend/benchmarks/computer_use/reports/20260922-m5-scene-scope/README.md)。
+- [x] 四个确定性回归覆盖 full/window × 内部/外部单像素变化；保持拒绝时
+  零鼠标派发。不放宽 exact hash，也不自动切换范围。
+- 这证明菜单栏无关变化可导致全屏拒绝，不等于确定历史 pilot 两次拒绝的原因；
+  当时缺校验帧，仍保留未知。状态图标变化不能误报为已证实的时钟变化。
+- 本地脚本正常结束后窗口/剪贴板/光标恢复，按键与鼠标均释放；driver 内建
+  grounding 的物理 cleanup 仍 unknown。join 原生线程不等于物理释放验收，
+  不能删除 cleanup_unconfirmed 停止门禁。
+- 下一步：确定跨组一致的 observation 范围并更新冻结，补可复用清理接线与
+  异常/超时/取消验收，再恢复 paid pilot。本轮没有模型请求或截图外发。
+- Tests：backend **4987 passed / 1 skipped**、E2E **16 场景 / 63 步**；
+  web lint/TypeScript、backend/CLI ruff、改动文件 pyright、实际 backend 日志、
+  docs 与协议一致性全部通过。回归提交 `bd90b81`。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。

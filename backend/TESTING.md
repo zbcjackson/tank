@@ -808,3 +808,12 @@ zero-click rejection with accurate errors. A local replay of the six text inputs
 still ends at zero because Calculator ignores pasted operators/expressions.
 No model requests were added. Scene-rejection attribution and general physical
 cleanup remain unverified.
+
+
+The [local scene-scope diagnosis](benchmarks/computer_use/reports/20260922-m5-scene-scope/README.md)
+retains exact observation/validation images: five full-screen idle rejections
+with only menu-bar changes, three accepted unchanged window crops, and one
+rejected changed Calculator window. Four deterministic tests cover inside/outside
+single-pixel changes under full/window scope and assert no clicks on rejection.
+This characterizes existing exact-hash behavior; it does not change image scope,
+prove the historical pilot rejection cause, or certify timeout/cancel cleanup.
