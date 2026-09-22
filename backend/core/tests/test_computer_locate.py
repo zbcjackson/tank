@@ -253,6 +253,17 @@ async def test_runner_split_locates_current_image_and_dispatches_reference(
                 bodies = [(tmp_path / "trial" / r["file"]).read_bytes() for r in responses]
                 assert [json.loads(body)["object"] for body in bodies
                         if body.startswith(b"{")] == ["chat.completion"]
+                outcomes = [r for r in records if r["kind"] == "grounding_outcome"]
+                assert len(outcomes) == 1 and outcomes[0]["outcome"] == "found"
+                call_id = outcomes[0]["call_id"]
+                requests_for_locate = [r for r in records if r["kind"] == "http_request"
+                                       and r.get("grounding_call_id") == call_id]
+                assert len(requests_for_locate) == 1
+                assert len([r for r in records if r["kind"] == "http_request"
+                            and r.get("grounding_call_id") is not None]) == 1
+                assert len([r for r in records if r["kind"] == "grounding_usage"
+                            and r["call_id"] == call_id]) == 1
+                assert outcomes[0]["point"] == [50.0, 40.0]
                 assert driver.describe()["grounding"]["protocol"] == "point"
                 ledger.extend(r for r in records if r["kind"] == "grounding_usage")
         else:
@@ -291,7 +302,9 @@ async def locator(desktop, monkeypatch):
 
     manager, click, png = desktop
     control = SimpleNamespace(
-        status="found", raw=None, usage=True, finish="tool_calls", requests=[], during=None
+        status="found", raw=None, usage=True, finish="tool_calls", requests=[], during=None,
+        events=[],
+        refusal=None, tool_name="click", choices_count=1,
     )
 
     async def respond(request):
@@ -316,17 +329,19 @@ async def locator(desktop, monkeypatch):
                     "finish_reason": control.finish,
                     "message": {
                         "role": "assistant",
+                        "refusal": control.refusal,
                         "tool_calls": [
                             {
                                 "id": "g",
                                 "type": "function",
-                                "function": {"name": "click", "arguments": arguments},
+                                "function": {"name": control.tool_name, "arguments": arguments},
                             }
                         ],
                     },
                 }
             ],
         }
+        body["choices"] *= control.choices_count
         if control.usage:
             body["usage"] = {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10}
         return httpx.Response(200, json=body)
@@ -339,8 +354,13 @@ async def locator(desktop, monkeypatch):
     monkeypatch.setattr(llm_module, "AsyncOpenAI", lambda **kw: client)
     monkeypatch.setattr(llm_module, "initialize_langfuse", lambda: None)
     llm = llm_module.LLM(api_key="test", model="test", base_url="https://offline.invalid/v1")
+    class Observer:
+        def on_event(self, kind, metadata):
+            control.events.append((kind, metadata))
+
     context = SubAgentContext(
-        SubAgentAuthorization(frozenset({"desktop"})), SubAgentBudget(limit=100), asyncio.Event()
+        SubAgentAuthorization(frozenset({"desktop"})), SubAgentBudget(limit=100), asyncio.Event(),
+        observer=Observer(),
     )
     session = LocateSession(
         manager.tools,
@@ -391,6 +411,7 @@ async def locate(control, frame, **kwargs):
 )
 async def test_locate_failure_never_produces_executable_reference(locator, monkeypatch, failure):
     c = locator
+    events = c.events
     frame = await observe(c)
     if failure in {"not_found", "ambiguous"}:
         c.status = failure
@@ -424,6 +445,64 @@ async def test_locate_failure_never_produces_executable_reference(locator, monke
     assert len(c.requests) == (0 if failure in {"stale", "window"} else 1)
     if failure not in {"stale", "window", "unknown_usage"}:
         assert c.context.budget.total_tokens == 10
+    outcomes = [metadata for kind, metadata in events if kind == "grounding_outcome"]
+    assert len(outcomes) == 1
+    outcome = outcomes[0]
+    assert outcome["frame_id"] == frame and outcome["target"] == "red"
+    assert outcome["call_id"].startswith("locate:")
+    if failure in {"not_found", "ambiguous"}:
+        assert outcome["outcome"] == failure
+    elif failure == "truncated":
+        assert outcome["reason"] == "incomplete_response"
+        assert outcome["finish_reason"] == "length"
+    elif failure == "malformed":
+        assert outcome["reason"] == "invalid_location"
+    elif failure in {"stale", "window", "changed"}:
+        assert outcome["stage"] == ("observation_after" if failure == "changed"
+                                    else "observation_before")
+    else:
+        assert outcome["stage"] == "accounting"
+    if c.requests:
+        assert outcome["usage_known"] == c.usage
+        assert outcome["image_sha256"] == hashlib.sha256(c.png).hexdigest()
+
+
+@pytest.mark.parametrize("field,value,reason", [
+    ("refusal", "cannot locate", "refused_response"),
+    ("tool_name", "other", "invalid_tool_call"),
+    ("choices_count", 0, "invalid_response"),
+    ("choices_count", 2, "invalid_response"),
+    ("raw", '{"status":"found","x":500,"x":501,"y":500}', "invalid_location"),
+])
+async def test_locate_records_structured_rejection_without_repair(locator, field, value, reason):
+    c = locator
+    setattr(c, field, value)
+    result = await locate(c, await observe(c))
+    assert result.error and "location_id" not in str(result.content)
+    outcomes = [m for kind, m in c.events if kind == "grounding_outcome"]
+    assert len(outcomes) == 1
+    assert outcomes[0]["stage"] == "parse" and outcomes[0]["reason"] == reason
+    assert outcomes[0]["usage_known"] is True and c.context.budget.total_tokens == 10
+    c.click.assert_not_called()
+
+
+async def test_locate_request_failure_keeps_context_and_usage_unknown(locator):
+    from tank_backend.tools.computer_grounding import grounding_call_id
+
+    c = locator
+    async def fail():
+        assert grounding_call_id.get() is not None
+        raise httpx.ReadError("synthetic connection failure")
+    c.during = fail
+    assert (await locate(c, await observe(c))).error
+    assert grounding_call_id.get() is None
+    outcomes = [m for kind, m in c.events if kind == "grounding_outcome"]
+    assert len(outcomes) == 1
+    assert outcomes[0]["stage"] == "request" and outcomes[0]["outcome"] == "error"
+    assert outcomes[0]["error_type"] == "APIConnectionError"
+    assert c.context.budget.unknown_calls == {outcomes[0]["call_id"]}
+    assert len(c.requests) == 1
+    c.click.assert_not_called()
 
 
 async def test_cancel_while_locating_aborts_http_and_prevents_later_calls(locator):
@@ -451,6 +530,9 @@ async def test_cancel_while_locating_aborts_http_and_prevents_later_calls(locato
         await locate(c, frame)
     c.click.assert_not_called()
     assert len(c.requests) == 1
+    outcomes = [m for kind, m in c.events if kind == "grounding_outcome"]
+    assert len(outcomes) == 1
+    assert outcomes[0]["outcome"] == "cancelled" and outcomes[0]["stage"] == "request"
 
 
 async def test_retry_limit_survives_reobservation_and_counts_duplicate_response_ids(locator):
@@ -461,6 +543,9 @@ async def test_retry_limit_survives_reobservation_and_counts_duplicate_response_
     result = await locate(c, await observe(c))
     assert result.error and "exhausted" in str(result.content)
     assert len(c.requests) == 3 and c.context.budget.total_tokens == 30
+    outcomes = [m for kind, m in c.events if kind == "grounding_outcome"]
+    assert len(outcomes) == 4 and len({m["call_id"] for m in outcomes}) == 4
+    assert outcomes[-1]["stage"] == "preflight"
 
 
 async def test_fallback_cannot_switch_back(locator):
@@ -562,11 +647,19 @@ async def test_deadline_aborts_grounding_http(locator):
     c.click.assert_not_called()
 
 
-async def test_failed_locate_invalidates_previous_reference(locator):
+@pytest.mark.parametrize("failure", ["ambiguous", "malformed", "truncated", "refused"])
+async def test_failed_locate_invalidates_previous_reference(locator, failure):
     c = locator
     frame = await observe(c)
     ref = json.loads((await locate(c, frame)).content)["location_id"]
-    c.status = "ambiguous"
+    if failure == "ambiguous":
+        c.status = "ambiguous"
+    elif failure == "malformed":
+        c.raw = "[]"
+    elif failure == "truncated":
+        c.finish = "length"
+    else:
+        c.refusal = "cannot locate"
     await locate(c, frame)
     assert (await c.manager.execute_tool("click", location_id=ref)).error
     c.click.assert_not_called()

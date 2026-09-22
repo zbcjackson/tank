@@ -8,12 +8,12 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from ..agents.subagent import SubAgentContext
+from ..agents.subagent import SubAgentContext, SubAgentStopped
 from ..core.content import ImageBlock, TextBlock
 from ..llm.llm import LLM
 from .base import BaseTool, ToolContext, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 from .computer_frame import FrameState, FrameTool
-from .computer_grounding import GroundingAdapter
+from .computer_grounding import GroundingAdapter, GroundingResponseError, grounding_call_id
 from .computer_observation import Observation
 
 SPLIT_PROMPT = """Desktop planning uses split grounding.
@@ -82,6 +82,34 @@ class LocateSession:
         window_id: int | None = None,
         backend: str = "primary",
     ) -> ToolResult:
+        evidence: dict[str, Any] = {
+            "call_id": "locate:" + uuid.uuid4().hex, "frame_id": frame_id,
+            "target": target, "backend": backend, "protocol": self.adapter.protocol,
+            "stage": "preflight",
+        }
+        self.context.observe("grounding_attempt", **evidence)
+        try:
+            result = await self._locate(frame_id, target, window_id, backend, evidence)
+        except BaseException as exc:
+            outcome = "error"
+            reason = "stage_failed"
+            if isinstance(exc, GroundingResponseError):
+                reason = exc.reason
+            elif isinstance(exc, asyncio.CancelledError):
+                outcome, reason = "cancelled", "cancelled"
+            elif isinstance(exc, SubAgentStopped):
+                outcome, reason = "stopped", exc.reason
+            self.context.observe("grounding_outcome", **evidence, outcome=outcome,
+                                 reason=reason, error_type=type(exc).__name__)
+            raise
+        self.context.observe("grounding_outcome", **evidence,
+                             outcome=evidence["reported_status"])
+        return result
+
+    async def _locate(
+        self, frame_id: str, target: str, window_id: int | None, backend: str,
+        evidence: dict[str, Any],
+    ) -> ToolResult:
         self.context.check()
         if not isinstance(target, str) or not target.strip():
             raise ValueError("target must be a nonempty description")
@@ -94,16 +122,27 @@ class LocateSession:
                 raise ValueError("Only one grounding backend switch is allowed per step")
             self.backend, self.switched = backend, True
         self.attempts += 1
+        evidence["stage"] = "observation_before"
         observation = await self.screenshot.validate(self.session_id, frame_id, window_id)
         png = self.state.png
         self.context.check()
-        call_id = "locate:" + uuid.uuid4().hex
+        evidence.update(image_sha256=observation.image_sha256,
+                        image_size=observation.image_size, model=self.llms[backend].model,
+                        stage="request")
+        call_id = evidence["call_id"]
+        token = grounding_call_id.set(call_id)
         try:
             response = await self.adapter.request(self.llms[backend], observation, png, target)
         except BaseException:
             self.locations.clear()
             self.context.budget.record_unknown(call_id)
             raise
+        finally:
+            grounding_call_id.reset(token)
+        evidence.update(stage="accounting", usage_known=response.usage is not None,
+                        response_model=response.model, response_id=response.id,
+                        finish_reason=response.choices[0].finish_reason
+                        if len(response.choices) == 1 else None)
         if response.usage is None:
             self.context.budget.record_unknown(call_id)
         else:
@@ -120,8 +159,12 @@ class LocateSession:
             usage_known=response.usage is not None,
         )
         self.context.check()
+        evidence["stage"] = "parse"
         location = self.adapter.parse_response(response, observation.image_size)
+        evidence.update(stage="observation_after", reported_status=location.status,
+                        point=location.point, box=location.box)
         await self.screenshot.validate(self.session_id, frame_id, window_id)
+        evidence["stage"] = "postcheck"
         self.context.check()
         result: dict[str, Any] = {"status": location.status, "frame_id": frame_id}
         if location.point is not None:
@@ -130,6 +173,7 @@ class LocateSession:
             result["location_id"] = location_id
         else:
             self.locations.clear()
+        evidence["stage"] = "resolved"
         return ToolResult(content=json.dumps(result))
 
     def target(self, location_id: str) -> LocatedTarget:

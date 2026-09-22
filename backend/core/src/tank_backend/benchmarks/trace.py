@@ -15,6 +15,7 @@ from typing import Any
 import httpx
 
 from ..agents.base import AgentOutput
+from ..tools.computer_grounding import grounding_call_id
 
 _MAX_CONTENT_CHARS = 2000
 
@@ -97,7 +98,8 @@ class TraceSink:
         request.extensions["tank_benchmark_trace"] = (self, request_id)
         self._pending[request_id] = None
         self.event("http_request", request_id=request_id, model=body.get("model"),
-                   stream=bool(body.get("stream")), image_sha256=hashes)
+                   stream=bool(body.get("stream")), image_sha256=hashes,
+                   grounding_call_id=grounding_call_id.get())
 
     async def capture_response(self, response: httpx.Response) -> None:
         """Preserve the body before SDK parsing, linked to its actual HTTP attempt."""

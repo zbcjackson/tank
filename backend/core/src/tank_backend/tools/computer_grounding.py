@@ -10,6 +10,7 @@ import base64
 import hashlib
 import io
 import json
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -18,6 +19,16 @@ from PIL import Image, UnidentifiedImageError
 
 from ..llm.llm import LLM
 from .computer_observation import Observation
+
+grounding_call_id: ContextVar[str | None] = ContextVar("grounding_call_id", default=None)
+
+
+class GroundingResponseError(ValueError):
+    """Stable rejection code without changing the existing ValueError contract."""
+
+    def __init__(self, reason: str, detail: str) -> None:
+        self.reason = reason
+        super().__init__(detail)
 
 
 @dataclass(frozen=True)
@@ -73,16 +84,21 @@ class GroundingAdapter:
 
     def parse_response(self, response: ChatCompletion, size: tuple[int, int]) -> ImageLocation:
         if len(response.choices) != 1:
-            raise ValueError("Expected one location response")
+            raise GroundingResponseError("invalid_response", "Expected one location response")
         choice = response.choices[0]
         if choice.finish_reason not in {"tool_calls", "stop"}:
-            raise ValueError(f"Incomplete location response: {choice.finish_reason}")
+            raise GroundingResponseError(
+                "incomplete_response", f"Incomplete location response: {choice.finish_reason}")
         if choice.message.refusal:
-            raise ValueError("Location response was refused")
+            raise GroundingResponseError("refused_response", "Location response was refused")
         calls = choice.message.tool_calls or []
         if len(calls) != 1 or calls[0].type != "function" or calls[0].function.name != "click":
-            raise ValueError("Expected exactly one click function call")
-        return self.parse(calls[0].function.arguments, size)
+            raise GroundingResponseError(
+                "invalid_tool_call", "Expected exactly one click function call")
+        try:
+            return self.parse(calls[0].function.arguments, size)
+        except ValueError as exc:
+            raise GroundingResponseError("invalid_location", str(exc)) from exc
 
     async def request(
         self, llm: LLM, observation: Observation, png: bytes, target: str,
