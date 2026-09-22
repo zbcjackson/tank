@@ -1,0 +1,28 @@
+{
+  "date": "2026-09-22",
+  "freeze_manifest_sha256": "a81cd4f154156355f4820690ba365d01537211dfa35b1f3b25f282839b94942a",
+  "rates": {
+    "flash": [
+      0.028,
+      0.11
+    ],
+    "qwen38max": [
+      1.65,
+      4.951
+    ],
+    "gpt55": [
+      5,
+      30
+    ]
+  },
+  "estimated_cost_usd": 0.34726799999999997,
+  "planned_requests": 3,
+  "input_reservation": 10000,
+  "output_max": 8000,
+  "basis": "uncached list input/output USD per 1M tokens; actual full bill unknown",
+  "sources": [
+    "https://www.alibabacloud.com/help/en/model-studio/qwen3-7-flash",
+    "https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max",
+    "https://openrouter.ai/openai/gpt-5.5"
+  ]
+}

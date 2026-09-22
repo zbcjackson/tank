@@ -1,0 +1,12 @@
+[
+  {
+    "id": "development-302",
+    "image": "images/development-302.png",
+    "image_sha256": "bd533176f515a7336d95bc00808195474efcf4c69a101aaf92b128261ce9c077",
+    "size": [
+      1050,
+      1680
+    ],
+    "target": "7"
+  }
+]

@@ -1,0 +1,124 @@
+{
+  "date": "2026-09-22",
+  "status": "frozen development smoke batch; not an independent holdout",
+  "candidates": [
+    {
+      "alias": "flash",
+      "model": "qwen3.7-flash-2026-07-15",
+      "provider": "qwen",
+      "protocol": "point",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      },
+      "source_request": "backend/benchmarks/computer_use/reports/20260920-m3-screening-protocol/flash-201-point.frozen-request.json",
+      "source_request_sha256": "2bd92872eb729f5e288ff4ebf19b7f130913128216cc8f28b27517efdbecaba8",
+      "adapter": {
+        "protocol": "point",
+        "nullable_style": "integer",
+        "strict": false,
+        "detail": "auto",
+        "status_field": false
+      },
+      "max_tokens": 8000
+    },
+    {
+      "alias": "qwen38max",
+      "model": "qwen3.8-max-2026-09-02",
+      "provider": "qwen",
+      "protocol": "bbox",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "temperature": 0.1,
+      "extra_body": {
+        "enable_thinking": false
+      },
+      "source_request": "backend/benchmarks/computer_use/reports/20260920-m3-screening-protocol/qwen38max-201-bbox.frozen-request.json",
+      "source_request_sha256": "c02668a0d33c8d2f636b4c9a166b40efcae5f1a190a2b64522dcd24364f68104",
+      "adapter": {
+        "protocol": "bbox",
+        "nullable_style": "integer",
+        "strict": false,
+        "detail": "auto",
+        "status_field": false
+      },
+      "max_tokens": 8000
+    },
+    {
+      "alias": "gpt55",
+      "model": "openai/gpt-5.5",
+      "provider": "openrouter",
+      "protocol": "point",
+      "endpoint": "https://openrouter.ai/api/v1",
+      "temperature": null,
+      "extra_body": {
+        "reasoning": {
+          "effort": "none"
+        },
+        "provider": {
+          "only": [
+            "openai"
+          ],
+          "allow_fallbacks": false,
+          "require_parameters": true
+        }
+      },
+      "source_request": "backend/benchmarks/computer_use/reports/20260920-m3-screening-protocol/gpt55-201-point.frozen-request.json",
+      "source_request_sha256": "f595d7f2d5958ee11faf8cecb5e2baeb0eb23bd2bc2716ec208319f8d85c59d6",
+      "adapter": {
+        "protocol": "point",
+        "nullable_style": "integer",
+        "strict": false,
+        "detail": "auto",
+        "status_field": false
+      },
+      "max_tokens": 8000
+    }
+  ],
+  "holdout_inputs": "backend/benchmarks/computer_use/reports/20260922-m3-unique-match/freeze/inputs.json",
+  "holdout_inputs_sha256": "ab11d2e1b93de11fcbe617ee399eda144c09470cdd526b25f367896b8fa59d3a",
+  "source_sha256": {
+    "backend/core/src/tank_backend/tools/computer_grounding.py": "5de393cbd813b0f3e196890cb001c42fe4fd4637c4dea441293d178d268ef727",
+    "backend/core/src/tank_backend/tools/computer_observation.py": "60694fb5d0d86b344c56809310112078eed1fe8acf199eb63b3a5bf97377a4ef",
+    "backend/core/src/tank_backend/llm/llm.py": "f3ff022ad9c22ddca903261539f80a772918d52349b595b0d4d7ccd7e282ee04",
+    "backend/core/src/tank_backend/llm/profile.py": "61542ffdc166d4010f76e7941db00d49f65695848c7dddcb16f0b65c859b9862",
+    "backend/scripts/run_grounding_holdout.py": "63bd4fab321279c6aa54ae8daa133248ef1faffdbb0af1f837d7ff97081e68eb"
+  },
+  "generation_record_sha256": "fe050378cd306b077616a413b488644dbd6102cf64fdc3b4944adc1d9866ba7c",
+  "independent_layouts": 1,
+  "repetitions": 1,
+  "planned_model_requests": 3,
+  "unique_serialized_requests": 3,
+  "ordering": "Qwen3.7 point, Max bbox, GPT point; one call each on same known development image",
+  "scope": "three development duplicate-target checks, no live old-prompt control or positive case",
+  "holdout_caps": {
+    "requests": 3,
+    "total_token_stop": 567689,
+    "per_request_seconds": 90,
+    "per_request_max_output_tokens": 8000
+  },
+  "input_token_reservation_per_call": 10000,
+  "reservation_is_estimate": true,
+  "output_cap_per_call": 8000,
+  "next_call_reservation": 18000,
+  "start_rule": "new batch known + unknown reservations + 18000 <= 567689; prior screening known/reservation already deducted",
+  "stop_rule": "stop on API failure, timeout, unknown usage, input above reservation, token/time/request ceiling; save raw evidence; no automatic retries",
+  "batch_model_seconds_max": 270,
+  "http_timeout_seconds": 85,
+  "request_deadline_seconds": 90,
+  "live_prerequisites": [
+    "all code checks pass",
+    "three fake SDK requests match frozen bodies",
+    "source hashes and prices frozen"
+  ],
+  "requests_sha256": "8cfbfbf0290f8684b267a986231be50771517d2ba7649a1b51833308382a535d",
+  "schedule_sha256": "c91cd0352f0110c65ef2d7b54caf992ed987a675ea1ebedd66a48669ce5609f5",
+  "stage": "screening",
+  "previous_screening_requests": 141,
+  "previous_screening_known_tokens": 406311,
+  "previous_unknown_reservation": 26000,
+  "stage_requests_cap": 144,
+  "stage_tokens_cap": 1000000,
+  "expected_outcome": "valid refusal with no point, no box; old false internally maps to ambiguous",
+  "static_adoption_decision": "not applicable: development smoke only; no new holdout calls"
+}

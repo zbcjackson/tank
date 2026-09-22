@@ -1,0 +1,6 @@
+{
+  "source": "backend/benchmarks/computer_use/reports/20260921-m3-screening-status",
+  "source_case": "302-ambiguous",
+  "source_manifest_sha256": "38c8283ea4e151f8d7118b9919a2308c5359e830f771362c614ff8aa8d34de11",
+  "image_bytes_unchanged": true
+}

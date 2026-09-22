@@ -1,0 +1,143 @@
+{
+  "results": [
+    {
+      "attempt": 1,
+      "repeat": 1,
+      "layout_id": "development-302",
+      "candidate": "flash",
+      "request_id": "flash-development-302",
+      "body_sha256": "e1607eeefa72c56db9040979486665f3af06a343afa750e0729619e0f66f3e41",
+      "http_attempts": 1,
+      "schema_valid": true,
+      "usage": {
+        "completion_tokens": 52,
+        "prompt_tokens": 2174,
+        "total_tokens": 2226,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": null,
+          "rejected_prediction_tokens": null,
+          "text_tokens": 52
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1718,
+          "text_tokens": 456
+        }
+      },
+      "http_status": 200,
+      "request_id_header": "cd734470-e5e2-93b0-b87a-1d8694c96543",
+      "returned_model": "qwen3.7-flash-2026-07-15",
+      "returned_provider": null,
+      "finish_reasons": [
+        "tool_calls"
+      ],
+      "point": [
+        830.55,
+        1382.64
+      ],
+      "box": null,
+      "status": "found",
+      "seconds": 1.489
+    },
+    {
+      "attempt": 2,
+      "repeat": 1,
+      "layout_id": "development-302",
+      "candidate": "qwen38max",
+      "request_id": "qwen38max-development-302",
+      "body_sha256": "45cfc83cb35ad05cb752adf654fe76a412d39a6be21e49eaf1ade217b799dcb8",
+      "http_attempts": 1,
+      "schema_valid": true,
+      "usage": {
+        "completion_tokens": 115,
+        "prompt_tokens": 2230,
+        "total_tokens": 2345,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": null,
+          "rejected_prediction_tokens": null,
+          "text_tokens": 115
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": 1718,
+          "text_tokens": 512
+        }
+      },
+      "http_status": 200,
+      "request_id_header": "0fec176f-8a27-9a51-9669-d148c8f68118",
+      "returned_model": "qwen3.8-max-0902",
+      "returned_provider": null,
+      "finish_reasons": [
+        "tool_calls"
+      ],
+      "point": null,
+      "box": null,
+      "status": "ambiguous",
+      "seconds": 3.885
+    },
+    {
+      "attempt": 3,
+      "repeat": 1,
+      "layout_id": "development-302",
+      "candidate": "gpt55",
+      "request_id": "gpt55-development-302",
+      "body_sha256": "ebe4f236b52eab518b8278c7b17d6e17f31cfabd6d33573a53af0aa834ead369",
+      "http_attempts": 1,
+      "schema_valid": true,
+      "usage": {
+        "completion_tokens": 25,
+        "prompt_tokens": 2301,
+        "total_tokens": 2326,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": 0,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "image_tokens": 0
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost": 0.012255,
+        "is_byok": false,
+        "cost_details": {
+          "upstream_inference_cost": 0.012255,
+          "upstream_inference_prompt_cost": 0.011505,
+          "upstream_inference_completions_cost": 0.00075
+        }
+      },
+      "http_status": 200,
+      "request_id_header": null,
+      "returned_model": "openai/gpt-5.5",
+      "returned_provider": "OpenAI",
+      "finish_reasons": [
+        "tool_calls"
+      ],
+      "point": null,
+      "box": null,
+      "status": "ambiguous",
+      "seconds": 3.832
+    }
+  ],
+  "budget": {
+    "max_requests": 3,
+    "max_tokens": 567689,
+    "reservation": 18000,
+    "input_limit": 10000,
+    "requests": 3,
+    "known_tokens": 6897,
+    "unknown_reservation": 0,
+    "stop_reason": null
+  },
+  "stop_reason": null,
+  "pending": 0
+}

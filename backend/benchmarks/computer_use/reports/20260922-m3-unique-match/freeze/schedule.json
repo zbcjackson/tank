@@ -1,0 +1,26 @@
+[
+  {
+    "attempt": 1,
+    "repeat": 1,
+    "layout_id": "development-302",
+    "candidate": "flash",
+    "request_id": "flash-development-302",
+    "body_sha256": "e1607eeefa72c56db9040979486665f3af06a343afa750e0729619e0f66f3e41"
+  },
+  {
+    "attempt": 2,
+    "repeat": 1,
+    "layout_id": "development-302",
+    "candidate": "qwen38max",
+    "request_id": "qwen38max-development-302",
+    "body_sha256": "45cfc83cb35ad05cb752adf654fe76a412d39a6be21e49eaf1ade217b799dcb8"
+  },
+  {
+    "attempt": 3,
+    "repeat": 1,
+    "layout_id": "development-302",
+    "candidate": "gpt55",
+    "request_id": "gpt55-development-302",
+    "body_sha256": "ebe4f236b52eab518b8278c7b17d6e17f31cfabd6d33573a53af0aa834ead369"
+  }
+]

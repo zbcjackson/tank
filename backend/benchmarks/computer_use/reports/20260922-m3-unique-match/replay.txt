@@ -1,0 +1,49 @@
+"""Replay the three-request development unique-match smoke; no holdout scoring or tuning."""
+import gzip,hashlib,json
+from pathlib import Path
+from openai.types.chat import ChatCompletion
+from tank_backend.tools.computer_grounding import GroundingAdapter
+root=Path('/Users/zbcjackson/src/tank')
+out=root/'backend/benchmarks/computer_use/reports/20260922-m3-unique-match'
+freeze=out/'freeze';live=out/'live'
+m=json.loads((freeze/'manifest.json').read_text());r=json.loads((live/'results.json').read_text())
+assert r['pending']==0 or r['stop_reason'] is not None
+requests={x['id']:x for x in json.loads((freeze/'requests.json').read_text())}
+candidates={x['alias']:x for x in m['candidates']}
+entry=json.loads((freeze/'inputs.json').read_text())[0]
+assert hashlib.sha256((freeze/entry['image']).read_bytes()).hexdigest()==entry['image_sha256']
+rows=[]
+for row in r['results']:
+ prefix=f'{row["attempt"]:04d}'
+ assert json.loads((live/f'{prefix}.request.json').read_text())==requests[row['request_id']]['body']
+ assert row['http_attempts']==1
+ if 'returned_model' in row:
+  response=ChatCompletion.model_validate_json(gzip.decompress((live/f'{prefix}.response.json.gz').read_bytes()))
+  assert response.model_dump()==json.loads((live/f'{prefix}.parsed-response.json').read_text())
+  assert (response.usage.model_dump() if response.usage else None)==row['usage']
+  try:loc=GroundingAdapter(**candidates[row['candidate']]['adapter']).parse_response(response,tuple(entry['size']))
+  except ValueError as exc:assert not row['schema_valid'] and row['parse_error']==str(exc)
+  else:
+   assert row['schema_valid'] and row['status']==loc.status
+   assert row['point']==(list(loc.point) if loc.point is not None else None)
+   assert row['box']==(list(loc.box) if loc.box is not None else None)
+ rows.append(dict(row,correct_refusal=row['schema_valid'] and row.get('point') is None and row.get('box') is None,
+                  executable_false_positive=row['schema_valid'] and row.get('point') is not None))
+known=sum(x['usage']['total_tokens'] for x in rows if x['usage']);assert known==r['budget']['known_tokens']
+new_reserved=r['budget']['unknown_reservation']
+prices=json.loads((out/'prices.json').read_text())
+summary={'date':'2026-09-22','requests':len(rows),'pending':r['pending'],'stop_reason':r['stop_reason'],
+ 'independent_layouts':1,'development_only':True,'old_prompt_live_control':False,'positive_cases':0,
+ 'rows':rows,'known_batch_tokens':known,'cumulative_screening_requests':141+len(rows),
+ 'screening_requests_remaining':144-141-len(rows),'known_screening_tokens':406311+known,
+ 'prior_unknown_reservation':26000,'new_unknown_reservation':new_reserved,
+ 'remaining_screening_tokens_after_reservations':567689-known-new_reserved,
+ 'static_requests':541+len(rows),'static_known_tokens':1148511+known,
+ 'usage_based_list_estimate_usd':sum((x['usage']['prompt_tokens']*prices['rates'][x['candidate']][0]+x['usage']['completion_tokens']*prices['rates'][x['candidate']][1])/1e6 for x in rows if x['usage']),
+ 'reported_partial_cost_usd':sum(x['usage'].get('cost',0) or 0 for x in rows if x['usage']),
+ 'responses_with_cost':sum((x.get('usage') or {}).get('cost') is not None for x in rows),
+ 'actual_full_bill':'unknown','new_holdout_requests':0,'real_screenshots':0,'desktop_actions':0,
+ 'conclusion':'development smoke only; no adoption or causal improvement claim'}
+(out/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+(out/'replay.txt').write_bytes(Path(__file__).read_bytes())
+print(json.dumps(summary,indent=2))

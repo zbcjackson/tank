@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-22。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 十六次预检及四十次点/框筛选已记录，thinking 中止后已在余额恢复时补跑 26 次、完成 32 设置对照（历史 402 保留），共用适配与生产 LLM 单次调用接口已实现，图像参数单因素 32 次未见普遍命中收益，显式 status 36 次发现 5/24 负例仍误报坐标，三组冻结 holdout 384 次已实测/评分，Max/GPT 正例 96/96 但三组歧义拒绝 0/16，均未通过完整门槛，默认不变；M4–M8 待完成。N2 复用既有 benchmark。
+> 状态：执行中，2026-09-22。M0 离线基线与采用门槛已冻结；M1 输入矩阵、本地图像证据和提示单因素首步 A/B 已验收，未观察到定位收益，通用自动像素评分仍为 unknown。M0 离线失败集、64 布局 holdout 和 dry-run manifest 已补齐，实际端点首批预检见 M3；M2 显式 frame/宿主坐标还原及主屏九点验收完成，M3 十六次预检及四十次点/框筛选已记录，thinking 中止后已在余额恢复时补跑 26 次、完成 32 设置对照（历史 402 保留），共用适配与生产 LLM 单次调用接口已实现，图像参数单因素 32 次未见普遍命中收益，显式 status 36 次发现 5/24 负例仍误报坐标，三组冻结 holdout 384 次已实测/评分，Max/GPT 正例 96/96 但三组歧义拒绝 0/16，均未通过完整门槛，默认不变；2026-09-22 唯一匹配提示修正后三次开发检查 Max/GPT 拒绝、Qwen3.7 仍误报，首轮静态额度已用完；M4–M8 待完成。N2 复用既有 benchmark。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -204,8 +204,9 @@ benchmark，不能仅因历史清单未勾选就写成“还未验证”。
 按完整请求估算预留 26000 tokens。后续
 [图像参数 32 次对照](../../../backend/benchmarks/computer_use/reports/20260921-m3-screening-image/README.md)
 已完成；再完成 [显式 status 36 次筛选](../../../backend/benchmarks/computer_use/reports/20260921-m3-screening-status/README.md)，
-24 个负例中 5 次仍误报可用坐标。筛选现累计 141/144 次、406311 已知 tokens
-另加 26000 预留，剩余 **3 次 / 567689 tokens**（扣预留后），未改变默认配置。
+24 个负例中 5 次仍误报可用坐标。后续 [唯一匹配提示三次开发检查](../../../backend/benchmarks/computer_use/reports/20260922-m3-unique-match/README.md)
+完成；筛选累计 **144/144 次、413208 已知 tokens + 26000 预留**，请求额度归零。
+剩余 token 空间 560792（扣预留后）不自动增加请求，未改变默认模型。
 具体可用型号、请求/响应型号、参数、用量与失败已记录；共用生产 adapter
 的离线实现见下；strict 小样本结果已记录；[三候选及 holdout 请求已冻结](../../../backend/benchmarks/computer_use/reports/20260921-m3-holdout-freeze/README.md)，
 [384 次付费执行与独立评分已完成](../../../backend/benchmarks/computer_use/reports/20260921-m3-holdout/README.md)：
@@ -786,6 +787,25 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   已声明的提示文字差异；旧 holdout freeze 继续拒绝源码变化，不改写旧证据。
 - HTTP 错误/取消等测试使用临时当前契约 freeze。定位测试 103 项、三份开发
   假请求已通过；本轮开发实测限定剩余 3 次筛选额度，另记结果，不扩充 holdout。
+
+### 2026-09-22 — 唯一匹配开发 smoke，首轮请求额度用完
+
+- [原始请求、响应与回放](../../../backend/benchmarks/computer_use/reports/20260922-m3-unique-match/README.md)：
+  复用开发图 302-ambiguous（两个“7”），Qwen3.7 point、Max bbox、GPT point
+  各一次；只改旧 found 提示，schema/profile 设置保持。三次 HTTP 200、合法、
+  usage 已知，无重试；实际请求/原始响应/拒绝评分回放通过。
+- Max/GPT 正确拒绝；Qwen3.7 仍 found=true 并返回坐标。单布局、无旧提示
+  同步控制、无正例，不能宣称因果收益、可靠拒绝率或无退化。默认模型不变；
+  已有 holdout 的歧义失败不改分，也不重用作调参后的独立验收。
+- 本批 6897 tokens；筛选 **144/144 次、413208 已知 + 26000 预留**，剩余
+  请求为零。首轮静态 **544/544 次、1155408 已知 + 26000 预留**。预检与
+  holdout 账本不变。费用预估 $0.347268，按实际用量标价估算 $0.016570457；
+  GPT 部分回报 $0.012255，整批实际账单 unknown，历史 402 未计零。
+- 无真实截图、桌面动作或新 holdout 请求。新增付费实验须另列批次/理由/
+  样本/预算；下一步可推进 M4 离线 locate 编排，不能放宽既定采用门槛。
+- 验证：backend **4615 passed / 1 skipped**、E2E **14 场景 / 55 步**、
+  定位 **103 passed**、三份 fake SDK 通过；lint/TypeScript、改动 Python
+  pyright、真实后端日志、文档及协议一致性通过。代码提交 `73f6b0e`。
 
 ## 9. 最终 Verification Checklist
 

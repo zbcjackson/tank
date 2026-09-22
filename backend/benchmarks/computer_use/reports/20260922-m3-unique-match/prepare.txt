@@ -1,0 +1,64 @@
+"""Freeze a three-request development smoke batch, keeping historical holdout artifacts immutable."""
+import hashlib,json
+from pathlib import Path
+from tank_backend.tools.computer_grounding import GroundingAdapter
+ROOT=Path('/Users/zbcjackson/src/tank')
+REPORTS=ROOT/'backend/benchmarks/computer_use/reports'
+OUT=REPORTS/'20260922-m3-unique-match'
+OLD=REPORTS/'20260921-m3-holdout-freeze'
+DEV=REPORTS/'20260921-m3-screening-status'
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def save(path,value):path.write_text(json.dumps(value,indent=2)+'\n')
+old=json.loads((OLD/'manifest.json').read_text())
+dev=json.loads((DEV/'manifest.json').read_text())['layouts']['302-ambiguous']
+freeze=OUT/'freeze';(freeze/'images').mkdir(parents=True,exist_ok=False)
+png=(DEV/(dev['image_sha256']+'.png')).read_bytes()
+(freeze/'images/development-302.png').write_bytes(png)
+inputs=[{'id':'development-302','image':'images/development-302.png','image_sha256':dev['image_sha256'],'size':dev['size'],'target':dev['target']}]
+save(freeze/'inputs.json',inputs)
+save(freeze/'generation.json',{'source':str(DEV.relative_to(ROOT)),'source_case':'302-ambiguous','source_manifest_sha256':sha(DEV/'manifest.json'),'image_bytes_unchanged':True})
+original_requests=json.loads((OLD/'requests.json').read_text())
+requests=[];schedule=[];comparisons=[]
+for n,spec in enumerate(old['candidates'],1):
+    body=next(r['body'] for r in original_requests if r['id']==spec['alias']+'-layout-00')
+    original_body=json.loads((ROOT/spec['source_request']).read_text())
+    payload=GroundingAdapter(**spec['adapter']).build_request(png,tuple(dev['size']),dev['target'])
+    payload['messages'][1]['content'][1]['image_url']['url']='sha256:'+dev['image_sha256']
+    body.update(payload)
+    assert {k:v for k,v in body.items() if k!='messages'}=={k:v for k,v in original_body.items() if k!='messages'}
+    assert body['messages'][0]==original_body['messages'][0]
+    ident=spec['alias']+'-development-302'
+    digest=hashlib.sha256(json.dumps(body,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+    requests.append({'id':ident,'image_sha256':dev['image_sha256'],'body_sha256':digest,'body':body})
+    schedule.append({'attempt':n,'repeat':1,'layout_id':'development-302','candidate':spec['alias'],'request_id':ident,'body_sha256':digest})
+    comparisons.append({'candidate':spec['alias'],'schema_profile_settings_match_previous_development_request':True})
+save(freeze/'requests.json',requests);save(freeze/'schedule.json',schedule)
+manifest={**old,'date':'2026-09-22','status':'frozen development smoke batch; not an independent holdout',
+    'scope':'three development duplicate-target checks, no live old-prompt control or positive case',
+    'holdout_inputs':str((freeze/'inputs.json').relative_to(ROOT)),
+    'holdout_inputs_sha256':sha(freeze/'inputs.json'),'generation_record_sha256':sha(freeze/'generation.json'),
+    'source_sha256':{p:sha(ROOT/p) for p in [*old['source_sha256'],'backend/scripts/run_grounding_holdout.py']},
+    'requests_sha256':sha(freeze/'requests.json'),'schedule_sha256':sha(freeze/'schedule.json'),
+    'independent_layouts':1,'repetitions':1,'planned_model_requests':3,'unique_serialized_requests':3,
+    'holdout_caps':{'requests':3,'total_token_stop':567689,'per_request_seconds':90,'per_request_max_output_tokens':8000},
+    'start_rule':'new batch known + unknown reservations + 18000 <= 567689; prior screening known/reservation already deducted',
+    'batch_model_seconds_max':270,
+    'stage':'screening','previous_screening_requests':141,'previous_screening_known_tokens':406311,
+    'previous_unknown_reservation':26000,'stage_requests_cap':144,'stage_tokens_cap':1000000,
+    'expected_outcome':'valid refusal with no point, no box; old false internally maps to ambiguous',
+    'static_adoption_decision':'not applicable: development smoke only; no new holdout calls',
+    'ordering':'Qwen3.7 point, Max bbox, GPT point; one call each on same known development image',
+    'live_prerequisites':['all code checks pass','three fake SDK requests match frozen bodies','source hashes and prices frozen'],
+}
+# Do not inherit holdout-specific claims into a screening batch.
+for key in ['scoring_policy','frozen_adoption','screening_ledger_unchanged','this_batch','future_live_cost_usd','source_revision']:
+    manifest.pop(key,None)
+save(freeze/'manifest.json',manifest)
+rates={'flash':[.028,.11],'qwen38max':[1.65,4.951],'gpt55':[5,30]}
+save(OUT/'prices.json',{'date':'2026-09-22','freeze_manifest_sha256':sha(freeze/'manifest.json'),'rates':rates,
+    'estimated_cost_usd':sum(a*.01+b*.008 for a,b in rates.values()),'planned_requests':3,'input_reservation':10000,'output_max':8000,
+    'basis':'uncached list input/output USD per 1M tokens; actual full bill unknown',
+    'sources':['https://www.alibabacloud.com/help/en/model-studio/qwen3-7-flash','https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max','https://openrouter.ai/openai/gpt-5.5']})
+save(OUT/'offline-preparation.json',{'settings_checks':comparisons,'development_image_sha256':dev['image_sha256'],'holdout_calls':0,'fresh_independent_samples':False})
+(OUT/'prepare.txt').write_bytes(Path(__file__).read_bytes())
+print('Frozen 3 development requests, remaining screening budget only')

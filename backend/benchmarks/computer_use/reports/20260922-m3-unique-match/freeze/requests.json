@@ -1,0 +1,223 @@
+[
+  {
+    "id": "flash-development-302",
+    "image_sha256": "bd533176f515a7336d95bc00808195474efcf4c69a101aaf92b128261ce9c077",
+    "body_sha256": "e1607eeefa72c56db9040979486665f3af06a343afa750e0729619e0f66f3e41",
+    "body": {
+      "messages": [
+        {
+          "role": "system",
+          "content": "Locate the requested UI element in the current image."
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "CURRENT image: 1050x1680. Locate the button labeled 7. Call click once with its center of the button in normalized coordinates, x=0..1000, y=0..1000. The origin is the top-left of THIS input image; each axis spans the full image. Use only the CURRENT image, not previous positions. Set found=true only for exactly one unambiguous matching target. If multiple targets match, or the target is absent or uncertain, set found=false and ALL coordinates=0."
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "sha256:bd533176f515a7336d95bc00808195474efcf4c69a101aaf92b128261ce9c077",
+                "detail": "auto"
+              }
+            }
+          ]
+        }
+      ],
+      "model": "qwen3.7-flash-2026-07-15",
+      "max_tokens": 8000,
+      "stream": false,
+      "temperature": 0.1,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "click",
+            "description": "Report one target location; no action is executed.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "found": {
+                  "type": "boolean"
+                },
+                "x": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "y": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000
+                }
+              },
+              "required": [
+                "found",
+                "x",
+                "y"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      ],
+      "enable_thinking": false
+    }
+  },
+  {
+    "id": "qwen38max-development-302",
+    "image_sha256": "bd533176f515a7336d95bc00808195474efcf4c69a101aaf92b128261ce9c077",
+    "body_sha256": "45cfc83cb35ad05cb752adf654fe76a412d39a6be21e49eaf1ade217b799dcb8",
+    "body": {
+      "messages": [
+        {
+          "role": "system",
+          "content": "Locate the requested UI element in the current image."
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "CURRENT image: 1050x1680. Locate the button labeled 7. Call click once with its tight bounding box of the button in normalized coordinates, x=0..1000, y=0..1000. The origin is the top-left of THIS input image; each axis spans the full image. Use only the CURRENT image, not previous positions. Set found=true only for exactly one unambiguous matching target. If multiple targets match, or the target is absent or uncertain, set found=false and ALL coordinates=0."
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "sha256:bd533176f515a7336d95bc00808195474efcf4c69a101aaf92b128261ce9c077",
+                "detail": "auto"
+              }
+            }
+          ]
+        }
+      ],
+      "model": "qwen3.8-max-2026-09-02",
+      "max_tokens": 8000,
+      "stream": false,
+      "temperature": 0.1,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "click",
+            "description": "Report one target location; no action is executed.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "found": {
+                  "type": "boolean"
+                },
+                "left": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "top": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "right": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "bottom": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000
+                }
+              },
+              "required": [
+                "found",
+                "left",
+                "top",
+                "right",
+                "bottom"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      ],
+      "enable_thinking": false
+    }
+  },
+  {
+    "id": "gpt55-development-302",
+    "image_sha256": "bd533176f515a7336d95bc00808195474efcf4c69a101aaf92b128261ce9c077",
+    "body_sha256": "ebe4f236b52eab518b8278c7b17d6e17f31cfabd6d33573a53af0aa834ead369",
+    "body": {
+      "messages": [
+        {
+          "role": "system",
+          "content": "Locate the requested UI element in the current image."
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "CURRENT image: 1050x1680. Locate the button labeled 7. Call click once with its center of the button in normalized coordinates, x=0..1000, y=0..1000. The origin is the top-left of THIS input image; each axis spans the full image. Use only the CURRENT image, not previous positions. Set found=true only for exactly one unambiguous matching target. If multiple targets match, or the target is absent or uncertain, set found=false and ALL coordinates=0."
+            },
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "sha256:bd533176f515a7336d95bc00808195474efcf4c69a101aaf92b128261ce9c077",
+                "detail": "auto"
+              }
+            }
+          ]
+        }
+      ],
+      "model": "openai/gpt-5.5",
+      "max_tokens": 8000,
+      "stream": false,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "click",
+            "description": "Report one target location; no action is executed.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "found": {
+                  "type": "boolean"
+                },
+                "x": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000
+                },
+                "y": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000
+                }
+              },
+              "required": [
+                "found",
+                "x",
+                "y"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      ],
+      "reasoning": {
+        "effort": "none"
+      },
+      "provider": {
+        "only": [
+          "openai"
+        ],
+        "allow_fallbacks": false,
+        "require_parameters": true
+      }
+    }
+  }
+]

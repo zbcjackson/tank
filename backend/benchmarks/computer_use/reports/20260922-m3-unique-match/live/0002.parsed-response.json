@@ -1,0 +1,53 @@
+{
+  "id": "chatcmpl-0fec176f-8a27-9a51-9669-d148c8f68118",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "There are multiple buttons labeled \"7\" in the image (one in the top row of the calculator keypad and one in the second row). Because the target is ambiguous, I cannot select a single one.\n\n",
+        "refusal": null,
+        "role": "assistant",
+        "annotations": null,
+        "audio": null,
+        "function_call": null,
+        "tool_calls": [
+          {
+            "id": "call_6ffec34e28fb4825b3a22363",
+            "function": {
+              "arguments": "{\"found\": false, \"left\": 0, \"top\": 0, \"right\": 0, \"bottom\": 0}",
+              "name": "click"
+            },
+            "type": "function",
+            "index": 0
+          }
+        ],
+        "reasoning_content": ""
+      }
+    }
+  ],
+  "created": 1790044008,
+  "model": "qwen3.8-max-0902",
+  "object": "chat.completion",
+  "service_tier": null,
+  "system_fingerprint": null,
+  "usage": {
+    "completion_tokens": 115,
+    "prompt_tokens": 2230,
+    "total_tokens": 2345,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": null,
+      "rejected_prediction_tokens": null,
+      "text_tokens": 115
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 0,
+      "image_tokens": 1718,
+      "text_tokens": 512
+    }
+  }
+}

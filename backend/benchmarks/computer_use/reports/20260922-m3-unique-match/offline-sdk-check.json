@@ -1,0 +1,7 @@
+{
+  "mock_calls": 3,
+  "actual_sdk_bodies_match_frozen": true,
+  "fixture_refusals_parse": true,
+  "model_calls": 0,
+  "not_an_accuracy_score": true
+}

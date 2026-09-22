@@ -162,6 +162,12 @@ DeepSeek low 的总用量反而增加；保留默认设置，不猜测服务端�
 冻结输入执行器已支持真实 SDK、逐请求预算和原始响应保留；独立 mask 评分
 在执行结束后读取真值。这是 benchmark 能力，尚未注册 AgentRunner locate。
 
+[唯一匹配开发检查](../../backend/benchmarks/computer_use/reports/20260922-m3-unique-match/README.md)
+使用明确的旧 found 提示，在一个既有同名开发图上 Max/GPT 拒绝，Qwen3.7
+仍误报。三次单样本 smoke 不证明可靠性或正例无退化；静态首轮 544 次额度
+已用完，默认模型未切换。旧 holdout freeze 因源码改变继续拒绝重发，历史
+报告保持原样；当前契约的执行器测试使用临时 freeze，不覆盖历史证据。
+
 ## 已修复与测试覆盖
 
 - 主屏截取、Retina 缩放失败处理、缩放后宽高检查、边界点不超屏，以及非法

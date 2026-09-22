@@ -1,0 +1,44 @@
+{
+  "date": "2026-09-22",
+  "implementation_revision": "73f6b0e",
+  "checks": {
+    "web_lint": "passed",
+    "web_tsc_build_no_emit": "passed",
+    "backend_ruff": "passed",
+    "backend_pytest": {
+      "passed": 4615,
+      "skipped": 1,
+      "warnings": 21
+    },
+    "pyright": {
+      "status": "passed",
+      "errors": 0,
+      "files": [
+        "core/src/tank_backend/tools/computer_grounding.py",
+        "core/tests/test_grounding_probe.py"
+      ]
+    },
+    "cli_ruff": "passed",
+    "backend_runtime_log": {
+      "pane": "tank:1.1",
+      "last_lines": 50,
+      "matches": 0,
+      "status": "passed"
+    },
+    "e2e": {
+      "scenarios": 14,
+      "steps": 55,
+      "status": "passed"
+    },
+    "protocol_sync": "passed",
+    "docs_consistency": "passed: 37 files",
+    "grounding_tests": 103,
+    "fake_sdk_calls": 3,
+    "raw_request_response_replays": 3
+  },
+  "tdd": "three SDK unique-match assertions failed before prompt edit and passed after",
+  "historical_artifacts_modified": false,
+  "new_holdout_calls": 0,
+  "real_screenshots": 0,
+  "desktop_actions": 0
+}
