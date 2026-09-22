@@ -587,6 +587,10 @@ async def test_grounding_adapter_uses_profile_and_bound_image_over_real_sdk(monk
         )
         extra = expected.pop("extra_body")
         assert body == expected | extra
+        prompt = body["messages"][-1]["content"][0]["text"]
+        assert "exactly one unambiguous matching target" in prompt
+        assert ("If multiple targets match, or the target is absent or uncertain, "
+                "set found=false") in prompt
         assert base64.b64decode(body["messages"][-1]["content"][1]["image_url"]["url"]
                                 .split(",", 1)[1]) == image
         return httpx.Response(200, json={"id": "test", "object": "chat.completion",
@@ -843,6 +847,16 @@ async def test_recorded_m3_responses_replay_through_production_adapter(monkeypat
         digest = hashlib.sha256(base64.b64decode(part["url"].split(",", 1)[1])).hexdigest()
         assert digest == observation.image_sha256
         part["url"] = f"sha256:{digest}"
+        # Historical replies still test parsing; only the documented prompt delta is allowed.
+        text = body["messages"][-1]["content"][0]
+        current = (
+            "Set found=true only for exactly one unambiguous matching target. "
+            "If multiple targets match, or the target is absent or uncertain, "
+        )
+        assert current in text["text"]
+        text["text"] = text["text"].replace(
+            current, "Set found=true when located. If absent or uncertain, ",
+        )
         assert body == recorded
         return httpx.Response(200, content=raw, headers={"content-type": "application/json"})
 
@@ -902,7 +916,55 @@ def test_holdout_budget_reserves_unknown_usage_and_stops():
     assert not budget.can_start()
 
 
-async def test_holdout_driver_keeps_http_failure_and_never_retries(tmp_path, monkeypatch):
+@pytest.fixture
+def current_holdout_freeze(tmp_path):
+    """Build temporary current-contract requests; never update historical manifests."""
+    import hashlib
+    import json
+    from pathlib import Path
+
+    from tank_backend.tools.computer_grounding import GroundingAdapter
+
+    root = Path(__file__).resolve().parents[3]
+    old = root / "backend/benchmarks/computer_use/reports/20260921-m3-holdout-freeze"
+    manifest = json.loads((old / "manifest.json").read_text())
+    inputs_path = root / manifest["holdout_inputs"]
+    inputs = {row["id"]: row for row in json.loads(inputs_path.read_text())}
+    requests = json.loads((old / "requests.json").read_text())
+    hashes = {}
+    for request in requests:
+        spec = next(c for c in manifest["candidates"] if request["id"].startswith(c["alias"] + "-"))
+        entry = inputs[request["id"][len(spec["alias"]) + 1:]]
+        payload = GroundingAdapter(**spec["adapter"]).build_request(
+            (inputs_path.parent / entry["image"]).read_bytes(),
+            tuple(entry["size"]), entry["target"],
+        )
+        payload["messages"][1]["content"][1]["image_url"]["url"] = "sha256:" + entry["image_sha256"]
+        request["body"].update(payload)
+        digest = hashlib.sha256(json.dumps(
+            request["body"], sort_keys=True, separators=(",", ":"),
+        ).encode()).hexdigest()
+        request["body_sha256"] = hashes[request["id"]] = digest
+    schedule = json.loads((old / "schedule.json").read_text())
+    for step in schedule:
+        step["body_sha256"] = hashes[step["request_id"]]
+    output = tmp_path / "current-freeze"
+    output.mkdir()
+    for name, value in [("requests", requests), ("schedule", schedule)]:
+        path = output / f"{name}.json"
+        path.write_text(json.dumps(value))
+        manifest[f"{name}_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    manifest["source_sha256"] = {
+        name: hashlib.sha256((root / name).read_bytes()).hexdigest()
+        for name in manifest["source_sha256"]
+    }
+    (output / "manifest.json").write_text(json.dumps(manifest))
+    return output
+
+
+async def test_holdout_driver_keeps_http_failure_and_never_retries(
+    tmp_path, monkeypatch, current_holdout_freeze,
+):
     import gzip
     import json
     import runpy
@@ -922,8 +984,8 @@ async def test_holdout_driver_keeps_http_failure_and_never_retries(tmp_path, mon
 
     output = tmp_path / "run"
     result = await execute(
-        root / "backend/benchmarks/computer_use/reports/20260921-m3-holdout-freeze",
-        root, output, {"qwen": "test", "openrouter": "test"}, httpx.MockTransport(fail),
+        current_holdout_freeze, root, output, {"qwen": "test", "openrouter": "test"},
+        httpx.MockTransport(fail),
     )
     assert len(calls) == len(result["results"]) == 1
     assert result["budget"]["unknown_reservation"] == 18000
@@ -935,7 +997,9 @@ async def test_holdout_driver_keeps_http_failure_and_never_retries(tmp_path, mon
 
 
 @pytest.mark.parametrize("failure", ["timeout", "cancel", "missing_usage", "truncated"])
-async def test_holdout_driver_preserves_failed_attempts(tmp_path, monkeypatch, failure):
+async def test_holdout_driver_preserves_failed_attempts(
+    tmp_path, monkeypatch, failure, current_holdout_freeze,
+):
     import asyncio
     import json
     import runpy
@@ -968,8 +1032,8 @@ async def test_holdout_driver_preserves_failed_attempts(tmp_path, monkeypatch, f
 
     output = tmp_path / "run"
     call = execute(
-        root / "backend/benchmarks/computer_use/reports/20260921-m3-holdout-freeze",
-        root, output, {"qwen": "test", "openrouter": "test"}, httpx.MockTransport(respond),
+        current_holdout_freeze, root, output, {"qwen": "test", "openrouter": "test"},
+        httpx.MockTransport(respond),
     )
     if failure == "cancel":
         with pytest.raises(asyncio.CancelledError):
@@ -995,3 +1059,31 @@ def test_holdout_budget_checks_next_reservation_and_input_limit():
     budget = HoldoutBudget()
     assert budget.record(10001, 10100) == "input_reservation_exceeded"
     assert not budget.can_start()
+
+
+def test_holdout_rejects_historical_freeze_after_prompt_change():
+    import runpy
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[3]
+    loader = runpy.run_path(str(root / "backend/scripts/run_grounding_holdout.py"))["load_frozen"]
+    with pytest.raises(ValueError, match="Frozen source changed"):
+        loader(root / "backend/benchmarks/computer_use/reports/20260921-m3-holdout-freeze", root)
+
+
+@pytest.mark.parametrize("protocol", ["point", "pixels", "bbox"])
+@pytest.mark.parametrize("nullable_style, sentinel", [
+    ("integer", "0."), ("type-array", "null."), ("anyof", "null."),
+])
+def test_grounding_unique_match_rule_preserves_abstention_schema(
+    protocol, nullable_style, sentinel,
+):
+    from tank_backend.tools.computer_grounding import GroundingAdapter
+
+    payload = GroundingAdapter(protocol, nullable_style).build_request(b"png", (31, 17), "Save")
+    prompt = payload["messages"][1]["content"][0]["text"]
+    assert "exactly one unambiguous matching target" in prompt
+    assert "If multiple targets match" in prompt
+    assert prompt.endswith("set found=false and ALL coordinates=" + sentinel)
+    props = payload["tools"][0]["function"]["parameters"]["properties"]
+    assert props["found"] == {"type": "boolean"} and "status" not in props

@@ -623,7 +623,8 @@ M3 shared-adapter regressions extend `core/tests/test_grounding_probe.py` with
 actual LLMProfile → LLM → SDK HTTP serialization for Qwen, DeepSeek and OpenRouter,
 image/hash/size binding, image-to-M2 mapping, distinct explicit outcomes, invalid
 configuration, and refusal/truncation rejection. Ten archived M3 responses replay
-through the production adapter with identical requests and image hashes; malformed
+through the production adapter with request/image checks (only the documented
+unique-match prompt delta is allowed); malformed
 arrays remain failures and legal misses retain their scores. Floating distance
 comparisons allow only arithmetic roundoff. Cancellation propagates and a 429
 causes exactly one HTTP request (wrapper and SDK retries both disabled).
@@ -644,3 +645,10 @@ and occlusion, invalid-response refusal scoring, request/token reservations,
 429/no retry, timeout, cancellation, missing usage and retained truncations.
 Unknown usage retains the full request reservation and stops the batch. Real
 model quality is scored separately after execution, never inferred from mocks.
+
+
+The legacy found prompt now requires exactly one unambiguous match; duplicates
+must abstain. SDK tests cover the transmitted rule and point/pixel/bbox integer
+and nullable sentinels. Historical manifests remain immutable: old-source
+holdout freezes fail validation after the prompt change. HTTP failure tests use
+temporary current-contract freezes rather than rewriting historical evidence.

@@ -141,8 +141,10 @@ def _location_payload(
         + ("It is outlined in cyan. " if marked else "")
         + f"Call click once with its {what} in {units}. "
         "The origin is the top-left of THIS input image; each axis spans the full image. "
-        "Use only the CURRENT image, not previous positions. Set found=true when located. "
-        "If absent or uncertain, set found=false and ALL coordinates="
+        "Use only the CURRENT image, not previous positions. "
+        "Set found=true only for exactly one unambiguous matching target. "
+        "If multiple targets match, or the target is absent or uncertain, "
+        "set found=false and ALL coordinates="
         + ("0." if nullable_style == "integer" else "null.")
     )
     if status_field:

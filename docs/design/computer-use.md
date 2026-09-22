@@ -98,6 +98,9 @@ ToolManager 注入会话身份。缺失/旧/跨会话 frame、窗口不匹配或
   保守记为 `ambiguous`，不能宣称已证明目标不存在。显式 `status_field=True`
   使用 `found/not_found/ambiguous`，非 found 结果没有点/框。nullable/整数
   哨兵规则与旧探针一致；模型可用性和 strict 效果仍需独立实验。
+- 2026-09-22 起，旧 found 提示也明确要求唯一、无歧义匹配；多个匹配时
+  必须 found=false 并使用既定零/null 哨兵。schema、解析器和 LLM profile
+  不变；提示约束不能代替模型效果验证或执行前检查。
 - `request(llm, observation, png, target)` 先核验 PNG hash、格式和实际尺寸，
   再调用通用 `LLM.complete_response()`，只上传当前图与目标，不发送聊天历史。
   `build_request()` 的 previous/marked 等选项只保留给离线 probe 对照；
