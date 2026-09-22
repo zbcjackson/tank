@@ -1176,7 +1176,7 @@ async def frame_metadata(manager, **kwargs):
     return json.loads(note[note.index("{") :])
 
 
-@pytest.mark.parametrize("change", ["missing", "old", "session", "geometry", "scene"])
+@pytest.mark.parametrize("change", ["missing", "old", "session", "geometry"])
 async def test_frame_rejects_unusable_observation_without_input(frame_manager, change):
     manager, quartz = frame_manager
     metadata = await frame_metadata(manager)
@@ -1189,20 +1189,9 @@ async def test_frame_rejects_unusable_observation_without_input(frame_manager, c
         manager.set_session_id("other")
     elif change == "geometry":
         quartz.CGMainDisplayID.return_value = 6
-    from contextlib import nullcontext
-
-    changed_capture = patch(
-        f"{MODULE}._capture_screenshot_macos", return_value=make_png(1920, 1080)
+    result = await manager.execute_tool(
+        "click", coordinate_space="image", frame_id=frame_id, x=100, y=100,
     )
-    with changed_capture if change == "scene" else nullcontext():
-        # All previous frames were black with a red rectangle: this is a changed scene.
-        result = await manager.execute_tool(
-            "click",
-            coordinate_space="image",
-            frame_id=frame_id,
-            x=100,
-            y=100,
-        )
     assert result.error
     quartz.CGEventCreateMouseEvent.assert_not_called()
 
@@ -1271,10 +1260,10 @@ async def test_frame_batch_keeps_owner_and_stops_after_scene_change(
 
 @pytest.mark.parametrize("window_bound", [False, True])
 @pytest.mark.parametrize("change_inside", [False, True])
-async def test_scene_validation_uses_observed_scope(
+async def test_pixel_changes_do_not_invalidate_frame(
     frame_manager, window_bound, change_inside,
 ):
-    """Menu-bar changes invalidate full frames, but not unchanged window crops."""
+    """Blinking/animation inside or outside a window must not block input."""
     from PIL import Image
 
     manager, quartz = frame_manager
@@ -1294,18 +1283,14 @@ async def test_scene_validation_uses_observed_scope(
     kwargs = {"window_id": 42} if window_bound else {}
     with patch(f"{MODULE}._capture_screenshot_macos", return_value=png(before)):
         metadata = await frame_metadata(manager, **kwargs)
-    with patch(f"{MODULE}._capture_screenshot_macos", return_value=png(after)):
+    with patch(f"{MODULE}._capture_screenshot_macos", return_value=png(after)) as capture:
         result = await manager.execute_tool(
             "click", coordinate_space="image", frame_id=metadata["frame_id"],
             x=100, y=100,
         )
-    rejected = change_inside or not window_bound
-    assert result.error is rejected
-    if rejected:
-        assert "Scene or geometry changed" in result.content
-        quartz.CGEventCreateMouseEvent.assert_not_called()
-    else:
-        assert quartz.CGEventCreateMouseEvent.call_count == 2
+    assert not result.error
+    assert quartz.CGEventCreateMouseEvent.call_count == 2
+    capture.assert_not_called()  # Validation does not take a second screenshot.
 
 
 @pytest.mark.parametrize("moved", [False, True])
@@ -1458,12 +1443,16 @@ async def test_frame_cancel_during_revalidation_never_dispatches(frame_manager):
     metadata = await frame_metadata(manager)
     started, release = threading.Event(), threading.Event()
 
-    def capture(**kwargs):
+    from tank_backend.tools import computer_frame
+
+    original_geometry = computer_frame._geometry()
+
+    def geometry():
         started.set()
         assert release.wait(5)
-        return make_png(1920, 1080)
+        return original_geometry
 
-    with patch(f"{MODULE}._capture_screenshot_macos", side_effect=capture):
+    with patch.object(computer_frame, "_geometry", side_effect=geometry):
         pending = asyncio.create_task(
             manager.execute_tool(
                 "click",

@@ -4,15 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import hashlib
-import io
 import json
 import threading
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from typing import Any
-
-from PIL import Image
 
 from ..core.content import ImageBlock, TextBlock
 from . import computer_use_macos as macos
@@ -65,11 +61,6 @@ def _window_bounds(
                 raise ValueError("Window must be wholly on the main display")
             return x, y, x + w, y + h
     raise ValueError("Window is missing or no longer on screen")
-
-
-def _pixel_hash(png: bytes, crop: tuple[int, int, int, int]) -> str:
-    with Image.open(io.BytesIO(png)) as image:
-        return hashlib.sha256(image.convert("RGB").crop(crop).tobytes()).hexdigest()
 
 
 class FrameTool(BaseTool):
@@ -337,12 +328,8 @@ class FrameTool(BaseTool):
             raise ValueError("Window geometry changed")
         if _geometry() != observation.display_geometry:
             raise ValueError("Display geometry changed")
-        current = macos._capture_screenshot_macos(include_cursor=False)
-        if (
-            _pixel_hash(current, observation.crop) != observation.scene_sha256
-            or _geometry() != observation.display_geometry
-        ):
-            raise ValueError("Scene or geometry changed since observation")
+        # Pixel changes (carets, animation, unrelated apps) do not invalidate
+        # coordinate geometry. The agent verifies application effects via feedback.
         if (
             _window_bounds(observation.window_id, observation.display_geometry)
             != observation.window_bounds

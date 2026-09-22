@@ -595,9 +595,7 @@ async def test_locate_failure_never_produces_executable_reference(locator, monke
     elif failure == "changed":
 
         async def change():
-            buf = io.BytesIO()
-            Image.new("RGB", (100, 80), "blue").save(buf, "PNG")
-            monkeypatch.setattr(macos, "_capture_screenshot_macos", lambda **kw: buf.getvalue())
+            macos._load_quartz().CGMainDisplayID.return_value = 6
 
         c.during = change
     elif failure == "unknown_usage":
@@ -737,7 +735,38 @@ async def test_two_located_targets_support_drag(locator, monkeypatch):
     drag.assert_called_once_with(50, 40, 50, 40)
 
 
-async def test_short_batch_uses_references_and_stops_before_changed_scene(locator, monkeypatch):
+@pytest.mark.parametrize("integrated", [False, True])
+async def test_pixel_repaint_does_not_block_grounded_input(locator, monkeypatch, integrated):
+    from tank_backend.agents.definition import GroundingConfig
+    from tank_backend.tools.computer_integrated import IntegratedSession, IntegratedTool
+
+    c = locator
+    if integrated:
+        session = IntegratedSession(c.session.tools, {}, c.session.adapter, c.context, "integrated")
+        session.config = GroundingConfig(mode="integrated")
+        c.session = session
+        c.manager.tools = {n: IntegratedTool(session, n) for n in session.tools}
+    frame = await observe(c)
+    changed = io.BytesIO()
+    Image.new("RGB", (100, 80), "blue").save(changed, "PNG")
+
+    async def repaint():
+        monkeypatch.setattr(macos, "_capture_screenshot_macos", lambda **kw: changed.getvalue())
+
+    if integrated:
+        await repaint()
+        args = {"frame_id": frame, "location": {"status": "found", "x": 500, "y": 500}}
+    else:
+        c.during = repaint  # The screen changes while the locator is responding.
+        located = await locate(c, frame)
+        assert not located.error
+        args = {"location_id": json.loads(located.content)["location_id"]}
+    result = await c.manager.execute_tool("click", **args)
+    assert not result.error
+    c.click.assert_called_once_with(50, 40, "left", 1)
+
+
+async def test_short_batch_stops_before_changed_display(locator, monkeypatch):
     from tank_backend.tools.computer_locate import LocateTool
 
     c = locator
@@ -746,9 +775,7 @@ async def test_short_batch_uses_references_and_stops_before_changed_scene(locato
     ref = json.loads((await locate(c, frame)).content)["location_id"]
 
     def changed(*args):
-        buf = io.BytesIO()
-        Image.new("RGB", (100, 80), "blue").save(buf, "PNG")
-        monkeypatch.setattr(macos, "_capture_screenshot_macos", lambda **kw: buf.getvalue())
+        macos._load_quartz().CGMainDisplayID.return_value = 6
 
     c.click.side_effect = changed
     args = {"actions": [{"action": "click", "location_id": ref}] * 3}
@@ -770,7 +797,11 @@ async def test_stop_during_action_validation_never_dispatches(locator, monkeypat
     frame = await observe(c)
     ref = json.loads((await locate(c, frame)).content)["location_id"]
 
-    def stop_before_input(**kwargs):
+    from tank_backend.tools import computer_frame
+
+    geometry = computer_frame._geometry()
+
+    def stop_before_input():
         if stop == "cancel":
             c.context.cancel.set()
         elif stop == "deadline":
@@ -778,9 +809,9 @@ async def test_stop_during_action_validation_never_dispatches(locator, monkeypat
             c.session.tools["click"].check = c.session.context.check
         else:
             c.context.authorization.revoke()
-        return c.png
+        return geometry
 
-    monkeypatch.setattr(macos, "_capture_screenshot_macos", stop_before_input)
+    monkeypatch.setattr(computer_frame, "_geometry", stop_before_input)
     try:
         result = await c.manager.execute_tool("click", location_id=ref)
         assert result.error
@@ -1048,9 +1079,7 @@ async def test_integrated_batch_stops_without_input_on_failed_location(
     if status == "stale":
         await observe(c)
     if status == "changed":
-        image = io.BytesIO()
-        Image.new("RGB", (100, 80), "blue").save(image, "PNG")
-        monkeypatch.setattr(macos, "_capture_screenshot_macos", lambda **kw: image.getvalue())
+        macos._load_quartz().CGMainDisplayID.return_value = 6
     location = {"status": status if status in {"not_found", "ambiguous"} else "found",
                 "x": 0 if status in {"not_found", "ambiguous"} else 500, "y": 0}
     if status == "invalid":
