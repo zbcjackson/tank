@@ -245,6 +245,14 @@ async def test_runner_split_locates_current_image_and_dispatches_reference(
                 assert result.non_gui_tools == ()
                 assert result.screenshots == 2
                 assert len([r for r in records if r["kind"] == "http_request"]) == 5
+                responses = [r for r in records if r["kind"] == "http_response"]
+                assert len(responses) == 5
+                assert all(r["body_state"] == "complete" for r in responses)
+                assert {r["request_id"] for r in responses} == {
+                    r["request_id"] for r in records if r["kind"] == "http_request"}
+                bodies = [(tmp_path / "trial" / r["file"]).read_bytes() for r in responses]
+                assert [json.loads(body)["object"] for body in bodies
+                        if body.startswith(b"{")] == ["chat.completion"]
                 assert driver.describe()["grounding"]["protocol"] == "point"
                 ledger.extend(r for r in records if r["kind"] == "grounding_usage")
         else:

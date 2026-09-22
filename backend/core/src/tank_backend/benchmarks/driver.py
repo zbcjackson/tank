@@ -404,10 +404,20 @@ class SubAgentDriver:
             if driver._trace is not None:
                 await driver._trace.capture_request(request)
 
+        async def capture_response(response: httpx.Response) -> None:
+            # Bind to the requesting trial, not whichever trial is current now.
+            binding = response.request.extensions.get("tank_benchmark_trace")
+            if binding is not None:
+                owner, _ = binding
+                if isinstance(owner, TraceSink):
+                    await owner.capture_response(response)
+
         def measured_llm(profile: LLMProfile) -> LLM:
             inner = create_llm_from_profile(profile)
             if capture_request not in inner.client._client.event_hooks["request"]:
                 inner.client._client.event_hooks["request"].append(capture_request)
+            if capture_response not in inner.client._client.event_hooks["response"]:
+                inner.client._client.event_hooks["response"].append(capture_response)
             return cast(LLM, CountingLLM(inner, counter=llm))
 
         registry = None
@@ -451,6 +461,11 @@ class SubAgentDriver:
             and capture_request not in llm.client._client.event_hooks["request"]
         ):
             llm.client._client.event_hooks["request"].append(capture_request)
+        if (
+            not agent_def.engine and not agent_def.extension
+            and capture_response not in llm.client._client.event_hooks["response"]
+        ):
+            llm.client._client.event_hooks["response"].append(capture_response)
 
         # Archive every screenshot the agent takes for offline diagnosis.
         for name in ("screenshot", "computer_batch"):

@@ -7,6 +7,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
+
 from tank_backend.agents.base import AgentOutput, AgentOutputType
 from tank_backend.benchmarks.driver import (
     CountingLLM,
@@ -82,8 +84,8 @@ async def test_trace_records_actual_sdk_image_hashes_without_image_data(tmp_path
     trace.close()
     raw = (tmp_path / "trace.jsonl").read_text()
     events = [json.loads(line) for line in raw.splitlines()]
-    assert events[-1]["kind"] == "http_request"
-    assert events[-1]["image_sha256"] == [hashlib.sha256(b"controlled image").hexdigest()]
+    request = next(e for e in events if e["kind"] == "http_request")
+    assert request["image_sha256"] == [hashlib.sha256(b"controlled image").hexdigest()]
     assert "secret-test" not in raw and "data:image" not in raw
 
 
@@ -846,3 +848,156 @@ async def test_nested_locator_time_is_not_counted_twice(monkeypatch):
     assert counter.total_tokens == 20
     assert counter.call_stats == [(2, 2), (None, 7), (0, 3)]
     assert sum(elapsed for _, elapsed in counter.call_stats) == 12
+
+
+@pytest.mark.parametrize("status_code", [200, 429, 502])
+async def test_trace_archives_http_body_before_sdk_json_parsing(tmp_path, status_code):
+    import httpx
+    from openai import AsyncOpenAI, InternalServerError, RateLimitError
+
+    trace = TraceSink(tmp_path)
+    raw = b'{"choices": [broken provider JSON'
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: httpx.Response(
+            status_code, content=raw, headers={"content-type": "application/json"})),
+        event_hooks={"request": [trace.capture_request], "response": [trace.capture_response]},
+    ) as http:
+        client = AsyncOpenAI(api_key="secret", base_url="https://offline.invalid/v1",
+                             max_retries=0, http_client=http)
+        exception = {200: json.JSONDecodeError, 429: RateLimitError, 502: InternalServerError}
+        with pytest.raises(exception[status_code]):
+            await client.chat.completions.create(model="locator", messages=[])
+    trace.close()
+    events = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
+    request = next(e for e in events if e["kind"] == "http_request")
+    response = next(e for e in events if e["kind"] == "http_response")
+    assert response["request_id"] == request["request_id"]
+    assert response["body_state"] == "complete"
+    assert response["status_code"] == status_code
+    assert (tmp_path / response["file"]).read_bytes() == raw
+    assert "secret" not in (tmp_path / "trace.jsonl").read_text()
+
+
+@pytest.mark.parametrize("ending", ["complete", "read_error", "cancelled", "closed_early"])
+async def test_trace_streams_without_prefetch_and_retains_partial_bytes(tmp_path, ending):
+    import asyncio
+    import hashlib
+
+    import httpx
+
+    seen = []
+
+    class Chunks(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            seen.append(1)
+            yield b"data: first\n\n"
+            if ending == "read_error":
+                raise httpx.ReadError("private transport message")
+            if ending == "cancelled":
+                raise asyncio.CancelledError()
+            seen.append(2)
+            yield b"data: second\n\n"
+
+    trace = TraceSink(tmp_path)
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, stream=Chunks())),
+        event_hooks={"request": [trace.capture_request], "response": [trace.capture_response]},
+    ) as http:
+        response = await http.send(http.build_request(
+            "POST", "https://offline.invalid", json={"model": "planner", "stream": True}),
+            stream=True)
+        assert not seen  # Capturing must not wait for future chunks before SDK TTFT.
+        chunks = response.aiter_raw()
+        assert await anext(chunks) == b"data: first\n\n"
+        assert seen == [1]
+        if ending == "complete":
+            assert b"".join([chunk async for chunk in chunks]) == b"data: second\n\n"
+        elif ending != "closed_early":
+            exception = httpx.ReadError if ending == "read_error" else asyncio.CancelledError
+            with pytest.raises(exception):
+                await anext(chunks)
+        await response.aclose()
+    trace.close()
+    events = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
+    records = [e for e in events if e["kind"] == "http_response"]
+    assert len(records) == 1
+    record = records[0]
+    assert record["body_state"] == ending
+    raw = b"data: first\n\n" + (b"data: second\n\n" if ending == "complete" else b"")
+    assert (tmp_path / record["file"]).read_bytes() == raw
+    assert record["bytes"] == len(raw)
+    assert record["sha256"] == hashlib.sha256(raw).hexdigest()
+    assert "private transport message" not in (tmp_path / "trace.jsonl").read_text()
+
+
+async def test_trace_close_marks_missing_responses_and_freezes_inflight_archive(tmp_path):
+    import httpx
+
+    class Chunks(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield b"first"
+            yield b"late"
+
+    trace = TraceSink(tmp_path)
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, stream=Chunks())),
+        event_hooks={"request": [trace.capture_request], "response": [trace.capture_response]},
+    ) as http:
+        response = await http.send(http.build_request(
+            "POST", "https://offline.invalid", json={"model": "planner"}), stream=True)
+        chunks = response.aiter_raw()
+        assert await anext(chunks) == b"first"
+        # A request cancelled before response headers must remain explicitly unknown.
+        missing = http.build_request("POST", "https://offline.invalid", json={"model": "locator"})
+        await trace.capture_request(missing)
+        trace.close()
+        before = (tmp_path / "trace.jsonl").read_bytes()
+        assert [chunk async for chunk in chunks] == [b"late"]
+        await response.aclose()
+        # Late headers for the missing request cannot reopen a completed trial.
+        await trace.capture_response(httpx.Response(200, content=b"late", request=missing))
+        trace.close()
+    assert (tmp_path / "trace.jsonl").read_bytes() == before
+    records = [json.loads(line) for line in before.splitlines()]
+    responses = [r for r in records if r["kind"] == "http_response"]
+    assert {r["body_state"] for r in responses} == {"trace_closed", "no_response"}
+    captured = next(r for r in responses if r["file"])
+    assert (tmp_path / captured["file"]).read_bytes() == b"first"
+    assert next(r for r in responses if r["body_state"] == "no_response")["status_code"] is None
+
+
+@pytest.mark.parametrize("preloaded", [False, True])
+async def test_trace_labels_compressed_and_already_decoded_bodies(tmp_path, preloaded):
+    import gzip
+
+    import httpx
+
+    payload = b'{"usage": null, "choices": []}'
+    compressed = gzip.compress(payload, mtime=0)
+
+    class Chunks(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield compressed[:5]
+            yield compressed[5:]
+
+    def respond(request):
+        headers = {"content-type": "application/json", "content-encoding": "gzip",
+                   "set-cookie": "private-header"}
+        return (httpx.Response(200, headers=headers, content=compressed) if preloaded else
+                httpx.Response(200, headers=headers, stream=Chunks()))
+
+    trace = TraceSink(tmp_path)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond), event_hooks={
+        "request": [trace.capture_request], "response": [trace.capture_response],
+    }) as http:
+        response = await http.post("https://offline.invalid", json={"model": "locator"})
+        assert response.content == payload
+    trace.close()
+    raw = (tmp_path / "trace.jsonl").read_text()
+    records = [json.loads(line) for line in raw.splitlines()]
+    record = next(r for r in records if r["kind"] == "http_response")
+    assert record["content_type"] == "application/json"
+    assert record["content_encoding"] == "gzip"
+    assert record["body_representation"] == ("httpx_decoded" if preloaded else "httpx_raw")
+    assert (tmp_path / record["file"]).read_bytes() == (payload if preloaded else compressed)
+    assert "private-header" not in raw
