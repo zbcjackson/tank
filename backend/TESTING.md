@@ -657,7 +657,7 @@ M4 `core/tests/test_computer_locate.py` exercises actual Runner → LLMAgent →
 ToolManager → GroundingAdapter → SDK, replacing only HTTP and macOS boundaries.
 It verifies current-image bytes, absence of planner history in locator requests,
 same-model and separate-profile selection, reference-only actions, single shared
-accounting, refusal/invalid/truncated responses, unknown usage, scene/frame/window
+accounting, refusal/invalid/truncated responses, unknown usage, display/frame/window
 changes, retry/backend-switch limits, drag references and batch failure feedback.
 Cancellation/deadline tests interrupt HTTP and stop input at frame validation.
 The existing `chat.feature` runs selected dispatch/stop contracts through Cucumber;
@@ -684,7 +684,7 @@ requests through Runner and the benchmark driver: four protocols × host restora
 on/off × single/batch × complete/truncated/duplicate-key replies. Successful cases
 use exactly one model and archive initial/feedback images; truncated/duplicate
 arguments stop before input while retaining usage. Missing/ambiguous/invalid/stale
-or changed-frame batches stop before typing. Schema pairing verifies that host
+or changed-display batches stop before typing. Schema pairing verifies that host
 restoration changes no tool schema, adapted locations share GroundingAdapter, and
 batch schemas preserve the tool allowlist. Config tests preserve split defaults
 and reject unsupported integrated locator/fallback/strict settings. These fake
@@ -817,3 +817,12 @@ rejected changed Calculator window. Four deterministic tests cover inside/outsid
 single-pixel changes under full/window scope and assert no clicks on rejection.
 This characterizes existing exact-hash behavior; it does not change image scope,
 prove the historical pilot rejection cause, or certify timeout/cancel cleanup.
+
+
+Pixel equality is no longer an admission check (2026-09-22). The four pixel-change
+cases now permit input for full/window observations with inside/outside changes
+and assert validation takes no new screenshot. Integrated and split-locator cases
+permit full image repaints, including during locator HTTP. Stale/session/window,
+display changes, batch stopping and cancellation/deadline/revocation remain
+covered; stop injection now occurs during geometry validation. Historical scene
+reports above describe the prior implementation and are not current policy.

@@ -1,0 +1,12 @@
+{
+  "first-attempt.py.txt": "891c219d6739c6fedd176ef0d2bbc733543892649b30a6b8251b259b1cc2ee0f",
+  "local/cleanup.json": "3cb963afdd7816c05ff1190da2c343fc2ff36dcef01b1ad14a773bf4e36e9a75",
+  "local/full-idle-after.png": "3b7aa9b2794462dddd89e7c9a6acb08acd6017c6f1cfe4a16687e2b527334eac",
+  "local/full-idle-before.png": "4281f744274176e9fcf02f5607e8c53734a4a6d189f24aa49a0fe2edf2eba735",
+  "local/result.json": "db315a5938a8b6635d96a33088a0040be83dd042776afe307ebd5b30844e1c3b",
+  "local/window-input-after.png": "4632a4855c07b7b5e9dc4d3e87b1ea03eeb237a8f288745d06e9a7c47aaf29bf",
+  "local/window-input-before.png": "cbb5192462033c4833c5660fe4e855867c71eada6b17858bc236c9a6c51a4e01",
+  "preflight-failure/cleanup.json": "3cb963afdd7816c05ff1190da2c343fc2ff36dcef01b1ad14a773bf4e36e9a75",
+  "preflight-failure/error.txt": "2b02829d60094b871302755de0c9ea1295b0f739732e44031824998d737f1eaf",
+  "retry.py.txt": "c543b30b493233be19ca82bc9501491d5003a24179d23d8ae68188da12f930d0"
+}

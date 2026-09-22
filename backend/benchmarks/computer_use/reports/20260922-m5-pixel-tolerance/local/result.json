@@ -1,0 +1,119 @@
+{
+  "model_requests": 0,
+  "calculator_bounds": [
+    600,
+    100,
+    1274,
+    508
+  ],
+  "cases": [
+    {
+      "validation_capture_count": 0,
+      "name": "full-idle",
+      "rejected": false,
+      "reason": null,
+      "observation": {
+        "frame_id": "f2f955a7225d4450b4ff2625dc9ac7c0",
+        "session_id": "scene-probe",
+        "display_id": 5,
+        "screen_size": [
+          1920,
+          1080
+        ],
+        "image_size": [
+          1920,
+          1080
+        ],
+        "crop": [
+          0,
+          0,
+          1920,
+          1080
+        ],
+        "image_sha256": "4281f744274176e9fcf02f5607e8c53734a4a6d189f24aa49a0fe2edf2eba735",
+        "captured_at": 1790086093.1858718,
+        "display_geometry": [
+          5,
+          0,
+          0,
+          1920,
+          1080,
+          3840,
+          2160
+        ],
+        "window_id": null,
+        "window_bounds": null,
+        "scene_sha256": "c13181c37b47bb6a1a7e7b843632ff55ccec7d38cd3e8a1105eafcaac67c5895"
+      },
+      "changed_bbox": [
+        1686,
+        8,
+        1777,
+        26
+      ],
+      "calculator_changed_bbox": null,
+      "changed_pixels": 199,
+      "before_sha256": "4281f744274176e9fcf02f5607e8c53734a4a6d189f24aa49a0fe2edf2eba735",
+      "after_sha256": "3b7aa9b2794462dddd89e7c9a6acb08acd6017c6f1cfe4a16687e2b527334eac"
+    },
+    {
+      "validation_capture_count": 0,
+      "name": "window-input",
+      "rejected": false,
+      "reason": null,
+      "observation": {
+        "frame_id": "02e55f07d47c476f86fb0d67d9a12bf8",
+        "session_id": "scene-probe",
+        "display_id": 5,
+        "screen_size": [
+          1920,
+          1080
+        ],
+        "image_size": [
+          1920,
+          1162
+        ],
+        "crop": [
+          600,
+          100,
+          1274,
+          508
+        ],
+        "image_sha256": "516eb50998b488bac384530c9fab0ca1915fd9613097d41fe3d503cb2ec9be2e",
+        "captured_at": 1790086094.916416,
+        "display_geometry": [
+          5,
+          0,
+          0,
+          1920,
+          1080,
+          3840,
+          2160
+        ],
+        "window_id": 17896,
+        "window_bounds": [
+          600,
+          100,
+          1274,
+          508
+        ],
+        "scene_sha256": "02f2cdb75d0c0bbfddcb1b7bffba3b556dfc8a42e4dde38ce568991c843036fe"
+      },
+      "changed_bbox": [
+        1087,
+        8,
+        1777,
+        267
+      ],
+      "calculator_changed_bbox": [
+        487,
+        95,
+        664,
+        167
+      ],
+      "changed_pixels": 1003,
+      "before_sha256": "cbb5192462033c4833c5660fe4e855867c71eada6b17858bc236c9a6c51a4e01",
+      "after_sha256": "4632a4855c07b7b5e9dc4d3e87b1ea03eeb237a8f288745d06e9a7c47aaf29bf"
+    }
+  ]
+}

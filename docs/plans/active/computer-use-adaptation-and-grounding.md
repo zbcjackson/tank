@@ -1325,6 +1325,25 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   web lint/TypeScript、backend/CLI ruff、改动文件 pyright、实际 backend 日志、
   docs 与协议一致性全部通过。回归提交 `bd90b81`。
 
+### 2026-09-22 — 按用户要求移除像素一致性动作门禁
+
+- [x] 不再在定位/动作校验阶段重新截图或比对像素。允许光标闪烁、动画及无关
+  应用变化；保留 frame/session/window 身份、窗口/显示几何及停止条件检查。
+  哈希仅保留为观察证据，不引入相似度阈值或隐式重试。
+- [x] 测试先复现旧实现三项拒绝；四个窗口内外像素变化回归改为允许输入，
+  集成/分离定位回归允许完整画面变化。几何变化仍停止 batch，取消/超时/
+  授权撤销仍零输入；这些测试改为在几何校验边界注入停止。
+- [x] 本地菜单栏变化和 Calculator 内容变化均通过，validation 截图数为 0。
+  首次 reset 失败保留记录，显式激活/定位后重试通过；两次桌面均恢复。
+  [实现边界与证据](../../../backend/benchmarks/computer_use/reports/20260922-m5-pixel-tolerance/README.md)。
+- 同一几何中的弹窗/按钮变化不再由像素门禁拦截，依赖规划器检查反馈并重新
+  观察。此前“保持 exact hash/先切换窗口范围”的后续方向由本次用户决定取代；
+  不必为菜单栏变化强制改变跨组截图范围。旧报告与冻结保留，live 前更新 source pins。
+- 无模型请求/截图外发，生产 token 配置不变；自动清理接线仍是下一项。
+- Tests：backend **4988 passed / 1 skipped**、E2E **16 场景 / 63 步**；
+  web lint/TypeScript、backend/CLI ruff、三个改动文件 pyright、实际 backend
+  日志、docs 与协议同步通过。实现提交 `978ca00`。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。
