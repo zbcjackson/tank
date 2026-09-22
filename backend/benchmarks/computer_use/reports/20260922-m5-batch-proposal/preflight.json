@@ -1,0 +1,27 @@
+{
+  "blockers": [
+    "usable_input_bound",
+    "account_region_and_prices",
+    "independent_scoring",
+    "real_environment_and_physical_cleanup",
+    "pilot_acceptance_before_core",
+    "live_budget_endpoint_and_image_scope_authorization"
+  ],
+  "checked_files": 340,
+  "first_request": {
+    "reserved_tokens": 999808,
+    "stop_reason": "trial_tokens",
+    "trial_limit": 300000
+  },
+  "live_ready": false,
+  "offline_checks_passed": true,
+  "totals": {
+    "http_requests": 362,
+    "locator_requests": 90,
+    "max_locator_requests": 45,
+    "planner_requests": 272,
+    "task_seconds": 2040,
+    "tokens": 5100000,
+    "trials": 17
+  }
+}

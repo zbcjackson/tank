@@ -773,3 +773,12 @@ The SDK checks compare model, tool schemas and generation settings with the
 exported first request. Existing export tests additionally verify deterministic
 runtime files and absence of credentials. These are offline contract tests, not
 physical desktop cleanup or live model acceptance.
+
+
+The offline batch proposal adds 11 cases in `test_comparison_freeze.py`: the
+fixed 17-trial order and aggregate budgets, actual ledger rejection of the
+full-context reservation, no driver construction, refusal to overwrite, and ten
+mutation cases (order, cost/request limits, live flag, missing pin, config,
+manifest, agent, adjacent credentials and extra agent). Production parsers and
+frozen file checks run normally. No setup/validator, model or desktop is invoked;
+this does not test pilot acceptance or a live phase-aware batch executor.

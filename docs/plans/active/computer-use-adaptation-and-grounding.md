@@ -1211,6 +1211,31 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   backend/CLI ruff、六个改动 Python 文件 pyright、开发服务日志、docs 与
   协议一致性检查全部通过。新冻结 19 个产物、295 个源码哈希均匹配。
 
+### 2026-09-22 — M5 17-trial 提案清单与离线预检
+
+- [x] 将既有 5 pilot + 12 核心 trial 固化为[独立提案产物](../../../backend/benchmarks/computer_use/reports/20260922-m5-batch-proposal/README.md)。
+  固定诊断顺序与三轮配对顺序，B 始终为 B-combined；不根据 pilot 分数换组。
+  每项记录配置/任务路径、phase、请求/token/时间/工具上限；总计规划 272、
+  定位 90（Max 45）、HTTP 362、5.1M token、任务执行 2040 秒、拟定 8 USD。
+- 新脚本 `prepare_computer_batch.py` 仅支持生成/复查，无执行入口。保存并核对
+  340 个冻结/源码/配置/agent/suite/task/asset/脚本文件；核对 runtime 文件清单，
+  生产解析后的七组契约及 macOS calc-open 的 strict/GUI/120 秒/15 步设置。
+  生成时记录当前 suite 文件哈希供审查；复查不刷新哈希，清单本身不是授权凭证。
+- 实际 SpendLedger 对已记录的 Flash 输入 991808 + 输出 8000 预留给出
+  trial_tokens 拒绝（单轮 300000）。该隔离检查使用零价格，只验证 token
+  拒绝，不验证费用；未重新查询或背书提供方上界/账号价格。
+- `offline_checks_passed=true` 且 `live_ready=false`。清单不是直接可执行的
+  run_batch 输入：pilot 验收后进入 core、分组限额派发、实际环境与物理清理、
+  独立评分、可用输入上界及 live 预算/端点/真实图片范围仍须完成。
+  本轮未构造 driver、执行 setup/validator、发送模型请求或操作桌面。
+- Tests：新增 **11 项**，固定顺序/聚合预算/实际账本拒绝及十类漂移拒绝；
+  复用既有 test_comparison_freeze.py，定向 **55 passed**。新目录拒绝覆盖，
+  原有冻结产物保持不变。下一步补独立评分与语义失败归因，M5 仍 active。
+
+- 实现及测试提交 `d6ac1ae`；完整 backend **4967 passed / 1 skipped**，
+  E2E **16 场景 / 63 步**；web lint/TypeScript、backend/CLI ruff、两个改动
+  Python 文件 pyright、实际 backend pane、docs 和协议一致性检查全部通过。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。

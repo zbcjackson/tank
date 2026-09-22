@@ -479,3 +479,38 @@ regressions compare the first serialized request's model, tools and generation
 settings with the frozen requests. This does not verify credentials, provider
 availability, full live message history, physical cleanup or model effectiveness.
 The proposed paid batch remains unexecuted.
+
+
+### Offline 17-trial proposal preflight
+
+From `backend/`, materialize the recorded proposal into a fresh directory:
+
+```bash
+uv run --no-sync python scripts/prepare_computer_batch.py --freeze benchmarks/computer_use/reports/20260922-m5-runtime-config --output /tmp/m5-proposal-new
+uv run --no-sync python scripts/prepare_computer_batch.py --freeze benchmarks/computer_use/reports/20260922-m5-runtime-config --check /tmp/m5-proposal-new/proposal.json
+```
+
+The [checked-in proposal](computer_use/reports/20260922-m5-batch-proposal/README.md)
+records five diagnostic pilots followed by three four-variant core rounds. It
+fixes task/config paths, phase/order, per-trial planner/locator limits, 120 seconds,
+15 top-level tools, 300,000 tokens and the proposed batch limits (362 HTTP,
+5.1M tokens, 8 USD). Paths are relative to the backend root, not the shell cwd.
+The 2,040-second sum excludes setup, validation and cleanup.
+
+Preflight rechecks saved file hashes, the referenced freeze's source/artifact
+hashes, exact runtime file inventory, production config/agent parsing, and the
+macOS Calculator task's strict GUI scoring and limits. It does not refresh pins.
+Creating a proposal records current suite/task/asset hashes; these are reviewable
+inputs, not independently approved truth. Recheck rejects order/limit changes,
+missing pins, changed files and additional runtime credential/agent files.
+
+The command has no live mode and constructs no driver. An exit code of zero means
+**offline consistency only**: `live_ready` remains false. The real spend ledger
+rejects the recorded 991,808 + 8,000 token reservation against the 300,000 trial
+limit. Zero prices in this isolated check do not validate cost admission. Provider
+bounds/prices are not refreshed or certified by this offline command.
+
+This is not a direct `run_batch` input or a phase-aware executor: pilot acceptance,
+per-variant dispatch, real environment/cleanup, independent scoring and live
+budget/image/endpoint approval remain separate work. Nothing auto-advances from
+pilots to core or runs setup, validators, model HTTP or desktop input.
