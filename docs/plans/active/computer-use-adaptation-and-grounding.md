@@ -271,6 +271,8 @@ M4–M8 的既定集成、对照与真实任务验收仍在本计划内，不随
   生产 profile。仅 fake HTTP/合成图的离线契约，不是未来完整模型请求序列。
 - [x] 保存 built-in benchmark 规划/定位原始 HTTP 响应，关联实际请求尝试；
   保留畸形响应、HTTP 错误和部分流，标注读取/关闭状态及无响应记录。
+- [x] 分离定位尝试按阶段/协议拒绝原因归因，关联目标、帧、usage 和原始 HTTP
+  响应；模型报告状态与真值正确性分开，不推断未观测到的原因。
 - [ ] 补齐真实环境、语义失败归因、串行配对调度、预算/重试门禁和
   可验证清理，之后才做模型效果对照。A→A-control 单独量框架变化，不归因给还原。
 - [ ] 基于新批次明确样本、顺序、请求/token/时间上限、端点价格和图片范围；
@@ -981,6 +983,33 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 实现及测试提交 `2ca4254`。完整验证：backend **4733 passed / 1 skipped**；
   E2E **16 场景 / 63 步**；web lint/TypeScript、backend/CLI ruff、四个改动
   Python 文件 pyright、实际 backend pane、docs 和协议一致性检查全部通过。
+
+### 2026-09-22 — M5 分离定位阶段与协议拒绝归因
+
+- `LocateSession.locate` 记录 attempt/outcome，保留规划器目标描述、frame、
+  backend/protocol；获得响应后保留模型/响应 ID、finish_reason、usage 是否
+  已知及解析后的图像点/框。call_id 串起 usage 和 HTTP request，再通过
+  request_id 找到上一轮实现保存的原始响应。请求关联在成功/失败后恢复，
+  不给后续规划 HTTP 错标定位标签。
+- 阶段覆盖 preflight、前置观察、请求、计量、解析、后置观察、最终检查和
+  resolved。响应拒绝用 ValueError 子类提供稳定代码：invalid_response、
+  incomplete_response、refused_response、invalid_tool_call、invalid_location；
+  保留既有拒绝行为和异常文本，不修复或猜测模型参数。
+- 非协议错误保留阶段及异常类型；共享预算停止保留 stop reason，取消继续
+  向外传播。请求阶段可能失败于本地 payload、HTTP 或 SDK，不统一称为网络错。
+  deadline 在内部可能表现为取消，应结合外层终止记录，不凭字符串猜原因。
+- found/not_found/ambiguous 仅表示模型报告的结果，legacy found=false 仍映射
+  ambiguous。没有独立真值时，不声称目标选对、坐标命中或正确拒绝；当前记录
+  不覆盖一体 A/B 和输入派发后的效果归因。完整语义正确性评分仍是待完成项。
+- 新增 6 个拒绝/请求失败用例，另将旧引用失效用例扩展为非法响应、截断和拒绝
+  三种情况；原有外层 LocateTool 已会清除旧引用，补测通过后未改动该行为。
+  加强既有缺失/歧义、坏帧、未知 usage、预算、取消、重定位上限及真实
+  create → Runner → SDK 的关联断言。无付费定位请求或真实桌面动作；
+  M5 预算/重试门禁、串行配对、真实环境、物理清理和效果对照仍未执行。
+- 实现及测试提交 `93997e5`。最终完整验证：backend **4742 passed / 1 skipped**，
+  E2E **16 场景 / 63 步**；web lint/TypeScript、backend/CLI ruff、四个改动
+  Python 文件 pyright、实际 backend pane、docs 和协议一致性检查通过。
+  首轮完整检查为 4739 项通过；补充三个旧引用失效用例后，全套复验亦通过。
 
 ## 9. 最终 Verification Checklist
 

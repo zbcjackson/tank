@@ -699,3 +699,12 @@ and headers cannot alter a closed trace. `test_computer_locate.py` also verifies
 request/response pairing through `SubAgentDriver.create` for shared and independent
 locator profiles. These checks do not establish semantic failure attribution,
 physical cleanup, live request budgets or model effectiveness.
+
+Split-locator outcome tests add structured rejection coverage for refusals, wrong
+tools, zero/multiple choices and duplicate JSON fields, plus SDK connection-failure
+accounting and context reset. Existing tests now check stages for stale/changed
+frames, invalid output, truncation, unknown usage, budget stops and cancellation.
+The real benchmark create/Runner/SDK path joins outcome, usage and HTTP attempt IDs
+for both shared and independent locator profiles, and leaves planner requests
+unassociated. Reported model statuses and parsed coordinates remain unscored;
+these offline tests do not prove target-selection or coordinate correctness.

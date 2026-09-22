@@ -220,3 +220,36 @@ lifecycle handling, not evidence that model work or physical input has stopped.
 Semantic failure attribution, paired scheduling, enforced budgets/retry limits and
 verified desktop cleanup remain prerequisites for live M5 runs. Historical request
 freezes remain unchanged; freeze the final executor revision again before live work.
+
+### Split-location outcome attribution (M5)
+
+Each call entering `LocateSession.locate` emits `grounding_attempt` followed by
+`grounding_outcome`. The shared `call_id` also appears in `grounding_usage` and in
+the locator's HTTP request as `grounding_call_id`; join that request's `request_id`
+to its raw HTTP response archive. The task-local association is reset after the
+locator request, including failures, so later planner requests are not mislabeled.
+Calls rejected by an outer tool/context gate before entering the session retain
+the existing tool/Runner error trace rather than a fabricated locator attempt.
+
+Outcomes retain the planner's target description, requested frame/backend/protocol,
+and, when available, image hash/size, requested and returned models, provider
+response ID, finish reason, known-usage flag and parsed image point/box. The stages
+are `preflight`, `observation_before`, `request`, `accounting`, `parse`,
+`observation_after`, `postcheck` and `resolved`. The last reached stage localizes
+failure without guessing its cause from a free-text exception message.
+
+Response rejection codes are `invalid_response`, `incomplete_response`,
+`refused_response`, `invalid_tool_call` and `invalid_location`. Other errors retain
+`stage_failed` plus the exception type; controlled budget stops retain their stop
+reason and cancellation is propagated. A request-stage error may originate from
+payload validation, transport or SDK parsing, so it is not automatically labeled
+as a network/model failure. Timeout-driven cancellation may be observed as
+`cancelled` inside the locator; the outer tool/Runner trace retains the deadline.
+
+`found`, `not_found` and `ambiguous` describe the accepted model response, not its
+correctness. A legacy `found=false` still maps to `ambiguous`; this cannot establish
+whether the target is absent or duplicated. Parsed coordinates are diagnostic
+evidence and do not bypass the reference-only planner interface. Distinguishing
+wrong target selection from a coordinate miss still requires independent truth
+and task validation. Integrated A/B and post-dispatch effect attribution are not
+covered by these split-locator events. No new model scores are implied.
