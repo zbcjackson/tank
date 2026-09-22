@@ -716,14 +716,13 @@ async def test_integrated_runner_uses_one_model_and_independent_host_mapping(
             else:
                 location = {"status": "found", "x": 500, "y": 500}
             arguments = {"frame_id": observation["frame_id"], "location": location}
+            name = "computer_batch" if batch else "click"
+            payload = {"actions": [{"action": "click", **arguments}]} if batch else arguments
             if ending == "duplicate":
-                return stream("click", json.dumps(arguments).replace(
+                return stream(name, json.dumps(payload).replace(
                     '"location":', '"location": {}, "location":',
                 ))
-            if batch:
-                return stream("computer_batch", {"actions": [{"action": "click", **arguments}]},
-                              finish="length" if ending == "truncated" else None)
-            return stream("click", arguments, finish="length" if ending == "truncated" else None)
+            return stream(name, payload, finish="length" if ending == "truncated" else None)
         assert "dispatched" in json.dumps(body["messages"])
         return stream(None, {})
 
