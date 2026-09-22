@@ -185,8 +185,10 @@ Computer-use 的 macOS 截图/坐标链与实测边界见
 Computer-use grounding protocols live in `tools/computer_grounding.py`, shared
 with the probe. Provider settings remain in `LLMProfile`; the generic
 `LLM.complete_response()` returns tool arguments, finish reason and usage without
-executing tools. The adapter exposes a single-call API; planner `locate` wiring
-and the shared task budget are still M4 work. Default desktop calls are unchanged.
+executing tools. Opt-in agent `grounding` configuration installs task-scoped `locate` and
+reference-only desktop tools in AgentRunner. Planner and locator share the
+SubAgentBudget, cancellation and deadline; M2 revalidates each reference before
+input. Default desktop calls remain unchanged.
 
 **LLM Client** (`llm.py`):
 - OpenAI-compatible API via `AsyncOpenAI`

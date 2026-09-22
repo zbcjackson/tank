@@ -1,6 +1,6 @@
 # Computer use：macOS 坐标链与验证结论
 
-更新：2026-09-20。本文汇总自研 `computer_use` 与共享 `MacOSDesktopExecutor`
+更新：2026-09-22。本文汇总自研 `computer_use` 与共享 `MacOSDesktopExecutor`
 的现行行为及验证边界；官方 N2 SDK 是另一条路径，不能直接套用结论。
 逐轮原始证据、历史测试数量和异常记录见
 [macOS 调研](../research/macos-coordinate-chain.md)，复现入口见
@@ -23,7 +23,7 @@ GPT-5.5 在独立合成布局上最好；本次真实 calc-open 严格评分 2/3
 新增显式 image/frame 接口由宿主还原 crop，默认 legacy 路径仍由模型换算。[外部实现对照](../research/computer-use-implementation-comparison.md)
 梳理了 Anthropic、UI-TARS、Cua、Peekaboo、OmniParser、OpenAI 和 browser-use，
 建议先修已确认问题，再分别测试宿主坐标还原、AX 元素寻址和反馈检查。
-模型适配、AX 与定位拆分仍待验证；统一协议成绩不代表各模型最佳适配表现。
+模型适配、AX 与定位拆分的真实效果仍待验证；统一协议成绩不代表各模型最佳适配表现。
 后续统一按[适配与定位执行计划](../plans/active/computer-use-adaptation-and-grounding.md)
 推进，含历史完成核对、模型适配、规划定位分离四组对照及分阶段验收。
 
@@ -82,7 +82,7 @@ ToolManager 注入会话身份。缺失/旧/跨会话 frame、窗口不匹配或
 [frame 工具适配](../../backend/core/src/tank_backend/tools/computer_frame.py)
 由实际 SDK HTTP/ToolManager/Quartz 回归覆盖；未进行本批模型截图请求。
 
-## 共用定位适配器（M3 实现，尚未启用 locate）
+## 共用定位适配器（M3）
 
 [GroundingAdapter](../../backend/core/src/tank_backend/tools/computer_grounding.py)
 位于 computer-use 工具层，按显式协议构建图片、提示、schema 并解析响应。
@@ -112,9 +112,9 @@ ToolManager 注入会话身份。缺失/旧/跨会话 frame、窗口不匹配或
   错工具及非法坐标。数组、字符串、重复字段、越界、倒置框不自动修补。
   矩阵 probe 已使用同一检查，完整 JSON 也不能覆盖 length 失败。
 
-本步是可调用的生产协议/LLM 接口；AgentRunner 尚未注册定位工具，默认一体
-模式与桌面动作保持原路径。M4 才把返回值绑定当前任务/frame，并接入共享
-预算、截止时间、重新观察、审批和动作派发。适配器的图片一致性检查不代表
+这是可调用的生产协议/LLM 接口；M4 的可选分离模式已把结果绑定当前任务/frame，
+接入共享预算、截止时间、重新观察、审批和动作派发。默认一体模式仍走原路径。
+适配器的图片一致性检查不代表
 屏幕仍然新鲜，不能替代 M2 执行前校验；调用者也不得自行相信模型 frame_id。
 
 十份 M3 真实响应通过实际 SDK 的本地 HTTP 回放，与历史请求逐字段、图片 hash
@@ -160,7 +160,7 @@ DeepSeek low 的总用量反而增加；保留默认设置，不猜测服务端�
 要求多匹配拒绝，不能把失败单独归为视觉识别能力。默认不变；该 holdout
 已用于评估，后续调参不得继续用它宣称独立验收。
 冻结输入执行器已支持真实 SDK、逐请求预算和原始响应保留；独立 mask 评分
-在执行结束后读取真值。这是 benchmark 能力，尚未注册 AgentRunner locate。
+在执行结束后读取真值。这是 benchmark 能力，与 M4 的可选 AgentRunner locate 分开验收。
 
 [唯一匹配开发检查](../../backend/benchmarks/computer_use/reports/20260922-m3-unique-match/README.md)
 使用明确的旧 found 提示，在一个既有同名开发图上 Max/GPT 拒绝，Qwen3.7
@@ -171,7 +171,7 @@ DeepSeek low 的总用量反而增加；保留默认设置，不猜测服务端�
 2026-09-22 [M3 证据与范围收尾](../../backend/benchmarks/computer_use/reports/20260922-m3-closeout/README.md)
 已完成：实现和首轮实验具备可追溯证据，候选仍未通过完整采用门槛。
 未测原生协议/专用模型及追加静态复验条件登记在 [backlog](../backlog.md)；
-M4–M8 集成和真实任务验收继续执行，不因 M3 收尾视为完成。
+M4 离线集成已验收；M5–M8 对照和真实任务验收继续执行，不因 M3 收尾视为完成。
 
 ## 已修复与测试覆盖
 
@@ -371,3 +371,45 @@ AppleScript keystroke 当成 `8`。工具报告实际输入路径，只确认已
 图片内容；真实截图仍只保存在本轮本地目录。插件传输不套用此内置 hook，
 没有匹配证据时不会伪报截图回流。GUI-only 违规使业务/鼠标轨道也失败。
 旧报告不重评分，不把新增业务轨道加入原 strict 分母。
+
+
+## 可选规划/定位分离（M4）
+
+Agent markdown frontmatter 增加 `grounding: {}` 即启用分离模式；删除该键
+回到原一体模式。仓库默认定义未启用。默认复用规划 LLM，可以独立指定
+`profile` 和可选 `fallback_profile`（必须已存在于 `llm` 配置，拼错不回退）。
+适配参数为 `protocol: point|pixels|bbox`、`nullable_style`、`strict`、`detail`
+和 `status_field`；分离默认使用显式 status，做 B/C 对照时需显式冻结相同参数。
+后备 profile 使用同一协议配置，模型切换不自动切换坐标协议。
+
+```yaml
+grounding:
+  profile: computer_use  # 省略则复用规划模型
+  protocol: point
+  status_field: true
+```
+
+- Runner 为每个任务建立独立工具视图、FrameState、图片和定位引用，不修改
+  父 ToolManager。分离提示明确覆盖定义正文的旧坐标/调用格式约定，
+  保留其余自定义任务要求、workspace/security 和按实际工具生成的澄清指引。
+  只支持已有 macOS frame 工具；不改变 SDK 或 Linux 路径。
+- `screenshot` 自动走 M2 image 模式；`locate(frame_id, target, window_id?, backend?)`
+  只发送已绑定 PNG 和目标描述。窗口身份由宿主检查和裁剪约束，不信任模型
+  返回 frame。规划器得到 status/frame 和不可伪造的随机 `location_id`，不接收坐标。
+- click/mouse_move/scroll 使用 `location_id`，drag 另需 `end_location_id`。宿主
+  从引用读取坐标，经同一个 M2 逆映射和场景校验派发；拒绝规划器传 x/y、bbox、
+  legacy 模式或 ctx。分离模式不提供原始 mouse_down/mouse_up。
+- 新截图作废旧引用；定位失败/歧义作废可执行引用。定位前后均复核画面，
+  动作前再检查 frame、窗口、几何和像素。每步最多首次定位加两次重定位，
+  重新截图不重置次数；primary/fallback 最多切换一次，且没有自动网络重试。
+- 共享 SubAgentBudget 只由规划流和定位响应各记一次；无 usage 记录 unknown，
+  有预算上限时停止。取消或 deadline 会中断定位 HTTP，并在派发前再检查。
+  命名定位 profile 的客户端在任务退出时关闭；已开始的原生键盘/启动操作
+  会等待收尾后再释放桌面锁，不宣称中途即时终止物理输入。
+- 单动作返回新截图；短 batch 最多 8 步，只能使用该任务允许的动作，固定
+  目标逐步重新检查。页面变化使后续旧引用失败，首错即停，剩余步骤标 skipped；
+  相同失败 batch 不允许盲目重放。返回 `dispatch=dispatched|error` 和
+  `effect=unknown`，截图由规划器检查，不把事件投递当作效果成功。
+
+验证覆盖离线真实 Runner/ToolManager/SDK 和 M2 macOS 边界；不代表模型会选对
+目标、识别正确或真实动态 UI 稳定。M5 因果对照与 M6 真机停止/效果仍待执行。

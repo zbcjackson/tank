@@ -632,9 +632,8 @@ causes exactly one HTTP request (wrapper and SDK retries both disabled).
 The matrix now rejects `finish_reason=length` even with syntactically complete
 tool arguments, retaining raw arguments and usage. This is tested via real SDK
 HTTP, not a mock completion. Existing LLM retry/profile/trace tests cover the
-unchanged `complete()` text API. No new planner dispatch exists yet, so existing
-E2E scenarios are regression coverage; shared task accounting, locate dispatch
-and physical cancellation remain M4/M6 acceptance work. These tests use no paid
+unchanged `complete()` text API. M4 planner dispatch and shared accounting are covered by the split-mode tests
+below; physical cancellation remains M6 acceptance work. These tests use no paid
 model calls or desktop actions.
 
 `run_grounding_holdout.py` consumes a frozen request schedule with the production
@@ -652,3 +651,19 @@ must abstain. SDK tests cover the transmitted rule and point/pixel/bbox integer
 and nullable sentinels. Historical manifests remain immutable: old-source
 holdout freezes fail validation after the prompt change. HTTP failure tests use
 temporary current-contract freezes rather than rewriting historical evidence.
+
+
+M4 `core/tests/test_computer_locate.py` exercises actual Runner → LLMAgent →
+ToolManager → GroundingAdapter → SDK, replacing only HTTP and macOS boundaries.
+It verifies current-image bytes, absence of planner history in locator requests,
+same-model and separate-profile selection, reference-only actions, single shared
+accounting, refusal/invalid/truncated responses, unknown usage, scene/frame/window
+changes, retry/backend-switch limits, drag references and batch failure feedback.
+Cancellation/deadline tests interrupt HTTP and stop input at frame validation.
+The existing `chat.feature` runs selected dispatch/stop contracts through Cucumber;
+these isolated scenarios reuse pytest and do not claim browser/WS dispatch coverage.
+No paid model call or physical desktop event occurs in these tests.
+
+On this host, full pytest needs the installed Opus library search path:
+`uv run --no-sync env DYLD_LIBRARY_PATH=/opt/homebrew/Cellar/opus/1.6.1/lib pytest`.
+This is an environment setting, not an audio-code workaround.
