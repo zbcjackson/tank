@@ -1,5 +1,6 @@
 """Tests for LLM retry logic with exponential backoff."""
 
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -258,3 +259,27 @@ async def test_chat_completion_async_uses_retry(llm, mock_completion):
 
             assert mock_create.call_count == 2
             assert result["choices"][0]["message"]["content"] == "Test response"
+
+
+async def test_explicit_no_retry_disables_sdk_and_application_attempts(monkeypatch):
+    import httpx
+    from openai import AsyncOpenAI, RateLimitError
+
+    from tank_backend.llm import llm as module
+
+    sent = []
+    def respond(request):
+        sent.append(request)
+        return httpx.Response(429, json={"error": {"message": "limited"}})
+    client = AsyncOpenAI(api_key="test", http_client=httpx.AsyncClient(
+        transport=httpx.MockTransport(respond)))
+    monkeypatch.setattr(module, "AsyncOpenAI", lambda **kwargs: client)
+    monkeypatch.setattr(module, "initialize_langfuse", lambda: None)
+    llm = module.LLM(api_key="test", model="test", base_url="https://offline.invalid/v1")
+    llm.disable_retries()
+    try:
+        with pytest.raises(RateLimitError):
+            await llm.complete_response(messages=[{"role": "user", "content": "hello"}])
+    finally:
+        await client.close()
+    assert len(sent) == 1

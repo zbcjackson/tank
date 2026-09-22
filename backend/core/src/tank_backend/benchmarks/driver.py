@@ -42,8 +42,15 @@ from ..pipeline.bus import Bus
 from ..plugin.registry import ExtensionRegistry
 from ..policy.verdict import AlwaysApproveResolver
 from ..tools.base import BaseTool, ToolInfo, ToolMetadata, ToolResult
+from ..tools.computer_grounding import grounding_call_id
 from ..tools.computer_use_common import BATCH_ACTIONS
 from ..tools.manager import ToolManager
+from .request_budget import (
+    RequestBudget,
+    RequestLimitExceeded,
+    RequestLimits,
+    active_request_budget,
+)
 from .trace import TraceSink
 
 if TYPE_CHECKING:
@@ -361,10 +368,13 @@ class SubAgentDriver:
         self._tool_manager = tool_manager
         self._trace: TraceSink | None = None
         self._runtime_metadata: dict[str, Any] = {}
+        self._request_limits: RequestLimits | None = None
+        self._request_budget: RequestBudget | None = None
 
     @classmethod
     def create(
-        cls, agent_name: str, config_path: Path | None = None
+        cls, agent_name: str, config_path: Path | None = None, *,
+        request_limits: RequestLimits | None = None,
     ) -> SubAgentDriver:
         """Assemble the stack from repo config (config.yaml + agents/*.md)."""
         from dotenv import load_dotenv
@@ -387,20 +397,37 @@ class SubAgentDriver:
             raise ValueError(
                 f"agent definition '{agent_name}' not found in {agent_dirs}"
             )
+        if request_limits is not None and (agent_def.engine or agent_def.extension):
+            raise ValueError("Request limits require the built-in benchmark transport")
 
         profile_name = agent_def.model or app_config.agents.llm_profile
         profile: LLMProfile = app_config.get_llm_profile(profile_name)
         from ..llm.profile import create_llm_from_profile
 
         llm = CountingLLM(create_llm_from_profile(profile))
+        if request_limits is not None:
+            llm.disable_retries()
 
         bus = Bus()
         tool_manager = ToolManager(app_config, bus=bus)
 
         driver = cls.__new__(cls)
         driver._trace = None
+        driver._request_limits = request_limits
+        driver._request_budget = None
 
         async def capture_request(request: httpx.Request) -> None:
+            if request_limits is not None:
+                budget = active_request_budget.get()
+                if budget is None or budget is not driver._request_budget or not budget.active:
+                    raise RequestLimitExceeded("request outside active trial")
+                role = "locator" if grounding_call_id.get() is not None else "planner"
+                try:
+                    budget.reserve(role)
+                except RequestLimitExceeded:
+                    if driver._trace is not None:
+                        driver._trace.event("request_blocked", role=role, **budget.snapshot())
+                    raise
             if driver._trace is not None:
                 await driver._trace.capture_request(request)
 
@@ -414,6 +441,8 @@ class SubAgentDriver:
 
         def measured_llm(profile: LLMProfile) -> LLM:
             inner = create_llm_from_profile(profile)
+            if request_limits is not None:
+                inner.disable_retries()
             if capture_request not in inner.client._client.event_hooks["request"]:
                 inner.client._client.event_hooks["request"].append(capture_request)
             if capture_response not in inner.client._client.event_hooks["response"]:
@@ -502,10 +531,30 @@ class SubAgentDriver:
                 "extension": definition.extension, "config": summary,
                 "prompt_revision": hashlib.sha256(definition.system_prompt.encode()).hexdigest(),
                 **self._runtime_metadata,
+                "request_limits": asdict(self._request_limits) if self._request_limits else None,
                 "grounding": asdict(definition.grounding) if definition.grounding else None,
                 "token_budget": definition.token_budget}
 
     async def run(
+        self, instruction: str, trace: TraceSink, *, timeout_s: int, max_steps: int,
+    ) -> DriverResult:
+        if self._request_limits is None:
+            return await self._run(instruction, trace, timeout_s=timeout_s, max_steps=max_steps)
+        if self._request_budget is not None and self._request_budget.active:
+            raise RuntimeError("Bounded benchmark trials must run serially")
+        budget = RequestBudget(self._request_limits)
+        self._request_budget = budget
+        token = active_request_budget.set(budget)
+        try:
+            return await self._run(instruction, trace, timeout_s=timeout_s, max_steps=max_steps)
+        finally:
+            budget.active = False
+            active_request_budget.reset(token)
+            summary = budget.snapshot()
+            self._runtime_metadata["request_budget"] = summary
+            trace.event("request_budget", **summary)
+
+    async def _run(
         self, instruction: str, trace: TraceSink, *, timeout_s: int, max_steps: int,
     ) -> DriverResult:
         self._trace = trace
@@ -623,6 +672,8 @@ class SubAgentDriver:
             terminal["cleanup"] = "confirmed"
         if timed_out:
             terminal["stop_reason"] = "timeout"
+        if self._request_budget is not None and self._request_budget.blocked:
+            terminal["stop_reason"] = "request_limit"
         if "sdk_version" in terminal:
             self._runtime_metadata["sdk_version"] = terminal["sdk_version"]
         wall_s = time.monotonic() - start

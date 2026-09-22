@@ -379,6 +379,149 @@ async def locator(desktop, monkeypatch):
         await client.close()
 
 
+@pytest.mark.parametrize("mode,planner_cap,locator_cap,total_cap,fail_role,status,calls,clicks", [
+    ("legacy", 16, 15, 31, "planner", 200, 3, 1),
+    ("integrated", 16, 15, 31, "planner", 200, 3, 1),
+    ("split", 16, 15, 31, "planner", 200, 5, 1),
+    ("legacy", 1, 15, 31, "planner", 200, 1, 0),
+    ("integrated", 1, 15, 31, "planner", 200, 1, 0),
+    ("split", 1, 15, 31, "planner", 200, 1, 0),
+    ("split", 16, 0, 31, "planner", 200, 2, 0),
+    ("split", 16, 15, 3, "planner", 200, 3, 0),
+    ("legacy", 0, 15, 31, "planner", 200, 0, 0),
+    ("legacy", 16, 15, 31, "planner", 429, 1, 0),
+    ("integrated", 16, 15, 31, "planner", 503, 1, 0),
+    ("split", 16, 15, 31, "locator", 429, 3, 0),
+    ("split", 16, 15, 31, "locator", 503, 3, 0),
+])
+async def test_benchmark_request_gate_covers_actual_clients(
+    desktop, monkeypatch, tmp_path, mode, planner_cap, locator_cap, total_cap,
+    fail_role, status, calls, clicks,
+):
+    import asyncio
+    from contextvars import copy_context
+    from types import SimpleNamespace
+
+    from openai import APIConnectionError
+
+    from tank_backend.agents.definition import GroundingConfig
+    from tank_backend.benchmarks import driver as driver_module
+    from tank_backend.benchmarks.request_budget import RequestLimits, active_request_budget
+    from tank_backend.benchmarks.trace import TraceSink
+    from tank_backend.llm.profile import LLMProfile
+
+    manager, click, _ = desktop
+    sent, clients, contexts = [], [], []
+    planner_turn = 0
+
+    def respond(request):
+        nonlocal planner_turn
+        body = json.loads(request.content)
+        if not contexts:
+            contexts.append(copy_context())
+        sent.append(body)
+        role = "planner" if body.get("stream") else "locator"
+        if status != 200 and role == fail_role:
+            return httpx.Response(status, json={"error": {"message": "synthetic failure"}})
+        if role == "locator":
+            return httpx.Response(200, json={
+                "id": "locator", "object": "chat.completion", "created": 1,
+                "model": "locator-model", "choices": [{"index": 0, "finish_reason": "tool_calls",
+                    "message": {"role": "assistant", "tool_calls": [{"id": "g",
+                        "type": "function", "function": {"name": "click",
+                        "arguments": '{"found":true,"x":500,"y":500}'}}]}}],
+                "usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5}})
+        planner_turn += 1
+        if planner_turn == 1:
+            return stream("screenshot", {})
+        if mode == "legacy":
+            return stream("click", {"x": 500, "y": 500}) if planner_turn == 2 else stream(None, {})
+        if planner_turn == 2:
+            text = next(p["text"] for m in body["messages"]
+                        if isinstance(m.get("content"), list) for p in m["content"]
+                        if p["type"] == "text" and "frame_id" in p["text"])
+            frame = json.loads(text[text.index("{"):])["frame_id"]
+            if mode == "split":
+                return stream("locate", {"frame_id": frame, "target": "red center"})
+            return stream("click", {"frame_id": frame,
+                                    "location": {"found": True, "x": 500, "y": 500}})
+        if mode == "split" and planner_turn == 3:
+            result = json.loads(next(m["content"] for m in body["messages"]
+                                     if m.get("name") == "locate"))
+            return stream("click", {"location_id": result["location_id"]})
+        return stream(None, {})
+
+    def client_factory(**kwargs):
+        client = AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(respond)))
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(llm_module, "AsyncOpenAI", client_factory)
+    monkeypatch.setattr(llm_module, "initialize_langfuse", lambda: None)
+    grounding = None if mode == "legacy" else GroundingConfig(
+        mode=mode, status_field=False, profile="locator" if mode == "split" else None)
+    definition = AgentDefinition("bounded", "", "Use the GUI.", model="planner",
+                                 tool_filter=("screenshot", "click"), grounding=grounding,
+                                 token_budget=300000)
+    profiles = {name: LLMProfile(name, "test", name + "-model", "https://offline.invalid/v1")
+                for name in ("planner", "locator")}
+    config = SimpleNamespace(agents=SimpleNamespace(dirs=[], llm_profile="planner"),
+                             llm_profiles=profiles, get_llm_profile=profiles.__getitem__,
+                             toolsets=None)
+    monkeypatch.setattr(driver_module.AppConfig, "load", lambda _: config)
+    monkeypatch.setattr(driver_module, "load_agent_definitions", lambda _: {"bounded": definition})
+    manager._approval_policy = ToolApprovalPolicy(computer_mode="allow")
+    monkeypatch.setattr(driver_module, "ToolManager", lambda *a, **kw: manager)
+    trace = TraceSink(tmp_path / "trial")
+    try:
+        driver = driver_module.SubAgentDriver.create("bounded", tmp_path / "config.yaml",
+            request_limits=RequestLimits(planner_cap, locator_cap, total_cap))
+        assert driver.describe()["request_limits"] == {
+            "planner": planner_cap, "locator": locator_cap, "total": total_cap}
+        result = await driver.run("click red center", trace, timeout_s=5, max_steps=10)
+        assert active_request_budget.get() is None
+        if clicks:
+            trace.close()
+            first_trace = (tmp_path / "trial/trace.jsonl").read_bytes()
+            # A delayed request with its old task context must not consume a new allowance.
+            late = contexts[0].run(asyncio.create_task,
+                clients[0].with_options(max_retries=0).chat.completions.create(
+                    model="late", messages=[{"role": "user", "content": "late"}]))
+            with pytest.raises(APIConnectionError):
+                await late
+            assert len(sent) == calls
+            sent.clear()
+            click.reset_mock()
+            planner_turn = 0
+            second = TraceSink(tmp_path / "second")
+            try:
+                again = await driver.run("click red center", second, timeout_s=5, max_steps=10)
+                assert again.error is None
+            finally:
+                second.close()
+            assert (tmp_path / "trial/trace.jsonl").read_bytes() == first_trace
+            assert driver.describe()["request_budget"]["total"] == calls
+    finally:
+        trace.close()
+        for client in clients:
+            await client.close()
+    assert len(sent) == calls
+    assert click.call_count == clicks
+    assert (result.error is None) == bool(clicks)
+    records = [json.loads(line) for line in
+               (tmp_path / "trial/trace.jsonl").read_text().splitlines()]
+    summary = next(r for r in records if r["kind"] == "request_budget")
+    assert summary["total"] == calls
+    assert summary["planner"] == sum(bool(b.get("stream")) for b in sent)
+    assert summary["locator"] == sum(not b.get("stream") for b in sent)
+    assert len([r for r in records if r["kind"] == "http_request"]) == calls
+    if not clicks and status == 200:
+        assert result.stop_reason == "request_limit"
+        assert summary["blocked"] is True
+    assert result.cleanup == "unknown"  # Admission control does not certify physical cleanup.
+
+
 async def observe(control):
     from tank_backend.core.content import TextBlock
     from tank_backend.tools.base import ToolResult

@@ -365,6 +365,7 @@ class LLM:
         self.max_tokens = max_tokens
         self.stream_options = stream_options
         self.extra_body = extra_body or {}
+        self._retries_enabled = True
 
         initialize_langfuse()
 
@@ -377,8 +378,15 @@ class LLM:
 
     _RETRYABLE_ERRORS = (RateLimitError, APITimeoutError, APIConnectionError, InternalServerError)
 
+    def disable_retries(self) -> None:
+        """Disable both application and SDK retries for this client instance."""
+        self._retries_enabled = False
+
     async def _create_with_retry(self, **api_kwargs: Any) -> Any:
         """Call chat.completions.create with exponential backoff on transient errors."""
+        if not self._retries_enabled:
+            client = self.client.with_options(max_retries=0)
+            return await client.chat.completions.create(**api_kwargs)
         last_exc: Exception | None = None
         for attempt in range(1, MAX_RETRY_ATTEMPTS + 1):
             try:
