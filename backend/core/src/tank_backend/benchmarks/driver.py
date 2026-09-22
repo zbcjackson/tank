@@ -584,16 +584,20 @@ class SubAgentDriver:
                 spend_token = active_spend_session.set(session)
             return await self._run(instruction, trace, timeout_s=timeout_s, max_steps=max_steps)
         finally:
-            if session is not None and self._spend is not None:
-                self._spend.finish(session)
-                self._runtime_metadata["spend_budget"] = self._spend.ledger.snapshot()
-            if spend_token is not None:
-                active_spend_session.reset(spend_token)
-            budget.active = False
-            active_request_budget.reset(token)
-            summary = budget.snapshot()
-            self._runtime_metadata["request_budget"] = summary
-            trace.event("request_budget", **summary)
+            try:
+                if session is not None and self._spend is not None:
+                    try:
+                        self._spend.finish(session)
+                    finally:
+                        self._runtime_metadata["spend_budget"] = self._spend.ledger.snapshot()
+            finally:
+                if spend_token is not None:
+                    active_spend_session.reset(spend_token)
+                budget.active = False
+                active_request_budget.reset(token)
+                summary = budget.snapshot()
+                self._runtime_metadata["request_budget"] = summary
+                trace.event("request_budget", **summary)
 
     async def _run(
         self, instruction: str, trace: TraceSink, *, timeout_s: int, max_steps: int,

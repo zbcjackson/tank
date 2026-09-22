@@ -8,7 +8,47 @@ import pytest
 from openai import APIConnectionError, AsyncOpenAI
 
 
+async def test_journal_failure_during_driver_finish_releases_contexts(tmp_path, monkeypatch):
+    import os
+    from unittest.mock import Mock
+
+    from tank_backend.benchmarks.driver import DriverResult, SubAgentDriver
+    from tank_backend.benchmarks.request_budget import RequestLimits, active_request_budget
+    from tank_backend.benchmarks.spend_http import SpendControl, active_spend_session
+    from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit, SpendLimitExceeded
+    from tank_backend.benchmarks.trace import TraceSink
+
+    ledger = SpendLedger(SpendLimit(100, 1000), journal=tmp_path / "spend.jsonl")
+    control = SpendControl(ledger, SpendLimit(100, 1000), ())
+    driver = SubAgentDriver(Mock(), Mock(), Mock(), Mock())
+    driver._request_limits = RequestLimits()
+    driver._spend = control
+
+    def fail_sync(fd):
+        raise OSError("disk failed at finish")
+
+    async def run(*args, **kwargs):
+        monkeypatch.setattr(os, "fsync", fail_sync)
+        return DriverResult("done", 0, 0, 0, 0, False, None)
+
+    monkeypatch.setattr(driver, "_run", run)
+    trace = TraceSink(tmp_path / "trial")
+    old_spend, old_request = active_spend_session.get(), active_request_budget.get()
+    try:
+        with pytest.raises(SpendLimitExceeded, match="persistence_error"):
+            await driver.run("test", trace, timeout_s=1, max_steps=1)
+        assert active_spend_session.get() is old_spend
+        assert active_request_budget.get() is old_request
+        assert control.active is None
+        assert driver._request_budget is not None and not driver._request_budget.active
+    finally:
+        monkeypatch.undo()
+        ledger.close()
+        trace.close()
+
+
 @pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("durable", [False, True])
 @pytest.mark.parametrize(
     "usage_case",
     [
@@ -20,6 +60,7 @@ from openai import APIConnectionError, AsyncOpenAI
         "limit",
         "read_error",
         "cancelled",
+        "write_error",
     ],
 )
 async def test_http_request_reserves_before_transport_and_settles_sdk_usage(
@@ -27,6 +68,7 @@ async def test_http_request_reserves_before_transport_and_settles_sdk_usage(
     tmp_path,
     stream,
     usage_case,
+    durable,
 ):
     from tank_backend.benchmarks.spend_http import ContextWindowContract, SpendControl
     from tank_backend.benchmarks.spend_ledger import (
@@ -38,7 +80,8 @@ async def test_http_request_reserves_before_transport_and_settles_sdk_usage(
     from tank_backend.benchmarks.trace import TraceSink
     from tank_backend.llm import llm as module
 
-    ledger = SpendLedger(SpendLimit(49 if usage_case == "limit" else 100, 1000))
+    journal = tmp_path / "spend.jsonl" if durable or usage_case == "write_error" else None
+    ledger = SpendLedger(SpendLimit(49 if usage_case == "limit" else 100, 1000), journal=journal)
     control = SpendControl(
         ledger,
         SpendLimit(100, 1000),
@@ -74,6 +117,10 @@ async def test_http_request_reserves_before_transport_and_settles_sdk_usage(
 
     def respond(request):
         assert ledger.snapshot()["batch"]["reserved_tokens"] == 50
+        if journal is not None:
+            saved = json.loads(journal.read_text().splitlines()[-1])
+            assert saved["batch"]["reserved_tokens"] == 50
+            assert saved["requests"][session.pending]["status"] == "pending"
         sent.append(request)
         if usage_case in {"read_error", "cancelled"}:
 
@@ -168,6 +215,16 @@ async def test_http_request_reserves_before_transport_and_settles_sdk_usage(
     )
     llm.disable_retries()
     llm.on_response_usage = session.settle
+    if usage_case == "write_error":
+        import os
+
+        original_sync = os.fsync
+
+        def fail_once(fd):
+            monkeypatch.setattr(os, "fsync", original_sync)
+            raise OSError("reservation sync failed")
+
+        monkeypatch.setattr(os, "fsync", fail_once)
 
     async def run():
         if stream:
@@ -187,10 +244,10 @@ async def test_http_request_reserves_before_transport_and_settles_sdk_usage(
     try:
         if usage_case == "known":
             await run()
-        elif usage_case in {"limit", "read_error", "cancelled"}:
+        elif usage_case in {"limit", "read_error", "cancelled", "write_error"}:
             error = (
                 APIConnectionError
-                if usage_case == "limit"
+                if usage_case in {"limit", "write_error"}
                 else asyncio.CancelledError
                 if usage_case == "cancelled"
                 else httpx.ReadError
@@ -206,7 +263,8 @@ async def test_http_request_reserves_before_transport_and_settles_sdk_usage(
         control.finish(session)
         trace.close()
         await client.close()
-    assert len(sent) == (0 if usage_case == "limit" else 1)
+        ledger.close()
+    assert len(sent) == (0 if usage_case in {"limit", "write_error"} else 1)
     assert actions == []
     snapshot = ledger.snapshot()
     if usage_case == "limit":
@@ -223,6 +281,10 @@ async def test_http_request_reserves_before_transport_and_settles_sdk_usage(
         assert snapshot["batch"]["reserved_tokens"] == 50
         assert snapshot["stop_reason"] is not None
     records = [json.loads(line) for line in (tmp_path / "trace.jsonl").read_text().splitlines()]
+    if usage_case == "write_error":
+        assert snapshot["stop_reason"] == "persistence_error"
+        assert not any(row["kind"] == "http_request" for row in records)
+        return
     request_id = next(row["request_id"] for row in records if row["kind"] == "http_request")
     assert request_id in snapshot["requests"]
 

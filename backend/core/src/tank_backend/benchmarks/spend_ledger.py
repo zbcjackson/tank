@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import asdict, dataclass
-from typing import TypedDict
+from pathlib import Path
+from typing import TextIO, TypedDict
 
 
 class SpendLimitExceeded(RuntimeError):
@@ -61,20 +64,62 @@ class SpendSnapshot(TypedDict):
 class SpendLedger:
     """One serial batch; monetary units are integer billionths of one USD."""
 
-    def __init__(self, limit: SpendLimit) -> None:
+    def __init__(self, limit: SpendLimit, *, journal: Path | None = None) -> None:
         self._limit = limit
         self._trials: dict[str, SpendLimit] = {}
         self._requests: dict[str, _Reservation] = {}
         self._active: str | None = None
         self._stop_reason: str | None = None
+        self._journal: TextIO | None = None
+        self._closed = False
+        if journal is not None:
+            self._journal = journal.open("x", encoding="utf-8")
+            try:
+                self._persist()
+                directory = os.open(journal.parent, os.O_RDONLY)
+                try:
+                    os.fsync(directory)
+                finally:
+                    os.close(directory)
+            except BaseException:
+                self._journal.close()
+                self._closed = True
+                raise
+
+    def _persist(self) -> None:
+        if self._journal is None:
+            return
+        try:
+            self._journal.write(json.dumps(self.snapshot(), ensure_ascii=False) + "\n")
+            self._journal.flush()
+            os.fsync(self._journal.fileno())
+        except OSError as exc:
+            self._stop_reason = self._stop_reason or "persistence_error"
+            raise SpendLimitExceeded("persistence_error") from exc
+
+    def close(self) -> None:
+        """Retain unfinished reservations; existing journals are never resumed."""
+        if self._closed:
+            return
+        try:
+            self.finish_trial()
+        finally:
+            self._closed = True
+            if self._journal is not None:
+                self._journal.close()
 
     def _check_running(self) -> None:
+        if self._closed:
+            raise SpendLimitExceeded("ledger_closed")
         if self._stop_reason is not None:
             raise SpendLimitExceeded(self._stop_reason)
 
     def stop(self, reason: str) -> None:
         """Latch an external contract failure without releasing pending reservations."""
+        if self._closed:
+            raise SpendLimitExceeded("ledger_closed")
         self._stop_reason = self._stop_reason or reason
+        self._persist()
 
     def start_trial(self, trial: str, limit: SpendLimit) -> None:
         self._check_running()
@@ -82,6 +127,7 @@ class SpendLedger:
             raise ValueError("Trials must be serial and have unique IDs")
         self._trials[trial] = limit
         self._active = trial
+        self._persist()
 
     def reserve(self, request_id: str, allowance: TokenAllowance) -> None:
         self._check_running()
@@ -103,12 +149,16 @@ class SpendLedger:
             for dimension, added in (("tokens", added_tokens), ("nano_usd", added_cost)):
                 if totals[f"charged_{dimension}"] + added > totals[f"limit_{dimension}"]:
                     self._stop_reason = f"{scope}_{dimension}"
+                    self._persist()
                     raise SpendLimitExceeded(self._stop_reason)
         self._requests[request_id] = _Reservation(self._active, allowance)
+        self._persist()
 
     def settle(
         self, request_id: str, *, input_tokens: int | None, output_tokens: int | None
     ) -> None:
+        if self._closed:
+            raise SpendLimitExceeded("ledger_closed")
         request = self._requests[request_id]
         if request.status != "pending":
             raise ValueError("Request already settled")
@@ -132,12 +182,16 @@ class SpendLedger:
             self._stop_reason = self._stop_reason or "bound_exceeded"
         else:
             request.status = "known"
+        self._persist()
 
     def finish_trial(self) -> None:
+        if self._closed:
+            raise SpendLimitExceeded("ledger_closed")
         for request_id, request in self._requests.items():
             if request.trial == self._active and request.status == "pending":
                 self.settle(request_id, input_tokens=None, output_tokens=None)
         self._active = None
+        self._persist()
 
     def _totals(self, limit: SpendLimit, trial: str | None = None) -> dict[str, int]:
         tokens = cost = known_tokens = known_cost = 0

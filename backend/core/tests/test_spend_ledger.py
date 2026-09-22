@@ -3,6 +3,104 @@
 import pytest
 
 
+def test_durable_reservation_is_readable_before_send_and_cannot_be_replayed(tmp_path):
+    import json
+
+    from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit, TokenAllowance
+
+    path = tmp_path / "spend.jsonl"
+    ledger = SpendLedger(SpendLimit(100, 1000), journal=path)
+    ledger.start_trial("A", SpendLimit(60, 600))
+    ledger.reserve("request", TokenAllowance(30, 20, 2, 5))
+    saved = json.loads(path.read_text().splitlines()[-1])
+    assert saved["batch"]["reserved_tokens"] == 50
+    assert saved["requests"]["request"]["status"] == "pending"
+    with pytest.raises(FileExistsError):
+        SpendLedger(SpendLimit(100, 1000), journal=path)
+    ledger.finish_trial()
+    ledger.close()
+    saved = json.loads(path.read_text().splitlines()[-1])
+    assert saved["requests"]["request"]["status"] == "unknown"
+    assert saved["batch"]["reserved_tokens"] == 50
+    assert saved["stop_reason"] == "unknown_usage"
+
+
+@pytest.mark.parametrize("operation", ["reserve", "settle"])
+def test_journal_sync_failure_stops_admission(monkeypatch, tmp_path, operation):
+    import os
+
+    from tank_backend.benchmarks.spend_ledger import (
+        SpendLedger,
+        SpendLimit,
+        SpendLimitExceeded,
+        TokenAllowance,
+    )
+
+    ledger = SpendLedger(SpendLimit(100, 1000), journal=tmp_path / "spend.jsonl")
+    ledger.start_trial("A", SpendLimit(100, 1000))
+    if operation == "settle":
+        ledger.reserve("request", TokenAllowance(30, 20, 2, 5))
+
+    def fail_sync(fd):
+        raise OSError("disk failure")
+
+    with monkeypatch.context() as failure:
+        failure.setattr(os, "fsync", fail_sync)
+        with pytest.raises(SpendLimitExceeded, match="persistence_error"):
+            if operation == "reserve":
+                ledger.reserve("request", TokenAllowance(30, 20, 2, 5))
+            else:
+                ledger.settle("request", input_tokens=3, output_tokens=2)
+    with pytest.raises(SpendLimitExceeded, match="persistence_error"):
+        ledger.reserve("next", TokenAllowance(1, 1, 1, 1))
+    ledger.close()
+
+
+def test_closed_journal_rejects_all_mutations(tmp_path):
+    from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit, SpendLimitExceeded
+
+    ledger = SpendLedger(SpendLimit(100, 1000), journal=tmp_path / "spend.jsonl")
+    ledger.close()
+    ledger.close()
+    with pytest.raises(SpendLimitExceeded, match="ledger_closed"):
+        ledger.start_trial("A", SpendLimit(100, 1000))
+    with pytest.raises(SpendLimitExceeded, match="ledger_closed"):
+        ledger.finish_trial()
+    with pytest.raises(SpendLimitExceeded, match="ledger_closed"):
+        ledger.stop("later")
+
+
+def test_process_exit_leaves_synced_pending_reservation(tmp_path):
+    import json
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit
+
+    path = tmp_path / "spend.jsonl"
+    result = subprocess.run(
+        [sys.executable, "-c", """
+import os, sys
+from pathlib import Path
+from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit, TokenAllowance
+ledger = SpendLedger(SpendLimit(100, 1000), journal=Path(sys.argv[1]))
+ledger.start_trial('A', SpendLimit(60, 600))
+ledger.reserve('request', TokenAllowance(30, 20, 2, 5))
+os._exit(17)
+""", str(path)],
+        env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")},
+        capture_output=True, text=True, timeout=10,
+    )
+    assert result.returncode == 17, result.stderr
+    saved = json.loads(path.read_text().splitlines()[-1])
+    assert saved["requests"]["request"]["status"] == "pending"
+    assert saved["batch"]["reserved_tokens"] == 50
+    with pytest.raises(FileExistsError):
+        SpendLedger(SpendLimit(100, 1000), journal=path)
+
+
 def test_known_usage_releases_only_unused_reservation_across_trials():
     from tank_backend.benchmarks.spend_ledger import (
         SpendLedger,

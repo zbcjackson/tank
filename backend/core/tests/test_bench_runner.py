@@ -484,6 +484,118 @@ def _make_suite(tmp_path: Path) -> Path:
     return suite_dir
 
 
+@pytest.mark.parametrize("stop_case", ["none", "cleanup", "usage", "budget", "cancelled"])
+async def test_serial_batch_shares_durable_spend_and_refuses_replay(
+    tmp_path, monkeypatch, stop_case,
+):
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from tank_backend.benchmarks import runner
+    from tank_backend.benchmarks.batch import BatchTrial, run_batch
+    from tank_backend.benchmarks.driver import SubAgentDriver
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.spend_ledger import SpendLimit, TokenAllowance
+
+    suite = _make_suite(tmp_path)
+    order = []
+    controls = []
+
+    def create(agent_name, config_path, *, request_limits, spend):
+        controls.append(spend)
+
+        class Driver:
+            async def run(self, instruction, trace, *, timeout_s, max_steps):
+                session = spend.start(trace)
+                spend.ledger.reserve(agent_name, TokenAllowance(30, 20, 2, 5))
+                saved = json.loads((tmp_path / "out" / "spend.jsonl").read_text().splitlines()[-1])
+                assert saved["requests"][agent_name]["status"] == "pending"
+                order.append(agent_name)
+                if stop_case == "cancelled":
+                    raise asyncio.CancelledError()
+                spend.ledger.settle(
+                    agent_name, input_tokens=None if stop_case == "usage" else 3, output_tokens=2,
+                )
+                spend.finish(session)
+                return DriverResult(
+                    "done", 1, 0.1, 5, 0, False, None,
+                    cleanup="unknown" if stop_case == "cleanup" else "confirmed",
+                )
+
+        return Driver()
+
+    monkeypatch.setattr(SubAgentDriver, "create", create)
+    monkeypatch.setattr(runner, "run_shell", AsyncMock(return_value=SimpleNamespace(stdout="")))
+    for name in (
+        "save_current_input_source", "pin_ascii_input_source", "restore_saved_input_source",
+    ):
+        monkeypatch.setattr(runner, name, lambda: None)
+    entries = tuple(
+        BatchTrial(key, suite, "t1", key, tmp_path / "config.yaml", "linux")
+        for key in ("a", "b", "c")
+    )
+    async def invoke():
+        return await run_batch(
+            entries, out_dir=tmp_path / "out",
+            batch_limit=SpendLimit(54 if stop_case == "budget" else 100, 1000),
+            trial_limit=SpendLimit(60, 600), request_limits=RequestLimits(), contracts=(),
+        )
+    if stop_case == "cancelled":
+        with pytest.raises(asyncio.CancelledError):
+            await invoke()
+        result = json.loads((tmp_path / "out" / "batch-result.json").read_text())
+    else:
+        result = await invoke()
+    assert order == (["a", "b", "c"] if stop_case == "none" else ["a"])
+
+    assert len({id(c) for c in controls}) == 1
+    assert result["completed"] == {
+        "none": ["a", "b", "c"], "budget": ["a", "b"], "cancelled": [],
+        "cleanup": ["a"], "usage": ["a"],
+    }[stop_case]
+    assert result["spend"]["batch"]["charged_tokens"] == {
+        "none": 15, "budget": 5, "cancelled": 50, "cleanup": 5, "usage": 50,
+    }[stop_case]
+    assert result["spend"]["stop_reason"] == {
+        "none": None, "budget": "batch_tokens", "cancelled": "batch_interrupted",
+        "cleanup": "cleanup_unconfirmed", "usage": "unknown_usage",
+    }[stop_case]
+    with pytest.raises(FileExistsError):
+        await run_batch(
+            entries, out_dir=tmp_path / "out", batch_limit=SpendLimit(100, 1000),
+            trial_limit=SpendLimit(60, 600), request_limits=RequestLimits(), contracts=(),
+        )
+    assert order == (["a", "b", "c"] if stop_case == "none" else ["a"])
+
+@pytest.mark.parametrize("invalid", ["empty", "duplicate", "key", "task", "platform"])
+async def test_serial_batch_preflight_refuses_invalid_schedule(tmp_path, monkeypatch, invalid):
+    from dataclasses import replace
+    from unittest.mock import Mock
+
+    from tank_backend.benchmarks.batch import BatchTrial, run_batch
+    from tank_backend.benchmarks.driver import SubAgentDriver
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.spend_ledger import SpendLimit
+
+    entry = BatchTrial("a", _make_suite(tmp_path), "t1", "a", tmp_path / "config", "linux")
+    schedules = {
+        "empty": (), "duplicate": (entry, entry), "key": (replace(entry, key="../escape"),),
+        "task": (replace(entry, task_id="missing"),),
+        "platform": (replace(entry, platform="missing"),),
+    }
+    create = Mock()
+    monkeypatch.setattr(SubAgentDriver, "create", create)
+    with pytest.raises(ValueError):
+        await run_batch(
+            schedules[invalid], out_dir=tmp_path / "out", batch_limit=SpendLimit(100, 1000),
+            trial_limit=SpendLimit(60, 600), request_limits=RequestLimits(), contracts=(),
+        )
+    create.assert_not_called()
+    assert not (tmp_path / "out").exists()
+
+
+
 async def test_run_suite_pass_setup_validate_report(tmp_path):
     suite_dir = _make_suite(tmp_path)
     # Driver behavior: after "running", create the flag the validator checks.

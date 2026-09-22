@@ -213,10 +213,12 @@ class SpendControl:
     def finish(self, session: SpendSession) -> None:
         if self.active is not session or not session.active:
             raise ValueError("spend trial already closed or owned by another control")
-        self.ledger.finish_trial()
-        session.active = False
-        self.active = None
-        session.trace.event("spend_budget", **self.ledger.snapshot())
+        try:
+            self.ledger.finish_trial()
+        finally:
+            session.active = False
+            self.active = None
+            session.trace.event("spend_budget", **self.ledger.snapshot())
 
 
 class _SpendStream(httpx.AsyncByteStream):
