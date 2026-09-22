@@ -217,7 +217,7 @@ Responses remain bound to the requesting trace even if another trial has started
 Closing a trace finalizes partial archives and missing-response entries; late bytes
 or headers cannot mutate the closed trial or write into the next one. This is trace
 lifecycle handling, not evidence that model work or physical input has stopped.
-Semantic failure attribution, paired scheduling, enforced budgets/retry limits and
+Semantic failure attribution, paired scheduling, token/cost reservations and
 verified desktop cleanup remain prerequisites for live M5 runs. Historical request
 freezes remain unchanged; freeze the final executor revision again before live work.
 
@@ -253,3 +253,39 @@ evidence and do not bypass the reference-only planner interface. Distinguishing
 wrong target selection from a coordinate miss still requires independent truth
 and task validation. Integrated A/B and post-dispatch effect attribution are not
 covered by these split-locator events. No new model scores are implied.
+
+### Per-trial HTTP admission limits (M5)
+
+Built-in drivers can explicitly enable request admission limits through the Python API:
+
+```python
+from tank_backend.benchmarks.driver import SubAgentDriver
+from tank_backend.benchmarks.request_budget import RequestLimits
+
+driver = SubAgentDriver.create(
+    "computer-use", request_limits=RequestLimits(planner=16, locator=15, total=31)
+)
+```
+
+Use the actual frozen agent name and config path for the experiment. The default
+`request_limits=None` preserves existing behavior; there is no CLI switch yet.
+Engine/extension transports reject this option because their requests bypass the
+built-in hook. Enabling limits disables both application and SDK retries on the
+driver's LLM calls, including separately configured planner/locator clients.
+
+The HTTPX request hook charges each admitted attempt before transport and never
+refunds failures. This is a conservative admission count, not proof of wire delivery
+or provider billing. Grounding calls charge the locator allowance; other calls,
+including planner compaction, charge the planner allowance. Both share the total.
+Zero forbids a role. A refusal latches the trial closed to further model requests.
+The denied attempt emits `request_blocked`, but no `http_request` or response archive;
+the final `request_budget` trace event and driver metadata retain counts and limits.
+Limit stops retain `stop_reason=request_limit` without claiming confirmed cleanup.
+
+Each serial `run` gets a new allowance. Overlapping runs and requests from inactive
+or previous trial contexts are rejected. The last admitted response may still
+dispatch tools; admission limits do not establish physical input cessation.
+Token/input reservations, conservative unknown-usage reserves, cost and batch-wide
+limits, paired scheduling and verified cleanup remain pending. Existing task token
+accounting occurs after responses and is not a hard token/cost reservation. These
+offline controls do not authorize a live M5 batch or reset historical allowances.

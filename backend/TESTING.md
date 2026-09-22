@@ -708,3 +708,14 @@ The real benchmark create/Runner/SDK path joins outcome, usage and HTTP attempt 
 for both shared and independent locator profiles, and leaves planner requests
 unassociated. Reported model statuses and parsed coordinates remain unscored;
 these offline tests do not prove target-selection or coordinate correctness.
+
+M5 request admission tests add 13 real create/Runner/SDK cases with fake HTTP/OS
+for legacy, integrated and independent-locator split modes. They cover planner,
+locator and shared limits, zero allowance, 429/503 failures without retries, exact
+admitted request/trace counts, fresh allowances on driver reuse and late requests
+from closed trial contexts. Refused requests cannot supply new actions, and cleanup
+remains unknown. Seven `test_request_budget.py` cases cover counter validation,
+latched/closed budgets and rejection of unsupported engine/extension transports.
+`test_llm_retry.py` adds a real SDK 429 regression proving one HTTP attempt with
+both retry layers disabled. These tests do not establish token/cost reservations,
+batch-wide enforcement, real model effectiveness or physical desktop cleanup.
