@@ -16,12 +16,13 @@ import logging
 import re
 import time
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from statistics import median
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import httpx
+from openai.types.chat import ChatCompletion
 
 from ..agents.approval import PendingToolCallStore
 from ..agents.base import Agent, AgentOutput, AgentOutputType, AgentState
@@ -49,7 +50,7 @@ if TYPE_CHECKING:
     from ..llm.profile import LLMProfile
 
 logger = logging.getLogger(__name__)
-GUI_TOOLS = BATCH_ACTIONS | {"screenshot", "launch_app", "computer_batch"}
+GUI_TOOLS = BATCH_ACTIONS | {"screenshot", "launch_app", "computer_batch", "locate"}
 
 
 @dataclass(frozen=True)
@@ -102,20 +103,25 @@ class CountingLLM:
     in-flight round so timeout trials show the time the LLM really ate.
     """
 
-    def __init__(self, inner: LLM) -> None:
+    def __init__(self, inner: LLM, counter: CountingLLM | None = None) -> None:
         self._inner = inner
+        self._counter = counter if counter is not None else self
+        self.nonstream_s = 0.0
+        self.unknown_calls = 0
         self.prompt_tokens = 0
         self.completion_tokens = 0
         # (ttft_s, total_s) per model round-trip, in order.
-        self.call_stats: list[tuple[float, float]] = []
+        self.call_stats: list[tuple[float | None, float]] = []
         # Optional per-call hook (index, ttft_s, total_s) — the driver
         # wires this to TraceSink so latency lands in trace.jsonl.
-        self.on_call: Callable[[int, float, float], None] | None = None
+        self.on_call: Callable[[int, float | None, float], None] | None = None
 
     def reset(self) -> None:
         self.prompt_tokens = 0
         self.completion_tokens = 0
         self.call_stats = []
+        self.nonstream_s = 0.0
+        self.unknown_calls = 0
 
     @property
     def total_tokens(self) -> int:
@@ -124,10 +130,10 @@ class CountingLLM:
     def __getattr__(self, name: str) -> Any:
         return getattr(self._inner, name)
 
-    def _record(self, ttft: float, total: float) -> None:
+    def _record(self, ttft: float | None, total: float) -> None:
         self.call_stats.append((ttft, total))
         logger.info(
-            "LLM call %d: ttft=%.2fs total=%.2fs", len(self.call_stats), ttft, total
+            "LLM call %d: ttft=%s total=%.2fs", len(self.call_stats), ttft, total
         )
         if self.on_call is not None:
             self.on_call(len(self.call_stats), ttft, total)
@@ -149,26 +155,54 @@ class CountingLLM:
     async def chat_stream(
         self, *args: Any, **kwargs: Any
     ) -> AsyncIterator[tuple[UpdateType, str, dict[str, Any]]]:
+        counter = self._counter
         round_start = time.monotonic()
+        nested_start = counter.nonstream_s
         ttft: float | None = None
         try:
             async for update in self._inner.chat_stream(*args, **kwargs):
                 if ttft is None and self._is_model_output(update):
-                    ttft = time.monotonic() - round_start
+                    ttft = max(
+                        0.0, time.monotonic() - round_start - counter.nonstream_s + nested_start,
+                    )
                 if update[0] == UpdateType.USAGE:
                     meta = update[2]
-                    self.prompt_tokens += int(meta.get("prompt_tokens", 0))
-                    self.completion_tokens += int(meta.get("completion_tokens", 0))
-                    self._record(ttft or 0.0, time.monotonic() - round_start)
+                    counter.prompt_tokens += int(meta.get("prompt_tokens", 0))
+                    counter.completion_tokens += int(meta.get("completion_tokens", 0))
+                    counter._record(ttft or 0.0, max(
+                        0.0, time.monotonic() - round_start - counter.nonstream_s + nested_start,
+                    ))
                     round_start = time.monotonic()
+                    nested_start = counter.nonstream_s
                     ttft = None
                 yield update
         except BaseException:
             # Cancellation (task timeout / max-steps abort) or a stream
             # error: the in-flight round still consumed wall time.
             if ttft is not None or time.monotonic() - round_start > 0.01:
-                self._record(ttft or 0.0, time.monotonic() - round_start)
+                counter._record(ttft or 0.0, max(
+                    0.0, time.monotonic() - round_start - counter.nonstream_s + nested_start,
+                ))
             raise
+
+
+    async def complete_response(self, *args: Any, **kwargs: Any) -> ChatCompletion:
+        """Measure a locator response, including failures and missing usage."""
+        counter = self._counter
+        start = time.monotonic()
+        response = None
+        try:
+            response = await self._inner.complete_response(*args, **kwargs)
+            return response
+        finally:
+            elapsed = time.monotonic() - start
+            counter.nonstream_s += elapsed
+            if response is None or response.usage is None:
+                counter.unknown_calls += 1
+            else:
+                counter.prompt_tokens += response.usage.prompt_tokens
+                counter.completion_tokens += response.usage.completion_tokens
+            counter._record(None, elapsed)
 
 
 class TracedScreenshotTool(BaseTool):
@@ -364,6 +398,18 @@ class SubAgentDriver:
         tool_manager = ToolManager(app_config, bus=bus)
 
         driver = cls.__new__(cls)
+        driver._trace = None
+
+        async def capture_request(request: httpx.Request) -> None:
+            if driver._trace is not None:
+                await driver._trace.capture_request(request)
+
+        def measured_llm(profile: LLMProfile) -> LLM:
+            inner = create_llm_from_profile(profile)
+            if capture_request not in inner.client._client.event_hooks["request"]:
+                inner.client._client.event_hooks["request"].append(capture_request)
+            return cast(LLM, CountingLLM(inner, counter=llm))
+
         registry = None
         if agent_def.engine or agent_def.extension:
             from ..plugin.manager import PluginManager
@@ -385,7 +431,10 @@ class SubAgentDriver:
             pending_store=PendingToolCallStore(),
             definitions=definitions,
             toolsets_config=app_config.toolsets,
-            app_config=app_config if agent_def.engine or agent_def.extension else None,
+            app_config=app_config if (
+                agent_def.engine or agent_def.extension or agent_def.grounding is not None
+            ) else None,
+            llm_factory=measured_llm,
             registry=registry,
             resolver=AlwaysApproveResolver(),  # benchmarks are autonomous
         )
@@ -397,16 +446,15 @@ class SubAgentDriver:
 
         # Built-in agents use this exact SDK client. Plugin engines own their
         # transport and must not be labelled HTTP-verified by this hook.
-        if not agent_def.engine and not agent_def.extension:
-            async def capture_request(request: httpx.Request) -> None:
-                if driver._trace is not None:
-                    await driver._trace.capture_request(request)
-
+        if (
+            not agent_def.engine and not agent_def.extension
+            and capture_request not in llm.client._client.event_hooks["request"]
+        ):
             llm.client._client.event_hooks["request"].append(capture_request)
 
         # Archive every screenshot the agent takes for offline diagnosis.
         for name in ("screenshot", "computer_batch"):
-            if name in tool_manager.tools:
+            if name in tool_manager.tools and agent_def.grounding is None:
                 tool_manager.tools[name] = TracedScreenshotTool(
                     tool_manager.tools[name], lambda: driver._trace
                 )
@@ -439,6 +487,7 @@ class SubAgentDriver:
                 "extension": definition.extension, "config": summary,
                 "prompt_revision": hashlib.sha256(definition.system_prompt.encode()).hexdigest(),
                 **self._runtime_metadata,
+                "grounding": asdict(definition.grounding) if definition.grounding else None,
                 "token_budget": definition.token_budget}
 
     async def run(
@@ -492,6 +541,9 @@ class SubAgentDriver:
                 run_kwargs.update(authorization=SubAgentAuthorization(permissions),
                                   deadline=time.monotonic() + timeout_s, observer=Observer(),
                                   max_steps=max_steps)
+            elif self._agent_def.grounding is not None:
+                run_kwargs.update(deadline=time.monotonic() + timeout_s, observer=Observer(),
+                                  max_steps=max_steps)
             outputs = self._runner.run_agent(self._agent_def, messages, **run_kwargs)
             try:
                 async for output in outputs:
@@ -506,13 +558,19 @@ class SubAgentDriver:
                             non_gui_tools.add(name)
                     elif output.type == AgentOutputType.TOOL_RESULT:
                         name = output.metadata.get("name")
+                        if not name and output.metadata.get("status") == "error":
+                            stopped_reason = output.content
+                            terminal["stop_reason"] = "error"
                         if name == "computer_batch":
                             completed = output.metadata.get("completed_primitives")
                             if completed is None:
                                 match = re.match(r"Batch: (\d+) of \d+ actions", output.content)
                                 completed = int(match[1]) if match else 0
                             primitives += int(completed)
-                        elif name in GUI_TOOLS and output.metadata.get("status") == "success":
+                        elif (
+                            name in GUI_TOOLS - {"locate"}
+                            and output.metadata.get("status") == "success"
+                        ):
                             primitives += 1
                     elif output.type == AgentOutputType.TOKEN and output.content:
                         token_parts.append(output.content)
@@ -552,7 +610,8 @@ class SubAgentDriver:
             self._runtime_metadata["sdk_version"] = terminal["sdk_version"]
         wall_s = time.monotonic() - start
         call_stats = self._llm.call_stats
-        ttfts = [t for t, _ in call_stats]
+        ttfts = [t for t, _ in call_stats if t is not None]
+        unknown_calls += self._llm.unknown_calls
         totals = [t for _, t in call_stats]
         llm_calls = len(call_stats)
         llm_ttft_s = (median(ttfts) if ttfts else None) if not (

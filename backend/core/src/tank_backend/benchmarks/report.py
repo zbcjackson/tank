@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 _Z_95 = 1.96
-SCORING_REVISION = "trial-token-gui-calc-v4"
+SCORING_REVISION = "trial-token-gui-grounding-v5"
 
 
 def wilson_interval(successes: int, trials: int) -> tuple[float, float]:

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..agents.subagent import SubAgentContext
-from ..core.content import TextBlock
+from ..core.content import ImageBlock, TextBlock
 from ..llm.llm import LLM
 from .base import BaseTool, ToolContext, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 from .computer_frame import FrameState, FrameTool
@@ -157,7 +157,9 @@ class LocateSession:
         tool = self.tools[name]
         if name == "screenshot":
             self.locations.clear()
-            return await tool.execute(coordinate_space="image", ctx=ctx, **arguments)
+            result = await tool.execute(coordinate_space="image", ctx=ctx, **arguments)
+            self.observe_screenshot(result)
+            return result
         if name in {"click", "mouse_move", "scroll", "drag"}:
             target = self.target(arguments.pop("location_id"))
             arguments.update(
@@ -204,6 +206,12 @@ class LocateSession:
             else ToolResult(content=json.dumps(detail), error=failed)
         )
 
+    def observe_screenshot(self, result: ToolResult | str) -> None:
+        if isinstance(result, ToolResult):
+            for block in result.to_blocks():
+                if isinstance(block, ImageBlock):
+                    self.context.observe("screenshot", data_url=block.source)
+
     async def feedback(self, detail: dict[str, Any], failed: bool) -> ToolResult:
         self.context.check()
         self.locations.clear()
@@ -211,6 +219,7 @@ class LocateSession:
             coordinate_space="image",
             ctx=ToolContext(session_id=self.session_id),
         )
+        self.observe_screenshot(shot)
         return ToolResult(
             content=[
                 TextBlock(text=json.dumps(detail)),

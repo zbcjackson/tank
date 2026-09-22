@@ -12,7 +12,7 @@ import copy
 import logging
 import time
 import uuid
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any, cast
 
 from .base import AgentOutput, AgentOutputType, AgentState
@@ -31,6 +31,7 @@ from .subagent_adapter import SubAgentAdapter
 
 if TYPE_CHECKING:
     from ..llm.llm import LLM
+    from ..llm.profile import LLMProfile
     from ..pipeline.bus import Bus
     from ..tools.manager import ToolManager
     from .approval import PendingToolCallStore, ToolApprovalPolicy
@@ -67,7 +68,11 @@ class AgentRunner:
         app_config: Any = None,
         registry: Any = None,
         desktop_resource: DesktopResource | None = None,
+        llm_factory: Callable[[LLMProfile], LLM] | None = None,
     ) -> None:
+        from ..llm.profile import create_llm_from_profile
+
+        self._llm_factory = llm_factory or create_llm_from_profile
         self._llm = llm
         self._tool_manager = tool_manager
         self._bus = bus
@@ -300,11 +305,11 @@ class AgentRunner:
         else:
             # Resolve LLM: use agent-specific model profile if declared
             if agent_def.model and self._app_config is not None:
-                from ..llm.profile import create_llm_from_profile
-
-                agent_llm = create_llm_from_profile(
+                agent_llm = self._llm_factory(
                     self._app_config.get_llm_profile(agent_def.model)
                 )
+                if agent_def.grounding is not None:
+                    owned_grounders.append(agent_llm)
             else:
                 agent_llm = self._llm
 
@@ -312,7 +317,6 @@ class AgentRunner:
             if agent_def.grounding is not None:
                 from dataclasses import replace
 
-                from ..llm.profile import create_llm_from_profile
                 from ..tools.computer_grounding import GroundingAdapter
                 from ..tools.computer_locate import SPLIT_PROMPT, LocateSession, LocateTool
 
@@ -334,7 +338,7 @@ class AgentRunner:
                                      ("fallback", config.fallback_profile)):
                     if profile is not None:
                         assert self._app_config is not None
-                        llms[key] = create_llm_from_profile(self._app_config.llm_profiles[profile])
+                        llms[key] = self._llm_factory(self._app_config.llm_profiles[profile])
                         owned_grounders.append(llms[key])
                 session = LocateSession(session_tools, llms, GroundingAdapter(
                     config.protocol, config.nullable_style, config.strict,

@@ -79,10 +79,11 @@ def stream(name: str | None, arguments: dict[str, Any]) -> httpx.Response:
     )
 
 
+@pytest.mark.parametrize("benchmark", [False, True])
 @pytest.mark.parametrize("separate_profile", [False, True])
 @pytest.mark.parametrize("budget", [100, 5, 15, 20])
 async def test_runner_split_locates_current_image_and_dispatches_reference(
-    desktop, monkeypatch, budget, separate_profile
+    desktop, monkeypatch, budget, separate_profile, benchmark, tmp_path
 ):
     from types import SimpleNamespace
 
@@ -204,15 +205,54 @@ async def test_runner_split_locates_current_image_and_dispatches_reference(
         ),
     )
     try:
-        outputs = [
-            o
-            async for o in runner.run_agent(
-                definition,
-                [{"role": "user", "content": "private task history: click red center"}],
-                token_budget=budget,
-                observer=Observer(),
+        if benchmark:
+            from dataclasses import replace
+
+            from tank_backend.benchmarks import driver as driver_module
+            from tank_backend.benchmarks.trace import TraceSink
+
+            profiles = {
+                "planner": LLMProfile("planner", "test", "test", "https://offline.invalid/v1"),
+                "locator": LLMProfile("locator", "test", "locator-model",
+                                      "https://offline.invalid/v1"),
+            }
+            app_config = SimpleNamespace(
+                agents=SimpleNamespace(dirs=[], llm_profile="planner"),
+                llm_profiles=profiles, get_llm_profile=profiles.__getitem__, toolsets=None,
             )
-        ]
+            monkeypatch.setattr(driver_module.AppConfig, "load", lambda _: app_config)
+            monkeypatch.setattr(driver_module, "load_agent_definitions",
+                                lambda _: {"split": definition})
+            manager._approval_policy = ToolApprovalPolicy(computer_mode="allow")
+            monkeypatch.setattr(driver_module, "ToolManager", lambda *a, **kw: manager)
+            definition = replace(definition, model="planner", token_budget=budget)
+            driver = driver_module.SubAgentDriver.create("split", tmp_path / "config.yaml")
+            trace = TraceSink(tmp_path / "trial")
+            result = await driver.run("private task history: click red center", trace,
+                                      timeout_s=5, max_steps=10)
+            trace.close()
+            records = [json.loads(line) for line in
+                       (tmp_path / "trial/trace.jsonl").read_text().splitlines()]
+            outputs = [SimpleNamespace(type=AgentOutputType.DONE)] if not result.error else []
+            if budget == 100:
+                assert result.error is None, result.error
+                assert result.tokens == 30
+                assert result.llm_calls == 5
+                assert result.non_gui_tools == ()
+                assert result.screenshots == 2
+                assert len([r for r in records if r["kind"] == "http_request"]) == 5
+                assert driver.describe()["grounding"]["protocol"] == "point"
+                ledger.extend(r for r in records if r["kind"] == "grounding_usage")
+        else:
+            outputs = [
+                o
+                async for o in runner.run_agent(
+                    definition,
+                    [{"role": "user", "content": "private task history: click red center"}],
+                    token_budget=budget,
+                    observer=Observer(),
+                )
+            ]
     finally:
         await client.close()
     if budget < 100:

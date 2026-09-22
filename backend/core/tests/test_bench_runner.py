@@ -118,7 +118,7 @@ async def test_counting_llm_times_each_model_round_trip():
     _ = [u async for u in counting.chat_stream()]
     assert len(counting.call_stats) == 2
     for ttft, total in counting.call_stats:
-        assert 0.0 <= ttft <= total
+        assert ttft is not None and 0.0 <= ttft <= total
     counting.reset()
     assert counting.call_stats == []
 
@@ -147,17 +147,17 @@ async def test_counting_llm_records_round_cancelled_mid_stream():
         await asyncio.wait_for(consume(), timeout=0.05)
     assert len(counting.call_stats) == 1
     ttft, total = counting.call_stats[0]
-    assert ttft >= 0.0
+    assert ttft is not None and ttft >= 0.0
     assert total >= 0.05  # the cancelled in-flight round
 
 
 async def test_counting_llm_reports_calls_via_callback():
-    seen: list[tuple[int, float, float]] = []
+    seen: list[tuple[int, float | None, float]] = []
     counting = CountingLLM(_FakeInnerLLM())  # type: ignore[arg-type]
     counting.on_call = lambda call, ttft, total: seen.append((call, ttft, total))
     _ = [u async for u in counting.chat_stream()]
     assert [s[0] for s in seen] == [1, 2]
-    assert seen[0][1] <= seen[0][2]
+    assert seen[0][1] is not None and seen[0][1] <= seen[0][2]
 
 
 async def test_ttft_skips_local_tool_echoes():
@@ -176,7 +176,7 @@ async def test_ttft_skips_local_tool_echoes():
     counting = CountingLLM(cast(Any, _ToolEchoLLM()))
     _ = [u async for u in counting.chat_stream()]
     ttft, total = counting.call_stats[0]
-    assert ttft >= 0.05  # measured at the TEXT, not the instant tool echo
+    assert ttft is not None and ttft >= 0.05  # measured at the TEXT, not the instant tool echo
     assert total >= ttft
 
 
@@ -785,3 +785,64 @@ validator:
         suite, FirstOnlyDriver, platform="linux", trials=2, out_dir=out, label="isolated"
     )
     assert report.total_trials == 2 and report.successes == 1
+
+
+async def test_counting_locator_preserves_unknown_and_cancelled_calls():
+    import asyncio
+
+    from openai.types.chat import ChatCompletion
+
+    class Inner:
+        async def complete_response(self, **kwargs):
+            if kwargs.get("cancel"):
+                raise asyncio.CancelledError()
+            return ChatCompletion(id="missing", object="chat.completion", created=0,
+                                  model="test", choices=[])
+
+    counter = CountingLLM(cast(Any, Inner()))
+    locator = CountingLLM(cast(Any, Inner()), counter=counter)
+    await locator.complete_response()
+    try:
+        await locator.complete_response(cancel=True)
+    except asyncio.CancelledError:
+        pass
+    else:
+        raise AssertionError("Cancellation must propagate")
+    assert counter.total_tokens == 0  # known subtotal, paired with unknown_calls
+    assert counter.unknown_calls == 2
+    assert len(counter.call_stats) == 2
+    assert all(ttft is None for ttft, _ in counter.call_stats)
+    counter.reset()
+    assert counter.unknown_calls == 0 and counter.call_stats == []
+
+
+async def test_nested_locator_time_is_not_counted_twice(monkeypatch):
+    from openai.types.chat import ChatCompletion
+    from openai.types.completion_usage import CompletionUsage
+
+    from tank_backend.benchmarks import driver as module
+
+    now = [0.0]
+    monkeypatch.setattr(module.time, "monotonic", lambda: now[0])
+
+    class Inner:
+        async def complete_response(self, **kwargs):
+            now[0] += 7
+            return ChatCompletion(id="g", object="chat.completion", created=0, model="test",
+                                  choices=[], usage=CompletionUsage(prompt_tokens=4,
+                                  completion_tokens=6, total_tokens=10))
+
+        async def chat_stream(self, **kwargs):
+            now[0] += 2
+            yield UpdateType.TEXT, "plan", {}
+            yield UpdateType.USAGE, "", {"prompt_tokens": 2, "completion_tokens": 3}
+            await locator.complete_response()
+            now[0] += 3
+            yield UpdateType.USAGE, "", {"prompt_tokens": 2, "completion_tokens": 3}
+
+    counter = CountingLLM(cast(Any, Inner()))
+    locator = CountingLLM(cast(Any, Inner()), counter=counter)
+    assert len([o async for o in counter.chat_stream()]) == 3
+    assert counter.total_tokens == 20
+    assert counter.call_stats == [(2, 2), (None, 7), (0, 3)]
+    assert sum(elapsed for _, elapsed in counter.call_stats) == 12
