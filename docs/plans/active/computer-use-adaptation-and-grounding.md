@@ -279,6 +279,8 @@ M4–M8 的既定集成、对照与真实任务验收仍在本计划内，不随
   完整 usage 结算、未知预留保留及上界违例停批。
 - [x] 将按端点/型号上下文上限的预留接入真实 HTTP/SDK 路径，独立核对原始
   usage 后再派发工具；fake HTTP/OS 验收，未验证可用于 live 的更紧输入上界。
+- [x] 核查 DashScope 本地/远程 tokenizer 的输入上界适用性；现有公开证据
+  不足以降低两种快照的多模态请求预留，记录缺口及后续接入条件。
 - [ ] 补齐真实环境、语义失败归因、串行配对调度、可执行的输入上界与批次门禁和
   可验证清理，之后才做模型效果对照。A→A-control 单独量框架变化，不归因给还原。
 - [ ] 基于新批次明确样本、顺序、请求/token/时间上限、端点价格和图片范围；
@@ -1089,6 +1091,39 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   backend/CLI ruff、七个改动 Python 文件 pyright、实际 backend pane、docs
   和协议一致性检查全部通过。定向首轮的本地套接字沙箱限制已在允许本地
   测试服务器的环境重跑验证，不修改测试逻辑绕过。
+
+### 2026-09-22 — M5 更紧输入上界的提供方证据核查
+
+- 结论：**尚未建立可用于 live 准入的更紧输入上界**。本步只核查公开文档
+  和 SDK 源码，没有调用 tokenizer 服务或模型，也没有修改预算、生产默认值
+  或冻结契约。保留完整上下文预留；本地计数结果不能用来释放预留。
+- [官方 SDK 的本地型号路由](https://github.com/dashscope/dashscope-sdk-python/blob/main/dashscope/tokenizers/tokenizer.py)
+  对任意 `qwen` 前缀均返回同一个 `qwen.tiktoken` 词表；接受快照名称不等于
+  验证过该快照的 tokenizer。
+  [编码实现](https://github.com/dashscope/dashscope-sdk-python/blob/main/dashscope/tokenizers/qwen_tokenizer.py)
+  输入为文本字符串，执行 NFC 归一化及 BPE；没有完整 messages/tools 的
+  模板组装或图片计数。依据这些实现，不能推导 Flash/Max 多模态请求的上界。
+- [远程 Tokenization 实现](https://github.com/dashscope/dashscope-sdk-python/blob/main/dashscope/tokenizers/tokenization.py)
+  接受 model、messages 和附加参数，并向服务发送请求；列出的型号没有本次
+  两个快照。这既不能证明服务不支持它们，也不能证明返回计数覆盖兼容接口的
+  图片、工具定义和服务端模板。源码的参数透传不构成计数一致性保证。
+  以上链接为 2026-09-22 查阅的可变 main 分支，不是冻结的提供方契约。
+- 同时核对[官方 DashScope 参数说明](https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-dashscope)：
+  `max_completion_tokens` 有实际输出可能相差最多 10 token 的说明；当前
+  benchmark 使用的是 `max_tokens`，不能直接把该说明套用为已验证的输出
+  上界，也不能据此默默切换字段。输出参数、思考关闭及计费计数的适用性仍需
+  针对所选兼容端点核实；任何参数迁移都须重新冻结请求并覆盖预留边界测试。
+- 接入更紧上界之前，证据必须明确绑定端点/区域和精确快照，覆盖最终完整
+  messages、工具定义、图片处理及服务端模板，并明确计数是上界还是估计。
+  若采用远程预计数，还须明确它自身的收费/次数以及被计数输入与实际发送
+  输入的一致性；不能把另一个未计账 HTTP 调用藏在请求 hook 内。
+- 下一实现项推进不依赖该外部证据的**串行批次调度与账本持久化**，仍以
+  fake HTTP/OS 验收。输入上界这一项保持未完成；待提供方契约齐备再接入，
+  不反复以本地 tokenizer 估计或少量 usage 样本代替证明。
+- Tests：本步无行为改动，不新增模拟提供方保证的测试。完整 backend
+  **4860 passed / 1 skipped**，E2E **16 场景 / 63 步**；web lint/TypeScript、
+  backend/CLI ruff、实际 backend pane、docs 和协议一致性检查全部通过。
+  没有修改 Python 文件，改动文件 pyright 为 N/A。
 
 ## 9. 最终 Verification Checklist
 
