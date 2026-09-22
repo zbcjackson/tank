@@ -269,7 +269,9 @@ M4–M8 的既定集成、对照与真实任务验收仍在本计划内，不随
   A-control 共同框架控制组；补一体/分离 batch 实际成功动作计量。
 - [x] 冻结七组独立实验 profile、定义和代表性最终 SDK 请求；单独归档原始
   生产 profile。仅 fake HTTP/合成图的离线契约，不是未来完整模型请求序列。
-- [ ] 补齐真实环境、原始定位响应/失败归因、串行配对调度、预算/重试门禁和
+- [x] 保存 built-in benchmark 规划/定位原始 HTTP 响应，关联实际请求尝试；
+  保留畸形响应、HTTP 错误和部分流，标注读取/关闭状态及无响应记录。
+- [ ] 补齐真实环境、语义失败归因、串行配对调度、预算/重试门禁和
   可验证清理，之后才做模型效果对照。A→A-control 单独量框架变化，不归因给还原。
 - [ ] 基于新批次明确样本、顺序、请求/token/时间上限、端点价格和图片范围；
   既有 544 次静态额度不重置。真实图出站按 §6 确认，尚无本轮授权请求。
@@ -956,6 +958,29 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 完整验证：backend **4723 passed / 1 skipped**；E2E **16 场景 / 63 步**；
   web lint/TypeScript、backend/CLI ruff、新增脚本及测试 pyright、实际 backend
   pane、docs 与协议一致性检查通过。本轮仅新增五个离线用例，未更改生产行为。
+
+### 2026-09-22 — M5 原始 HTTP 响应证据
+
+- `SubAgentDriver.create` 为 built-in 原 A 和 grounded 规划/定位客户端接入
+  响应 hook。每个实际 HTTP 尝试分配独立 request_id，原始响应写入 trial 的
+  `responses/<request_id>.bin`，trace 保留对应模型/请求图像哈希、HTTP 状态、
+  响应长度/SHA-256、编码信息及读取状态。插件自有 transport 不冒充已接入。
+- 响应逐块复制后交给 SDK，不预读完整 SSE；JSON 解码失败、429/502 和部分流
+  均保留已收到的字节。压缩原始字节与 HTTPX 已解码 body 分别标记，避免
+  离线重复解压；不导出请求 headers、cookies 或整份响应 headers。
+- `complete/read_error/cancelled/closed_early/trace_closed/no_response` 描述的是
+  读取生命周期。HTTP body 完整不等于合法模型输出、已知 usage 或任务成功；
+  无响应不等于零费用，也不能据此断言具体的网络失败原因。语义失败归因仍待补齐。
+- trace 关闭会收尾部分文件和未收到响应的尝试；响应归属绑定发起请求的 trial，
+  迟到字节/headers 不会改写已关闭记录或下一轮。该机制不证明物理输入清理完成。
+  文件写入仍有本地开销，延迟数字不能宣称是纯提供方延迟。
+- 新增 10 个离线测试，另加强真实 create → Runner → SDK 的同模型/独立定位
+  profile 响应关联断言。全部 HTTP/OS 使用假边界，无付费定位请求或真实桌面动作。
+  旧冻结证据不改写，执行器和门禁最终完成后需按最终 revision 重冻结；
+  M5 效果对照、预算/重试执行、配对调度、真实环境和可验证清理仍未完成。
+- 实现及测试提交 `2ca4254`。完整验证：backend **4733 passed / 1 skipped**；
+  E2E **16 场景 / 63 步**；web lint/TypeScript、backend/CLI ruff、四个改动
+  Python 文件 pyright、实际 backend pane、docs 和协议一致性检查全部通过。
 
 ## 9. 最终 Verification Checklist
 

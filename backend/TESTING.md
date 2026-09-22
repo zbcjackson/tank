@@ -689,3 +689,13 @@ restoration changes no tool schema, adapted locations share GroundingAdapter, an
 batch schemas preserve the tool allowlist. Config tests preserve split defaults
 and reject unsupported integrated locator/fallback/strict settings. These fake
 HTTP/OS checks do not establish real model effectiveness or a frozen A/B/C/D run.
+
+M5 raw-response tests in `test_bench_runner.py` run the real HTTPX/OpenAI SDK
+boundaries against fake transports. They retain malformed JSON and 429/502 bodies
+before SDK errors, verify incremental streaming without prefetch, preserve partial
+read-error/cancelled/early-close bodies, label compressed versus already-decoded
+bytes, and finalize missing/in-flight responses when a trace closes. Late bytes
+and headers cannot alter a closed trace. `test_computer_locate.py` also verifies
+request/response pairing through `SubAgentDriver.create` for shared and independent
+locator profiles. These checks do not establish semantic failure attribution,
+physical cleanup, live request budgets or model effectiveness.

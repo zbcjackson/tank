@@ -187,3 +187,36 @@ The same-framework legacy/no-restoration A-control separates frame/feedback/tool
 wrapping changes from the two-factor comparison; original A remains unchanged.
 See [integrated configuration](../../docs/design/computer-use.md#一体适配实验m5-b).
 These are executable configuration options, not a frozen or authorized live batch.
+
+### Raw HTTP response evidence (M5)
+
+Built-in `SubAgentDriver.create` clients now archive planner and locator responses
+under each trial's `responses/<request_id>.bin`. The `http_request` event records
+the attempt ID, model, stream flag and input image hashes; `http_response` links
+the body file, byte count, SHA-256, HTTP status and body read state. SDK parsing
+errors, non-2xx bodies and partial streams retain their received bytes. Request
+headers and complete response headers are not exported; only response content
+type/encoding accompany the body. Plugin-owned transports remain outside this hook.
+
+Capture tees chunks as the consumer reads them, without prefetching the response.
+Local archive writes add overhead, so this is still not pure provider latency.
+`body_representation=httpx_raw` means bytes before HTTPX content decoding (apply
+`content_encoding` when reading compressed files); `httpx_decoded` identifies an
+already-consumed transport body, as commonly returned by in-memory test transports.
+Neither representation rewrites JSON, tool arguments or SSE content.
+
+Body states are `complete`, `read_error`, `cancelled`, `closed_early`, `trace_closed`
+and `no_response`. `complete` means HTTP body iteration finished, not valid JSON,
+complete model output, known usage or task success. SDK early closure may leave
+`closed_early` even when a valid final model message was received. `no_response`
+means no response hook completed before trace closure; it does not prove zero cost
+or classify the cause of a pre-header failure. Error messages are not copied into
+transport metadata; the exception type is retained for stream read errors.
+
+Responses remain bound to the requesting trace even if another trial has started.
+Closing a trace finalizes partial archives and missing-response entries; late bytes
+or headers cannot mutate the closed trial or write into the next one. This is trace
+lifecycle handling, not evidence that model work or physical input has stopped.
+Semantic failure attribution, paired scheduling, enforced budgets/retry limits and
+verified desktop cleanup remain prerequisites for live M5 runs. Historical request
+freezes remain unchanged; freeze the final executor revision again before live work.
