@@ -285,18 +285,17 @@ Limit stops retain `stop_reason=request_limit` without claiming confirmed cleanu
 Each serial `run` gets a new allowance. Overlapping runs and requests from inactive
 or previous trial contexts are rejected. The last admitted response may still
 dispatch tools; admission limits do not establish physical input cessation.
-Token/input reservations, conservative unknown-usage reserves, cost and batch-wide
-limits, paired scheduling and verified cleanup remain pending. Existing task token
+Optional token/cost reservations are described below; usable tighter input bounds,
+batch request scheduling and verified cleanup remain pending. Existing task token
 accounting occurs after responses and is not a hard token/cost reservation. These
 offline controls do not authorize a live M5 batch or reset historical allowances.
 
-### Token/cost reservation ledger (M5, offline foundation)
+### Token/cost reservation ledger (M5)
 
 `tank_backend.benchmarks.spend_ledger.SpendLedger` provides in-memory arithmetic
-for one serial batch. It is **not yet connected to SubAgentDriver or HTTP**, and
-does not estimate input tokens, validate payload bounds, load prices or persist
-state across process restarts. No current benchmark run gains a token/cost hard
-limit merely because this module exists.
+for one serial batch. The optional HTTP integration below now uses this ledger;
+the arithmetic module itself does not estimate tokens, load prices or persist
+state across process restarts. Default benchmark runs do not enable it.
 
 Create it with a batch `SpendLimit(tokens, nano_usd)`, then call
 `start_trial(trial_id, trial_limit)`. Before each request, call
@@ -327,5 +326,51 @@ unknown without releasing their allowance. Later settlement cannot reopen them.
 reserved amounts, per-request allowances/status and the first stop reason.
 The caller must still stop dispatch on settlement failure, save reports, verify
 complete usage including reasoning, and bind allowances to actual HTTP requests.
-Reliable request bounds, transport integration, scheduling, recovery and physical
+Reliable request bounds, scheduling, recovery and physical
 cleanup remain prerequisites for live M5 budget enforcement.
+
+### Context-ceiling HTTP spend gate (M5)
+
+Pass `spend=SpendControl(ledger, trial_limit, contracts)` alongside explicit
+`request_limits` to `SubAgentDriver.create`. Each `ContextWindowContract` binds an
+exact HTTPS completion URL and model to a `TokenAllowance` and a public evidence
+description. The input allowance must cover the provider's full accepted input
+ceiling, including messages, images, tool definitions and provider framing; the
+output allowance and prices must cover that endpoint's non-thinking generation.
+The caller must independently review these numbers and their applicability.
+An evidence string is recorded, not automatically verified. No live defaults,
+token estimates or CLI switch are supplied.
+
+Before transport, the gate requires POST, matching URL/model, explicit
+`enable_thinking=false`, bounded positive integer `max_tokens` and, for streams,
+`include_usage=true`. Unsupported top-level parameters (including extra generations
+and provider search) and malformed/duplicate-key JSON are refused. Every admitted
+request reserves the full contract allowance and records its body hash, evidence
+and the same request ID used by HTTP response archives. The count gate runs first;
+a subsequent spend rejection can consume a count slot without sending HTTP.
+
+Ordinary responses and fragmented SSE are copied as read, with a 2 MB audit-body
+limit; this does not prefetch or delay chunks until completion. The gate requests
+`Accept-Encoding: identity`; compressed responses are retained as unknown usage.
+Settlement occurs after the SDK response/stream completes and before model tools
+execute. It independently parses raw usage because the SDK can coerce illegal
+values such as booleans. Input/output/total must be nonnegative integers with a
+consistent sum; SSE requires exactly one usage record and a `[DONE]` marker.
+Missing, malformed or inconsistent evidence retains the full reservation and
+stops further admission; valid bound overruns remain unclamped. Text/tool-call
+deltas can already have been emitted, and earlier physical actions are not undone.
+
+Separately configured locator clients share the ledger. Serial driver runs use
+distinct trial-directory IDs; failure/cancellation finalization retains pending
+reservations. `spend_reserved`, `spend_settled`, `spend_blocked` and `spend_budget`
+events carry the evidence and cumulative totals; post-run driver metadata includes
+the ledger snapshot. Error/request-limit stops do not certify physical cleanup.
+
+This conservative mode does **not make the proposed live batch runnable**. On
+2026-09-22 the [Flash snapshot documentation](https://www.alibabacloud.com/help/en/model-studio/qwen3-7-flash)
+lists a non-thinking input ceiling of 991,808 tokens: reserving that plus 8,000
+output tokens exceeds the proposed 300,000-token trial limit before the first
+request. A tighter independently justified bound is still required; do not lower
+the declared ceiling or increase approved budgets merely to pass admission.
+Price/region review, complete billing semantics, paired scheduling, durable
+recovery, real environment and physical cleanup remain live-run prerequisites.

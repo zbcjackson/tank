@@ -725,5 +725,16 @@ HTTP or OS mocks. They cover trial/batch token and cost limits, exact boundaries
 known-usage release, unknown/partial/invalid-usage retention, observed bound
 violations, duplicate settlement/IDs, serial lifecycle, unfinished-request closure,
 cross-trial spending, integer monetary arithmetic and detached JSON snapshots.
-These test the offline ledger API only; actual request bounds, price/usage
-normalization, HTTP admission integration and physical stopping remain unverified.
+These test the offline ledger API only; HTTP integration has the additional
+coverage below. Actual provider bounds/prices and physical stopping remain unverified.
+
+`test_spend_http.py` adds 33 cases through real LLM/SDK/HTTP hooks or request
+contract validation. They check pre-transport reservation/refusal, fragmented SSE
+without prefetch, settlement before tool execution, raw usage validation despite
+SDK coercion, missing/inconsistent/over-bound usage, cancellation and read failures.
+Contract tests reject mismatched parameters, malformed JSON and missing evidence.
+The 13 create/Runner/SDK request-gate cases in `test_computer_locate.py` also run
+with spend control enabled, covering legacy/integrated/split and independent
+locator clients, 429/503 without retry, shared accounting and driver reuse.
+All HTTP and OS boundaries are fake. Synthetic ceilings/prices exercise the gate;
+they do not establish usable input bounds for the proposed live M5 batch.
