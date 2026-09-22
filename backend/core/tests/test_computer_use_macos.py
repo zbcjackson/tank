@@ -1269,6 +1269,45 @@ async def test_frame_batch_keeps_owner_and_stops_after_scene_change(
         assert "frame_id" in note
 
 
+@pytest.mark.parametrize("window_bound", [False, True])
+@pytest.mark.parametrize("change_inside", [False, True])
+async def test_scene_validation_uses_observed_scope(
+    frame_manager, window_bound, change_inside,
+):
+    """Menu-bar changes invalidate full frames, but not unchanged window crops."""
+    from PIL import Image
+
+    manager, quartz = frame_manager
+    quartz.CGWindowListCopyWindowInfo.return_value = [{
+        "kCGWindowNumber": 42,
+        "kCGWindowBounds": {"X": 600, "Y": 100, "Width": 674, "Height": 408},
+    }]
+    before = Image.new("RGB", (1920, 1080), "black")
+    after = before.copy()
+    after.putpixel((1000, 250) if change_inside else (1750, 10), (255, 255, 255))
+
+    def png(image):
+        buffer = io.BytesIO()
+        image.save(buffer, "PNG")
+        return buffer.getvalue()
+
+    kwargs = {"window_id": 42} if window_bound else {}
+    with patch(f"{MODULE}._capture_screenshot_macos", return_value=png(before)):
+        metadata = await frame_metadata(manager, **kwargs)
+    with patch(f"{MODULE}._capture_screenshot_macos", return_value=png(after)):
+        result = await manager.execute_tool(
+            "click", coordinate_space="image", frame_id=metadata["frame_id"],
+            x=100, y=100,
+        )
+    rejected = change_inside or not window_bound
+    assert result.error is rejected
+    if rejected:
+        assert "Scene or geometry changed" in result.content
+        quartz.CGEventCreateMouseEvent.assert_not_called()
+    else:
+        assert quartz.CGEventCreateMouseEvent.call_count == 2
+
+
 @pytest.mark.parametrize("moved", [False, True])
 async def test_frame_window_origin_is_bound_and_revalidated(frame_manager, moved):
     manager, quartz = frame_manager
