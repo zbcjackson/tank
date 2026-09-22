@@ -14,6 +14,7 @@ import hashlib
 import io
 import itertools
 import json
+import os
 import sys
 import uuid
 from collections.abc import Iterator
@@ -34,6 +35,8 @@ from tank_backend.agents.approval import PendingToolCallStore, ToolApprovalPolic
 from tank_backend.agents.base import AgentOutputType
 from tank_backend.agents.definition import AgentDefinition, GroundingConfig, parse_agent_file
 from tank_backend.agents.runner import AgentRunner
+from tank_backend.benchmarks.comparison_contract import ComparisonContract
+from tank_backend.config import AppConfig
 from tank_backend.llm.profile import create_llm_from_profile, resolve_profile
 from tank_backend.pipeline.bus import Bus
 from tank_backend.tools import computer_use_macos as macos
@@ -213,6 +216,34 @@ async def prepare(config: Path, output: Path) -> None:
         name: {**asdict(definition), "disallowed_tools": sorted(definition.disallowed_tools)}
         for name, definition in definitions.items()})
     write_json(output / "toolset.json", tool_names)
+    for name, definition in definitions.items():
+        if name == "original":
+            continue
+        runtime = output / "runtime" / name.lower()
+        (runtime / "agents").mkdir(parents=True)
+        metadata = asdict(definition)
+        prompt = metadata.pop("system_prompt")
+        metadata["disallowed_tools"] = sorted(definition.disallowed_tools)
+        if definition.grounding is None:
+            metadata.pop("grounding")
+        (runtime / "agents/computer-use.md").write_text(
+            "---\n" + yaml.safe_dump(metadata, sort_keys=True) + "---\n\n" + prompt + "\n",
+            encoding="utf-8",
+        )
+        runtime_profiles = {key: {**profiles[source], "api_key": "${M5_DASHSCOPE_API_KEY}"}
+                            for key, source in (("default", "planner"), ("planner", "planner"),
+                                                ("locator", "locator"))}
+        (runtime / "config.yaml").write_text(yaml.safe_dump({
+            "llm": runtime_profiles,
+            "agents": {"dirs": ["agents"], "llm_profile": "planner"},
+            "toolsets": {"profiles": {"computer_use": {"tools": tool_names}}},
+        }, sort_keys=True), encoding="utf-8")
+        # Round-trip through production parsing; never use an operator credential.
+        with patch.dict(os.environ, {"M5_DASHSCOPE_API_KEY": "offline-placeholder"}):
+            loaded_config = AppConfig.load(runtime / "config.yaml")
+        loaded_definition = parse_agent_file(runtime / "agents/computer-use.md")
+        ComparisonContract(output, name).verify(loaded_config, loaded_definition)
+        definitions[name] = loaded_definition
     snapshots = {name: await capture(definition, profiles, tool_names, png)
                  for name, definition in definitions.items()}
     write_json(output / "requests.json", snapshots)
@@ -233,8 +264,8 @@ async def prepare(config: Path, output: Path) -> None:
         "versions": {"python": sys.version, **{name: version(name)
                      for name in ("openai", "httpx", "Pillow", "PyYAML")}},
         "sources": source_hashes,
-        "artifacts": {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-                      for p in sorted(output.iterdir()) if p.is_file()},
+        "artifacts": {str(p.relative_to(output)): hashlib.sha256(p.read_bytes()).hexdigest()
+                      for p in sorted(output.rglob("*")) if p.is_file()},
     })
 
 

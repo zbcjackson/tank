@@ -513,7 +513,7 @@ async def test_serial_batch_shares_durable_spend_and_refuses_replay(
     order = []
     controls = []
 
-    def create(agent_name, config_path, *, request_limits, spend):
+    def create(agent_name, config_path, *, request_limits, spend, comparison=None):
         controls.append(spend)
 
         class Driver:

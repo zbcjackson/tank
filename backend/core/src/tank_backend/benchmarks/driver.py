@@ -45,6 +45,7 @@ from ..tools.base import BaseTool, ToolInfo, ToolMetadata, ToolResult
 from ..tools.computer_grounding import grounding_call_id
 from ..tools.computer_use_common import BATCH_ACTIONS
 from ..tools.manager import ToolManager
+from .comparison_contract import ComparisonContract
 from .request_budget import (
     RequestBudget,
     RequestLimitExceeded,
@@ -379,6 +380,7 @@ class SubAgentDriver:
         cls, agent_name: str, config_path: Path | None = None, *,
         request_limits: RequestLimits | None = None,
         spend: SpendControl | None = None,
+        comparison: ComparisonContract | None = None,
     ) -> SubAgentDriver:
         """Assemble the stack from repo config (config.yaml + agents/*.md)."""
         from dotenv import load_dotenv
@@ -406,6 +408,8 @@ class SubAgentDriver:
             )
         if request_limits is not None and (agent_def.engine or agent_def.extension):
             raise ValueError("Request limits require the built-in benchmark transport")
+        if comparison is not None:
+            comparison.verify(app_config, agent_def)
 
         profile_name = agent_def.model or app_config.agents.llm_profile
         profile: LLMProfile = app_config.get_llm_profile(profile_name)
@@ -512,7 +516,9 @@ class SubAgentDriver:
         driver._llm = llm
         driver._tool_manager = tool_manager
         driver._trace = None
-        driver._runtime_metadata = {}
+        driver._runtime_metadata = ({"comparison_contract": {
+            "variant": comparison.variant, "freeze_dir": str(comparison.freeze_dir.resolve()),
+        }} if comparison is not None else {})
 
         # Built-in agents use this exact SDK client. Plugin engines own their
         # transport and must not be labelled HTTP-verified by this hook.

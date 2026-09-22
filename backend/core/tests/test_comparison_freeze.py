@@ -8,6 +8,188 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture
+async def runtime_bundle(tmp_path, monkeypatch):
+    import yaml
+
+    script = Path(__file__).resolve().parents[2] / "scripts/prepare_computer_comparison.py"
+    config = tmp_path / "source.yaml"
+    config.write_text(yaml.safe_dump({
+        "llm": {"computer_use": {"api_key": "NEVER_EXPORT_THIS_SECRET",
+            "model": "qwen3.7-flash-2026-07-15",
+            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"}},
+        "toolsets": {"profiles": {"computer_use": {"tools": ["screenshot", "click"]}}},
+    }))
+    output = tmp_path / "freeze"
+    await runpy.run_path(str(script))["prepare"](config, output)
+    monkeypatch.setenv("M5_DASHSCOPE_API_KEY", "OFFLINE_RUNTIME_SECRET")
+    return output
+
+
+@pytest.mark.parametrize("variant", ["A", "A-control", "B-host-only", "B-protocol-only",
+                                     "B-combined", "C", "D"])
+async def test_runtime_contract_accepts_resolved_generated_variants(runtime_bundle, variant):
+    from tank_backend.agents.definition import load_agent_definitions
+    from tank_backend.benchmarks.comparison_contract import ComparisonContract
+    from tank_backend.config import AppConfig
+
+    runtime = runtime_bundle / "runtime" / variant.lower()
+    config = AppConfig.load(runtime / "config.yaml")
+    definition = load_agent_definitions([runtime / "agents"])["computer_use"]
+    ComparisonContract(runtime_bundle, variant).verify(config, definition)
+
+
+@pytest.mark.parametrize("change", [
+    "model", "endpoint", "temperature", "output", "usage", "thinking", "locator",
+    "headers", "prompt", "grounding", "toolset", "missing_toolset", "dirs", "missing_profile",
+    "environment", "credentials_only",
+])
+async def test_runtime_contract_detects_resolved_drift_without_exposing_secrets(
+    runtime_bundle, monkeypatch, change,
+):
+    from dataclasses import replace
+
+    import yaml
+
+    from tank_backend.agents.definition import load_agent_definitions
+    from tank_backend.benchmarks.comparison_contract import ComparisonContract
+    from tank_backend.config import AppConfig
+
+    runtime = runtime_bundle / "runtime/d"
+    path = runtime / "config.yaml"
+    raw = yaml.safe_load(path.read_text())
+    edits = {
+        "model": ("model", "different"), "endpoint": ("base_url", "https://other.invalid/v1"),
+        "temperature": ("temperature", 0.123), "output": ("max_tokens", 9000),
+        "usage": ("stream_options", False), "thinking": ("extra_body", {"enable_thinking": True}),
+        "headers": ("extra_headers", {"Authorization": "NEVER_PRINT_THIS_SECRET"}),
+    }
+    if change in edits:
+        field, value = edits[change]
+        raw["llm"]["planner"][field] = value
+    elif change == "locator":
+        raw["llm"]["locator"]["model"] = "different"
+    elif change == "toolset":
+        raw["toolsets"]["profiles"]["computer_use"]["tools"] = []
+    elif change == "missing_toolset":
+        raw["toolsets"]["profiles"] = {}
+    elif change == "dirs":
+        raw["agents"]["dirs"] = ["agents", "other"]
+    elif change == "missing_profile":
+        del raw["llm"]["planner"]
+    elif change == "environment":
+        raw["llm"]["planner"]["model"] = "${M5_TEST_MODEL}"
+        monkeypatch.setenv("M5_TEST_MODEL", "different")
+    elif change == "credentials_only":
+        monkeypatch.setenv("M5_DASHSCOPE_API_KEY", "NEW_SECRET_NOT_FROZEN")
+    path.write_text(yaml.safe_dump(raw))
+    config = AppConfig.load(path)
+    definition = load_agent_definitions([runtime / "agents"])["computer_use"]
+    if change == "prompt":
+        definition = replace(definition, system_prompt="changed")
+    elif change == "grounding":
+        definition = replace(definition, grounding=None)
+    contract = ComparisonContract(runtime_bundle, "D")
+    if change == "credentials_only":
+        contract.verify(config, definition)
+    else:
+        with pytest.raises(ValueError, match="Comparison contract") as error:
+            contract.verify(config, definition)
+        assert "NEVER_PRINT_THIS_SECRET" not in str(error.value)
+        assert "OFFLINE_RUNTIME_SECRET" not in str(error.value)
+
+
+async def test_driver_checks_runtime_contract_before_constructing_clients(
+    runtime_bundle, monkeypatch,
+):
+    from unittest.mock import Mock
+
+    from tank_backend.benchmarks import driver as module
+    from tank_backend.benchmarks.comparison_contract import ComparisonContract
+    from tank_backend.llm import profile
+
+    client, manager = Mock(), Mock()
+    monkeypatch.setattr(profile, "create_llm_from_profile", client)
+    monkeypatch.setattr(module, "ToolManager", manager)
+    monkeypatch.setattr(module, "disable_langfuse_tracing", lambda: None)
+    with pytest.raises(ValueError, match="Comparison contract agent definition"):
+        module.SubAgentDriver.create(
+            "computer_use", runtime_bundle / "runtime/a/config.yaml",
+            comparison=ComparisonContract(runtime_bundle, "D"),
+        )
+    client.assert_not_called()
+    manager.assert_not_called()
+
+
+@pytest.mark.parametrize("variant", ["A", "A-control", "B-host-only", "B-protocol-only",
+                                     "B-combined", "C", "D"])
+async def test_generated_config_reaches_real_driver_and_sdk(runtime_bundle, monkeypatch, variant):
+    from unittest.mock import Mock
+
+    import httpx
+    from openai import AsyncOpenAI
+
+    from tank_backend.agents.approval import ToolApprovalPolicy
+    from tank_backend.benchmarks import driver as module
+    from tank_backend.benchmarks.comparison_contract import ComparisonContract
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.trace import TraceSink
+    from tank_backend.llm import llm as llm_module
+    from tank_backend.tools import computer_use_macos as macos
+    from tank_backend.tools.groups import ComputerUseToolGroup
+    from tank_backend.tools.manager import ToolManager
+
+    manager = ToolManager.__new__(ToolManager)
+    manager.tools = {t.get_info().name: t for t in ComputerUseToolGroup()._create_macos_tools()}
+    manager.tool_metadata = {name: tool.get_metadata() for name, tool in manager.tools.items()}
+    manager._media_store = manager._bus = None
+    manager._approval_policy = ToolApprovalPolicy(computer_mode="allow")
+    manager.set_session_id("offline")
+    host = Mock(side_effect=AssertionError("Host access is forbidden"))
+    for name in ("_load_quartz", "_capture_screenshot_macos", "_click_macos"):
+        monkeypatch.setattr(macos, name, host)
+    monkeypatch.setattr(module, "ToolManager", lambda *args, **kwargs: manager)
+    monkeypatch.setattr(module, "disable_langfuse_tracing", lambda: None)
+    monkeypatch.setattr(llm_module, "initialize_langfuse", lambda: None)
+    monkeypatch.setattr(llm_module, "is_tracing_registered", lambda: False)
+    bodies, clients = [], []
+
+    def respond(request):
+        bodies.append(json.loads(request.content))
+        chunk = {"id": "offline", "object": "chat.completion.chunk", "created": 1,
+                 "model": bodies[-1]["model"], "choices": [{"index": 0,
+                 "delta": {"content": "done"}, "finish_reason": "stop"}],
+                 "usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5}}
+        return httpx.Response(200, content=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n")
+
+    def client_factory(**kwargs):
+        client = AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(respond)))
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(llm_module, "AsyncOpenAI", client_factory)
+    trace = TraceSink(runtime_bundle.parent / "trial")
+    try:
+        driver = module.SubAgentDriver.create(
+            "computer_use", runtime_bundle / "runtime" / variant.lower() / "config.yaml",
+            comparison=ComparisonContract(runtime_bundle, variant), request_limits=RequestLimits(),
+        )
+        result = await driver.run("Reply done without tools", trace, timeout_s=5, max_steps=2)
+        assert result.error is None
+        assert result.final_text == "done"
+        assert driver.describe()["comparison_contract"]["variant"] == variant
+    finally:
+        trace.close()
+        for client in clients:
+            await client.close()
+    assert len(bodies) == 1
+    frozen = json.loads((runtime_bundle / "requests.json").read_text())[variant][0]["body"]
+    for key in ("model", "tools", "max_tokens", "temperature", "enable_thinking", "stream_options"):
+        assert bodies[0].get(key) == frozen.get(key)
+    host.assert_not_called()
+
+
 @pytest.mark.parametrize("change", ["none", "modified", "missing", "added", "uncovered"])
 def test_frozen_input_preflight_checks_hashes_coverage_and_inventory(tmp_path, change):
     from tank_backend.benchmarks.frozen_inputs import FrozenFile, FrozenInputs
@@ -47,7 +229,7 @@ def test_frozen_input_manifest_rejects_ambiguous_or_invalid_pins(tmp_path, inval
         FrozenInputs(entries[invalid]).verify()
 
 
-async def test_comparison_freeze_is_reproducible_and_uses_final_sdk_requests(tmp_path):
+async def test_comparison_freeze_is_reproducible_and_uses_final_sdk_requests(tmp_path, monkeypatch):
     script = Path(__file__).resolve().parents[2] / "scripts/prepare_computer_comparison.py"
     prepare = runpy.run_path(str(script))["prepare"]
     config = tmp_path / "config.yaml"
@@ -71,10 +253,33 @@ toolsets:
     first, second = tmp_path / "first", tmp_path / "second"
     await prepare(config, first)
     await prepare(config, second)
+    from tank_backend.agents.definition import load_agent_definitions
+    from tank_backend.config import AppConfig
+
+    monkeypatch.setenv("M5_DASHSCOPE_API_KEY", "OFFLINE_RUNTIME_SECRET")
+    frozen_definitions = json.loads((first / "definitions.json").read_text())
+    for variant in ("A", "A-control", "B-host-only", "B-protocol-only", "B-combined", "C", "D"):
+        from dataclasses import asdict
+
+        runtime = first / "runtime" / variant.lower()
+        loaded = AppConfig.load(runtime / "config.yaml")
+        definitions = load_agent_definitions([
+            runtime / directory for directory in loaded.agents.dirs
+        ])
+        definition = definitions["computer_use"]
+        actual = asdict(definition)
+        actual["disallowed_tools"] = sorted(definition.disallowed_tools)
+        assert json.loads(json.dumps(actual)) == frozen_definitions[variant]
+        assert loaded.llm_profiles["planner"].api_key == "OFFLINE_RUNTIME_SECRET"
+        assert loaded.llm_profiles["planner"].max_tokens == 8000
+        assert list(loaded.toolsets.profiles["computer_use"].tools) == json.loads(
+            (first / "toolset.json").read_text())
+    assert not (first / "runtime/original").exists()
     for path in first.rglob("*"):
         if path.is_file():
             assert path.read_bytes() == (second / path.relative_to(first)).read_bytes()
             assert b"NEVER_EXPORT_THIS_SECRET" not in path.read_bytes()
+            assert b"OFFLINE_RUNTIME_SECRET" not in path.read_bytes()
     manifest = json.loads((first / "manifest.json").read_text())
     assert manifest["live_authorized"] is False
     for name, digest in manifest["artifacts"].items():

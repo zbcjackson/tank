@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TextIO, TypedDict
 
+from .comparison_contract import ComparisonContract
 from .driver import SubAgentDriver
 from .frozen_inputs import FrozenInputs
 from .request_budget import RequestLimits
@@ -26,6 +27,7 @@ class BatchTrial:
     agent_name: str
     config_path: Path
     platform: str
+    comparison: ComparisonContract | None = None
 
 
 class BatchResult(TypedDict):
@@ -48,6 +50,8 @@ def _required_files(entries: tuple[BatchTrial, ...]) -> set[Path]:
     required: set[Path] = set()
     for entry in entries:
         required.update((entry.config_path, entry.suite_dir / "suite.yaml"))
+        if entry.comparison is not None:
+            required.update(entry.comparison.required_files(entry.config_path))
         environment = entry.config_path.parent / ".env"
         if environment.exists():
             required.add(environment)
@@ -133,6 +137,7 @@ async def run_batch(
                 driver = SubAgentDriver.create(
                     entry.agent_name, entry.config_path,
                     request_limits=request_limits, spend=control,
+                    comparison=entry.comparison,
                 )
                 verify_inputs()
                 report = await run_suite(
