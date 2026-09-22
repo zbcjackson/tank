@@ -483,34 +483,49 @@ The proposed paid batch remains unexecuted.
 
 ### Offline 17-trial proposal preflight
 
-From `backend/`, materialize the recorded proposal into a fresh directory:
+The current M5 proposal follows the user's 2026-09-22 instruction to collect
+actual usage before enforcing token/cost budgets. From `backend/`:
 
 ```bash
-uv run --no-sync python scripts/prepare_computer_batch.py --freeze benchmarks/computer_use/reports/20260922-m5-runtime-config --output /tmp/m5-proposal-new
-uv run --no-sync python scripts/prepare_computer_batch.py --freeze benchmarks/computer_use/reports/20260922-m5-runtime-config --check /tmp/m5-proposal-new/proposal.json
+uv run --no-sync python scripts/prepare_computer_batch.py --freeze benchmarks/computer_use/reports/20260922-m5-record-only-runtime --output /tmp/m5-proposal-new
+uv run --no-sync python scripts/prepare_computer_batch.py --freeze benchmarks/computer_use/reports/20260922-m5-record-only-runtime --check /tmp/m5-proposal-new/proposal.json
 ```
 
-The [checked-in proposal](computer_use/reports/20260922-m5-batch-proposal/README.md)
-records five diagnostic pilots followed by three four-variant core rounds. It
-fixes task/config paths, phase/order, per-trial planner/locator limits, 120 seconds,
-15 top-level tools, 300,000 tokens and the proposed batch limits (362 HTTP,
-5.1M tokens, 8 USD). Paths are relative to the backend root, not the shell cwd.
-The 2,040-second sum excludes setup, validation and cleanup.
+The [current proposal](computer_use/reports/20260922-m5-record-only-proposal/README.md)
+uses schema v2 and `record_only: true`. The historical 300,000/trial, 5.1M/batch
+and 8 USD figures are retained as reference values, **not enforced caps**. The
+old proposal and runtime freeze are unchanged and are historical snapshots.
 
-Preflight rechecks saved file hashes, the referenced freeze's source/artifact
-hashes, exact runtime file inventory, production config/agent parsing, and the
-macOS Calculator task's strict GUI scoring and limits. It does not refresh pins.
-Creating a proposal records current suite/task/asset hashes; these are reviewable
-inputs, not independently approved truth. Recheck rejects order/limit changes,
-missing pins, changed files and additional runtime credential/agent files.
+It still fixes five pilots followed by three four-variant core rounds, the
+Calculator task/config paths, per-trial planner/locator request limits, 120 seconds,
+15 top-level tools and 362 total HTTP requests. Paths are relative to the backend
+root. The 2,040-second sum excludes setup, validation and cleanup. Preflight
+checks saved hashes, source/artifact hashes, runtime inventory, parsed configs
+and strict GUI task limits. It never refreshes saved pins or runs a driver.
 
-The command has no live mode and constructs no driver. An exit code of zero means
-**offline consistency only**: `live_ready` remains false. The real spend ledger
-rejects the recorded 991,808 + 8,000 token reservation against the 300,000 trial
-limit. Zero prices in this isolated check do not validate cost admission. Provider
-bounds/prices are not refreshed or certified by this offline command.
+### Recording usage without token/cost admission
 
-This is not a direct `run_batch` input or a phase-aware executor: pilot acceptance,
-per-variant dispatch, real environment/cleanup, independent scoring and live
-budget/image/endpoint approval remain separate work. Nothing auto-advances from
-pilots to core or runs setup, validators, model HTTP or desktop input.
+Pass `record_only=True` to `run_batch`; it persists the selection in the batch
+plan and constructs a record-only ledger. For direct driver use, pass a
+`SpendControl` whose `SpendLedger(..., record_only=True)` has explicit request
+limits; no provider context/price contracts are needed in this mode. Defaults
+remain strict for existing callers.
+
+Recording mode skips token/cost reservation admission and bound-exceeded stops.
+After verifying any comparison contract, the benchmark driver replaces only its
+in-memory agent definition's token budget with zero. It records both configured
+and effective budgets. Tank's production `agents/computer_use.md` is unchanged.
+The output `max_tokens` remains 8,000 in M5 configs; retries remain disabled.
+
+Actual input/output usage, request counts and raw response evidence are retained.
+Snapshots mark `record_only=true` and `cost_status=unpriced`; zero monetary fields
+are placeholders, **not zero charges or proof of an 8 USD cap**. Unknown or invalid
+usage remains unknown and stops the batch. HTTP failures (including insufficient
+balance) retain error responses and stop without retry. Request ceilings,
+timeouts, tool steps, frozen-input checks and unconfirmed-cleanup stops remain.
+
+This removes the full-context token reservation as an M5 execution prerequisite.
+Preflight still reports `live_ready=false` for the outstanding independent
+scoring, real environment/physical cleanup, pilot acceptance and live endpoint/
+image-scope conditions. The proposal is not a phase-aware executor; no automatic
+pilot-to-core transition is implemented. No paid requests occur during preflight.

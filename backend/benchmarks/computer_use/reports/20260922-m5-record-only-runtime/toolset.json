@@ -1,0 +1,14 @@
+[
+  "screenshot",
+  "click",
+  "type_text",
+  "key_press",
+  "scroll",
+  "mouse_move",
+  "mouse_down",
+  "mouse_up",
+  "hold_key",
+  "drag",
+  "computer_batch",
+  "launch_app"
+]

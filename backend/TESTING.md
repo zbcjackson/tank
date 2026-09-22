@@ -776,9 +776,18 @@ physical desktop cleanup or live model acceptance.
 
 
 The offline batch proposal adds 11 cases in `test_comparison_freeze.py`: the
-fixed 17-trial order and aggregate budgets, actual ledger rejection of the
-full-context reservation, no driver construction, refusal to overwrite, and ten
+fixed 17-trial order and aggregate budgets, record-only budget selection, no driver construction, refusal to overwrite, and ten
 mutation cases (order, cost/request limits, live flag, missing pin, config,
 manifest, agent, adjacent credentials and extra agent). Production parsers and
 frozen file checks run normally. No setup/validator, model or desktop is invoked;
 this does not test pilot acceptance or a live phase-aware batch executor.
+
+
+Record-only budget regressions add 11 cases: one ledger case admitting 408,000
+actual tokens despite zero token/cost limits while preserving the HTTP ceiling;
+seven generated-config/real Runner/SDK cases accepting 400,003 tokens and an
+effective agent budget of zero; two actual SDK HTTP 402 cases preserving failures
+without retry; and a serial batch with zero nominal spend limits recording all
+three trials. Existing strict-mode tests still pass. All HTTP/OS boundaries are
+fake, so these are enforcement/accounting tests, not observed model usage or
+provider balance checks.

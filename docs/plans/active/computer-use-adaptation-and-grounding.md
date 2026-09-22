@@ -284,7 +284,7 @@ M4–M8 的既定集成、对照与真实任务验收仍在本计划内，不随
 - [x] 显式顺序的串行批次 API 与 fsync 预留日志；中断证据保留、已有目录
   拒绝重放，预算/未知清理停批。fake HTTP/OS 验收，不支持自动恢复。
 - [x] 全批 HTTP 准入次数上限及声明文件的冻结预检；首轮/每轮/driver 构造后
-  核对文件，超额或变化阻止后续启动。解析后的运行配置与实验契约对齐仍待完成。
+  核对文件，超额或变化阻止后续启动。解析后的运行配置与实验契约对齐已完成。
 - [ ] 补齐真实环境、语义失败归因、串行配对调度、可执行的输入上界与批次门禁和
   可验证清理，之后才做模型效果对照。A→A-control 单独量框架变化，不归因给还原。
 - [ ] 基于新批次明确样本、顺序、请求/token/时间上限、端点价格和图片范围；
@@ -1235,6 +1235,34 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 实现及测试提交 `d6ac1ae`；完整 backend **4967 passed / 1 skipped**，
   E2E **16 场景 / 63 步**；web lint/TypeScript、backend/CLI ruff、两个改动
   Python 文件 pyright、实际 backend pane、docs 和协议一致性检查全部通过。
+
+### 2026-09-22 — 按用户要求暂停 M5 token/费用预算门禁
+
+- 用户明确要求：benchmark 先获得实际数据，暂时关闭预算门禁；若提供方额度/
+  余额不足，停止并告知用户处理。本指令取代 M5 提案中 token/8 USD 硬上限
+  及更紧输入上界的开跑前置要求；不修改 Tank 生产 computer-use 的 300000。
+- [x] `run_batch(record_only=True)` 接入仅记录账本；忽略 token/费用准入和
+  用量超出预留的停止条件，保留全批/每轮 HTTP 次数及原始 usage 校验。
+  benchmark driver 验证配置后，仅在内存中将实验 agent token_budget 设为 0，
+  记录配置值与有效值；默认严格模式和生产配置保持不变。
+- 未知/非法 usage、HTTP 失败、冻结变化及清理未知仍停批；不重试或补跑。
+  HTTP 402 回归确认错误保留、一次请求。实际额度不足须告知用户，不能归为
+  模型效果失败后继续消耗。单次输出 8000、时间/工具步数限制继续保留。
+- 新[record-only 配置冻结](../../../backend/benchmarks/computer_use/reports/20260922-m5-record-only-runtime/README.md)
+  与[提案 v2](../../../backend/benchmarks/computer_use/reports/20260922-m5-record-only-proposal/README.md)
+  独立归档；旧冻结不改写。提案的 300000/5.1M/8 USD 仅是历史参考值，
+  record_only=true 明确停用；费用状态为 unpriced，金额字段 0 不代表免费。
+- Tests：新增 **11 项**：账本 1、七组真实 Runner/SDK 大用量 7、HTTP 402
+  失败 2、零名义预算下的串行批次 1。现有严格模式仍覆盖；均用假 HTTP/OS。
+  本轮未请求付费模型或采集真实截图，尚无新的实际模型用量数据。
+- M5 后续聚焦实际 pilot 的独立评分、真实环境/物理清理和分阶段执行；
+  token 上界不再作为本轮仅记录模式的阻塞项，live 图像/端点范围仍需落实。
+
+- 实现及测试提交 `24a0832`；定向 **391 passed**，完整 backend
+  **4978 passed / 1 skipped**，E2E **16 场景 / 63 步**。web lint/TypeScript、
+  backend/CLI ruff、八个改动 Python 文件 pyright、实际 backend pane、docs 和
+  协议一致性检查全部通过；新冻结 19 个产物、295 个源码及提案 340 个文件
+  哈希匹配。
 
 ## 9. 最终 Verification Checklist
 
