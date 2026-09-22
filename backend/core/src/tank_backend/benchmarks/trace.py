@@ -77,7 +77,9 @@ class TraceSink:
         self._pending.clear()
         self._file.close()
 
-    async def capture_request(self, request: httpx.Request) -> None:
+    async def capture_request(
+        self, request: httpx.Request, *, request_id: str | None = None,
+    ) -> None:
         """Record actual serialized image identity, never headers or image bytes."""
         if self._file.closed:
             return
@@ -94,7 +96,7 @@ class TraceSink:
                 if url.startswith("data:") and ";base64," in url:
                     image = base64.b64decode(url.split(",", 1)[1])
                     hashes.append(hashlib.sha256(image).hexdigest())
-        request_id = uuid.uuid4().hex
+        request_id = request_id or uuid.uuid4().hex
         request.extensions["tank_benchmark_trace"] = (self, request_id)
         self._pending[request_id] = None
         self.event("http_request", request_id=request_id, model=body.get("model"),

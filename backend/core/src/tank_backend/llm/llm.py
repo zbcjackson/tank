@@ -22,6 +22,7 @@ from openai import (
     RateLimitError,
 )
 from openai.types.chat import ChatCompletion, ChatCompletionMessageParam
+from openai.types.completion_usage import CompletionUsage
 
 from ..core.content import (
     ContentBlock,
@@ -366,6 +367,7 @@ class LLM:
         self.stream_options = stream_options
         self.extra_body = extra_body or {}
         self._retries_enabled = True
+        self.on_response_usage: Callable[[CompletionUsage | None], None] | None = None
 
         initialize_langfuse()
 
@@ -698,6 +700,9 @@ class LLM:
                                 "status": "calling", "turn": turn,
                             },
                         )
+
+            if self.on_response_usage is not None:
+                self.on_response_usage(iteration_usage)
 
             # Build assistant message for history
             assistant_msg: dict[str, Any] = {
@@ -1106,8 +1111,12 @@ class LLM:
 
         if not retry:
             client = self.client.with_options(max_retries=0)
-            return await client.chat.completions.create(**api_kwargs)
-        return await self._create_with_retry(**api_kwargs)
+            response = await client.chat.completions.create(**api_kwargs)
+        else:
+            response = await self._create_with_retry(**api_kwargs)
+        if self.on_response_usage is not None:
+            self.on_response_usage(response.usage)
+        return response
 
     async def chat_completion_async(
         self,

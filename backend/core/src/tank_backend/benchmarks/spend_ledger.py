@@ -72,6 +72,10 @@ class SpendLedger:
         if self._stop_reason is not None:
             raise SpendLimitExceeded(self._stop_reason)
 
+    def stop(self, reason: str) -> None:
+        """Latch an external contract failure without releasing pending reservations."""
+        self._stop_reason = self._stop_reason or reason
+
     def start_trial(self, trial: str, limit: SpendLimit) -> None:
         self._check_running()
         if self._active is not None or trial in self._trials:

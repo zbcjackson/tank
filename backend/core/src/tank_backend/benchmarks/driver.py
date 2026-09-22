@@ -51,6 +51,8 @@ from .request_budget import (
     RequestLimits,
     active_request_budget,
 )
+from .spend_http import SpendControl, active_spend_session
+from .spend_ledger import SpendLimitExceeded
 from .trace import TraceSink
 
 if TYPE_CHECKING:
@@ -370,14 +372,19 @@ class SubAgentDriver:
         self._runtime_metadata: dict[str, Any] = {}
         self._request_limits: RequestLimits | None = None
         self._request_budget: RequestBudget | None = None
+        self._spend: SpendControl | None = None
 
     @classmethod
     def create(
         cls, agent_name: str, config_path: Path | None = None, *,
         request_limits: RequestLimits | None = None,
+        spend: SpendControl | None = None,
     ) -> SubAgentDriver:
         """Assemble the stack from repo config (config.yaml + agents/*.md)."""
         from dotenv import load_dotenv
+
+        if spend is not None and request_limits is None:
+            raise ValueError("Spend control requires request limits and disabled retries")
 
         cfg_path = config_path or find_config_yaml()
         # Same bootstrap the API server does: .env next to config.yaml
@@ -415,6 +422,16 @@ class SubAgentDriver:
         driver._trace = None
         driver._request_limits = request_limits
         driver._request_budget = None
+        driver._spend = spend
+
+        def observe_usage(usage: object) -> None:
+            session = active_spend_session.get()
+            if session is None or session.control is not spend:
+                raise SpendLimitExceeded("usage outside active spend trial")
+            session.settle(usage)
+
+        if spend is not None:
+            llm._inner.on_response_usage = observe_usage
 
         async def capture_request(request: httpx.Request) -> None:
             if request_limits is not None:
@@ -425,11 +442,19 @@ class SubAgentDriver:
                 try:
                     budget.reserve(role)
                 except RequestLimitExceeded:
+                    if spend is not None:
+                        spend.ledger.stop("request_limit")
                     if driver._trace is not None:
                         driver._trace.event("request_blocked", role=role, **budget.snapshot())
                     raise
+            request_id = None
+            if spend is not None:
+                session = active_spend_session.get()
+                if session is None or session.control is not spend:
+                    raise SpendLimitExceeded("request outside active spend trial")
+                request_id = session.reserve(request)
             if driver._trace is not None:
-                await driver._trace.capture_request(request)
+                await driver._trace.capture_request(request, request_id=request_id)
 
         async def capture_response(response: httpx.Response) -> None:
             # Bind to the requesting trial, not whichever trial is current now.
@@ -438,9 +463,15 @@ class SubAgentDriver:
                 owner, _ = binding
                 if isinstance(owner, TraceSink):
                     await owner.capture_response(response)
+            spend_binding = response.request.extensions.get("tank_spend")
+            if spend_binding is not None:
+                session, _ = spend_binding
+                await session.capture_response(response)
 
         def measured_llm(profile: LLMProfile) -> LLM:
             inner = create_llm_from_profile(profile)
+            if spend is not None:
+                inner.on_response_usage = observe_usage
             if request_limits is not None:
                 inner.disable_retries()
             if capture_request not in inner.client._client.event_hooks["request"]:
@@ -545,9 +576,19 @@ class SubAgentDriver:
         budget = RequestBudget(self._request_limits)
         self._request_budget = budget
         token = active_request_budget.set(budget)
+        session = None
+        spend_token = None
         try:
+            if self._spend is not None:
+                session = self._spend.start(trace)
+                spend_token = active_spend_session.set(session)
             return await self._run(instruction, trace, timeout_s=timeout_s, max_steps=max_steps)
         finally:
+            if session is not None and self._spend is not None:
+                self._spend.finish(session)
+                self._runtime_metadata["spend_budget"] = self._spend.ledger.snapshot()
+            if spend_token is not None:
+                active_spend_session.reset(spend_token)
             budget.active = False
             active_request_budget.reset(token)
             summary = budget.snapshot()

@@ -394,9 +394,10 @@ async def locator(desktop, monkeypatch):
     ("split", 16, 15, 31, "locator", 429, 3, 0),
     ("split", 16, 15, 31, "locator", 503, 3, 0),
 ])
+@pytest.mark.parametrize("spend_enabled", [False, True])
 async def test_benchmark_request_gate_covers_actual_clients(
     desktop, monkeypatch, tmp_path, mode, planner_cap, locator_cap, total_cap,
-    fail_role, status, calls, clicks,
+    fail_role, status, calls, clicks, spend_enabled,
 ):
     import asyncio
     from contextvars import copy_context
@@ -407,6 +408,8 @@ async def test_benchmark_request_gate_covers_actual_clients(
     from tank_backend.agents.definition import GroundingConfig
     from tank_backend.benchmarks import driver as driver_module
     from tank_backend.benchmarks.request_budget import RequestLimits, active_request_budget
+    from tank_backend.benchmarks.spend_http import ContextWindowContract, SpendControl
+    from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit, TokenAllowance
     from tank_backend.benchmarks.trace import TraceSink
     from tank_backend.llm.profile import LLMProfile
 
@@ -466,6 +469,16 @@ async def test_benchmark_request_gate_covers_actual_clients(
                                  token_budget=300000)
     profiles = {name: LLMProfile(name, "test", name + "-model", "https://offline.invalid/v1")
                 for name in ("planner", "locator")}
+    spend = None
+    if spend_enabled:
+        for profile in profiles.values():
+            profile.extra_body["enable_thinking"] = False
+        spend = SpendControl(SpendLedger(SpendLimit(1000000, 10000000)),
+            SpendLimit(300000, 1000000), tuple(
+                ContextWindowContract(
+                    "https://offline.invalid/v1/chat/completions", name + "-model",
+                    TokenAllowance(10000, 10000, 2, 5), "synthetic SDK contract")
+                for name in profiles))
     config = SimpleNamespace(agents=SimpleNamespace(dirs=[], llm_profile="planner"),
                              llm_profiles=profiles, get_llm_profile=profiles.__getitem__,
                              toolsets=None)
@@ -476,7 +489,7 @@ async def test_benchmark_request_gate_covers_actual_clients(
     trace = TraceSink(tmp_path / "trial")
     try:
         driver = driver_module.SubAgentDriver.create("bounded", tmp_path / "config.yaml",
-            request_limits=RequestLimits(planner_cap, locator_cap, total_cap))
+            request_limits=RequestLimits(planner_cap, locator_cap, total_cap), spend=spend)
         assert driver.describe()["request_limits"] == {
             "planner": planner_cap, "locator": locator_cap, "total": total_cap}
         result = await driver.run("click red center", trace, timeout_s=5, max_steps=10)
@@ -520,6 +533,17 @@ async def test_benchmark_request_gate_covers_actual_clients(
         assert result.stop_reason == "request_limit"
         assert summary["blocked"] is True
     assert result.cleanup == "unknown"  # Admission control does not certify physical cleanup.
+    if spend is not None:
+        snapshot = spend.ledger.snapshot()
+        assert spend.active is None
+        assert len(snapshot["requests"]) == calls * (2 if clicks else 1)
+        for row in records:
+            if row["kind"] == "http_request":
+                assert row["request_id"] in snapshot["requests"]
+        if status == 200:
+            assert snapshot["batch"]["reserved_tokens"] == 0
+        else:
+            assert snapshot["batch"]["reserved_tokens"] == 20000
 
 
 async def observe(control):
