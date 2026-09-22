@@ -791,3 +791,10 @@ without retry; and a serial batch with zero nominal spend limits recording all
 three trials. Existing strict-mode tests still pass. All HTTP/OS boundaries are
 fake, so these are enforcement/accounting tests, not observed model usage or
 provider balance checks.
+
+
+The [first real M5 A-control pilot](benchmarks/computer_use/reports/20260922-m5-a-control-pilot/README.md)
+passed local nine-point and deterministic Calculator preparation but failed the
+model task (final display zero, 15 steps, 16 requests, 295443 tokens). Post-run
+Command key 55 required explicit operator release. This is failed live acceptance
+evidence; it does not replace regression tests or establish automatic cleanup.

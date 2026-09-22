@@ -1264,6 +1264,30 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   协议一致性检查全部通过；新冻结 19 个产物、295 个源码及提案 340 个文件
   哈希匹配。
 
+### 2026-09-22 — 首个真实 A-control pilot：失败并停止后续组
+
+- 用户在自动审批首次拒绝后明确授权本轮受控 Calculator 桌面/黑背景/菜单栏
+  与后续截图发送到 DashScope，模型 Flash 快照；仅 1 trial、16 请求/120 秒，
+  token/费用只记录。[完整证据与报告](../../../backend/benchmarks/computer_use/reports/20260922-m5-a-control-pilot/README.md)。
+- 本机九点校准 **9/9**；Calculator oracle 的真实按键得到 **7×8=56**，
+  AX 与本机截图一致。修正检查脚本的窗口 ID 类型、窗口移回主屏，背景绑定
+  Quartz 主屏；保留准备失败记录。未批准范围的本机预览没有发送给模型。
+- 真实 A-control：**16 HTTP（全部 200）**，输入 **293621**、输出 **1822**，
+  总计 **295443 token**；agent **62.83 秒**，含 setup/validator 的 trial
+  **72.19 秒**。无余额不足/未知 usage；费用 unpriced，不将 0 占位值当账单。
+  11 个独立图像哈希在请求中累计出现 86 次，历史图像重复输入成本已实际观测。
+- strict **失败**，最终 AX 与截图均为 **0**；达到 **15 步**停止。保留
+  batch 参数拒绝、两次 scene/geometry 拒绝、legacy location 字符串拒绝，以及
+  type_text 派发成功但无目标效果的证据；不把未知因果解释成已证实模型错误。
+- driver cleanup=unknown，批次 stop=cleanup_unconfirmed。外部清理发现
+  Command(55) 残留按下，执行显式 key-up 后按键/鼠标均为空；已恢复窗口、
+  剪贴板和光标。操作员恢复不能改写原 trial 的清理失败，也不能算 M6 清理验收。
+- 未启动后续 4 pilot 或 12 核心 trial。本轮单独截图授权已使用；下一步先
+  确定性复现并修复 modifier/输入无效与 scene 拒绝问题，再继续效果实验。
+- Tests：生产代码无修改，新增真实执行证据而非模拟回归；backend
+  **4978 passed / 1 skipped**、E2E **16 场景 / 63 步**，web lint/TypeScript、
+  backend/CLI ruff、实际 backend pane、docs 与协议一致性检查通过；pyright N/A。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。

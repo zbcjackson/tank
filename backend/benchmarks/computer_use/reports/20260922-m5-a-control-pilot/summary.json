@@ -1,0 +1,139 @@
+{
+  "variant": "A-control",
+  "task": "calc-open",
+  "trials": 1,
+  "model": "qwen3.7-flash-2026-07-15",
+  "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "requests": 16,
+  "http_status_codes": [
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200
+  ],
+  "input_tokens": 293621,
+  "output_tokens": 1822,
+  "total_tokens": 295443,
+  "unknown_usage_requests": 0,
+  "image_occurrences_in_requests": 86,
+  "unique_image_hashes": 11,
+  "budget_record_only": true,
+  "cost": "unpriced; actual bill unknown",
+  "strict_success": false,
+  "manual_final_pixel_result": "0",
+  "agent_seconds": 62.8334586659912,
+  "trial_seconds": 72.1870770000387,
+  "stop": "max_steps(15)",
+  "batch_stop": "cleanup_unconfirmed",
+  "cleanup": "operator recovery required: Command key 55 released; final keys/buttons empty",
+  "per_request": [
+    {
+      "index": 1,
+      "input_tokens": 7067,
+      "output_tokens": 52,
+      "images": 0
+    },
+    {
+      "index": 2,
+      "input_tokens": 9540,
+      "output_tokens": 348,
+      "images": 1
+    },
+    {
+      "index": 3,
+      "input_tokens": 7489,
+      "output_tokens": 95,
+      "images": 1
+    },
+    {
+      "index": 4,
+      "input_tokens": 7125,
+      "output_tokens": 23,
+      "images": 1
+    },
+    {
+      "index": 5,
+      "input_tokens": 9525,
+      "output_tokens": 54,
+      "images": 2
+    },
+    {
+      "index": 6,
+      "input_tokens": 11992,
+      "output_tokens": 44,
+      "images": 3
+    },
+    {
+      "index": 7,
+      "input_tokens": 14455,
+      "output_tokens": 49,
+      "images": 4
+    },
+    {
+      "index": 8,
+      "input_tokens": 16921,
+      "output_tokens": 96,
+      "images": 5
+    },
+    {
+      "index": 9,
+      "input_tokens": 19432,
+      "output_tokens": 70,
+      "images": 6
+    },
+    {
+      "index": 10,
+      "input_tokens": 21924,
+      "output_tokens": 58,
+      "images": 7
+    },
+    {
+      "index": 11,
+      "input_tokens": 24399,
+      "output_tokens": 144,
+      "images": 8
+    },
+    {
+      "index": 12,
+      "input_tokens": 24571,
+      "output_tokens": 22,
+      "images": 8
+    },
+    {
+      "index": 13,
+      "input_tokens": 26983,
+      "output_tokens": 73,
+      "images": 9
+    },
+    {
+      "index": 14,
+      "input_tokens": 29575,
+      "output_tokens": 476,
+      "images": 10
+    },
+    {
+      "index": 15,
+      "input_tokens": 30103,
+      "output_tokens": 28,
+      "images": 10
+    },
+    {
+      "index": 16,
+      "input_tokens": 32520,
+      "output_tokens": 190,
+      "images": 11
+    }
+  ]
+}

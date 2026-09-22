@@ -1,0 +1,26 @@
+{
+  "oracle_attempts": [
+    {
+      "result": "calculation_and_release_passed",
+      "screenshot": "rejected_invalid_window_id_type"
+    },
+    {
+      "result": "calculation_and_release_passed",
+      "screenshot": "rejected_window_outside_main_display"
+    },
+    {
+      "result": "reset_failed",
+      "cleanup": "calculator_closed_no_pressed_keys_or_buttons"
+    },
+    {
+      "result": "passed_after_positioning_on_main_display"
+    }
+  ],
+  "preview_attempts": [
+    "visible_app_scope_rejected",
+    "local_capture_rejected_on_visual_review_background_on_wrong_display",
+    "passed_after_binding_background_to_Quartz_main_display"
+  ],
+  "approval": "User explicitly authorized one A-control trial, controlled Calculator screenshots to DashScope endpoint, 16 requests/120s, record-only token/cost.",
+  "model_requests_so_far": 0
+}

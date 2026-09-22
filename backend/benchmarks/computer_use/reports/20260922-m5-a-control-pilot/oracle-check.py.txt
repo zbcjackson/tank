@@ -1,0 +1,41 @@
+import asyncio, base64, json, subprocess
+from pathlib import Path
+import Quartz, AppKit
+from tank_backend.benchmarks.calc_validator import reset_calculator, read_calculator
+from tank_backend.tools.computer_use_macos import KeyPressTool, ScreenshotTool
+from tank_backend.tools.computer_frame import FrameState, FrameTool
+from tank_backend.tools.base import ToolContext
+from tank_backend.core.content import ImageBlock
+from tank_backend.benchmarks.runner import save_current_input_source, pin_ascii_input_source, restore_saved_input_source
+OUT=Path('/tmp/tank-m5-oracle-20260922-final'); OUT.mkdir(exist_ok=False)
+async def main():
+    result={}
+    save_current_input_source()
+    try:
+        pin_ascii_input_source()
+        result['reset']=reset_calculator()
+        if not result['reset']: raise RuntimeError('Calculator reset failed')
+        subprocess.run(['osascript','-e','tell application "System Events" to tell process "Calculator" to set position of window 1 to {600, 100}'],check=True,capture_output=True,timeout=20)
+        for key in ('7','shift+8','8','enter'):
+            action=await KeyPressTool().execute(keys=key)
+            if action.error: raise RuntimeError(str(action.content))
+        await asyncio.sleep(.5)
+        result['display']=read_calculator()
+        result['oracle_passed']=result['display'].get('expression') in ('7×8','7*8') and result['display'].get('result')=='56'
+        windows=Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionOnScreenOnly,Quartz.kCGNullWindowID)
+        window=next(w for w in windows if w.get('kCGWindowOwnerName')=='Calculator' and w.get('kCGWindowLayer')==0)
+        shot=await FrameTool(ScreenshotTool(),FrameState()).execute(coordinate_space='image',window_id=int(window['kCGWindowNumber']),ctx=ToolContext(session_id='m5-oracle'))
+        if shot.error: raise RuntimeError(str(shot.content))
+        image=next(b for b in shot.content if isinstance(b,ImageBlock))
+        (OUT/'calculator.png').write_bytes(base64.b64decode(image.source.split(',',1)[1]))
+    finally:
+        restore_saved_input_source()
+        subprocess.run(['osascript','-e','tell application "Calculator" to quit'],capture_output=True,timeout=20)
+        await asyncio.sleep(.3)
+        result['calculator_closed']=not any(a.bundleIdentifier()=='com.apple.calculator' for a in AppKit.NSWorkspace.sharedWorkspace().runningApplications())
+        result['pressed_mouse_buttons']=[i for i in range(3) if Quartz.CGEventSourceButtonState(Quartz.kCGEventSourceStateCombinedSessionState,i)]
+        result['pressed_keys']=[i for i in range(128) if Quartz.CGEventSourceKeyState(Quartz.kCGEventSourceStateCombinedSessionState,i)]
+        (OUT/'result.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
+        print(json.dumps(result,ensure_ascii=False))
+    if not result.get('oracle_passed') or not result['calculator_closed'] or result['pressed_mouse_buttons'] or result['pressed_keys']: raise RuntimeError('Oracle or cleanup failed')
+asyncio.run(main())

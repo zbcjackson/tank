@@ -1,0 +1,11 @@
+{
+  "reset": true,
+  "display": {
+    "expression": "7×8",
+    "result": "56"
+  },
+  "oracle_passed": true,
+  "calculator_closed": true,
+  "pressed_mouse_buttons": [],
+  "pressed_keys": []
+}
