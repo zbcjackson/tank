@@ -47,7 +47,9 @@ def desktop(monkeypatch):
     return manager, click, png
 
 
-def stream(name: str | None, arguments: dict[str, Any]) -> httpx.Response:
+def stream(
+    name: str | None, arguments: dict[str, Any] | str, *, finish: str | None = None,
+) -> httpx.Response:
     delta = (
         {
             "tool_calls": [
@@ -55,7 +57,8 @@ def stream(name: str | None, arguments: dict[str, Any]) -> httpx.Response:
                     "index": 0,
                     "id": "call",
                     "type": "function",
-                    "function": {"name": name, "arguments": json.dumps(arguments)},
+                    "function": {"name": name, "arguments": (arguments if isinstance(arguments, str)
+                                                            else json.dumps(arguments))},
                 }
             ]
         }
@@ -68,7 +71,8 @@ def stream(name: str | None, arguments: dict[str, Any]) -> httpx.Response:
         "created": 1,
         "model": "test",
         "choices": [
-            {"index": 0, "delta": delta, "finish_reason": "tool_calls" if name else "stop"}
+            {"index": 0, "delta": delta,
+             "finish_reason": finish or ("tool_calls" if name else "stop")}
         ],
         "usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5},
     }
@@ -644,3 +648,176 @@ async def test_cancel_joins_started_native_input_before_task_finishes(
         with pytest.raises(asyncio.CancelledError):
             await task
     assert finished.is_set()
+
+
+def test_integrated_grounding_config_keeps_factors_independent(tmp_path):
+    from tank_backend.agents.definition import GroundingConfig, parse_agent_file
+
+    for protocol in ("legacy", "point", "pixels", "bbox"):
+        for host_restore in (False, True):
+            path = tmp_path / "integrated.md"
+            path.write_text(
+                "---\nname: integrated\ngrounding:\n  mode: integrated\n"
+                f"  protocol: {protocol}\n  host_restore: {str(host_restore).lower()}\n"
+                "---\nUse the GUI."
+            )
+            config = parse_agent_file(path).grounding
+            assert config is not None and config.mode == "integrated"
+            assert config.protocol == protocol and config.host_restore is host_restore
+    assert GroundingConfig().mode == "split"
+    invalid: list[dict[str, Any]] = [
+        {"mode": "unknown"}, {"host_restore": "false"},
+        {"host_restore": False}, {"protocol": "legacy"},
+        {"mode": "integrated", "profile": "locator"},
+        {"mode": "integrated", "fallback_profile": "fallback"},
+        {"mode": "integrated", "strict": True},
+    ]
+    for kwargs in invalid:
+        with pytest.raises(ValueError):
+            GroundingConfig(**kwargs)
+
+
+@pytest.mark.parametrize("batch", [False, True])
+@pytest.mark.parametrize("ending", ["success", "truncated", "duplicate"])
+@pytest.mark.parametrize("protocol", ["legacy", "point", "pixels", "bbox"])
+@pytest.mark.parametrize("host_restore", [False, True])
+async def test_integrated_runner_uses_one_model_and_independent_host_mapping(
+    desktop, monkeypatch, tmp_path, protocol, host_restore, ending, batch
+):
+    from tank_backend.agents.definition import GroundingConfig
+    from tank_backend.benchmarks.driver import CountingLLM, SubAgentDriver
+    from tank_backend.benchmarks.trace import TraceSink
+
+    manager, click, _ = desktop
+    requests = []
+
+    def respond(request):
+        body = json.loads(request.content)
+        requests.append(body)
+        assert body["stream"] is True  # no hidden locator request
+        schemas = {t["function"]["name"]: t["function"]["parameters"] for t in body["tools"]}
+        assert "locate" not in schemas
+        assert "Use the GUI." in body["messages"][0]["content"]
+        if len(requests) == 1:
+            return stream("screenshot", {"region": [500, 500, 1000, 1000]})
+        if len(requests) == 2:
+            text = next(p["text"] for m in body["messages"]
+                        if isinstance(m.get("content"), list) for p in m["content"]
+                        if p["type"] == "text" and "frame_id" in p["text"])
+            observation = json.loads(text[text.index("{") :])
+            if protocol == "legacy":
+                location = {"x": 500, "y": 500}
+            elif protocol == "bbox":
+                location = {"status": "found", "left": 400, "top": 400,
+                            "right": 600, "bottom": 600}
+            elif protocol == "pixels":
+                w, h = observation["image_size" if host_restore else "screen_size"]
+                location = {"status": "found", "x": w // 2, "y": h // 2}
+            else:
+                location = {"status": "found", "x": 500, "y": 500}
+            arguments = {"frame_id": observation["frame_id"], "location": location}
+            if ending == "duplicate":
+                return stream("click", json.dumps(arguments).replace(
+                    '"location":', '"location": {}, "location":',
+                ))
+            if batch:
+                return stream("computer_batch", {"actions": [{"action": "click", **arguments}]},
+                              finish="length" if ending == "truncated" else None)
+            return stream("click", arguments, finish="length" if ending == "truncated" else None)
+        assert "dispatched" in json.dumps(body["messages"])
+        return stream(None, {})
+
+    client = AsyncOpenAI(api_key="test", max_retries=0,
+                         http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+    monkeypatch.setattr(llm_module, "AsyncOpenAI", lambda **kw: client)
+    monkeypatch.setattr(llm_module, "initialize_langfuse", lambda: None)
+    llm = CountingLLM(llm_module.LLM(api_key="test", model="test",
+                                    base_url="https://offline.invalid/v1"))
+    definition = AgentDefinition(
+        "integrated", "", "Use the GUI.", tool_filter=("screenshot", "click", "computer_batch"),
+        grounding=GroundingConfig(mode="integrated", protocol=protocol, host_restore=host_restore),
+    )
+    from typing import cast
+    runner = AgentRunner(cast(llm_module.LLM, llm), manager, Bus(),
+                         ToolApprovalPolicy(computer_mode="allow"), PendingToolCallStore(), {})
+    trace = TraceSink(tmp_path / "trial")
+    try:
+        result = await SubAgentDriver(runner, definition, llm, manager).run(
+            "Click the center", trace, timeout_s=5, max_steps=10,
+        )
+    finally:
+        trace.close()
+        await client.close()
+    if ending != "success":
+        assert result.error is not None
+        click.assert_not_called()
+        assert len(requests) == 2 and result.tokens == 10
+        return
+    assert result.error is None, result.error
+    assert len(requests) == 3 and result.tokens == 15 and result.llm_calls == 3
+    assert result.screenshots == 2 and result.non_gui_tools == ()
+    assert result.primitives == 2
+    click.assert_called_once_with(*( (75, 60) if host_restore else (50, 40)), "left", 1)
+    assert "locate" not in manager.tools and manager._session_id == "parent-session"
+
+
+@pytest.mark.parametrize("status", ["not_found", "ambiguous", "invalid", "stale", "changed"])
+async def test_integrated_batch_stops_without_input_on_failed_location(
+    locator, monkeypatch, status,
+):
+    from tank_backend.agents.definition import GroundingConfig
+    from tank_backend.tools.computer_integrated import IntegratedSession, IntegratedTool
+
+    c = locator
+    session = IntegratedSession(c.session.tools, {}, c.session.adapter, c.context, "integrated")
+    session.config = GroundingConfig(mode="integrated")
+    c.session = session
+    c.manager.tools = {n: IntegratedTool(session, n) for n in session.tools}
+    c.manager.tools["computer_batch"] = IntegratedTool(session, "computer_batch")
+    typed = MagicMock()
+    monkeypatch.setattr(macos, "_type_macos", typed)
+    frame = await observe(c)
+    if status == "stale":
+        await observe(c)
+    if status == "changed":
+        image = io.BytesIO()
+        Image.new("RGB", (100, 80), "blue").save(image, "PNG")
+        monkeypatch.setattr(macos, "_capture_screenshot_macos", lambda **kw: image.getvalue())
+    location = {"status": status if status in {"not_found", "ambiguous"} else "found",
+                "x": 0 if status in {"not_found", "ambiguous"} else 500, "y": 0}
+    if status == "invalid":
+        location["x"] = "500"
+    actions = [{"action": "click", "frame_id": frame, "location": location},
+               {"action": "type_text", "text": "must not type"}]
+    result = await c.manager.execute_tool("computer_batch", actions=actions)
+    assert result.error
+    c.click.assert_not_called()
+    typed.assert_not_called()
+    assert not c.requests  # no locator HTTP
+
+
+async def test_integrated_factor_schema_reuses_adapter_and_preserves_tool_allowlist(locator):
+    from tank_backend.agents.definition import GroundingConfig
+    from tank_backend.tools.computer_grounding import GroundingAdapter
+    from tank_backend.tools.computer_integrated import IntegratedSession, IntegratedTool
+
+    c = locator
+    # A restricted mouse-move agent must not need a registered click tool for schema generation.
+    tools = {n: t for n, t in c.session.tools.items() if n in {"screenshot", "mouse_move"}}
+    for protocol in ("legacy", "point", "pixels", "bbox"):
+        schemas = []
+        for host_restore in (False, True):
+            adapter = GroundingAdapter("point" if protocol == "legacy" else protocol,
+                                       status_field=True)
+            session = IntegratedSession(tools, {}, adapter, c.context, "paired")
+            session.config = GroundingConfig(mode="integrated", protocol=protocol,
+                                             host_restore=host_restore)
+            schema = IntegratedTool(session, "mouse_move").get_raw_schema()
+            schemas.append(schema)
+            if protocol != "legacy":
+                assert schema["properties"]["location"] == adapter.schema()
+            batch = IntegratedTool(session, "computer_batch").get_raw_schema()
+            actions = batch["properties"]["actions"]["items"]["oneOf"]
+            assert [s["properties"]["action"]["const"] for s in actions] == ["mouse_move"]
+            assert actions[0]["properties"]["location"] == schema["properties"]["location"]
+        assert schemas[0] == schemas[1]  # host restoration never changes the wire schema

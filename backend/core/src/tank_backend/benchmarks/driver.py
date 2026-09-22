@@ -513,7 +513,9 @@ class SubAgentDriver:
 
         class Observer:
             def on_event(_self, kind: str, metadata: dict[str, Any]) -> None:
-                nonlocal unknown_calls
+                nonlocal unknown_calls, primitives
+                if kind == "desktop_dispatch" and metadata.get("in_batch"):
+                    primitives += int(metadata.get("succeeded", False))
                 if kind == "dimensions":
                     self._runtime_metadata["display"] = dict(metadata)
                 if "sdk_version" in metadata:

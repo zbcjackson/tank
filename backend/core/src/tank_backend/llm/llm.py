@@ -470,6 +470,7 @@ class LLM:
         session_id: str | None = None,
         hook_manager: Any = None,
         guardrail_config: Any = None,
+        require_complete_tool_calls: bool = False,
     ) -> AsyncGenerator[tuple[UpdateType, str, dict[str, Any]], None]:
         """Stream chat completion with automatic tool call handling.
 
@@ -625,6 +626,7 @@ class LLM:
             full_reasoning = ""
             tool_calls_data = {}  # index -> {id, name, arguments}
             iteration_usage = None
+            finish_reason = None
 
             stream = await self._create_with_retry(**api_kwargs)
 
@@ -634,6 +636,7 @@ class LLM:
                 if not chunk.choices:
                     continue
 
+                finish_reason = chunk.choices[0].finish_reason or finish_reason
                 delta = chunk.choices[0].delta
 
                 # Handle reasoning/thinking content
@@ -726,6 +729,25 @@ class LLM:
                 "estimated": iteration_usage is None,
                 "turn": turn,
             })
+
+            if require_complete_tool_calls and tool_calls_data:
+                if finish_reason not in {"tool_calls", "stop"}:
+                    raise ValueError(f"Incomplete desktop tool response: {finish_reason}")
+
+                def unique_arguments(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+                    obj: dict[str, Any] = {}
+                    for key, value in pairs:
+                        if key in obj:
+                            raise ValueError(f"Duplicate desktop argument: {key}")
+                        obj[key] = value
+                    return obj
+
+                import json as desktop_json
+
+                for call in tool_calls_data.values():
+                    args = desktop_json.loads(call["arguments"], object_pairs_hook=unique_arguments)
+                    if not isinstance(args, dict):
+                        raise ValueError("Desktop tool arguments must be an object")
 
             if tool_calls_data and tool_executor:
                 from openai.types.chat.chat_completion_message_tool_call import (

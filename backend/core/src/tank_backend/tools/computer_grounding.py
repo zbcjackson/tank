@@ -58,6 +58,12 @@ class GroundingAdapter:
             status_field=self.status_field,
         )
 
+    def schema(self, size: tuple[int, int] | None = None) -> dict[str, Any]:
+        """Location fields; pixel bounds are runtime-only before the first frame."""
+        if size is not None:
+            _validate_size(size)
+        return _location_schema(self.protocol, size, self.nullable_style, self.status_field)
+
     def parse(self, raw: str, size: tuple[int, int]) -> ImageLocation:
         _validate_size(size)
         return _parse_location(
@@ -101,16 +107,12 @@ def _validate_size(size: tuple[int, int]) -> None:
         raise ValueError("Invalid image size")
 
 
-def _location_payload(
-    png: bytes, size: tuple[int, int], target: str,
-    protocol: str, *, strict: bool = False, previous: bytes | None = None,
-    system: str = "Locate the requested UI element in the current image.",
-    marked: bool = False, detail: str = "auto",
-    nullable_style: str = "type-array", status_field: bool = False,
+def _location_schema(
+    protocol: str, size: tuple[int, int] | None, nullable_style: str, status_field: bool,
 ) -> dict[str, Any]:
-    """Build image messages and a location schema, independent of the provider."""
     fields = ("left", "top", "right", "bottom") if protocol == "bbox" else ("x", "y")
-    limits = (size[0] - 1, size[1] - 1) if protocol == "pixels" else (1000,) * len(fields)
+    limits = ((size[0] - 1, size[1] - 1) if size is not None else (None, None)) \
+        if protocol == "pixels" else (1000,) * len(fields)
     outcome = "status" if status_field else "found"
     properties: dict[str, Any] = {outcome: (
         {"type": "string", "enum": ["found", "not_found", "ambiguous"]} if status_field
@@ -126,10 +128,26 @@ def _location_payload(
     elif nullable_style == "integer":
         for field in fields:
             properties[field]["type"] = "integer"
+    for value in properties.values():
+        if value.get("maximum", 0) is None:
+            value.pop("maximum")
+        for branch in value.get("anyOf", []):
+            if branch.get("maximum", 0) is None:
+                branch.pop("maximum")
+    return {"type": "object", "properties": properties,
+            "required": [outcome, *fields], "additionalProperties": False}
+
+def _location_payload(
+    png: bytes, size: tuple[int, int], target: str,
+    protocol: str, *, strict: bool = False, previous: bytes | None = None,
+    system: str = "Locate the requested UI element in the current image.",
+    marked: bool = False, detail: str = "auto",
+    nullable_style: str = "type-array", status_field: bool = False,
+) -> dict[str, Any]:
+    """Build image messages and a location schema, independent of the provider."""
     function: dict[str, Any] = {
         "name": "click", "description": "Report one target location; no action is executed.",
-        "parameters": {"type": "object", "properties": properties,
-                       "required": [outcome, *fields], "additionalProperties": False},
+        "parameters": _location_schema(protocol, size, nullable_style, status_field),
     }
     if strict:
         function["strict"] = True

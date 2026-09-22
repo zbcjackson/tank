@@ -17,7 +17,7 @@ _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)", re.DOTALL)
 
 @dataclass(frozen=True)
 class GroundingConfig:
-    """Opt-in split desktop mode; omitted profiles reuse the planner model."""
+    """Opt-in desktop experiment; split remains the default for existing configs."""
 
     profile: str | None = None
     fallback_profile: str | None = None
@@ -26,11 +26,22 @@ class GroundingConfig:
     strict: bool = False
     detail: str = "auto"
     status_field: bool = True
+    mode: str = "split"
+    host_restore: bool = True
 
     def __post_init__(self) -> None:
         from ..tools.computer_grounding import GroundingAdapter
 
-        GroundingAdapter(self.protocol, self.nullable_style, self.strict,
+        if self.mode not in {"split", "integrated"} or type(self.host_restore) is not bool:
+            raise ValueError("Invalid grounding mode/host_restore")
+        if self.mode == "split" and (not self.host_restore or self.protocol == "legacy"):
+            raise ValueError("Split grounding requires image restoration and an adapter")
+        if self.mode == "integrated" and (
+            self.profile is not None or self.fallback_profile is not None or self.strict
+        ):
+            raise ValueError("Integrated mode uses only the planner and non-strict tools")
+        protocol = "point" if self.protocol == "legacy" else self.protocol
+        GroundingAdapter(protocol, self.nullable_style, self.strict,
                          self.detail, self.status_field)
         for profile in (self.profile, self.fallback_profile):
             if profile is not None and (not isinstance(profile, str) or not profile.strip()):

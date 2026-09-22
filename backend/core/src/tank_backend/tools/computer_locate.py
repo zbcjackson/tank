@@ -186,8 +186,10 @@ class LocateSession:
                     await asyncio.shield(native)
                 finally:
                     raise
-        self.context.check()
         failed = isinstance(result, ToolResult) and result.error
+        self.context.observe("desktop_dispatch", name=name, succeeded=not failed,
+                             in_batch=not feedback)
+        self.context.check()
         if failed or name not in {"click", "mouse_move", "scroll", "drag"}:
             self.locations.clear()
             self.state.observation = None
@@ -376,7 +378,7 @@ class LocateTool(BaseTool):
                 "hold_key",
             ):
                 if name in self.session.tools:
-                    schema = LocateTool(self.session, name).get_raw_schema()
+                    schema = type(self)(self.session, name).get_raw_schema()
                     schema["properties"]["action"] = {"const": name}
                     schema["required"].append("action")
                     choices.append(schema)

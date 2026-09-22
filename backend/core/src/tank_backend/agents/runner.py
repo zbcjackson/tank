@@ -340,10 +340,21 @@ class AgentRunner:
                         assert self._app_config is not None
                         llms[key] = self._llm_factory(self._app_config.llm_profiles[profile])
                         owned_grounders.append(llms[key])
-                session = LocateSession(session_tools, llms, GroundingAdapter(
-                    config.protocol, config.nullable_style, config.strict,
+                from ..tools.computer_integrated import (
+                    IntegratedSession,
+                    IntegratedTool,
+                    integrated_prompt,
+                )
+
+                session_class = IntegratedSession if config.mode == "integrated" else LocateSession
+                tool_class = IntegratedTool if config.mode == "integrated" else LocateTool
+                session = session_class(session_tools, llms, GroundingAdapter(
+                    "point" if config.protocol == "legacy" else config.protocol,
+                    config.nullable_style, config.strict,
                     config.detail, config.status_field,
                 ), context, agent_id)
+                if isinstance(session, IntegratedSession):
+                    session.config = config
                 tool_manager = copy.copy(self._tool_manager)
                 tool_manager.tools = dict(session_tools)
                 tool_manager.tool_metadata = dict(self._tool_manager.tool_metadata)
@@ -352,21 +363,26 @@ class AgentRunner:
                     tool_manager.tools.pop(name, None)
                 for name, tool in list(tool_manager.tools.items()):
                     if tool.get_metadata().category == "computer":
-                        tool_manager.register_tool(LocateTool(session, name))
-                tool_manager.register_tool(LocateTool(session, "locate"))
-                tool_manager.register_tool(LocateTool(session, "computer_batch"))
+                        tool_manager.register_tool(tool_class(session, name))
+                if config.mode == "split":
+                    tool_manager.register_tool(LocateTool(session, "locate"))
+                tool_manager.register_tool(tool_class(session, "computer_batch"))
                 tool_manager.set_session_id(agent_id)
-                if tool_filter is not None:
+                if tool_filter is not None and config.mode == "split":
                     tool_filter.append("locate")
                 available_tools = {
                     t["function"]["name"]
                     for t in tool_manager.get_openai_tools(exclude=exclude_tools)
                     if tool_filter is None or t["function"]["name"] in tool_filter
                 }
+                mode_prompt = (
+                    integrated_prompt(config) if config.mode == "integrated" else SPLIT_PROMPT
+                )
                 # Override the coordinate contract without losing task-specific instructions.
                 system_prompt = self._build_sub_agent_prompt(
                     replace(
-                        agent_def, system_prompt=agent_def.system_prompt + "\n\n" + SPLIT_PROMPT,
+                        agent_def, system_prompt=agent_def.system_prompt + "\n\n"
+                        + mode_prompt,
                     ),
                     messages, available_tools,
                 )

@@ -189,6 +189,7 @@ class LLMAgent(Agent):
                 "metadata": {"agent_name": self.name},
             },
             system_prompt_fn=system_prompt_fn,
+            require_complete_tool_calls=self._task_context is not None,
             # Phase 18: thread MediaStore + session through so the
             # LLM loop can materialize ``media://`` URIs returned by
             # tools (e.g. ``render_chart``) into data URLs the LLM
