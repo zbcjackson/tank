@@ -121,9 +121,13 @@ async def test_driver_checks_runtime_contract_before_constructing_clients(
     manager.assert_not_called()
 
 
-@pytest.mark.parametrize("variant", ["A", "A-control", "B-host-only", "B-protocol-only",
-                                     "B-combined", "C", "D"])
-async def test_generated_config_reaches_real_driver_and_sdk(runtime_bundle, monkeypatch, variant):
+@pytest.mark.parametrize("variant,record_only,status", [
+    (variant, mode, 200) for mode in (False, True)
+    for variant in ("A", "A-control", "B-host-only", "B-protocol-only", "B-combined", "C", "D")
+] + [("A", True, 402), ("D", True, 402)])
+async def test_generated_config_reaches_real_driver_and_sdk(
+    runtime_bundle, monkeypatch, variant, record_only, status,
+):
     from unittest.mock import Mock
 
     import httpx
@@ -133,6 +137,8 @@ async def test_generated_config_reaches_real_driver_and_sdk(runtime_bundle, monk
     from tank_backend.benchmarks import driver as module
     from tank_backend.benchmarks.comparison_contract import ComparisonContract
     from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.spend_http import SpendControl
+    from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit
     from tank_backend.benchmarks.trace import TraceSink
     from tank_backend.llm import llm as llm_module
     from tank_backend.tools import computer_use_macos as macos
@@ -156,10 +162,13 @@ async def test_generated_config_reaches_real_driver_and_sdk(runtime_bundle, monk
 
     def respond(request):
         bodies.append(json.loads(request.content))
+        if status == 402:
+            return httpx.Response(402, json={"error": {"message": "Insufficient balance"}})
         chunk = {"id": "offline", "object": "chat.completion.chunk", "created": 1,
                  "model": bodies[-1]["model"], "choices": [{"index": 0,
                  "delta": {"content": "done"}, "finish_reason": "stop"}],
-                 "usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5}}
+                 "usage": {"prompt_tokens": 400000 if record_only else 2, "completion_tokens": 3,
+                           "total_tokens": 400003 if record_only else 5}}
         return httpx.Response(200, content=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n")
 
     def client_factory(**kwargs):
@@ -170,15 +179,27 @@ async def test_generated_config_reaches_real_driver_and_sdk(runtime_bundle, monk
 
     monkeypatch.setattr(llm_module, "AsyncOpenAI", client_factory)
     trace = TraceSink(runtime_bundle.parent / "trial")
+    ledger = SpendLedger(SpendLimit(0, 0), record_only=True)
+    spend = SpendControl(ledger, SpendLimit(0, 0), ()) if record_only else None
     try:
         driver = module.SubAgentDriver.create(
             "computer_use", runtime_bundle / "runtime" / variant.lower() / "config.yaml",
             comparison=ComparisonContract(runtime_bundle, variant), request_limits=RequestLimits(),
+            spend=spend,
         )
         result = await driver.run("Reply done without tools", trace, timeout_s=5, max_steps=2)
-        assert result.error is None
-        assert result.final_text == "done"
+        if status == 402:
+            assert result.error is not None
+            assert ledger.snapshot()["stop_reason"] == "unknown_usage"
+        else:
+            assert result.error is None
+            assert result.final_text == "done"
         assert driver.describe()["comparison_contract"]["variant"] == variant
+        if record_only:
+            assert driver.describe()["token_budget"] == 0
+            if status == 200:
+                assert ledger.snapshot()["batch"]["known_tokens"] == 400003
+                assert ledger.snapshot()["stop_reason"] is None
     finally:
         trace.close()
         for client in clients:
@@ -366,11 +387,12 @@ async def test_batch_proposal_preflight_is_offline_and_preserves_budget(
         "tokens": 5100000, "task_seconds": 2040,
     }
     assert report["live_ready"] is False
-    assert report["first_request"] == {
-        "reserved_tokens": 999808, "trial_limit": 300000, "stop_reason": "trial_tokens",
-    }
+    assert report["token_cost_gate"] == "disabled"
+    assert report["effective_agent_token_budget"] == 0
+    assert proposal["record_only"] is True
     assert proposal["budget_nano_usd"] == 8000000000
-    assert len(report["blockers"]) >= 5
+    assert "usable_input_bound" not in report["blockers"]
+    assert "live_endpoint_and_image_scope_authorization" in report["blockers"]
     forbidden.assert_not_called()
     with pytest.raises(FileExistsError):
         api["prepare"](runtime_bundle, output)

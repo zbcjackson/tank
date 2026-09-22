@@ -97,7 +97,7 @@ class SpendSession:
             "enable_thinking",
         }
         maximum = body.get("max_tokens")
-        if (
+        if not self.control.ledger.record_only and (
             contract is None
             or request.method != "POST"
             or set(body) - allowed
@@ -109,7 +109,12 @@ class SpendSession:
         ):
             self.block("request_contract")
         request_id = uuid.uuid4().hex
-        self.control.ledger.reserve(request_id, contract.allowance)
+        if self.control.ledger.record_only:
+            allowance = TokenAllowance(0, 0, 0, 0)
+        else:
+            assert contract is not None
+            allowance = contract.allowance
+        self.control.ledger.reserve(request_id, allowance)
         self.pending = request_id
         self.body.clear()
         self.streaming = body["stream"] is True
@@ -119,7 +124,8 @@ class SpendSession:
         self.trace.event(
             "spend_reserved",
             request_id=request_id,
-            contract=asdict(contract),
+            contract=asdict(contract) if contract is not None else None,
+            record_only=self.control.ledger.record_only,
             request_sha256=hashlib.sha256(request.content).hexdigest(),
         )
         return request_id

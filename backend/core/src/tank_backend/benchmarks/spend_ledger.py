@@ -55,6 +55,8 @@ class _Reservation:
 
 
 class SpendSnapshot(TypedDict):
+    record_only: bool
+    cost_status: str
     batch: dict[str, int]
     trials: dict[str, dict[str, int]]
     stop_reason: str | None
@@ -66,9 +68,11 @@ class SpendLedger:
 
     def __init__(
         self, limit: SpendLimit, *, journal: Path | None = None, request_limit: int | None = None,
+        record_only: bool = False,
     ) -> None:
         if request_limit is not None and (type(request_limit) is not int or request_limit < 0):
             raise ValueError("Request limit must be a non-negative integer")
+        self.record_only = record_only
         self._request_limit = request_limit
         self._limit = limit
         self._trials: dict[str, SpendLimit] = {}
@@ -145,6 +149,8 @@ class SpendLedger:
         if self._request_limit is not None and len(self._requests) >= self._request_limit:
             self.stop("batch_requests")
             raise SpendLimitExceeded("batch_requests")
+        if self.record_only:
+            allowance = TokenAllowance(0, 0, 0, 0)
         added_tokens = allowance.input_tokens + allowance.output_tokens
         added_cost = (
             allowance.input_tokens * allowance.input_nano_usd
@@ -155,7 +161,9 @@ class SpendLedger:
             ("batch", self._totals(self._limit)),
         ):
             for dimension, added in (("tokens", added_tokens), ("nano_usd", added_cost)):
-                if totals[f"charged_{dimension}"] + added > totals[f"limit_{dimension}"]:
+                if not self.record_only and (
+                    totals[f"charged_{dimension}"] + added > totals[f"limit_{dimension}"]
+                ):
                     self._stop_reason = f"{scope}_{dimension}"
                     self._persist()
                     raise SpendLimitExceeded(self._stop_reason)
@@ -177,8 +185,9 @@ class SpendLedger:
         output_tokens = output_tokens if type(output_tokens) is int and output_tokens >= 0 else None
         request.input_tokens = input_tokens
         request.output_tokens = output_tokens
-        exceeded = (input_tokens is not None and input_tokens > request.allowance.input_tokens) or (
-            output_tokens is not None and output_tokens > request.allowance.output_tokens
+        exceeded = not self.record_only and (
+            (input_tokens is not None and input_tokens > request.allowance.input_tokens) or
+            (output_tokens is not None and output_tokens > request.allowance.output_tokens)
         )
         if input_tokens is None or output_tokens is None:
             request.status = "unknown"
@@ -241,6 +250,8 @@ class SpendLedger:
         if self._request_limit is not None:
             batch.update(limit_requests=self._request_limit, admitted_requests=len(self._requests))
         return {
+            "record_only": self.record_only,
+            "cost_status": "unpriced" if self.record_only else "contract_estimate",
             "batch": batch,
             "trials": {trial: self._totals(limit, trial) for trial, limit in self._trials.items()},
             "stop_reason": self._stop_reason,

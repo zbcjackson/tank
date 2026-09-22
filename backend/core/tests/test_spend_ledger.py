@@ -390,3 +390,24 @@ def test_partial_usage_keeps_observed_overrun_as_well_as_unknown_reserve(
     assert snapshot["batch"]["charged_tokens"] == charged
     assert snapshot["batch"]["reserved_nano_usd"] == cost
     assert snapshot["batch"]["known_tokens"] == 0
+
+
+def test_record_only_ignores_token_cost_bounds_but_keeps_request_limit():
+    from tank_backend.benchmarks.spend_ledger import (
+        SpendLedger,
+        SpendLimit,
+        SpendLimitExceeded,
+        TokenAllowance,
+    )
+
+    ledger = SpendLedger(SpendLimit(0, 0), request_limit=1, record_only=True)
+    ledger.start_trial("trial", SpendLimit(0, 0))
+    ledger.reserve("request", TokenAllowance(0, 0, 0, 0))
+    ledger.settle("request", input_tokens=400000, output_tokens=8000)
+    snapshot = ledger.snapshot()
+    assert snapshot["stop_reason"] is None
+    assert snapshot["batch"]["known_tokens"] == 408000
+    assert snapshot["record_only"] is True
+    assert snapshot["cost_status"] == "unpriced"
+    with pytest.raises(SpendLimitExceeded, match="batch_requests"):
+        ledger.reserve("next", TokenAllowance(0, 0, 0, 0))

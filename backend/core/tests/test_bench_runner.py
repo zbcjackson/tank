@@ -485,7 +485,8 @@ def _make_suite(tmp_path: Path) -> Path:
 
 
 @pytest.mark.parametrize(
-    "stop_case", ["none", "cleanup", "usage", "budget", "cancelled", "requests", "inputs", "zero"],
+    "stop_case", ["none", "cleanup", "usage", "budget", "cancelled", "requests", "inputs",
+                  "zero", "record_only"],
 )
 async def test_serial_batch_shares_durable_spend_and_refuses_replay(
     tmp_path, monkeypatch, stop_case,
@@ -551,10 +552,11 @@ async def test_serial_batch_shares_durable_spend_and_refuses_replay(
     async def invoke():
         return await run_batch(
             entries, out_dir=tmp_path / "out",
-            batch_limit=SpendLimit(54 if stop_case == "budget" else 100, 1000),
+            batch_limit=(SpendLimit(0, 0) if stop_case == "record_only" else
+                         SpendLimit(54 if stop_case == "budget" else 100, 1000)),
             trial_limit=SpendLimit(60, 600), request_limits=RequestLimits(), contracts=(),
             batch_request_limit=0 if stop_case == "zero" else 1 if stop_case == "requests" else 3,
-            frozen_inputs=frozen,
+            frozen_inputs=frozen, record_only=stop_case == "record_only",
         )
     if stop_case in {"cancelled", "inputs"}:
         with pytest.raises(asyncio.CancelledError if stop_case == "cancelled" else ValueError):
@@ -563,24 +565,28 @@ async def test_serial_batch_shares_durable_spend_and_refuses_replay(
     else:
         result = await invoke()
     expected_order = (
-        ["a", "b", "c"] if stop_case == "none" else [] if stop_case == "zero" else ["a"]
+        ["a", "b", "c"] if stop_case in {"none", "record_only"} else
+        [] if stop_case == "zero" else ["a"]
     )
     assert order == expected_order
     assert len({id(c) for c in controls}) == (0 if stop_case == "zero" else 1)
     assert result["completed"] == {
-        "none": ["a", "b", "c"], "budget": ["a", "b"], "cancelled": [],
+        "none": ["a", "b", "c"], "record_only": ["a", "b", "c"], "budget": ["a", "b"],
+        "cancelled": [],
         "cleanup": ["a"], "usage": ["a"],
         "requests": ["a"], "inputs": ["a"], "zero": [],
     }[stop_case]
     assert result["spend"]["batch"]["charged_tokens"] == {
-        "none": 15, "budget": 5, "cancelled": 50, "cleanup": 5, "usage": 50,
+        "none": 15, "record_only": 15, "budget": 5, "cancelled": 50, "cleanup": 5, "usage": 50,
         "requests": 5, "inputs": 5, "zero": 0,
     }[stop_case]
     assert result["spend"]["stop_reason"] == {
-        "none": None, "budget": "batch_tokens", "cancelled": "batch_interrupted",
+        "none": None, "record_only": None, "budget": "batch_tokens",
+        "cancelled": "batch_interrupted",
         "cleanup": "cleanup_unconfirmed", "usage": "unknown_usage",
         "requests": "batch_requests", "inputs": "frozen_inputs", "zero": "batch_requests",
     }[stop_case]
+    assert result["spend"]["record_only"] is (stop_case == "record_only")
     assert result["spend"]["batch"]["admitted_requests"] == len(order)
     config_path.write_text("offline fixture")
     with pytest.raises(FileExistsError):

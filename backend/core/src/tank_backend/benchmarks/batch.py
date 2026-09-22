@@ -73,6 +73,7 @@ async def run_batch(
     contracts: tuple[ContextWindowContract, ...],
     batch_request_limit: int,
     frozen_inputs: FrozenInputs,
+    record_only: bool = False,
 ) -> BatchResult:
     """Run each explicit task/agent once, in order, sharing one durable ledger.
 
@@ -107,11 +108,12 @@ async def run_batch(
             "batch_limit": asdict(batch_limit), "trial_limit": asdict(trial_limit),
             "request_limits": asdict(request_limits),
             "contracts": [asdict(contract) for contract in contracts],
-            "batch_request_limit": batch_request_limit,
+            "batch_request_limit": batch_request_limit, "record_only": record_only,
             "frozen_inputs": asdict(frozen_inputs),
         })
     ledger = SpendLedger(
         batch_limit, journal=out_dir / "spend.jsonl", request_limit=batch_request_limit,
+        record_only=record_only,
     )
     control = SpendControl(ledger, trial_limit, contracts)
     completed: list[str] = []

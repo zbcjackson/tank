@@ -16,7 +16,7 @@ import logging
 import re
 import time
 from collections.abc import AsyncIterator, Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from statistics import median
 from typing import TYPE_CHECKING, Any, Protocol, cast
@@ -410,6 +410,9 @@ class SubAgentDriver:
             raise ValueError("Request limits require the built-in benchmark transport")
         if comparison is not None:
             comparison.verify(app_config, agent_def)
+        configured_token_budget = agent_def.token_budget
+        if spend is not None and spend.ledger.record_only:
+            agent_def = replace(agent_def, token_budget=0)
 
         profile_name = agent_def.model or app_config.agents.llm_profile
         profile: LLMProfile = app_config.get_llm_profile(profile_name)
@@ -519,6 +522,11 @@ class SubAgentDriver:
         driver._runtime_metadata = ({"comparison_contract": {
             "variant": comparison.variant, "freeze_dir": str(comparison.freeze_dir.resolve()),
         }} if comparison is not None else {})
+
+        driver._runtime_metadata.update(
+            budget_record_only=bool(spend is not None and spend.ledger.record_only),
+            configured_token_budget=configured_token_budget,
+        )
 
         # Built-in agents use this exact SDK client. Plugin engines own their
         # transport and must not be labelled HTTP-verified by this hook.

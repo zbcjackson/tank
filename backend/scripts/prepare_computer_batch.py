@@ -13,21 +13,15 @@ from unittest.mock import patch
 from tank_backend.agents.definition import load_agent_definitions
 from tank_backend.benchmarks.comparison_contract import ComparisonContract
 from tank_backend.benchmarks.frozen_inputs import FrozenFile, FrozenInputs
-from tank_backend.benchmarks.spend_ledger import (
-    SpendLedger,
-    SpendLimit,
-    SpendLimitExceeded,
-    TokenAllowance,
-)
 from tank_backend.benchmarks.task import load_suite, load_suite_tasks
 from tank_backend.config import AppConfig
 
 BACKEND = Path(__file__).resolve().parents[1]
 SUITE = BACKEND / "benchmarks/computer_use"
 BLOCKERS = [
-    "usable_input_bound", "account_region_and_prices", "independent_scoring",
+    "independent_scoring",
     "real_environment_and_physical_cleanup", "pilot_acceptance_before_core",
-    "live_budget_endpoint_and_image_scope_authorization",
+    "live_endpoint_and_image_scope_authorization",
 ]
 
 
@@ -55,7 +49,7 @@ def _spec(freeze: Path) -> dict[str, Any]:
                 "tokens": 300000, "timeout_s": 120, "max_steps": 15,
             })
     return {
-        "schema_version": 1, "live_authorized": False,
+        "schema_version": 2, "live_authorized": False, "record_only": True,
         "freeze_dir": _relative(freeze), "budget_nano_usd": 8000000000,
         "batch_tokens": 5100000, "batch_requests": 362,
         "core_requires_pilot_acceptance": True, "trials": trials,
@@ -113,21 +107,10 @@ def preflight(freeze: Path, proposal_path: Path) -> dict[str, Any]:
         "tokens": sum(row["tokens"] for row in rows),
         "task_seconds": sum(row["timeout_s"] for row in rows),
     }
-    # Recorded full-context bound, not a new provider guarantee. Zero prices only
-    # isolate token admission; this deliberately does not validate cost admission.
-    ledger = SpendLedger(SpendLimit(proposal["batch_tokens"], proposal["budget_nano_usd"]))
-    ledger.start_trial("first", SpendLimit(300000, proposal["budget_nano_usd"]))
-    try:
-        ledger.reserve("first-request", TokenAllowance(991808, 8000, 0, 0))
-    except SpendLimitExceeded:
-        pass
-    finally:
-        ledger.close()
     return {
         "offline_checks_passed": True, "live_ready": False, "totals": totals,
         "blockers": BLOCKERS, "checked_files": len(pins),
-        "first_request": {"reserved_tokens": 999808, "trial_limit": 300000,
-                          "stop_reason": ledger.snapshot()["stop_reason"]},
+        "token_cost_gate": "disabled", "effective_agent_token_budget": 0,
     }
 
 
