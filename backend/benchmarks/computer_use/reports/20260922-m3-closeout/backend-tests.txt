@@ -1,0 +1,376 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.7, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/zbcjackson/src/tank/backend
+configfile: pyproject.toml
+testpaths: core/tests, contracts, plugins
+plugins: httpx-0.36.0, anyio-4.14.2, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collected 4616 items
+
+core/tests/test_agent_base.py .........                                  [  0%]
+core/tests/test_agent_engine_seam.py ................                    [  0%]
+core/tests/test_agent_factory.py ......                                  [  0%]
+core/tests/test_agent_graph.py ........                                  [  0%]
+core/tests/test_agent_tool_supervisor.py ............                    [  1%]
+core/tests/test_alerting.py .............                                [  1%]
+core/tests/test_api_agents.py ....                                       [  1%]
+core/tests/test_api_memory.py ......                                     [  1%]
+core/tests/test_api_usage.py ........                                    [  1%]
+core/tests/test_approval.py .........                                    [  1%]
+core/tests/test_approval_broker.py ...............                       [  2%]
+core/tests/test_approval_gate.py ..........                              [  2%]
+core/tests/test_approval_integration.py ............                     [  2%]
+core/tests/test_asr.py ........                                          [  2%]
+core/tests/test_asr_speaker_merger.py ...........                        [  3%]
+core/tests/test_assistant.py ...............................             [  3%]
+core/tests/test_assistant_modality.py .....                              [  3%]
+core/tests/test_audit.py ..................                              [  4%]
+core/tests/test_background_agent_flow.py ...                             [  4%]
+core/tests/test_backup_manager.py ..........                             [  4%]
+core/tests/test_bench_pageserver.py ........                             [  4%]
+core/tests/test_bench_report.py ...........                              [  5%]
+core/tests/test_bench_runner.py .............................            [  5%]
+core/tests/test_bench_task.py ......................                     [  6%]
+core/tests/test_bootstrap_migration.py ....                              [  6%]
+core/tests/test_brain.py ..........                                      [  6%]
+core/tests/test_brain_agent_integration.py ...                           [  6%]
+core/tests/test_brain_interrupt.py ...                                   [  6%]
+core/tests/test_brain_markdown_images.py ........                        [  6%]
+core/tests/test_brain_memory.py ...                                      [  6%]
+core/tests/test_brain_partial_persist_on_error.py ..                     [  6%]
+core/tests/test_brain_processing_signals.py .....                        [  6%]
+core/tests/test_brain_streaming.py ...........                           [  7%]
+core/tests/test_brain_summarization.py .                                 [  7%]
+core/tests/test_brain_title_request.py ......                            [  7%]
+core/tests/test_brain_token_counting.py ...                              [  7%]
+core/tests/test_brain_tts_integration.py ...                             [  7%]
+core/tests/test_brain_typed_config.py .                                  [  7%]
+core/tests/test_brain_worker_inbox.py ...                                [  7%]
+core/tests/test_calc_validator.py ...................                    [  7%]
+core/tests/test_capabilities.py ..................................       [  8%]
+core/tests/test_channel_api.py ..................                        [  9%]
+core/tests/test_channel_audio_integration.py .......                     [  9%]
+core/tests/test_channel_audio_service.py ..................              [  9%]
+core/tests/test_channel_context.py ...........                           [  9%]
+core/tests/test_channel_notifications.py .............                   [ 10%]
+core/tests/test_channel_store.py ....................................... [ 11%]
+....                                                                     [ 11%]
+core/tests/test_channel_subscription.py ............                     [ 11%]
+core/tests/test_channels_integration.py ...............                  [ 11%]
+core/tests/test_chart_tool.py ..........................                 [ 12%]
+core/tests/test_chart_tool_e2e.py ....                                   [ 12%]
+core/tests/test_chat_agent.py .......................                    [ 12%]
+core/tests/test_command_approvals.py .........                           [ 13%]
+core/tests/test_command_security.py .................................... [ 13%]
+........................................................................ [ 15%]
+............................................                             [ 16%]
+core/tests/test_compact_context_tool.py ......                           [ 16%]
+core/tests/test_compaction_store.py ............                         [ 16%]
+core/tests/test_compactions_api.py ..........                            [ 16%]
+core/tests/test_compactor.py .............                               [ 17%]
+core/tests/test_computer_approval.py ............                        [ 17%]
+core/tests/test_computer_batch.py ........                               [ 17%]
+core/tests/test_computer_doctor.py ......                                [ 17%]
+core/tests/test_computer_use.py ........................................ [ 18%]
+.........................                                                [ 19%]
+core/tests/test_computer_use_common.py ................................. [ 19%]
+......................................                                   [ 20%]
+core/tests/test_computer_use_macos.py .................................. [ 21%]
+........................................................................ [ 23%]
+...............................                                          [ 23%]
+core/tests/test_concurrent_safe_tools.py ...                             [ 23%]
+core/tests/test_config_context.py .........                              [ 23%]
+core/tests/test_config_models.py ....................................... [ 24%]
+..                                                                       [ 24%]
+core/tests/test_connector_access.py ............................         [ 25%]
+core/tests/test_connector_e2e.py ..........                              [ 25%]
+core/tests/test_connector_identity_store.py .......                      [ 25%]
+core/tests/test_connector_manager.py ................................... [ 26%]
+.............                                                            [ 26%]
+core/tests/test_connector_sdk.py ....................................... [ 27%]
+....                                                                     [ 27%]
+core/tests/test_connector_session_mapper.py ..........                   [ 28%]
+core/tests/test_connectors_config.py .............                       [ 28%]
+core/tests/test_consolidate_memory_api.py .......                        [ 28%]
+core/tests/test_consolidate_memory_tool.py .....                         [ 28%]
+core/tests/test_consolidator.py .................................        [ 29%]
+core/tests/test_content_blocks.py ..............................         [ 29%]
+core/tests/test_context_budget.py ...................................... [ 30%]
+............................................                             [ 31%]
+core/tests/test_context_manager.py ..................................... [ 32%]
+.....                                                                    [ 32%]
+core/tests/test_context_manager_flush_integration.py ......              [ 32%]
+core/tests/test_context_manager_lineage.py ......                        [ 32%]
+core/tests/test_context_session.py ........                              [ 33%]
+core/tests/test_context_sqlite_store.py ............                     [ 33%]
+core/tests/test_conversation_messages_store.py ............              [ 33%]
+core/tests/test_conversations_api_titles.py .........                    [ 33%]
+core/tests/test_conversations_format_messages.py ...............         [ 34%]
+core/tests/test_credentials.py .............                             [ 34%]
+core/tests/test_cron.py ..                                               [ 34%]
+core/tests/test_delivery.py .............                                [ 34%]
+core/tests/test_desktop_executor.py ..........................           [ 35%]
+core/tests/test_document_handlers.py ................                    [ 35%]
+core/tests/test_dream_schedule.py ...                                    [ 35%]
+core/tests/test_dynamic_allowlist.py .........                           [ 35%]
+core/tests/test_echo_guard.py .................................          [ 36%]
+core/tests/test_echo_image_e2e.py ....                                   [ 36%]
+core/tests/test_engine_split.py ............                             [ 36%]
+core/tests/test_fan_out_queue.py ...                                     [ 36%]
+core/tests/test_file_access_policy.py ........................           [ 37%]
+core/tests/test_file_tools.py .......................................... [ 38%]
+.....................................                                    [ 39%]
+core/tests/test_get_context_usage_tool.py ........                       [ 39%]
+core/tests/test_get_user_memory_tool.py .........                        [ 39%]
+core/tests/test_grounding_probe.py ..................................... [ 40%]
+..................................................................       [ 41%]
+core/tests/test_guardrails.py ...................                        [ 42%]
+core/tests/test_health_endpoint.py .......                               [ 42%]
+core/tests/test_health_monitor.py ..........                             [ 42%]
+core/tests/test_hook_allowlist.py .............                          [ 42%]
+core/tests/test_hooks.py ...............                                 [ 43%]
+core/tests/test_hybrid_search.py ..........                              [ 43%]
+core/tests/test_interrupt_latency_observer.py .....                      [ 43%]
+core/tests/test_job_models.py ...........                                [ 43%]
+core/tests/test_job_store.py .....................                       [ 44%]
+core/tests/test_jobs_integration.py ...........                          [ 44%]
+core/tests/test_langfuse_integration.py ...........                      [ 44%]
+core/tests/test_language_detection.py ...............                    [ 45%]
+core/tests/test_llm_bounded_iterations.py ...........                    [ 45%]
+core/tests/test_llm_profile.py ..............................            [ 45%]
+core/tests/test_llm_retry.py ...........                                 [ 46%]
+core/tests/test_llm_trace_metadata.py ...                                [ 46%]
+core/tests/test_main_agent_prompt_phases.py ......                       [ 46%]
+core/tests/test_manage_process.py ...........                            [ 46%]
+core/tests/test_mcp.py ....................................              [ 47%]
+core/tests/test_media_store.py ..................................        [ 48%]
+core/tests/test_memory.py .................                              [ 48%]
+core/tests/test_memory_flush.py ...............                          [ 48%]
+core/tests/test_metrics_api.py ....                                      [ 48%]
+core/tests/test_metrics_collector.py ............                        [ 49%]
+core/tests/test_migrate_logging.py ..                                    [ 49%]
+core/tests/test_model_table.py .....................                     [ 49%]
+core/tests/test_multimodal_attachments.py .............................. [ 50%]
+                                                                         [ 50%]
+core/tests/test_network_access_policy.py ............                    [ 50%]
+core/tests/test_notification_hub.py ..........................           [ 51%]
+core/tests/test_office_extraction.py ..................                  [ 51%]
+core/tests/test_orchestrator.py ............                             [ 51%]
+core/tests/test_pending_store.py ..............                          [ 52%]
+core/tests/test_persistence_infrastructure.py ......                     [ 52%]
+core/tests/test_persistent_shell.py ...........                          [ 52%]
+core/tests/test_pipeline_builder.py ...........................          [ 53%]
+core/tests/test_pipeline_bus.py ........                                 [ 53%]
+core/tests/test_pipeline_health.py .............                         [ 53%]
+core/tests/test_pipeline_integration.py .............                    [ 53%]
+core/tests/test_pipeline_interrupt_flow.py ..........                    [ 53%]
+core/tests/test_pipeline_observers.py .........                          [ 54%]
+core/tests/test_pipeline_processor.py .........                          [ 54%]
+core/tests/test_pipeline_processors.py ................................. [ 55%]
+..............                                                           [ 55%]
+core/tests/test_pipeline_queue.py ..........                             [ 55%]
+core/tests/test_pipeline_queue_health.py ............                    [ 55%]
+core/tests/test_pipeline_swap.py .......                                 [ 56%]
+core/tests/test_pipeline_wav_integration.py ..                           [ 56%]
+core/tests/test_plugin_loader.py .....                                   [ 56%]
+core/tests/test_plugin_manager.py .......................                [ 56%]
+core/tests/test_plugin_manifest.py ..........                            [ 56%]
+core/tests/test_plugin_switch.py ..........................              [ 57%]
+core/tests/test_policy_integration.py .......................            [ 57%]
+core/tests/test_preference_learner.py .....................              [ 58%]
+core/tests/test_preference_phase3.py ..............                      [ 58%]
+core/tests/test_preference_store.py .................................... [ 59%]
+...........                                                              [ 59%]
+core/tests/test_preference_tool.py ............                          [ 59%]
+core/tests/test_prompt_assembler.py .................................... [ 60%]
+..                                                                       [ 60%]
+core/tests/test_prompt_cache.py ...........                              [ 61%]
+core/tests/test_prompt_resolver.py ..............                        [ 61%]
+core/tests/test_prompt_sanitizer.py .................................... [ 62%]
+..                                                                       [ 62%]
+core/tests/test_protocol_handshake.py ........                           [ 62%]
+core/tests/test_protocol_wire_compat.py ...........                      [ 62%]
+core/tests/test_qos.py ......                                            [ 62%]
+core/tests/test_remember_tool.py .............                           [ 62%]
+core/tests/test_repository_sqlite.py ...................                 [ 63%]
+core/tests/test_resample_pcm16.py ......                                 [ 63%]
+core/tests/test_ripgrep.py ........................................      [ 64%]
+core/tests/test_run_command.py ........                                  [ 64%]
+core/tests/test_safe_bin_validation.py ...............................   [ 65%]
+core/tests/test_sandbox_bubblewrap.py .................................. [ 65%]
+.                                                                        [ 65%]
+core/tests/test_sandbox_factory.py ..................................... [ 66%]
+..............                                                           [ 67%]
+core/tests/test_sandbox_manager.py ..............................        [ 67%]
+core/tests/test_sandbox_seatbelt.py .................................... [ 68%]
+......                                                                   [ 68%]
+core/tests/test_scheduler.py .........                                   [ 68%]
+core/tests/test_sdk_logger_silencing.py .....                            [ 68%]
+core/tests/test_sentence_buffer.py .............................         [ 69%]
+core/tests/test_server_import.py .                                       [ 69%]
+core/tests/test_session_compact.py .....                                 [ 69%]
+core/tests/test_session_config.py ...................................... [ 70%]
+....                                                                     [ 70%]
+core/tests/test_signal_handlers.py .....                                 [ 70%]
+core/tests/test_skill_fork_supervisor.py ..............                  [ 71%]
+core/tests/test_skills.py .............................................. [ 72%]
+................................                                         [ 72%]
+core/tests/test_skills_enhancements.py ....................              [ 73%]
+core/tests/test_smart_turn.py ...............                            [ 73%]
+core/tests/test_speaker_id_processor.py ......                           [ 73%]
+core/tests/test_step_id.py ........                                      [ 73%]
+core/tests/test_stream_consumer.py .........                             [ 73%]
+core/tests/test_subagent.py ...........................                  [ 74%]
+core/tests/test_summarizer.py ....                                       [ 74%]
+core/tests/test_text_handler.py ......................                   [ 75%]
+core/tests/test_title_generation_observer.py ....                        [ 75%]
+core/tests/test_title_generator.py ...............                       [ 75%]
+core/tests/test_tool_groups.py ..................                        [ 75%]
+core/tests/test_tool_manager_publish.py ......                           [ 76%]
+core/tests/test_tool_metadata.py .......s..                              [ 76%]
+core/tests/test_tool_output_observer.py ...........                      [ 76%]
+core/tests/test_tool_result_extraction.py .............................. [ 77%]
+...                                                                      [ 77%]
+core/tests/test_tool_schemas_jsonschema.py ............................. [ 77%]
+..                                                                       [ 77%]
+core/tests/test_transcript_stabilizer.py ............                    [ 78%]
+core/tests/test_tts_normalizer.py ...................................... [ 78%]
+............                                                             [ 79%]
+core/tests/test_user_manager.py ................                         [ 79%]
+core/tests/test_vad.py .............................                     [ 80%]
+core/tests/test_voice_bridge.py .......................                  [ 80%]
+core/tests/test_voiceprint_recognizer.py ..........                      [ 80%]
+core/tests/test_voiceprint_streaming.py ......                           [ 81%]
+core/tests/test_weather_tool.py ............                             [ 81%]
+core/tests/test_web_fetch_content_types.py ..........................    [ 81%]
+core/tests/test_web_fetch_feed.py .....                                  [ 81%]
+core/tests/test_web_fetch_fencing.py .......                             [ 82%]
+core/tests/test_web_fetch_tool.py .............................          [ 82%]
+core/tests/test_websocket_attachment_frame.py .........                  [ 82%]
+core/tests/test_worker_inbox.py .......                                  [ 83%]
+core/tests/test_worker_live_push.py .........                            [ 83%]
+core/tests/test_worker_pause_resume.py .................                 [ 83%]
+core/tests/test_worker_store.py ....................                     [ 84%]
+core/tests/test_worker_supervisor.py ............                        [ 84%]
+core/tests/test_worker_supervisor_background.py ......                   [ 84%]
+core/tests/test_worker_tools.py ........                                 [ 84%]
+core/tests/test_ws_auth.py ...........                                   [ 84%]
+core/tests/test_ws_opus.py ..................                            [ 85%]
+contracts/tank_protocol/tests/test_envelope.py ......                    [ 85%]
+contracts/tank_protocol/tests/test_factories.py ................         [ 85%]
+contracts/tank_protocol/tests/test_handshake.py ......                   [ 85%]
+contracts/tank_protocol/tests/test_payloads.py ........                  [ 86%]
+contracts/tank_protocol/tests/test_schema.py ....                        [ 86%]
+plugins/agent-n2/tests/test_n2.py ........................               [ 86%]
+plugins/agent-n2-sdk/tests/test_agent.py ............................... [ 87%]
+....                                                                     [ 87%]
+plugins/agent-n2-sdk/tests/test_environment.py .....                     [ 87%]
+plugins/agent-n2-sdk/tests/test_sdk_contract.py ...                      [ 87%]
+plugins/asr-assemblyai/tests/test_engine.py ..........                   [ 87%]
+plugins/asr-deepgram/tests/test_engine.py ..........                     [ 88%]
+plugins/asr-elevenlabs/tests/test_engine.py ......................       [ 88%]
+plugins/asr-faster-whisper/tests/test_engine.py ......                   [ 88%]
+plugins/asr-funasr/tests/test_engine.py ................................ [ 89%]
+..                                                                       [ 89%]
+plugins/asr-sherpa/tests/test_engine.py ........                         [ 89%]
+plugins/connector-discord/tests/test_connector.py ...................... [ 90%]
+......................................................                   [ 91%]
+plugins/connector-feishu/tests/test_connector.py ....................... [ 91%]
+...................................                                      [ 92%]
+plugins/connector-slack/tests/test_connector.py ........................ [ 93%]
+............................................................             [ 94%]
+plugins/connector-telegram/tests/test_connector.py ..................... [ 94%]
+......................................................................   [ 96%]
+plugins/connector-wechat/tests/test_chunker.py ..........                [ 96%]
+plugins/connector-wechat/tests/test_connector.py ....................... [ 96%]
+.........                                                                [ 97%]
+plugins/connector-wechat/tests/test_crypto.py ..............             [ 97%]
+plugins/connector-wechat/tests/test_ilink_client.py ..........           [ 97%]
+plugins/connector-wechat/tests/test_state.py .........                   [ 97%]
+plugins/speaker-sherpa/tests/test_engine.py ......                       [ 98%]
+plugins/tts-cartesia/tests/test_engine.py .....                          [ 98%]
+plugins/tts-chatterbox/tests/test_engine.py ......                       [ 98%]
+plugins/tts-cosyvoice/tests/test_dashscope_client.py ................    [ 98%]
+plugins/tts-cosyvoice/tests/test_engine.py ................              [ 98%]
+plugins/tts-cosyvoice/tests/test_function.py ......                      [ 99%]
+plugins/tts-cosyvoice/tests/test_server.py ..................            [ 99%]
+plugins/tts-edge/tests/test_engine.py ........                           [ 99%]
+plugins/tts-elevenlabs/tests/test_engine.py .....                        [ 99%]
+plugins/tts-hume/tests/test_engine.py .....                              [ 99%]
+plugins/tts-kokoro/tests/test_engine.py ......                           [100%]
+
+=============================== warnings summary ===============================
+.venv/lib/python3.13/site-packages/lark_oapi/ws/pb/google/__init__.py:2
+  /Users/zbcjackson/src/tank/backend/.venv/lib/python3.13/site-packages/lark_oapi/ws/pb/google/__init__.py:2: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    __import__('pkg_resources').declare_namespace(__name__)
+
+.venv/lib/python3.13/site-packages/lark_oapi/ws/pb/google/__init__.py:2
+  /Users/zbcjackson/src/tank/backend/.venv/lib/python3.13/site-packages/lark_oapi/ws/pb/google/__init__.py:2: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('lark_oapi.ws.pb.google')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    __import__('pkg_resources').declare_namespace(__name__)
+
+.venv/lib/python3.13/site-packages/pkg_resources/__init__.py:2560
+  /Users/zbcjackson/src/tank/backend/.venv/lib/python3.13/site-packages/pkg_resources/__init__.py:2560: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('lark_oapi.ws.pb')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(parent)
+
+.venv/lib/python3.13/site-packages/pkg_resources/__init__.py:2560
+  /Users/zbcjackson/src/tank/backend/.venv/lib/python3.13/site-packages/pkg_resources/__init__.py:2560: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('lark_oapi.ws')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(parent)
+
+.venv/lib/python3.13/site-packages/pkg_resources/__init__.py:2560
+  /Users/zbcjackson/src/tank/backend/.venv/lib/python3.13/site-packages/pkg_resources/__init__.py:2560: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('lark_oapi')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(parent)
+
+.venv/lib/python3.13/site-packages/lark_oapi/ws/pb/google/protobuf/internal/well_known_types.py:91
+  /Users/zbcjackson/src/tank/backend/.venv/lib/python3.13/site-packages/lark_oapi/ws/pb/google/protobuf/internal/well_known_types.py:91: DeprecationWarning: datetime.datetime.utcfromtimestamp() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.fromtimestamp(timestamp, datetime.UTC).
+    _EPOCH_DATETIME_NAIVE = datetime.datetime.utcfromtimestamp(0)
+
+.venv/lib/python3.13/site-packages/lark_oapi/ws/client.py:26
+  /Users/zbcjackson/src/tank/backend/.venv/lib/python3.13/site-packages/lark_oapi/ws/client.py:26: DeprecationWarning: There is no current event loop
+    loop = asyncio.get_event_loop()
+
+.venv/lib/python3.13/site-packages/lark_oapi/ws/client.py:67
+  /Users/zbcjackson/src/tank/backend/.venv/lib/python3.13/site-packages/lark_oapi/ws/client.py:67: DeprecationWarning: websockets.InvalidStatusCode is deprecated
+    def _parse_ws_conn_exception(e: websockets.InvalidStatusCode):
+
+.venv/lib/python3.13/site-packages/websockets/legacy/__init__.py:6
+  /Users/zbcjackson/src/tank/backend/.venv/lib/python3.13/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+core/tests/test_context_manager.py::TestAsyncInitNoLoop::test_construction_works_without_running_loop
+core/tests/test_multimodal_attachments.py::TestContextManagerMaterialization::test_text_only_turn_unchanged
+core/tests/test_multimodal_attachments.py::TestContextManagerMaterialization::test_image_attachment_produces_content_parts
+core/tests/test_multimodal_attachments.py::TestContextManagerMaterialization::test_persisted_message_keeps_text_only
+core/tests/test_multimodal_attachments.py::TestContextManagerMaterialization::test_pdf_document_with_extracted_text
+  /Users/zbcjackson/src/tank/backend/core/src/tank_backend/context/manager.py:221: RuntimeWarning: coroutine 'ContextManager._try_api_detect.<locals>._detect' was never awaited
+    logger.debug(
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+core/tests/test_media_store.py::TestPdfWaterfall::test_native_path_for_file_capable_model
+core/tests/test_media_store.py::TestPdfWaterfall::test_native_path_for_file_capable_model
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+core/tests/test_media_store.py::TestPdfWaterfall::test_native_path_for_file_capable_model
+core/tests/test_media_store.py::TestPdfWaterfall::test_native_path_for_file_capable_model
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+core/tests/test_media_store.py::TestPdfWaterfall::test_native_path_for_file_capable_model
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+
+plugins/asr-funasr/tests/test_engine.py::TestLifecycle::test_process_pcm_without_session_returns_empty
+  /Users/zbcjackson/.local/share/uv/python/cpython-3.13.7-macos-aarch64-none/lib/python3.13/unittest/mock.py:2247: RuntimeWarning: coroutine 'FunASREngine._send_funasr_config' was never awaited
+    def __init__(self, name, parent):
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+plugins/tts-cosyvoice/tests/test_function.py::test_sft_end_to_end
+  /Users/zbcjackson/src/tank/backend/.venv/lib/python3.13/site-packages/uvicorn/protocols/websockets/websockets_impl.py:17: DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
+    from websockets.server import WebSocketServerProtocol
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========== 4615 passed, 1 skipped, 21 warnings in 187.66s (0:03:07) ===========
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

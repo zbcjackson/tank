@@ -33,3 +33,6 @@
 | N2 SDK Linux adapter 与平台验收 | 产品需要 Linux，且有专用 X11/Wayland 实机环境 | 原 M4/M6 未完成：X11 adapter、来源/许可证、中文/修饰键、截图光标/时延与真实取消/清理分别验收；未通过保持 unsupported，不能套用 macOS 结果 | [SDK 原 M4/M6](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划 §2.3](plans/active/computer-use-adaptation-and-grounding.md) |
 | N2 SDK 采用后同进程暂停与恢复 | 产品使用 SDK 且需要暂停/接管/恢复 | 原 M7 未触发：pause_pending/paused、运行实例/trajectory、恢复重新截图/授权/预算/桌面锁、状态与协议展示及停止/过期边界；暂停计入时限，跨重启恢复另立项 | [SDK 原 M7](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划范围](plans/active/computer-use-adaptation-and-grounding.md) |
 | N2/SDK 特定控制与集成补验 | 修改 SDK/共享派发控制、升级 driver，或出现新的 WS/通知/输入释放/进程清理问题 | N2 已有真实 benchmark，SDK 42 个 trial cleanup=confirmed；普通报告不证明每种中途停止与完整主会话 WS。仅针对受影响 seam/动作补验，保留原 M4/M6 细则，不将全套重验设为效果改进前置 | [SDK 原清单](plans/done/plugin-subagents-and-n2-sdk.md)、[效果改进范围](plans/active/computer-use-adaptation-and-grounding.md) |
+
+| Computer-use 原生协议与专用定位模型探索 | 明确需要该路线，取得可用端点/部署、协议与授权，并批准独立实验预算 | M3 已完成自定义 point/pixels/bbox 适配；原生点框、Responses computer、UI-TARS 未测试，不能由自定义工具结果推断支持性或收益 | [M3 收尾](plans/active/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |
+| Computer-use 静态候选采用复验 | 决定重新考虑候选/提示配置，且准备新预算与未使用的独立 holdout | 首轮 544 次额度已用完；旧 holdout 歧义拒绝失败，唯一匹配修正仅三次开发 smoke。新冻结需覆盖正例和负例，不能复用旧数据宣称独立验收；既定 M4–M8 集成/真实任务验收仍留 active 计划 | [M3 收尾](plans/active/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |

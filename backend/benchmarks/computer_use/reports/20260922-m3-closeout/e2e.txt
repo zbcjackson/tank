@@ -1,0 +1,11 @@
+
+> tank-e2e@1.0.0 test /Users/zbcjackson/src/tank/test
+> cucumber-js --config cucumber.config.cjs
+
+This Node.js version (v24.15.0) has not been tested with this version of Cucumber; it should work normally, but please raise an issue if you see anything unexpected.
+Cannot use 'progress-bar' formatter for output to 'stdout' as not a TTY. Switching to 'progress' formatter.
+...................................................................................
+
+14 scenarios (14 passed)
+55 steps (55 passed)
+0m49.808s (executing steps: 0m48.429s)

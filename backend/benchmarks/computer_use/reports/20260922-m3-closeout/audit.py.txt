@@ -1,0 +1,63 @@
+"""Offline ledger audit. Run from repository root with python3; no API calls."""
+import gzip
+import hashlib
+import json
+from pathlib import Path
+
+base = Path('backend/benchmarks/computer_use/reports')
+batches = [
+    ('preflight', '20260920-m3-preflight', 5),
+    ('preflight', '20260920-m3-preflight/pixels', 5),
+    ('preflight', '20260920-m3-strict', 6),
+    ('screening', '20260920-m3-screening-protocol', 40),
+    ('screening', '20260920-m3-screening-thinking', 7),
+    ('screening', '20260920-m3-screening-thinking-resume', 26),
+    ('screening', '20260921-m3-screening-image', 32),
+    ('screening', '20260921-m3-screening-status', 36),
+    ('screening', '20260922-m3-unique-match/live', 3),
+    ('holdout', '20260921-m3-holdout', 384),
+]
+stages = {}
+files = {}
+unknown = []
+models = set()
+for stage, name, expected in batches:
+    folder = base / name
+    result_path = folder / 'results.json'
+    data = json.loads(result_path.read_text())
+    rows = data if isinstance(data, list) else data['results']
+    assert len(rows) == expected, (name, len(rows))
+    paths = [result_path]
+    ledger = stages.setdefault(stage, {'attempts': 0, 'known_tokens': 0, 'http_200': 0})
+    for row in rows:
+        stem = f"{row['attempt']:04d}" if 'attempt' in row else row['id']
+        raw_path = folder / f'{stem}.response.json.gz'
+        request_path = folder / f'{stem}.request.json'
+        raw = json.loads(gzip.decompress(raw_path.read_bytes()))
+        request = json.loads(request_path.read_text())
+        paths.extend([raw_path, request_path])
+        ledger['attempts'] += 1
+        assert row.get('http_attempts', 1) == 1
+        if row['http_status'] == 200:
+            ledger['http_200'] += 1
+            for key in ('prompt_tokens', 'completion_tokens', 'total_tokens'):
+                assert raw['usage'][key] == row['usage'][key], (name, stem, key)
+            assert raw['model'] == row['returned_model']
+            assert raw.get('provider') == row.get('returned_provider')
+            ledger['known_tokens'] += raw['usage']['total_tokens']
+            models.add(raw['model'])
+        else:
+            assert row['http_status'] == 402
+            assert not raw.get('usage') and not row.get('usage')
+            unknown.append(str(raw_path.relative_to(base)))
+    for path in paths:
+        files[str(path.relative_to(base))] = hashlib.sha256(path.read_bytes()).hexdigest()
+assert stages == {
+    'preflight': {'attempts': 16, 'known_tokens': 26398, 'http_200': 16},
+    'screening': {'attempts': 144, 'known_tokens': 413208, 'http_200': 143},
+    'holdout': {'attempts': 384, 'known_tokens': 715802, 'http_200': 384},
+}, stages
+assert len(unknown) == 1
+report = {'date': '2026-09-22', 'scope': 'Offline raw usage/model and artifact integrity audit; not rescoring or new inference', 'stages': stages, 'attempts': 544, 'known_tokens': 1155408, 'unknown_usage_reservation': 26000, 'accounted_tokens': 1181408, 'returned_models': sorted(models), 'unknown_usage_responses': unknown, 'artifact_sha256': files}
+(base / '20260922-m3-closeout/audit.json').write_text(json.dumps(report, indent=2) + '\n')
+print(json.dumps({k: v for k, v in report.items() if k != 'artifact_sha256'}, indent=2))
