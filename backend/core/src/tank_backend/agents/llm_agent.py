@@ -17,6 +17,7 @@ from .approval import (
     ToolApprovalPolicy,
 )
 from .base import Agent, AgentOutput, AgentOutputType, AgentState
+from .subagent import SubAgentContext
 
 if TYPE_CHECKING:
     from ..llm.llm import LLM
@@ -87,6 +88,7 @@ class LLMAgent(Agent):
         pending_store: PendingToolCallStore | None = None,
         bus: Any = None,
         current_msg_id_fn: Callable[[], str] | None = None,
+        task_context: SubAgentContext | None = None,
     ) -> None:
         super().__init__(name)
         self._llm = llm
@@ -100,6 +102,7 @@ class LLMAgent(Agent):
         self._pending_store = pending_store
         self._bus = bus
         self._current_msg_id_fn = current_msg_id_fn or (lambda: "")
+        self._task_context = task_context
 
     def _get_tools(self) -> tuple[list[dict[str, Any]], Any]:
         """Return (openai_tools, tool_executor) with filter, exclusion, and approval."""
@@ -152,6 +155,8 @@ class LLMAgent(Agent):
 
     async def run(self, state: AgentState) -> AsyncIterator[AgentOutput]:
         """Stream LLM responses, translating to AgentOutput."""
+        if self._task_context is not None:
+            self._task_context.check()
         messages = list(state.messages)
 
         # Prepend agent-specific system prompt if configured
@@ -204,6 +209,16 @@ class LLMAgent(Agent):
         )
         try:
             async for update_type, content, metadata in gen:
+                if self._task_context is not None:
+                    if update_type == UpdateType.USAGE:
+                        call_id = f"planner:{metadata['turn']}"
+                        if metadata.get("estimated"):
+                            self._task_context.budget.record_unknown(call_id)
+                        else:
+                            self._task_context.budget.record(
+                                call_id, metadata["prompt_tokens"], metadata["completion_tokens"],
+                            )
+                    self._task_context.check()
                 if update_type == UpdateType.MESSAGE:
                     turn_messages.append(metadata["message"])
                     continue

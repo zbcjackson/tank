@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 import threading
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -25,6 +26,7 @@ class FrameState:
     """One current observation per tool group; owner is checked on every action."""
 
     observation: Observation | None = None
+    png: bytes = b""
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
@@ -71,9 +73,12 @@ def _pixel_hash(png: bytes, crop: tuple[int, int, int, int]) -> str:
 
 
 class FrameTool(BaseTool):
-    def __init__(self, legacy: BaseTool, state: FrameState) -> None:
+    def __init__(
+        self, legacy: BaseTool, state: FrameState, check: Callable[[], None] | None = None,
+    ) -> None:
         self.legacy = legacy
         self.state = state
+        self.check = check
 
     def get_metadata(self) -> ToolMetadata:
         return self.legacy.get_metadata()
@@ -281,6 +286,7 @@ class FrameTool(BaseTool):
             if observation.screen_size != geometry[3:5]:
                 raise ValueError("Screenshot dimensions do not match display")
             self.state.observation = observation
+            self.state.png = png
             return ToolResult(
                 content=[
                     TextBlock(
@@ -297,6 +303,26 @@ class FrameTool(BaseTool):
                 ],
                 display="Screenshot captured",
             )
+        observation = self._validate_observation(session_id, frame_id, arguments)
+        if cancelled.is_set():
+            raise ValueError("Action cancelled")
+        if self.check is not None:
+            self.check()
+        return self._dispatch_image(observation, arguments)
+
+    async def validate(
+        self, session_id: str, frame_id: str, window_id: int | None,
+    ) -> Observation:
+        """Validate a locate frame without injecting any desktop input."""
+        def locked() -> Observation:
+            with self.state.lock:
+                return self._validate_observation(session_id, frame_id, {"window_id": window_id})
+
+        return await asyncio.to_thread(locked)
+
+    def _validate_observation(
+        self, session_id: str, frame_id: str | None, arguments: dict[str, Any],
+    ) -> Observation:
         observation = self.state.observation
         if observation is None or not frame_id or frame_id != observation.frame_id:
             raise ValueError("Missing or stale frame")
@@ -322,8 +348,10 @@ class FrameTool(BaseTool):
             != observation.window_bounds
         ):
             raise ValueError("Window changed during validation")
-        if cancelled.is_set():
-            raise ValueError("Action cancelled")
+        return observation
+
+    def _dispatch_image(self, observation: Observation, arguments: dict[str, Any]) -> ToolResult:
+        name = self.legacy.get_info().name
         if name == "drag":
             start = observation.map_point(arguments.get("x1"), arguments.get("y1"))
             end = observation.map_point(arguments.get("x2"), arguments.get("y2"))

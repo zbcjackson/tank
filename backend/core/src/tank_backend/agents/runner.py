@@ -8,6 +8,7 @@ lifecycle management consistently through this one entry point.
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 import time
 import uuid
@@ -111,6 +112,8 @@ class AgentRunner:
         return frozenset(manifest.permissions)
 
     def _uses_desktop(self, agent_def: AgentDefinition) -> bool:
+        if agent_def.grounding is not None:
+            return True
         if agent_def.extension:
             return "desktop" in self.extension_permissions(agent_def)
         if agent_def.engine:
@@ -133,6 +136,16 @@ class AgentRunner:
         max_steps: int | None = None,
     ) -> AsyncIterator[AgentOutput]:
         context = None
+        if agent_def.grounding is not None:
+            deadline = deadline if deadline is not None else time.monotonic() + 600
+            context = SubAgentContext(
+                authorization or SubAgentAuthorization(frozenset({"desktop"})),
+                SubAgentBudget(limit=(
+                    agent_def.token_budget if token_budget is None else token_budget
+                )),
+                asyncio.Event(), deadline, observer, max_steps,
+            )
+            context.check("desktop")
         if agent_def.extension:
             deadline = deadline if deadline is not None else time.monotonic() + 600
             permissions = self.extension_permissions(agent_def)
@@ -153,8 +166,9 @@ class AgentRunner:
             if self._uses_desktop(agent_def):
                 async with self._desktop_resource.acquire(deadline=deadline):
                     try:
-                        async for output in outputs:
-                            yield output
+                        async with asyncio.timeout_at(deadline if agent_def.grounding else None):
+                            async for output in outputs:
+                                yield output
                     finally:
                         await outputs.aclose()
             else:
@@ -259,6 +273,7 @@ class AgentRunner:
                 if tool_filter is None or tool["function"]["name"] in tool_filter
             }
         system_prompt = self._build_sub_agent_prompt(agent_def, messages, available_tools)
+        owned_grounders: list[LLM] = []
 
         if agent_def.extension:
             if context is None:
@@ -293,7 +308,69 @@ class AgentRunner:
             else:
                 agent_llm = self._llm
 
+            tool_manager = self._tool_manager
+            if agent_def.grounding is not None:
+                from dataclasses import replace
+
+                from ..llm.profile import create_llm_from_profile
+                from ..tools.computer_grounding import GroundingAdapter
+                from ..tools.computer_locate import SPLIT_PROMPT, LocateSession, LocateTool
+
+                assert context is not None
+                config = agent_def.grounding
+                from ..tools.computer_frame import FrameTool
+
+                session_tools = {n: t for n, t in self._tool_manager.tools.items()
+                                 if n in available_tools}
+                if not isinstance(session_tools.get("screenshot"), FrameTool):
+                    raise ValueError("Split grounding requires an allowed macOS screenshot tool")
+                for profile in (config.profile, config.fallback_profile):
+                    if profile is not None and (
+                        self._app_config is None or profile not in self._app_config.llm_profiles
+                    ):
+                        raise ValueError(f"Unknown grounding profile: {profile}")
+                llms = {"primary": agent_llm}
+                for key, profile in (("primary", config.profile),
+                                     ("fallback", config.fallback_profile)):
+                    if profile is not None:
+                        assert self._app_config is not None
+                        llms[key] = create_llm_from_profile(self._app_config.llm_profiles[profile])
+                        owned_grounders.append(llms[key])
+                session = LocateSession(session_tools, llms, GroundingAdapter(
+                    config.protocol, config.nullable_style, config.strict,
+                    config.detail, config.status_field,
+                ), context, agent_id)
+                tool_manager = copy.copy(self._tool_manager)
+                tool_manager.tools = dict(session_tools)
+                tool_manager.tool_metadata = dict(self._tool_manager.tool_metadata)
+                # Raw held-button tools bypass reference validation. Keep them out of split mode.
+                for name in ("computer_batch", "mouse_down", "mouse_up"):
+                    tool_manager.tools.pop(name, None)
+                for name, tool in list(tool_manager.tools.items()):
+                    if tool.get_metadata().category == "computer":
+                        tool_manager.register_tool(LocateTool(session, name))
+                tool_manager.register_tool(LocateTool(session, "locate"))
+                tool_manager.register_tool(LocateTool(session, "computer_batch"))
+                tool_manager.set_session_id(agent_id)
+                if tool_filter is not None:
+                    tool_filter.append("locate")
+                available_tools = {
+                    t["function"]["name"]
+                    for t in tool_manager.get_openai_tools(exclude=exclude_tools)
+                    if tool_filter is None or t["function"]["name"] in tool_filter
+                }
+                # Override the coordinate contract without losing task-specific instructions.
+                system_prompt = self._build_sub_agent_prompt(
+                    replace(
+                        agent_def, system_prompt=agent_def.system_prompt + "\n\n" + SPLIT_PROMPT,
+                    ),
+                    messages, available_tools,
+                )
+
             approval_policy: Any = self._approval_policy
+            if agent_def.grounding is not None:
+                approval_policy = copy.copy(self._approval_policy)
+                approval_policy._tool_metadata = tool_manager.tool_metadata
             if allowed_categories and approval_policy is not None:
                 from .approval import ScopedPolicy
 
@@ -301,7 +378,7 @@ class AgentRunner:
             agent = LLMAgent(
                 name=f"agent_{agent_def.name}",
                 llm=agent_llm,
-                tool_manager=self._tool_manager,
+                tool_manager=tool_manager,
                 approval_policy=approval_policy,
                 system_prompt=system_prompt,
                 tool_filter=tool_filter,
@@ -310,6 +387,7 @@ class AgentRunner:
                 session_id=agent_id,
                 pending_store=self._pending_store,
                 bus=self._bus,
+                task_context=context,
             )
 
         # A failed factory must not occupy a concurrent-agent slot.
@@ -373,6 +451,10 @@ class AgentRunner:
             close = getattr(outputs, "aclose", None)
             if close is not None:
                 await close()
+            for grounder in owned_grounders:
+                await grounder.client.close()
+            if context is not None:
+                tokens_used = context.budget.total_tokens
             elapsed = time.monotonic() - start
             logger.info(
                 "AgentRunner: '%s' (id=%s) finished in %.1fs, %d tokens used",

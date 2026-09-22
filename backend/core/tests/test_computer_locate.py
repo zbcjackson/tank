@@ -1,0 +1,606 @@
+"""Split planner/locator integration; only HTTP and macOS boundaries are fake."""
+
+import base64
+import hashlib
+import io
+import json
+import sys
+from typing import Any
+from unittest.mock import MagicMock
+
+import httpx
+import pytest
+from openai import AsyncOpenAI
+from PIL import Image
+
+from tank_backend.agents.approval import PendingToolCallStore, ToolApprovalPolicy
+from tank_backend.agents.base import AgentOutputType
+from tank_backend.agents.definition import AgentDefinition
+from tank_backend.agents.runner import AgentRunner
+from tank_backend.llm import llm as llm_module
+from tank_backend.pipeline.bus import Bus
+from tank_backend.tools import computer_use_macos as macos
+from tank_backend.tools.groups import ComputerUseToolGroup
+from tank_backend.tools.manager import ToolManager
+
+
+@pytest.fixture
+def desktop(monkeypatch):
+    quartz = MagicMock()
+    quartz.CGMainDisplayID.return_value = 5
+    quartz.CGDisplayBounds.return_value = ((0, 0), (100, 80))
+    quartz.CGDisplayModeGetPixelWidth.return_value = 200
+    quartz.CGDisplayModeGetPixelHeight.return_value = 160
+    monkeypatch.setitem(sys.modules, "Quartz", quartz)
+    monkeypatch.setattr(macos, "_load_quartz", lambda: quartz)
+    image = io.BytesIO()
+    Image.new("RGB", (100, 80), "red").save(image, "PNG")
+    png = image.getvalue()
+    monkeypatch.setattr(macos, "_capture_screenshot_macos", lambda **kw: png)
+    click = MagicMock()
+    monkeypatch.setattr(macos, "_click_macos", click)
+    manager = ToolManager.__new__(ToolManager)
+    manager.tools = {t.get_info().name: t for t in ComputerUseToolGroup()._create_macos_tools()}
+    manager.tool_metadata = {n: t.get_metadata() for n, t in manager.tools.items()}
+    manager._media_store = manager._bus = None
+    manager.set_session_id("parent-session")
+    return manager, click, png
+
+
+def stream(name: str | None, arguments: dict[str, Any]) -> httpx.Response:
+    delta = (
+        {
+            "tool_calls": [
+                {
+                    "index": 0,
+                    "id": "call",
+                    "type": "function",
+                    "function": {"name": name, "arguments": json.dumps(arguments)},
+                }
+            ]
+        }
+        if name
+        else {"content": "done"}
+    )
+    chunk = {
+        "id": "planner",
+        "object": "chat.completion.chunk",
+        "created": 1,
+        "model": "test",
+        "choices": [
+            {"index": 0, "delta": delta, "finish_reason": "tool_calls" if name else "stop"}
+        ],
+        "usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5},
+    }
+    return httpx.Response(
+        200,
+        headers={"content-type": "text/event-stream"},
+        content=f"data: {json.dumps(chunk)}\n\ndata: [DONE]\n\n",
+    )
+
+
+@pytest.mark.parametrize("separate_profile", [False, True])
+@pytest.mark.parametrize("budget", [100, 5, 15, 20])
+async def test_runner_split_locates_current_image_and_dispatches_reference(
+    desktop, monkeypatch, budget, separate_profile
+):
+    from types import SimpleNamespace
+
+    from tank_backend.agents.definition import GroundingConfig
+    from tank_backend.llm.profile import LLMProfile
+
+    manager, click, png = desktop
+    requests = []
+    planner_turn = 0
+    ledger = []
+
+    class Observer:
+        def on_event(self, kind, metadata):
+            if kind == "grounding_usage":
+                ledger.append(metadata)
+
+    def respond(request):
+        nonlocal planner_turn
+        body = json.loads(request.content)
+        requests.append(body)
+        if not body.get("stream"):
+            assert body["model"] == ("locator-model" if separate_profile else "test")
+            assert len(body["messages"]) == 2
+            assert "private task history" not in json.dumps(body)
+            image = body["messages"][1]["content"][1]["image_url"]["url"]
+            assert (
+                hashlib.sha256(base64.b64decode(image.split(",")[1])).digest()
+                == hashlib.sha256(png).digest()
+            )
+            assert [t["function"]["name"] for t in body["tools"]] == ["click"]
+            return httpx.Response(
+                200,
+                json={
+                    "id": "grounder",
+                    "object": "chat.completion",
+                    "created": 1,
+                    "model": "test",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "finish_reason": "tool_calls",
+                            "message": {
+                                "role": "assistant",
+                                "tool_calls": [
+                                    {
+                                        "id": "g",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "click",
+                                            "arguments": json.dumps(
+                                                {"status": "found", "x": 500, "y": 500}
+                                            ),
+                                        },
+                                    }
+                                ],
+                            },
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10},
+                },
+            )
+        assert "Use the GUI." in body["messages"][0]["content"]
+        planner_turn += 1
+        schemas = {t["function"]["name"]: t["function"]["parameters"] for t in body["tools"]}
+        assert "locate" in schemas
+        assert "x" not in schemas["click"]["properties"]
+        if planner_turn == 1:
+            return stream("screenshot", {})
+        if planner_turn == 2:
+            text = next(
+                p["text"]
+                for m in body["messages"]
+                if isinstance(m.get("content"), list)
+                for p in m["content"]
+                if p["type"] == "text" and "frame_id" in p["text"]
+            )
+            frame = json.loads(text[text.index("{") :])["frame_id"]
+            return stream("locate", {"frame_id": frame, "target": "red center"})
+        if planner_turn == 3:
+            result = json.loads(
+                next(m["content"] for m in body["messages"] if m.get("name") == "locate")
+            )
+            assert result["status"] == "found" and "point" not in result
+            return stream("click", {"location_id": result["location_id"]})
+        assert "dispatched" in json.dumps(body["messages"])
+        return stream(None, {})
+
+    client = AsyncOpenAI(
+        api_key="test",
+        max_retries=0,
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)),
+    )
+    monkeypatch.setattr(llm_module, "AsyncOpenAI", lambda **kw: client)
+    monkeypatch.setattr(llm_module, "initialize_langfuse", lambda: None)
+    llm = llm_module.LLM(api_key="test", model="test", base_url="https://offline.invalid/v1")
+    definition = AgentDefinition(
+        "split",
+        "",
+        "Use the GUI.",
+        tool_filter=("screenshot", "click"),
+        grounding=GroundingConfig(profile="locator" if separate_profile else None),
+    )
+    runner = AgentRunner(
+        llm,
+        manager,
+        Bus(),
+        ToolApprovalPolicy(computer_mode="allow"),
+        PendingToolCallStore(),
+        {"split": definition},
+        app_config=SimpleNamespace(
+            llm_profiles={
+                "locator": LLMProfile(
+                    "locator",
+                    "test",
+                    "locator-model",
+                    "https://offline.invalid/v1",
+                )
+            }
+        ),
+    )
+    try:
+        outputs = [
+            o
+            async for o in runner.run_agent(
+                definition,
+                [{"role": "user", "content": "private task history: click red center"}],
+                token_budget=budget,
+                observer=Observer(),
+            )
+        ]
+    finally:
+        await client.close()
+    if budget < 100:
+        assert not any(o.type == AgentOutputType.DONE for o in outputs)
+        click.assert_not_called()
+        assert len(requests) == (1 if budget == 5 else 3)
+        return
+    assert any(o.type == AgentOutputType.DONE for o in outputs)
+    click.assert_called_once_with(50, 40, "left", 1)
+    assert len(requests) == 5
+    assert ledger[0]["total_tokens"] == 20  # two planner calls + one locate
+    assert manager._session_id == "parent-session"
+    assert "locate" not in manager.tools
+
+
+@pytest.fixture
+async def locator(desktop, monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentBudget, SubAgentContext
+    from tank_backend.tools.computer_grounding import GroundingAdapter
+    from tank_backend.tools.computer_locate import LocateSession, LocateTool
+
+    manager, click, png = desktop
+    control = SimpleNamespace(
+        status="found", raw=None, usage=True, finish="tool_calls", requests=[], during=None
+    )
+
+    async def respond(request):
+        control.requests.append(json.loads(request.content))
+        if control.during is not None:
+            await control.during()
+        arguments = control.raw or json.dumps(
+            {
+                "status": control.status,
+                "x": 500 if control.status == "found" else 0,
+                "y": 500 if control.status == "found" else 0,
+            }
+        )
+        body = {
+            "id": "same-provider-id",
+            "object": "chat.completion",
+            "created": 1,
+            "model": "grounding-model",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": control.finish,
+                    "message": {
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "id": "g",
+                                "type": "function",
+                                "function": {"name": "click", "arguments": arguments},
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+        if control.usage:
+            body["usage"] = {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10}
+        return httpx.Response(200, json=body)
+
+    client = AsyncOpenAI(
+        api_key="test",
+        max_retries=0,
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)),
+    )
+    monkeypatch.setattr(llm_module, "AsyncOpenAI", lambda **kw: client)
+    monkeypatch.setattr(llm_module, "initialize_langfuse", lambda: None)
+    llm = llm_module.LLM(api_key="test", model="test", base_url="https://offline.invalid/v1")
+    context = SubAgentContext(
+        SubAgentAuthorization(frozenset({"desktop"})), SubAgentBudget(limit=100), asyncio.Event()
+    )
+    session = LocateSession(
+        manager.tools,
+        {"primary": llm, "fallback": llm},
+        GroundingAdapter(status_field=True),
+        context,
+        "locate-test",
+    )
+    manager.tools = {name: LocateTool(session, name) for name in session.tools}
+    manager.tools["locate"] = LocateTool(session, "locate")
+    control.manager, control.session, control.context = manager, session, context
+    control.click, control.png = click, png
+    try:
+        yield control
+    finally:
+        await client.close()
+
+
+async def observe(control):
+    from tank_backend.core.content import TextBlock
+    from tank_backend.tools.base import ToolResult
+
+    result = await control.manager.execute_tool("screenshot")
+    assert isinstance(result, ToolResult) and not result.error
+    text = next(b.text for b in result.to_blocks() if isinstance(b, TextBlock))
+    return json.loads(text[text.index("{") :])["frame_id"]
+
+
+async def locate(control, frame, **kwargs):
+    result = await control.manager.execute_tool("locate", frame_id=frame, target="red", **kwargs)
+    assert not isinstance(result, str)
+    return result
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "not_found",
+        "ambiguous",
+        "malformed",
+        "truncated",
+        "stale",
+        "changed",
+        "window",
+        "unknown_usage",
+        "budget",
+    ],
+)
+async def test_locate_failure_never_produces_executable_reference(locator, monkeypatch, failure):
+    c = locator
+    frame = await observe(c)
+    if failure in {"not_found", "ambiguous"}:
+        c.status = failure
+    elif failure == "malformed":
+        c.raw = "[]"
+    elif failure == "truncated":
+        c.finish = "length"
+    elif failure == "stale":
+        await observe(c)
+    elif failure == "window":
+        result = await locate(c, frame, window_id=42)
+        assert result.error
+    elif failure == "changed":
+
+        async def change():
+            buf = io.BytesIO()
+            Image.new("RGB", (100, 80), "blue").save(buf, "PNG")
+            monkeypatch.setattr(macos, "_capture_screenshot_macos", lambda **kw: buf.getvalue())
+
+        c.during = change
+    elif failure == "unknown_usage":
+        c.usage = False
+    elif failure == "budget":
+        c.context.budget.limit = 10
+    if failure != "window":
+        result = await locate(c, frame)
+        assert "location_id" not in str(result.content)
+    result = await c.manager.execute_tool("click", location_id="invented")
+    assert result.error
+    c.click.assert_not_called()
+    assert len(c.requests) == (0 if failure in {"stale", "window"} else 1)
+    if failure not in {"stale", "window", "unknown_usage"}:
+        assert c.context.budget.total_tokens == 10
+
+
+async def test_cancel_while_locating_aborts_http_and_prevents_later_calls(locator):
+    import asyncio
+
+    c = locator
+    entered, exited = asyncio.Event(), asyncio.Event()
+
+    async def wait():
+        entered.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            exited.set()
+
+    c.during = wait
+    frame = await observe(c)
+    task = asyncio.create_task(locate(c, frame))
+    await asyncio.wait_for(entered.wait(), 1)
+    c.context.cancel.set()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, 0.2)
+    assert exited.is_set()
+    with pytest.raises(asyncio.CancelledError):
+        await locate(c, frame)
+    c.click.assert_not_called()
+    assert len(c.requests) == 1
+
+
+async def test_retry_limit_survives_reobservation_and_counts_duplicate_response_ids(locator):
+    c = locator
+    c.status = "ambiguous"
+    for _ in range(3):
+        assert not (await locate(c, await observe(c))).error
+    result = await locate(c, await observe(c))
+    assert result.error and "exhausted" in str(result.content)
+    assert len(c.requests) == 3 and c.context.budget.total_tokens == 30
+
+
+async def test_fallback_cannot_switch_back(locator):
+    c = locator
+    frame = await observe(c)
+    assert not (await locate(c, frame)).error
+    assert not (await locate(c, frame, backend="fallback")).error
+    assert (await locate(c, frame, backend="primary")).error
+    assert len(c.requests) == 2
+
+
+async def test_two_located_targets_support_drag(locator, monkeypatch):
+    c = locator
+    drag = MagicMock()
+    monkeypatch.setattr(macos, "_drag_macos", drag)
+    frame = await observe(c)
+    first = json.loads((await locate(c, frame)).content)["location_id"]
+    second = json.loads((await locate(c, frame)).content)["location_id"]
+    result = await c.manager.execute_tool("drag", location_id=first, end_location_id=second)
+    assert not result.error
+    drag.assert_called_once_with(50, 40, 50, 40)
+
+
+async def test_short_batch_uses_references_and_stops_before_changed_scene(locator, monkeypatch):
+    from tank_backend.tools.computer_locate import LocateTool
+
+    c = locator
+    c.manager.tools["computer_batch"] = LocateTool(c.session, "computer_batch")
+    frame = await observe(c)
+    ref = json.loads((await locate(c, frame)).content)["location_id"]
+
+    def changed(*args):
+        buf = io.BytesIO()
+        Image.new("RGB", (100, 80), "blue").save(buf, "PNG")
+        monkeypatch.setattr(macos, "_capture_screenshot_macos", lambda **kw: buf.getvalue())
+
+    c.click.side_effect = changed
+    args = {"actions": [{"action": "click", "location_id": ref}] * 3}
+    result = await c.manager.execute_tool("computer_batch", **args)
+    assert result.error
+    assert '"skipped": 1' in str(result.content)
+    assert c.click.call_count == 1
+    replay = await c.manager.execute_tool("computer_batch", **args)
+    assert replay.error and c.click.call_count == 1
+
+
+@pytest.mark.parametrize("stop", ["cancel", "deadline", "revoked"])
+async def test_stop_during_action_validation_never_dispatches(locator, monkeypatch, stop):
+    import asyncio
+    import time
+    from dataclasses import replace
+
+    c = locator
+    frame = await observe(c)
+    ref = json.loads((await locate(c, frame)).content)["location_id"]
+
+    def stop_before_input(**kwargs):
+        if stop == "cancel":
+            c.context.cancel.set()
+        elif stop == "deadline":
+            c.session.context = replace(c.context, deadline=time.monotonic() - 1)
+            c.session.tools["click"].check = c.session.context.check
+        else:
+            c.context.authorization.revoke()
+        return c.png
+
+    monkeypatch.setattr(macos, "_capture_screenshot_macos", stop_before_input)
+    try:
+        result = await c.manager.execute_tool("click", location_id=ref)
+        assert result.error
+    except asyncio.CancelledError:
+        assert stop == "cancel"
+    c.click.assert_not_called()
+
+
+async def test_deadline_aborts_grounding_http(locator):
+    import asyncio
+    import time
+    from dataclasses import replace
+
+    c = locator
+    frame = await observe(c)
+    c.session.context = replace(c.context, deadline=time.monotonic() + 0.05)
+    exited = asyncio.Event()
+
+    async def wait():
+        try:
+            await asyncio.Event().wait()
+        finally:
+            exited.set()
+
+    c.during = wait
+    result = await locate(c, frame)
+    assert result.error and exited.is_set()
+    assert len(c.requests) == 1
+    assert c.context.budget.unknown_calls
+    assert (await locate(c, frame)).error
+    assert len(c.requests) == 1
+    c.click.assert_not_called()
+
+
+async def test_failed_locate_invalidates_previous_reference(locator):
+    c = locator
+    frame = await observe(c)
+    ref = json.loads((await locate(c, frame)).content)["location_id"]
+    c.status = "ambiguous"
+    await locate(c, frame)
+    assert (await c.manager.execute_tool("click", location_id=ref)).error
+    c.click.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "bad", [{"x": 1, "y": 2}, {"coordinate_space": "legacy"}, {"ctx": {"session_id": "other"}}]
+)
+async def test_split_rejects_planner_coordinates_and_context(locator, bad):
+    c = locator
+    frame = await observe(c)
+    ref = json.loads((await locate(c, frame)).content)["location_id"]
+    result = await c.manager.execute_tool("click", location_id=ref, **bad)
+    assert result.error
+    c.click.assert_not_called()
+
+
+@pytest.mark.parametrize("config", ["[]", "null", "{profile: ''}", "{unknown: true}"])
+def test_invalid_grounding_configuration_is_a_clear_parse_error(tmp_path, config):
+    from tank_backend.agents.definition import parse_agent_file
+
+    path = tmp_path / "agent.md"
+    path.write_text(f"---\nname: split\ngrounding: {config}\n---\nUse the GUI")
+    with pytest.raises(ValueError):
+        parse_agent_file(path)
+
+
+def test_grounding_configuration_is_opt_in_and_parsed(tmp_path):
+    from tank_backend.agents.definition import parse_agent_file
+
+    path = tmp_path / "agent.md"
+    path.write_text(
+        "---\nname: split\ngrounding: {profile: locator, protocol: bbox}\n---\nUse the GUI"
+    )
+    config = parse_agent_file(path).grounding
+    assert config is not None and config.profile == "locator" and config.protocol == "bbox"
+    assert AgentDefinition("legacy", "", "").grounding is None
+
+
+async def test_batch_rejects_unavailable_actions_before_any_input(locator):
+    from tank_backend.tools.computer_locate import LocateTool
+
+    c = locator
+    c.session.tools.pop("type_text")
+    c.manager.tools["computer_batch"] = LocateTool(c.session, "computer_batch")
+    frame = await observe(c)
+    ref = json.loads((await locate(c, frame)).content)["location_id"]
+    result = await c.manager.execute_tool(
+        "computer_batch",
+        actions=[
+            {"action": "click", "location_id": ref},
+            {"action": "type_text", "text": "blocked"},
+        ],
+    )
+    assert result.error
+    c.click.assert_not_called()
+
+
+@pytest.mark.parametrize("native_error", [False, True])
+async def test_cancel_joins_started_native_input_before_task_finishes(
+    locator, monkeypatch, native_error,
+):
+    import asyncio
+    import threading
+
+    c = locator
+    entered = asyncio.Event()
+    release = threading.Event()
+    finished = threading.Event()
+    loop = asyncio.get_running_loop()
+    def type_text(*args):
+        loop.call_soon_threadsafe(entered.set)
+        release.wait(2)
+        finished.set()
+        if native_error:
+            raise RuntimeError("native failure during cancellation")
+        return "typed"
+    monkeypatch.setattr(macos, "_type_macos", type_text)
+    task = asyncio.create_task(c.manager.execute_tool("type_text", text="a"))
+    try:
+        await asyncio.wait_for(entered.wait(), 1)
+        c.context.cancel.set()
+        await asyncio.sleep(0.02)
+        assert not task.done(), "Task must not release desktop while native input is still running"
+    finally:
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    assert finished.is_set()

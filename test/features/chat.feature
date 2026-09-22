@@ -43,3 +43,12 @@ Feature: Chat mode
       | approved | completed |
       | stopped  | cancelled |
       | failed   | failed    |
+
+  Scenario Outline: Split desktop orchestration preserves dispatch and stop contracts
+    When the isolated split desktop contract "<contract>" is exercised
+    Then the split desktop contract passes without live model or desktop input
+
+    Examples:
+      | contract |
+      | dispatch |
+      | stop     |

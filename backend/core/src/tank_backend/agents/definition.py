@@ -16,6 +16,28 @@ _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)", re.DOTALL)
 
 
 @dataclass(frozen=True)
+class GroundingConfig:
+    """Opt-in split desktop mode; omitted profiles reuse the planner model."""
+
+    profile: str | None = None
+    fallback_profile: str | None = None
+    protocol: str = "point"
+    nullable_style: str = "integer"
+    strict: bool = False
+    detail: str = "auto"
+    status_field: bool = True
+
+    def __post_init__(self) -> None:
+        from ..tools.computer_grounding import GroundingAdapter
+
+        GroundingAdapter(self.protocol, self.nullable_style, self.strict,
+                         self.detail, self.status_field)
+        for profile in (self.profile, self.fallback_profile):
+            if profile is not None and (not isinstance(profile, str) or not profile.strip()):
+                raise ValueError("grounding profiles must be nonempty names")
+
+
+@dataclass(frozen=True)
 class AgentDefinition:
     """A named agent type with its system prompt and tool constraints."""
 
@@ -33,8 +55,11 @@ class AgentDefinition:
     # None = the built-in LLMAgent loop.
     engine: str | None = None
     extension: str | None = None
+    grounding: GroundingConfig | None = None
 
     def __post_init__(self) -> None:
+        if self.grounding is not None and (self.engine or self.extension):
+            raise ValueError("grounding is only supported by the built-in agent")
         if self.engine and self.extension:
             raise ValueError("engine and extension cannot both be configured")
         if self.extension is not None and (
@@ -83,6 +108,15 @@ def parse_agent_file(path: Path) -> AgentDefinition:
     else:
         skills = ()
 
+    grounding = None
+    if "grounding" in fm:
+        if not isinstance(fm["grounding"], dict):
+            raise ValueError("grounding must be a configuration mapping")
+        try:
+            grounding = GroundingConfig(**fm["grounding"])
+        except TypeError as exc:
+            raise ValueError(f"Invalid grounding configuration: {exc}") from exc
+
     return AgentDefinition(
         name=name,
         description=description,
@@ -95,6 +129,7 @@ def parse_agent_file(path: Path) -> AgentDefinition:
         model=fm.get("model"),
         engine=fm.get("engine"),
         extension=fm.get("extension"),
+        grounding=grounding,
     )
 
 
