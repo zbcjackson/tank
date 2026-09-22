@@ -473,7 +473,7 @@ async def test_benchmark_request_gate_covers_actual_clients(
     if spend_enabled:
         for profile in profiles.values():
             profile.extra_body["enable_thinking"] = False
-        spend = SpendControl(SpendLedger(SpendLimit(1000000, 10000000)),
+        spend = SpendControl(SpendLedger(SpendLimit(1000000, 10000000), request_limit=100),
             SpendLimit(300000, 1000000), tuple(
                 ContextWindowContract(
                     "https://offline.invalid/v1/chat/completions", name + "-model",
@@ -537,6 +537,7 @@ async def test_benchmark_request_gate_covers_actual_clients(
         snapshot = spend.ledger.snapshot()
         assert spend.active is None
         assert len(snapshot["requests"]) == calls * (2 if clicks else 1)
+        assert snapshot["batch"]["admitted_requests"] == calls * (2 if clicks else 1)
         for row in records:
             if row["kind"] == "http_request":
                 assert row["request_id"] in snapshot["requests"]

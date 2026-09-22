@@ -61,6 +61,7 @@ async def test_journal_failure_during_driver_finish_releases_contexts(tmp_path, 
         "read_error",
         "cancelled",
         "write_error",
+        "request_limit",
     ],
 )
 async def test_http_request_reserves_before_transport_and_settles_sdk_usage(
@@ -81,7 +82,10 @@ async def test_http_request_reserves_before_transport_and_settles_sdk_usage(
     from tank_backend.llm import llm as module
 
     journal = tmp_path / "spend.jsonl" if durable or usage_case == "write_error" else None
-    ledger = SpendLedger(SpendLimit(49 if usage_case == "limit" else 100, 1000), journal=journal)
+    ledger = SpendLedger(
+        SpendLimit(49 if usage_case == "limit" else 100, 1000), journal=journal,
+        request_limit=0 if usage_case == "request_limit" else 1,
+    )
     control = SpendControl(
         ledger,
         SpendLimit(100, 1000),
@@ -244,10 +248,10 @@ async def test_http_request_reserves_before_transport_and_settles_sdk_usage(
     try:
         if usage_case == "known":
             await run()
-        elif usage_case in {"limit", "read_error", "cancelled", "write_error"}:
+        elif usage_case in {"limit", "read_error", "cancelled", "write_error", "request_limit"}:
             error = (
                 APIConnectionError
-                if usage_case in {"limit", "write_error"}
+                if usage_case in {"limit", "write_error", "request_limit"}
                 else asyncio.CancelledError
                 if usage_case == "cancelled"
                 else httpx.ReadError
@@ -264,12 +268,15 @@ async def test_http_request_reserves_before_transport_and_settles_sdk_usage(
         trace.close()
         await client.close()
         ledger.close()
-    assert len(sent) == (0 if usage_case in {"limit", "write_error"} else 1)
+    assert len(sent) == (0 if usage_case in {"limit", "write_error", "request_limit"} else 1)
     assert actions == []
     snapshot = ledger.snapshot()
-    if usage_case == "limit":
+    assert snapshot["batch"]["admitted_requests"] == len(snapshot["requests"])
+    if usage_case in {"limit", "request_limit"}:
         assert snapshot["requests"] == {}
-        assert snapshot["stop_reason"] == "batch_tokens"
+        assert snapshot["stop_reason"] == (
+            "batch_tokens" if usage_case == "limit" else "batch_requests"
+        )
         return
     if usage_case == "known":
         assert snapshot["batch"]["known_tokens"] == 5

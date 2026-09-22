@@ -3,6 +3,43 @@
 import pytest
 
 
+def test_batch_http_limit_persists_across_trials_and_usage_refunds(tmp_path):
+    import json
+
+    from tank_backend.benchmarks.spend_ledger import (
+        SpendLedger,
+        SpendLimit,
+        SpendLimitExceeded,
+        TokenAllowance,
+    )
+
+    path = tmp_path / "spend.jsonl"
+    ledger = SpendLedger(SpendLimit(100, 1000), journal=path, request_limit=2)
+    for trial in ("A", "D"):
+        ledger.start_trial(trial, SpendLimit(100, 1000))
+        ledger.reserve(trial, TokenAllowance(30, 20, 2, 5))
+        ledger.settle(trial, input_tokens=0, output_tokens=0)
+        ledger.finish_trial()
+    ledger.start_trial("later", SpendLimit(100, 1000))
+    with pytest.raises(SpendLimitExceeded, match="batch_requests"):
+        ledger.reserve("third", TokenAllowance(0, 0, 0, 0))
+    ledger.close()
+    saved = json.loads(path.read_text().splitlines()[-1])
+    assert saved["batch"]["admitted_requests"] == 2
+    assert saved["batch"]["limit_requests"] == 2
+    assert saved["batch"]["charged_tokens"] == 0
+    assert "third" not in saved["requests"]
+    assert saved["stop_reason"] == "batch_requests"
+
+
+@pytest.mark.parametrize("value", [-1, True, 1.5, "2"])
+def test_batch_request_limit_rejects_invalid_values(value):
+    from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit
+
+    with pytest.raises(ValueError):
+        SpendLedger(SpendLimit(100, 1000), request_limit=value)
+
+
 def test_durable_reservation_is_readable_before_send_and_cannot_be_replayed(tmp_path):
     import json
 

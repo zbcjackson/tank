@@ -484,7 +484,9 @@ def _make_suite(tmp_path: Path) -> Path:
     return suite_dir
 
 
-@pytest.mark.parametrize("stop_case", ["none", "cleanup", "usage", "budget", "cancelled"])
+@pytest.mark.parametrize(
+    "stop_case", ["none", "cleanup", "usage", "budget", "cancelled", "requests", "inputs", "zero"],
+)
 async def test_serial_batch_shares_durable_spend_and_refuses_replay(
     tmp_path, monkeypatch, stop_case,
 ):
@@ -495,10 +497,19 @@ async def test_serial_batch_shares_durable_spend_and_refuses_replay(
     from tank_backend.benchmarks import runner
     from tank_backend.benchmarks.batch import BatchTrial, run_batch
     from tank_backend.benchmarks.driver import SubAgentDriver
+    from tank_backend.benchmarks.frozen_inputs import FrozenFile, FrozenInputs
     from tank_backend.benchmarks.request_budget import RequestLimits
     from tank_backend.benchmarks.spend_ledger import SpendLimit, TokenAllowance
 
     suite = _make_suite(tmp_path)
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("offline fixture")
+    import hashlib
+
+    frozen = FrozenInputs(tuple(
+        FrozenFile(path, hashlib.sha256(path.read_bytes()).hexdigest())
+        for path in (config_path, suite / "suite.yaml", *sorted((suite / "tasks").glob("*.yaml")))
+    ))
     order = []
     controls = []
 
@@ -512,6 +523,8 @@ async def test_serial_batch_shares_durable_spend_and_refuses_replay(
                 saved = json.loads((tmp_path / "out" / "spend.jsonl").read_text().splitlines()[-1])
                 assert saved["requests"][agent_name]["status"] == "pending"
                 order.append(agent_name)
+                if stop_case == "inputs":
+                    config_path.write_text("changed after first trial")
                 if stop_case == "cancelled":
                     raise asyncio.CancelledError()
                 spend.ledger.settle(
@@ -540,33 +553,43 @@ async def test_serial_batch_shares_durable_spend_and_refuses_replay(
             entries, out_dir=tmp_path / "out",
             batch_limit=SpendLimit(54 if stop_case == "budget" else 100, 1000),
             trial_limit=SpendLimit(60, 600), request_limits=RequestLimits(), contracts=(),
+            batch_request_limit=0 if stop_case == "zero" else 1 if stop_case == "requests" else 3,
+            frozen_inputs=frozen,
         )
-    if stop_case == "cancelled":
-        with pytest.raises(asyncio.CancelledError):
+    if stop_case in {"cancelled", "inputs"}:
+        with pytest.raises(asyncio.CancelledError if stop_case == "cancelled" else ValueError):
             await invoke()
         result = json.loads((tmp_path / "out" / "batch-result.json").read_text())
     else:
         result = await invoke()
-    assert order == (["a", "b", "c"] if stop_case == "none" else ["a"])
-
-    assert len({id(c) for c in controls}) == 1
+    expected_order = (
+        ["a", "b", "c"] if stop_case == "none" else [] if stop_case == "zero" else ["a"]
+    )
+    assert order == expected_order
+    assert len({id(c) for c in controls}) == (0 if stop_case == "zero" else 1)
     assert result["completed"] == {
         "none": ["a", "b", "c"], "budget": ["a", "b"], "cancelled": [],
         "cleanup": ["a"], "usage": ["a"],
+        "requests": ["a"], "inputs": ["a"], "zero": [],
     }[stop_case]
     assert result["spend"]["batch"]["charged_tokens"] == {
         "none": 15, "budget": 5, "cancelled": 50, "cleanup": 5, "usage": 50,
+        "requests": 5, "inputs": 5, "zero": 0,
     }[stop_case]
     assert result["spend"]["stop_reason"] == {
         "none": None, "budget": "batch_tokens", "cancelled": "batch_interrupted",
         "cleanup": "cleanup_unconfirmed", "usage": "unknown_usage",
+        "requests": "batch_requests", "inputs": "frozen_inputs", "zero": "batch_requests",
     }[stop_case]
+    assert result["spend"]["batch"]["admitted_requests"] == len(order)
+    config_path.write_text("offline fixture")
     with pytest.raises(FileExistsError):
         await run_batch(
             entries, out_dir=tmp_path / "out", batch_limit=SpendLimit(100, 1000),
             trial_limit=SpendLimit(60, 600), request_limits=RequestLimits(), contracts=(),
+            batch_request_limit=3, frozen_inputs=frozen,
         )
-    assert order == (["a", "b", "c"] if stop_case == "none" else ["a"])
+    assert order == expected_order
 
 @pytest.mark.parametrize("invalid", ["empty", "duplicate", "key", "task", "platform"])
 async def test_serial_batch_preflight_refuses_invalid_schedule(tmp_path, monkeypatch, invalid):
@@ -575,6 +598,7 @@ async def test_serial_batch_preflight_refuses_invalid_schedule(tmp_path, monkeyp
 
     from tank_backend.benchmarks.batch import BatchTrial, run_batch
     from tank_backend.benchmarks.driver import SubAgentDriver
+    from tank_backend.benchmarks.frozen_inputs import FrozenInputs
     from tank_backend.benchmarks.request_budget import RequestLimits
     from tank_backend.benchmarks.spend_ledger import SpendLimit
 
@@ -590,10 +614,71 @@ async def test_serial_batch_preflight_refuses_invalid_schedule(tmp_path, monkeyp
         await run_batch(
             schedules[invalid], out_dir=tmp_path / "out", batch_limit=SpendLimit(100, 1000),
             trial_limit=SpendLimit(60, 600), request_limits=RequestLimits(), contracts=(),
+            batch_request_limit=3, frozen_inputs=FrozenInputs(()),
         )
     create.assert_not_called()
     assert not (tmp_path / "out").exists()
 
+
+
+@pytest.mark.parametrize(
+    "drift", ["config", "suite", "task", "asset", "env", "agent", "added_task", "uncovered",
+              "assembly"],
+)
+async def test_batch_frozen_drift_prevents_trial_side_effects(tmp_path, monkeypatch, drift):
+    import hashlib
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, Mock
+
+    from tank_backend.benchmarks import runner
+    from tank_backend.benchmarks.batch import BatchTrial, run_batch
+    from tank_backend.benchmarks.driver import SubAgentDriver
+    from tank_backend.benchmarks.frozen_inputs import FrozenFile, FrozenInputs
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.spend_ledger import SpendLimit
+
+    suite = _make_suite(tmp_path)
+    (suite / "assets").mkdir()
+    (suite / "suite.yaml").write_text(SUITE_YAML + "\nassets_dir: assets\n")
+    files = {
+        "config": tmp_path / "config.yaml", "suite": suite / "suite.yaml",
+        "task": suite / "tasks/t1.yaml", "asset": suite / "assets/index.html",
+        "env": tmp_path / ".env", "agent": tmp_path / "agent.md",
+    }
+    for key in ("config", "asset", "env", "agent"):
+        files[key].write_text("offline fixture")
+    frozen = FrozenInputs(tuple(
+        FrozenFile(path, hashlib.sha256(path.read_bytes()).hexdigest())
+        for path in (*files.values(), suite / "tasks/t2.yaml")
+        if drift != "uncovered" or path != files["config"]
+    ))
+    if drift in files:
+        with files[drift].open("a") as output:
+            output.write("\n# changed\n")
+    elif drift == "added_task":
+        (suite / "tasks/t3.yaml").write_text(TASK_YAML.format(tid="t3", work=tmp_path / "work"))
+
+    def assemble(*args, **kwargs):
+        files["config"].write_text("changed during assembly")
+        return Mock()
+
+    create = Mock(side_effect=assemble if drift == "assembly" else None)
+    desktop = Mock()
+    monkeypatch.setattr(SubAgentDriver, "create", create)
+    monkeypatch.setattr(runner, "save_current_input_source", desktop)
+    monkeypatch.setattr(runner, "pin_ascii_input_source", desktop)
+    monkeypatch.setattr(runner, "restore_saved_input_source", desktop)
+    monkeypatch.setattr(runner, "LocalPageServer", Mock())
+    monkeypatch.setattr(runner, "run_shell", AsyncMock(return_value=SimpleNamespace(stdout="")))
+    with pytest.raises(ValueError, match="Frozen inputs"):
+        await run_batch(
+            (BatchTrial("a", suite, "t1", "a", files["config"], "linux"),),
+            out_dir=tmp_path / "out", batch_limit=SpendLimit(100, 1000),
+            trial_limit=SpendLimit(60, 600), request_limits=RequestLimits(), contracts=(),
+            batch_request_limit=3, frozen_inputs=frozen,
+        )
+    assert create.call_count == (1 if drift == "assembly" else 0)
+    desktop.assert_not_called()
 
 
 async def test_run_suite_pass_setup_validate_report(tmp_path):

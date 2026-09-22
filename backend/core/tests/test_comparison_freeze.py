@@ -8,6 +8,45 @@ from pathlib import Path
 import pytest
 
 
+@pytest.mark.parametrize("change", ["none", "modified", "missing", "added", "uncovered"])
+def test_frozen_input_preflight_checks_hashes_coverage_and_inventory(tmp_path, change):
+    from tank_backend.benchmarks.frozen_inputs import FrozenFile, FrozenInputs
+
+    sources = tmp_path / "sources"
+    sources.mkdir()
+    source = sources / "agent.md"
+    source.write_text("frozen prompt")
+    frozen = FrozenInputs(
+        (FrozenFile(source, hashlib.sha256(source.read_bytes()).hexdigest()),), (sources,),
+    )
+    required = [source]
+    if change == "modified":
+        source.write_text("changed prompt")
+    elif change == "missing":
+        source.unlink()
+    elif change == "added":
+        (sources / "new.md").write_text("new agent")
+    elif change == "uncovered":
+        required.append(tmp_path / "not-in-manifest.yaml")
+    if change == "none":
+        frozen.verify(required)
+    else:
+        with pytest.raises(ValueError, match="Frozen inputs"):
+            frozen.verify(required)
+
+
+@pytest.mark.parametrize("invalid", ["empty", "duplicate", "digest"])
+def test_frozen_input_manifest_rejects_ambiguous_or_invalid_pins(tmp_path, invalid):
+    from tank_backend.benchmarks.frozen_inputs import FrozenFile, FrozenInputs
+
+    path = tmp_path / "input"
+    path.write_text("frozen")
+    item = FrozenFile(path, hashlib.sha256(path.read_bytes()).hexdigest())
+    entries = {"empty": (), "duplicate": (item, item), "digest": (FrozenFile(path, "bad"),)}
+    with pytest.raises(ValueError, match="Frozen inputs"):
+        FrozenInputs(entries[invalid]).verify()
+
+
 async def test_comparison_freeze_is_reproducible_and_uses_final_sdk_requests(tmp_path):
     script = Path(__file__).resolve().parents[2] / "scripts/prepare_computer_comparison.py"
     prepare = runpy.run_path(str(script))["prepare"]

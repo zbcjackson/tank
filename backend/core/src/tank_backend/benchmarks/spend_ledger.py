@@ -64,7 +64,12 @@ class SpendSnapshot(TypedDict):
 class SpendLedger:
     """One serial batch; monetary units are integer billionths of one USD."""
 
-    def __init__(self, limit: SpendLimit, *, journal: Path | None = None) -> None:
+    def __init__(
+        self, limit: SpendLimit, *, journal: Path | None = None, request_limit: int | None = None,
+    ) -> None:
+        if request_limit is not None and (type(request_limit) is not int or request_limit < 0):
+            raise ValueError("Request limit must be a non-negative integer")
+        self._request_limit = request_limit
         self._limit = limit
         self._trials: dict[str, SpendLimit] = {}
         self._requests: dict[str, _Reservation] = {}
@@ -137,6 +142,9 @@ class SpendLedger:
             r.status == "pending" for r in self._requests.values()
         ):
             raise ValueError("Requests must be serial and have unique IDs")
+        if self._request_limit is not None and len(self._requests) >= self._request_limit:
+            self.stop("batch_requests")
+            raise SpendLimitExceeded("batch_requests")
         added_tokens = allowance.input_tokens + allowance.output_tokens
         added_cost = (
             allowance.input_tokens * allowance.input_nano_usd
@@ -229,8 +237,11 @@ class SpendLedger:
         }
 
     def snapshot(self) -> SpendSnapshot:
+        batch = self._totals(self._limit)
+        if self._request_limit is not None:
+            batch.update(limit_requests=self._request_limit, admitted_requests=len(self._requests))
         return {
-            "batch": self._totals(self._limit),
+            "batch": batch,
             "trials": {trial: self._totals(limit, trial) for trial, limit in self._trials.items()},
             "stop_reason": self._stop_reason,
             "requests": {key: asdict(value) for key, value in self._requests.items()},
