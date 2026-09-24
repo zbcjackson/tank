@@ -1,4 +1,4 @@
-"""Materialize and recheck the M5 proposal offline; deliberately no execution mode."""
+"""Offline proposal CLI plus an explicitly authorized, single A-control entry API."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 from tank_backend.agents.definition import load_agent_definitions
@@ -15,6 +15,9 @@ from tank_backend.benchmarks.comparison_contract import ComparisonContract
 from tank_backend.benchmarks.frozen_inputs import FrozenFile, FrozenInputs
 from tank_backend.benchmarks.task import load_suite, load_suite_tasks
 from tank_backend.config import AppConfig
+
+if TYPE_CHECKING:
+    from tank_backend.benchmarks.batch import BatchResult
 
 BACKEND = Path(__file__).resolve().parents[1]
 SUITE = BACKEND / "benchmarks/computer_use"
@@ -49,7 +52,8 @@ def _spec(freeze: Path) -> dict[str, Any]:
                 "tokens": 300000, "timeout_s": 120, "max_steps": 15,
             })
     return {
-        "schema_version": 2, "live_authorized": False, "record_only": True,
+        "schema_version": 3, "live_authorized": False, "record_only": True,
+        "input_cleanup": True,
         "freeze_dir": _relative(freeze), "budget_nano_usd": 8000000000,
         "batch_tokens": 5100000, "batch_requests": 362,
         "core_requires_pilot_acceptance": True, "trials": trials,
@@ -111,7 +115,45 @@ def preflight(freeze: Path, proposal_path: Path) -> dict[str, Any]:
         "offline_checks_passed": True, "live_ready": False, "totals": totals,
         "blockers": BLOCKERS, "checked_files": len(pins),
         "token_cost_gate": "disabled", "effective_agent_token_budget": 0,
+        "input_cleanup": True,
     }
+
+
+async def execute_a_control(
+    freeze: Path, proposal_path: Path, output: Path, *, live_authorized: bool = False,
+) -> BatchResult:
+    """Run exactly one pilot after caller approval and controlled-desktop setup.
+
+    This API neither obtains screenshot consent nor prepares/restores the desktop.
+    The CLI stays offline. There is no automatic next pilot or core transition.
+    """
+    if live_authorized is not True:
+        raise ValueError("Explicit live screenshot/endpoint authorization is required")
+    proposal_bytes = proposal_path.read_bytes()
+    preflight(freeze, proposal_path)
+    if proposal_path.read_bytes() != proposal_bytes:
+        raise ValueError("Proposal changed during preflight")
+    proposal = json.loads(proposal_bytes)
+    row = proposal["trials"][0]  # preflight binds the exact fixed schedule, not caller selection.
+    files = tuple(FrozenFile(BACKEND / name, digest)
+                  for name, digest in proposal["files"].items())
+    files += (FrozenFile(proposal_path, hashlib.sha256(proposal_bytes).hexdigest()),)
+    from tank_backend.benchmarks.batch import BatchTrial, run_batch
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.spend_ledger import SpendLimit
+
+    return await run_batch(
+        (BatchTrial(row["key"], BACKEND / row["suite_dir"], row["task_id"],
+                    row["agent_name"], BACKEND / row["config_path"], row["platform"],
+                    ComparisonContract(freeze, row["variant"])),),
+        out_dir=output,
+        batch_limit=SpendLimit(row["tokens"], proposal["budget_nano_usd"]),
+        trial_limit=SpendLimit(row["tokens"], proposal["budget_nano_usd"]),
+        request_limits=RequestLimits(**row["request_limits"]), contracts=(),
+        batch_request_limit=row["request_limits"]["total"],
+        frozen_inputs=FrozenInputs(files, trees=(freeze / "runtime",)),
+        record_only=True, input_cleanup=True,
+    )
 
 
 def prepare(freeze: Path, output: Path) -> None:

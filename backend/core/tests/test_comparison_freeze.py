@@ -431,3 +431,87 @@ async def test_batch_proposal_rejects_drift(runtime_bundle, change):
     path.write_text(json.dumps(proposal))
     with pytest.raises(ValueError):
         api["preflight"](runtime_bundle, path)
+
+
+async def test_single_pilot_entry_preserves_scope_and_cleanup(runtime_bundle, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from tank_backend.benchmarks import batch
+
+    api = runpy.run_path(str(Path(__file__).resolve().parents[2]
+                             / "scripts/prepare_computer_batch.py"))
+    proposal_dir = runtime_bundle.parent / "proposal"
+    api["prepare"](runtime_bundle, proposal_dir)
+    execute = AsyncMock(return_value={"completed": ["pilot-a-control"]})
+    monkeypatch.setattr(batch, "run_batch", execute)
+    proposal_path = proposal_dir / "proposal.json"
+    output = runtime_bundle.parent / "live"
+    with pytest.raises(ValueError, match="authorization"):
+        await api["execute_a_control"](runtime_bundle, proposal_path, output)
+    execute.assert_not_called()
+    await api["execute_a_control"](runtime_bundle, proposal_path, output, live_authorized=True)
+    entries = execute.call_args.args[0]
+    assert len(entries) == 1 and entries[0].key == "pilot-a-control"
+    assert entries[0].comparison.variant == "A-control"
+    kwargs = execute.call_args.kwargs
+    assert kwargs["input_cleanup"] is True and kwargs["record_only"] is True
+    assert kwargs["batch_request_limit"] == 16
+    assert kwargs["request_limits"].planner == 16
+    assert kwargs["request_limits"].locator == 0
+    kwargs["frozen_inputs"].verify([proposal_path])
+
+
+@pytest.mark.parametrize("change", ["cleanup", "runtime", "proposal_order"])
+async def test_single_pilot_drift_stops_before_batch(runtime_bundle, monkeypatch, change):
+    from unittest.mock import AsyncMock
+
+    from tank_backend.benchmarks import batch
+
+    api = runpy.run_path(str(Path(__file__).resolve().parents[2]
+                             / "scripts/prepare_computer_batch.py"))
+    directory = runtime_bundle.parent / "proposal"
+    api["prepare"](runtime_bundle, directory)
+    path = directory / "proposal.json"
+    proposal = json.loads(path.read_text())
+    if change == "cleanup":
+        proposal["input_cleanup"] = False
+    elif change == "proposal_order":
+        proposal["trials"].reverse()
+    else:
+        config = runtime_bundle / "runtime/a-control/config.yaml"
+        config.write_text(config.read_text() + "\n")
+    path.write_text(json.dumps(proposal))
+    execute = AsyncMock()
+    monkeypatch.setattr(batch, "run_batch", execute)
+    with pytest.raises(ValueError):
+        await api["execute_a_control"](
+            runtime_bundle, path, directory / "live", live_authorized=True,
+        )
+    execute.assert_not_called()
+
+
+async def test_single_pilot_rejects_proposal_changed_during_preflight(runtime_bundle, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from tank_backend.benchmarks import batch
+
+    api = runpy.run_path(str(Path(__file__).resolve().parents[2]
+                             / "scripts/prepare_computer_batch.py"))
+    directory = runtime_bundle.parent / "proposal"
+    api["prepare"](runtime_bundle, directory)
+    path = directory / "proposal.json"
+    original = api["preflight"]
+
+    def change_after_check(freeze, proposal):
+        result = original(freeze, proposal)
+        proposal.write_text(proposal.read_text() + "\n")
+        return result
+
+    monkeypatch.setitem(api["execute_a_control"].__globals__, "preflight", change_after_check)
+    execute = AsyncMock()
+    monkeypatch.setattr(batch, "run_batch", execute)
+    with pytest.raises(ValueError, match="changed during preflight"):
+        await api["execute_a_control"](
+            runtime_bundle, path, directory / "live", live_authorized=True,
+        )
+    execute.assert_not_called()
