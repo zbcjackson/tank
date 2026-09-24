@@ -1475,6 +1475,28 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 回归：backend **5015 passed / 1 skipped**、E2E **16 场景 / 63 步**；其余强制检查通过，
   pyright N/A。现有测试未覆盖该原生崩溃，不能以回归通过代替修复。
 
+### 2026-09-24 — IME 原生调用隔离（进行中）
+
+- 最小输入源查询在主线程/工作线程、含 AppKit 初始化的对照中均成功；
+  尚未重现历史 SIGTRAP，不把线程调整单独视为根因已验证。
+- 将 benchmark 的输入源查询/切换/恢复移至独立辅助进程的主线程，
+  保存可序列化输入源 ID，避免 native abort 连带杀死持有桌面恢复基线的进程。
+- 已新增外层恢复进程入口：运行 launcher 前 fsync 私有桌面基线与 PID，
+  子进程崩溃/超时后逐项恢复。基线包含剪贴板，保持本机 0700/0600，不加入报告或外发。
+- [本地验收](../../../backend/benchmarks/computer_use/reports/20260924-m5-ime-recovery/README.md)：
+  工作线程五次切英文及恢复成功；实际 Calculator→Finder→Calculator launch 重选成功。
+  强杀子进程后按键/Calculator/剪贴板/光标/应用显隐/输入源恢复通过，前台恢复失败；
+  原前台为 loginwindow。已补 accessory 前台基线与 loginwindow 启动前拒绝，
+  完整恢复仍待解锁桌面验收，不能因单测通过就标记 confirmed。
+- Tests：新增工作线程保存/恢复、辅助进程硬退出/超时/非法响应，
+  外层基线落盘顺序/权限、强杀/超时后回收、恢复失败、accessory/loginwindow 回归。
+- 执行下方完整 Verification Checklist；不新增付费请求或复用已消费的单轮授权。
+  源码冻结已因本轮修改过期；原单轮授权已消费，不自动重试 B。
+- 回归：backend **5031 passed / 1 skipped**（新增 16 项）、E2E **16 场景 / 63 步**；
+  web lint/tsc、backend/CLI ruff、六个修改/新增 Python 文件 pyright、开发服务日志、
+  文档/协议一致性均通过。最初受限沙箱阻止回环端口/tmux/uv 系统配置访问，
+  已在本机权限下完成对应检查；无失败测试遗留。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。

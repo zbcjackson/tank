@@ -1,0 +1,22 @@
+import ctypes, json, subprocess, sys, threading
+from tank_backend.benchmarks import ime
+
+def probe():
+    carbon, cf = ime._load_frameworks()
+    lang = ime._cf_string('en', cf)
+    carbon.TISCopyInputSourceForLanguage.restype = ctypes.c_void_p
+    carbon.TISCopyInputSourceForLanguage.argtypes = [ctypes.c_void_p]
+    source = carbon.TISCopyInputSourceForLanguage(ctypes.c_void_p(lang))
+    if source: ime._cf_release(int(source), cf)
+    ime._cf_release(lang, cf)
+    print(json.dumps({'lookup_ok': bool(source), 'main_thread': threading.current_thread() is threading.main_thread()}), flush=True)
+if len(sys.argv)>1:
+    if sys.argv[1]=='main': probe()
+    else:
+        thread=threading.Thread(target=probe);thread.start();thread.join()
+else:
+    results=[]
+    for mode in ['main','worker']:
+        p=subprocess.run([sys.executable,__file__,mode],capture_output=True,text=True,timeout=15)
+        results.append({'mode':mode,'returncode':p.returncode,'stdout':p.stdout,'stderr':p.stderr})
+    print(json.dumps(results,indent=2))

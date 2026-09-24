@@ -492,3 +492,16 @@ unconfirmed 并隔离桌面；批次不启动下一轮。外部取消保留 trac
 应用或恢复剪贴板/光标；后者仍是 trial/harness 的责任。输出保持供 validator
 评分。挂死原生线程无法安全强杀，因此收尾可超过任务时限；操作者须保持受控
 桌面空闲，不提供跨进程锁或用户同时操作下的输入归属保证。
+
+Benchmark 的输入源管理通过独立 Python 辅助进程的主线程调用 Carbon。
+查询、切英文和恢复均有 5 秒辅助进程超时，并检查退出状态/响应；SIGTRAP
+不会终止持有桌面恢复状态的 benchmark 进程。父进程保存输入源 ID，恢复失败
+保留 ID 以便重试；这不改变生产 `type_text` 的输入源策略。
+
+受控 Calculator pilot 可由 `backend/scripts/supervise_computer_pilot.py` 外层启动：
+在子进程执行前 fsync 私有桌面基线/PID，子进程结束或超时后回收并逐项恢复。
+恢复文件包含剪贴板/应用状态，只存本机私有目录，不作为实验报告附件。入口拒绝
+已有 Calculator 会话、残留输入及 loginwindow 前台；原 launcher 的授权/冻结门禁
+仍须独立通过。外层恢复不重启试验，也不改变 batch 的评分/输入清理字段。
+辅助进程 IME 切换/恢复已本机通过；完整外层桌面恢复验收尚未通过，记录见
+[本地恢复验收](../../backend/benchmarks/computer_use/reports/20260924-m5-ime-recovery/README.md)。

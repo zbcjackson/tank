@@ -1,0 +1,23 @@
+import concurrent.futures, json, time
+import AppKit
+from tank_backend.benchmarks import ime
+AppKit.NSApplication.sharedApplication()
+results={}
+def exercise():
+    before=ime._request('current')
+    assert before
+    results['saved']=ime.save_current_input_source()
+    assert results['saved']
+    try:
+        start=time.monotonic()
+        results['pins']=[ime.pin_ascii_input_source() for _ in range(5)]
+        results['pin_seconds']=round(time.monotonic()-start,3)
+        results['pinned_id']=ime._request('current')
+    finally:
+        results['restored']=ime.restore_saved_input_source()
+        results['readback_matches_original']=ime._request('current')==before
+    assert all(results['pins'])
+    assert results['restored'] and results['readback_matches_original']
+with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+    pool.submit(exercise).result(timeout=40)
+print(json.dumps(results,indent=2))

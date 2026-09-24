@@ -1,0 +1,33 @@
+import asyncio, concurrent.futures, json, subprocess, time
+import AppKit
+from tank_backend.benchmarks import ime
+from tank_backend.benchmarks.driver import RepinImeAfterLaunchTool
+from tank_backend.tools.computer_use_macos import LaunchAppTool
+app=AppKit.NSApplication.sharedApplication()
+workspace=AppKit.NSWorkspace.sharedWorkspace()
+front=workspace.frontmostApplication()
+calc_existed=any(a.bundleIdentifier()=='com.apple.calculator' for a in workspace.runningApplications())
+results={'model_requests':0,'screenshots':0,'launches':[]}
+original=ime._request('current')
+assert original and ime.save_current_input_source()
+async def exercise():
+    tool=RepinImeAfterLaunchTool(LaunchAppTool())
+    for name in ['Calculator','Finder','Calculator']:
+        result=await tool.execute(app_name=name)
+        actual=ime._request('current')
+        results['launches'].append({'app':name,'error':result.error,'input_source':actual})
+        assert not result.error and actual=='com.apple.keylayout.ABC'
+try:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        pool.submit(lambda: asyncio.run(exercise())).result(timeout=40)
+finally:
+    if not calc_existed:
+        subprocess.run(['osascript','-e','tell application "Calculator" to quit'],capture_output=True,timeout=10)
+    if front is not None:
+        front.activateWithOptions_(AppKit.NSApplicationActivateIgnoringOtherApps)
+        time.sleep(.5)
+    results['input_source_restored']=ime.restore_saved_input_source()
+    results['input_source_readback_matches']=ime._request('current')==original
+    results['front_app_restored']=workspace.frontmostApplication().processIdentifier()==front.processIdentifier() if front else None
+print(json.dumps(results,indent=2))
+assert results['input_source_restored'] and results['input_source_readback_matches']

@@ -867,3 +867,14 @@ record-only accounting, input cleanup and 16 planner/zero locator requests.
 Only the batch boundary is replaced, so these are offline entry-contract tests.
 The [B-protocol preparation](benchmarks/computer_use/reports/20260924-m5-b-protocol-ready/README.md)
 reuses the exact previous runtime and updates only the proposal's script pin.
+
+
+M5 IME regression tests in `test_bench_runner.py` use real helper subprocesses
+with fake native behavior to cover worker callers, original-source IDs, hard exit,
+timeout, malformed responses and retryable restoration. `test_desktop_cleanup.py`
+checks the outer recovery supervisor with real files/processes and fake desktop
+boundaries: durable baseline/PID before execution, restrictive permissions, child
+exit/timeout/reaping, fsync refusal, failed recovery, accessory foreground apps and
+loginwindow preflight refusal. The [local acceptance record](benchmarks/computer_use/reports/20260924-m5-ime-recovery/README.md)
+confirms native IME calls and application-switch repinning without model requests;
+complete desktop recovery remains unconfirmed pending unlocked-desktop acceptance.
