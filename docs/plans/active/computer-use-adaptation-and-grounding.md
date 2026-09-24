@@ -1443,6 +1443,21 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   当前单轮入口只支持 A-control，需补选定 pilot 的受限入口和独立授权。
   尚余 4 个 pilot 变体、12 个 core trial、阶段推进与完整比较。
 
+### 2026-09-24 — B-protocol-only 单轮入口准备
+
+- [x] 增加固定 B-protocol-only 单轮 API，共用 A-control 的预检/冻结/清理和
+  16 请求上限；不提供任意 core 选择或自动下一轮。
+- [x] 复用同一 contract-runtime，更新包含入口脚本新哈希的提案，准备新路径的启动材料。
+- Tests：扩展 test_comparison_freeze.py 验证两个入口的缺授权零执行、固定变体、
+  解析配置因子、漂移与预检竞争拒绝；最后执行下方完整 Verification Checklist。
+- 仅离线准备；真实截图外发与付费 trial 需新的单轮授权。
+- [新提案](../../../backend/benchmarks/computer_use/reports/20260924-m5-b-protocol-proposal/README.md)
+  342 文件预检通过；[单轮材料](../../../backend/benchmarks/computer_use/reports/20260924-m5-b-protocol-ready/README.md)
+  已就绪，定义对比仅 protocol 变化，模型/生成参数一致，零真实请求/桌面操作。
+- 验证：入口相关 **74 passed**；backend **5015 passed / 1 skipped**、E2E **16 场景 / 63 步**；
+  web lint/TS、backend/CLI ruff、改动 Python 文件 pyright、服务日志、docs 与协议同步通过。
+  入口实现提交 `901375e`。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。

@@ -1,0 +1,37 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_single_pilot_entry_preserves_scope_and_cleanup[execute_b_protocol_only-B-protocol-only] _
+
+runtime_bundle = PosixPath('/private/var/folders/py/dh2pmb9j0yg47_58kb1bh5pw0000gn/T/pytest-of-zbcjackson/pytest-302/test_single_pilot_entry_preser1/freeze')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107ed8c00>
+entry = 'execute_b_protocol_only', variant = 'B-protocol-only'
+
+    @pytest.mark.parametrize("entry,variant", [
+        ("execute_a_control", "A-control"),
+        ("execute_b_protocol_only", "B-protocol-only"),
+    ])
+    async def test_single_pilot_entry_preserves_scope_and_cleanup(
+        runtime_bundle, monkeypatch, entry, variant,
+    ):
+        from unittest.mock import AsyncMock
+    
+        from tank_backend.benchmarks import batch
+    
+        api = runpy.run_path(str(Path(__file__).resolve().parents[2]
+                                 / "scripts/prepare_computer_batch.py"))
+        proposal_dir = runtime_bundle.parent / "proposal"
+        api["prepare"](runtime_bundle, proposal_dir)
+        key = f"pilot-{variant.lower()}"
+        execute = AsyncMock(return_value={"completed": [key]})
+        monkeypatch.setattr(batch, "run_batch", execute)
+        proposal_path = proposal_dir / "proposal.json"
+        output = runtime_bundle.parent / "live"
+        with pytest.raises(ValueError, match="authorization"):
+>           await api[entry](runtime_bundle, proposal_path, output)
+                  ^^^^^^^^^^
+E           KeyError: 'execute_b_protocol_only'
+
+core/tests/test_comparison_freeze.py:457: KeyError
+=========================== short test summary info ============================
+FAILED core/tests/test_comparison_freeze.py::test_single_pilot_entry_preserves_scope_and_cleanup[execute_b_protocol_only-B-protocol-only]
+1 failed, 1 passed, 68 deselected in 2.07s

@@ -1,0 +1,38 @@
+{
+  "runtime": "../20260924-m5-contract-runtime",
+  "manifest_sha256": "ca77d7cb4c2784b15899bd41fa11e7bfb9e817686c84f285223b6c7edc8d76e2",
+  "definition_delta": {
+    "grounding.protocol": [
+      "legacy",
+      "point"
+    ]
+  },
+  "same_model_and_generation_fields": true,
+  "model": "qwen3.7-flash-2026-07-15",
+  "host_restore": false,
+  "protocol": "point",
+  "status_field": false,
+  "locator_requests": 0,
+  "trial": {
+    "agent_name": "computer_use",
+    "config_path": "benchmarks/computer_use/reports/20260924-m5-contract-runtime/runtime/b-protocol-only/config.yaml",
+    "key": "pilot-b-protocol-only",
+    "max_steps": 15,
+    "phase": "pilot",
+    "platform": "macos",
+    "request_limits": {
+      "locator": 0,
+      "planner": 16,
+      "total": 16
+    },
+    "suite_dir": "benchmarks/computer_use",
+    "task_id": "calc-open",
+    "timeout_s": 120,
+    "tokens": 300000,
+    "variant": "B-protocol-only"
+  },
+  "entry": "execute_b_protocol_only",
+  "no_automatic_follow_on": true,
+  "model_requests": 0,
+  "desktop_actions": 0
+}
