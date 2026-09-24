@@ -36,3 +36,4 @@
 
 | Computer-use 原生协议与专用定位模型探索 | 明确需要该路线，取得可用端点/部署、协议与授权，并批准独立实验预算 | M3 已完成自定义 point/pixels/bbox 适配；原生点框、Responses computer、UI-TARS 未测试，不能由自定义工具结果推断支持性或收益 | [M3 收尾](plans/active/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |
 | Computer-use 静态候选采用复验 | 决定重新考虑候选/提示配置，且准备新预算与未使用的独立 holdout | 首轮 544 次额度已用完；旧 holdout 歧义拒绝失败，唯一匹配修正仅三次开发 smoke。新冻结需覆盖正例和负例，不能复用旧数据宣称独立验收；既定 M4–M8 集成/真实任务验收仍留 active 计划 | [M3 收尾](plans/active/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |
+| 受控遮罩误点后盖住目标窗口 | pair-1/2/3 配对 core trial 开跑前，或再次观察到“窗口消失/全黑”导致的 `launch_app` 重试 | A-control 单轮首次批量点击落到始终置顶的受控黑背景（归一化 x≈850 → 屏幕 x≈1632，窗口右缘约 1270），随后目标窗口被遮罩盖住，模型需 3 次 `launch_app` 才恢复；需先设计对策（如每次动作后重新置顶目标窗口、或让遮罩不参与激活）再改，避免把环境伪影计入模型失败并污染配对对照 | [A-control 单轮证据](../backend/benchmarks/computer_use/reports/20260924-m5-a-control-pumped-pilot/README.md) |
