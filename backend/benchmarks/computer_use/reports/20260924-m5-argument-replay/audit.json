@@ -1,0 +1,62 @@
+{
+  "model_requests": 0,
+  "native_inputs": 0,
+  "fixture_sha256": "8f2023e726f9054fbacc144ff5039e3aa3caf715d81f5a46a376881b51a9bf82",
+  "source_trace_sha256": "140c3a6daf2afe1d91e26b487d55e002e504c66b483a766ef5848b49a9daf0e9",
+  "frozen_requests_sha256": "02431230f04e0f61c120b7a066239a4d088b47b9171612fcaa26cbda4106abca",
+  "frozen_batch_description": "1..8 actions using location_id, never coordinates",
+  "old_batch_option_in_prompt": true,
+  "cases": [
+    {
+      "turn": 2,
+      "tool": "computer_batch",
+      "schema_findings": [
+        "Unknown property: screenshot"
+      ],
+      "replayed_error": "Unknown tool arguments: screenshot"
+    },
+    {
+      "turn": 3,
+      "tool": "computer_batch",
+      "schema_findings": [
+        "actions: JSON string where array is declared"
+      ],
+      "replayed_error": "Batch requires 1..8 actions; observe again or stop"
+    },
+    {
+      "turn": 4,
+      "tool": "screenshot",
+      "schema_findings": [
+        "Unknown property: frame_id"
+      ],
+      "replayed_error": "Unknown tool arguments: frame_id"
+    },
+    {
+      "turn": 6,
+      "tool": "screenshot",
+      "schema_findings": [
+        "region: JSON string where array is declared"
+      ],
+      "replayed_error": "Invalid screenshot region; re-observe with coordinate_space=image"
+    },
+    {
+      "turn": 8,
+      "tool": "screenshot",
+      "schema_findings": [
+        "region: JSON string where array is declared"
+      ],
+      "replayed_error": "Invalid screenshot region; re-observe with coordinate_space=image"
+    },
+    {
+      "turn": 9,
+      "tool": "mouse_move",
+      "schema_findings": [
+        "Valid parameter shape; preceding failed screenshot invalidates current observation"
+      ],
+      "replayed_error": "Missing or stale frame; observe again or stop"
+    }
+  ],
+  "replay_command": "uv run --no-sync pytest core/tests/test_computer_locate.py -q",
+  "result": "146 passed",
+  "limits": "Actual ToolManager/IntegratedSession/FrameTool; mocked HTTP and native boundaries. Recovery uses a new synthetic frame and valid batch; this does not establish model success or historical frame IDs."
+}

@@ -1398,6 +1398,19 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 验证：backend **5004 passed / 1 skipped**、E2E **16 场景 / 63 步**；web lint/TS、
   backend/CLI ruff、开发服务日志、docs 与协议同步通过；无 Python 改动，pyright N/A。
 
+### 2026-09-24 — 单轮失败的离线重放与工具说明修正
+
+- [x] 从已归档真实轨迹提取六次失败调用，在 fake HTTP/OS 边界重放，保留精确参数及错误。
+- [x] 修正 integrated batch 沿用 split location_id 的描述，明确覆盖旧 screenshot=true
+  示例；不放宽参数类型或帧身份校验，不修改历史冻结或归因模型成功率。
+- Tests：扩展现有 test_computer_locate.py，覆盖实际 SDK 请求中的说明与 schema、
+  六次拒绝的零输入，以及重新观察后的合法调用恢复；执行下方完整 Verification Checklist。
+- [离线证据](../../../backend/benchmarks/computer_use/reports/20260924-m5-argument-replay/README.md)：
+  六次错误原样重现并可在新观察后恢复，相关文件 **146 passed**；零模型请求/物理输入。
+  当前源代码变化使旧冻结失效；下一步生成包含说明修正的新冻结，不覆盖旧实验。
+- 完整验证：backend **5010 passed / 1 skipped**、E2E **16 场景 / 63 步**；
+  web lint/TS、backend/CLI ruff、改动 Python 文件 pyright、服务日志、docs 与协议同步通过。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。

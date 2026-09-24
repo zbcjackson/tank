@@ -1,0 +1,95 @@
+F
+=================================== FAILURES ===================================
+_ test_integrated_runner_uses_one_model_and_independent_host_mapping[False-legacy-success-False] _
+
+desktop = (<tank_backend.tools.manager.ToolManager object at 0x10ac66510>, <MagicMock id='4475740448'>, b'\x89PNG\r\n\x1a\n\x00\... V V V V V V V V V V V V V V V V V V V V V V V V V V V \xd6\xec}{6\x01\x9f\x81\xa4B\xa9\x00\x00\x00\x00IEND\xaeB`\x82')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10abbeb10>
+tmp_path = PosixPath('/private/var/folders/py/dh2pmb9j0yg47_58kb1bh5pw0000gn/T/pytest-of-zbcjackson/pytest-290/test_integrated_runner_uses_on0')
+protocol = 'legacy', host_restore = False, ending = 'success', batch = False
+
+    @pytest.mark.parametrize("batch", [False, True])
+    @pytest.mark.parametrize("ending", ["success", "truncated", "duplicate"])
+    @pytest.mark.parametrize("protocol", ["legacy", "point", "pixels", "bbox"])
+    @pytest.mark.parametrize("host_restore", [False, True])
+    async def test_integrated_runner_uses_one_model_and_independent_host_mapping(
+        desktop, monkeypatch, tmp_path, protocol, host_restore, ending, batch
+    ):
+        from tank_backend.agents.definition import GroundingConfig
+        from tank_backend.benchmarks.driver import CountingLLM, SubAgentDriver
+        from tank_backend.benchmarks.trace import TraceSink
+    
+        manager, click, _ = desktop
+        requests = []
+    
+        def respond(request):
+            body = json.loads(request.content)
+            requests.append(body)
+            assert body["stream"] is True  # no hidden locator request
+            schemas = {t["function"]["name"]: t["function"]["parameters"] for t in body["tools"]}
+            assert "locate" not in schemas
+            assert "Use the GUI." in body["messages"][0]["content"]
+            if len(requests) == 1:
+                return stream("screenshot", {"region": [500, 500, 1000, 1000]})
+            if len(requests) == 2:
+                text = next(p["text"] for m in body["messages"]
+                            if isinstance(m.get("content"), list) for p in m["content"]
+                            if p["type"] == "text" and "frame_id" in p["text"])
+                observation = json.loads(text[text.index("{") :])
+                if protocol == "legacy":
+                    location = {"x": 500, "y": 500}
+                elif protocol == "bbox":
+                    location = {"status": "found", "left": 400, "top": 400,
+                                "right": 600, "bottom": 600}
+                elif protocol == "pixels":
+                    w, h = observation["image_size" if host_restore else "screen_size"]
+                    location = {"status": "found", "x": w // 2, "y": h // 2}
+                else:
+                    location = {"status": "found", "x": 500, "y": 500}
+                arguments = {"frame_id": observation["frame_id"], "location": location}
+                name = "computer_batch" if batch else "click"
+                payload = {"actions": [{"action": "click", **arguments}]} if batch else arguments
+                if ending == "duplicate":
+                    return stream(name, json.dumps(payload).replace(
+                        '"location":', '"location": {}, "location":',
+                    ))
+                return stream(name, payload, finish="length" if ending == "truncated" else None)
+            assert "dispatched" in json.dumps(body["messages"])
+            return stream(None, {})
+    
+        client = AsyncOpenAI(api_key="test", max_retries=0,
+                             http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+        monkeypatch.setattr(llm_module, "AsyncOpenAI", lambda **kw: client)
+        monkeypatch.setattr(llm_module, "initialize_langfuse", lambda: None)
+        llm = CountingLLM(llm_module.LLM(api_key="test", model="test",
+                                        base_url="https://offline.invalid/v1"))
+        definition = AgentDefinition(
+            "integrated", "", "Use the GUI.", tool_filter=("screenshot", "click", "computer_batch"),
+            grounding=GroundingConfig(mode="integrated", protocol=protocol, host_restore=host_restore),
+        )
+        from typing import cast
+        runner = AgentRunner(cast(llm_module.LLM, llm), manager, Bus(),
+                             ToolApprovalPolicy(computer_mode="allow"), PendingToolCallStore(), {})
+        trace = TraceSink(tmp_path / "trial")
+        try:
+            result = await SubAgentDriver(runner, definition, llm, manager).run(
+                "Click the center", trace, timeout_s=5, max_steps=10,
+            )
+        finally:
+            trace.close()
+            await client.close()
+        for request in requests:
+            schema = next(t["function"]["parameters"] for t in request["tools"]
+                          if t["function"]["name"] == "computer_batch")
+            description = schema["properties"]["actions"]["description"]
+>           assert "location_id" not in description
+E           AssertionError: assert 'location_id' not in '1..8 action... coordinates'
+E             
+E             'location_id' is contained here:
+E               1..8 actions using location_id, never coordinates
+E             ?                    +++++++++++
+
+core/tests/test_computer_locate.py:1054: AssertionError
+=========================== short test summary info ============================
+FAILED core/tests/test_computer_locate.py::test_integrated_runner_uses_one_model_and_independent_host_mapping[False-legacy-success-False]
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 92 deselected in 1.52s

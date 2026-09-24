@@ -1,0 +1,42 @@
+{
+  "source": "backend/benchmarks/computer_use/reports/20260924-m5-a-control-pilot/live/batch/pilot-a-control/trials/calc-open/1/trace.jsonl",
+  "source_sha256": "140c3a6daf2afe1d91e26b487d55e002e504c66b483a766ef5848b49a9daf0e9",
+  "cases": [
+    {
+      "turn": 2,
+      "tool": "computer_batch",
+      "arguments": "{\"actions\": \n[{\"action\": \"click\", \"frame_id\": \"c5ee512034a64d08925847deacef0aee\", \"location\": {\"x\": 740, \"y\": 290}}, {\"action\": \"click\", \"frame_id\": \"c5ee512034a64d08925847deacef0aee\", \"location\": {\"x\": 840, \"y\": 290}}, {\"action\": \"click\", \"frame_id\": \"c5ee512034a64d08925847deacef0aee\", \"location\": {\"x\": 740, \"y\": 340}}, {\"action\": \"click\", \"frame_id\": \"c5ee512034a64d08925847deacef0aee\", \"location\": {\"x\": 840, \"y\": 440}}]\n\n, \"screenshot\": \"true\"}",
+      "error": "Unknown tool arguments: screenshot"
+    },
+    {
+      "turn": 3,
+      "tool": "computer_batch",
+      "arguments": "{\"actions\": \"[{\\\"action\\\": \\\"click\\\", \\\"frame_id\\\": \\\"c5ee512034a64d08925847deacef0aee\\\", \\\"location\\\": {\\\"x\\\": 740, \\\"y\\\": 290}}, {\\\"action\\\": \\\"click\\\", \\\"frame_id\\\": \\\"c5ee512034a64d08925847deacef0aee\\\", \\\"location\\\": {\\\"x\\\": 840, \\\"y\\\": 290}}, {\\\"action\\\": \\\"click\\\", \\\"frame_id\\\": \\\"c5ee512034a64d08925847deacef0aee\\\", \\\"location\\\": {\\\"x\\\": 740, \\\"y\\\": 340}}, {\\\"action\\\": \\\"click\\\", \\\"frame_id\\\": \\\"c5ee512034a64d08925847deacef0aee\\\", \\\"location\\\": {\\\"x\\\": 840, \\\"y\\\": 440}}]\"}",
+      "error": "Batch requires 1..8 actions; observe again or stop"
+    },
+    {
+      "turn": 4,
+      "tool": "screenshot",
+      "arguments": "{\"frame_id\": \"c5ee512034a64d08925847deacef0aee\"}",
+      "error": "Unknown tool arguments: frame_id"
+    },
+    {
+      "turn": 6,
+      "tool": "screenshot",
+      "arguments": "{\"region\": \"[450, 60, 1000, 520]\"}",
+      "error": "Invalid screenshot region; re-observe with coordinate_space=image"
+    },
+    {
+      "turn": 8,
+      "tool": "screenshot",
+      "arguments": "{\"region\": \"[600, 80, 1050, 480]\"}",
+      "error": "Invalid screenshot region; re-observe with coordinate_space=image"
+    },
+    {
+      "turn": 9,
+      "tool": "mouse_move",
+      "arguments": "{\"frame_id\": \"251ff404a7414f45af06405f5ecd6a4a\", \"location\": {\"x\": 740, \"y\": 290}}",
+      "error": "Missing or stale frame; observe again or stop"
+    }
+  ]
+}
