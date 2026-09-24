@@ -1363,6 +1363,24 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   web lint/TypeScript、backend/CLI ruff、11 个改动 Python 文件 pyright、
   实际 backend 日志、docs 与协议同步通过。实现提交 `7cfcf9c`。
 
+### 2026-09-24 — 更新冻结并准备 A-control 单轮执行
+
+- [x] 生成新的[七组 runtime/SDK 冻结](../../../backend/benchmarks/computer_use/reports/20260924-m5-runtime/README.md)
+  和 [schema v3 提案](../../../backend/benchmarks/computer_use/reports/20260924-m5-proposal/README.md)，
+  342 个文件通过预检。保留原组别/模型/顺序，强制声明 input_cleanup=true。
+- [x] `execute_a_control` API 固定只取第一项，要求显式 live 授权，再校验
+  proposal/config/source 与运行目录清单；最多 16 请求、120 秒、15 步，
+  token/费用仅记录，启用自动输入清理，无后续组自动派发。
+- [x] [可审查启动脚本和本地预览](../../../backend/benchmarks/computer_use/reports/20260924-m5-pilot-ready/README.md)
+  已保存。默认仅预览并退出，不读取模型凭据；live 模式还需复核新截图后放行。
+  主屏 Calculator/黑背景/菜单栏已本地检查，桌面与输入状态恢复正常。
+- 本轮真实请求为 0。之前仅 1 trial 的截图外发授权已用于旧失败 pilot；新轮
+  尚待明确授权。全批次仍 live_ready=false，pilot→core 阶段自动推进未实现。
+  旧失败证据和旧冻结保持不变。
+- Tests：backend **5004 passed / 1 skipped**、E2E **16 场景 / 63 步**；
+  web lint/TypeScript、backend/CLI ruff、两个改动 Python 文件 pyright、
+  实际 backend 日志、docs 与协议同步通过。入口提交 `92070ff`。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。

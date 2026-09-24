@@ -837,3 +837,13 @@ cleanup. The [native acceptance](benchmarks/computer_use/reports/20260924-m5-inp
 uses actual Command/left-button events in four deterministic exit cases without
 an LLM. Input cleanup leaves application output for scoring and does not certify
 clipboard/window restoration or all M6 cancellation scenarios.
+
+
+The refreshed single-pilot entry has five cases in `test_comparison_freeze.py`:
+missing consent makes no batch call; a checked call forwards exactly one A-control
+entry, 16 requests, record-only accounting and input cleanup; modified cleanup,
+runtime, order or proposal bytes during preflight stop before execution. HTTP and
+desktop execution are replaced at the batch boundary. The
+[local preview](benchmarks/computer_use/reports/20260924-m5-pilot-ready/README.md)
+ran the default preview-only harness and verified restoration without credentials
+or model requests. It does not establish task success or full-batch readiness.

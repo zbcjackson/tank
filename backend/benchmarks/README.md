@@ -529,3 +529,17 @@ Preflight still reports `live_ready=false` for the outstanding independent
 scoring, real environment/physical cleanup, pilot acceptance and live endpoint/
 image-scope conditions. The proposal is not a phase-aware executor; no automatic
 pilot-to-core transition is implemented. No paid requests occur during preflight.
+
+
+### Single A-control execution entry
+
+`prepare_computer_batch.py` keeps its CLI offline. Schema v3 proposals pin
+`input_cleanup: true`. After explicit screenshot/endpoint consent and controlled
+local desktop preparation, its `execute_a_control(freeze, proposal_path, output,
+live_authorized=True)` API runs only the first A-control pilot: at most 16 requests,
+120 agent seconds and 15 steps, with record-only token/cost accounting and native
+input cleanup. It verifies the proposal and source/config/runtime pins before
+constructing the batch, and cannot automatically enter another pilot or core.
+The caller supplies credentials and screenshot scope guards; the API does not
+obtain consent or restore the desktop environment. See the
+[reviewed preparation](computer_use/reports/20260924-m5-pilot-ready/README.md).
