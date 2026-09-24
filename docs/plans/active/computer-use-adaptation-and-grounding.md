@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；B-protocol-only 与 A-control 单轮已各执行一次（均 strict 失败，失败机制不同，未作归因），其余 3 个 pilot 与 12 个 core trial 仍未跑；M6–M8 待完成，整份计划继续保持 active。
+> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；五个固定单轮入口已齐备，A-control 与 B-protocol-only 单轮 strict 失败、B-host-only 单轮 strict 通过（n=1，未作归因），其余 2 个 pilot 与 12 个 core trial 仍未跑；M6–M8 待完成，整份计划继续保持 active。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -1627,6 +1627,32 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   只能说明“失败原因必须分类”，不能判断适配或拆分优劣。
 - 尚余 3 个 pilot 变体（A、B-host-only、B-combined）、12 个 core trial、串行配对调度、
   独立评分与完整 M6 验收，均需新的单轮授权。
+
+### 2026-09-24 — 补齐固定单轮入口；B-host-only 单轮首次 strict 通过
+
+- [x] 把剩余三个 pilot 的固定单轮入口一次补齐（`execute_a`、`execute_b_host_only`、
+  `execute_b_combined`，各锁定一个已排定的行），避免后续每轮都因改脚本而重冻结/重 pin；
+  单轮测试改为覆盖全部五个入口并按变体断言 `protocol`/`host_restore`（A 无 grounding 覆盖）。
+  先红后绿：该文件由 10 通过/15 失败转为 25 通过，实现提交 `dabfefc`。
+- launcher 材料的 `--variant` 扩到五个已固定入口（仍无任意 core 选择），重跑静态范围检查、
+  重建全部 pin（含 `prepare_computer_batch.py`）与 preflight（349 文件）后，先跑预览验证
+  （0 模型请求）再进 live。
+- 用户授权后执行 B-host-only 单轮（发送前复核 `initial.png` 后放行 `go`）：
+  [完整证据](../../../backend/benchmarks/computer_use/reports/20260924-m5-b-host-only-pumped-pilot/README.md)。
+  **strict 1/1 通过**（本计划真实运行中首次）：wall 44.6 s、6 步、17 primitives、0 次拒绝，
+  7 请求、输入 108021 + 输出 1840 = **109861 tokens**（仅记录、未核价）；
+  `strict_expression=true`、`business=true`、`mouse_only=true`、
+  `display={expression:7×8, result:56}`、**`input_trace_complete=true`**；
+  launcher 清理 7/7、外层恢复 `confirmed=true`。
+- 过程观察：模型用 `computer_batch` 批量点击，前两次 batch 分别得到 `7×5` 与 `7×7×`
+  （归一化点位在按钮间距临界带），放大局部截图后第三次 batch 点对 7/×/8/= 并成功。
+  成功带偶然性，n=1 不能外推为“宿主还原有效”。
+- 三个已完成 pilot 的并置（n=1，仅作失败分类）：A-control 0/1（表达式证据）、
+  B-protocol-only 0/1（坐标估错）、B-host-only 1/1；机制各异，仍需串行配对与独立评分。
+- Tests：backend **5053 passed / 1 skipped**、E2E **16 场景 / 63 步**；web lint/tsc、
+  backend/CLI ruff、改动文件 pyright、开发服务 pane、docs 与协议同步全部通过。
+- 尚余 2 个 pilot 变体（A、B-combined）、12 个 core trial、串行配对调度、独立评分与完整
+  M6 验收；已登记的“受控遮罩误点”风险仍应在配对 core trial 前处理。均需新的单轮授权。
 
 ## 9. 最终 Verification Checklist
 
