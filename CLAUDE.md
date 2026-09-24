@@ -155,7 +155,7 @@ Rules:
 
 ## Verification Checklist (MANDATORY)
 
-Run ALL of these every time you finish a task. Do not skip any step.
+Run every step that applies to the change — the docs-only exception is below.
 
 1. `cd web && pnpm lint` — ESLint
 2. `cd web && npx tsc -b --noEmit` — TypeScript type checking (must use `-b` to follow project references; plain `tsc --noEmit` checks nothing on a references-only tsconfig)
@@ -174,7 +174,9 @@ Run ALL of these every time you finish a task. Do not skip any step.
 
 Steps 7 and 8 are critical. Unit tests mock most dependencies, so they miss runtime errors like calling `.get()` on a dataclass or passing the wrong type to a constructor. The dev server and E2E tests exercise the full stack with real objects. If any step shows errors, fix them before considering the task done.
 
-All nine must pass before considering work complete.
+**Docs-only changes**: if the change touches only `docs/` (including plan docs) — no code, no tests, no protocol artifacts — run only step 9. Steps 1–8 and 10 add nothing there, so skipping them is fine.
+
+All applicable steps must pass before considering work complete.
 
 ## Test Failure Policy
 
