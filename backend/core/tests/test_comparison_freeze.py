@@ -330,13 +330,14 @@ toolsets:
             assert len(locator["messages"]) == 2
             assert "PRIVATE PLANNER HISTORY" not in json.dumps(locator)
             fields = locator["tools"][0]["function"]["parameters"]["properties"]
-            assert set(fields) == {"found", "x", "y"}
+            assert set(fields) == ({"found", "x", "y"} if name == "C" else
+                                   {"found", "left", "top", "right", "bottom"})
             assert locator["model"] == ("qwen3.7-flash-2026-07-15" if name == "C"
                                         else "qwen3.8-max-2026-09-02")
     assert snapshot["A-control"][0]["body"]["tools"] == (
         snapshot["B-host-only"][0]["body"]["tools"])
     # Same adapted contract: only host_restore differs, so the tool lists match.
-    assert snapshot["B-pixels-only"][0]["body"]["tools"] == (
+    assert snapshot["B-protocol-only"][0]["body"]["tools"] == (
         snapshot["B-combined"][0]["body"]["tools"])
     with pytest.raises(FileExistsError):
         await prepare(config, first)
@@ -438,7 +439,7 @@ PILOT_ENTRIES = [
     ("execute_b_protocol_only", "B-protocol-only", "point", False),
     ("execute_a", "A", None, None),
     ("execute_b_host_only", "B-host-only", "legacy", True),
-    ("execute_b_combined", "B-combined", "pixels", True),
+    ("execute_b_combined", "B-combined", "point", True),
     ("execute_b_pixels_only", "B-pixels-only", "pixels", False),
 ]
 CORE_PHASES = ("pair-1", "pair-2", "pair-3")

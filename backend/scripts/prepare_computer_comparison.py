@@ -71,15 +71,16 @@ def variants(base: AgentDefinition) -> dict[str, AgentDefinition]:
               "A": replace(base, model="planner")}
     for name, protocol, restore in (
         ("A-control", "legacy", False), ("B-host-only", "legacy", True),
-        # B-protocol-only keeps the superseded normalized contract as a measured control.
-        ("B-protocol-only", "point", False), ("B-combined", "pixels", True),
-        # The adapted coordinate contract is pixels; the arm that isolated the unit.
+        # The adapted contract is normalized: both planner models answer normalized
+        # (the pixel arm below stays as the measured counter-example).
+        ("B-protocol-only", "point", False), ("B-combined", "point", True),
         ("B-pixels-only", "pixels", False),
     ):
         result[name] = replace(base, model="planner", grounding=GroundingConfig(
             mode="integrated", protocol=protocol, host_restore=restore, status_field=False))
-    # C and D share one adapted contract so C to D isolates the locator model/profile.
-    for name, protocol, profile in (("C", "pixels", None), ("D", "pixels", "locator")):
+    # C and D share the normalized contract; D swaps in the locator model and its
+    # matching bbox adapter, so C to D isolates model plus adapter only.
+    for name, protocol, profile in (("C", "point", None), ("D", "bbox", "locator")):
         result[name] = replace(base, model="planner", grounding=GroundingConfig(
             protocol=protocol, profile=profile, status_field=False))
     return result
