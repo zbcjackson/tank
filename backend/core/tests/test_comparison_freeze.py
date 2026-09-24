@@ -441,6 +441,68 @@ PILOT_ENTRIES = [
     ("execute_b_combined", "B-combined", "pixels", True),
     ("execute_b_pixels_only", "B-pixels-only", "pixels", False),
 ]
+CORE_PHASES = ("pair-1", "pair-2", "pair-3")
+
+
+async def test_core_trials_run_the_scheduled_pairs_in_order(runtime_bundle, monkeypatch):
+    """The 12 core trials keep the paired order and each row's own limits."""
+    from tank_backend.benchmarks import batch
+
+    api = runpy.run_path(str(Path(__file__).resolve().parents[2]
+                             / "scripts/prepare_computer_batch.py"))
+    proposal_dir = runtime_bundle.parent / "proposal"
+    api["prepare"](runtime_bundle, proposal_dir)
+    proposal_path = proposal_dir / "proposal.json"
+    proposal = json.loads(proposal_path.read_text())
+    expected = [row["key"] for row in proposal["trials"] if row["phase"] in CORE_PHASES]
+    assert len(expected) == 12 and proposal["core_requires_pilot_acceptance"] is True
+    calls: list[tuple[str, dict]] = []
+
+    async def run_batch(entries, **kwargs):
+        calls.append((entries[0].key, kwargs))
+        return {"completed": [entries[0].key], "spend": {}}
+
+    monkeypatch.setattr(batch, "run_batch", run_batch)
+    output = runtime_bundle.parent / "core"
+    with pytest.raises(ValueError, match="authorization"):
+        await api["execute_core_trials"](runtime_bundle, proposal_path, output)
+    assert calls == []
+    with pytest.raises(ValueError, match="pilot"):
+        await api["execute_core_trials"](runtime_bundle, proposal_path, output,
+                                        live_authorized=True)
+    assert calls == []
+    await api["execute_core_trials"](runtime_bundle, proposal_path, output,
+                                    live_authorized=True, pilot_acceptance="recorded")
+    assert [key for key, _ in calls] == expected
+    by_key = {row["key"]: row for row in proposal["trials"]}
+    for key, kwargs in calls:
+        row = by_key[key]
+        assert kwargs["request_limits"].planner == row["request_limits"]["planner"]
+        assert kwargs["request_limits"].locator == row["request_limits"]["locator"]
+        assert kwargs["batch_request_limit"] == row["request_limits"]["total"]
+        assert kwargs["record_only"] is True and kwargs["input_cleanup"] is True
+        assert kwargs["trial_limit"].tokens == row["tokens"]
+
+
+async def test_core_trials_stop_on_proposal_drift(runtime_bundle, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from tank_backend.benchmarks import batch
+
+    api = runpy.run_path(str(Path(__file__).resolve().parents[2]
+                             / "scripts/prepare_computer_batch.py"))
+    directory = runtime_bundle.parent / "proposal"
+    api["prepare"](runtime_bundle, directory)
+    path = directory / "proposal.json"
+    proposal = json.loads(path.read_text())
+    proposal["trials"].reverse()
+    path.write_text(json.dumps(proposal))
+    execute = AsyncMock()
+    monkeypatch.setattr(batch, "run_batch", execute)
+    with pytest.raises(ValueError):
+        await api["execute_core_trials"](runtime_bundle, path, directory / "core",
+                                        live_authorized=True, pilot_acceptance="recorded")
+    execute.assert_not_called()
 
 
 @pytest.mark.parametrize("entry,variant,protocol,host_restore", PILOT_ENTRIES)

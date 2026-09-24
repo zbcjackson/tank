@@ -21,6 +21,8 @@ if TYPE_CHECKING:
 
 BACKEND = Path(__file__).resolve().parents[1]
 SUITE = BACKEND / "benchmarks/computer_use"
+# Mirrors the pair rounds in _spec(); core execution refuses anything else.
+CORE_PHASES = ("pair-1", "pair-2", "pair-3")
 BLOCKERS = [
     "independent_scoring",
     "real_environment_and_physical_cleanup", "pilot_acceptance_before_core",
@@ -172,6 +174,62 @@ async def execute_b_pixels_only(
     return await _execute_pilot(
         freeze, proposal_path, output, pilot_index=5, live_authorized=live_authorized,
     )
+
+
+async def execute_core_trials(
+    freeze: Path, proposal_path: Path, output: Path, *, live_authorized: bool = False,
+    pilot_acceptance: str | None = None,
+) -> list[BatchResult]:
+    """Run the scheduled paired core trials, in order, one batch each.
+
+    Each pair is A/B-combined/C/D in the declared rotation, which is what makes
+    the comparison paired rather than grouped. C and D allow locator requests on
+    top of the planner ones, so every row keeps its own request limits: one batch
+    per row is the only shape that can carry per-row limits today. The desktop
+    takeover stays with the caller; this API neither prepares nor restores it.
+    """
+    if live_authorized is not True:
+        raise ValueError("Explicit live screenshot/endpoint authorization is required")
+    if not pilot_acceptance:
+        raise ValueError("Core trials require a recorded pilot acceptance decision")
+    proposal_bytes = proposal_path.read_bytes()
+    preflight(freeze, proposal_path)
+    if proposal_path.read_bytes() != proposal_bytes:
+        raise ValueError("Proposal changed during preflight")
+    proposal = json.loads(proposal_bytes)
+    if proposal.get("core_requires_pilot_acceptance") is not True:
+        raise ValueError("Proposal does not bind core trials to pilot acceptance")
+    rows = [row for row in proposal["trials"] if row["phase"] in CORE_PHASES]
+    expected = [row for row in _spec(freeze)["trials"] if row["phase"] in CORE_PHASES]
+    if len(rows) != len(expected):
+        raise ValueError(f"Expected {len(expected)} scheduled core trials, found {len(rows)}")
+    files = tuple(FrozenFile(BACKEND / name, digest)
+                  for name, digest in proposal["files"].items())
+    files += (FrozenFile(proposal_path, hashlib.sha256(proposal_bytes).hexdigest()),)
+    from tank_backend.benchmarks.batch import BatchTrial, run_batch
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.spend_ledger import SpendLimit
+
+    results: list[BatchResult] = []
+    output.mkdir(parents=True, exist_ok=False)
+    for row in rows:
+        trial_dir = output / row["key"]
+        results.append(await run_batch(
+            (BatchTrial(row["key"], BACKEND / row["suite_dir"], row["task_id"],
+                        row["agent_name"], BACKEND / row["config_path"], row["platform"],
+                        ComparisonContract(freeze, row["variant"])),),
+            out_dir=trial_dir,
+            batch_limit=SpendLimit(row["tokens"], proposal["budget_nano_usd"]),
+            trial_limit=SpendLimit(row["tokens"], proposal["budget_nano_usd"]),
+            request_limits=RequestLimits(**row["request_limits"]), contracts=(),
+            batch_request_limit=row["request_limits"]["total"],
+            frozen_inputs=FrozenInputs(files, trees=(freeze / "runtime",)),
+            record_only=True, input_cleanup=True,
+        ))
+    (output / "core-result.json").write_text(json.dumps(
+        {"pilot_acceptance": pilot_acceptance, "completed": [row["key"] for row in rows],
+         "batches": results}, indent=2, default=str) + "\n")
+    return results
 
 
 async def _execute_pilot(
