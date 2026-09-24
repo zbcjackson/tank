@@ -1,0 +1,334 @@
+# computer_use benchmark
+
+- Run label: `m6-pair-1-c`
+- Scoring: trial-token-gui-grounding-v5 (historical reports use a different scoring revision)
+- Smoke (excluded from strict score): 0/0
+- Overall: **1/1** (100%, 95% CI 21%–100%)
+
+| task | pass | rate | 95% CI | tool calls (med) | actions (med) | turns (med) | call limit | wall s (med) | tokens (med) | shots (med) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| calc-open | 1/1 | 100% | 21%–100% | 10 | 5 | 16 | 15 | 47 | 126358 | 5 |
+
+## LLM latency (per call)
+
+| task | calls (med) | stream ttft s (med) | call s (med) | total s | nonstream RTT s |
+|---|---|---|---|---|---|
+| calc-open | 16 | 1.9 | 1.9 | 38 | 0.0 |
+
+- API calls total: 16, mean 2.4s/call, median streamed ttft 1.9, LLM time total 38s
+
+## Run metadata
+
+```json
+{
+  "agent_name": "computer_use",
+  "engine": null,
+  "extension": null,
+  "config": {
+    "model": "qwen3.7-flash-2026-07-15"
+  },
+  "prompt_revision": "929bdb4162b475c28e0212d3c6c200a5af93366c6f0f279066ba245a53f17945",
+  "comparison_contract": {
+    "variant": "C",
+    "freeze_dir": "/Users/zbcjackson/src/tank/backend/benchmarks/computer_use/reports/20260924-m6-calc-runtime"
+  },
+  "input_cleanup": true,
+  "budget_record_only": true,
+  "agent_budget_enforced": true,
+  "configured_token_budget": 300000,
+  "spend_budget": {
+    "record_only": true,
+    "cost_status": "unpriced",
+    "batch": {
+      "limit_tokens": 300000,
+      "limit_nano_usd": 8000000000,
+      "charged_tokens": 126358,
+      "charged_nano_usd": 0,
+      "known_tokens": 126358,
+      "known_nano_usd": 0,
+      "reserved_tokens": 0,
+      "reserved_nano_usd": 0,
+      "limit_requests": 31,
+      "admitted_requests": 16
+    },
+    "trials": {
+      "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1": {
+        "limit_tokens": 300000,
+        "limit_nano_usd": 8000000000,
+        "charged_tokens": 126358,
+        "charged_nano_usd": 0,
+        "known_tokens": 126358,
+        "known_nano_usd": 0,
+        "reserved_tokens": 0,
+        "reserved_nano_usd": 0
+      }
+    },
+    "stop_reason": null,
+    "requests": {
+      "35b983972c2544b3a4ca784d4f1c7034": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 3828,
+        "output_tokens": 54,
+        "status": "known"
+      },
+      "b2fc272b4a05484ca45db6df68422d31": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 6294,
+        "output_tokens": 104,
+        "status": "known"
+      },
+      "8a43f3fc54a54793934e0f7ceb264113": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 2502,
+        "output_tokens": 52,
+        "status": "known"
+      },
+      "a4b17f0909b94c2abb53ce9c8145eca4": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 6490,
+        "output_tokens": 65,
+        "status": "known"
+      },
+      "bc7c53ea19764503b601287f21c8721f": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 8978,
+        "output_tokens": 94,
+        "status": "known"
+      },
+      "9555ca7edaab4a58941928e1857cf1e9": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 2507,
+        "output_tokens": 53,
+        "status": "known"
+      },
+      "ec0ac04adaaa4fc3920818e2d0482cf6": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 8953,
+        "output_tokens": 87,
+        "status": "known"
+      },
+      "63d4c293be5d4f0c8dbc75248a1df156": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 2501,
+        "output_tokens": 52,
+        "status": "known"
+      },
+      "ddde5beeb905470c9cd2dd43ce157494": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 9128,
+        "output_tokens": 63,
+        "status": "known"
+      },
+      "b349648ed44c4e3ea466fcdaa30f5482": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 11614,
+        "output_tokens": 87,
+        "status": "known"
+      },
+      "43e506532d794e91bf36de652724aac4": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 2502,
+        "output_tokens": 52,
+        "status": "known"
+      },
+      "fa7817557e334c8bbbc55678570ff331": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 11792,
+        "output_tokens": 68,
+        "status": "known"
+      },
+      "cff85f3db74d44a19db00b8dc652e827": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 14278,
+        "output_tokens": 91,
+        "status": "known"
+      },
+      "4f17572d50bb4eb897bd296b7c4fa2af": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 2505,
+        "output_tokens": 52,
+        "status": "known"
+      },
+      "f96b6d7ede8c4bb99ddf145da0d2da1f": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 14457,
+        "output_tokens": 64,
+        "status": "known"
+      },
+      "70bd5916ee044fdb9f9ae28bfc187922": {
+        "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 16950,
+        "output_tokens": 41,
+        "status": "known"
+      }
+    }
+  },
+  "request_budget": {
+    "limits": {
+      "planner": 16,
+      "locator": 15,
+      "total": 31
+    },
+    "planner": 11,
+    "locator": 5,
+    "total": 16,
+    "blocked": false
+  },
+  "request_limits": {
+    "planner": 16,
+    "locator": 15,
+    "total": 31
+  },
+  "grounding": {
+    "profile": null,
+    "fallback_profile": null,
+    "protocol": "point",
+    "nullable_style": "integer",
+    "strict": false,
+    "detail": "auto",
+    "status_field": false,
+    "mode": "split",
+    "host_restore": true
+  },
+  "token_budget": 300000,
+  "platform": "macos",
+  "git_revision": "b6a04c23be5f835822ab25486b81df84df67379b",
+  "task_revision": "a4cdec43b05afd51461bbb2dd695a77f79d71ea87bfb785634d0b8c0092647c8",
+  "scoring_revision": "trial-token-gui-grounding-v5",
+  "aborted_cleanup": false,
+  "outcomes": [
+    {
+      "task": "calc-open",
+      "trial": 1,
+      "stop_reason": null,
+      "cleanup": "confirmed",
+      "scoring": "strict",
+      "success": true,
+      "unknown_calls": 0,
+      "assessment": {
+        "revision": "calc-evidence-v1",
+        "strict_expression": true,
+        "business": null,
+        "mouse_only": null,
+        "pixels": "unknown",
+        "reset_verified": true,
+        "input_trace_complete": false,
+        "display": {
+          "expression": "7×8",
+          "result": "56"
+        },
+        "last_screenshot": {
+          "sha256": "b19555d64e640225c311b35fe0367c96ebeab51378d2bd6c6731d86ca809b9a0",
+          "file": "screenshots/shot_005.png",
+          "captured_at": 1790260853.449285,
+          "http_serialized_at": 1790260853.4628139
+        }
+      }
+    }
+  ],
+  "limits": [
+    {
+      "task": "calc-open",
+      "tool_call_limit": 15,
+      "timeout_s": 120,
+      "gui_only": true
+    }
+  ]
+}
+```

@@ -1,0 +1,43 @@
+{
+  "task_id": "calc-open",
+  "trial": 1,
+  "success": false,
+  "error": "max_steps(15) reached",
+  "steps": 15,
+  "wall_s": 85.10443141590804,
+  "tokens": 285140,
+  "screenshots": 9,
+  "timed_out": false,
+  "llm_calls": 16,
+  "llm_ttft_s": 2.1857679789536633,
+  "llm_call_s": 3.567495770927053,
+  "llm_total_s": 75.78483679168858,
+  "scoring": "strict",
+  "llm_rtt_s": 0.0,
+  "stop_reason": null,
+  "cleanup": "confirmed",
+  "primitives": 6,
+  "model_turns": 16,
+  "unknown_calls": 0,
+  "tool_call_limit": 15,
+  "gui_only": true,
+  "non_gui_tools": [],
+  "assessment": {
+    "revision": "calc-evidence-v1",
+    "strict_expression": false,
+    "business": null,
+    "mouse_only": null,
+    "pixels": "unknown",
+    "reset_verified": true,
+    "input_trace_complete": false,
+    "display": {
+      "result": "7"
+    },
+    "last_screenshot": {
+      "sha256": "012fbce013908085f665bb426bbebd943e2c57ab5ec688b62dce1f8b26765be5",
+      "file": "screenshots/shot_009.png",
+      "captured_at": 1790261019.8887308,
+      "http_serialized_at": 1790261019.924758
+    }
+  }
+}

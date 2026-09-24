@@ -1,0 +1,103 @@
+{
+  "calculator_closed": true,
+  "pressed_keys": [],
+  "pressed_mouse_buttons": [],
+  "background_closed": true,
+  "hidden_apps_restored": true,
+  "clipboard_restored": true,
+  "cursor_restored": true,
+  "worker_finished": true,
+  "gate_blocked": [
+    {
+      "point": [
+        1324,
+        275
+      ],
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        1324,
+        275
+      ],
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        1421,
+        332
+      ],
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        1315,
+        319
+      ],
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        1603,
+        319
+      ],
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        1324,
+        253
+      ],
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        1382,
+        226
+      ],
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "landed": "outside"
+    }
+  ]
+}

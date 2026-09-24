@@ -1,0 +1,2648 @@
+{
+  "pilot_acceptance": "reviewed-2026-09-24-m5-six-pairs-split-significant",
+  "enforce_agent_budget": true,
+  "completed": [
+    "m6-pair-1-a",
+    "m6-pair-1-b-combined",
+    "m6-pair-1-c",
+    "m6-pair-1-d",
+    "m6-pair-2-b-combined",
+    "m6-pair-2-c",
+    "m6-pair-2-d",
+    "m6-pair-2-a",
+    "m6-pair-3-c",
+    "m6-pair-3-d",
+    "m6-pair-3-a",
+    "m6-pair-3-b-combined"
+  ],
+  "batches": [
+    {
+      "completed": [
+        "m6-pair-1-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 128142,
+          "charged_nano_usd": 0,
+          "known_tokens": 128142,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 16
+        },
+        "trials": {
+          "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 128142,
+            "charged_nano_usd": 0,
+            "known_tokens": 128142,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "18ac6358e1dc4caa930b8129f9aa68d6": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5095,
+            "output_tokens": 27,
+            "status": "known"
+          },
+          "c6de543ffc3743458ef00bd100c58941": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5152,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "21d1312d88c5469f9c108d504a55807b": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7327,
+            "output_tokens": 258,
+            "status": "known"
+          },
+          "19aa73ee5b574ecea58496a1b8b89c6c": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7302,
+            "output_tokens": 144,
+            "status": "known"
+          },
+          "d3d8582e97484b318d6d18e12f264856": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7475,
+            "output_tokens": 59,
+            "status": "known"
+          },
+          "2c1e728d6a104fb0800463346b25075c": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6878,
+            "output_tokens": 82,
+            "status": "known"
+          },
+          "cf7d18e517694cde92a621a0ec746572": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6550,
+            "output_tokens": 181,
+            "status": "known"
+          },
+          "4e96609881ee497598b518e1d4364d73": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6779,
+            "output_tokens": 58,
+            "status": "known"
+          },
+          "2ee82b9f53da41d7abf31beaf5cf553d": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6952,
+            "output_tokens": 210,
+            "status": "known"
+          },
+          "49d019e4604c4fbaaf9d9b043752f1d1": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7210,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "17c6ffe6981a42ad960616bcb6a9a027": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9394,
+            "output_tokens": 118,
+            "status": "known"
+          },
+          "6538b12fe77d4959a95e79d15022299e": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9549,
+            "output_tokens": 40,
+            "status": "known"
+          },
+          "ac88f8a4074f4b469d41d205902d03fb": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9627,
+            "output_tokens": 38,
+            "status": "known"
+          },
+          "7f54e668788a41958fc65310975495c2": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9702,
+            "output_tokens": 36,
+            "status": "known"
+          },
+          "2487b4436c9645ce8d6abe608a57f0b8": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9774,
+            "output_tokens": 25,
+            "status": "known"
+          },
+          "e0c451cc33cc431a910882e152fa0cbd": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-a/m6-pair-1-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11947,
+            "output_tokens": 92,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "m6-pair-1-b-combined"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 134457,
+          "charged_nano_usd": 0,
+          "known_tokens": 134457,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 9
+        },
+        "trials": {
+          "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-b-combined/m6-pair-1-b-combined/trials/calc-open/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 134457,
+            "charged_nano_usd": 0,
+            "known_tokens": 134457,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "5df2574d14164d3cafac536dfe7ce5c3": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-b-combined/m6-pair-1-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 4740,
+            "output_tokens": 47,
+            "status": "known"
+          },
+          "c5010bcdec4b431c88555ef6502f16ae": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-b-combined/m6-pair-1-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7206,
+            "output_tokens": 290,
+            "status": "known"
+          },
+          "657ec82d86b5460caca162b8e640ffd0": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-b-combined/m6-pair-1-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8797,
+            "output_tokens": 127,
+            "status": "known"
+          },
+          "9d806e63c0134122bbecaf906b6787ec": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-b-combined/m6-pair-1-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11436,
+            "output_tokens": 828,
+            "status": "known"
+          },
+          "5354e89c075d4c6a972be88267992b92": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-b-combined/m6-pair-1-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14640,
+            "output_tokens": 389,
+            "status": "known"
+          },
+          "aaf6dd9672f843b39a912e3668d62a2e": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-b-combined/m6-pair-1-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 17470,
+            "output_tokens": 157,
+            "status": "known"
+          },
+          "1fab4243971d436e973652a8190fbbdb": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-b-combined/m6-pair-1-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 20061,
+            "output_tokens": 160,
+            "status": "known"
+          },
+          "4412117db0d5424e808a14f57321aa55": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-b-combined/m6-pair-1-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 22656,
+            "output_tokens": 149,
+            "status": "known"
+          },
+          "ba6b94428dba41018c7590fc274cb941": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-b-combined/m6-pair-1-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 25236,
+            "output_tokens": 68,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "m6-pair-1-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 126358,
+          "charged_nano_usd": 0,
+          "known_tokens": 126358,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 16
+        },
+        "trials": {
+          "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 126358,
+            "charged_nano_usd": 0,
+            "known_tokens": 126358,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "35b983972c2544b3a4ca784d4f1c7034": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3828,
+            "output_tokens": 54,
+            "status": "known"
+          },
+          "b2fc272b4a05484ca45db6df68422d31": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6294,
+            "output_tokens": 104,
+            "status": "known"
+          },
+          "8a43f3fc54a54793934e0f7ceb264113": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2502,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "a4b17f0909b94c2abb53ce9c8145eca4": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6490,
+            "output_tokens": 65,
+            "status": "known"
+          },
+          "bc7c53ea19764503b601287f21c8721f": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8978,
+            "output_tokens": 94,
+            "status": "known"
+          },
+          "9555ca7edaab4a58941928e1857cf1e9": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2507,
+            "output_tokens": 53,
+            "status": "known"
+          },
+          "ec0ac04adaaa4fc3920818e2d0482cf6": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8953,
+            "output_tokens": 87,
+            "status": "known"
+          },
+          "63d4c293be5d4f0c8dbc75248a1df156": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2501,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "ddde5beeb905470c9cd2dd43ce157494": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9128,
+            "output_tokens": 63,
+            "status": "known"
+          },
+          "b349648ed44c4e3ea466fcdaa30f5482": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11614,
+            "output_tokens": 87,
+            "status": "known"
+          },
+          "43e506532d794e91bf36de652724aac4": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2502,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "fa7817557e334c8bbbc55678570ff331": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11792,
+            "output_tokens": 68,
+            "status": "known"
+          },
+          "cff85f3db74d44a19db00b8dc652e827": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14278,
+            "output_tokens": 91,
+            "status": "known"
+          },
+          "4f17572d50bb4eb897bd296b7c4fa2af": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2505,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "f96b6d7ede8c4bb99ddf145da0d2da1f": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14457,
+            "output_tokens": 64,
+            "status": "known"
+          },
+          "70bd5916ee044fdb9f9ae28bfc187922": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-c/m6-pair-1-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16950,
+            "output_tokens": 41,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "m6-pair-1-d"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 199922,
+          "charged_nano_usd": 0,
+          "known_tokens": 199922,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 20
+        },
+        "trials": {
+          "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 199922,
+            "charged_nano_usd": 0,
+            "known_tokens": 199922,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "f3e98cf51fc1441c94f4de93b19c3c65": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3828,
+            "output_tokens": 71,
+            "status": "known"
+          },
+          "5aac4b8689bb40ec94e54bafa99d627d": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6304,
+            "output_tokens": 156,
+            "status": "known"
+          },
+          "5056e8ceb81d4883a0be6658df237cd9": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2558,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "d945ca94f94b4160a90ac4f1959595a3": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6547,
+            "output_tokens": 118,
+            "status": "known"
+          },
+          "7ec75df65122421c9025ad49e3a06ebd": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9206,
+            "output_tokens": 130,
+            "status": "known"
+          },
+          "dac5696537ec4edfa742a517bdd40ca5": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2557,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "b71a6c6250b44d399047a0bd1cf930fa": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9427,
+            "output_tokens": 141,
+            "status": "known"
+          },
+          "92d1c11166e64abebf8b3aeddb1314c6": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11403,
+            "output_tokens": 115,
+            "status": "known"
+          },
+          "2879b4ab28e7496397db9202f729e0ea": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2560,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "c7ab3ec14b1a4e25bc94cc0084928bd2": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11610,
+            "output_tokens": 115,
+            "status": "known"
+          },
+          "ac407ec03dd5437f8148ef7cb771316d": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11754,
+            "output_tokens": 106,
+            "status": "known"
+          },
+          "8c2187fb3b004a73ac0b9182d3726869": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11910,
+            "output_tokens": 41,
+            "status": "known"
+          },
+          "d90a0bf4f8c440c1ab2e13a11eebae66": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14347,
+            "output_tokens": 174,
+            "status": "known"
+          },
+          "885229d6285843cd811567837a745f2c": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2563,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "7cd9aa9f5f364a9fa1ae8f12f9cbc68e": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14612,
+            "output_tokens": 88,
+            "status": "known"
+          },
+          "8844c963a7c74fdd9e2730ca7901c65b": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2557,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "2a5c520581ed467e96ab12a3b45f5859": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14792,
+            "output_tokens": 89,
+            "status": "known"
+          },
+          "b59df910a5934669add37c4843a0ee62": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 17305,
+            "output_tokens": 100,
+            "status": "known"
+          },
+          "bcc3f08f67984a408cfeccb511131918": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 19816,
+            "output_tokens": 56,
+            "status": "known"
+          },
+          "b9e11fdfc6874f7f82cf778e7779770d": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-1-d/m6-pair-1-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 22261,
+            "output_tokens": 100,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "m6-pair-2-b-combined"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 285140,
+          "charged_nano_usd": 0,
+          "known_tokens": 285140,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 16
+        },
+        "trials": {
+          "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 285140,
+            "charged_nano_usd": 0,
+            "known_tokens": 285140,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "aa1c8f6c600a4a9c9af04afdb252e779": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 4740,
+            "output_tokens": 54,
+            "status": "known"
+          },
+          "7ee9e9fd5814463c8fcf3b2e8351bddd": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7209,
+            "output_tokens": 354,
+            "status": "known"
+          },
+          "21f3679ab09044148ec97387d63f1ec5": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8862,
+            "output_tokens": 138,
+            "status": "known"
+          },
+          "7194e9c554fb45909164b74e0d724d6e": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11509,
+            "output_tokens": 820,
+            "status": "known"
+          },
+          "6f244aac03a64942b9869ec0dd266b21": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12358,
+            "output_tokens": 110,
+            "status": "known"
+          },
+          "63127c74d437402e8e886247fe7ffb90": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14906,
+            "output_tokens": 132,
+            "status": "known"
+          },
+          "8a0ef55ea78948a4add57a94b968cd4b": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 17274,
+            "output_tokens": 895,
+            "status": "known"
+          },
+          "0511e1684d764b4493684e72b5e9616c": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 18194,
+            "output_tokens": 37,
+            "status": "known"
+          },
+          "bfc338c2aa6a4790a530cce248d5e039": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 20616,
+            "output_tokens": 155,
+            "status": "known"
+          },
+          "4485ed28dc8a425a9d8a9d34e7f3466a": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 20823,
+            "output_tokens": 84,
+            "status": "known"
+          },
+          "76a2f4182b33452481be86cd2ef20610": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 20959,
+            "output_tokens": 124,
+            "status": "known"
+          },
+          "228a14bb910a40de8604a33d94082aa8": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 21139,
+            "output_tokens": 67,
+            "status": "known"
+          },
+          "f71d4e36347c464eb45e052ea9863729": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 23709,
+            "output_tokens": 256,
+            "status": "known"
+          },
+          "40cffad9e98a48eabd0ad576d4a84897": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 24026,
+            "output_tokens": 45,
+            "status": "known"
+          },
+          "e2bb6046521d4588ae93e7c1952b2ab9": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 26459,
+            "output_tokens": 101,
+            "status": "known"
+          },
+          "0c243e526011427e80ddad82d364934a": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-b-combined/m6-pair-2-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 28931,
+            "output_tokens": 54,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "m6-pair-2-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 178866,
+          "charged_nano_usd": 0,
+          "known_tokens": 178866,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 21
+        },
+        "trials": {
+          "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 178866,
+            "charged_nano_usd": 0,
+            "known_tokens": 178866,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "3c089824cf044fab87b316ed1d40a6c9": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3828,
+            "output_tokens": 54,
+            "status": "known"
+          },
+          "5bfc20de507640a295d0f34f9659551e": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6295,
+            "output_tokens": 157,
+            "status": "known"
+          },
+          "8695b69b3be747fead6f9397eed37a6a": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2502,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "2ec84a131de64837aadfe7d28646116a": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6546,
+            "output_tokens": 122,
+            "status": "known"
+          },
+          "99d54397bdaa43bbb6fce2511a511232": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5993,
+            "output_tokens": 93,
+            "status": "known"
+          },
+          "30f5f5f1408347ecafeaa8f9bb7c4be5": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6115,
+            "output_tokens": 76,
+            "status": "known"
+          },
+          "93ddf1bdb44e497da4cd8c3b1976ddc9": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6088,
+            "output_tokens": 30,
+            "status": "known"
+          },
+          "2c946ae4b5d0419fa71063bdb1b9f9ee": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8487,
+            "output_tokens": 94,
+            "status": "known"
+          },
+          "b1523f91aac74844a096b4b94f31c72b": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2502,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "191bb70d1fdb40179ba31936378236fc": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8671,
+            "output_tokens": 80,
+            "status": "known"
+          },
+          "49277af813c642e8b7496a775c118d27": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11177,
+            "output_tokens": 116,
+            "status": "known"
+          },
+          "3b7ba5ae67b04be1b9422e6287606f90": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2503,
+            "output_tokens": 53,
+            "status": "known"
+          },
+          "2fb79a2395744203b605ff6be6498657": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11174,
+            "output_tokens": 28,
+            "status": "known"
+          },
+          "b98049f7b53040669badcab0d2b2486d": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13587,
+            "output_tokens": 110,
+            "status": "known"
+          },
+          "ea335d77dfd7424b8cd0d306281ca455": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2508,
+            "output_tokens": 53,
+            "status": "known"
+          },
+          "074ad8875dcd417e8c79db2f61b9075a": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13723,
+            "output_tokens": 73,
+            "status": "known"
+          },
+          "867da9cceb4a428ca077b39d370fafe8": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15090,
+            "output_tokens": 223,
+            "status": "known"
+          },
+          "0e6ebf0100b14d9cbeba3e9734f9828e": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15337,
+            "output_tokens": 95,
+            "status": "known"
+          },
+          "508dd3f29cd04b05a38fe7131ed99b9f": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 1407,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "751529f04ca04c849c600b07964db2aa": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15528,
+            "output_tokens": 69,
+            "status": "known"
+          },
+          "b0936ee926e04a5da637b9b4886ed74b": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-c/m6-pair-2-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 18014,
+            "output_tokens": 109,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "m6-pair-2-d"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 170531,
+          "charged_nano_usd": 0,
+          "known_tokens": 170531,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 19
+        },
+        "trials": {
+          "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 170531,
+            "charged_nano_usd": 0,
+            "known_tokens": 170531,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "f8bc9b9a053f416b8396b08a4f9caebd": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3828,
+            "output_tokens": 131,
+            "status": "known"
+          },
+          "c5fcc1cbdf5c479fa448804b34dcdd1d": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6374,
+            "output_tokens": 200,
+            "status": "known"
+          },
+          "8347931ed5244d2ea852108f788bea9f": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8308,
+            "output_tokens": 158,
+            "status": "known"
+          },
+          "c1a00f0c062640acac167ac16d4f8e13": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2557,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "83eba488d45746f692767fbf2f17f70d": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8558,
+            "output_tokens": 91,
+            "status": "known"
+          },
+          "0bd200f265394eb2ae1e325e14ab4a18": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2558,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "0c747938605246519cba721613eb3e49": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8744,
+            "output_tokens": 84,
+            "status": "known"
+          },
+          "695d56a03ec343fdb82d16cc998dd7ed": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2557,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "0d753b6e45de457381773444bce222af": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8918,
+            "output_tokens": 89,
+            "status": "known"
+          },
+          "993184083e574a219af74ce8a15793d4": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8893,
+            "output_tokens": 82,
+            "status": "known"
+          },
+          "be1b999f73094a5cb5575099a351c744": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9006,
+            "output_tokens": 68,
+            "status": "known"
+          },
+          "a55391528137416a9c2804132e129d38": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8971,
+            "output_tokens": 82,
+            "status": "known"
+          },
+          "0fc9b107a9c34868ad0716a8cce499b9": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9111,
+            "output_tokens": 141,
+            "status": "known"
+          },
+          "83e6d4cfffa449ca965d04feb54364ca": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11615,
+            "output_tokens": 467,
+            "status": "known"
+          },
+          "c41339d6fa76426fa26e2935756fca72": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12106,
+            "output_tokens": 99,
+            "status": "known"
+          },
+          "cec18691d5cb4340b13ae055e5c01e9b": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12263,
+            "output_tokens": 84,
+            "status": "known"
+          },
+          "9ed007b39b3a4ff1b2280f6ad4480ffb": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12187,
+            "output_tokens": 55,
+            "status": "known"
+          },
+          "5db13c410d2140e1a62c116cf0d87b6a": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14646,
+            "output_tokens": 72,
+            "status": "known"
+          },
+          "08e2975d9bb44bd3a5d466d05e0b0cba": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-d/m6-pair-2-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 17081,
+            "output_tokens": 104,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "m6-pair-2-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 106357,
+          "charged_nano_usd": 0,
+          "known_tokens": 106357,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 10
+        },
+        "trials": {
+          "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-a/m6-pair-2-a/trials/calc-open/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 106357,
+            "charged_nano_usd": 0,
+            "known_tokens": 106357,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "30a51668bb754a81bebb54f72bc12d9a": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-a/m6-pair-2-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5095,
+            "output_tokens": 27,
+            "status": "known"
+          },
+          "7cd3ba29310a45d299cc893865dd15c9": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-a/m6-pair-2-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5152,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "d990a1c388c143c8a8e90eb6551a4e24": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-a/m6-pair-2-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7327,
+            "output_tokens": 249,
+            "status": "known"
+          },
+          "8850a6c300074fbe9c0845849256b1b8": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-a/m6-pair-2-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9544,
+            "output_tokens": 96,
+            "status": "known"
+          },
+          "9663076bd70b42688ea5bf0838a49b6b": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-a/m6-pair-2-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12056,
+            "output_tokens": 488,
+            "status": "known"
+          },
+          "c3ee13c69bac4979a0619eabde6109b9": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-a/m6-pair-2-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12592,
+            "output_tokens": 57,
+            "status": "known"
+          },
+          "a513492c03d842f3af906b276ac6a5dc": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-a/m6-pair-2-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12697,
+            "output_tokens": 53,
+            "status": "known"
+          },
+          "df3e64420266475e9ae3cf8795a538eb": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-a/m6-pair-2-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12798,
+            "output_tokens": 55,
+            "status": "known"
+          },
+          "7e9c8e83610044cbb262f9bf175bfe7b": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-a/m6-pair-2-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12901,
+            "output_tokens": 24,
+            "status": "known"
+          },
+          "c8ccd15ec3484fa9adf3223be26f5a90": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-2-a/m6-pair-2-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15073,
+            "output_tokens": 60,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "m6-pair-3-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 147097,
+          "charged_nano_usd": 0,
+          "known_tokens": 147097,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 19
+        },
+        "trials": {
+          "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 147097,
+            "charged_nano_usd": 0,
+            "known_tokens": 147097,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "69dbe879ee6b4e7e81a60aab6155dacd": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3828,
+            "output_tokens": 131,
+            "status": "known"
+          },
+          "84f12136232e4187b07f4959ea6d36b9": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6373,
+            "output_tokens": 363,
+            "status": "known"
+          },
+          "47e5657950cc4de9acc83fbb0965b82d": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6061,
+            "output_tokens": 259,
+            "status": "known"
+          },
+          "f04f2f9f26e94b45acbe47e949743eb5": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6348,
+            "output_tokens": 90,
+            "status": "known"
+          },
+          "ac3101497dff45d981550e62bbb6ff50": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2500,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "c3988f4b89d947038bed0b41e76b51fd": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6528,
+            "output_tokens": 80,
+            "status": "known"
+          },
+          "c376c52aa6f14cd0b6e788ef618881f6": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2500,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "161f090665a3407f8dacd1ed44cc4f13": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6698,
+            "output_tokens": 80,
+            "status": "known"
+          },
+          "ec634a27c5f14a99a313d7c62f5b42bd": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2500,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "7079fdfd45cb448fa57659a26ebdf7bf": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6866,
+            "output_tokens": 80,
+            "status": "known"
+          },
+          "37c3480ffa9b4372bc554ebcfd2c098d": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6832,
+            "output_tokens": 39,
+            "status": "known"
+          },
+          "4159ff2cda0e4c7ea7121d2ac1da8413": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9242,
+            "output_tokens": 136,
+            "status": "known"
+          },
+          "924d51c26c9f4d06834aa7ca204be785": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9409,
+            "output_tokens": 91,
+            "status": "known"
+          },
+          "462c07dd990a4799a39ae0b8898bc568": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9558,
+            "output_tokens": 187,
+            "status": "known"
+          },
+          "35295e58c1a74fee899ec0686f78dd86": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10492,
+            "output_tokens": 190,
+            "status": "known"
+          },
+          "b40de531827d4efc9e11d8e03d3d29d2": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10579,
+            "output_tokens": 97,
+            "status": "known"
+          },
+          "b1a3aeffdba84dc7ac9dbbb58a769d12": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10734,
+            "output_tokens": 287,
+            "status": "known"
+          },
+          "df9000460e0342ed9d4690771d9113b8": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13402,
+            "output_tokens": 362,
+            "status": "known"
+          },
+          "9f1f970a2ce740bd9bb4a3b985edf8c5": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-c/m6-pair-3-c/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13788,
+            "output_tokens": 231,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "m6-pair-3-d"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 119307,
+          "charged_nano_usd": 0,
+          "known_tokens": 119307,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 15
+        },
+        "trials": {
+          "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 119307,
+            "charged_nano_usd": 0,
+            "known_tokens": 119307,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "dc36b248e413464bafdf01ce2443cb54": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3828,
+            "output_tokens": 95,
+            "status": "known"
+          },
+          "afe57dc6cf6941798b62127d79dca73f": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6332,
+            "output_tokens": 173,
+            "status": "known"
+          },
+          "bfd9a1eb525d425d8b5589be19e9415f": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2558,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "713faa2fc66247ba9693d523454aa542": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6589,
+            "output_tokens": 122,
+            "status": "known"
+          },
+          "6d556b40831642558d41dd5f7232400d": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6036,
+            "output_tokens": 86,
+            "status": "known"
+          },
+          "8ba0d483749c417f93bf64ebd1824abe": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8545,
+            "output_tokens": 115,
+            "status": "known"
+          },
+          "6207f882369f407b93be9aa4eb87e4e4": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2561,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "04237a1d294a4b4ba323da165320d987": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8750,
+            "output_tokens": 69,
+            "status": "known"
+          },
+          "d4eab444b2ce41b68ef217f21bf7c923": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11256,
+            "output_tokens": 116,
+            "status": "known"
+          },
+          "926a2d28dd1f4dc0a87cb22191ea129c": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2558,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "01a88f56b5034808a97556f85cb85c61": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11466,
+            "output_tokens": 76,
+            "status": "known"
+          },
+          "47861b5d81054427a070c4fae956f891": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13976,
+            "output_tokens": 122,
+            "status": "known"
+          },
+          "92be7e51af50432a82cc4c50bfcda292": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2561,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "e9cf10cfcbda4d85abd23fe36a444f2f": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14188,
+            "output_tokens": 65,
+            "status": "known"
+          },
+          "0790cf1683da478bbf978640f1254140": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-d/m6-pair-3-d/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16678,
+            "output_tokens": 62,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "m6-pair-3-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 226204,
+          "charged_nano_usd": 0,
+          "known_tokens": 226204,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 16
+        },
+        "trials": {
+          "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 226204,
+            "charged_nano_usd": 0,
+            "known_tokens": 226204,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "a15954f8728842e382cc4197f2470e09": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5095,
+            "output_tokens": 27,
+            "status": "known"
+          },
+          "623b3382b41948299188540c88cb5734": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5152,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "ce61680ac10f4944a1264e8eb8b54dab": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7327,
+            "output_tokens": 330,
+            "status": "known"
+          },
+          "b7a8b511b59b4977aaca1655185ce79a": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9628,
+            "output_tokens": 571,
+            "status": "known"
+          },
+          "60087460d3d441d99cd1a323e4c198c9": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10246,
+            "output_tokens": 26,
+            "status": "known"
+          },
+          "c76c6d2fa9af49bfb3e837c8e47644db": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12432,
+            "output_tokens": 72,
+            "status": "known"
+          },
+          "43b425eeafda45239861c9366a89bf45": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14620,
+            "output_tokens": 419,
+            "status": "known"
+          },
+          "abe5137c16934425954dacd41f8afb74": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15087,
+            "output_tokens": 55,
+            "status": "known"
+          },
+          "5d205d60c65e461580c5ed45be76342b": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15190,
+            "output_tokens": 53,
+            "status": "known"
+          },
+          "f36e7ec9594f454c836e6d39254a7b3b": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15291,
+            "output_tokens": 55,
+            "status": "known"
+          },
+          "582508a7332b407fb793ac2b5ff0d33d": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15394,
+            "output_tokens": 24,
+            "status": "known"
+          },
+          "0aa32485d2ae427e9a2aba24455c779b": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 17566,
+            "output_tokens": 109,
+            "status": "known"
+          },
+          "1fdbcd0c802c47148a96b078fcae30b1": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 19822,
+            "output_tokens": 381,
+            "status": "known"
+          },
+          "e9208870a2c84a16bcc422027d51f638": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 20251,
+            "output_tokens": 53,
+            "status": "known"
+          },
+          "bb7dddc4aa1f44839c49ee1776c70d54": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 20352,
+            "output_tokens": 53,
+            "status": "known"
+          },
+          "f770fd6d3e214f78923c0ef5549359c8": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-a/m6-pair-3-a/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 20453,
+            "output_tokens": 57,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "m6-pair-3-b-combined"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 67462,
+          "charged_nano_usd": 0,
+          "known_tokens": 67462,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 6
+        },
+        "trials": {
+          "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-b-combined/m6-pair-3-b-combined/trials/calc-open/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 67462,
+            "charged_nano_usd": 0,
+            "known_tokens": 67462,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "272123d3a654401483a58f6ea606ee3c": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-b-combined/m6-pair-3-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 4740,
+            "output_tokens": 27,
+            "status": "known"
+          },
+          "d6f1959179ef4c14bfcde3d4d01b336d": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-b-combined/m6-pair-3-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7185,
+            "output_tokens": 236,
+            "status": "known"
+          },
+          "b66c40c6a4624812b8b7f9029ccb81b8": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-b-combined/m6-pair-3-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9856,
+            "output_tokens": 133,
+            "status": "known"
+          },
+          "b2d3fe7577c24bfca2989366b95f374c": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-b-combined/m6-pair-3-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12425,
+            "output_tokens": 129,
+            "status": "known"
+          },
+          "abe581e1e96e4e0faef7b0eff8dfc9b8": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-b-combined/m6-pair-3-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14978,
+            "output_tokens": 139,
+            "status": "known"
+          },
+          "59f5b05af18443769aee1053e932a7be": {
+            "trial": "/private/tmp/tank-m6-calc-20260924-live/trials/m6-pair-3-b-combined/m6-pair-3-b-combined/trials/calc-open/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 17552,
+            "output_tokens": 62,
+            "status": "known"
+          }
+        }
+      }
+    }
+  ]
+}

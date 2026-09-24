@@ -1,0 +1,27 @@
+Guardrail BLOCK: click total failures=6
+{"completed": ["m6-pair-1-a"], "spend": {"limit_tokens": 300000, "limit_nano_usd": 8000000000, "charged_tokens": 128142, "charged_nano_usd": 0, "known_tokens": 128142, "known_nano_usd": 0, "reserved_tokens": 0, "reserved_nano_usd": 0, "limit_requests": 16, "admitted_requests": 16}, "stop_reason": null}
+{"completed": ["m6-pair-1-b-combined"], "spend": {"limit_tokens": 300000, "limit_nano_usd": 8000000000, "charged_tokens": 134457, "charged_nano_usd": 0, "known_tokens": 134457, "known_nano_usd": 0, "reserved_tokens": 0, "reserved_nano_usd": 0, "limit_requests": 16, "admitted_requests": 9}, "stop_reason": null}
+{"completed": ["m6-pair-1-c"], "spend": {"limit_tokens": 300000, "limit_nano_usd": 8000000000, "charged_tokens": 126358, "charged_nano_usd": 0, "known_tokens": 126358, "known_nano_usd": 0, "reserved_tokens": 0, "reserved_nano_usd": 0, "limit_requests": 31, "admitted_requests": 16}, "stop_reason": null}
+{"completed": ["m6-pair-1-d"], "spend": {"limit_tokens": 300000, "limit_nano_usd": 8000000000, "charged_tokens": 199922, "charged_nano_usd": 0, "known_tokens": 199922, "known_nano_usd": 0, "reserved_tokens": 0, "reserved_nano_usd": 0, "limit_requests": 31, "admitted_requests": 20}, "stop_reason": null}
+{"completed": ["m6-pair-2-b-combined"], "spend": {"limit_tokens": 300000, "limit_nano_usd": 8000000000, "charged_tokens": 285140, "charged_nano_usd": 0, "known_tokens": 285140, "known_nano_usd": 0, "reserved_tokens": 0, "reserved_nano_usd": 0, "limit_requests": 16, "admitted_requests": 16}, "stop_reason": null}
+{"completed": ["m6-pair-2-c"], "spend": {"limit_tokens": 300000, "limit_nano_usd": 8000000000, "charged_tokens": 178866, "charged_nano_usd": 0, "known_tokens": 178866, "known_nano_usd": 0, "reserved_tokens": 0, "reserved_nano_usd": 0, "limit_requests": 31, "admitted_requests": 21}, "stop_reason": null}
+{"completed": ["m6-pair-2-d"], "spend": {"limit_tokens": 300000, "limit_nano_usd": 8000000000, "charged_tokens": 170531, "charged_nano_usd": 0, "known_tokens": 170531, "known_nano_usd": 0, "reserved_tokens": 0, "reserved_nano_usd": 0, "limit_requests": 31, "admitted_requests": 19}, "stop_reason": null}
+{"completed": ["m6-pair-2-a"], "spend": {"limit_tokens": 300000, "limit_nano_usd": 8000000000, "charged_tokens": 106357, "charged_nano_usd": 0, "known_tokens": 106357, "known_nano_usd": 0, "reserved_tokens": 0, "reserved_nano_usd": 0, "limit_requests": 16, "admitted_requests": 10}, "stop_reason": null}
+{"completed": ["m6-pair-3-c"], "spend": {"limit_tokens": 300000, "limit_nano_usd": 8000000000, "charged_tokens": 147097, "charged_nano_usd": 0, "known_tokens": 147097, "known_nano_usd": 0, "reserved_tokens": 0, "reserved_nano_usd": 0, "limit_requests": 31, "admitted_requests": 19}, "stop_reason": null}
+{"completed": ["m6-pair-3-d"], "spend": {"limit_tokens": 300000, "limit_nano_usd": 8000000000, "charged_tokens": 119307, "charged_nano_usd": 0, "known_tokens": 119307, "known_nano_usd": 0, "reserved_tokens": 0, "reserved_nano_usd": 0, "limit_requests": 31, "admitted_requests": 15}, "stop_reason": null}
+{"completed": ["m6-pair-3-a"], "spend": {"limit_tokens": 300000, "limit_nano_usd": 8000000000, "charged_tokens": 226204, "charged_nano_usd": 0, "known_tokens": 226204, "known_nano_usd": 0, "reserved_tokens": 0, "reserved_nano_usd": 0, "limit_requests": 16, "admitted_requests": 16}, "stop_reason": null}
+{"completed": ["m6-pair-3-b-combined"], "spend": {"limit_tokens": 300000, "limit_nano_usd": 8000000000, "charged_tokens": 67462, "charged_nano_usd": 0, "known_tokens": 67462, "known_nano_usd": 0, "reserved_tokens": 0, "reserved_nano_usd": 0, "limit_requests": 16, "admitted_requests": 6}, "stop_reason": null}
+{
+  "child_returncode": 0,
+  "timed_out": false,
+  "recovery": {
+    "inputs_released": true,
+    "calculator_closed": true,
+    "applications_restored": true,
+    "clipboard_restored": true,
+    "cursor_restored": true,
+    "front_restored": true,
+    "input_source_restored": true,
+    "confirmed": true
+  }
+}

@@ -1,0 +1,1759 @@
+[
+  {
+    "trial": "m6-pair-1-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "display": {
+      "result": "78"
+    },
+    "input_trace_complete": false,
+    "requests": 16,
+    "planner_requests": 16,
+    "locator_requests": 0,
+    "planner_tokens": 128142,
+    "locator_tokens": 0,
+    "total_tokens": 128142,
+    "dispatches": [],
+    "gate_blocked": 2,
+    "failure_class": "input-semantics (operator key ignored/missing)",
+    "per_request": [
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 5095,
+        "out": 27
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 5152,
+        "out": 13
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 7327,
+        "out": 258
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 7302,
+        "out": 144
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 7475,
+        "out": 59
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6878,
+        "out": 82
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6550,
+        "out": 181
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6779,
+        "out": 58
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6952,
+        "out": 210
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 7210,
+        "out": 48
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9394,
+        "out": 118
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9549,
+        "out": 40
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9627,
+        "out": 38
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9702,
+        "out": 36
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9774,
+        "out": 25
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 11947,
+        "out": 92
+      }
+    ]
+  },
+  {
+    "trial": "m6-pair-1-b-combined",
+    "variant": "B-combined",
+    "passed": true,
+    "stop_reason": null,
+    "display": {
+      "expression": "7×8",
+      "result": "56"
+    },
+    "input_trace_complete": false,
+    "requests": 9,
+    "planner_requests": 9,
+    "locator_requests": 0,
+    "planner_tokens": 134457,
+    "locator_tokens": 0,
+    "total_tokens": 134457,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": false,
+        "in_batch": true
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      }
+    ],
+    "gate_blocked": 2,
+    "failure_class": "passed",
+    "per_request": [
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 4740,
+        "out": 47
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 7206,
+        "out": 290
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 8797,
+        "out": 127
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 11436,
+        "out": 828
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 14640,
+        "out": 389
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 5,
+        "in": 17470,
+        "out": 157
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 6,
+        "in": 20061,
+        "out": 160
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 7,
+        "in": 22656,
+        "out": 149
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 8,
+        "in": 25236,
+        "out": 68
+      }
+    ]
+  },
+  {
+    "trial": "m6-pair-1-c",
+    "variant": "C",
+    "passed": true,
+    "stop_reason": null,
+    "display": {
+      "expression": "7×8",
+      "result": "56"
+    },
+    "input_trace_complete": false,
+    "requests": 16,
+    "planner_requests": 11,
+    "locator_requests": 5,
+    "planner_tokens": 113580,
+    "locator_tokens": 12778,
+    "total_tokens": 126358,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      }
+    ],
+    "gate_blocked": 0,
+    "failure_class": "passed",
+    "per_request": [
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 3828,
+        "out": 54
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6294,
+        "out": 104
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 2502,
+        "out": 52
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6490,
+        "out": 65
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 8978,
+        "out": 94
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 2507,
+        "out": 53
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 8953,
+        "out": 87
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 2501,
+        "out": 52
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9128,
+        "out": 63
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 11614,
+        "out": 87
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 2502,
+        "out": 52
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 11792,
+        "out": 68
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 14278,
+        "out": 91
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 2505,
+        "out": 52
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 14457,
+        "out": 64
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 5,
+        "in": 16950,
+        "out": 41
+      }
+    ]
+  },
+  {
+    "trial": "m6-pair-1-d",
+    "variant": "D",
+    "passed": false,
+    "stop_reason": null,
+    "display": {
+      "result": "56"
+    },
+    "input_trace_complete": false,
+    "requests": 20,
+    "planner_requests": 15,
+    "locator_requests": 5,
+    "planner_tokens": 186722,
+    "locator_tokens": 13200,
+    "total_tokens": 199922,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true,
+        "in_batch": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true,
+        "in_batch": true
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true,
+        "in_batch": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "type_text",
+        "succeeded": true,
+        "in_batch": false
+      }
+    ],
+    "gate_blocked": 0,
+    "failure_class": "input-path (result without expression line: paste path)",
+    "per_request": [
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 3828,
+        "out": 71
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6304,
+        "out": 156
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.8-max-2026-09-02",
+        "images": 1,
+        "in": 2558,
+        "out": 81
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6547,
+        "out": 118
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9206,
+        "out": 130
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.8-max-2026-09-02",
+        "images": 1,
+        "in": 2557,
+        "out": 81
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9427,
+        "out": 141
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 11403,
+        "out": 115
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.8-max-2026-09-02",
+        "images": 1,
+        "in": 2560,
+        "out": 81
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 11610,
+        "out": 115
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 11754,
+        "out": 106
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 11910,
+        "out": 41
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 14347,
+        "out": 174
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.8-max-2026-09-02",
+        "images": 1,
+        "in": 2563,
+        "out": 81
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 14612,
+        "out": 88
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.8-max-2026-09-02",
+        "images": 1,
+        "in": 2557,
+        "out": 81
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 14792,
+        "out": 89
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 5,
+        "in": 17305,
+        "out": 100
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 6,
+        "in": 19816,
+        "out": 56
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 7,
+        "in": 22261,
+        "out": 100
+      }
+    ]
+  },
+  {
+    "trial": "m6-pair-2-b-combined",
+    "variant": "B-combined",
+    "passed": false,
+    "stop_reason": null,
+    "display": {
+      "result": "7"
+    },
+    "input_trace_complete": false,
+    "requests": 16,
+    "planner_requests": 16,
+    "locator_requests": 0,
+    "planner_tokens": 285140,
+    "locator_tokens": 0,
+    "total_tokens": 285140,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": false,
+        "in_batch": true
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": false,
+        "in_batch": false
+      },
+      {
+        "name": "key_press",
+        "succeeded": false,
+        "in_batch": false
+      }
+    ],
+    "gate_blocked": 2,
+    "failure_class": "flow-incomplete (partial input, steps exhausted)",
+    "per_request": [
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 4740,
+        "out": 54
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 7209,
+        "out": 354
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 8862,
+        "out": 138
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 11509,
+        "out": 820
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 12358,
+        "out": 110
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 14906,
+        "out": 132
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 5,
+        "in": 17274,
+        "out": 895
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 5,
+        "in": 18194,
+        "out": 37
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 6,
+        "in": 20616,
+        "out": 155
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 6,
+        "in": 20823,
+        "out": 84
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 6,
+        "in": 20959,
+        "out": 124
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 6,
+        "in": 21139,
+        "out": 67
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 7,
+        "in": 23709,
+        "out": 256
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 7,
+        "in": 24026,
+        "out": 45
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 8,
+        "in": 26459,
+        "out": 101
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 9,
+        "in": 28931,
+        "out": 54
+      }
+    ]
+  },
+  {
+    "trial": "m6-pair-2-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "display": {
+      "result": "7×"
+    },
+    "input_trace_complete": false,
+    "requests": 21,
+    "planner_requests": 16,
+    "locator_requests": 5,
+    "planner_tokens": 167182,
+    "locator_tokens": 11684,
+    "total_tokens": 178866,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      }
+    ],
+    "gate_blocked": 0,
+    "failure_class": "flow-incomplete (partial input, steps exhausted)",
+    "per_request": [
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 3828,
+        "out": 54
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6295,
+        "out": 157
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 2502,
+        "out": 52
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6546,
+        "out": 122
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 5993,
+        "out": 93
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6115,
+        "out": 76
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6088,
+        "out": 30
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 8487,
+        "out": 94
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 2502,
+        "out": 52
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 8671,
+        "out": 80
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 11177,
+        "out": 116
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 2503,
+        "out": 53
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 11174,
+        "out": 28
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 13587,
+        "out": 110
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 2508,
+        "out": 53
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 13723,
+        "out": 73
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 5,
+        "in": 15090,
+        "out": 223
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 5,
+        "in": 15337,
+        "out": 95
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 1407,
+        "out": 52
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 5,
+        "in": 15528,
+        "out": 69
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 6,
+        "in": 18014,
+        "out": 109
+      }
+    ]
+  },
+  {
+    "trial": "m6-pair-2-d",
+    "variant": "D",
+    "passed": false,
+    "stop_reason": null,
+    "display": {
+      "result": "7"
+    },
+    "input_trace_complete": false,
+    "requests": 19,
+    "planner_requests": 16,
+    "locator_requests": 3,
+    "planner_tokens": 162616,
+    "locator_tokens": 7915,
+    "total_tokens": 170531,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "key_press",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "key_press",
+        "succeeded": false,
+        "in_batch": false
+      }
+    ],
+    "gate_blocked": 0,
+    "failure_class": "flow-incomplete (partial input, steps exhausted)",
+    "per_request": [
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 3828,
+        "out": 131
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6374,
+        "out": 200
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 8308,
+        "out": 158
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.8-max-2026-09-02",
+        "images": 1,
+        "in": 2557,
+        "out": 81
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 8558,
+        "out": 91
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.8-max-2026-09-02",
+        "images": 1,
+        "in": 2558,
+        "out": 81
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 8744,
+        "out": 84
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.8-max-2026-09-02",
+        "images": 1,
+        "in": 2557,
+        "out": 81
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 8918,
+        "out": 89
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 8893,
+        "out": 82
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9006,
+        "out": 68
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 8971,
+        "out": 82
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9111,
+        "out": 141
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 11615,
+        "out": 467
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 12106,
+        "out": 99
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 12263,
+        "out": 84
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 12187,
+        "out": 55
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 14646,
+        "out": 72
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 5,
+        "in": 17081,
+        "out": 104
+      }
+    ]
+  },
+  {
+    "trial": "m6-pair-2-a",
+    "variant": "A",
+    "passed": true,
+    "stop_reason": null,
+    "display": {
+      "expression": "7×8",
+      "result": "56"
+    },
+    "input_trace_complete": false,
+    "requests": 10,
+    "planner_requests": 10,
+    "locator_requests": 0,
+    "planner_tokens": 106357,
+    "locator_tokens": 0,
+    "total_tokens": 106357,
+    "dispatches": [],
+    "gate_blocked": 1,
+    "failure_class": "passed",
+    "per_request": [
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 5095,
+        "out": 27
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 5152,
+        "out": 13
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 7327,
+        "out": 249
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9544,
+        "out": 96
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 12056,
+        "out": 488
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 12592,
+        "out": 57
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 12697,
+        "out": 53
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 12798,
+        "out": 55
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 12901,
+        "out": 24
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 15073,
+        "out": 60
+      }
+    ]
+  },
+  {
+    "trial": "m6-pair-3-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "display": {
+      "result": "0"
+    },
+    "input_trace_complete": false,
+    "requests": 19,
+    "planner_requests": 16,
+    "locator_requests": 3,
+    "planner_tokens": 139441,
+    "locator_tokens": 7656,
+    "total_tokens": 147097,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true,
+        "in_batch": false
+      }
+    ],
+    "gate_blocked": 0,
+    "failure_class": "flow-incomplete (partial input, steps exhausted)",
+    "per_request": [
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 3828,
+        "out": 131
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6373,
+        "out": 363
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6061,
+        "out": 259
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6348,
+        "out": 90
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 2500,
+        "out": 52
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6528,
+        "out": 80
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 2500,
+        "out": 52
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6698,
+        "out": 80
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 2500,
+        "out": 52
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6866,
+        "out": 80
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6832,
+        "out": 39
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9242,
+        "out": 136
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9409,
+        "out": 91
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9558,
+        "out": 187
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 10492,
+        "out": 190
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 10579,
+        "out": 97
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 10734,
+        "out": 287
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 13402,
+        "out": 362
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 13788,
+        "out": 231
+      }
+    ]
+  },
+  {
+    "trial": "m6-pair-3-d",
+    "variant": "D",
+    "passed": true,
+    "stop_reason": null,
+    "display": {
+      "expression": "7×8",
+      "result": "56"
+    },
+    "input_trace_complete": false,
+    "requests": 15,
+    "planner_requests": 11,
+    "locator_requests": 4,
+    "planner_tokens": 108745,
+    "locator_tokens": 10562,
+    "total_tokens": 119307,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      }
+    ],
+    "gate_blocked": 0,
+    "failure_class": "passed",
+    "per_request": [
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 3828,
+        "out": 95
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6332,
+        "out": 173
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.8-max-2026-09-02",
+        "images": 1,
+        "in": 2558,
+        "out": 81
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6589,
+        "out": 122
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 6036,
+        "out": 86
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 8545,
+        "out": 115
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.8-max-2026-09-02",
+        "images": 1,
+        "in": 2561,
+        "out": 81
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 8750,
+        "out": 69
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 11256,
+        "out": 116
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.8-max-2026-09-02",
+        "images": 1,
+        "in": 2558,
+        "out": 81
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 11466,
+        "out": 76
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 13976,
+        "out": 122
+      },
+      {
+        "role": "locator",
+        "model": "qwen3.8-max-2026-09-02",
+        "images": 1,
+        "in": 2561,
+        "out": 81
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 14188,
+        "out": 65
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 5,
+        "in": 16678,
+        "out": 62
+      }
+    ]
+  },
+  {
+    "trial": "m6-pair-3-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "display": {
+      "result": "7×8"
+    },
+    "input_trace_complete": false,
+    "requests": 16,
+    "planner_requests": 16,
+    "locator_requests": 0,
+    "planner_tokens": 226204,
+    "locator_tokens": 0,
+    "total_tokens": 226204,
+    "dispatches": [],
+    "gate_blocked": 0,
+    "failure_class": "flow-incomplete (partial input, steps exhausted)",
+    "per_request": [
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 5095,
+        "out": 27
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 5152,
+        "out": 13
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 7327,
+        "out": 330
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9628,
+        "out": 571
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 10246,
+        "out": 26
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 12432,
+        "out": 72
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 14620,
+        "out": 419
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 15087,
+        "out": 55
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 15190,
+        "out": 53
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 15291,
+        "out": 55
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 15394,
+        "out": 24
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 5,
+        "in": 17566,
+        "out": 109
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 6,
+        "in": 19822,
+        "out": 381
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 6,
+        "in": 20251,
+        "out": 53
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 6,
+        "in": 20352,
+        "out": 53
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 6,
+        "in": 20453,
+        "out": 57
+      }
+    ]
+  },
+  {
+    "trial": "m6-pair-3-b-combined",
+    "variant": "B-combined",
+    "passed": true,
+    "stop_reason": null,
+    "display": {
+      "expression": "7×8",
+      "result": "56"
+    },
+    "input_trace_complete": true,
+    "requests": 6,
+    "planner_requests": 6,
+    "locator_requests": 0,
+    "planner_tokens": 67462,
+    "locator_tokens": 0,
+    "total_tokens": 67462,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      },
+      {
+        "name": "click",
+        "succeeded": true,
+        "in_batch": false
+      }
+    ],
+    "gate_blocked": 0,
+    "failure_class": "passed",
+    "per_request": [
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 0,
+        "in": 4740,
+        "out": 27
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 1,
+        "in": 7185,
+        "out": 236
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 2,
+        "in": 9856,
+        "out": 133
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 3,
+        "in": 12425,
+        "out": 129
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 4,
+        "in": 14978,
+        "out": 139
+      },
+      {
+        "role": "planner",
+        "model": "qwen3.7-flash-2026-07-15",
+        "images": 5,
+        "in": 17552,
+        "out": 62
+      }
+    ]
+  }
+]
