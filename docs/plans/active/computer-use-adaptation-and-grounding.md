@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；五个固定单轮入口已齐备，A-control/B-protocol-only/A 单轮 strict 失败、B-host-only 单轮 strict 通过（n=1，未作归因；A 与 A-control 行为等价却结果差异极大，印证必须配对），还剩 B-combined 与 12 个 core trial；M6–M8 待完成，整份计划继续保持 active。
+> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；五个固定单轮入口已齐备，A-control/B-protocol-only/A 单轮 strict 失败、B-host-only 单轮 strict 通过（n=1，未作归因；A 与 A-control 行为等价却结果差异极大，印证必须配对）；静态坐标探针找到两个可修缺陷（非严格解析拒绝数字字符串 48/48；全屏+归一化存在 600 px 级误差模式），还剩 B-combined 与 12 个 core trial；M6–M8 待完成，整份计划继续保持 active。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -1675,6 +1675,36 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 四个已跑单轮的 strict 结果：仅 B-host-only 通过；A/B-protocol-only/A-control 均失败，
   且失败机制各自不同（纵向偏、坐标估错、表达式证据）。剩余 B-combined 与 12 个 core trial
   需新授权；动手前应先处理已登记的受控遮罩误点风险。
+
+### 2026-09-24 — 静态坐标探针：类型违规 100%、取景决定精度
+
+- 用户指出“点遮罩不是根因，要修的是点击坐标，不能靠重试”。先逐层证伪了两个猜测：
+  全屏帧下 `host_restore` 两条路径的换算**数学等价**（`image_size == screen_size`、
+  `crop=(0,0,1920,1080)`）；`crop_pixels_and_upscale` 是**等比**缩放，无各向异性畸变。
+  映射本身两次独立验证正确（代码 + live：B-host-only 的 × 点击派发 (1229,313) vs 真值 (1233,310)）。
+- 新增静态坐标探针 `backend/scripts/probe_real_frame_grounding.py`（复用 `grounding_probe` 的
+  请求构造/解析/打分；不截屏、不点击桌面），证据见
+  [完整报告](../../../backend/benchmarks/computer_use/reports/20260924-m5-static-coordinate-probe/README.md)：
+  在**已复核的受控帧**上单次请求定位 `7/8/=`（真值由按钮面分割 + 局部裁剪图确认：按钮 60×48，
+  列距 66，行距 54），四变体 × 2 重复，`thinking=off`、系统提示词用生产 integrated 合同。
+- **发现一（可修、高收益）：类型违规 48/48（100%）**。模型一律把坐标写成数字字符串
+  （如 `{"x": "539", "y": "287"}`）；而 `GroundingAdapter.parse_response` 无条件要求
+  `type(value) is int`，与 `strict` 开关无关——**比生产 legacy 路径更严**
+  （`normalize_point(strict=False)` 文档明写“numeric strings tolerated”）。被丢掉的第一次回答
+  换算后是 (1037,310)，正是 `7` 按钮（误差 2 px）。这正是用户反对的“重试换姿势”的一大来源；
+  live 单轮里也已出现（B-protocol-only 的 2 次字符串 location 拒绝）。
+- **发现二：取景/协议决定精度**（有效数据 `7/8/=`，n=8/变体）：
+  `full-point` 平均 304.9 px、`=` 偏 **598.6–617.0 px**（4/8 命中）；
+  `crop-point`（绑定 Calculator 窗口并上采样 ≈2.85×）**8/8 命中、平均 1.5 px、最大 2.4 px**；
+  `full-pixels` 8/8 命中、平均 8.3 px；`crop-pixels` 6/8（`7` 偏 210 px）。
+  与 live 现象一致（A/A-control 的全屏 x 偏移 +290…+745 px），且说明“两个改动叠加”反而变差。
+- `×` 行不作结论：目标描述“labeled ×”与科学键盘的 `x²/x³/xʸ/²√x` 视觉相近，加上提示词要求
+  “唯一匹配否则弃权”，模型弃权；live 任务语境（“算 7×8”）下模型确实点中 `×`。
+- 成本如实披露：49 次请求（其中 1 次因脚本序列化 bug 丢弃）、约 161k tokens，`unpriced`；
+  无桌面输入、无真实桌面截图外发（只发已复核受控帧）。
+- 下一步（待授权）：(1) 让非严格解析容忍数字字符串（`strict=True` 仍保留拒绝语义，供 strict 实验）
+  并补先红后绿测试；(2) 取景或协议**二选一**：绑定目标窗口 + 归一化点，或全屏 + 像素制；
+  改完再跑一轮 B-protocol-only 对照，看“首次即被接受”的比例与坐标误差。
 
 ## 9. 最终 Verification Checklist
 
