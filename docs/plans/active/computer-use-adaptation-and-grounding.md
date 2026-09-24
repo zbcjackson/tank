@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；五个固定单轮入口已齐备，A-control/B-protocol-only/A 单轮 strict 失败、B-host-only 单轮 strict 通过（n=1，未作归因；A 与 A-control 行为等价却结果差异极大，印证必须配对）；静态坐标探针找到两个可修缺陷（非严格解析拒绝数字字符串 48/48；全屏+归一化存在 600 px 级误差模式），integrated 路径容错与 P1 像素制已落地并完成单位单因素配对（pixels 1/1 通过、point 0/1 失败，仅差单位），还剩 A、B-combined 与 12 个 core trial；M6–M8 待完成，整份计划继续保持 active。
+> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；五个固定单轮入口已齐备，A-control/B-protocol-only/A 单轮 strict 失败、B-host-only 单轮 strict 通过（n=1，未作归因；A 与 A-control 行为等价却结果差异极大，印证必须配对）；静态坐标探针找到两个可修缺陷（非严格解析拒绝数字字符串 48/48；全屏+归一化存在 600 px 级误差模式），integrated 容错与统一 pixels 适配契约已落地，六个 pilot 已跑完（通过 2/8），阻塞项已从“坐标”转向“遮罩陷阱（8 轮中 4 轮）与粘贴无表达式行”，12 个 core trial 未跑；M6–M8 待完成，整份计划继续保持 active。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -1752,6 +1752,32 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   而是它把窗口纵向范围估小——与本会话早前 A/A-control 的窗口矩形误判同源。
 - 下一步：把这一定稿契约用于剩下的 pilot（A、B-combined）与 pair-1/2/3 的 12 个 core trial；
   每个新轮仍需单独授权。
+
+### 2026-09-24 — 统一 pixels 契约；A 与 B-combined 单轮；遮罩陷阱定成高频阻塞项
+
+- 按用户决定把**适配契约统一为 pixels**：`B-combined`（point→pixels）、`C`、`D`
+  （bbox→pixels，与 C 共用契约使 C→D 只差定位模型/profile）；`A` 保持生产默认（归一化，
+  改它等于改产品行为，属 M8 采用决定）、`A-control`/`B-host-only` 不动、`B-protocol-only`
+  保留为已测负对照。实现提交 `c058b54`；增量核对精确落在三个变体。
+- 新材料 `20260924-m5-pixels-unified-{runtime,proposal,ready}`：18 trials / 378 请求 /
+  5.4M token（声明）、351 文件预检通过、预览 0 模型请求通过。
+- 用户授权后跑完最后两个 pilot（发送前各自复核 `initial.png`），
+  [完整汇总与两轮细节](../../../backend/benchmarks/computer_use/reports/20260924-m5-pilots-summary/README.md)：
+  **A（生产默认，当前代码）0/1**（`validator failed`、末帧 `78`、14 请求/13 步/184128 token）；
+  **B-combined（pixels+restore）0/1**（`validator failed`、末帧 `56` 但缺表达式行、
+  10 请求/9 步/168764 token）。
+- 六臂 pilot 全部跑完，通过率 2/8（B-host-only、B-pixels-only）；失败原因四类：
+  坐标偏移、遮罩陷阱、粘贴路径无表达式行、运算符被忽略（键入 `*` 产生 `78`）。
+- **本轮最重要发现：遮罩陷阱是最高频环境失败源**——8 轮中 **4 轮**踩到（A-control、A 两轮、
+  B-combined）：点击落在窗口之外 → 遮罩抬到目标之上 → 变黑 → 模型必须 `launch_app` 自救；
+  它既与坐标精度相关（污染配对），又因 `check_scope` 豁免 Calculator 而无人报警，
+  最终记成“模型什么都没做”。这正是 `docs/backlog.md` 已登记的条目，现已有 4 次复现，
+  **建议在 12 个 core trial 前处理**（检测目标不可见 → 重新置顶并记事件，或以专门 stop reason 终止）。
+- 次高频：`type_text` 粘贴路径会求值但**不留表达式行**，而 strict 要求屏幕上同时有 `7×8` 与 `56`；
+  工具描述已写明此局限，但模型在点击失败后倾向退回粘贴——需用户三选一：强化说明要求逐键/点击、
+  放宽 strict 为“结果正确即可”、或维持现状但单独归类为“工具路径受限”。
+- 契约结论的诚实边界：静态赛道（48 次独立单帧请求）仍是最可靠的单位证据；live 单臂各 1 次方差很大——
+  同一 pixels 契约下 B-pixels-only 的坐标误差 3–27 px，而 B-combined 的 y 偏 ~75 px 且 x 越出窗口。
 
 ## 9. 最终 Verification Checklist
 
