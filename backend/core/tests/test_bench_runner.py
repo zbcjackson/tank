@@ -1209,3 +1209,91 @@ async def test_trace_labels_compressed_and_already_decoded_bodies(tmp_path, prel
     assert record["body_representation"] == ("httpx_decoded" if preloaded else "httpx_raw")
     assert (tmp_path / record["file"]).read_bytes() == (payload if preloaded else compressed)
     assert "private-header" not in raw
+
+
+def test_ime_lifecycle_from_worker_uses_main_thread_helper(monkeypatch, tmp_path):
+    """The caller thread never owns Carbon handles; restore uses the saved ID."""
+    import concurrent.futures
+
+    from tank_backend.benchmarks import ime
+
+    journal = tmp_path / "calls.jsonl"
+    helper = tmp_path / "ime_helper.py"
+    helper.write_text(
+        "import json, sys, threading\n"
+        "request = json.loads(sys.stdin.read())\n"
+        f"with open({str(journal)!r}, 'a') as out:\n"
+        "    out.write(json.dumps({'request': request, 'main_thread': "
+        "threading.current_thread() is threading.main_thread()}) + '\\n')\n"
+        "source = request.get('source_id', 'original.input.source')\n"
+        "print(json.dumps({'ok': True, 'source_id': source}))\n"
+    )
+    monkeypatch.setattr(ime.sys, "platform", "darwin")
+    monkeypatch.setattr(ime, "_HELPER", helper)
+    monkeypatch.setattr(ime, "_saved_source_id", None)
+
+    def lifecycle():
+        assert ime.save_current_input_source()
+        assert ime.pin_ascii_input_source()
+        assert ime.restore_saved_input_source()
+        assert not ime.restore_saved_input_source()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        pool.submit(lifecycle).result(timeout=10)
+    calls = [json.loads(line) for line in journal.read_text().splitlines()]
+    assert all(call["main_thread"] for call in calls)
+    assert [call["request"] for call in calls] == [
+        {"operation": "current"},
+        {"operation": "pin"},
+        {"operation": "restore", "source_id": "original.input.source"},
+    ]
+
+
+@pytest.mark.parametrize("failure", [
+    "import os, signal; os.kill(os.getpid(), signal.SIGKILL)",
+    "import time; time.sleep(30)",
+    "print('invalid-json')",
+    "print('[]')",
+    "print('{\"ok\": 1, \"source_id\": \"original\"}')",
+    "print('{\"ok\": true, \"source_id\": null}')",
+    "print('{\"ok\": true, \"source_id\": \"wrong\"}')",
+])
+def test_ime_failed_helper_preserves_original_for_recovery(monkeypatch, tmp_path, failure):
+    """Hard process death/timeout/bad readback cannot consume the recovery ID."""
+    from tank_backend.benchmarks import ime
+
+    helper = tmp_path / "helper.py"
+    helper.write_text("print('{\"ok\": true, \"source_id\": \"original\"}')\n")
+    monkeypatch.setattr(ime.sys, "platform", "darwin")
+    monkeypatch.setattr(ime, "_HELPER", helper)
+    monkeypatch.setattr(ime, "_HELPER_TIMEOUT_S", 0.5)
+    monkeypatch.setattr(ime, "_saved_source_id", None)
+    assert ime.save_current_input_source()
+    helper.write_text(failure + "\n")
+    cleanup_ran = False
+    try:
+        assert not ime.restore_saved_input_source()
+    finally:
+        cleanup_ran = True
+    assert cleanup_ran
+    assert ime.save_current_input_source()
+    helper.write_text(
+        "import json, sys\n"
+        "request = json.load(sys.stdin)\n"
+        "assert request == {'operation': 'restore', 'source_id': 'original'}\n"
+        "print('{\"ok\": true, \"source_id\": \"original\"}')\n"
+    )
+    assert ime.restore_saved_input_source()
+    assert not ime.restore_saved_input_source()
+
+
+def test_ime_native_abort_during_pin_keeps_caller_alive(monkeypatch, tmp_path):
+    from tank_backend.benchmarks import ime
+
+    helper = tmp_path / "abort.py"
+    helper.write_text("import os, signal; os.kill(os.getpid(), signal.SIGKILL)\n")
+    monkeypatch.setattr(ime.sys, "platform", "darwin")
+    monkeypatch.setattr(ime, "_HELPER", helper)
+    monkeypatch.setattr(ime, "_saved_source_id", None)
+    assert not ime.pin_ascii_input_source()
+    assert not ime.save_current_input_source()
