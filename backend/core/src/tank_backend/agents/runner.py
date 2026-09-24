@@ -27,6 +27,7 @@ from .subagent import (
     SubAgentContext,
     SubAgentObserver,
     SubAgentRequest,
+    SubAgentStopped,
 )
 from .subagent_adapter import SubAgentAdapter
 
@@ -474,12 +475,25 @@ class AgentRunner:
                         type=AgentOutputType.TOKEN,
                         content=f"\n[Agent '{agent_def.name}' reached "
                                 f"token budget ({tokens_used}/{effective_budget} tokens)]",
+                        metadata={"stop_reason": "budget"},
                     )
                     break
 
                 # Stream all outputs to caller
                 yield output
 
+        except SubAgentStopped as e:
+            # A controlled stop (budget exhaustion, policy) is not an agent
+            # failure: surface it as text plus structured stop metadata so
+            # callers can record the reason without parsing the message.
+            logger.warning(
+                "Agent '%s' (id=%s) stopped: %s", agent_def.name, agent_id, e,
+            )
+            yield AgentOutput(
+                type=AgentOutputType.TOKEN,
+                content=f"\n[Agent '{agent_def.name}' stopped: {e}]",
+                metadata={"stop_reason": e.reason},
+            )
         except Exception as e:
             if agent_def.extension:
                 raise

@@ -602,6 +602,57 @@ async def test_serial_batch_shares_durable_spend_and_refuses_replay(
         )
     assert order == expected_order
 
+async def test_run_batch_forwards_enforced_agent_budget(tmp_path, monkeypatch):
+    """M6 record-only batches can still enforce the agent's token budget."""
+    import hashlib
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from tank_backend.benchmarks import runner
+    from tank_backend.benchmarks.batch import BatchTrial, run_batch
+    from tank_backend.benchmarks.driver import SubAgentDriver
+    from tank_backend.benchmarks.frozen_inputs import FrozenFile, FrozenInputs
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.spend_ledger import SpendLimit
+
+    suite = _make_suite(tmp_path)
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("offline fixture")
+    frozen = FrozenInputs(tuple(
+        FrozenFile(path, hashlib.sha256(path.read_bytes()).hexdigest())
+        for path in (config_path, suite / "suite.yaml", *sorted((suite / "tasks").glob("*.yaml")))
+    ))
+    seen = []
+
+    def create(agent_name, config_path, *, request_limits, spend, comparison=None,
+               input_cleanup=False, enforce_agent_budget=False):
+        seen.append(enforce_agent_budget)
+
+        class Driver:
+            async def run(self, instruction, trace, *, timeout_s, max_steps):
+                return DriverResult("done", 1, 0.1, 5, 0, False, None)
+
+        return Driver()
+
+    monkeypatch.setattr(SubAgentDriver, "create", create)
+    monkeypatch.setattr(runner, "run_shell", AsyncMock(return_value=SimpleNamespace(stdout="")))
+    for name in (
+        "save_current_input_source", "pin_ascii_input_source", "restore_saved_input_source",
+    ):
+        monkeypatch.setattr(runner, name, lambda: None)
+    entries = (BatchTrial("only", suite, "t1", "only", config_path, "linux"),)
+    await run_batch(
+        entries, out_dir=tmp_path / "out",
+        batch_limit=SpendLimit(0, 0), trial_limit=SpendLimit(0, 0),
+        request_limits=RequestLimits(), contracts=(), batch_request_limit=1,
+        frozen_inputs=frozen, record_only=True, enforce_agent_budget=True,
+    )
+    assert seen == [True]
+    plan = json.loads((tmp_path / "out" / "batch-plan.json").read_text())
+    assert plan["record_only"] is True
+    assert plan["enforce_agent_budget"] is True
+
+
 @pytest.mark.parametrize("invalid", ["empty", "duplicate", "key", "task", "platform"])
 async def test_serial_batch_preflight_refuses_invalid_schedule(tmp_path, monkeypatch, invalid):
     from dataclasses import replace

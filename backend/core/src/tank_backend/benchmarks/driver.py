@@ -388,6 +388,7 @@ class SubAgentDriver:
         spend: SpendControl | None = None,
         comparison: ComparisonContract | None = None,
         input_cleanup: bool = False,
+        enforce_agent_budget: bool = False,
     ) -> SubAgentDriver:
         """Assemble the stack from repo config (config.yaml + agents/*.md)."""
         from dotenv import load_dotenv
@@ -420,7 +421,7 @@ class SubAgentDriver:
         if comparison is not None:
             comparison.verify(app_config, agent_def)
         configured_token_budget = agent_def.token_budget
-        if spend is not None and spend.ledger.record_only:
+        if spend is not None and spend.ledger.record_only and not enforce_agent_budget:
             agent_def = replace(agent_def, token_budget=0)
 
         profile_name = agent_def.model or app_config.agents.llm_profile
@@ -536,6 +537,8 @@ class SubAgentDriver:
         driver._runtime_metadata.update(
             input_cleanup=input_cleanup,
             budget_record_only=bool(spend is not None and spend.ledger.record_only),
+            agent_budget_enforced=bool(
+                spend is not None and spend.ledger.record_only and enforce_agent_budget),
             configured_token_budget=configured_token_budget,
         )
 
@@ -725,6 +728,13 @@ class SubAgentDriver:
                             primitives += 1
                     elif output.type == AgentOutputType.TOKEN and output.content:
                         token_parts.append(output.content)
+                        reason = output.metadata.get("stop_reason")
+                        if reason:
+                            # Controlled termination (e.g. shared token budget)
+                            # reported by the runner; keep it distinguishable
+                            # from generic agent errors in reports.
+                            terminal["stop_reason"] = reason
+                            stopped_reason = output.content.strip()
                     if output.type == AgentOutputType.DONE:
                         terminal.update(output.metadata)
                     if output.type != AgentOutputType.USAGE:

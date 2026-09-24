@@ -552,6 +552,240 @@ async def test_core_trials_stop_on_proposal_drift(runtime_bundle, monkeypatch):
     execute.assert_not_called()
 
 
+async def test_record_only_enforced_agent_budget_stops_planner_loop(
+    runtime_bundle, monkeypatch,
+):
+    """M6 calc trials keep the shared 300000 budget while the ledger only records."""
+    from unittest.mock import Mock
+
+    import httpx
+    from openai import AsyncOpenAI
+
+    from tank_backend.benchmarks import driver as module
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.spend_http import SpendControl
+    from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit
+    from tank_backend.benchmarks.trace import TraceSink
+    from tank_backend.llm import llm as llm_module
+    from tank_backend.tools import computer_use_macos as macos
+    from tank_backend.tools.groups import ComputerUseToolGroup
+    from tank_backend.tools.manager import ToolManager
+
+    manager = ToolManager.__new__(ToolManager)
+    manager.tools = {t.get_info().name: t for t in ComputerUseToolGroup()._create_macos_tools()}
+    manager.tool_metadata = {name: tool.get_metadata() for name, tool in manager.tools.items()}
+    manager._media_store = manager._bus = None
+    from tank_backend.agents.approval import ToolApprovalPolicy
+    manager._approval_policy = ToolApprovalPolicy(computer_mode="allow")
+    manager.set_session_id("offline")
+    host = Mock(side_effect=AssertionError("Host access is forbidden"))
+    for name in ("_load_quartz", "_capture_screenshot_macos", "_click_macos"):
+        monkeypatch.setattr(macos, name, host)
+    monkeypatch.setattr(module, "ToolManager", lambda *args, **kwargs: manager)
+    monkeypatch.setattr(module, "disable_langfuse_tracing", lambda: None)
+    monkeypatch.setattr(llm_module, "initialize_langfuse", lambda: None)
+    monkeypatch.setattr(llm_module, "is_tracing_registered", lambda: False)
+    bodies, clients = [], []
+
+    def respond(request):
+        bodies.append(json.loads(request.content))
+        call = {"id": f"offline-{len(bodies)}", "object": "chat.completion.chunk",
+                "created": 1, "model": bodies[-1]["model"],
+                "choices": [{"index": 0, "delta": {"tool_calls": [{
+                    "index": 0, "id": f"call-{len(bodies)}", "type": "function",
+                    "function": {"name": "screenshot", "arguments": "{}"}}]},
+                    "finish_reason": None}]}
+        finish = {"id": f"offline-{len(bodies)}", "object": "chat.completion.chunk",
+                  "created": 1, "model": bodies[-1]["model"],
+                  "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
+                  "usage": {"prompt_tokens": 190000, "completion_tokens": 10000,
+                            "total_tokens": 200000}}
+        return httpx.Response(200, content="".join(
+            f"data: {json.dumps(chunk)}\n\n" for chunk in (call, finish)) + "data: [DONE]\n\n")
+
+    def client_factory(**kwargs):
+        client = AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(respond)))
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(llm_module, "AsyncOpenAI", client_factory)
+    trace = TraceSink(runtime_bundle.parent / "trial-budget-planner")
+    ledger = SpendLedger(SpendLimit(0, 0), record_only=True)
+    spend = SpendControl(ledger, SpendLimit(0, 0), ())
+    try:
+        driver = module.SubAgentDriver.create(
+            "computer_use", runtime_bundle / "runtime/a/config.yaml",
+            request_limits=RequestLimits(), spend=spend, enforce_agent_budget=True,
+        )
+        assert driver.describe()["token_budget"] == 300000
+        assert driver.describe()["agent_budget_enforced"] is True
+        result = await driver.run("Keep screenshotting", trace, timeout_s=5, max_steps=6)
+        assert len(bodies) == 2, "the shared budget must stop the third request"
+        assert "token budget" in result.final_text
+        assert result.stop_reason != "request_limit"
+        assert ledger.snapshot()["batch"]["known_tokens"] == 400000
+        assert ledger.snapshot()["stop_reason"] is None
+    finally:
+        trace.close()
+        for client in clients:
+            await client.close()
+    # Only the first request's screenshot dispatches; the budget stops the rest.
+    assert host.call_count == 1
+
+
+async def test_record_only_enforced_agent_budget_stops_grounded_context(
+    runtime_bundle, monkeypatch,
+):
+    """Split arms stop through the shared context budget (planner + locator)."""
+    from unittest.mock import Mock
+
+    import httpx
+    from openai import AsyncOpenAI
+
+    from tank_backend.benchmarks import driver as module
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.spend_http import SpendControl
+    from tank_backend.benchmarks.spend_ledger import SpendLedger, SpendLimit
+    from tank_backend.benchmarks.trace import TraceSink
+    from tank_backend.llm import llm as llm_module
+    from tank_backend.tools import computer_use_macos as macos
+    from tank_backend.tools.groups import ComputerUseToolGroup
+    from tank_backend.tools.manager import ToolManager
+
+    manager = ToolManager.__new__(ToolManager)
+    manager.tools = {t.get_info().name: t for t in ComputerUseToolGroup()._create_macos_tools()}
+    manager.tool_metadata = {name: tool.get_metadata() for name, tool in manager.tools.items()}
+    manager._media_store = manager._bus = None
+    from tank_backend.agents.approval import ToolApprovalPolicy
+    manager._approval_policy = ToolApprovalPolicy(computer_mode="allow")
+    manager.set_session_id("offline")
+    host = Mock(side_effect=AssertionError("Host access is forbidden"))
+    for name in ("_load_quartz", "_capture_screenshot_macos", "_click_macos"):
+        monkeypatch.setattr(macos, name, host)
+    monkeypatch.setattr(module, "ToolManager", lambda *args, **kwargs: manager)
+    monkeypatch.setattr(module, "disable_langfuse_tracing", lambda: None)
+    monkeypatch.setattr(llm_module, "initialize_langfuse", lambda: None)
+    monkeypatch.setattr(llm_module, "is_tracing_registered", lambda: False)
+    bodies, clients = [], []
+
+    def respond(request):
+        bodies.append(json.loads(request.content))
+        call = {"id": f"offline-{len(bodies)}", "object": "chat.completion.chunk",
+                "created": 1, "model": bodies[-1]["model"],
+                "choices": [{"index": 0, "delta": {"tool_calls": [{
+                    "index": 0, "id": f"call-{len(bodies)}", "type": "function",
+                    "function": {"name": "screenshot", "arguments": "{}"}}]},
+                    "finish_reason": None}]}
+        finish = {"id": f"offline-{len(bodies)}", "object": "chat.completion.chunk",
+                  "created": 1, "model": bodies[-1]["model"],
+                  "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
+                  "usage": {"prompt_tokens": 190000, "completion_tokens": 10000,
+                            "total_tokens": 200000}}
+        return httpx.Response(200, content="".join(
+            f"data: {json.dumps(chunk)}\n\n" for chunk in (call, finish)) + "data: [DONE]\n\n")
+
+    def client_factory(**kwargs):
+        client = AsyncOpenAI(**kwargs, http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(respond)))
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(llm_module, "AsyncOpenAI", client_factory)
+    trace = TraceSink(runtime_bundle.parent / "trial-budget-context")
+    ledger = SpendLedger(SpendLimit(0, 0), record_only=True)
+    spend = SpendControl(ledger, SpendLimit(0, 0), ())
+    try:
+        driver = module.SubAgentDriver.create(
+            "computer_use", runtime_bundle / "runtime/d/config.yaml",
+            request_limits=RequestLimits(), spend=spend, enforce_agent_budget=True,
+        )
+        assert driver.describe()["token_budget"] == 300000
+        result = await driver.run("Keep screenshotting", trace, timeout_s=5, max_steps=6)
+        assert len(bodies) == 2, "the shared context budget must stop the third request"
+        assert result.stop_reason == "budget"
+        assert "300000" in (result.error or "")
+        assert ledger.snapshot()["batch"]["known_tokens"] == 400000
+        assert ledger.snapshot()["stop_reason"] is None
+    finally:
+        trace.close()
+        for client in clients:
+            await client.close()
+    # Only the first request's screenshot dispatches; the budget stops the rest.
+    assert host.call_count == 1
+
+
+async def test_m6_calc_schedule_fixes_pairs_and_enforces_agent_budget(
+    runtime_bundle, monkeypatch,
+):
+    """The M6 calc proposal: 3 pairs x 4 arms, record-only ledger, enforced budget."""
+    from tank_backend.benchmarks import batch
+
+    api = runpy.run_path(str(Path(__file__).resolve().parents[2]
+                             / "scripts/prepare_computer_batch.py"))
+    proposal_dir = runtime_bundle.parent / "m6-proposal"
+    api["prepare_m6_calc"](runtime_bundle, proposal_dir)
+    proposal_path = proposal_dir / "proposal.json"
+    proposal = json.loads(proposal_path.read_text())
+    m6_phases = ("m6-pair-1", "m6-pair-2", "m6-pair-3")
+    rows = [row for row in proposal["trials"] if row["phase"] in m6_phases]
+    assert len(rows) == 12
+    assert proposal["record_only"] is True
+    assert proposal["enforce_agent_budget"] is True
+    assert proposal["core_requires_pilot_acceptance"] is True
+    variants = [row["variant"] for row in rows]
+    assert set(variants) == {"A", "B-combined", "C", "D"}
+    assert all(row["task_id"] == "calc-open" for row in rows)
+    assert all(row["timeout_s"] == 120 and row["max_steps"] == 15 for row in rows)
+    assert all(row["tokens"] == 300000 for row in rows)
+    for row in rows:
+        locator = 15 if row["variant"] in {"C", "D"} else 0
+        assert row["request_limits"] == {"planner": 16, "locator": locator,
+                                         "total": 16 + locator}
+    preflight = api["preflight_m6_calc"](runtime_bundle, proposal_path)
+    assert preflight["offline_checks_passed"] is True
+    assert preflight["effective_agent_token_budget"] == 300000
+    assert preflight["token_cost_gate"] == "record-only"
+    calls: list[tuple[str, dict]] = []
+
+    async def run_batch(entries, **kwargs):
+        calls.append((entries[0].key, kwargs))
+        return {"completed": [entries[0].key], "spend": {}}
+
+    monkeypatch.setattr(batch, "run_batch", run_batch)
+    output = runtime_bundle.parent / "m6-out"
+    with pytest.raises(ValueError, match="authorization"):
+        await api["execute_m6_calc_trials"](runtime_bundle, proposal_path, output)
+    assert calls == []
+    with pytest.raises(ValueError, match="pilot"):
+        await api["execute_m6_calc_trials"](runtime_bundle, proposal_path, output,
+                                           live_authorized=True)
+    assert calls == []
+    await api["execute_m6_calc_trials"](runtime_bundle, proposal_path, output,
+                                       live_authorized=True, pilot_acceptance="recorded")
+    assert [key for key, _ in calls] == [row["key"] for row in rows]
+    for (_, kwargs) in calls:
+        assert kwargs["record_only"] is True
+        assert kwargs["enforce_agent_budget"] is True
+        assert kwargs["input_cleanup"] is True
+    record = json.loads((output / "m6-result.json").read_text())
+    assert record["pilot_acceptance"] == "recorded"
+    assert record["enforce_agent_budget"] is True
+    assert len(record["completed"]) == 12
+    # Drift in the fixed schedule is refused before any execution.
+    drifted = json.loads(proposal_path.read_text())
+    drifted["trials"][0]["tokens"] = 999999
+    drift_path = runtime_bundle.parent / "m6-drift"
+    drift_path.mkdir()
+    (drift_path / "proposal.json").write_text(json.dumps(drifted))
+    calls.clear()
+    with pytest.raises(ValueError):
+        await api["execute_m6_calc_trials"](runtime_bundle, drift_path / "proposal.json",
+                                           runtime_bundle.parent / "m6-drift-out",
+                                           live_authorized=True, pilot_acceptance="recorded")
+    assert calls == []
+
+
 @pytest.mark.parametrize("entry,variant,protocol,host_restore", PILOT_ENTRIES)
 async def test_single_pilot_entry_preserves_scope_and_cleanup(
     runtime_bundle, monkeypatch, entry, variant, protocol, host_restore,

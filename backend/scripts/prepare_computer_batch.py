@@ -23,6 +23,9 @@ BACKEND = Path(__file__).resolve().parents[1]
 SUITE = BACKEND / "benchmarks/computer_use"
 # Mirrors the pair rounds in _spec(); core execution refuses anything else.
 CORE_PHASES = ("pair-1", "pair-2", "pair-3", "pair-4", "pair-5", "pair-6")
+# M6 calc acceptance: the same four arms, three paired rounds, with the shared
+# agent token budget enforced while the ledger stays record-only.
+M6_CALC_PHASES = ("m6-pair-1", "m6-pair-2", "m6-pair-3")
 # Only live scope/endpoint authorization still gates a run: the independent
 # validator, the live environment plus verified cleanup, and the recorded pilot
 # acceptance decision were all satisfied by the 2026-09-24 batches (see the M5
@@ -70,6 +73,35 @@ def _spec(freeze: Path) -> dict[str, Any]:
     }
 
 
+def _calc_row(freeze: Path, phase: str, variant: str) -> dict[str, Any]:
+    locator = 15 if variant in {"C", "D"} else 0
+    return {
+        "key": f"{phase}-{variant.lower()}", "phase": phase, "variant": variant,
+        "suite_dir": _relative(SUITE), "task_id": "calc-open", "platform": "macos",
+        "agent_name": "computer_use",
+        "config_path": _relative(freeze / "runtime" / variant.lower() / "config.yaml"),
+        "request_limits": {"planner": 16, "locator": locator, "total": 16 + locator},
+        "tokens": 300000, "timeout_s": 120, "max_steps": 15,
+    }
+
+
+def _m6_calc_spec(freeze: Path) -> dict[str, Any]:
+    rounds = [
+        ("m6-pair-1", ["A", "B-combined", "C", "D"]),
+        ("m6-pair-2", ["B-combined", "C", "D", "A"]),
+        ("m6-pair-3", ["C", "D", "A", "B-combined"]),
+    ]
+    trials = [_calc_row(freeze, phase, variant) for phase, variants in rounds
+              for variant in variants]
+    return {
+        "schema_version": 4, "live_authorized": False, "record_only": True,
+        "enforce_agent_budget": True, "input_cleanup": True,
+        "freeze_dir": _relative(freeze), "budget_nano_usd": 8000000000,
+        "batch_tokens": 3600000, "batch_requests": 282,
+        "core_requires_pilot_acceptance": True, "trials": trials,
+    }
+
+
 def _required(freeze: Path) -> tuple[set[Path], FrozenInputs]:
     manifest = json.loads((freeze / "manifest.json").read_text())
     evidence = FrozenInputs(tuple(
@@ -84,16 +116,8 @@ def _required(freeze: Path) -> tuple[set[Path], FrozenInputs]:
     return required, evidence
 
 
-def preflight(freeze: Path, proposal_path: Path) -> dict[str, Any]:
-    """Verify saved pins and resolved inputs without clients, shell, IME or scoring."""
-    proposal = json.loads(proposal_path.read_text())
-    pins = proposal.pop("files")
-    if proposal != _spec(freeze):
-        raise ValueError("Batch proposal differs from the fixed M5 schedule or limits")
-    required, evidence = _required(freeze)
-    frozen = FrozenInputs(tuple(FrozenFile(BACKEND / name, digest) for name, digest in pins.items()))
-    frozen.verify(required)
-    evidence.verify()
+def _verify_proposal_runtime(freeze: Path, proposal: dict[str, Any]) -> dict[str, Any]:
+    """Shared offline checks: resolved configs, task limits, declared totals."""
     suite = load_suite(SUITE / "suite.yaml")
     tasks = [task for task in load_suite_tasks(SUITE / "tasks", "macos", suite.defaults)
              if task.id == "calc-open"]
@@ -110,8 +134,10 @@ def preflight(freeze: Path, proposal_path: Path) -> dict[str, Any]:
             config = AppConfig.load(runtime / "config.yaml")
         definition = load_agent_definitions([runtime / "agents"])["computer_use"]
         ComparisonContract(freeze, variant).verify(config, definition)
+        if definition.token_budget != 300000:
+            raise ValueError("Calc trials require the configured 300000 shared budget")
     rows = proposal["trials"]
-    totals = {
+    return {
         "trials": len(rows),
         "planner_requests": sum(row["request_limits"]["planner"] for row in rows),
         "locator_requests": sum(row["request_limits"]["locator"] for row in rows),
@@ -121,11 +147,43 @@ def preflight(freeze: Path, proposal_path: Path) -> dict[str, Any]:
         "tokens": sum(row["tokens"] for row in rows),
         "task_seconds": sum(row["timeout_s"] for row in rows),
     }
+
+
+def preflight(freeze: Path, proposal_path: Path) -> dict[str, Any]:
+    """Verify saved pins and resolved inputs without clients, shell, IME or scoring."""
+    proposal = json.loads(proposal_path.read_text())
+    pins = proposal.pop("files")
+    if proposal != _spec(freeze):
+        raise ValueError("Batch proposal differs from the fixed M5 schedule or limits")
+    required, evidence = _required(freeze)
+    frozen = FrozenInputs(tuple(FrozenFile(BACKEND / name, digest) for name, digest in pins.items()))
+    frozen.verify(required)
+    evidence.verify()
+    totals = _verify_proposal_runtime(freeze, proposal)
     return {
         "offline_checks_passed": True, "live_ready": False, "totals": totals,
         "blockers": BLOCKERS, "checked_files": len(pins),
         "token_cost_gate": "disabled", "effective_agent_token_budget": 0,
         "input_cleanup": True,
+    }
+
+
+def preflight_m6_calc(freeze: Path, proposal_path: Path) -> dict[str, Any]:
+    """Offline checks for the M6 calc acceptance batch (budget enforced)."""
+    proposal = json.loads(proposal_path.read_text())
+    pins = proposal.pop("files")
+    if proposal != _m6_calc_spec(freeze):
+        raise ValueError("Batch proposal differs from the fixed M6 calc schedule or limits")
+    required, evidence = _required(freeze)
+    frozen = FrozenInputs(tuple(FrozenFile(BACKEND / name, digest) for name, digest in pins.items()))
+    frozen.verify(required)
+    evidence.verify()
+    totals = _verify_proposal_runtime(freeze, proposal)
+    return {
+        "offline_checks_passed": True, "live_ready": False, "totals": totals,
+        "blockers": BLOCKERS, "checked_files": len(pins),
+        "token_cost_gate": "record-only", "effective_agent_token_budget": 300000,
+        "input_cleanup": True, "enforce_agent_budget": True,
     }
 
 
@@ -342,6 +400,63 @@ async def _execute_pilot(
     )
 
 
+async def execute_m6_calc_trials(
+    freeze: Path, proposal_path: Path, output: Path, *, live_authorized: bool = False,
+    pilot_acceptance: str | None = None,
+) -> list[BatchResult]:
+    """Run the M6 calc acceptance trials: same limits, budget enforced.
+
+    The M5 core trials ran with the agent token budget zeroed (record-only). M6
+    re-runs the four arms with the shared 300000 budget active, so a runaway arm
+    stops on budget instead of consuming until max_steps. Everything else —
+    pairing order, per-row request limits, cleanup, ledger — stays identical.
+    """
+    if live_authorized is not True:
+        raise ValueError("Explicit live screenshot/endpoint authorization is required")
+    if not pilot_acceptance:
+        raise ValueError("M6 calc trials require a recorded pilot acceptance decision")
+    proposal_bytes = proposal_path.read_bytes()
+    preflight_m6_calc(freeze, proposal_path)
+    if proposal_path.read_bytes() != proposal_bytes:
+        raise ValueError("Proposal changed during preflight")
+    proposal = json.loads(proposal_bytes)
+    if proposal.get("core_requires_pilot_acceptance") is not True:
+        raise ValueError("Proposal does not bind core trials to pilot acceptance")
+    rows = [row for row in proposal["trials"] if row["phase"] in M6_CALC_PHASES]
+    expected = [row for row in _m6_calc_spec(freeze)["trials"]
+                if row["phase"] in M6_CALC_PHASES]
+    if len(rows) != len(expected):
+        raise ValueError(f"Expected {len(expected)} scheduled M6 calc trials, found {len(rows)}")
+    files = tuple(FrozenFile(BACKEND / name, digest)
+                  for name, digest in proposal["files"].items())
+    files += (FrozenFile(proposal_path, hashlib.sha256(proposal_bytes).hexdigest()),)
+    from tank_backend.benchmarks.batch import BatchTrial, run_batch
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.spend_ledger import SpendLimit
+
+    results: list[BatchResult] = []
+    output.mkdir(parents=True, exist_ok=False)
+    for row in rows:
+        trial_dir = output / row["key"]
+        results.append(await run_batch(
+            (BatchTrial(row["key"], BACKEND / row["suite_dir"], row["task_id"],
+                        row["agent_name"], BACKEND / row["config_path"], row["platform"],
+                        ComparisonContract(freeze, row["variant"])),),
+            out_dir=trial_dir,
+            batch_limit=SpendLimit(row["tokens"], proposal["budget_nano_usd"]),
+            trial_limit=SpendLimit(row["tokens"], proposal["budget_nano_usd"]),
+            request_limits=RequestLimits(**row["request_limits"]), contracts=(),
+            batch_request_limit=row["request_limits"]["total"],
+            frozen_inputs=FrozenInputs(files, trees=(freeze / "runtime",)),
+            record_only=True, input_cleanup=True, enforce_agent_budget=True,
+        ))
+    (output / "m6-result.json").write_text(json.dumps(
+        {"pilot_acceptance": pilot_acceptance, "enforce_agent_budget": True,
+         "completed": [row["key"] for row in rows], "batches": results},
+        indent=2, default=str) + "\n")
+    return results
+
+
 def prepare(freeze: Path, output: Path) -> None:
     required, evidence = _required(freeze)
     evidence.verify()
@@ -354,6 +469,21 @@ def prepare(freeze: Path, output: Path) -> None:
     path = output / "proposal.json"
     path.write_text(json.dumps(proposal, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
     report = preflight(freeze, path)
+    (output / "preflight.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+
+
+def prepare_m6_calc(freeze: Path, output: Path) -> None:
+    required, evidence = _required(freeze)
+    evidence.verify()
+    proposal = _m6_calc_spec(freeze)
+    proposal["files"] = {
+        _relative(path): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(required)
+    }
+    output.mkdir(parents=True, exist_ok=False)
+    path = output / "proposal.json"
+    path.write_text(json.dumps(proposal, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+    report = preflight_m6_calc(freeze, path)
     (output / "preflight.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
 
 
