@@ -381,11 +381,13 @@ async def test_batch_proposal_preflight_is_offline_and_preserves_budget(
         "A-control", "B-protocol-only", "A", "B-host-only", "B-combined", "B-pixels-only",
         "A", "B-combined", "C", "D", "B-combined", "C", "D", "A",
         "C", "D", "A", "B-combined",
+        "D", "A", "B-combined", "C", "A", "B-combined", "C", "D",
+        "B-combined", "C", "D", "A",
     ]
     assert report["totals"] == {
-        "trials": 18, "planner_requests": 288, "locator_requests": 90,
-        "max_locator_requests": 45, "http_requests": 378,
-        "tokens": 5400000, "task_seconds": 2160,
+        "trials": 30, "planner_requests": 480, "locator_requests": 180,
+        "max_locator_requests": 90, "http_requests": 660,
+        "tokens": 9000000, "task_seconds": 3600,
     }
     assert report["live_ready"] is False
     assert report["token_cost_gate"] == "disabled"
@@ -442,7 +444,7 @@ PILOT_ENTRIES = [
     ("execute_b_combined", "B-combined", "point", True),
     ("execute_b_pixels_only", "B-pixels-only", "pixels", False),
 ]
-CORE_PHASES = ("pair-1", "pair-2", "pair-3")
+CORE_PHASES = ("pair-1", "pair-2", "pair-3", "pair-4", "pair-5", "pair-6")
 
 
 async def test_core_trials_run_the_scheduled_pairs_in_order(runtime_bundle, monkeypatch):
@@ -456,7 +458,7 @@ async def test_core_trials_run_the_scheduled_pairs_in_order(runtime_bundle, monk
     proposal_path = proposal_dir / "proposal.json"
     proposal = json.loads(proposal_path.read_text())
     expected = [row["key"] for row in proposal["trials"] if row["phase"] in CORE_PHASES]
-    assert len(expected) == 12 and proposal["core_requires_pilot_acceptance"] is True
+    assert len(expected) == 24 and proposal["core_requires_pilot_acceptance"] is True
     calls: list[tuple[str, dict]] = []
 
     async def run_batch(entries, **kwargs):

@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 BACKEND = Path(__file__).resolve().parents[1]
 SUITE = BACKEND / "benchmarks/computer_use"
 # Mirrors the pair rounds in _spec(); core execution refuses anything else.
-CORE_PHASES = ("pair-1", "pair-2", "pair-3")
+CORE_PHASES = ("pair-1", "pair-2", "pair-3", "pair-4", "pair-5", "pair-6")
 BLOCKERS = [
     "independent_scoring",
     "real_environment_and_physical_cleanup", "pilot_acceptance_before_core",
@@ -41,6 +41,11 @@ def _spec(freeze: Path) -> dict[str, Any]:
         ("pair-1", ["A", "B-combined", "C", "D"]),
         ("pair-2", ["B-combined", "C", "D", "A"]),
         ("pair-3", ["C", "D", "A", "B-combined"]),
+        # Three more pairs rotate the order again, so each arm ends up with six
+        # trials under one contract; a single pair per arm cannot separate them.
+        ("pair-4", ["D", "A", "B-combined", "C"]),
+        ("pair-5", ["A", "B-combined", "C", "D"]),
+        ("pair-6", ["B-combined", "C", "D", "A"]),
     ]
     trials = []
     for phase, variants in rounds:
@@ -58,7 +63,7 @@ def _spec(freeze: Path) -> dict[str, Any]:
         "schema_version": 3, "live_authorized": False, "record_only": True,
         "input_cleanup": True,
         "freeze_dir": _relative(freeze), "budget_nano_usd": 8000000000,
-        "batch_tokens": 5400000, "batch_requests": 378,
+        "batch_tokens": 9000000, "batch_requests": 660,
         "core_requires_pilot_acceptance": True, "trials": trials,
     }
 
@@ -178,7 +183,7 @@ async def execute_b_pixels_only(
 
 async def execute_core_trials(
     freeze: Path, proposal_path: Path, output: Path, *, live_authorized: bool = False,
-    pilot_acceptance: str | None = None,
+    pilot_acceptance: str | None = None, phases: tuple[str, ...] | None = None,
 ) -> list[BatchResult]:
     """Run the scheduled paired core trials, in order, one batch each.
 
@@ -199,8 +204,10 @@ async def execute_core_trials(
     proposal = json.loads(proposal_bytes)
     if proposal.get("core_requires_pilot_acceptance") is not True:
         raise ValueError("Proposal does not bind core trials to pilot acceptance")
-    rows = [row for row in proposal["trials"] if row["phase"] in CORE_PHASES]
-    expected = [row for row in _spec(freeze)["trials"] if row["phase"] in CORE_PHASES]
+    rows = [row for row in proposal["trials"]
+            if row["phase"] in (phases or CORE_PHASES)]
+    expected = [row for row in _spec(freeze)["trials"]
+                if row["phase"] in (phases or CORE_PHASES)]
     if len(rows) != len(expected):
         raise ValueError(f"Expected {len(expected)} scheduled core trials, found {len(rows)}")
     files = tuple(FrozenFile(BACKEND / name, digest)
