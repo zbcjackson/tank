@@ -1,0 +1,65 @@
+{
+  "status": "infrastructure_abort_SIGTRAP",
+  "authorization": "User explicitly approved this single B-protocol-only trial: 允许",
+  "revision": "ba7de7e",
+  "exit_code": 133,
+  "variant": "B-protocol-only",
+  "model": "qwen3.7-flash-2026-07-15",
+  "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "trials_started": 1,
+  "trials_completed": 0,
+  "http_requests": 5,
+  "http_statuses": [
+    200,
+    200,
+    200,
+    200,
+    200
+  ],
+  "input_tokens": 50477,
+  "output_tokens": 722,
+  "total_tokens": 51199,
+  "cost_status": "unpriced",
+  "record_only": true,
+  "balance_error_observed": false,
+  "unique_sent_images": 4,
+  "image_occurrences": 10,
+  "tool_calls_started": 5,
+  "tool_results_recorded": 4,
+  "last_started_tool": {
+    "ts": 1790219734.097803,
+    "kind": "output",
+    "output_type": "TOOL_EXECUTING",
+    "content": "",
+    "metadata": {
+      "index": 0,
+      "name": "launch_app",
+      "arguments": "{\"app_name\": \"Calculator\"}",
+      "status": "executing",
+      "turn": 5
+    }
+  },
+  "strict_result": null,
+  "automatic_cleanup": "unconfirmed",
+  "recovery": {
+    "automatic_cleanup": "unconfirmed_process_crash",
+    "crashed_pid": 67896,
+    "calculator_at_recovery": {
+      "result": "0"
+    },
+    "keys_before": [],
+    "buttons_before": [],
+    "conversation_app_unhidden": false,
+    "calculator_closed": true,
+    "crashed_process_absent": true,
+    "background_absent": true,
+    "keys_after": [],
+    "buttons_after": [],
+    "hidden_apps_restored": "unknown: pre-run hidden list was only in crashed memory",
+    "cursor_restored": "unknown: original cursor was only in crashed memory",
+    "clipboard_restored": "unknown: saved clipboard was only in crashed memory; trace contains no type_text call",
+    "input_source_restored": "unknown: benchmark context did not exit normally",
+    "conversation_app_visible": true
+  },
+  "next_action": "Repair benchmark IME thread/queue affinity and persist a recoverable desktop baseline before another paid run."
+}

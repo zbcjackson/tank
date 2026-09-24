@@ -1,0 +1,55 @@
+{
+  "procName": "python3.13",
+  "pid": 67896,
+  "captureTime": "2026-09-24 11:15:34.9916 +0800",
+  "exception": {
+    "codes": "0x0000000000000001, 0x00000001816254fc",
+    "rawCodes": [
+      1,
+      6465672444
+    ],
+    "type": "EXC_BREAKPOINT",
+    "signal": "SIGTRAP"
+  },
+  "termination": {
+    "flags": 0,
+    "code": 5,
+    "namespace": "SIGNAL",
+    "indicator": "Trace/BPT trap: 5",
+    "byProc": "exc handler",
+    "byPid": 67896
+  },
+  "faultingThread": 2,
+  "source_filename": "python3.13-2026-09-24-111541.ips",
+  "source_sha256": "aace07d15c3ae2408b72c06dc40d8f6ba77931b78754c7d627d92bbbefe5593a",
+  "faulting_symbols": [
+    "_dispatch_assert_queue_fail",
+    "dispatch_assert_queue$V2.cold.1",
+    "dispatch_assert_queue",
+    "islGetInputSourceListWithAdditions",
+    "TSMGetInputSourceCountWithFilteredAdditions",
+    "TISCreateInputSourceList",
+    "TISCopyInputSourceForLanguage",
+    "ffi_call_SYSV",
+    "ffi_call_int",
+    "ffi_call",
+    "_call_function_pointer",
+    "_ctypes_callproc",
+    "PyCFuncPtr_call",
+    "_PyEval_EvalFrameDefault",
+    "gen_send_ex2",
+    "task_step_impl",
+    "task_step",
+    "task_wakeup",
+    "cfunction_vectorcall_O.llvm.7852052093615117231",
+    "_PyObject_VectorcallTstate",
+    "context_run",
+    "cfunction_vectorcall_FASTCALL_KEYWORDS.llvm.7852052093615117231",
+    "_PyEval_EvalFrameDefault",
+    "method_vectorcall.llvm.1672214386349024786",
+    "thread_run",
+    "pythread_wrapper.llvm.2583100247388489543",
+    "_pthread_start",
+    "thread_start"
+  ]
+}

@@ -1458,6 +1458,23 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   web lint/TS、backend/CLI ruff、改动 Python 文件 pyright、服务日志、docs 与协议同步通过。
   入口实现提交 `901375e`。
 
+### 2026-09-24 — B-protocol-only 原生崩溃及恢复
+
+- [x] 本轮授权和初始原图复核后启动；[原始证据及崩溃摘要](../../../backend/benchmarks/computer_use/reports/20260924-m5-b-protocol-pilot/README.md)
+  已保存，未自动重试或追加 trial。
+- 5 HTTP 全部 200，**50477 输入 + 722 输出 = 51199 tokens**；五条用量均已落盘，
+  无余额不足，金额未核价。第五个 launch_app 未返回即退出 133/SIGTRAP；
+  无正常 result/评分/自动清理记录，归类 infrastructure abort，不能用于协议效果结论。
+- 系统崩溃栈定位至工作线程 Carbon `TISCopyInputSourceForLanguage` 的队列断言；
+  对应 benchmark launch 后 IME 重选路径。cmd+tab 是前序事件，未单独证明因果。
+- 人工恢复检查：按键/鼠标均空、崩溃背景消失、Calculator 关闭、会话应用恢复可见。
+  内存中的原应用显隐/光标/输入法基线丢失，完整恢复保持 unknown，不伪造 confirmed。
+- 下一步先修 IME 线程/队列约束与崩溃后恢复基线，再考虑 B 重试；暂停剩余真实试验。
+  Tests：补本地切换应用/launch 重选复现、子进程硬崩溃恢复及状态持久化验证，
+  最后执行下方完整 Verification Checklist；本轮仅记录证据，无生产代码改动。
+- 回归：backend **5015 passed / 1 skipped**、E2E **16 场景 / 63 步**；其余强制检查通过，
+  pyright N/A。现有测试未覆盖该原生崩溃，不能以回归通过代替修复。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。

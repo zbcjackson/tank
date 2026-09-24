@@ -1,0 +1,20 @@
+{
+  "automatic_cleanup": "unconfirmed_process_crash",
+  "crashed_pid": 67896,
+  "calculator_at_recovery": {
+    "result": "0"
+  },
+  "keys_before": [],
+  "buttons_before": [],
+  "conversation_app_unhidden": false,
+  "calculator_closed": true,
+  "crashed_process_absent": true,
+  "background_absent": true,
+  "keys_after": [],
+  "buttons_after": [],
+  "hidden_apps_restored": "unknown: pre-run hidden list was only in crashed memory",
+  "cursor_restored": "unknown: original cursor was only in crashed memory",
+  "clipboard_restored": "unknown: saved clipboard was only in crashed memory; trace contains no type_text call",
+  "input_source_restored": "unknown: benchmark context did not exit normally",
+  "conversation_app_visible": true
+}
