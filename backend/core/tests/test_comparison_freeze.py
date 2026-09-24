@@ -433,12 +433,18 @@ async def test_batch_proposal_rejects_drift(runtime_bundle, change):
         api["preflight"](runtime_bundle, path)
 
 
-@pytest.mark.parametrize("entry,variant", [
-    ("execute_a_control", "A-control"),
-    ("execute_b_protocol_only", "B-protocol-only"),
-])
+PILOT_ENTRIES = [
+    ("execute_a_control", "A-control", "legacy", False),
+    ("execute_b_protocol_only", "B-protocol-only", "point", False),
+    ("execute_a", "A", None, None),
+    ("execute_b_host_only", "B-host-only", "legacy", True),
+    ("execute_b_combined", "B-combined", "point", True),
+]
+
+
+@pytest.mark.parametrize("entry,variant,protocol,host_restore", PILOT_ENTRIES)
 async def test_single_pilot_entry_preserves_scope_and_cleanup(
-    runtime_bundle, monkeypatch, entry, variant,
+    runtime_bundle, monkeypatch, entry, variant, protocol, host_restore,
 ):
     from unittest.mock import AsyncMock
 
@@ -470,10 +476,14 @@ async def test_single_pilot_entry_preserves_scope_and_cleanup(
     definition = load_agent_definitions([runtime / "agents"])["computer_use"]
     assert definition.model is not None
     assert config.llm_profiles[definition.model].model == "qwen3.7-flash-2026-07-15"
-    assert definition.grounding is not None
-    assert definition.grounding.mode == "integrated"
-    assert definition.grounding.host_restore is False
-    assert definition.grounding.protocol == ("legacy" if variant == "A-control" else "point")
+    if protocol is None:
+        # A keeps the production defaults: no grounding override at all.
+        assert definition.grounding is None
+    else:
+        assert definition.grounding is not None
+        assert definition.grounding.mode == "integrated"
+        assert definition.grounding.host_restore is host_restore
+        assert definition.grounding.protocol == protocol
     kwargs = execute.call_args.kwargs
     assert kwargs["input_cleanup"] is True and kwargs["record_only"] is True
     assert kwargs["batch_request_limit"] == 16
@@ -484,12 +494,9 @@ async def test_single_pilot_entry_preserves_scope_and_cleanup(
 
 
 @pytest.mark.parametrize("change", ["cleanup", "runtime", "proposal_order"])
-@pytest.mark.parametrize("entry,variant", [
-    ("execute_a_control", "A-control"),
-    ("execute_b_protocol_only", "B-protocol-only"),
-])
+@pytest.mark.parametrize("entry,variant,protocol,host_restore", PILOT_ENTRIES)
 async def test_single_pilot_drift_stops_before_batch(
-    runtime_bundle, monkeypatch, change, entry, variant,
+    runtime_bundle, monkeypatch, change, entry, variant, protocol, host_restore,
 ):
     from unittest.mock import AsyncMock
 
@@ -518,9 +525,9 @@ async def test_single_pilot_drift_stops_before_batch(
     execute.assert_not_called()
 
 
-@pytest.mark.parametrize("entry", ["execute_a_control", "execute_b_protocol_only"])
+@pytest.mark.parametrize("entry,variant,protocol,host_restore", PILOT_ENTRIES)
 async def test_single_pilot_rejects_proposal_changed_during_preflight(
-    runtime_bundle, monkeypatch, entry,
+    runtime_bundle, monkeypatch, entry, variant, protocol, host_restore,
 ):
     from unittest.mock import AsyncMock
 

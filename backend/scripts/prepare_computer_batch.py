@@ -137,6 +137,33 @@ async def execute_b_protocol_only(
     )
 
 
+async def execute_a(
+    freeze: Path, proposal_path: Path, output: Path, *, live_authorized: bool = False,
+) -> BatchResult:
+    """Run only the scheduled A pilot; no other entry is executed."""
+    return await _execute_pilot(
+        freeze, proposal_path, output, pilot_index=2, live_authorized=live_authorized,
+    )
+
+
+async def execute_b_host_only(
+    freeze: Path, proposal_path: Path, output: Path, *, live_authorized: bool = False,
+) -> BatchResult:
+    """Run only the scheduled B-host-only pilot; no other entry is executed."""
+    return await _execute_pilot(
+        freeze, proposal_path, output, pilot_index=3, live_authorized=live_authorized,
+    )
+
+
+async def execute_b_combined(
+    freeze: Path, proposal_path: Path, output: Path, *, live_authorized: bool = False,
+) -> BatchResult:
+    """Run only the scheduled B-combined pilot; no other entry is executed."""
+    return await _execute_pilot(
+        freeze, proposal_path, output, pilot_index=4, live_authorized=live_authorized,
+    )
+
+
 async def _execute_pilot(
     freeze: Path, proposal_path: Path, output: Path, *, pilot_index: int, live_authorized: bool,
 ) -> BatchResult:
@@ -152,7 +179,7 @@ async def _execute_pilot(
     if proposal_path.read_bytes() != proposal_bytes:
         raise ValueError("Proposal changed during preflight")
     proposal = json.loads(proposal_bytes)
-    # Only the two fixed public entry points select a row; preflight binds the schedule.
+    # Each fixed public entry point selects one row; preflight binds the schedule.
     row = proposal["trials"][pilot_index]
     files = tuple(FrozenFile(BACKEND / name, digest)
                   for name, digest in proposal["files"].items())
