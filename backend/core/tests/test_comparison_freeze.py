@@ -897,3 +897,108 @@ async def test_single_pilot_rejects_proposal_changed_during_preflight(
             runtime_bundle, path, directory / "live", live_authorized=True,
         )
     execute.assert_not_called()
+
+
+async def test_m6_tasks_schedule_and_per_task_executor(runtime_bundle, monkeypatch):
+    """Item 3: A + C across the macOS tasks, three alternating rounds each."""
+    from tank_backend.benchmarks import batch
+
+    api = runpy.run_path(str(Path(__file__).resolve().parents[2]
+                             / "scripts/prepare_computer_batch.py"))
+    proposal_dir = runtime_bundle.parent / "m6-tasks-proposal"
+    api["prepare_m6_tasks"](runtime_bundle, proposal_dir)
+    proposal_path = proposal_dir / "proposal.json"
+    proposal = json.loads(proposal_path.read_text())
+    rows = proposal["trials"]
+    assert len(rows) == 78  # 13 tasks x 2 arms x 3 rounds; calc-open reuses item 2
+    assert "calc-open" not in {row["task_id"] for row in rows}
+    assert proposal["record_only"] is True
+    assert proposal["enforce_agent_budget"] is True
+    by_task: dict[str, list[dict]] = {}
+    for row in rows:
+        by_task.setdefault(row["task_id"], []).append(row)
+    assert len(by_task) == 13
+    for task_rows in by_task.values():
+        arms = [row["variant"] for row in task_rows]
+        assert arms.count("A") == 3 and arms.count("C") == 3
+        # Each round carries both arms; the first hand alternates per round.
+        for start in (0, 2, 4):
+            assert arms[start] != arms[start + 1]
+        assert [arms[0], arms[2], arms[4]] in (["A", "C", "A"], ["C", "A", "C"])
+        for row in task_rows:
+            locator = 15 if row["variant"] == "C" else 0
+            assert row["request_limits"] == {"planner": 16, "locator": locator,
+                                             "total": 16 + locator}
+            assert row["tokens"] == 300000 and row["max_steps"] == 15
+    preflight = api["preflight_m6_tasks"](runtime_bundle, proposal_path)
+    assert preflight["offline_checks_passed"] is True
+    assert preflight["effective_agent_token_budget"] == 300000
+    calls: list[tuple[str, dict]] = []
+
+    async def run_batch(entries, **kwargs):
+        calls.append((entries[0].key, kwargs))
+        return {"completed": [entries[0].key], "spend": {}}
+
+    monkeypatch.setattr(batch, "run_batch", run_batch)
+    output = runtime_bundle.parent / "m6-tasks-out"
+    with pytest.raises(ValueError, match="authorization"):
+        await api["execute_m6_task_trials"](runtime_bundle, proposal_path, output,
+                                            task_id="browser-navigate")
+    assert calls == []
+    await api["execute_m6_task_trials"](runtime_bundle, proposal_path, output,
+                                        task_id="browser-navigate",
+                                        live_authorized=True, pilot_acceptance="recorded")
+    assert [key for key, _ in calls] == ["browser-navigate-r1-a", "browser-navigate-r1-c",
+                                           "browser-navigate-r2-c", "browser-navigate-r2-a",
+                                           "browser-navigate-r3-a", "browser-navigate-r3-c"]
+    for _, kwargs in calls:
+        assert kwargs["record_only"] is True and kwargs["enforce_agent_budget"] is True
+    record = json.loads((output / "m6-tasks-result.json").read_text())
+    assert record["task_id"] == "browser-navigate" and len(record["completed"]) == 6
+    with pytest.raises(ValueError, match="Unknown task"):
+        await api["execute_m6_task_trials"](runtime_bundle, proposal_path,
+                                            runtime_bundle.parent / "m6-bad",
+                                            task_id="nope", live_authorized=True,
+                                            pilot_acceptance="recorded")
+
+
+async def test_m6_longhistory_manifest(runtime_bundle, monkeypatch):
+    """Item 4: one round per arm at 600s / 60 tools / 60 locates / 300k tokens."""
+    from tank_backend.benchmarks import batch
+
+    api = runpy.run_path(str(Path(__file__).resolve().parents[2]
+                             / "scripts/prepare_computer_batch.py"))
+    proposal_dir = runtime_bundle.parent / "m6-lh-proposal"
+    api["prepare_m6_longhistory"](runtime_bundle, proposal_dir)
+    proposal_path = proposal_dir / "proposal.json"
+    proposal = json.loads(proposal_path.read_text())
+    rows = proposal["trials"]
+    assert len(rows) == 2
+    assert all(row["task_id"] == "long-history" for row in rows)
+    assert [row["variant"] for row in rows] == ["A", "C"]
+    for row in rows:
+        locator = 60 if row["variant"] == "C" else 0
+        assert row["request_limits"]["locator"] == locator
+        assert row["timeout_s"] == 600 and row["max_steps"] == 60
+        assert row["tokens"] == 300000
+    assert proposal["enforce_agent_budget"] is True
+    preflight = api["preflight_m6_longhistory"](runtime_bundle, proposal_path)
+    assert preflight["offline_checks_passed"] is True
+    calls: list[tuple[str, dict]] = []
+
+    async def run_batch(entries, **kwargs):
+        calls.append((entries[0].key, kwargs))
+        return {"completed": [entries[0].key], "spend": {}}
+
+    monkeypatch.setattr(batch, "run_batch", run_batch)
+    with pytest.raises(ValueError, match="authorization"):
+        await api["execute_m6_longhistory"](runtime_bundle, proposal_path,
+                                            runtime_bundle.parent / "lh-out")
+    assert calls == []
+    await api["execute_m6_longhistory"](runtime_bundle, proposal_path,
+                                        runtime_bundle.parent / "lh-out",
+                                        live_authorized=True, pilot_acceptance="recorded")
+    assert [key for key, _ in calls] == ["long-history-r1-a", "long-history-r1-c"]
+    for _, kwargs in calls:
+        assert kwargs["enforce_agent_budget"] is True
+        assert kwargs["record_only"] is True

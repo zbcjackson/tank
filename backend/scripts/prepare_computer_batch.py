@@ -26,6 +26,15 @@ CORE_PHASES = ("pair-1", "pair-2", "pair-3", "pair-4", "pair-5", "pair-6")
 # M6 calc acceptance: the same four arms, three paired rounds, with the shared
 # agent token budget enforced while the ledger stays record-only.
 M6_CALC_PHASES = ("m6-pair-1", "m6-pair-2", "m6-pair-3")
+# Item 3 runs baseline A plus candidate C over the suite's macOS tasks.
+# calc-open already carries three rounds per arm from the M6 calc batch under
+# the same freeze, contract and limits, so it is reused instead of re-run.
+M6_TASKS = ("open-settings", "browser-navigate", "local-form", "typing-fidelity",
+            "file-ops", "terminal-write", "settings-toggle", "editor-save",
+            "links-history", "multi-select-copy", "drag-file", "small-text-code",
+            "window-copy")
+M6_TASK_PHASES = tuple(f"m6-tasks-{name}" for name in M6_TASKS)
+M6_LONGHISTORY_PHASE = "m6-longhistory"
 # Only live scope/endpoint authorization still gates a run: the independent
 # validator, the live environment plus verified cleanup, and the recorded pilot
 # acceptance decision were all satisfied by the 2026-09-24 batches (see the M5
@@ -100,6 +109,159 @@ def _m6_calc_spec(freeze: Path) -> dict[str, Any]:
         "batch_tokens": 3600000, "batch_requests": 282,
         "core_requires_pilot_acceptance": True, "trials": trials,
     }
+
+
+def _m6_tasks_spec(freeze: Path) -> dict[str, Any]:
+    """Item 3: A + C x three alternating rounds over the macOS tasks."""
+    trials = []
+    for name in M6_TASKS:
+        task = _load_task(name)
+        for round_index in (1, 2, 3):
+            arms = ("a", "c") if round_index % 2 else ("c", "a")
+            for arm in arms:
+                locator = 15 if arm == "c" else 0
+                trials.append({
+                    "key": f"{name}-r{round_index}-{arm}",
+                    "phase": f"m6-tasks-{name}", "variant": arm.upper(),
+                    "suite_dir": _relative(SUITE), "task_id": name, "platform": "macos",
+                    "agent_name": "computer_use",
+                    "config_path": _relative(freeze / "runtime" / arm / "config.yaml"),
+                    "request_limits": {"planner": 16, "locator": locator,
+                                        "total": 16 + locator},
+                    "tokens": 300000, "timeout_s": task.timeout_s,
+                    "max_steps": min(task.max_steps, 15),
+                })
+    return {
+        "schema_version": 5, "live_authorized": False, "record_only": True,
+        "enforce_agent_budget": True, "input_cleanup": True,
+        "freeze_dir": _relative(freeze), "budget_nano_usd": 8000000000,
+        "batch_tokens": 23400000, "batch_requests": 1833,
+        "core_requires_pilot_acceptance": True, "trials": trials,
+    }
+
+
+def _m6_longhistory_spec(freeze: Path) -> dict[str, Any]:
+    """Item 4: one round per arm, 600s / 60 tools / 60 locates / 300k tokens."""
+    task = _load_task("long-history")
+    if (task.timeout_s, task.max_steps) != (600, 60):
+        raise ValueError("long-history task must declare 600s / 60 steps")
+    trials = []
+    for arm in ("a", "c"):
+        locator = 60 if arm == "c" else 0
+        trials.append({
+            "key": f"long-history-r1-{arm}", "phase": M6_LONGHISTORY_PHASE,
+            "variant": arm.upper(), "suite_dir": _relative(SUITE),
+            "task_id": "long-history", "platform": "macos", "agent_name": "computer_use",
+            "config_path": _relative(freeze / "runtime" / arm / "config.yaml"),
+            "request_limits": {"planner": 16 + 44, "locator": locator,
+                                "total": 16 + 44 + locator},
+            "tokens": 300000, "timeout_s": 600, "max_steps": 60,
+        })
+    return {
+        "schema_version": 6, "live_authorized": False, "record_only": True,
+        "enforce_agent_budget": True, "input_cleanup": True,
+        "freeze_dir": _relative(freeze), "budget_nano_usd": 8000000000,
+        "batch_tokens": 600000, "batch_requests": 180,
+        "core_requires_pilot_acceptance": True, "trials": trials,
+    }
+
+
+def _load_task(name: str):
+    suite = load_suite(SUITE / "suite.yaml")
+    tasks = [task for task in load_suite_tasks(SUITE / "tasks", "macos", suite.defaults)
+             if task.id == name]
+    if len(tasks) != 1:
+        raise ValueError(f"Unknown task: {name}")
+    return tasks[0]
+
+
+def _verify_scheduled_tasks(proposal: dict[str, Any]) -> None:
+    """Every scheduled task must exist with the limits its rows declare."""
+    by_id = {task.id: task for task in load_suite_tasks(
+        SUITE / "tasks", "macos", load_suite(SUITE / "suite.yaml").defaults)}
+    seen: set[str] = set()
+    for row in proposal["trials"]:
+        task = by_id.get(row["task_id"])
+        if task is None:
+            raise ValueError(f"Unknown task: {row['task_id']}")
+        seen.add(row["task_id"])
+        if row["timeout_s"] != task.timeout_s:
+            raise ValueError(f"Row timeout does not match task {task.id}")
+        if row["max_steps"] != min(task.max_steps, 15 if task.id != "long-history" else 60):
+            raise ValueError(f"Row steps do not match task {task.id}")
+    return None
+
+
+def preflight_m6_tasks(freeze: Path, proposal_path: Path) -> dict[str, Any]:
+    """Offline checks for the item-3 task expansion (A + C, budget enforced)."""
+    proposal = json.loads(proposal_path.read_text())
+    pins = proposal.pop("files")
+    if proposal != _m6_tasks_spec(freeze):
+        raise ValueError("Batch proposal differs from the fixed M6 tasks schedule or limits")
+    required, evidence = _required(freeze)
+    frozen = FrozenInputs(tuple(FrozenFile(BACKEND / name, digest) for name, digest in pins.items()))
+    frozen.verify(required)
+    evidence.verify()
+    _verify_scheduled_tasks(proposal)
+    _verify_variants(freeze, proposal, {"A", "C"})
+    rows = proposal["trials"]
+    return {
+        "offline_checks_passed": True, "live_ready": False,
+        "totals": {
+            "trials": len(rows),
+            "planner_requests": sum(r["request_limits"]["planner"] for r in rows),
+            "locator_requests": sum(r["request_limits"]["locator"] for r in rows),
+            "http_requests": sum(r["request_limits"]["total"] for r in rows),
+            "tokens": sum(r["tokens"] for r in rows),
+            "task_seconds": sum(r["timeout_s"] for r in rows),
+        },
+        "blockers": BLOCKERS, "checked_files": len(pins),
+        "token_cost_gate": "record-only", "effective_agent_token_budget": 300000,
+        "input_cleanup": True, "enforce_agent_budget": True,
+    }
+
+
+def preflight_m6_longhistory(freeze: Path, proposal_path: Path) -> dict[str, Any]:
+    """Offline checks for the item-4 long-history manifest."""
+    proposal = json.loads(proposal_path.read_text())
+    pins = proposal.pop("files")
+    if proposal != _m6_longhistory_spec(freeze):
+        raise ValueError("Batch proposal differs from the fixed M6 long-history manifest")
+    required, evidence = _required(freeze)
+    frozen = FrozenInputs(tuple(FrozenFile(BACKEND / name, digest) for name, digest in pins.items()))
+    frozen.verify(required)
+    evidence.verify()
+    _verify_scheduled_tasks(proposal)
+    _verify_variants(freeze, proposal, {"A", "C"})
+    rows = proposal["trials"]
+    return {
+        "offline_checks_passed": True, "live_ready": False,
+        "totals": {
+            "trials": len(rows),
+            "http_requests": sum(r["request_limits"]["total"] for r in rows),
+            "tokens": sum(r["tokens"] for r in rows),
+            "task_seconds": sum(r["timeout_s"] for r in rows),
+        },
+        "blockers": BLOCKERS, "checked_files": len(pins),
+        "token_cost_gate": "record-only", "effective_agent_token_budget": 300000,
+        "input_cleanup": True, "enforce_agent_budget": True,
+        "compaction": "absent-from-subagent-path",
+    }
+
+
+def _verify_variants(freeze: Path, proposal: dict[str, Any], variants: set[str]) -> None:
+    for variant in dict.fromkeys(row["variant"] for row in proposal["trials"]):
+        if variant not in variants:
+            raise ValueError(f"Unexpected variant: {variant}")
+        runtime = freeze / "runtime" / variant.lower()
+        if (runtime / ".env").exists():
+            raise ValueError("Offline proposal does not accept adjacent credential files")
+        with patch.dict(os.environ, {"M5_DASHSCOPE_API_KEY": "offline-placeholder"}):
+            config = AppConfig.load(runtime / "config.yaml")
+        definition = load_agent_definitions([runtime / "agents"])["computer_use"]
+        ComparisonContract(freeze, variant).verify(config, definition)
+        if definition.token_budget != 300000:
+            raise ValueError("M6 trials require the configured 300000 shared budget")
 
 
 def _required(freeze: Path) -> tuple[set[Path], FrozenInputs]:
@@ -457,6 +619,92 @@ async def execute_m6_calc_trials(
     return results
 
 
+async def _execute_m6_rows(
+    freeze: Path, proposal_path: Path, output: Path, rows: list[dict[str, Any]],
+    proposal: dict[str, Any], *, result_name: str, extra_record: dict[str, Any],
+) -> list[BatchResult]:
+    files = tuple(FrozenFile(BACKEND / name, digest)
+                  for name, digest in proposal["files"].items())
+    files += (FrozenFile(proposal_path, hashlib.sha256(proposal_path.read_bytes()).hexdigest()),)
+    from tank_backend.benchmarks.batch import BatchTrial, run_batch
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.spend_ledger import SpendLimit
+
+    results: list[BatchResult] = []
+    output.mkdir(parents=True, exist_ok=False)
+    for row in rows:
+        results.append(await run_batch(
+            (BatchTrial(row["key"], BACKEND / row["suite_dir"], row["task_id"],
+                        row["agent_name"], BACKEND / row["config_path"], row["platform"],
+                        ComparisonContract(freeze, row["variant"])),),
+            out_dir=output / row["key"],
+            batch_limit=SpendLimit(row["tokens"], proposal["budget_nano_usd"]),
+            trial_limit=SpendLimit(row["tokens"], proposal["budget_nano_usd"]),
+            request_limits=RequestLimits(**row["request_limits"]), contracts=(),
+            batch_request_limit=row["request_limits"]["total"],
+            frozen_inputs=FrozenInputs(files, trees=(freeze / "runtime",)),
+            record_only=True, input_cleanup=True, enforce_agent_budget=True,
+        ))
+    (output / result_name).write_text(json.dumps(
+        {**extra_record, "enforce_agent_budget": True,
+         "completed": [row["key"] for row in rows], "batches": results},
+        indent=2, default=str) + "\n")
+    return results
+
+
+async def execute_m6_task_trials(
+    freeze: Path, proposal_path: Path, output: Path, *, task_id: str,
+    live_authorized: bool = False, pilot_acceptance: str | None = None,
+) -> list[BatchResult]:
+    """Run one task's six scheduled rows (A/C x 3 alternating rounds)."""
+    if live_authorized is not True:
+        raise ValueError("Explicit live screenshot/endpoint authorization is required")
+    if not pilot_acceptance:
+        raise ValueError("M6 task trials require a recorded pilot acceptance decision")
+    proposal_bytes = proposal_path.read_bytes()
+    preflight_m6_tasks(freeze, proposal_path)
+    if proposal_path.read_bytes() != proposal_bytes:
+        raise ValueError("Proposal changed during preflight")
+    proposal = json.loads(proposal_bytes)
+    if proposal.get("core_requires_pilot_acceptance") is not True:
+        raise ValueError("Proposal does not bind core trials to pilot acceptance")
+    rows = [row for row in proposal["trials"] if row["task_id"] == task_id]
+    if not rows:
+        raise ValueError(f"Unknown task: {task_id}")
+    if len(rows) != 6:
+        raise ValueError(f"Expected 6 scheduled rows for {task_id}, found {len(rows)}")
+    return await _execute_m6_rows(
+        freeze, proposal_path, output, rows, proposal,
+        result_name="m6-tasks-result.json",
+        extra_record={"task_id": task_id, "pilot_acceptance": pilot_acceptance},
+    )
+
+
+async def execute_m6_longhistory(
+    freeze: Path, proposal_path: Path, output: Path, *, live_authorized: bool = False,
+    pilot_acceptance: str | None = None,
+) -> list[BatchResult]:
+    """Run the item-4 long-history manifest: one round per arm (A, C)."""
+    if live_authorized is not True:
+        raise ValueError("Explicit live screenshot/endpoint authorization is required")
+    if not pilot_acceptance:
+        raise ValueError("M6 long-history trials require a recorded pilot acceptance decision")
+    proposal_bytes = proposal_path.read_bytes()
+    preflight_m6_longhistory(freeze, proposal_path)
+    if proposal_path.read_bytes() != proposal_bytes:
+        raise ValueError("Proposal changed during preflight")
+    proposal = json.loads(proposal_bytes)
+    rows = [row for row in proposal["trials"] if row["phase"] == M6_LONGHISTORY_PHASE]
+    if len(rows) != 2:
+        raise ValueError("Expected exactly two long-history rows")
+    return await _execute_m6_rows(
+        freeze, proposal_path, output, rows, proposal,
+        result_name="m6-longhistory-result.json",
+        extra_record={"pilot_acceptance": pilot_acceptance,
+                      "compaction": "absent-from-subagent-path"},
+    )
+
+
 def prepare(freeze: Path, output: Path) -> None:
     required, evidence = _required(freeze)
     evidence.verify()
@@ -485,6 +733,29 @@ def prepare_m6_calc(freeze: Path, output: Path) -> None:
     path.write_text(json.dumps(proposal, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
     report = preflight_m6_calc(freeze, path)
     (output / "preflight.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+
+
+def _prepare_generic(freeze: Path, output: Path, spec, preflight_fn) -> None:
+    required, evidence = _required(freeze)
+    evidence.verify()
+    proposal = spec(freeze)
+    proposal["files"] = {
+        _relative(path): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(required)
+    }
+    output.mkdir(parents=True, exist_ok=False)
+    path = output / "proposal.json"
+    path.write_text(json.dumps(proposal, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+    report = preflight_fn(freeze, path)
+    (output / "preflight.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+
+
+def prepare_m6_tasks(freeze: Path, output: Path) -> None:
+    _prepare_generic(freeze, output, _m6_tasks_spec, preflight_m6_tasks)
+
+
+def prepare_m6_longhistory(freeze: Path, output: Path) -> None:
+    _prepare_generic(freeze, output, _m6_longhistory_spec, preflight_m6_longhistory)
 
 
 if __name__ == "__main__":
