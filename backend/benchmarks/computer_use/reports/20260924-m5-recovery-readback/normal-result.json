@@ -1,0 +1,14 @@
+{
+  "child_returncode": 0,
+  "timed_out": false,
+  "recovery": {
+    "inputs_released": true,
+    "calculator_closed": true,
+    "applications_restored": true,
+    "clipboard_restored": true,
+    "cursor_restored": true,
+    "front_restored": true,
+    "input_source_restored": true,
+    "confirmed": true
+  }
+}

@@ -1497,6 +1497,22 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   文档/协议一致性均通过。最初受限沙箱阻止回环端口/tmux/uv 系统配置访问，
   已在本机权限下完成对应检查；无失败测试遗留。
 
+### 2026-09-24 — 桌面恢复回读修复与现场验收
+
+- 用户确认桌面正常，撤回“loginwindow 读数证明锁屏”的推断。历史读数原因仍未证实。
+- AppKit 显隐/运行应用列表缓存需主运行循环刷新；旧检查既可能假失败，也可能
+  假报 Calculator 已关闭。已修复刷新/有界回读，并清理由 probe 启动的遗留 Calculator。
+- Finder 的 launchDate 实测为空；不再静默漏记，使用系统进程启动时间补齐身份，
+  恢复仍校验 PID/bundle/启动身份，拒绝 PID 复用或未知状态。
+- [新现场验收](../../../backend/benchmarks/computer_use/reports/20260924-m5-recovery-readback/README.md)：
+  正常退出、硬退出、超时三类均七项恢复通过；0 模型请求、0 截图。
+  不证明历史 SIGTRAP 已复现、模型成功或 M6 全矩阵通过。
+- Tests：先红后绿新增 5 项，覆盖旧前台缓存刷新、异步显隐与失败不伪造成功、
+  launchDate 缺失及进程身份变化；最后执行下方完整 Verification Checklist。
+- 下一步：刷新源码冻结/提案，以外层恢复入口准备新 B 预览；不复用已消费授权。
+- 完整回归：backend **5036 passed / 1 skipped**、E2E **16 场景 / 63 步**；
+  web lint/tsc、backend/CLI ruff、修改文件 pyright、开发服务器日志、文档及协议检查通过。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。

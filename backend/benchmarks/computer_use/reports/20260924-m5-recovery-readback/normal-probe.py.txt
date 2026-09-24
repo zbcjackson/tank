@@ -1,0 +1,25 @@
+import json, sys
+from pathlib import Path
+from tank_backend.benchmarks.desktop_recovery import supervise
+child = '''
+import json, os, signal, subprocess, sys, time
+import AppKit, Quartz
+from tank_backend.benchmarks import ime
+baseline=json.loads((__import__('pathlib').Path(sys.argv[1])/'baseline.json').read_text())
+board=AppKit.NSPasteboard.generalPasteboard()
+board.clearContents(); board.setString_forType_('Tank local recovery test',AppKit.NSPasteboardTypeString)
+Quartz.CGWarpMouseCursorPosition((baseline['mouse'][0]+20,baseline['mouse'][1]+20))
+front=AppKit.NSRunningApplication.runningApplicationWithProcessIdentifier_(baseline['front_pid'])
+if front and front.bundleIdentifier()!='com.apple.finder': front.hide()
+subprocess.run(['open','-a','Calculator'],check=True)
+time.sleep(.8)
+assert ime.pin_ascii_input_source()
+Quartz.CGEventPost(Quartz.kCGHIDEventTap,Quartz.CGEventCreateKeyboardEvent(None,56,True))
+time.sleep(.1)
+sys.exit(0)
+'''
+state=Path('/tmp/tank-m5-recovery-native-20260924-normal')
+result=supervise([sys.executable,'-c',child,str(state)],state,timeout=20)
+print(json.dumps(result,indent=2))
+assert result['child_returncode']==0
+assert result['recovery']['confirmed']

@@ -1,5 +1,11 @@
 # M5 IME isolation and desktop recovery
 
+Update: the user confirmed a normal desktop; the earlier loginwindow → lock-state
+inference below (and in the historical summary) is withdrawn. Subsequent work
+fixed AppKit state refresh and missing Finder launchDate. Normal, hard-exit and
+timeout recovery now pass; see the [follow-up acceptance](../20260924-m5-recovery-readback/README.md).
+The remaining text records the earlier stage, including its unconfirmed results.
+
 Date: 2026-09-24. Status: IME isolation locally verified; complete desktop recovery
 acceptance pending an unlocked interactive desktop. Zero model requests or screenshots.
 

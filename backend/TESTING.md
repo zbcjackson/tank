@@ -877,4 +877,9 @@ boundaries: durable baseline/PID before execution, restrictive permissions, chil
 exit/timeout/reaping, fsync refusal, failed recovery, accessory foreground apps and
 loginwindow preflight refusal. The [local acceptance record](benchmarks/computer_use/reports/20260924-m5-ime-recovery/README.md)
 confirms native IME calls and application-switch repinning without model requests;
-complete desktop recovery remains unconfirmed pending unlocked-desktop acceptance.
+the initial desktop recovery remained unconfirmed. The subsequent
+[readback correction](benchmarks/computer_use/reports/20260924-m5-recovery-readback/README.md)
+adds five cases for run-loop refresh, delayed/failed visibility restoration,
+missing Finder launchDate and changed process identity. Real normal, hard-exit
+and timeout recovery now pass; historical loginwindow readings do not prove
+lock state. This does not complete the M6 physical stop matrix.

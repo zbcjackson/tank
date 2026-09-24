@@ -503,5 +503,7 @@ Benchmark 的输入源管理通过独立 Python 辅助进程的主线程调用 C
 恢复文件包含剪贴板/应用状态，只存本机私有目录，不作为实验报告附件。入口拒绝
 已有 Calculator 会话、残留输入及 loginwindow 前台；原 launcher 的授权/冻结门禁
 仍须独立通过。外层恢复不重启试验，也不改变 batch 的评分/输入清理字段。
-辅助进程 IME 切换/恢复已本机通过；完整外层桌面恢复验收尚未通过，记录见
-[本地恢复验收](../../backend/benchmarks/computer_use/reports/20260924-m5-ime-recovery/README.md)。
+辅助进程 IME 切换/恢复已本机通过。外层恢复推进主运行循环后有界回读 AppKit
+状态；launchDate 缺失时用系统进程启动时间补齐身份，不以 loginwindow 读数推断锁屏。
+正常退出/硬退出/超时三类本机恢复已通过，记录见
+[回读修复与验收](../../backend/benchmarks/computer_use/reports/20260924-m5-recovery-readback/README.md)。
