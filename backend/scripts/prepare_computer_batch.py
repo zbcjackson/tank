@@ -23,9 +23,11 @@ BACKEND = Path(__file__).resolve().parents[1]
 SUITE = BACKEND / "benchmarks/computer_use"
 # Mirrors the pair rounds in _spec(); core execution refuses anything else.
 CORE_PHASES = ("pair-1", "pair-2", "pair-3", "pair-4", "pair-5", "pair-6")
+# Only live scope/endpoint authorization still gates a run: the independent
+# validator, the live environment plus verified cleanup, and the recorded pilot
+# acceptance decision were all satisfied by the 2026-09-24 batches (see the M5
+# records). Keep this list honest rather than historical.
 BLOCKERS = [
-    "independent_scoring",
-    "real_environment_and_physical_cleanup", "pilot_acceptance_before_core",
     "live_endpoint_and_image_scope_authorization",
 ]
 
@@ -235,6 +237,69 @@ async def execute_core_trials(
         ))
     (output / "core-result.json").write_text(json.dumps(
         {"pilot_acceptance": pilot_acceptance, "completed": [row["key"] for row in rows],
+         "batches": results}, indent=2, default=str) + "\n")
+    return results
+
+
+async def execute_framework_pair(
+    freeze: Path, proposal_path: Path, output: Path, *, live_authorized: bool = False,
+    pilot_acceptance: str | None = None, pairs: int = 6,
+) -> list[BatchResult]:
+    """Run paired A vs A-control trials, swapping which arm goes first each pair.
+
+    Both arms use the same request limits and the same planner, so one batch of two
+    trials per pair keeps them under one ledger and one set of limits. This is the
+    measurement the M5 acceptance asks for: what the comparison framework and its
+    grounding override change, separated from the coordinate-restoration factor.
+    """
+    if live_authorized is not True:
+        raise ValueError("Explicit live screenshot/endpoint authorization is required")
+    if not pilot_acceptance:
+        raise ValueError("Framework trials require a recorded pilot acceptance decision")
+    if type(pairs) is not int or pairs <= 0:
+        raise ValueError("pairs must be a positive integer")
+    proposal_bytes = proposal_path.read_bytes()
+    preflight(freeze, proposal_path)
+    if proposal_path.read_bytes() != proposal_bytes:
+        raise ValueError("Proposal changed during preflight")
+    proposal = json.loads(proposal_bytes)
+    rows = {row["variant"]: row for row in proposal["trials"]
+            if row["phase"] == "pilot" and row["variant"] in {"A", "A-control"}}
+    if set(rows) != {"A", "A-control"}:
+        raise ValueError("Schedule must carry the A and A-control rows")
+    if len({rows[name]["request_limits"]["total"] for name in rows}) != 1:
+        raise ValueError("A and A-control must share one request limit")
+    files = tuple(FrozenFile(BACKEND / name, digest)
+                  for name, digest in proposal["files"].items())
+    files += (FrozenFile(proposal_path, hashlib.sha256(proposal_bytes).hexdigest()),)
+    from tank_backend.benchmarks.batch import BatchTrial, run_batch
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.spend_ledger import SpendLimit
+
+    def entry(row: dict[str, Any], suffix: str) -> BatchTrial:
+        return BatchTrial(f"{row['key']}-{suffix}", BACKEND / row["suite_dir"],
+                          row["task_id"], row["agent_name"],
+                          BACKEND / row["config_path"], row["platform"],
+                          ComparisonContract(freeze, row["variant"]))
+
+    output.mkdir(parents=True, exist_ok=False)
+    results: list[BatchResult] = []
+    for index in range(1, pairs + 1):
+        order = ("A", "A-control") if index % 2 else ("A-control", "A")
+        results.append(await run_batch(
+            tuple(entry(rows[name], f"fw{index}") for name in order),
+            out_dir=output / f"framework-{index}",
+            batch_limit=SpendLimit(rows["A"]["tokens"], proposal["budget_nano_usd"]),
+            trial_limit=SpendLimit(rows["A"]["tokens"], proposal["budget_nano_usd"]),
+            request_limits=RequestLimits(**rows["A"]["request_limits"]), contracts=(),
+            batch_request_limit=rows["A"]["request_limits"]["total"] * 2,
+            frozen_inputs=FrozenInputs(files, trees=(freeze / "runtime",)),
+            record_only=True, input_cleanup=True,
+        ))
+    (output / "framework-result.json").write_text(json.dumps(
+        {"pilot_acceptance": pilot_acceptance, "pairs": pairs,
+         "order": [list(("A", "A-control") if i % 2 else ("A-control", "A"))
+                   for i in range(1, pairs + 1)],
          "batches": results}, indent=2, default=str) + "\n")
     return results
 

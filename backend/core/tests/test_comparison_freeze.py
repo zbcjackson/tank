@@ -487,6 +487,50 @@ async def test_core_trials_run_the_scheduled_pairs_in_order(runtime_bundle, monk
         assert kwargs["trial_limit"].tokens == row["tokens"]
 
 
+async def test_framework_pairs_alternate_a_and_a_control(runtime_bundle, monkeypatch):
+    """A vs A-control: the framework change must be measured on its own."""
+    from tank_backend.benchmarks import batch
+
+    api = runpy.run_path(str(Path(__file__).resolve().parents[2]
+                             / "scripts/prepare_computer_batch.py"))
+    proposal_dir = runtime_bundle.parent / "proposal"
+    api["prepare"](runtime_bundle, proposal_dir)
+    proposal_path = proposal_dir / "proposal.json"
+    calls: list[tuple[list[str], dict]] = []
+
+    async def run_batch(entries, **kwargs):
+        calls.append(([entry.key for entry in entries], kwargs))
+        return {"completed": [entry.key for entry in entries], "spend": {}}
+
+    monkeypatch.setattr(batch, "run_batch", run_batch)
+    output = runtime_bundle.parent / "framework"
+    with pytest.raises(ValueError, match="authorization"):
+        await api["execute_framework_pair"](runtime_bundle, proposal_path, output)
+    assert calls == []
+    with pytest.raises(ValueError, match="pilot"):
+        await api["execute_framework_pair"](runtime_bundle, proposal_path, output,
+                                           live_authorized=True)
+    assert calls == []
+    await api["execute_framework_pair"](runtime_bundle, proposal_path, output,
+                                       live_authorized=True, pilot_acceptance="recorded",
+                                       pairs=4)
+    assert len(calls) == 4
+    for index, (keys, kwargs) in enumerate(calls, start=1):
+        variants = ["A-control" if key.startswith("pilot-a-control") else "A"
+                    for key in keys]
+        assert variants == (["A", "A-control"] if index % 2 else ["A-control", "A"])
+        assert keys[0].endswith(f"fw{index}")
+        assert kwargs["batch_request_limit"] == 32
+        assert kwargs["record_only"] is True and kwargs["input_cleanup"] is True
+        assert kwargs["request_limits"].planner == 16
+        assert kwargs["request_limits"].locator == 0
+    # run_batch is stubbed here, so assert the recorded plan rather than trial dirs.
+    record = json.loads((output / "framework-result.json").read_text())
+    assert record["pairs"] == 4 and record["pilot_acceptance"] == "recorded"
+    assert record["order"] == [["A", "A-control"], ["A-control", "A"],
+                               ["A", "A-control"], ["A-control", "A"]]
+
+
 async def test_core_trials_stop_on_proposal_drift(runtime_bundle, monkeypatch):
     from unittest.mock import AsyncMock
 
