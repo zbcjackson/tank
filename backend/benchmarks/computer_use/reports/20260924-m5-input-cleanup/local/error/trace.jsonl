@@ -1,0 +1,2 @@
+{"ts": 1790215202.791957, "kind": "desktop_cleanup", "keys_before": [55], "buttons_before": [0], "errors": [], "keys_after": [], "buttons_after": [], "confirmed": true}
+{"ts": 1790215202.792408, "kind": "driver_done", "steps": 0, "tokens": 0, "wall_s": 0.2560036670183763, "timed_out": false, "stopped_reason": "RuntimeError: controlled failure", "llm_calls": 0, "llm_ttft_s": null, "llm_call_s": 0.0, "llm_total_s": 0, "stop_reason": "error", "cleanup": "confirmed", "unknown_calls": 0}

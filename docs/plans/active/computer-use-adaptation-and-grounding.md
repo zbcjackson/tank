@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-22。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；M6–M8 待完成，整份计划继续保持 active。
+> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；M6–M8 待完成，整份计划继续保持 active。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -1343,6 +1343,25 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - Tests：backend **4988 passed / 1 skipped**、E2E **16 场景 / 63 步**；
   web lint/TypeScript、backend/CLI ruff、三个改动文件 pyright、实际 backend
   日志、docs 与协议同步通过。实现提交 `978ca00`。
+
+### 2026-09-24 — 自动输入清理接线与本机验收
+
+- [x] built-in macOS driver/create/run_batch 新增显式 `input_cleanup=True`，
+  默认不启用，记录运行 metadata 与 batch plan。Runner 在桌面锁内执行前检查
+  已按下输入；原生操作结束后释放并回读按键/鼠标，仅验证成功才 confirmed。
+- [x] 正常、异常、超时、取消均收尾；清理失败隔离同进程桌面，保留批次停止。
+  外部取消在清理后继续传播。macOS 原生线程及 frame/grounding 收尾处理重复
+  取消，不提前交还桌面。不能强杀挂死线程，实际返回时间可超过名义 timeout。
+- [x] 本机四类确定性试次实际按住 Command(55)/鼠标左键，均验证原生操作
+  已结束及两者已释放；无模型请求/截图外发。
+  [完整证据和范围](../../../backend/benchmarks/computer_use/reports/20260924-m5-input-cleanup/README.md)。
+- confirmed 仅指原生输入收尾和释放。应用输出留给 validator，窗口/剪贴板/
+  光标等恢复仍由 trial/harness 承担；不等于完整 M6 或跨进程清理验收。
+- 下一步更新修复后的 source/config/request 冻结及分阶段执行入口，完成本地
+  preflight 后重新执行 A-control pilot；旧失败证据不可覆盖。
+- Tests：backend **4999 passed / 1 skipped**、E2E **16 场景 / 63 步**；
+  web lint/TypeScript、backend/CLI ruff、11 个改动 Python 文件 pyright、
+  实际 backend 日志、docs 与协议同步通过。实现提交 `7cfcf9c`。
 
 ## 9. 最终 Verification Checklist
 

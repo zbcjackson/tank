@@ -1,0 +1,134 @@
+"""Local-only screenshot preparation. No HTTP or model invocation."""
+import asyncio, base64, hashlib, json, os, subprocess, threading, time
+from pathlib import Path
+import AppKit, Quartz, objc
+from PyObjCTools import AppHelper
+from tank_backend.benchmarks.calc_validator import reset_calculator
+from tank_backend.tools import computer_use_macos as macos
+from tank_backend.core.content import ImageBlock
+
+OUT=Path('/tmp/tank-m5-input-cleanup-20260924'); OUT.mkdir(exist_ok=False)
+app=AppKit.NSApplication.sharedApplication(); app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)
+workspace=AppKit.NSWorkspace.sharedWorkspace(); original_front=workspace.frontmostApplication()
+original_mouse=Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
+hidden=[]
+for other in workspace.runningApplications():
+    if other.activationPolicy()==AppKit.NSApplicationActivationPolicyRegular and not other.isHidden() and other.bundleIdentifier() not in ('com.apple.calculator','com.apple.finder') and other.processIdentifier()!=os.getpid():
+        if other.hide(): hidden.append(other)
+screen=next(s for s in AppKit.NSScreen.screens() if int(s.deviceDescription()['NSScreenNumber'])==int(Quartz.CGMainDisplayID()))
+window=AppKit.NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(screen.frame(), AppKit.NSWindowStyleMaskBorderless, AppKit.NSBackingStoreBuffered, False)
+window.setBackgroundColor_(AppKit.NSColor.blackColor()); window.setOpaque_(True)
+window.setHidesOnDeactivate_(False); window.setCanHide_(False)
+window.setTitle_('Tank M5 controlled background'); window.orderFrontRegardless()
+clipboard=AppKit.NSPasteboard.generalPasteboard()
+saved_clipboard=[[(str(t),bytes(item.dataForType_(t))) for t in item.types() if item.dataForType_(t) is not None] for item in (clipboard.pasteboardItems() or [])]
+original_capture=macos._capture_screenshot_macos
+
+def check_scope():
+    visible=[a for a in workspace.runningApplications() if a.activationPolicy()==AppKit.NSApplicationActivationPolicyRegular and not a.isHidden() and a.bundleIdentifier() not in ('com.apple.calculator','com.apple.finder') and a.processIdentifier()!=os.getpid()]
+    if visible: raise RuntimeError('Visible regular apps: '+','.join(str(a.bundleIdentifier()) for a in visible))
+
+def capture():
+    check_scope(); image=original_capture(); check_scope(); return image
+macos._capture_screenshot_macos=capture
+
+async def pilot():
+    from unittest.mock import MagicMock
+    from tank_backend.agents.runner import AgentRunner
+    from tank_backend.agents.resources import DesktopResource
+    from tank_backend.agents.definition import AgentDefinition
+    from tank_backend.agents.base import AgentOutput, AgentOutputType
+    from tank_backend.benchmarks.driver import SubAgentDriver, CountingLLM
+    from tank_backend.benchmarks.trace import TraceSink
+    from tank_backend.tools.computer_native import run_native
+    rows=[]
+    for ending in ('normal','error','timeout','cancel'):
+        check_scope()
+        runner=AgentRunner.__new__(AgentRunner)
+        runner._desktop_resource=DesktopResource()
+        runner._uses_desktop=lambda _:True
+        entered=asyncio.Event()
+        loop=asyncio.get_running_loop()
+        native_ended=[]
+        def press():
+            Quartz.CGWarpMouseCursorPosition((100,900))
+            macos._mouse_button_macos('left',True)
+            event=Quartz.CGEventCreateKeyboardEvent(None,55,True)
+            Quartz.CGEventSetFlags(event,Quartz.kCGEventFlagMaskCommand)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap,event)
+            loop.call_soon_threadsafe(entered.set)
+            time.sleep(1.5 if ending in ('timeout','cancel') else .15)
+            native_ended.append(time.monotonic())
+        async def outputs(*args,**kwargs):
+            await run_native(press)
+            if ending=='error': raise RuntimeError('controlled failure')
+            yield AgentOutput(AgentOutputType.DONE)
+        runner._run_agent=outputs
+        driver=SubAgentDriver(runner,AgentDefinition('local','',''),CountingLLM(MagicMock()),MagicMock(),input_cleanup=True)
+        trace=TraceSink(OUT/ending)
+        task=asyncio.create_task(driver.run('local cleanup test',trace,timeout_s=1,max_steps=2))
+        try:
+            if ending=='cancel':
+                await entered.wait()
+                task.cancel()
+                await asyncio.sleep(.05)
+                task.cancel()
+            try:
+                result=await task
+                row={'case':ending,'cleanup':result.cleanup,'timed_out':result.timed_out,'error':result.error}
+                assert result.cleanup=='confirmed'
+            except asyncio.CancelledError:
+                assert ending=='cancel'
+                row={'case':ending,'cancelled':True}
+            row['native_finished']=bool(native_ended)
+            assert native_ended
+        finally: trace.close()
+        events=[json.loads(line) for line in (OUT/ending/'trace.jsonl').read_text().splitlines()]
+        cleanup=next(e for e in events if e['kind']=='desktop_cleanup')
+        assert cleanup['confirmed'] and cleanup['keys_before']==[55] and cleanup['buttons_before']==[0]
+        row['cleanup_evidence']=cleanup
+        rows.append(row)
+        (OUT/'result.json').write_text(json.dumps({'model_requests':0,'cases':rows},indent=2))
+        print(json.dumps(row),flush=True)
+
+error=[]
+def finish():
+    cleanup={}
+    try:
+        subprocess.run(['osascript','-e','tell application "Calculator" to quit'],capture_output=True,timeout=20)
+        time.sleep(.5)
+        cleanup['calculator_closed']=not any(a.bundleIdentifier()=='com.apple.calculator' for a in workspace.runningApplications())
+        cleanup['pressed_keys']=[i for i in range(128) if Quartz.CGEventSourceKeyState(Quartz.kCGEventSourceStateCombinedSessionState,i)]
+        cleanup['pressed_mouse_buttons']=[i for i in range(3) if Quartz.CGEventSourceButtonState(Quartz.kCGEventSourceStateCombinedSessionState,i)]
+        window.close(); cleanup['background_closed']=not window.isVisible()
+        restored=[]
+        for other in hidden: restored.append(bool(other.unhide()))
+        cleanup['hidden_apps_restored']=all(restored)
+        items=[]
+        for values in saved_clipboard:
+            item=AppKit.NSPasteboardItem.alloc().init()
+            for kind,data in values: item.setData_forType_(data,kind)
+            items.append(item)
+        clipboard.clearContents()
+        cleanup['clipboard_restored']=bool(clipboard.writeObjects_(items)) if items else True
+        Quartz.CGWarpMouseCursorPosition(original_mouse)
+        restored_mouse=Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
+        cleanup['cursor_restored']=abs(restored_mouse.x-original_mouse.x)<=1 and abs(restored_mouse.y-original_mouse.y)<=1
+        if original_front is not None: original_front.activateWithOptions_(AppKit.NSApplicationActivateIgnoringOtherApps)
+        cleanup['worker_finished']=True
+        (OUT/'cleanup.json').write_text(json.dumps(cleanup,indent=2))
+    finally:
+        app.stop_(None)
+        event=AppKit.NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(AppKit.NSEventTypeApplicationDefined,(0,0),0,0,0,None,0,0,0)
+        app.postEvent_atStart_(event,True)
+
+def worker():
+    with objc.autorelease_pool():
+        try: asyncio.run(pilot())
+        except Exception as exc:
+            error.append(type(exc).__name__)
+            (OUT/'error.txt').write_text(str(exc))
+            print('Pilot stopped: '+str(exc),flush=True)
+        finally: AppHelper.callAfter(finish)
+thread=threading.Thread(target=worker,daemon=True);thread.start();app.run();thread.join(timeout=3)
+if error: raise SystemExit(1)

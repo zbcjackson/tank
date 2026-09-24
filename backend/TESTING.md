@@ -826,3 +826,14 @@ permit full image repaints, including during locator HTTP. Stale/session/window,
 display changes, batch stopping and cancellation/deadline/revocation remain
 covered; stop injection now occurs during geometry validation. Historical scene
 reports above describe the prior implementation and are not current policy.
+
+
+`test_desktop_cleanup.py` covers opt-in native input cleanup: physical-state
+release/readback with fake Quartz, stuck input and pre-existing user input,
+repeated cancellation joining, Runner lock ownership and driver cleanup results
+for normal/error/timeout/cancel paths, failure quarantine, and exception handling.
+`test_bench_runner.py` verifies batch option forwarding and retains stop-on-unknown
+cleanup. The [native acceptance](benchmarks/computer_use/reports/20260924-m5-input-cleanup/README.md)
+uses actual Command/left-button events in four deterministic exit cases without
+an LLM. Input cleanup leaves application output for scoring and does not certify
+clipboard/window restoration or all M6 cancellation scenarios.

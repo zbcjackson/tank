@@ -1,0 +1,2 @@
+{"ts": 1790215204.416086, "kind": "desktop_cleanup", "keys_before": [55], "buttons_before": [0], "errors": [], "keys_after": [], "buttons_after": [], "confirmed": true}
+{"ts": 1790215204.416577, "kind": "driver_done", "steps": 0, "tokens": 0, "wall_s": 1.6088062910130247, "timed_out": true, "stopped_reason": "timeout(1s)", "llm_calls": 0, "llm_ttft_s": null, "llm_call_s": 0.0, "llm_total_s": 0, "stop_reason": "timeout", "cleanup": "confirmed", "unknown_calls": 0}
