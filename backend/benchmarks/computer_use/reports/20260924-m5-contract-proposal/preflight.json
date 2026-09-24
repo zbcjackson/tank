@@ -1,0 +1,23 @@
+{
+  "blockers": [
+    "independent_scoring",
+    "real_environment_and_physical_cleanup",
+    "pilot_acceptance_before_core",
+    "live_endpoint_and_image_scope_authorization"
+  ],
+  "checked_files": 342,
+  "effective_agent_token_budget": 0,
+  "input_cleanup": true,
+  "live_ready": false,
+  "offline_checks_passed": true,
+  "token_cost_gate": "disabled",
+  "totals": {
+    "http_requests": 362,
+    "locator_requests": 90,
+    "max_locator_requests": 45,
+    "planner_requests": 272,
+    "task_seconds": 2040,
+    "tokens": 5100000,
+    "trials": 17
+  }
+}

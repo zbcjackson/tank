@@ -1,0 +1,50 @@
+[
+  {
+    "variant": "A",
+    "requests": 2,
+    "changed": false,
+    "changes": "none"
+  },
+  {
+    "variant": "A-control",
+    "requests": 2,
+    "changed": true,
+    "changes": "system instructions and tool descriptions only"
+  },
+  {
+    "variant": "B-combined",
+    "requests": 2,
+    "changed": true,
+    "changes": "system instructions and tool descriptions only"
+  },
+  {
+    "variant": "B-host-only",
+    "requests": 2,
+    "changed": true,
+    "changes": "system instructions and tool descriptions only"
+  },
+  {
+    "variant": "B-protocol-only",
+    "requests": 2,
+    "changed": true,
+    "changes": "system instructions and tool descriptions only"
+  },
+  {
+    "variant": "C",
+    "requests": 4,
+    "changed": false,
+    "changes": "none"
+  },
+  {
+    "variant": "D",
+    "requests": 4,
+    "changed": false,
+    "changes": "none"
+  },
+  {
+    "variant": "original",
+    "requests": 2,
+    "changed": false,
+    "changes": "none"
+  }
+]

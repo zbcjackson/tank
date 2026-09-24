@@ -1411,6 +1411,23 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 完整验证：backend **5010 passed / 1 skipped**、E2E **16 场景 / 63 步**；
   web lint/TS、backend/CLI ruff、改动 Python 文件 pyright、服务日志、docs 与协议同步通过。
 
+### 2026-09-24 — 工具说明修正后的新冻结与执行材料
+
+- [x] 生成[新七组冻结](../../../backend/benchmarks/computer_use/reports/20260924-m5-contract-runtime/README.md)
+  和[新批次提案](../../../backend/benchmarks/computer_use/reports/20260924-m5-contract-proposal/README.md)，
+  342 文件预检通过；旧实验、旧冻结保持不变。
+- [x] 对比序列化请求：A/C/D/original 完全一致；A-control 和三个 B 组仅
+  system 指令及工具描述变化，结构 schema、图片、模型与生成参数保持一致。
+- [x] [新单轮启动材料](../../../backend/benchmarks/computer_use/reports/20260924-m5-contract-ready/README.md)
+  指向新冻结和全新输出目录，脚本语法通过；本轮零模型请求、零桌面操作。
+  历史预览仅作范围参考，实际发送前仍需新截图复核与本轮单独授权。
+- Tests：无生产代码/行为新增；复用已有 5010 项 backend 回归及单轮执行入口检查，
+  本轮仍执行下方完整 Verification Checklist；Python 改动类型检查 N/A。
+- 下一步：获新一轮授权后重跑修正说明的 A-control；仍限 1 trial/16 请求/
+  120 agent 秒/15 步，token/费用仅记录，不自动推进到其他组。
+- 完整验证通过：backend **5010 passed / 1 skipped**、E2E **16 场景 / 63 步**；
+  web lint/TS、backend/CLI ruff、服务日志、docs 与协议同步通过。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。
