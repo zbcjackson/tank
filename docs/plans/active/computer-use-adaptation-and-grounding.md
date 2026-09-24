@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；五个固定单轮入口已齐备，A-control/B-protocol-only/A 单轮 strict 失败、B-host-only 单轮 strict 通过（n=1，未作归因；A 与 A-control 行为等价却结果差异极大，印证必须配对）；静态坐标探针找到两个可修缺陷（非严格解析拒绝数字字符串 48/48；全屏+归一化存在 600 px 级误差模式），integrated 路径的数字字符串容错已修（`c678807`），取景/协议取向仍待定，还剩 B-combined 与 12 个 core trial；M6–M8 待完成，整份计划继续保持 active。
+> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；五个固定单轮入口已齐备，A-control/B-protocol-only/A 单轮 strict 失败、B-host-only 单轮 strict 通过（n=1，未作归因；A 与 A-control 行为等价却结果差异极大，印证必须配对）；静态坐标探针找到两个可修缺陷（非严格解析拒绝数字字符串 48/48；全屏+归一化存在 600 px 级误差模式），integrated 路径容错与 P1 像素制已落地并完成单位单因素配对（pixels 1/1 通过、point 0/1 失败，仅差单位），还剩 A、B-combined 与 12 个 core trial；M6–M8 待完成，整份计划继续保持 active。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -1725,6 +1725,33 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   backend/CLI ruff、改动文件 pyright、开发服务 pane、docs 与协议同步全部通过。
 - 未做（留给用户决策）：静态/split 赛道是否也应宽容（会改变 M3 holdout 口径与上述冻结回放测试）；
   以及取景/协议的取向（静态数据显示 crop+归一化点最优，全屏+像素制次之）。
+
+### 2026-09-24 — P1 单位单因素配对：像素制通过，归一化失败
+
+- 按用户决定先试 P1：新增单因素臂 `B-pixels-only`（integrated + `host_restore=false` +
+  `protocol=pixels`），与已跑的 `B-protocol-only` **只差坐标单位**；变体表、
+  `ComparisonContract` 允许集、批次日程（**追加在末位，现有 pilot 索引 0–5 不变**）与固定
+  单轮入口 `execute_b_pixels_only` 一并补齐，先红后绿覆盖 6 个入口。实现提交 `89bc482`。
+- 新材料：冻结/提案/单轮目录 `20260924-m5-pixels-{runtime,proposal,ready}`；18 trials / 378 请求 /
+  5.4M token（声明值）、351 文件预检通过；单因素增量核对：只多出 `runtime/b-pixels-only/*`，
+  其余 19 个产物与上一轮**逐字节相同**。代表性请求里读到契约：
+  “Coordinates are zero-based pixels relative to the FULL MAIN DISPLAY.”、
+  schema `x: {minimum: 0, type: integer}`（无上界）、`region` 仍为 0–1000。预览 0 模型请求通过。
+- 用户逐轮授权后跑了两轮（发送前各自复核 `initial.png`）：
+  [完整证据与对照](../../../backend/benchmarks/computer_use/reports/20260924-m5-unit-pair-pilot/README.md)。
+  两轮都在同一当前代码下（含 `c678807` 的字符串容错），接口拒绝均为 **0**。
+- 结果：**pixels 1/1 通过**（末帧 `7×8`/`56`、3 请求、2 步、20.6 s、**22465 token**、
+  `input_trace_complete=true`）；**point 0/1 失败**（`max_steps(15)`、末帧 `0`、16 请求、
+  15 步、88.4 s、**384084 token**）。点击误差：pixels 与真值差 3–27 px（全部落在按钮内）；
+  point 把整块键盘 y 估高 56–175 px（落到显示区/记忆行）并在 15 步里反复复用，x 只差 0–53 px。
+- 与静态探针互相印证（`full-point` 4/8 命中、均值 304.9 px、`=` 偏 598.6–617.0 px；
+  `full-pixels` 8/8 命中、均值 8.3 px）——两者相差只有单位，所以这是
+  “单位 → 定位精度 → 任务成败”的机制证据（单臂 n=1，机制侧由 48 次静态独立复现支撑）。
+- 边界：仍不能作效果归因（单任务/单布局/单模型/单臂各 1 次）；像素制的前提是“帧基本保持全屏”，
+  与模型自选 zoom 存在耦合（静态 `crop-pixels` 均值 61.8 px 更差）。归一化失败不是“模型不会做”，
+  而是它把窗口纵向范围估小——与本会话早前 A/A-control 的窗口矩形误判同源。
+- 下一步：把这一定稿契约用于剩下的 pilot（A、B-combined）与 pair-1/2/3 的 12 个 core trial；
+  每个新轮仍需单独授权。
 
 ## 9. 最终 Verification Checklist
 
