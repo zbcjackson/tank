@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；五个固定单轮入口已齐备，A-control/B-protocol-only/A 单轮 strict 失败、B-host-only 单轮 strict 通过（n=1，未作归因；A 与 A-control 行为等价却结果差异极大，印证必须配对）；静态坐标探针找到两个可修缺陷（非严格解析拒绝数字字符串 48/48；全屏+归一化存在 600 px 级误差模式），还剩 B-combined 与 12 个 core trial；M6–M8 待完成，整份计划继续保持 active。
+> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；五个固定单轮入口已齐备，A-control/B-protocol-only/A 单轮 strict 失败、B-host-only 单轮 strict 通过（n=1，未作归因；A 与 A-control 行为等价却结果差异极大，印证必须配对）；静态坐标探针找到两个可修缺陷（非严格解析拒绝数字字符串 48/48；全屏+归一化存在 600 px 级误差模式），integrated 路径的数字字符串容错已修（`c678807`），取景/协议取向仍待定，还剩 B-combined 与 12 个 core trial；M6–M8 待完成，整份计划继续保持 active。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -1705,6 +1705,26 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 下一步（待授权）：(1) 让非严格解析容忍数字字符串（`strict=True` 仍保留拒绝语义，供 strict 实验）
   并补先红后绿测试；(2) 取景或协议**二选一**：绑定目标窗口 + 归一化点，或全屏 + 像素制；
   改完再跑一轮 B-protocol-only 对照，看“首次即被接受”的比例与坐标误差。
+
+### 2026-09-24 — 修复数字字符串坐标被丢弃（integrated 路径）
+
+- 先按用户授权尝试改共享解码器，但发现两处**故意**的严格语义不能被静默改写：
+  `grounding_probe.decode_location` → `GroundingAdapter.parse`，而现有测试
+  `test_strict_protocol_maps_bbox_through_crop_and_rejects_guessed_coordinates` / 名为
+  `…_without_coercion` 的用例把“字符串坐标必须被拒”固定为 M3 静态赛道的契约。
+  因此**完全回退了该改动**（`computer_grounding.py` 无差异），改为把容错放在
+  **integrated 试验路径**：`IntegratedSession._reference` 的非 legacy 分支先做数字字符串归一化，
+  与同一函数里 legacy 分支已有的宽容行为一致；`definition.py` 本来就规定
+  “Integrated mode uses only the planner and **non-strict** tools”，所以 strict 单因素语义不受影响。
+- 行为变更边界：integrated 中形如 `{"x": "500"}` 的坐标现在被接受并派发（与整数等价），
+  越界值仍报错；因此把 `test_integrated_batch_stops_without_input_on_failed_location` 的
+  `invalid` 用例改成越界值（5000），另新增参数化测试断言整数与字符串坐标派发到**同一点**。
+- 先红后绿：新测试在修复前报 `Coordinates must be integers`（与 live 单轮里 2 次
+  “字符串 location 错误”一致）。实现提交 `c678807`。
+- Tests：backend **5055 passed / 1 skipped**、E2E **16 场景 / 63 步**；web lint/tsc、
+  backend/CLI ruff、改动文件 pyright、开发服务 pane、docs 与协议同步全部通过。
+- 未做（留给用户决策）：静态/split 赛道是否也应宽容（会改变 M3 holdout 口径与上述冻结回放测试）；
+  以及取景/协议的取向（静态数据显示 crop+归一化点最优，全屏+像素制次之）。
 
 ## 9. 最终 Verification Checklist
 
