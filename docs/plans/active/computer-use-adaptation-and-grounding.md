@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；B live 仍未授权；M6–M8 待完成，整份计划继续保持 active。
+> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；B-protocol-only 单轮已完整执行（strict 失败，仅 1 次调用拒绝），其余 4 个 pilot 与 12 个 core trial 仍未跑；M6–M8 待完成，整份计划继续保持 active。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -1578,6 +1578,29 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   改动 Python 文件 pyright、开发服务 pane、docs 与协议同步全部通过。
 - 下一步：仍限 B-protocol-only 单轮（1 trial / 16 请求 / 120 agent 秒 / 15 步，token 仅记录），
   需要新的单轮授权与发送前截图复核；不自动推进到其他 pilot 或 core 组。
+
+### 2026-09-24 — B-protocol-only 单轮真实执行（修复后首次完整跑完）
+
+- 用户单独授权后，先复核本轮 `initial.png`（黑背景 + 仅 Calculator、显示 `0`、无其他窗口）
+  再放行 `go`；[完整证据](../../../backend/benchmarks/computer_use/reports/20260924-m5-b-pumped-pilot/README.md)
+  已归档，未追加 trial、未自动推进到其他组。
+- 上一轮同名变体在 5 个 HTTP 后原生崩溃；本轮完整跑完：**16 请求全部 200**、
+  输入 **378872** + 输出 **4245** = **383117 tokens**（仅记录、未核价）、wall **126.3 s**，
+  strict **0/1**，`error=max_steps(15) reached`，`unknown_calls=0`。
+- 调用形态：13 次 desktop 派发中仅 **1 次拒绝**（`key_press: invalid 'keys' 'command+tab'`），
+  其余全部成功且统一使用 `frame_id` + `{found,x,y}`；旧 A-control 单轮出现的 6 类参数错误
+  （未知参数、数组被字符串化、旧帧、字符串 location、带引号按键名）本轮未出现。单轮不得
+  归因为适配收益，仅记为待配对验证的观察。
+- 失败原因是坐标估错而非协议：模型把 `8` 的归一化 y 反复估到 y≈241–260（实际数字行
+  y≈313）而点到记忆键行，同一策略下 `×`（y≈285）一次命中；自身 trace 已记下
+  “clicked at Quartz (1100, 260) but the display didn't change”。`type_text` 输入 `7` 生效
+  而 `*8=` 不生效，与 09-22 本地结论一致。
+- 判定边界：`pixels=unknown`、`input_trace_complete=false`，该轮不足以做强归因；
+  `assessment.display.result="7×"`、`strict_expression=false`、`reset_verified=true`。
+- 清理与恢复可验证：launcher `cleanup.json` 7/7；外层恢复 `child_returncode=0`、7 项全 true、
+  `confirmed=true`；桌面与输入源回读无残留。
+- 尚余 4 个 pilot 变体、pair-1/2/3 共 12 个 core trial、串行配对调度、独立评分、
+  真实环境语义失败归因与完整 M6 验收。需为每个新轮单独授权（不批量续用）。
 
 ## 9. 最终 Verification Checklist
 
