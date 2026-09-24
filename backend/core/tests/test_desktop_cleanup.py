@@ -136,3 +136,139 @@ async def test_runner_cleanup_under_lock_and_driver_result(tmp_path, monkeypatch
             async with resource.acquire():
                 pass
     trace.close()
+
+
+@pytest.mark.parametrize("hard_exit", [False, True])
+def test_supervisor_recovers_durable_baseline_after_child_exit(monkeypatch, tmp_path, hard_exit):
+    import json
+    import sys
+
+    from tank_backend.benchmarks import desktop_recovery
+
+    baseline = {"clipboard": [["kind", "private-data"]], "input_source": "original"}
+    calls = []
+    monkeypatch.setattr(desktop_recovery, "capture_desktop", lambda: baseline)
+
+    def restore(saved):
+        calls.append(saved)
+        return {"confirmed": True}
+
+    monkeypatch.setattr(desktop_recovery, "restore_desktop", restore)
+    directory = tmp_path / "recovery"
+    script = (
+        "import json, pathlib, os, signal\n"
+        f"p=pathlib.Path({str(directory)!r})\n"
+        f"assert json.loads((p/'baseline.json').read_text())=={baseline!r}\n"
+        "assert json.loads((p/'child.json').read_text())['pid']==os.getpid()\n"
+    )
+    if hard_exit:
+        script += "os.kill(os.getpid(), signal.SIGKILL)\n"
+    result = desktop_recovery.supervise([sys.executable, "-c", script], directory, timeout=5)
+    assert result["child_returncode"] == (-9 if hard_exit else 0)
+    assert result["recovery"] == {"confirmed": True}
+    assert calls == [baseline]
+    assert (directory / "baseline.json").stat().st_mode & 0o777 == 0o600
+    assert directory.stat().st_mode & 0o777 == 0o700
+    assert json.loads((directory / "result.json").read_text()) == result
+
+
+def test_supervisor_timeout_reaps_child_before_restore(monkeypatch, tmp_path):
+    import json
+    import os
+    import sys
+
+    from tank_backend.benchmarks import desktop_recovery
+
+    directory = tmp_path / "recovery"
+    monkeypatch.setattr(desktop_recovery, "capture_desktop", lambda: {})
+
+    def restore(_):
+        pid = json.loads((directory / "child.json").read_text())["pid"]
+        with pytest.raises(ProcessLookupError):
+            os.kill(pid, 0)
+        return {"confirmed": True}
+
+    monkeypatch.setattr(desktop_recovery, "restore_desktop", restore)
+    result = desktop_recovery.supervise(
+        [sys.executable, "-c", "import time; time.sleep(30)"], directory, timeout=0.2,
+    )
+    assert result["timed_out"] is True
+    assert result["child_returncode"] == -9
+
+
+def test_supervisor_refuses_mutation_without_durable_baseline(monkeypatch, tmp_path):
+    import sys
+
+    from tank_backend.benchmarks import desktop_recovery
+
+    monkeypatch.setattr(desktop_recovery, "capture_desktop", lambda: {})
+    def fail_sync(_):
+        raise OSError("disk")
+
+    monkeypatch.setattr(desktop_recovery.os, "fsync", fail_sync)
+    marker = tmp_path / "launched"
+    with pytest.raises(OSError, match="disk"):
+        desktop_recovery.supervise(
+            [sys.executable, "-c", f"open({str(marker)!r},'w').close()"],
+            tmp_path / "recovery", timeout=5,
+        )
+    assert not marker.exists()
+
+
+def test_supervisor_records_recovery_failure_without_claiming_success(monkeypatch, tmp_path):
+    import json
+    import sys
+
+    from tank_backend.benchmarks import desktop_recovery
+
+    monkeypatch.setattr(desktop_recovery, "capture_desktop", lambda: {})
+
+    def restore(_):
+        raise RuntimeError("native unavailable")
+
+    monkeypatch.setattr(desktop_recovery, "restore_desktop", restore)
+    directory = tmp_path / "recovery"
+    result = desktop_recovery.supervise([sys.executable, "-c", "pass"], directory, timeout=5)
+    assert result["recovery"] == {"confirmed": False, "error": "RuntimeError"}
+    assert json.loads((directory / "result.json").read_text()) == result
+
+
+def test_recovery_captures_accessory_front_app(monkeypatch):
+    """A menu-bar/accessory front app also needs a durable identity."""
+    from tank_backend.benchmarks import desktop_recovery
+
+    kit, quartz, front = MagicMock(), MagicMock(), MagicMock()
+    kit.NSApplicationActivationPolicyRegular = 0
+    front.activationPolicy.return_value = 1
+    front.processIdentifier.return_value = 123
+    front.bundleIdentifier.return_value = "test.accessory"
+    front.launchDate.return_value.timeIntervalSince1970.return_value = 42.0
+    front.isHidden.return_value = False
+    workspace = kit.NSWorkspace.sharedWorkspace.return_value
+    workspace.frontmostApplication.return_value = front
+    workspace.runningApplications.return_value = [front]
+    monkeypatch.setattr(desktop_recovery, "_appkit", lambda: kit)
+    monkeypatch.setattr(desktop_recovery.importlib, "import_module", lambda _: quartz)
+    monkeypatch.setattr(desktop_recovery.MacOSInputCleanup, "_state", lambda: ([], []))
+    monkeypatch.setattr(desktop_recovery, "_request", lambda _: "original")
+    monkeypatch.setattr(desktop_recovery, "_clipboard", lambda _: [])
+    baseline = desktop_recovery.capture_desktop()
+    assert baseline["apps"] == [
+        {"pid": 123, "bundle": "test.accessory", "launched": 42.0, "hidden": False},
+    ]
+    assert baseline["front_pid"] == 123
+
+
+def test_recovery_refuses_login_screen_before_launch(monkeypatch):
+    from tank_backend.benchmarks import desktop_recovery
+
+    kit = MagicMock()
+    workspace = kit.NSWorkspace.sharedWorkspace.return_value
+    front = workspace.frontmostApplication.return_value
+    front.bundleIdentifier.return_value = "com.apple.loginwindow"
+    monkeypatch.setattr(desktop_recovery, "_appkit", lambda: kit)
+    monkeypatch.setattr(desktop_recovery.importlib, "import_module", lambda _: MagicMock())
+    monkeypatch.setattr(desktop_recovery.MacOSInputCleanup, "_state", lambda: ([], []))
+    monkeypatch.setattr(desktop_recovery, "_request", lambda _: "original")
+    with pytest.raises(RuntimeError, match="interactive desktop"):
+        desktop_recovery.capture_desktop()
