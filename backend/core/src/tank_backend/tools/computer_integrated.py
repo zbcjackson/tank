@@ -42,6 +42,12 @@ def integrated_prompt(config: GroundingConfig) -> str:
 This contract replaces earlier coordinate and tool-call-format instructions;
 all other task requirements remain applicable. No locate tool is available.
 Observe with screenshot, then pass its frame_id and location to pointer tools.
+computer_batch accepts only actions; omit the earlier screenshot option.
+It returns the final observation automatically. Each pointer action uses the
+same frame_id/location fields as its standalone tool, plus action for the tool name.
+screenshot creates a new frame; omit frame_id. Its optional region contains four
+integers in 0..1000. actions and region must be JSON arrays, never JSON-encoded strings.
+After a failed screenshot, observe successfully again before any pointer action.
 Coordinates are {units} relative to the {space}. {protocol}
 For drag, also provide end_location. Never invent a frame or location_id.
 {restoration}
@@ -151,6 +157,17 @@ class IntegratedTool(LocateTool):
 
     def get_info(self) -> ToolInfo:
         info = super().get_info()
+        if self.name == "computer_batch":
+            return info.model_copy(update={
+                "description": "Execute 1..8 actions; automatically capture the final observation.",
+                "parameters": [
+                    p.model_copy(update={
+                        "description": "JSON array of actions; pointer actions use frame_id and "
+                        "location as in the corresponding tool schema",
+                    })
+                    for p in info.parameters
+                ],
+            })
         if self.name not in POINTER_TOOLS:
             return info.model_copy(update={
                 "description": f"{self.name}: integrated mode; returns an observation.",

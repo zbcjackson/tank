@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import sys
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -1047,6 +1048,17 @@ async def test_integrated_runner_uses_one_model_and_independent_host_mapping(
     finally:
         trace.close()
         await client.close()
+    for request in requests:
+        schema = next(t["function"]["parameters"] for t in request["tools"]
+                      if t["function"]["name"] == "computer_batch")
+        description = schema["properties"]["actions"]["description"]
+        assert "location_id" not in description
+        assert "frame_id" in description and "location" in description
+        prompt = request["messages"][0]["content"]
+        assert "computer_batch accepts only actions" in prompt
+        assert "omit the earlier screenshot option" in prompt
+        assert "screenshot creates a new frame; omit frame_id" in prompt
+        assert "JSON arrays, never JSON-encoded strings" in prompt
     if ending != "success":
         assert result.error is not None
         click.assert_not_called()
@@ -1118,6 +1130,47 @@ async def test_integrated_rejects_live_pilot_malformed_arguments(locator, malfor
         assert "Invalid legacy location" in result.content
     assert result.error
     c.click.assert_not_called()
+    assert not c.requests
+
+
+@pytest.mark.parametrize("turn", [2, 3, 4, 6, 8, 9])
+async def test_integrated_replays_archived_pilot_errors_and_recovers(locator, monkeypatch, turn):
+    from tank_backend.agents.definition import GroundingConfig
+    from tank_backend.tools.computer_integrated import IntegratedSession, IntegratedTool
+
+    fixture = json.loads((Path(__file__).parent / "fixtures" /
+                          "m5-a-control-20260924-errors.json").read_text())
+    cases = {case["turn"]: case for case in fixture["cases"]}
+    case = cases[turn]
+    c = locator
+    session = IntegratedSession(c.session.tools, {}, c.session.adapter, c.context, "integrated")
+    session.config = GroundingConfig(mode="integrated", protocol="legacy", host_restore=False)
+    c.session = session
+    c.manager.tools = {n: IntegratedTool(session, n) for n in session.tools}
+    c.manager.tools["computer_batch"] = IntegratedTool(session, "computer_batch")
+    moved = MagicMock()
+    monkeypatch.setattr(macos, "_move_macos", moved)
+    await observe(c)
+    if turn == 9:
+        # The preceding invalid region cleared the current observation in the live run.
+        failed = await c.manager.execute_tool("screenshot", **json.loads(cases[8]["arguments"]))
+        assert failed.error and session.state.observation is None
+    result = await c.manager.execute_tool(case["tool"], **json.loads(case["arguments"]))
+    assert result.error and result.content == case["error"]
+    c.click.assert_not_called()
+    moved.assert_not_called()
+    macos._load_quartz().CGEventPost.assert_not_called()
+    assert not c.requests
+
+    # A fresh frame with a valid array/object payload recovers through real dispatch.
+    frame = await observe(c)
+    recovered = await c.manager.execute_tool(
+        "computer_batch", actions=[{
+            "action": "click", "frame_id": frame, "location": {"x": 750, "y": 500},
+        }],
+    )
+    assert not recovered.error
+    c.click.assert_called_once_with(75, 40, "left", 1)
     assert not c.requests
 
 

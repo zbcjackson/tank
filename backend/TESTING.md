@@ -847,3 +847,13 @@ desktop execution are replaced at the batch boundary. The
 [local preview](benchmarks/computer_use/reports/20260924-m5-pilot-ready/README.md)
 ran the default preview-only harness and verified restoration without credentials
 or model requests. It does not establish task success or full-batch readiness.
+
+
+The [Sept24 argument replay](benchmarks/computer_use/reports/20260924-m5-argument-replay/README.md)
+adds six archived failure cases to `test_computer_locate.py`. The exact argument
+strings and messages are trace-hash-bound; real ToolManager/IntegratedSession/
+FrameTool execution with fake native boundaries verifies rejection without input
+and recovery using a newly observed frame. The 48 existing integrated SDK cases
+check the corrected batch description and explicit prompt rules across protocols
+and restoration factors. This does not replay historical desktop state or prove
+that the model follows the revised instructions; old source freezes remain stale.

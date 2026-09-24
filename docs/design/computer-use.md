@@ -467,6 +467,12 @@ GroundingAdapter 的字段、整数约束和拒绝哨兵。像素 schema 在截�
 集成截图采用 detail 配置；冻结 B/C 对照需固定共同 detail（首轮用 auto），
 并保存各自完整提示/工具 schema，不把工具包装和目标提示差异隐藏起来。
 
+一体模式的 `computer_batch` 只接收 `actions`，自动返回末帧；pointer action
+使用与单工具相同的 `frame_id/location` 字段。提示显式覆盖旧版 `screenshot`
+batch 选项，不沿用 split 的 `location_id` 参数说明。`actions` 和截图的
+`region` 必须是 JSON 数组；`screenshot` 创建新帧，不接受 `frame_id`。
+截图失败后必须重新成功观察，再使用新帧操作；不自动修复字符串化参数。
+
 集成模式禁止定位 profile/fallback/strict=true。未知字段、无效/过期 frame、
 非法坐标、拒绝定位及失败 batch 都不会继续派发。拒绝定位在动作工具中返回
 error=true 以停止当前 batch，并不表示模型的拒绝判断本身错误。一体/分离
