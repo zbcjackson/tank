@@ -1381,6 +1381,23 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   web lint/TypeScript、backend/CLI ruff、两个改动 Python 文件 pyright、
   实际 backend 日志、docs 与协议同步通过。入口提交 `92070ff`。
 
+### 2026-09-24 — 修复后 A-control 真实单轮结果
+
+- [x] 用户明确批准新轮截图外发后，按新冻结执行 1 trial；[完整证据](../../../backend/benchmarks/computer_use/reports/20260924-m5-a-control-pilot/README.md)
+  已归档，旧证据不变，未自动启动任何后续组。
+- 16 HTTP 全部 200；输入 **234042**、输出 **4239**，合计 **238281 tokens**；
+  agent **98.81 秒**，整轮 **107.95 秒**。因 15 步上限停止，非 token/费用或超时门禁；
+  无余额不足响应，实际金额仍 unpriced。
+- strict 失败：AX 与原始分辨率末帧均为 **0**。预览显示曾导致窗口不可见的误判，
+  已经原图及像素核对撤回，不能归因为环境遮挡。六次工具错误包括未知参数、
+  数组被字符串化和一次旧/无效 frame；无像素变化/场景几何拒绝。
+- 自动输入清理 **confirmed**，按键/鼠标均空；外部窗口、应用、剪贴板和光标恢复成功。
+  完成执行不代表任务成功，单轮不得用于 A/B/C/D 效果归因。
+- 下一步：先对该轨迹的参数格式和 legacy 帧/坐标使用做离线重放，决定后续 pilot；
+  尚余 4 个 pilot 变体、12 个 core trial、阶段推进与完整比较。
+- 验证：backend **5004 passed / 1 skipped**、E2E **16 场景 / 63 步**；web lint/TS、
+  backend/CLI ruff、开发服务日志、docs 与协议同步通过；无 Python 改动，pyright N/A。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。

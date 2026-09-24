@@ -1,0 +1,1 @@
+{"completed": ["pilot-a-control"], "spend": {"limit_tokens": 300000, "limit_nano_usd": 8000000000, "charged_tokens": 238281, "charged_nano_usd": 0, "known_tokens": 238281, "known_nano_usd": 0, "reserved_tokens": 0, "reserved_nano_usd": 0, "limit_requests": 16, "admitted_requests": 16}, "stop_reason": null}
