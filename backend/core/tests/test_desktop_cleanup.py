@@ -259,7 +259,7 @@ def test_recovery_captures_accessory_front_app(monkeypatch):
     assert baseline["front_pid"] == 123
 
 
-def test_recovery_refuses_login_screen_before_launch(monkeypatch):
+def test_recovery_refuses_unrestorable_front_before_launch(monkeypatch):
     from tank_backend.benchmarks import desktop_recovery
 
     kit = MagicMock()
@@ -270,5 +270,121 @@ def test_recovery_refuses_login_screen_before_launch(monkeypatch):
     monkeypatch.setattr(desktop_recovery.importlib, "import_module", lambda _: MagicMock())
     monkeypatch.setattr(desktop_recovery.MacOSInputCleanup, "_state", lambda: ([], []))
     monkeypatch.setattr(desktop_recovery, "_request", lambda _: "original")
-    with pytest.raises(RuntimeError, match="interactive desktop"):
+    with pytest.raises(RuntimeError, match="restorable front app"):
         desktop_recovery.capture_desktop()
+
+
+def test_recovery_refreshes_cached_front_before_capture(monkeypatch):
+    from tank_backend.benchmarks import desktop_recovery
+
+    kit, quartz, foundation, app, stale = [MagicMock() for _ in range(5)]
+    kit.NSApplicationActivationPolicyRegular = 0
+    app.activationPolicy.return_value = 0
+    app.processIdentifier.return_value = 123
+    app.bundleIdentifier.return_value = "test.front"
+    app.launchDate.return_value.timeIntervalSince1970.return_value = 42.0
+    app.isHidden.return_value = False
+    stale.bundleIdentifier.return_value = "com.apple.loginwindow"
+    refreshed = False
+
+    def pump(_):
+        nonlocal refreshed
+        refreshed = True
+
+    foundation.NSRunLoop.currentRunLoop.return_value.runUntilDate_.side_effect = pump
+    workspace = kit.NSWorkspace.sharedWorkspace.return_value
+    workspace.frontmostApplication.side_effect = lambda: app if refreshed else stale
+    workspace.runningApplications.return_value = [app]
+    monkeypatch.setattr(desktop_recovery, "_appkit", lambda: kit)
+    monkeypatch.setattr(desktop_recovery.importlib, "import_module",
+                        lambda name: foundation if name == "Foundation" else quartz)
+    monkeypatch.setattr(desktop_recovery.MacOSInputCleanup, "_state", lambda: ([], []))
+    monkeypatch.setattr(desktop_recovery, "_request", lambda _: "original")
+    monkeypatch.setattr(desktop_recovery, "_clipboard", lambda _: [])
+    assert desktop_recovery.capture_desktop()["front_pid"] == 123
+
+
+@pytest.mark.parametrize("updates_delivered", [True, False])
+def test_recovery_verifies_visibility_after_runloop(monkeypatch, updates_delivered):
+    from tank_backend.benchmarks import desktop_recovery
+
+    kit, quartz, foundation, app = [MagicMock() for _ in range(4)]
+    app.processIdentifier.return_value = 123
+    app.bundleIdentifier.return_value = "test.front"
+    app.launchDate.return_value.timeIntervalSince1970.return_value = 42.0
+    hidden, requested_hidden = True, True
+
+    def unhide():
+        nonlocal requested_hidden
+        requested_hidden = False
+        return True  # Request acceptance alone is not proof of restored state.
+
+    def pump(_):
+        nonlocal hidden
+        if updates_delivered:
+            hidden = requested_hidden
+
+    app.unhide.side_effect = unhide
+    app.isHidden.side_effect = lambda: hidden
+    foundation.NSRunLoop.currentRunLoop.return_value.runUntilDate_.side_effect = pump
+    workspace = kit.NSWorkspace.sharedWorkspace.return_value
+    workspace.runningApplications.return_value = [app]
+    kit.NSRunningApplication.runningApplicationWithProcessIdentifier_.return_value = app
+    point = quartz.CGEventGetLocation.return_value
+    point.x, point.y = 0, 0
+    monkeypatch.setattr(desktop_recovery, "_appkit", lambda: kit)
+    monkeypatch.setattr(desktop_recovery.importlib, "import_module",
+                        lambda name: foundation if name == "Foundation" else quartz)
+    monkeypatch.setattr(desktop_recovery.MacOSInputCleanup, "_state", lambda: ([], []))
+    monkeypatch.setattr(desktop_recovery.MacOSInputCleanup, "_release", lambda _: {"errors": []})
+    monkeypatch.setattr(desktop_recovery, "_request", lambda *args: "original")
+    monkeypatch.setattr(desktop_recovery, "_clipboard", lambda _: [])
+    baseline = {"apps": [{"pid": 123, "bundle": "test.front", "launched": 42.0,
+                          "hidden": False}], "front_pid": None,
+                "clipboard": [], "mouse": [0, 0], "input_source": "original"}
+    result = desktop_recovery.restore_desktop(baseline)
+    assert result["applications_restored"] is updates_delivered
+    assert result["confirmed"] is updates_delivered
+    assert result["input_source_restored"] is True
+
+
+@pytest.mark.parametrize("same_process", [True, False])
+def test_recovery_preserves_front_without_appkit_launch_date(monkeypatch, same_process):
+    from tank_backend.benchmarks import desktop_recovery
+
+    kit, quartz, app = [MagicMock() for _ in range(3)]
+    kit.NSApplicationActivationPolicyRegular = 0
+    app.activationPolicy.return_value = 0
+    app.processIdentifier.return_value = 123
+    app.bundleIdentifier.return_value = "com.apple.finder"
+    app.launchDate.return_value = None
+    app.isHidden.return_value = False
+    workspace = kit.NSWorkspace.sharedWorkspace.return_value
+    workspace.frontmostApplication.return_value = app
+    workspace.runningApplications.return_value = [app]
+    monkeypatch.setattr(desktop_recovery, "_appkit", lambda: kit)
+    monkeypatch.setattr(desktop_recovery.importlib, "import_module", lambda _: quartz)
+    monkeypatch.setattr(desktop_recovery.MacOSInputCleanup, "_state", lambda: ([], []))
+    monkeypatch.setattr(desktop_recovery, "_request", lambda *args: "original")
+    monkeypatch.setattr(desktop_recovery, "_clipboard", lambda _: [])
+    stamp = "Thu Sep 24 09:00:00 2026\n"
+    monkeypatch.setattr(desktop_recovery.subprocess, "run",
+                        lambda *args, **kwargs: MagicMock(stdout=stamp))
+    baseline = desktop_recovery.capture_desktop()
+    assert baseline["front_pid"] == 123
+    assert baseline["apps"] == [{"pid": 123, "bundle": "com.apple.finder",
+                                  "launched": "ps:Thu Sep 24 09:00:00 2026", "hidden": False}]
+    if not same_process:
+        stamp = "Thu Sep 24 10:00:00 2026\n"
+    kit.NSRunningApplication.runningApplicationWithProcessIdentifier_.return_value = app
+    quartz.CGEventGetLocation.return_value.x = 0
+    quartz.CGEventGetLocation.return_value.y = 0
+    baseline["mouse"] = [0, 0]
+    monkeypatch.setattr(desktop_recovery.MacOSInputCleanup, "_release", lambda _: {"errors": []})
+    restored = desktop_recovery.restore_desktop(baseline)
+    assert restored["front_restored"] is same_process
+    assert restored["confirmed"] is same_process
+    if not same_process:
+        app.activateWithOptions_.assert_not_called()
+        app.hide.assert_not_called()
+        app.unhide.assert_not_called()

@@ -15,6 +15,7 @@ import signal
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,39 @@ from .ime import _request
 
 def _appkit() -> Any:
     return importlib.import_module("AppKit")
+
+
+def _pump_events(seconds: float = 0.05) -> None:
+    # AppKit's time-varying properties update only as the main run loop runs.
+    foundation = importlib.import_module("Foundation")
+    foundation.NSRunLoop.currentRunLoop().runUntilDate_(
+        foundation.NSDate.dateWithTimeIntervalSinceNow_(seconds),
+    )
+
+
+def _wait_for(check: Callable[[], bool]) -> bool:
+    deadline = time.monotonic() + 2.0
+    while True:
+        _pump_events()
+        if check():
+            return True
+        if time.monotonic() >= deadline:
+            return False
+
+
+def _launch_identity(app: Any, *, process_table: bool = False) -> float | str:
+    date = app.launchDate()
+    if date is not None and not process_table:
+        return float(date.timeIntervalSince1970())
+    # Finder can expose no AppKit launchDate. Preserve it using OS process data.
+    result = subprocess.run(
+        ["ps", "-p", str(int(app.processIdentifier())), "-o", "lstart="],
+        capture_output=True, text=True, check=True, timeout=2,
+    )
+    stamp = result.stdout.strip()
+    if not stamp:
+        raise RuntimeError("Cannot establish application process identity")
+    return "ps:" + stamp
 
 
 def _clipboard(kit: Any) -> list[list[list[str]]]:
@@ -45,18 +79,21 @@ def capture_desktop() -> dict[str, Any]:
     if source is None:
         raise RuntimeError("Cannot capture input source; launcher not started")
     workspace = kit.NSWorkspace.sharedWorkspace()
+    def restorable_front() -> bool:
+        app = workspace.frontmostApplication()
+        return app is not None and app.bundleIdentifier() != "com.apple.loginwindow"
+
+    if not _wait_for(restorable_front):
+        raise RuntimeError("Cannot establish a restorable front app; launcher not started")
     front = workspace.frontmostApplication()
-    if front is None or front.bundleIdentifier() == "com.apple.loginwindow":
-        raise RuntimeError("Return to the interactive desktop before the controlled pilot")
     mouse = quartz.CGEventGetLocation(quartz.CGEventCreate(None))
     apps = [
         {"pid": int(app.processIdentifier()), "bundle": str(app.bundleIdentifier()),
-         "launched": float(app.launchDate().timeIntervalSince1970()),
+         "launched": _launch_identity(app),
          "hidden": bool(app.isHidden())}
         for app in workspace.runningApplications()
         if (app.activationPolicy() == kit.NSApplicationActivationPolicyRegular
             or (front is not None and app.processIdentifier() == front.processIdentifier()))
-        and app.launchDate() is not None
     ]
     # The pilot resets/quits Calculator; never destroy an existing user session.
     if any(app["bundle"] == "com.apple.calculator" for app in apps):
@@ -71,6 +108,7 @@ def restore_desktop(saved: dict[str, Any]) -> dict[str, Any]:
     kit = _appkit()
     quartz = importlib.import_module("Quartz")
     workspace = kit.NSWorkspace.sharedWorkspace()
+    _pump_events()
     results: dict[str, Any] = {}
 
     def stage(name: str, action: Any) -> None:
@@ -90,25 +128,26 @@ def restore_desktop(saved: dict[str, Any]) -> dict[str, Any]:
         for app in workspace.runningApplications():
             if app.bundleIdentifier() == "com.apple.calculator":
                 app.terminate()
-        for _ in range(20):
-            if not any(a.bundleIdentifier() == "com.apple.calculator"
-                       for a in workspace.runningApplications()):
-                return True
-            time.sleep(0.1)
-        return False
+        return _wait_for(lambda: not any(
+            a.bundleIdentifier() == "com.apple.calculator"
+            for a in workspace.runningApplications()
+        ))
 
     def applications() -> bool:
         ok = True
         for original in saved["apps"]:
             app = kit.NSRunningApplication.runningApplicationWithProcessIdentifier_(original["pid"])
-            if (app is None or app.launchDate() is None
-                    or float(app.launchDate().timeIntervalSince1970()) != original["launched"]
-                    or str(app.bundleIdentifier()) != original["bundle"]):
+            if (app is None or str(app.bundleIdentifier()) != original["bundle"]
+                    or _launch_identity(app, process_table=isinstance(original["launched"], str))
+                    != original["launched"]):
                 ok = False
                 continue
             if bool(app.isHidden()) != original["hidden"]:
                 app.hide() if original["hidden"] else app.unhide()
-            ok = bool(app.isHidden()) == original["hidden"] and ok
+            restored = _wait_for(
+                lambda app=app, hidden=original["hidden"]: bool(app.isHidden()) == hidden,
+            )
+            ok = restored and ok
         return ok
 
     def clipboard() -> bool:
@@ -135,13 +174,17 @@ def restore_desktop(saved: dict[str, Any]) -> dict[str, Any]:
             return True
         app = kit.NSRunningApplication.runningApplicationWithProcessIdentifier_(pid)
         original = next((a for a in saved["apps"] if a["pid"] == pid), None)
-        if (app is None or original is None or app.launchDate() is None
-                or float(app.launchDate().timeIntervalSince1970()) != original["launched"]):
+        if (app is None or original is None
+                or str(app.bundleIdentifier()) != original["bundle"]
+                or _launch_identity(app, process_table=isinstance(original["launched"], str))
+                != original["launched"]):
             return False
         app.activateWithOptions_(kit.NSApplicationActivateIgnoringOtherApps)
-        time.sleep(0.3)
-        current = workspace.frontmostApplication()
-        return current is not None and int(current.processIdentifier()) == pid
+        def is_front() -> bool:
+            current = workspace.frontmostApplication()
+            return current is not None and int(current.processIdentifier()) == pid
+
+        return _wait_for(is_front)
 
     stage("inputs_released", inputs)
     stage("calculator_closed", calculator)
