@@ -72,6 +72,8 @@ def variants(base: AgentDefinition) -> dict[str, AgentDefinition]:
     for name, protocol, restore in (
         ("A-control", "legacy", False), ("B-host-only", "legacy", True),
         ("B-protocol-only", "point", False), ("B-combined", "point", True),
+        # Single-factor unit arm: same framing as B-protocol-only, pixel units.
+        ("B-pixels-only", "pixels", False),
     ):
         result[name] = replace(base, model="planner", grounding=GroundingConfig(
             mode="integrated", protocol=protocol, host_restore=restore, status_field=False))
@@ -109,8 +111,8 @@ async def capture(definition: AgentDefinition, profiles: dict[str, Any],
         if not body.get("stream"):
             # A scripted abstention exercises parsing without any input dispatch.
             protocol = definition.grounding.protocol if definition.grounding else "point"
-            coords = {k: None for k in (("x", "y") if protocol == "point" else
-                                       ("left", "top", "right", "bottom"))}
+            coords = {k: None for k in (("left", "top", "right", "bottom")
+                                       if protocol == "bbox" else ("x", "y"))}
             return httpx.Response(200, json={
                 "id": "offline-locator", "object": "chat.completion", "created": 1,
                 "model": body["model"], "choices": [{"index": 0, "finish_reason": "tool_calls",

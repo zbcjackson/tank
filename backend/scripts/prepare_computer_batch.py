@@ -34,7 +34,8 @@ def _relative(path: Path) -> str:
 
 def _spec(freeze: Path) -> dict[str, Any]:
     rounds = [
-        ("pilot", ["A-control", "B-protocol-only", "A", "B-host-only", "B-combined"]),
+        ("pilot", ["A-control", "B-protocol-only", "A", "B-host-only", "B-combined",
+                   "B-pixels-only"]),
         ("pair-1", ["A", "B-combined", "C", "D"]),
         ("pair-2", ["B-combined", "C", "D", "A"]),
         ("pair-3", ["C", "D", "A", "B-combined"]),
@@ -55,7 +56,7 @@ def _spec(freeze: Path) -> dict[str, Any]:
         "schema_version": 3, "live_authorized": False, "record_only": True,
         "input_cleanup": True,
         "freeze_dir": _relative(freeze), "budget_nano_usd": 8000000000,
-        "batch_tokens": 5100000, "batch_requests": 362,
+        "batch_tokens": 5400000, "batch_requests": 378,
         "core_requires_pilot_acceptance": True, "trials": trials,
     }
 
@@ -161,6 +162,15 @@ async def execute_b_combined(
     """Run only the scheduled B-combined pilot; no other entry is executed."""
     return await _execute_pilot(
         freeze, proposal_path, output, pilot_index=4, live_authorized=live_authorized,
+    )
+
+
+async def execute_b_pixels_only(
+    freeze: Path, proposal_path: Path, output: Path, *, live_authorized: bool = False,
+) -> BatchResult:
+    """Run only the scheduled B-pixels-only pilot; no other entry is executed."""
+    return await _execute_pilot(
+        freeze, proposal_path, output, pilot_index=5, live_authorized=live_authorized,
     )
 
 

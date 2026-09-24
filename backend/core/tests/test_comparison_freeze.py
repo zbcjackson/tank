@@ -307,7 +307,7 @@ toolsets:
         assert hashlib.sha256((first / name).read_bytes()).hexdigest() == digest
     snapshot = json.loads((first / "requests.json").read_text())
     assert set(snapshot) == {"original", "A", "A-control", "B-host-only",
-                             "B-protocol-only", "B-combined", "C", "D"}
+                             "B-protocol-only", "B-combined", "B-pixels-only", "C", "D"}
     assert snapshot["original"][0]["body"]["max_tokens"] == 40000
     assert "stream_options" not in snapshot["original"][0]["body"]
     assert "enable_thinking" not in snapshot["original"][0]["body"]
@@ -377,14 +377,14 @@ async def test_batch_proposal_preflight_is_offline_and_preserves_budget(
     report = api["preflight"](runtime_bundle, output / "proposal.json")
     proposal = json.loads((output / "proposal.json").read_text())
     assert [row["variant"] for row in proposal["trials"]] == [
-        "A-control", "B-protocol-only", "A", "B-host-only", "B-combined",
+        "A-control", "B-protocol-only", "A", "B-host-only", "B-combined", "B-pixels-only",
         "A", "B-combined", "C", "D", "B-combined", "C", "D", "A",
         "C", "D", "A", "B-combined",
     ]
     assert report["totals"] == {
-        "trials": 17, "planner_requests": 272, "locator_requests": 90,
-        "max_locator_requests": 45, "http_requests": 362,
-        "tokens": 5100000, "task_seconds": 2040,
+        "trials": 18, "planner_requests": 288, "locator_requests": 90,
+        "max_locator_requests": 45, "http_requests": 378,
+        "tokens": 5400000, "task_seconds": 2160,
     }
     assert report["live_ready"] is False
     assert report["token_cost_gate"] == "disabled"
@@ -439,6 +439,7 @@ PILOT_ENTRIES = [
     ("execute_a", "A", None, None),
     ("execute_b_host_only", "B-host-only", "legacy", True),
     ("execute_b_combined", "B-combined", "point", True),
+    ("execute_b_pixels_only", "B-pixels-only", "pixels", False),
 ]
 
 

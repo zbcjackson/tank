@@ -42,8 +42,9 @@ class ComparisonContract:
     def verify(self, config: AppConfig, definition: AgentDefinition) -> None:
         if self.variant not in {
             "A", "A-control", "B-host-only", "B-protocol-only", "B-combined", "C", "D",
+            "B-pixels-only",
         }:
-            raise ValueError("Comparison contract requires one of the seven experiment variants")
+            raise ValueError("Comparison contract requires one of the experiment variants")
         definitions = json.loads((self.freeze_dir / "definitions.json").read_text())
         profiles = json.loads((self.freeze_dir / "profiles.json").read_text())
         tools = json.loads((self.freeze_dir / "toolset.json").read_text())
