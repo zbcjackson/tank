@@ -1072,6 +1072,32 @@ async def test_integrated_runner_uses_one_model_and_independent_host_mapping(
     assert "locate" not in manager.tools and manager._session_id == "parent-session"
 
 
+@pytest.mark.parametrize("coordinate", [500, "500"])
+async def test_integrated_dispatches_numeric_and_string_coordinates_identically(
+    locator, coordinate,
+):
+    """Every inspected single-frame answer typed its coordinates as strings.
+
+    The adapted decoders reject those outright, so correct points were discarded
+    and the model had to guess again. Integrated mode is never strict, so it must
+    read numeric strings the way the legacy branch already does.
+    """
+    from tank_backend.agents.definition import GroundingConfig
+    from tank_backend.tools.computer_integrated import IntegratedSession, IntegratedTool
+
+    c = locator
+    session = IntegratedSession(c.session.tools, {}, c.session.adapter, c.context, "integrated")
+    session.config = GroundingConfig(mode="integrated")
+    c.session = session
+    c.manager.tools = {n: IntegratedTool(session, n) for n in session.tools}
+    frame = await observe(c)
+    result = await c.manager.execute_tool(
+        "click", frame_id=frame, location={"status": "found", "x": coordinate, "y": coordinate},
+    )
+    assert not result.error, result.content
+    c.click.assert_called_once_with(50, 40, "left", 1)
+
+
 @pytest.mark.parametrize("status", ["not_found", "ambiguous", "invalid", "stale", "changed"])
 async def test_integrated_batch_stops_without_input_on_failed_location(
     locator, monkeypatch, status,
@@ -1095,7 +1121,7 @@ async def test_integrated_batch_stops_without_input_on_failed_location(
     location = {"status": status if status in {"not_found", "ambiguous"} else "found",
                 "x": 0 if status in {"not_found", "ambiguous"} else 500, "y": 0}
     if status == "invalid":
-        location["x"] = "500"
+        location["x"] = 5000  # out of the declared range, not a type quirk
     actions = [{"action": "click", "frame_id": frame, "location": location},
                {"action": "type_text", "text": "must not type"}]
     result = await c.manager.execute_tool("computer_batch", actions=actions)

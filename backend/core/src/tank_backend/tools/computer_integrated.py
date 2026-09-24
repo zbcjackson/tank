@@ -17,6 +17,35 @@ from .computer_use_macos import ClickTool
 POINTER_TOOLS = {"click", "mouse_move", "scroll", "drag"}
 
 
+def _int_from_numeric_string(value: Any) -> Any:
+    """Read a string-typed integer, or pass the value through unchanged."""
+    if isinstance(value, str):
+        text = value.strip()
+        if text.lstrip("+-").isdigit():
+            return int(text)
+    return value
+
+
+def _tolerant_location(raw: Any) -> Any:
+    """Accept string-typed coordinates, as the legacy location branch already does.
+
+    Recorded single-frame answers all typed coordinates as strings ("x": "539"),
+    which the adapted decoders reject outright; correct points were discarded and
+    the model had to answer again. Integrated mode is never strict, so read them
+    here instead of loosening the decoders used by the strict split/static tracks.
+    """
+    if not isinstance(raw, dict):
+        return raw
+    fixed = dict(raw)
+    for key in ("x", "y"):
+        if key in fixed:
+            fixed[key] = _int_from_numeric_string(fixed[key])
+    box = fixed.get("bbox")
+    if isinstance(box, list):
+        fixed["bbox"] = [_int_from_numeric_string(value) for value in box]
+    return fixed
+
+
 def integrated_prompt(config: GroundingConfig) -> str:
     space = "CURRENT IMAGE" if config.host_restore else "FULL MAIN DISPLAY"
     units = "zero-based pixels" if config.protocol == "pixels" else "0..1000 normalized coordinates"
@@ -86,7 +115,7 @@ class IntegratedSession(LocateSession):
                 min(axis - 1, value * axis / 1000) for value, axis in zip(point, size, strict=True)
             )
         else:
-            location = self.adapter.parse(json.dumps(raw), size)
+            location = self.adapter.parse(json.dumps(_tolerant_location(raw)), size)
             if location.point is None:
                 self.locations.clear()
                 return None
