@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，但预览暴露 launcher 哈希不一致与外层恢复前台夺回失败，B live 未授权；M6–M8 待完成，整份计划继续保持 active。
+> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；B live 仍未授权；M6–M8 待完成，整份计划继续保持 active。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -1546,6 +1546,38 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 下一步：先对齐 launcher 材料哈希并重跑静态范围检查，再查明并修复外层恢复的前台
   夺回，之后重新生成冻结/提案/材料，才申请新的单轮 live 授权；仍限 1 trial / 16 请求 /
   120 agent 秒 / 15 步，token 仅记录，不自动推进到其他组。
+
+### 2026-09-24 — 定位并修复 AppKit 派发/校验缺口，重生成材料并本地验收
+
+- 用户授权后在本机实际复现：对 10 个可见常规应用连续调用
+  `NSRunningApplication.hide()`，返回均为 `False` 且**桌面未被接管**，scope 检查随即
+  拒绝发送图像（与 12:16 的 v2 失败同一现象）。
+- 分层验证后确认两个平台事实：(1) `hide()`/`unhide()` 在本机 macOS 26.6.2 + PyObjC 12.2
+  上即使成功也返回 `False`（`hide()->False` 而 0.1 秒后 `isHidden()->True`）；
+  (2) AppKit 的 hide/unhide/激活请求由调用方 run loop 派发，未 pump 的请求被丢弃。
+  补 pump 并重发后，同一循环 10 个应用全部一次成功。
+- 修复 `desktop_recovery.py`：新增 `set_app_hidden()`（pump + 按 `isHidden()` 校验 +
+  在窗口内重发，不信任 BOOL 返回值）并用于恢复阶段；`front()` 在 5 秒窗口内重发激活
+  请求而不是只发一次；`_wait_for()` 支持显式超时。先红后绿新增 2 项测试。实现提交 `4437b75`。
+- v3 的 `front_restored=false` 在 5 次本地尝试（含真实 launcher）中均未复现，原始触发
+  条件仍未证实；本轮属同一类“请求可被丢弃”的加固，不宣称为根因已定位。
+- 重新生成[七组冻结](../../../backend/benchmarks/computer_use/reports/20260924-m5-pumped-runtime/README.md)、
+  [批次提案](../../../backend/benchmarks/computer_use/reports/20260924-m5-pumped-proposal/README.md)
+  与[单轮材料](../../../backend/benchmarks/computer_use/reports/20260924-m5-pumped-ready/README.md)：
+  19 个产物与 recovery 冻结字节一致，唯一变化源码是 `desktop_recovery.py`；349 文件
+  预检通过，17 trials / 362 HTTP 不变。本轮把 `launcher.py`、`scope_check.py`、
+  `scope-checks.json`、`comparison.json` 与 `supervise_computer_pilot.py` 纳入 pin，
+  并把静态范围检查改为抽取 launcher 自身逻辑执行、记录并核对 `launcher_sha256`；
+  上一轮“材料与检查结果哈希不一致”由机制消除，不再靠人工比对。
+- 本地预览实测（0 模型请求 / 0 图像外发）：10 个应用一次隐藏成功、Calculator 前台、
+  `initial.png`/`ready.json` 产出、截图确认黑背景；launcher 清理 7/7；外层恢复
+  `child_returncode=0`、7 项全 true、`confirmed=true`；桌面复原核对 11 个应用可见性
+  与 iCal 隐藏状态、Calculator 退出、前台回到原应用。
+- Tests：新增 2 项（激活重发、按状态校验隐藏）；backend
+  **5038 passed / 1 skipped**、E2E **16 场景 / 63 步**；web lint/tsc、backend/CLI ruff、
+  改动 Python 文件 pyright、开发服务 pane、docs 与协议同步全部通过。
+- 下一步：仍限 B-protocol-only 单轮（1 trial / 16 请求 / 120 agent 秒 / 15 步，token 仅记录），
+  需要新的单轮授权与发送前截图复核；不自动推进到其他 pilot 或 core 组。
 
 ## 9. 最终 Verification Checklist
 
