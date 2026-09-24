@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；五个固定单轮入口已齐备，A-control/B-protocol-only/A 单轮 strict 失败、B-host-only 单轮 strict 通过（n=1，未作归因；A 与 A-control 行为等价却结果差异极大，印证必须配对）；M5 已收口（#16 新布局覆盖移交 backlog；#13 价格以区间+来源归档；其余勾选）：配对结论为拆分架构 8/12 显著优于适配一体+宿主还原 0/6（p=0.011），框架配对未检出框架效应（A 1/4 vs A-control 1/4），失败已可自动分类（B-combined 纯落点问题、C/D 流程未走完）；M6–M8 待做；M6–M8 待完成，整份计划继续保持 active。
+> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 已收口（#16 新布局覆盖移交 backlog；#13 价格以区间+来源归档；其余勾选）：配对结论为拆分架构 8/12 显著优于适配一体+宿主还原 0/6（p=0.011），框架配对未检出框架效应（A 1/4 vs A-control 1/4），失败已可自动分类（B-combined 纯落点问题、C/D 流程未走完）；M6 已开始：第 1 项本地九点/Calculator oracle 重验完成（9/9、误差 0、I09 未再现仅计本批），第 2 项的预算强制实现、冻结/提案/材料已备（12 trial 待单独授权）；M7/M8 待做，整份计划继续保持 active。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -326,9 +326,13 @@ M4–M8 的既定集成、对照与真实任务验收仍在本计划内，不随
 
 ### M6 — 真实闭环、长历史与清理验收
 
-- [ ] 先在本地九点及 Calculator oracle 重验 M2 驱动。异常时同时保存事件
+- [x] 先在本地九点及 Calculator oracle 重验 M2 驱动。异常时同时保存事件
   down/up、光标回读、时间戳、目标边界和 frame；复现失败先排执行链。
   未再复现 I09 只能说明这批通过，不得把历史异常解释为已解决。
+  （2026-09-24 完成：窗口/全屏两种取景各 9/9、每轴误差 0，全部证据落
+  [driver-recheck](../../../backend/benchmarks/computer_use/reports/20260924-m6-driver-recheck/README.md)；
+  Calculator oracle 真实按键 7×8=56 AX 回读通过，清理确认；I09 未再现
+  仅计本批通过。）
 - [ ] A/B/C/D 各跑 calc-open 三轮；每轮重置，新图、独立真值/validator。
   每轮总时限 120 秒、顶层工具调用上限 15；额外定位调用最多 15 次并计入
   共享 300000 token 上限。按请求报告规划/定位用量，不能只数顶层工具。
@@ -1940,6 +1944,33 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - M5 条目收口：除第 16 项（新布局覆盖）已**移交 backlog 的“静态候选采用复验”**外，其余全部勾选。
 - 花费：框架配对 1,823,108 tokens；加上此前的 core 五次尝试，core trial 合计
   **12,465,469 tokens**（unpriced；估算 $0.4–$20 区间）。
+
+### 2026-09-24 — M6 启动：本地驱动重验与 calc 预算强制批准备
+
+- [x] **M6 第 1 项（本地九点 + Calculator oracle 重验）**：窗口绑定与全屏两种取景各
+  **9/9 命中、每轴误差 0.0 point**，down/up 事件对、光标回读、时间戳、目标边界与
+  frame 观察全部落盘；Oracle 经生产 `KeyPressTool` 逐键派发 `7/shift+8/8/enter`，
+  AX 回读 `7×8=56` 通过，Calculator 关闭、按键/鼠标无残留。零模型请求/截图外发。
+  I09 未再现仅说明本批通过；副屏存在但未触发多屏路径。见
+  [重验报告](../../../backend/benchmarks/computer_use/reports/20260924-m6-driver-recheck/README.md)。
+- **M6 第 2 项实现（agent 预算强制，先红后绿）**：`SubAgentDriver.create`/
+  `run_batch` 新增显式 `enforce_agent_budget`——账本保持仅记录（准入门禁仍按用户
+  2026-09-22 指令关闭），但 record-only 不再把 agent `token_budget` 置零：
+  A 臂经 runner 预算检查停止、B/C/D 臂经 SubAgentContext 共享账本（含 locate
+  调用）停止。配套修复：runner 现在把 `SubAgentStopped` 作为受控停止输出
+  TOKEN + `stop_reason` 元数据（不再伪装成 "Agent error"），driver 据此在报告中
+  区分 `budget` 停止与错误；无 context 路径的预算消息同样携带元数据。
+  新增 4 项测试（两条真实 SDK/假 HTTP 的预算停止、run_batch 透传与计划记录、
+  M6 提案/入口/漂移拒绝），全量 backend **5067 passed / 1 skipped**。
+- **M6 第 2 项材料**：[runtime 冻结](../../../backend/benchmarks/computer_use/reports/20260924-m6-calc-runtime/README.md)
+  与 M5 normalized 批仅差本轮 3 个源码文件，契约字节一致；[提案](../../../backend/benchmarks/computer_use/reports/20260924-m6-calc-proposal/README.md)
+  固定 12 trial（4 臂 × 3 轮、120 秒/15 步、C/D locate ≤15、声明 282 HTTP/3.6M
+  token），`effective_agent_token_budget=300000`、352 文件预检通过；[启动材料](../../../backend/benchmarks/computer_use/reports/20260924-m6-calc-ready/README.md)
+  门禁 11 例 + 范围 5 例通过、launcher 哈希一致，本地预览（0 模型请求）
+  initial.png/ready.json 产出、清理全过、外层恢复 confirmed。
+- 本轮零模型请求、零截图外发；12 trial live 批需单独授权（范围 = 受控
+  Calculator 桌面，端点 DashScope，≤282 请求）。M6 其余各项（14 任务扩展、
+  长历史/压缩、停止/清理验收、失败分类归档）待第 2 项完成后推进。
 
 ## 9. 最终 Verification Checklist
 

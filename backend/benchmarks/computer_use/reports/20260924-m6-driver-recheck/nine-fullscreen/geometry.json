@@ -1,0 +1,13 @@
+{
+  "display_id": 2,
+  "logical_size": [
+    1920.0,
+    1080.0
+  ],
+  "backing_size": [
+    3840,
+    2160
+  ],
+  "screen_recording": true,
+  "input_control": true
+}

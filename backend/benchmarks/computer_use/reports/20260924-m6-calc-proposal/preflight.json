@@ -1,0 +1,21 @@
+{
+  "blockers": [
+    "live_endpoint_and_image_scope_authorization"
+  ],
+  "checked_files": 352,
+  "effective_agent_token_budget": 300000,
+  "enforce_agent_budget": true,
+  "input_cleanup": true,
+  "live_ready": false,
+  "offline_checks_passed": true,
+  "token_cost_gate": "record-only",
+  "totals": {
+    "http_requests": 282,
+    "locator_requests": 90,
+    "max_locator_requests": 45,
+    "planner_requests": 192,
+    "task_seconds": 1440,
+    "tokens": 3600000,
+    "trials": 12
+  }
+}

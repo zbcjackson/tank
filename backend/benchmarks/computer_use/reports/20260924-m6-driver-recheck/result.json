@@ -1,0 +1,77 @@
+{
+  "started_at": 1790259187.539867,
+  "reset": true,
+  "key_presses": [
+    {
+      "key": "7",
+      "at": 1790259193.605867,
+      "error": false,
+      "display": "Key: 7"
+    },
+    {
+      "key": "shift+8",
+      "at": 1790259193.739925,
+      "error": false,
+      "display": "Key: shift+8"
+    },
+    {
+      "key": "8",
+      "at": 1790259193.863136,
+      "error": false,
+      "display": "Key: 8"
+    },
+    {
+      "key": "enter",
+      "at": 1790259193.993029,
+      "error": false,
+      "display": "Key: enter"
+    }
+  ],
+  "display": {
+    "expression": "7×8",
+    "result": "56"
+  },
+  "oracle_passed": true,
+  "frame_observation": {
+    "frame_id": "34ee21217bdf40149319ed60481f642e",
+    "session_id": "m6-oracle",
+    "display_id": 2,
+    "screen_size": [
+      1920,
+      1080
+    ],
+    "image_size": [
+      1920,
+      1162
+    ],
+    "crop": [
+      600,
+      100,
+      1274,
+      508
+    ],
+    "image_sha256": "fb693b43a7a132ed1c2afc01fa2ee91e442de69d76ab117893bc4d0dea9fe44b",
+    "captured_at": 1790259199.421162,
+    "display_geometry": [
+      2,
+      0,
+      0,
+      1920,
+      1080,
+      3840,
+      2160
+    ],
+    "window_id": 24136,
+    "window_bounds": [
+      600,
+      100,
+      1274,
+      508
+    ],
+    "scene_sha256": "5ed6ee5ae26f61323bd171ecdff1a12ca03ac9d5652ba7508ea6c454d4390fc2"
+  },
+  "calculator_closed": true,
+  "pressed_mouse_buttons": [],
+  "pressed_keys": [],
+  "finished_at": 1790259199.9297101
+}
