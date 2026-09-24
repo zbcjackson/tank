@@ -1,4 +1,4 @@
-"""Offline proposal CLI plus an explicitly authorized, single A-control entry API."""
+"""Offline proposal CLI plus explicitly authorized, fixed single-pilot APIs."""
 
 from __future__ import annotations
 
@@ -122,6 +122,24 @@ def preflight(freeze: Path, proposal_path: Path) -> dict[str, Any]:
 async def execute_a_control(
     freeze: Path, proposal_path: Path, output: Path, *, live_authorized: bool = False,
 ) -> BatchResult:
+    """Run only the scheduled A-control pilot; never advance to another entry."""
+    return await _execute_pilot(
+        freeze, proposal_path, output, pilot_index=0, live_authorized=live_authorized,
+    )
+
+
+async def execute_b_protocol_only(
+    freeze: Path, proposal_path: Path, output: Path, *, live_authorized: bool = False,
+) -> BatchResult:
+    """Run only the scheduled B-protocol-only pilot; no other entry is executed."""
+    return await _execute_pilot(
+        freeze, proposal_path, output, pilot_index=1, live_authorized=live_authorized,
+    )
+
+
+async def _execute_pilot(
+    freeze: Path, proposal_path: Path, output: Path, *, pilot_index: int, live_authorized: bool,
+) -> BatchResult:
     """Run exactly one pilot after caller approval and controlled-desktop setup.
 
     This API neither obtains screenshot consent nor prepares/restores the desktop.
@@ -134,7 +152,8 @@ async def execute_a_control(
     if proposal_path.read_bytes() != proposal_bytes:
         raise ValueError("Proposal changed during preflight")
     proposal = json.loads(proposal_bytes)
-    row = proposal["trials"][0]  # preflight binds the exact fixed schedule, not caller selection.
+    # Only the two fixed public entry points select a row; preflight binds the schedule.
+    row = proposal["trials"][pilot_index]
     files = tuple(FrozenFile(BACKEND / name, digest)
                   for name, digest in proposal["files"].items())
     files += (FrozenFile(proposal_path, hashlib.sha256(proposal_bytes).hexdigest()),)

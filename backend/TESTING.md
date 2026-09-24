@@ -857,3 +857,13 @@ and recovery using a newly observed frame. The 48 existing integrated SDK cases
 check the corrected batch description and explicit prompt rules across protocols
 and restoration factors. This does not replay historical desktop state or prove
 that the model follows the revised instructions; old source freezes remain stale.
+
+
+The fixed B-protocol-only entry reuses the A-control execution checks. Five
+additional parameterized cases in `test_comparison_freeze.py` cover missing
+consent, exact one-row scope and parsed model/grounding factors, runtime/order/
+cleanup drift, and proposal mutation during preflight. Both entries preserve
+record-only accounting, input cleanup and 16 planner/zero locator requests.
+Only the batch boundary is replaced, so these are offline entry-contract tests.
+The [B-protocol preparation](benchmarks/computer_use/reports/20260924-m5-b-protocol-ready/README.md)
+reuses the exact previous runtime and updates only the proposal's script pin.
