@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；五个固定单轮入口已齐备，A-control 与 B-protocol-only 单轮 strict 失败、B-host-only 单轮 strict 通过（n=1，未作归因），其余 2 个 pilot 与 12 个 core trial 仍未跑；M6–M8 待完成，整份计划继续保持 active。
+> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，并已修复 AppKit 派发/校验缺口后重新生成一轮；五个固定单轮入口已齐备，A-control/B-protocol-only/A 单轮 strict 失败、B-host-only 单轮 strict 通过（n=1，未作归因；A 与 A-control 行为等价却结果差异极大，印证必须配对），还剩 B-combined 与 12 个 core trial；M6–M8 待完成，整份计划继续保持 active。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -1653,6 +1653,28 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   backend/CLI ruff、改动文件 pyright、开发服务 pane、docs 与协议同步全部通过。
 - 尚余 2 个 pilot 变体（A、B-combined）、12 个 core trial、串行配对调度、独立评分与完整
   M6 验收；已登记的“受控遮罩误点”风险仍应在配对 core trial 前处理。均需新的单轮授权。
+
+### 2026-09-24 — A 基线单轮：行为等价配置下的巨大方差
+
+- 用户授权后执行 A 单轮（生产默认配置，`grounding` 无覆盖；发送前复核 `initial.png` 后放行）：
+  [完整证据](../../../backend/benchmarks/computer_use/reports/20260924-m5-a-pumped-pilot/README.md)。
+  strict **0/1**（`max_steps(15)`）、wall 56.1 s、15 步、18 primitives，16 请求、
+  输入 216293 + 输出 2086 = **218379 tokens**（仅记录、未核价）；
+  `display={result:0}`、`business=false`、`mouse_only=false`、`input_trace_complete=true`；
+  launcher 清理 7/7、外层恢复 `confirmed=true`。
+- 失败机制：模型自述窗口边界为 `x:460–870, y:75–360`，而受控布局实际约为
+  `x:600–1270, y:80–500`；纵向被压缩导致 y 估计集中在 207–235（屏幕 y≈224–254），
+  落在显示区与记忆行之间，数字键从未按下，显示屏始终 `0`；x 方向大致正确，属**系统性
+  纵向偏差**而非随机漂移。15 个工具结果均成功、0 次拒绝。该入口无 grounding 覆盖，
+  因此 trace 中无 `desktop_dispatch`（该事件仅由插桩路径发出），工具结果仍在 TOOL_RESULT。
+- 观察到 legacy 协议接受字符串型坐标（`{"x":"581","y":"214"}`），与适配 point 协议的
+  类型/名称严格拒绝不同；不作为败因，仅记录协议行为差异。
+- **本轮最有力观测**：A 与 A-control 仅差 `grounding` 覆盖块（行为等价，差别仅实验入口），
+  但两次单轮一个“从未按下数字（显示 0）”一个“算对结果（显示 56）”，步数 16/15 对 8/7。
+  这直接支持计划要求的串行配对与多轮分组：单轮或均值差不能解释为框架/适配效应。
+- 四个已跑单轮的 strict 结果：仅 B-host-only 通过；A/B-protocol-only/A-control 均失败，
+  且失败机制各自不同（纵向偏、坐标估错、表达式证据）。剩余 B-combined 与 12 个 core trial
+  需新授权；动手前应先处理已登记的受控遮罩误点风险。
 
 ## 9. 最终 Verification Checklist
 
