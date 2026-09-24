@@ -35,14 +35,31 @@ def _pump_events(seconds: float = 0.05) -> None:
     )
 
 
-def _wait_for(check: Callable[[], bool]) -> bool:
-    deadline = time.monotonic() + 2.0
+def _wait_for(check: Callable[[], bool], timeout: float = 2.0) -> bool:
+    deadline = time.monotonic() + timeout
     while True:
         _pump_events()
         if check():
             return True
         if time.monotonic() >= deadline:
             return False
+
+
+def set_app_hidden(app: Any, hidden: bool) -> bool:
+    """Ask another app to hide or show and verify the state it actually reports.
+
+    AppKit dispatches these requests through the caller's run loop, so an
+    unpumped request is dropped; re-issue it while pumping. The BOOL returned
+    by NSRunningApplication.hide()/unhide() is not a success signal (macOS 26
+    returns False even when the app does change state), so verify instead.
+    """
+    def applied() -> bool:
+        if bool(app.isHidden()) == hidden:
+            return True
+        app.hide() if hidden else app.unhide()
+        return False
+
+    return _wait_for(applied)
 
 
 def _launch_identity(app: Any, *, process_table: bool = False) -> float | str:
@@ -142,12 +159,7 @@ def restore_desktop(saved: dict[str, Any]) -> dict[str, Any]:
                     != original["launched"]):
                 ok = False
                 continue
-            if bool(app.isHidden()) != original["hidden"]:
-                app.hide() if original["hidden"] else app.unhide()
-            restored = _wait_for(
-                lambda app=app, hidden=original["hidden"]: bool(app.isHidden()) == hidden,
-            )
-            ok = restored and ok
+            ok = set_app_hidden(app, bool(original["hidden"])) and ok
         return ok
 
     def clipboard() -> bool:
@@ -180,11 +192,20 @@ def restore_desktop(saved: dict[str, Any]) -> dict[str, Any]:
                 != original["launched"]):
             return False
         app.activateWithOptions_(kit.NSApplicationActivateIgnoringOtherApps)
+
         def is_front() -> bool:
             current = workspace.frontmostApplication()
             return current is not None and int(current.processIdentifier()) == pid
 
-        return _wait_for(is_front)
+        def request_front() -> bool:
+            if is_front():
+                return True
+            # Activation is also dispatched through the run loop and a request
+            # can be dropped, so re-issue it while the wait runs.
+            app.activateWithOptions_(kit.NSApplicationActivateIgnoringOtherApps)
+            return False
+
+        return _wait_for(request_front, timeout=5.0)
 
     stage("inputs_released", inputs)
     stage("calculator_closed", calculator)

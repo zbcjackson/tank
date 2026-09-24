@@ -388,3 +388,92 @@ def test_recovery_preserves_front_without_appkit_launch_date(monkeypatch, same_p
         app.activateWithOptions_.assert_not_called()
         app.hide.assert_not_called()
         app.unhide.assert_not_called()
+
+
+def test_recovery_reissues_activation_until_the_app_is_front(monkeypatch):
+    """A dropped activation request must be retried, not reported as restored."""
+    from tank_backend.benchmarks import desktop_recovery
+
+    kit, quartz, foundation = MagicMock(), MagicMock(), MagicMock()
+    kit.NSApplicationActivationPolicyRegular = 0
+    app = MagicMock()
+    other = MagicMock()
+    app.processIdentifier.return_value = 123
+    app.bundleIdentifier.return_value = "test.front"
+    app.launchDate.return_value.timeIntervalSince1970.return_value = 42.0
+    app.isHidden.return_value = False
+    state = {"front": False, "requests": 0, "dispatched": 0}
+
+    def activate(_):
+        state["requests"] += 1
+
+    def pump(_):
+        # First activation request is dropped; a re-issued one is dispatched.
+        if not state["front"] and state["requests"] > state["dispatched"] + 1:
+            state["front"] = True
+            state["dispatched"] = state["requests"]
+
+    app.activateWithOptions_.side_effect = activate
+    foundation.NSRunLoop.currentRunLoop.return_value.runUntilDate_.side_effect = pump
+    workspace = kit.NSWorkspace.sharedWorkspace.return_value
+    workspace.runningApplications.return_value = [app]
+    workspace.frontmostApplication.side_effect = lambda: app if state["front"] else other
+    kit.NSRunningApplication.runningApplicationWithProcessIdentifier_.return_value = app
+    point = quartz.CGEventGetLocation.return_value
+    point.x, point.y = 0, 0
+    monkeypatch.setattr(desktop_recovery, "_appkit", lambda: kit)
+    monkeypatch.setattr(desktop_recovery.importlib, "import_module",
+                        lambda name: foundation if name == "Foundation" else quartz)
+    monkeypatch.setattr(desktop_recovery.MacOSInputCleanup, "_state", lambda: ([], []))
+    monkeypatch.setattr(desktop_recovery.MacOSInputCleanup, "_release", lambda _: {"errors": []})
+    monkeypatch.setattr(desktop_recovery, "_request", lambda *args: "original")
+    monkeypatch.setattr(desktop_recovery, "_clipboard", lambda _: [])
+    baseline = {"apps": [{"pid": 123, "bundle": "test.front", "launched": 42.0,
+                          "hidden": False}], "front_pid": 123, "clipboard": [],
+                "mouse": [0, 0], "input_source": "original"}
+    result = desktop_recovery.restore_desktop(baseline)
+    assert result["front_restored"] is True
+    assert result["confirmed"] is True
+    assert app.activateWithOptions_.call_count >= 2
+
+
+def test_recovery_hides_and_verifies_without_trusting_the_return_value(monkeypatch):
+    """hide() returns False on macOS 26 and drops unpumped requests."""
+    from tank_backend.benchmarks import desktop_recovery
+
+    app = MagicMock()
+    app.processIdentifier.return_value = 123
+    app.bundleIdentifier.return_value = "test.front"
+    app.launchDate.return_value.timeIntervalSince1970.return_value = 42.0
+    state = {"hidden": False, "requests": 0, "dispatched": 0}
+
+    def hide():
+        state["requests"] += 1
+        return False  # observed on macOS 26 even when hiding succeeds
+
+    def pump(_):
+        # First request is dropped; a re-issued request is dispatched.
+        if state["requests"] > state["dispatched"] + 1:
+            state["hidden"] = True
+            state["dispatched"] = state["requests"]
+
+    kit, quartz, foundation = MagicMock(), MagicMock(), MagicMock()
+    foundation.NSRunLoop.currentRunLoop.return_value.runUntilDate_.side_effect = pump
+    kit.NSRunningApplication.runningApplicationWithProcessIdentifier_.return_value = app
+    monkeypatch.setattr(desktop_recovery, "_appkit", lambda: kit)
+    monkeypatch.setattr(desktop_recovery.importlib, "import_module",
+                        lambda name: foundation if name == "Foundation" else quartz)
+    monkeypatch.setattr(desktop_recovery.MacOSInputCleanup, "_release", lambda _: {"errors": []})
+    monkeypatch.setattr(desktop_recovery, "_request", lambda *args: "original")
+    monkeypatch.setattr(desktop_recovery, "_clipboard", lambda _: [])
+    app.hide.side_effect = hide
+    app.isHidden.side_effect = lambda: state["hidden"]
+    point = quartz.CGEventGetLocation.return_value
+    point.x, point.y = 0, 0
+    baseline = {"apps": [{"pid": 123, "bundle": "test.front", "launched": 42.0,
+                          "hidden": True}], "front_pid": None, "clipboard": [],
+                "mouse": [0, 0], "input_source": "original"}
+    result = desktop_recovery.restore_desktop(baseline)
+    assert result["applications_restored"] is True
+    assert state["hidden"] is True
+    assert app.hide.call_count >= 2
