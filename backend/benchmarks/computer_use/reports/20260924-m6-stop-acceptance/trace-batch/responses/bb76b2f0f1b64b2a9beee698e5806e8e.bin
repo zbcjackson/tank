@@ -1,0 +1,6 @@
+data: {"id": "b1", "object": "chat.completion.chunk", "created": 1, "model": "mock", "choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "id": "b1", "type": "function", "function": {"name": "computer_batch", "arguments": "{\"actions\": [{\"action\": \"type_text\", \"text\": \"M6STOP-\"}, {\"action\": \"key_press\", \"keys\": \"enter\"}, {\"action\": \"wait\", \"seconds\": 5}, {\"action\": \"type_text\", \"text\": \"AFTERCANCEL\"}], \"screenshot\": false}"}}]}, "finish_reason": null}]}
+
+data: {"id": "b1", "object": "chat.completion.chunk", "created": 1, "model": "mock", "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}], "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}}
+
+data: [DONE]
+

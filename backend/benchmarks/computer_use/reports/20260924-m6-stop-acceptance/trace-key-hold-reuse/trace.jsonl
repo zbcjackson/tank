@@ -1,0 +1,7 @@
+{"ts": 1790263345.2888331, "kind": "http_request", "request_id": "f378b626eeaa4e09abc4539e466b8ceb", "model": "qwen3.7-flash-2026-07-15", "stream": true, "image_sha256": [], "grounding_call_id": null}
+{"ts": 1790263345.290606, "kind": "output", "output_type": "TOKEN", "content": "reuse-ok", "metadata": {"turn": 1}}
+{"ts": 1790263345.2908318, "kind": "http_response", "request_id": "f378b626eeaa4e09abc4539e466b8ceb", "status_code": 200, "file": "responses/f378b626eeaa4e09abc4539e466b8ceb.bin", "body_state": "closed_early", "bytes": 409, "sha256": "2e85826b08d7c8c587b8b7574b990ea270dba73ecf79782df9cda4b3aac70cfe", "error_type": null, "content_type": "text/event-stream", "content_encoding": null, "body_representation": "httpx_raw"}
+{"ts": 1790263345.290862, "kind": "llm_call", "call": 1, "ttft_s": 0.00347079208586365, "total_s": 0.0037331670755520463}
+{"ts": 1790263345.290889, "kind": "output", "output_type": "DONE", "content": "", "metadata": {"turn_messages": [{"role": "assistant", "content": "reuse-ok"}]}}
+{"ts": 1790263345.392407, "kind": "desktop_cleanup", "keys_before": [], "buttons_before": [], "errors": [], "keys_after": [], "buttons_after": [], "confirmed": true}
+{"ts": 1790263345.39254, "kind": "driver_done", "steps": 0, "tokens": 15, "wall_s": 0.10630870796740055, "timed_out": false, "stopped_reason": null, "llm_calls": 1, "llm_ttft_s": 0.00347079208586365, "llm_call_s": 0.0037331670755520463, "llm_total_s": 0.0037331670755520463, "stop_reason": null, "cleanup": "confirmed", "unknown_calls": 0}

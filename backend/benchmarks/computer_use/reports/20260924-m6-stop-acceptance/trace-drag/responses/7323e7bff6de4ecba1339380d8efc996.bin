@@ -1,0 +1,6 @@
+data: {"id": "d1", "object": "chat.completion.chunk", "created": 1, "model": "mock", "choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "id": "d1", "type": "function", "function": {"name": "drag", "arguments": "{\"x1\": 322, \"y1\": 226, \"x2\": 765, \"y2\": 226}"}}]}, "finish_reason": null}]}
+
+data: {"id": "d1", "object": "chat.completion.chunk", "created": 1, "model": "mock", "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}], "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}}
+
+data: [DONE]
+

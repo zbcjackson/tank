@@ -1,0 +1,72 @@
+{
+  "started_at": 1790263297.4956632,
+  "finished_at": 1790263369.151854,
+  "quiet_required_s": 10.0,
+  "scenarios": {
+    "planner-wait": {
+      "returned_after_cancel_s": 0.107,
+      "error_type": "CancelledError",
+      "held_keys": [],
+      "held_buttons": [],
+      "quiet": {
+        "events": 0,
+        "detail": []
+      },
+      "reuse_ok": true
+    },
+    "locate-wait": {
+      "returned_after_cancel_s": 0.104,
+      "error_type": "CancelledError",
+      "held_keys": [],
+      "held_buttons": [],
+      "quiet": {
+        "events": 0,
+        "detail": []
+      },
+      "reuse_ok": true
+    },
+    "key-hold": {
+      "returned_after_cancel_s": 4.619,
+      "error_type": "CancelledError",
+      "held_keys": [],
+      "held_buttons": [],
+      "quiet": {
+        "events": 0,
+        "detail": []
+      },
+      "reuse_ok": true
+    },
+    "batch": {
+      "returned_after_cancel_s": 0.104,
+      "error_type": "CancelledError",
+      "held_keys": [],
+      "held_buttons": [],
+      "quiet": {
+        "events": 0,
+        "detail": []
+      },
+      "reuse_ok": true,
+      "marker_present": false,
+      "marker_absent_ok": true
+    },
+    "drag": {
+      "returned_after_cancel_s": 0.366,
+      "error_type": "CancelledError",
+      "held_keys": [],
+      "held_buttons": [],
+      "quiet": {
+        "events": 0,
+        "detail": []
+      },
+      "reuse_ok": true
+    }
+  },
+  "external_requests": 0,
+  "endpoint": "http://127.0.0.1:8931/v1 (loopback mock)",
+  "textedit_bounds": [
+    242,
+    106,
+    603,
+    505
+  ]
+}

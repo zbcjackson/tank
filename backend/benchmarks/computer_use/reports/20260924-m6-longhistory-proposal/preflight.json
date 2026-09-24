@@ -1,0 +1,19 @@
+{
+  "blockers": [
+    "live_endpoint_and_image_scope_authorization"
+  ],
+  "checked_files": 347,
+  "compaction": "absent-from-subagent-path",
+  "effective_agent_token_budget": 300000,
+  "enforce_agent_budget": true,
+  "input_cleanup": true,
+  "live_ready": false,
+  "offline_checks_passed": true,
+  "token_cost_gate": "record-only",
+  "totals": {
+    "http_requests": 180,
+    "task_seconds": 1200,
+    "tokens": 600000,
+    "trials": 2
+  }
+}

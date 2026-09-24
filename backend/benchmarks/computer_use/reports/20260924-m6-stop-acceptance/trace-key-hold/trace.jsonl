@@ -1,0 +1,7 @@
+{"ts": 1790263328.969501, "kind": "http_request", "request_id": "642c61ed70434e3da35a15a863f20a8a", "model": "qwen3.7-flash-2026-07-15", "stream": true, "image_sha256": [], "grounding_call_id": null}
+{"ts": 1790263328.971797, "kind": "output", "output_type": "TOOL_CALLING", "content": "", "metadata": {"index": 0, "name": "hold_key", "arguments": "{\"keys\": \"shift\", \"duration_s\": 6}", "status": "calling", "turn": 1}}
+{"ts": 1790263328.972146, "kind": "http_response", "request_id": "642c61ed70434e3da35a15a863f20a8a", "status_code": 200, "file": "responses/642c61ed70434e3da35a15a863f20a8a.bin", "body_state": "closed_early", "bytes": 547, "sha256": "4403bee92319ddeecd545f3e783bc79a265cc2b5f75a55fe2ff127db38ca91bb", "error_type": null, "content_type": "text/event-stream", "content_encoding": null, "body_representation": "httpx_raw"}
+{"ts": 1790263328.972237, "kind": "llm_call", "call": 1, "ttft_s": 0.0035388750256970525, "total_s": 0.0039825839921832085}
+{"ts": 1790263328.97228, "kind": "output", "output_type": "TOOL_EXECUTING", "content": "", "metadata": {"index": 0, "name": "hold_key", "arguments": "{\"keys\": \"shift\", \"duration_s\": 6}", "status": "executing", "turn": 1}}
+{"ts": 1790263334.984643, "kind": "llm_call", "call": 2, "ttft_s": 0.0, "total_s": 6.012392083997838}
+{"ts": 1790263335.087424, "kind": "desktop_cleanup", "keys_before": [0], "buttons_before": [], "errors": [], "keys_after": [], "buttons_after": [], "confirmed": true}

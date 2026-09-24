@@ -1,0 +1,7 @@
+{"ts": 1790263357.508266, "kind": "http_request", "request_id": "7323e7bff6de4ecba1339380d8efc996", "model": "qwen3.7-flash-2026-07-15", "stream": true, "image_sha256": [], "grounding_call_id": null}
+{"ts": 1790263357.5103612, "kind": "output", "output_type": "TOOL_CALLING", "content": "", "metadata": {"index": 0, "name": "drag", "arguments": "{\"x1\": 322, \"y1\": 226, \"x2\": 765, \"y2\": 226}", "status": "calling", "turn": 1}}
+{"ts": 1790263357.510587, "kind": "http_response", "request_id": "7323e7bff6de4ecba1339380d8efc996", "status_code": 200, "file": "responses/7323e7bff6de4ecba1339380d8efc996.bin", "body_state": "closed_early", "bytes": 555, "sha256": "03002b37d3796faf67d8293c53e850caaf7624498f2d15019384a0613d91d7f9", "error_type": null, "content_type": "text/event-stream", "content_encoding": null, "body_representation": "httpx_raw"}
+{"ts": 1790263357.510624, "kind": "llm_call", "call": 1, "ttft_s": 0.0037781670689582825, "total_s": 0.004044834058731794}
+{"ts": 1790263357.510647, "kind": "output", "output_type": "TOOL_EXECUTING", "content": "", "metadata": {"index": 0, "name": "drag", "arguments": "{\"x1\": 322, \"y1\": 226, \"x2\": 765, \"y2\": 226}", "status": "executing", "turn": 1}}
+{"ts": 1790263358.169895, "kind": "llm_call", "call": 2, "ttft_s": 0.0, "total_s": 0.6592544580344111}
+{"ts": 1790263358.2720819, "kind": "desktop_cleanup", "keys_before": [], "buttons_before": [], "errors": [], "keys_after": [], "buttons_after": [], "confirmed": true}
