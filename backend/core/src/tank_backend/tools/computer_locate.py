@@ -14,6 +14,7 @@ from ..llm.llm import LLM
 from .base import BaseTool, ToolContext, ToolInfo, ToolMetadata, ToolParameter, ToolResult
 from .computer_frame import FrameState, FrameTool
 from .computer_grounding import GroundingAdapter, GroundingResponseError, grounding_call_id
+from .computer_native import join_on_cancel
 from .computer_observation import Observation
 
 SPLIT_PROMPT = """Desktop planning uses split grounding.
@@ -227,7 +228,7 @@ class LocateSession:
                 result = await asyncio.shield(native)
             except asyncio.CancelledError:
                 try:
-                    await asyncio.shield(native)
+                    await join_on_cancel(native)
                 finally:
                     raise
         failed = isinstance(result, ToolResult) and result.error

@@ -15,10 +15,11 @@ import uuid
 from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any, cast
 
+from ..tools.computer_native import join_on_cancel
 from .base import AgentOutput, AgentOutputType, AgentState
 from .definition import AgentDefinition
 from .llm_agent import LLMAgent
-from .resources import DESKTOP_RESOURCE, DesktopResource
+from .resources import DESKTOP_RESOURCE, DesktopCleanup, DesktopResource
 from .subagent import (
     SubAgentAuthorization,
     SubAgentBudget,
@@ -139,6 +140,7 @@ class AgentRunner:
         authorization: SubAgentAuthorization | None = None,
         deadline: float | None = None, observer: SubAgentObserver | None = None,
         max_steps: int | None = None,
+        desktop_cleanup: DesktopCleanup | None = None,
     ) -> AsyncIterator[AgentOutput]:
         context = None
         if agent_def.grounding is not None:
@@ -167,15 +169,39 @@ class AgentRunner:
             agent_def, messages, parent_agent_id, background, token_budget,
             allowed_categories, context=context, task_id=task_id,
         )
+        uses_desktop = self._uses_desktop(agent_def) or desktop_cleanup is not None
+
+        async def clean_inputs() -> None:
+            assert desktop_cleanup is not None
+            try:
+                result = await desktop_cleanup.finish()
+            except Exception as exc:
+                result = {"confirmed": False, "error_type": type(exc).__name__}
+            confirmed = result.get("confirmed") is True
+            if not confirmed:
+                self._desktop_resource.quarantine("desktop input cleanup unconfirmed")
+            if observer is not None:
+                observer.on_event("desktop_cleanup", result)
+            if not confirmed:
+                raise SubAgentCleanupError("desktop input cleanup unconfirmed")
+
         try:
-            if self._uses_desktop(agent_def):
+            if uses_desktop:
                 async with self._desktop_resource.acquire(deadline=deadline):
+                    started = False
                     try:
+                        if desktop_cleanup is not None:
+                            await desktop_cleanup.begin()
+                            started = True
                         async with asyncio.timeout_at(deadline if agent_def.grounding else None):
                             async for output in outputs:
                                 yield output
                     finally:
-                        await outputs.aclose()
+                        try:
+                            await join_on_cancel(outputs.aclose())
+                        finally:
+                            if started:
+                                await join_on_cancel(clean_inputs())
             else:
                 try:
                     async for output in outputs:
@@ -183,7 +209,7 @@ class AgentRunner:
                 finally:
                     await outputs.aclose()
         except SubAgentCleanupError as exc:
-            if self._uses_desktop(agent_def):
+            if uses_desktop:
                 self._desktop_resource.quarantine(str(exc))
             raise
         finally:

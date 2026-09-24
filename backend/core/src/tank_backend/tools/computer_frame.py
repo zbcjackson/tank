@@ -13,6 +13,7 @@ from typing import Any
 from ..core.content import ImageBlock, TextBlock
 from . import computer_use_macos as macos
 from .base import BaseTool, ToolContext, ToolInfo, ToolMetadata, ToolParameter, ToolResult
+from .computer_native import join_on_cancel
 from .computer_observation import Observation
 from .computer_use_common import parse_region
 
@@ -215,7 +216,7 @@ class FrameTool(BaseTool):
         except asyncio.CancelledError:
             cancelled.set()
             try:
-                await asyncio.shield(task)
+                await join_on_cancel(task)
             except (ValueError, RuntimeError, OSError):
                 pass  # Preserve cancellation even if the in-flight capture fails.
             finally:

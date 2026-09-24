@@ -14,6 +14,7 @@ import base64
 import hashlib
 import logging
 import re
+import sys
 import time
 from collections.abc import AsyncIterator, Callable
 from dataclasses import asdict, dataclass, replace
@@ -46,6 +47,7 @@ from ..tools.computer_grounding import grounding_call_id
 from ..tools.computer_use_common import BATCH_ACTIONS
 from ..tools.manager import ToolManager
 from .comparison_contract import ComparisonContract
+from .desktop_cleanup import MacOSInputCleanup
 from .request_budget import (
     RequestBudget,
     RequestLimitExceeded,
@@ -364,13 +366,17 @@ class SubAgentDriver:
         agent_def: AgentDefinition,
         llm: CountingLLM,
         tool_manager: ToolManager,
+        *, input_cleanup: bool = False,
     ) -> None:
+        if input_cleanup and (agent_def.engine or agent_def.extension):
+            raise ValueError("Input cleanup requires a built-in benchmark agent")
+        self._input_cleanup = MacOSInputCleanup() if input_cleanup else None
         self._runner = runner
         self._agent_def = agent_def
         self._llm = llm
         self._tool_manager = tool_manager
         self._trace: TraceSink | None = None
-        self._runtime_metadata: dict[str, Any] = {}
+        self._runtime_metadata: dict[str, Any] = {"input_cleanup": input_cleanup}
         self._request_limits: RequestLimits | None = None
         self._request_budget: RequestBudget | None = None
         self._spend: SpendControl | None = None
@@ -381,6 +387,7 @@ class SubAgentDriver:
         request_limits: RequestLimits | None = None,
         spend: SpendControl | None = None,
         comparison: ComparisonContract | None = None,
+        input_cleanup: bool = False,
     ) -> SubAgentDriver:
         """Assemble the stack from repo config (config.yaml + agents/*.md)."""
         from dotenv import load_dotenv
@@ -408,6 +415,8 @@ class SubAgentDriver:
             )
         if request_limits is not None and (agent_def.engine or agent_def.extension):
             raise ValueError("Request limits require the built-in benchmark transport")
+        if input_cleanup and (sys.platform != "darwin" or agent_def.engine or agent_def.extension):
+            raise ValueError("Input cleanup requires the built-in macOS benchmark driver")
         if comparison is not None:
             comparison.verify(app_config, agent_def)
         configured_token_budget = agent_def.token_budget
@@ -426,6 +435,7 @@ class SubAgentDriver:
         tool_manager = ToolManager(app_config, bus=bus)
 
         driver = cls.__new__(cls)
+        driver._input_cleanup = MacOSInputCleanup() if input_cleanup else None
         driver._trace = None
         driver._request_limits = request_limits
         driver._request_budget = None
@@ -524,6 +534,7 @@ class SubAgentDriver:
         }} if comparison is not None else {})
 
         driver._runtime_metadata.update(
+            input_cleanup=input_cleanup,
             budget_record_only=bool(spend is not None and spend.ledger.record_only),
             configured_token_budget=configured_token_budget,
         )
@@ -583,6 +594,16 @@ class SubAgentDriver:
     async def run(
         self, instruction: str, trace: TraceSink, *, timeout_s: int, max_steps: int,
     ) -> DriverResult:
+        try:
+            return await self._run_bounded(instruction, trace, timeout_s=timeout_s,
+                                           max_steps=max_steps)
+        finally:
+            self._trace = None
+            self._llm.on_call = None
+
+    async def _run_bounded(
+        self, instruction: str, trace: TraceSink, *, timeout_s: int, max_steps: int,
+    ) -> DriverResult:
         if self._request_limits is None:
             return await self._run(instruction, trace, timeout_s=timeout_s, max_steps=max_steps)
         if self._request_budget is not None and self._request_budget.active:
@@ -637,6 +658,9 @@ class SubAgentDriver:
         class Observer:
             def on_event(_self, kind: str, metadata: dict[str, Any]) -> None:
                 nonlocal unknown_calls, primitives
+                if kind == "desktop_cleanup":
+                    terminal["cleanup"] = ("confirmed" if metadata.get("confirmed") is True
+                                           else "unconfirmed")
                 if kind == "desktop_dispatch" and metadata.get("in_batch"):
                     primitives += int(metadata.get("succeeded", False))
                 if kind == "dimensions":
@@ -661,6 +685,8 @@ class SubAgentDriver:
         async def consume() -> None:
             nonlocal steps, stopped_reason, primitives
             run_kwargs: dict[str, Any] = {}
+            if self._input_cleanup is not None:
+                run_kwargs.update(desktop_cleanup=self._input_cleanup, observer=Observer())
             if self._agent_def.extension:
                 permissions = self._runner.extension_permissions(self._agent_def)
                 run_kwargs.update(authorization=SubAgentAuthorization(permissions),

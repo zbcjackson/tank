@@ -74,6 +74,7 @@ async def run_batch(
     batch_request_limit: int,
     frozen_inputs: FrozenInputs,
     record_only: bool = False,
+    input_cleanup: bool = False,
 ) -> BatchResult:
     """Run each explicit task/agent once, in order, sharing one durable ledger.
 
@@ -109,7 +110,7 @@ async def run_batch(
             "request_limits": asdict(request_limits),
             "contracts": [asdict(contract) for contract in contracts],
             "batch_request_limit": batch_request_limit, "record_only": record_only,
-            "frozen_inputs": asdict(frozen_inputs),
+            "frozen_inputs": asdict(frozen_inputs), "input_cleanup": input_cleanup,
         })
     ledger = SpendLedger(
         batch_limit, journal=out_dir / "spend.jsonl", request_limit=batch_request_limit,
@@ -140,6 +141,7 @@ async def run_batch(
                     entry.agent_name, entry.config_path,
                     request_limits=request_limits, spend=control,
                     comparison=entry.comparison,
+                    **({"input_cleanup": True} if input_cleanup else {}),
                 )
                 verify_inputs()
                 report = await run_suite(

@@ -6,6 +6,12 @@ import asyncio
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any, Protocol
+
+
+class DesktopCleanup(Protocol):
+    async def begin(self) -> None: ...
+    async def finish(self) -> dict[str, Any]: ...
 
 
 class DesktopResource:

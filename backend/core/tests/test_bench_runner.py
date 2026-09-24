@@ -486,7 +486,7 @@ def _make_suite(tmp_path: Path) -> Path:
 
 @pytest.mark.parametrize(
     "stop_case", ["none", "cleanup", "usage", "budget", "cancelled", "requests", "inputs",
-                  "zero", "record_only"],
+                  "zero", "record_only", "input_cleanup"],
 )
 async def test_serial_batch_shares_durable_spend_and_refuses_replay(
     tmp_path, monkeypatch, stop_case,
@@ -514,7 +514,9 @@ async def test_serial_batch_shares_durable_spend_and_refuses_replay(
     order = []
     controls = []
 
-    def create(agent_name, config_path, *, request_limits, spend, comparison=None):
+    def create(agent_name, config_path, *, request_limits, spend, comparison=None,
+               input_cleanup=False):
+        assert input_cleanup is (stop_case == "input_cleanup")
         controls.append(spend)
 
         class Driver:
@@ -557,6 +559,7 @@ async def test_serial_batch_shares_durable_spend_and_refuses_replay(
             trial_limit=SpendLimit(60, 600), request_limits=RequestLimits(), contracts=(),
             batch_request_limit=0 if stop_case == "zero" else 1 if stop_case == "requests" else 3,
             frozen_inputs=frozen, record_only=stop_case == "record_only",
+            input_cleanup=stop_case == "input_cleanup",
         )
     if stop_case in {"cancelled", "inputs"}:
         with pytest.raises(asyncio.CancelledError if stop_case == "cancelled" else ValueError):
@@ -565,23 +568,25 @@ async def test_serial_batch_shares_durable_spend_and_refuses_replay(
     else:
         result = await invoke()
     expected_order = (
-        ["a", "b", "c"] if stop_case in {"none", "record_only"} else
+        ["a", "b", "c"] if stop_case in {"none", "record_only", "input_cleanup"} else
         [] if stop_case == "zero" else ["a"]
     )
     assert order == expected_order
     assert len({id(c) for c in controls}) == (0 if stop_case == "zero" else 1)
     assert result["completed"] == {
-        "none": ["a", "b", "c"], "record_only": ["a", "b", "c"], "budget": ["a", "b"],
+        "none": ["a", "b", "c"], "record_only": ["a", "b", "c"], "input_cleanup": ["a", "b", "c"],
+        "budget": ["a", "b"],
         "cancelled": [],
         "cleanup": ["a"], "usage": ["a"],
         "requests": ["a"], "inputs": ["a"], "zero": [],
     }[stop_case]
     assert result["spend"]["batch"]["charged_tokens"] == {
-        "none": 15, "record_only": 15, "budget": 5, "cancelled": 50, "cleanup": 5, "usage": 50,
+        "none": 15, "record_only": 15, "input_cleanup": 15,
+        "budget": 5, "cancelled": 50, "cleanup": 5, "usage": 50,
         "requests": 5, "inputs": 5, "zero": 0,
     }[stop_case]
     assert result["spend"]["stop_reason"] == {
-        "none": None, "record_only": None, "budget": "batch_tokens",
+        "none": None, "record_only": None, "input_cleanup": None, "budget": "batch_tokens",
         "cancelled": "batch_interrupted",
         "cleanup": "cleanup_unconfirmed", "usage": "unknown_usage",
         "requests": "batch_requests", "inputs": "frozen_inputs", "zero": "batch_requests",

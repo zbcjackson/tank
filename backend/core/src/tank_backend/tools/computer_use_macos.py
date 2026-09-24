@@ -20,7 +20,6 @@ One-time setup: Grant Screen Recording and Accessibility to the host app
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import ctypes
 import importlib
@@ -33,6 +32,7 @@ from typing import Any
 
 from ..core.content import ImageBlock, TextBlock
 from .base import BaseTool, ToolInfo, ToolMetadata, ToolParameter, ToolResult
+from .computer_native import run_native
 from .computer_use_common import (
     COORDINATE_NOTE,
     COORDINATE_X_DESCRIPTION,
@@ -518,7 +518,7 @@ class ScreenshotTool(BaseTool):
         global _screen_point_size
 
         try:
-            png_bytes = await asyncio.to_thread(_capture_screenshot_macos)
+            png_bytes = await run_native(_capture_screenshot_macos)
         except Exception as e:
             return ToolResult(
                 content=f"screenshot: failed to capture screen: {e}",
@@ -547,7 +547,7 @@ class ScreenshotTool(BaseTool):
                     ),
                     error=True,
                 )
-            png_bytes = await asyncio.to_thread(
+            png_bytes = await run_native(
                 crop_and_upscale, png_bytes, parsed, (width, height),
             )
             dimension_note = (
@@ -645,7 +645,7 @@ class ClickTool(BaseTool):
         px, py = _normalized_to_pixel(x, y)
 
         try:
-            await asyncio.to_thread(_click_macos, px, py, button, clicks)
+            await run_native(_click_macos, px, py, button, clicks)
         except Exception as e:
             return ToolResult(content=f"click: failed: {e}", error=True)
         return ToolResult(
@@ -705,7 +705,7 @@ class TypeTextTool(BaseTool):
         if mode not in ("auto", "paste"):
             return ToolResult(content="type_text: mode must be auto or paste", error=True)
         try:
-            method = await asyncio.to_thread(_type_macos, text, mode)
+            method = await run_native(_type_macos, text, mode)
         except Exception as e:
             return ToolResult(content=f"type_text: failed: {e}", error=True)
         display_text = text if len(text) <= 30 else text[:27] + "..."
@@ -771,7 +771,7 @@ class KeyPressTool(BaseTool):
 
         try:
             for _ in range(times):
-                await asyncio.to_thread(_key_macos, key_list)
+                await run_native(_key_macos, key_list)
         except Exception as e:
             return ToolResult(content=f"key_press: failed: {e}", error=True)
         suffix = f" ×{times}" if times > 1 else ""
@@ -848,7 +848,7 @@ class ScrollTool(BaseTool):
             pos = f" at ({x}, {y})"
 
         try:
-            await asyncio.to_thread(_scroll_macos, amount, px, py)
+            await run_native(_scroll_macos, amount, px, py)
         except Exception as e:
             return ToolResult(content=f"scroll: failed: {e}", error=True)
         direction = "up" if amount > 0 else "down"
@@ -897,7 +897,7 @@ class MouseMoveTool(BaseTool):
 
         px, py = _normalized_to_pixel(x, y)
         try:
-            await asyncio.to_thread(_move_macos, px, py)
+            await run_native(_move_macos, px, py)
         except Exception as e:
             return ToolResult(content=f"mouse_move: failed: {e}", error=True)
         return ToolResult(
@@ -934,7 +934,7 @@ class LaunchAppTool(BaseTool):
             return ToolResult(content="launch_app: 'app_name' is required", error=True)
 
         try:
-            result = await asyncio.to_thread(
+            result = await run_native(
                 subprocess.run,
                 ["open", "-a", app_name],
                 capture_output=True, text=True, timeout=10,
@@ -976,7 +976,7 @@ class MouseDownTool(BaseTool):
 
     async def execute(self, button: str = "left") -> ToolResult:
         try:
-            await asyncio.to_thread(_mouse_button_macos, button, True)
+            await run_native(_mouse_button_macos, button, True)
         except Exception as e:
             return ToolResult(content=f"mouse_down: failed: {e}", error=True)
         return ToolResult(content=f"Mouse {button} button down", display="Mouse down")
@@ -1005,7 +1005,7 @@ class MouseUpTool(BaseTool):
 
     async def execute(self, button: str = "left") -> ToolResult:
         try:
-            await asyncio.to_thread(_mouse_button_macos, button, False)
+            await run_native(_mouse_button_macos, button, False)
         except Exception as e:
             return ToolResult(content=f"mouse_up: failed: {e}", error=True)
         return ToolResult(content=f"Mouse {button} button up", display="Mouse up")
@@ -1050,7 +1050,7 @@ class HoldKeyTool(BaseTool):
         except (TypeError, ValueError):
             duration = 1.0
         try:
-            await asyncio.to_thread(_hold_key_macos, key_list, duration)
+            await run_native(_hold_key_macos, key_list, duration)
         except Exception as e:
             return ToolResult(content=f"hold_key: failed: {e}", error=True)
         return ToolResult(
@@ -1101,7 +1101,7 @@ class DragTool(BaseTool):
         sx, sy = _normalized_to_pixel(*start)
         ex, ey = _normalized_to_pixel(*end)
         try:
-            await asyncio.to_thread(_drag_macos, sx, sy, ex, ey)
+            await run_native(_drag_macos, sx, sy, ex, ey)
         except Exception as e:
             return ToolResult(content=f"drag: failed: {e}", error=True)
         return ToolResult(
