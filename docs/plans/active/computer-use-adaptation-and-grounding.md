@@ -1,4 +1,4 @@
-> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；M6–M8 待完成，整份计划继续保持 active。
+> 状态：执行中，2026-09-24。M1 输入/本地图像及首步提示 A/B、M2 frame/宿主还原验收完成；M0 离线基线、失败集与首轮 holdout 已冻结。M3 实现、首轮实验与证据/范围收尾完成，全部候选未通过完整采用门槛，默认不变；544 次静态请求额度已用完，未测原生协议/专用模型已明确暂缓。M4 离线定位编排及软件验收完成；M5 执行中，benchmark 分离测量与 B 组一体适配/单因素开关已实现，四组模型对照尚未运行；恢复入口的冻结/提案/单轮材料已生成，但预览暴露 launcher 哈希不一致与外层恢复前台夺回失败，B live 未授权；M6–M8 待完成，整份计划继续保持 active。
 
 # macOS Computer use：模型适配、规划定位分离与完整验收
 
@@ -1512,6 +1512,40 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 下一步：刷新源码冻结/提案，以外层恢复入口准备新 B 预览；不复用已消费授权。
 - 完整回归：backend **5036 passed / 1 skipped**、E2E **16 场景 / 63 步**；
   web lint/tsc、backend/CLI ruff、修改文件 pyright、开发服务器日志、文档及协议检查通过。
+
+### 2026-09-24 — 恢复入口的外层冻结与 B 单轮预览材料
+
+- [x] 生成新的[七组 runtime/SDK 冻结](../../../backend/benchmarks/computer_use/reports/20260924-m5-recovery-runtime/README.md)
+  与[批次提案](../../../backend/benchmarks/computer_use/reports/20260924-m5-recovery-proposal/README.md)：
+  346 文件预检通过，17 trials / 362 HTTP / 5.1M token 名义值 / 2040 任务秒；
+  `record_only=true`、`input_cleanup=true`、`core_requires_pilot_acceptance=true`、
+  `live_authorized=false`。旧冻结与旧失败证据保持不变。
+- [x] 与 contract-runtime 逐项对比：requests/definitions/profiles/toolset 一致，
+  仅 `benchmarks/_ime_native.py`、`benchmarks/desktop_recovery.py`、`benchmarks/ime.py`
+  三个源码文件变化，故本次 B 对照只反映 IME/恢复改动，不混入提示契约变化。
+- [x] 固定 B-protocol-only 的[单轮材料](../../../backend/benchmarks/computer_use/reports/20260924-m5-recovery-ready/README.md)：
+  默认仅预览退出，`--live` 需新的单轮授权；外层恢复由
+  `scripts/supervise_computer_pilot.py` 承担（0700 私有基线 + fsync，子进程崩溃/超时后
+  逐项恢复，绝不归档 `baseline.json`）。
+- 本地预览三轮，全程 0 模型请求、0 图像外发：v1、v3 产出 `initial.png` 与 `ready.json`，
+  cleanup 七项全 true；v2 因运行时范围变化被拒且未发送图像，证明 scope 门禁生效。
+- **两个未解决缺口（本轮未申请 live）**：
+  1. `launcher.py.txt`（12:17）的 sha256 `dfc81a88…` 与 `scope-checks.json` 记录的
+     `dbd444a0…`（12:16）不一致——静态范围检查之后 launcher 又被修改，该材料无法按
+     哈希复核；
+  2. v3 外层恢复 `child_returncode=0`、六项通过，但 `front_restored=false`
+     （基线前台 `sh.paseo.desktop`，常规应用且未被隐藏）→ `confirmed=false`。此前
+     Launcher 探针 7/7 通过不能覆盖该流程，原因未证实，不解释为已修复。
+- 未执行真实模型请求、截图外发与桌面动作；上一轮单轮授权已消费，不复用。token/费用
+  门禁仍为仅记录，生产 300000 配置不变。
+- Tests：本轮只新增离线冻结/提案/材料与本地预览证据，生产代码无改动（源码差异来自
+  前两条记录的提交）。复核
+  `prepare_computer_batch.py --freeze …/20260924-m5-recovery-runtime --check
+  …/20260924-m5-recovery-proposal/proposal.json` 返回 `offline_checks_passed=true`、
+  `checked_files=346`；按 CLAUDE.md 文档改动例外仅执行 `check_docs.py`。
+- 下一步：先对齐 launcher 材料哈希并重跑静态范围检查，再查明并修复外层恢复的前台
+  夺回，之后重新生成冻结/提案/材料，才申请新的单轮 live 授权；仍限 1 trial / 16 请求 /
+  120 agent 秒 / 15 步，token 仅记录，不自动推进到其他组。
 
 ## 9. 最终 Verification Checklist
 
