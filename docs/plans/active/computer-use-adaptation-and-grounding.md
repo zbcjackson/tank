@@ -1428,6 +1428,21 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 完整验证通过：backend **5010 passed / 1 skipped**、E2E **16 场景 / 63 步**；
   web lint/TS、backend/CLI ruff、服务日志、docs 与协议同步通过。
 
+### 2026-09-24 — 修正工具说明后的 A-control 实测
+
+- [x] 新轮授权及原图范围复核后运行一次；[完整证据](../../../backend/benchmarks/computer_use/reports/20260924-m5-contract-pilot/README.md)
+  已归档，未追加任何 trial。
+- 16 HTTP 全部 200；输入 **396213**、输出 **2689**，共 **398902 tokens**。
+  超过旧 300000 参考值仍正常执行，token/费用门禁关闭生效；无余额不足错误，金额未核价。
+  agent **75.33 秒**，整轮 **84.54 秒**，因 15 步上限停止。
+- strict 失败，AX 与原始末帧均为 **0**。两次 batch 和截图数组已被接受；
+  batch 点击位于所见 Calculator 窗口右侧，另有 1 次旧帧、1 次引号按键名、
+  2 次字符串 location 错误；无像素变化拒绝。单轮不能证明提示改善或模型优劣。
+- 自动输入清理与外部桌面恢复确认成功。生产代码无修改，旧失败证据保持不变。
+- 下一步准备同一新冻结下的 B-protocol-only（同模型、host_restore=false）；
+  当前单轮入口只支持 A-control，需补选定 pilot 的受限入口和独立授权。
+  尚余 4 个 pilot 变体、12 个 core trial、阶段推进与完整比较。
+
 ## 9. 最终 Verification Checklist
 
 每个实现里程碑结束及最终交付前执行；本次计划文档也执行适用检查。

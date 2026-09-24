@@ -1,0 +1,32 @@
+data: {"model":"qwen3.7-flash-2026-07-15","id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","created":1790218678,"object":"chat.completion.chunk","usage":null,"choices":[{"logprobs":null,"index":0,"delta":{"content":"","role":"assistant"},"finish_reason":null}]}
+
+data: {"model":"qwen3.7-flash-2026-07-15","id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","choices":[{"delta":{"content":"屏幕"},"index":0,"finish_reason":null,"logprobs":null}],"created":1790218678,"object":"chat.completion.chunk","usage":null}
+
+data: {"model":"qwen3.7-flash-2026-07-15","id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","choices":[{"delta":{"content":"仍然是黑色的，计算器"},"index":0,"finish_reason":null,"logprobs":null}],"created":1790218678,"object":"chat.completion.chunk","usage":null}
+
+data: {"model":"qwen3.7-flash-2026-07-15","id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","choices":[{"delta":{"content":"窗口似乎被意外"},"index":0,"finish_reason":null,"logprobs":null}],"created":1790218678,"object":"chat.completion.chunk","usage":null}
+
+data: {"model":"qwen3.7-flash-2026-07-15","id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","choices":[{"delta":{"content":"关闭或"},"index":0,"finish_reason":null,"logprobs":null}],"created":1790218678,"object":"chat.completion.chunk","usage":null}
+
+data: {"model":"qwen3.7-flash-2026-07-15","id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","choices":[{"delta":{"content":"隐藏了。让我"},"index":0,"finish_reason":null,"logprobs":null}],"created":1790218678,"object":"chat.completion.chunk","usage":null}
+
+data: {"model":"qwen3.7-flash-2026-07-15","id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","choices":[{"delta":{"content":"重新打开计算器应用"},"index":0,"finish_reason":null,"logprobs":null}],"created":1790218678,"object":"chat.completion.chunk","usage":null}
+
+data: {"model":"qwen3.7-flash-2026-07-15","id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","choices":[{"delta":{"content":"：\n\n"},"index":0,"finish_reason":null,"logprobs":null}],"created":1790218678,"object":"chat.completion.chunk","usage":null}
+
+data: {"model":"qwen3.7-flash-2026-07-15","id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","choices":[{"delta":{"content":"","tool_calls":[{"index":0,"id":"call_d984e202186d45cfaf7019f0","type":"function","function":{"name":"launch_app","arguments":""}}]},"index":0,"finish_reason":null,"logprobs":null}],"created":1790218678,"object":"chat.completion.chunk","usage":null}
+
+data: {"model":"qwen3.7-flash-2026-07-15","id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","choices":[{"delta":{"content":"","tool_calls":[{"index":0,"id":"","type":"function","function":{"arguments":"{\"app_name\": \"Calculator"}}]},"index":0,"finish_reason":null,"logprobs":null}],"created":1790218678,"object":"chat.completion.chunk","usage":null}
+
+data: {"model":"qwen3.7-flash-2026-07-15","id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","choices":[{"delta":{"content":"","tool_calls":[{"index":0,"id":"","type":"function","function":{"arguments":"\""}}]},"index":0,"finish_reason":null,"logprobs":null}],"created":1790218678,"object":"chat.completion.chunk","usage":null}
+
+data: {"model":"qwen3.7-flash-2026-07-15","id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","choices":[{"delta":{"content":"","tool_calls":[{"index":0,"id":"","type":"function","function":{"arguments":"}"}}]},"index":0,"finish_reason":null,"logprobs":null}],"created":1790218678,"object":"chat.completion.chunk","usage":null}
+
+data: {"model":"qwen3.7-flash-2026-07-15","id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","choices":[{"delta":{"tool_calls":[{"function":{"arguments":""},"index":0,"id":"","type":"function"}],"content":""},"index":0,"finish_reason":null,"logprobs":null}],"created":1790218678,"object":"chat.completion.chunk","usage":null}
+
+data: {"model":"qwen3.7-flash-2026-07-15","id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","choices":[{"delta":{},"index":0,"finish_reason":"tool_calls","logprobs":null}],"created":1790218678,"object":"chat.completion.chunk","usage":null}
+
+data: {"choices":[],"created":1790218678,"id":"chatcmpl-875d111d-3e3c-9bdb-a99e-134bd5b640d7","model":"qwen3.7-flash-2026-07-15","object":"chat.completion.chunk","usage":{"completion_tokens":49,"completion_tokens_details":{"text_tokens":49},"prompt_tokens":15115,"prompt_tokens_details":{"cached_tokens":11136,"image_tokens":6126,"text_tokens":8989},"total_tokens":15164}}
+
+data: [DONE]
+

@@ -1,0 +1,320 @@
+{
+  "date": "2026-09-24",
+  "authorization": "User explicitly approved corrected-contract single trial: 允许",
+  "git_revision": "76fb99e",
+  "variant": "A-control",
+  "model": "qwen3.7-flash-2026-07-15",
+  "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "trials": 1,
+  "http_requests": 16,
+  "http_statuses": [
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200
+  ],
+  "input_tokens": 396213,
+  "output_tokens": 2689,
+  "tokens": 398902,
+  "token_reference": 300000,
+  "record_only": true,
+  "cost_status": "unpriced",
+  "balance_error_observed": false,
+  "unique_sent_images": 11,
+  "image_occurrences": 106,
+  "result": {
+    "task_id": "calc-open",
+    "trial": 1,
+    "success": false,
+    "error": "max_steps(15) reached",
+    "steps": 15,
+    "wall_s": 84.54379658401012,
+    "tokens": 398902,
+    "screenshots": 12,
+    "timed_out": false,
+    "llm_calls": 16,
+    "llm_ttft_s": 2.4624294379609637,
+    "llm_call_s": 4.9562491250108,
+    "llm_total_s": 75.20702508429531,
+    "scoring": "strict",
+    "llm_rtt_s": 0.0,
+    "stop_reason": null,
+    "cleanup": "confirmed",
+    "primitives": 17,
+    "model_turns": 16,
+    "unknown_calls": 0,
+    "tool_call_limit": 15,
+    "gui_only": true,
+    "non_gui_tools": [],
+    "assessment": {
+      "revision": "calc-evidence-v1",
+      "strict_expression": false,
+      "business": null,
+      "mouse_only": null,
+      "pixels": "unknown",
+      "reset_verified": true,
+      "input_trace_complete": false,
+      "display": {
+        "result": "0"
+      },
+      "last_screenshot": {
+        "sha256": "2ac0715a6b6b0ba0e76099c4b5cf1d67849c9943c2971e724ec8a643793076db",
+        "file": "screenshots/shot_012.png",
+        "captured_at": 1790218736.966463,
+        "http_serialized_at": 1790218736.998801
+      }
+    }
+  },
+  "driver": {
+    "ts": 1790218742.7741408,
+    "kind": "driver_done",
+    "steps": 15,
+    "tokens": 398902,
+    "wall_s": 75.32597441691905,
+    "timed_out": false,
+    "stopped_reason": "max_steps(15) reached",
+    "llm_calls": 16,
+    "llm_ttft_s": 2.4624294379609637,
+    "llm_call_s": 4.9562491250108,
+    "llm_total_s": 75.20702508429531,
+    "stop_reason": null,
+    "cleanup": "confirmed",
+    "unknown_calls": 0
+  },
+  "input_cleanup": {
+    "ts": 1790218742.7740538,
+    "kind": "desktop_cleanup",
+    "keys_before": [],
+    "buttons_before": [],
+    "errors": [],
+    "keys_after": [],
+    "buttons_after": [],
+    "confirmed": true
+  },
+  "external_cleanup": {
+    "calculator_closed": true,
+    "pressed_keys": [],
+    "pressed_mouse_buttons": [],
+    "background_closed": true,
+    "hidden_apps_restored": true,
+    "clipboard_restored": true,
+    "cursor_restored": true,
+    "worker_finished": true
+  },
+  "tool_results": [
+    {
+      "ts": 1790218670.199028,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "{\"dispatch\": \"dispatched\", \"effect\": \"unknown\", \"detail\": \"Launched Calculator\"}\nObservation geometry; follow the integrated coordinate contract. {\"frame_id\": \"062cceda4ec1441ab2123da09845af72\", \"sess",
+      "metadata": {
+        "index": 0,
+        "name": "launch_app",
+        "arguments": "{\"app_name\": \"Calculator\"}",
+        "status": "success",
+        "turn": 1
+      }
+    },
+    {
+      "ts": 1790218676.133569,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "{\"steps\": [{\"action\": \"click\", \"dispatch\": \"dispatched\", \"detail\": \"{\\\"dispatch\\\": \\\"dispatched\\\", \\\"effect\\\": \\\"unknown\\\", \\\"detail\\\": \\\"click: image target \\\\u2192 Quartz (1638, 231)\\\"}\"}, {\"action\"",
+      "metadata": {
+        "index": 0,
+        "name": "computer_batch",
+        "arguments": "{\"actions\": \n[{\"action\": \"click\", \"frame_id\": \"062cceda4ec1441ab2123da09845af72\", \"location\": {\"x\": 853, \"y\": 214}}, {\"action\": \"click\", \"frame_id\": \"062cceda4ec1441ab2123da09845af72\", \"location\": {\"x\": 960, \"y\": 214}}, {\"action\": \"click\", \"frame_id\": \"062cceda4ec1441ab2123da09845af72\", \"location\": {\"x\": 907, \"y\": 214}}, {\"action\": \"click\", \"frame_id\": \"062cceda4ec1441ab2123da09845af72\", \"location\": {\"x\": 960, \"y\": 393}}]\n\n}",
+        "status": "success",
+        "turn": 2
+      }
+    },
+    {
+      "ts": 1790218678.095362,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "Screenshot captured",
+      "metadata": {
+        "index": 0,
+        "name": "screenshot",
+        "arguments": "{}",
+        "status": "success",
+        "turn": 3
+      }
+    },
+    {
+      "ts": 1790218681.285363,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "{\"dispatch\": \"dispatched\", \"effect\": \"unknown\", \"detail\": \"Launched Calculator\"}\nObservation geometry; follow the integrated coordinate contract. {\"frame_id\": \"13b96e672b6340c4ac60d1c9df84cf7f\", \"sess",
+      "metadata": {
+        "index": 0,
+        "name": "launch_app",
+        "arguments": "{\"app_name\": \"Calculator\"}",
+        "status": "success",
+        "turn": 4
+      }
+    },
+    {
+      "ts": 1790218686.949791,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "{\"steps\": [{\"action\": \"click\", \"dispatch\": \"dispatched\", \"detail\": \"{\\\"dispatch\\\": \\\"dispatched\\\", \\\"effect\\\": \\\"unknown\\\", \\\"detail\\\": \\\"click: image target \\\\u2192 Quartz (1638, 231)\\\"}\"}, {\"action\"",
+      "metadata": {
+        "index": 0,
+        "name": "computer_batch",
+        "arguments": "{\"actions\": \n[{\"action\": \"click\", \"frame_id\": \"13b96e672b6340c4ac60d1c9df84cf7f\", \"location\": {\"x\": 853, \"y\": 214}}, {\"action\": \"click\", \"frame_id\": \"13b96e672b6340c4ac60d1c9df84cf7f\", \"location\": {\"x\": 960, \"y\": 214}}, {\"action\": \"click\", \"frame_id\": \"13b96e672b6340c4ac60d1c9df84cf7f\", \"location\": {\"x\": 907, \"y\": 214}}, {\"action\": \"click\", \"frame_id\": \"13b96e672b6340c4ac60d1c9df84cf7f\", \"location\": {\"x\": 960, \"y\": 393}}]\n\n}",
+        "status": "success",
+        "turn": 5
+      }
+    },
+    {
+      "ts": 1790218690.482307,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "{\"dispatch\": \"dispatched\", \"effect\": \"unknown\", \"detail\": \"Launched Calculator\"}\nObservation geometry; follow the integrated coordinate contract. {\"frame_id\": \"d102668995684e179f1a30d518107444\", \"sess",
+      "metadata": {
+        "index": 0,
+        "name": "launch_app",
+        "arguments": "{\"app_name\": \"Calculator\"}",
+        "status": "success",
+        "turn": 6
+      }
+    },
+    {
+      "ts": 1790218693.810685,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "Screenshot captured",
+      "metadata": {
+        "index": 0,
+        "name": "screenshot",
+        "arguments": "{\"region\": \n[400, 60, 750, 500]\n\n}",
+        "status": "success",
+        "turn": 7
+      }
+    },
+    {
+      "ts": 1790218704.125619,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "Missing or stale frame; observe again or stop",
+      "metadata": {
+        "index": 0,
+        "name": "click",
+        "arguments": "{\"frame_id\": \"d102668995684e179f1a30d518107444\", \"location\": {\"x\": 853, \"y\": 214}}",
+        "status": "error",
+        "turn": 8
+      }
+    },
+    {
+      "ts": 1790218708.842059,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "Screenshot captured",
+      "metadata": {
+        "index": 0,
+        "name": "screenshot",
+        "arguments": "{}",
+        "status": "success",
+        "turn": 9
+      }
+    },
+    {
+      "ts": 1790218714.8786712,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "{\"dispatch\": \"error\", \"effect\": \"unknown\", \"detail\": \"key_press: invalid 'keys' '\\\"7\\\"' \\u2014 valid keys: enter, tab, escape, backspace, delete, space, up, down, left, right, home, end, pageup, paged",
+      "metadata": {
+        "index": 0,
+        "name": "key_press",
+        "arguments": "{\"keys\": \"\\\"7\\\"\"}",
+        "status": "error",
+        "turn": 10
+      }
+    },
+    {
+      "ts": 1790218721.540426,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "{\"dispatch\": \"dispatched\", \"effect\": \"unknown\", \"detail\": \"Typed: '7*8='\"}\nObservation geometry; follow the integrated coordinate contract. {\"frame_id\": \"fa02766b39a74fa9a43a088cb9619458\", \"session_id",
+      "metadata": {
+        "index": 0,
+        "name": "type_text",
+        "arguments": "{\"text\": \"7*8=\"}",
+        "status": "success",
+        "turn": 11
+      }
+    },
+    {
+      "ts": 1790218726.818783,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "Invalid legacy location; observe again or stop",
+      "metadata": {
+        "index": 0,
+        "name": "click",
+        "arguments": "{\"frame_id\": \"fa02766b39a74fa9a43a088cb9619458\", \"location\": \"{\\\"x\\\": 500, \\\"y\\\": 200}\"}",
+        "status": "error",
+        "turn": 12
+      }
+    },
+    {
+      "ts": 1790218729.1069162,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "Screenshot captured",
+      "metadata": {
+        "index": 0,
+        "name": "screenshot",
+        "arguments": "{}",
+        "status": "success",
+        "turn": 13
+      }
+    },
+    {
+      "ts": 1790218734.293089,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "Invalid legacy location; observe again or stop",
+      "metadata": {
+        "index": 0,
+        "name": "click",
+        "arguments": "{\"frame_id\": \"d8ad2942fd804da9a2b5699314270031\", \"location\": \"{\\\"x\\\": 853, \\\"y\\\": 214}\"}",
+        "status": "error",
+        "turn": 14
+      }
+    },
+    {
+      "ts": 1790218736.966733,
+      "kind": "output",
+      "output_type": "TOOL_RESULT",
+      "content": "Screenshot captured",
+      "metadata": {
+        "index": 0,
+        "name": "screenshot",
+        "arguments": "{\"region\": \n[400, 60, 750, 500]\n\n}",
+        "status": "success",
+        "turn": 15
+      }
+    }
+  ],
+  "independent_review": {
+    "method": "Original-resolution final screenshot inspection",
+    "display": "0",
+    "file": "live/batch/pilot-a-control/trials/calc-open/1/screenshots/shot_012.png",
+    "strict_success": false
+  },
+  "next_action": "Prepare B-protocol-only diagnostic pilot using this same corrected freeze; do not infer a success-rate change from one run."
+}

@@ -1,0 +1,120 @@
+"""Defaults to local preview. --live requires explicit user consent and a reviewed go file."""
+import argparse, asyncio, base64, hashlib, json, os, runpy, subprocess, threading, time
+from pathlib import Path
+import AppKit, Quartz, objc
+from PyObjCTools import AppHelper
+from dotenv import load_dotenv
+from tank_backend.config import AppConfig
+from tank_backend.benchmarks.batch import BatchTrial, run_batch
+from tank_backend.benchmarks.comparison_contract import ComparisonContract
+from tank_backend.benchmarks.frozen_inputs import FrozenFile, FrozenInputs
+from tank_backend.benchmarks.request_budget import RequestLimits
+from tank_backend.benchmarks.spend_ledger import SpendLimit
+from tank_backend.benchmarks.calc_validator import reset_calculator
+from tank_backend.tools import computer_use_macos as macos
+from tank_backend.core.content import ImageBlock
+
+BACKEND=Path('/Users/zbcjackson/src/tank/backend')
+FREEZE=BACKEND/'benchmarks/computer_use/reports/20260924-m5-contract-runtime'
+PROPOSAL=BACKEND/'benchmarks/computer_use/reports/20260924-m5-contract-proposal/proposal.json'
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--live',action='store_true')
+LIVE=parser.parse_args().live
+api=runpy.run_path(str(BACKEND/'scripts/prepare_computer_batch.py'))
+api['preflight'](FREEZE,PROPOSAL)
+OUT=Path('/tmp/tank-m5-a-control-20260924-contract-'+('live' if LIVE else 'preview')); OUT.mkdir(exist_ok=False)
+app=AppKit.NSApplication.sharedApplication(); app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)
+workspace=AppKit.NSWorkspace.sharedWorkspace(); original_front=workspace.frontmostApplication()
+original_mouse=Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
+hidden=[]
+for other in workspace.runningApplications():
+    if other.activationPolicy()==AppKit.NSApplicationActivationPolicyRegular and not other.isHidden() and other.bundleIdentifier() not in ('com.apple.calculator','com.apple.finder') and other.processIdentifier()!=os.getpid():
+        if other.hide(): hidden.append(other)
+screen=next(s for s in AppKit.NSScreen.screens() if int(s.deviceDescription()['NSScreenNumber'])==int(Quartz.CGMainDisplayID()))
+window=AppKit.NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(screen.frame(), AppKit.NSWindowStyleMaskBorderless, AppKit.NSBackingStoreBuffered, False)
+window.setBackgroundColor_(AppKit.NSColor.blackColor()); window.setOpaque_(True)
+window.setHidesOnDeactivate_(False); window.setCanHide_(False)
+window.setTitle_('Tank M5 controlled background'); window.orderFrontRegardless()
+clipboard=AppKit.NSPasteboard.generalPasteboard()
+saved_clipboard=[[(str(t),bytes(item.dataForType_(t))) for t in item.types() if item.dataForType_(t) is not None] for item in (clipboard.pasteboardItems() or [])]
+original_capture=macos._capture_screenshot_macos
+
+def check_scope():
+    visible=[a for a in workspace.runningApplications() if a.activationPolicy()==AppKit.NSApplicationActivationPolicyRegular and not a.isHidden() and a.bundleIdentifier() not in ('com.apple.calculator','com.apple.finder') and a.processIdentifier()!=os.getpid()]
+    if visible: raise RuntimeError('Controlled screenshot scope changed; no image sent')
+    on_screen=Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionOnScreenOnly,Quartz.kCGNullWindowID)
+    if not any(int(w.get('kCGWindowNumber',-1))==int(window.windowNumber()) for w in on_screen):
+        raise RuntimeError('Controlled background is not visible; no image sent')
+
+def capture(*, include_cursor=True):
+    check_scope(); image=original_capture(include_cursor=include_cursor); check_scope(); return image
+macos._capture_screenshot_macos=capture
+
+async def pilot():
+    subprocess.run(['osascript','-e','tell application "Calculator" to activate'],check=True,capture_output=True,timeout=20)
+    await asyncio.sleep(1)
+    subprocess.run(['osascript','-e','tell application "System Events" to tell process "Calculator" to set position of window 1 to {600, 100}'],check=True,capture_output=True,timeout=20)
+    if not reset_calculator(): raise RuntimeError('Calculator reset failed before model admission')
+    subprocess.run(['osascript','-e','tell application "System Events" to tell process "Calculator" to set position of window 1 to {600, 100}'],check=True,capture_output=True,timeout=20)
+    shot=await macos.ScreenshotTool().execute()
+    if shot.error: raise RuntimeError(str(shot.content))
+    block=next(b for b in shot.content if isinstance(b,ImageBlock))
+    (OUT/'initial.png').write_bytes(base64.b64decode(block.source.split(',',1)[1]))
+    (OUT/'ready.json').write_text(json.dumps({'model_requests':0,'scope':'controlled Calculator desktop','variant':'A-control'}))
+    if not LIVE:
+        print("Preview only: zero model requests",flush=True)
+        return
+    for _ in range(240):
+        if (OUT/'go').exists(): break
+        await asyncio.sleep(.5)
+    else: raise RuntimeError('Local screenshot review deadline expired; no model call')
+    check_scope()
+    load_dotenv(BACKEND/'core/.env')
+    source=AppConfig.load(BACKEND/'core/config.yaml')
+    key=source.llm_profiles['computer_use'].api_key
+    if not key: raise RuntimeError('Missing provider credential')
+    os.environ['M5_DASHSCOPE_API_KEY']=key
+    result=await api['execute_a_control'](FREEZE,PROPOSAL,OUT/'batch',live_authorized=True)
+    print(json.dumps({'completed':result['completed'],'spend':result['spend']['batch'],'stop_reason':result['spend']['stop_reason']}),flush=True)
+
+error=[]
+def finish():
+    cleanup={}
+    try:
+        subprocess.run(['osascript','-e','tell application "Calculator" to quit'],capture_output=True,timeout=20)
+        time.sleep(.5)
+        cleanup['calculator_closed']=not any(a.bundleIdentifier()=='com.apple.calculator' for a in workspace.runningApplications())
+        cleanup['pressed_keys']=[i for i in range(128) if Quartz.CGEventSourceKeyState(Quartz.kCGEventSourceStateCombinedSessionState,i)]
+        cleanup['pressed_mouse_buttons']=[i for i in range(3) if Quartz.CGEventSourceButtonState(Quartz.kCGEventSourceStateCombinedSessionState,i)]
+        window.close(); cleanup['background_closed']=not window.isVisible()
+        restored=[]
+        for other in hidden: restored.append(bool(other.unhide()))
+        cleanup['hidden_apps_restored']=all(restored)
+        items=[]
+        for values in saved_clipboard:
+            item=AppKit.NSPasteboardItem.alloc().init()
+            for kind,data in values: item.setData_forType_(data,kind)
+            items.append(item)
+        clipboard.clearContents()
+        cleanup['clipboard_restored']=bool(clipboard.writeObjects_(items)) if items else True
+        Quartz.CGWarpMouseCursorPosition(original_mouse)
+        restored_mouse=Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
+        cleanup['cursor_restored']=abs(restored_mouse.x-original_mouse.x)<=1 and abs(restored_mouse.y-original_mouse.y)<=1
+        if original_front is not None: original_front.activateWithOptions_(AppKit.NSApplicationActivateIgnoringOtherApps)
+        cleanup['worker_finished']=True
+        (OUT/'cleanup.json').write_text(json.dumps(cleanup,indent=2))
+    finally:
+        app.stop_(None)
+        event=AppKit.NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(AppKit.NSEventTypeApplicationDefined,(0,0),0,0,0,None,0,0,0)
+        app.postEvent_atStart_(event,True)
+
+def worker():
+    with objc.autorelease_pool():
+        try: asyncio.run(pilot())
+        except Exception as exc:
+            error.append(type(exc).__name__)
+            (OUT/'error.txt').write_text(str(exc))
+            print('Pilot stopped: '+str(exc),flush=True)
+        finally: AppHelper.callAfter(finish)
+thread=threading.Thread(target=worker,daemon=True);thread.start();app.run();thread.join(timeout=3)
+if error: raise SystemExit(1)
