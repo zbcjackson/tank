@@ -1969,6 +1969,29 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 花费：框架配对 1,823,108 tokens；加上此前的 core 五次尝试，core trial 合计
   **12,465,469 tokens**（unpriced；估算 $0.4–$20 区间）。
 
+### 2026-09-25 — M7 批次 4（live1）：AX 寻址未生效，整批无效；已修复待重跑
+
+- [x] 用户授权后串行 9 trial（发送前复核 initial.png：83.8% 黑背景、仅
+  Calculator、显示 0）。全部 HTTP 200、**112/234 请求、1,474,746 tokens**
+  （record-only）；launcher 清理 7/7、外层恢复 confirmed、零输入残留、
+  遮罩陷阱零触发（门禁拦 3 次窗外点击）。
+- **结果：三臂 strict 全 0，且 AX 臂的 locate 从未成功——不能作对照证据**。
+  根因（设计缺陷）：AX 模式要求模型截图绑定 `window_id`，但模型无法从像素
+  得知 CGWindowNumber，6 个完成 trial 的每一次 locate 均在
+  observation_before 被拒，退化为键盘输入（trace 零指针派发）。批次 1 离线
+  测试通过是因为脚本化规划器硬编码了 window_id，掩盖了缺陷。
+  [证据与分类](../../../backend/benchmarks/computer_use/reports/20260925-m7-ax-live1/README.md)。
+- 另 2 轮基础设施中止（pair-3 两 AX 臂）：提供方流在 tool-call 参数中段截断
+  （finish_reason=tool_calls 已达但 arguments JSON 不完整），M5 截断守卫
+  正确零派发，但守卫抛出使 agent 终止——归类 infrastructure abort，不改
+  M5 冻结语义。
+- [x] 修复（先红后绿）：**宿主自动绑定窗口**——AXSession 截图省略 window_id
+  时由宿主解析前台常规应用主窗口（`resolve_frontmost_window`），AX 提示不再
+  要求模型传窗口 id；冻结快照场景同步改为自动绑定路径。提交 `ca09ab38`，
+  v2 材料 `e8bf69fd`（352 文件预检通过、gate/scope 全过、预览 0 请求全过）。
+- A 臂 3 轮（0/3，键序错/只按 7/运算符忽略）为有效纯截图数据；live1 112
+  请求计入授权总额不重置；重跑为声明新批次，待用户授权。
+
 ### 2026-09-25 — M7 批次 3：三臂对比冻结/提案/启动材料
 
 - [x] 实现变更（先红后绿）：M2 接缝修复——`_validate_observation` 将省略的
