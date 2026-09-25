@@ -1,0 +1,13 @@
+[links-history] go released 125153; allowed=['Safari']
+[links-history] finished rc=0
+[multi-select-copy] go released 125636; allowed=['Finder']
+[multi-select-copy] finished rc=1
+[multi-select-copy] rc=1 with all 6 trials complete; continuing (recovery false negative recorded)
+[drag-file] go released 130200; allowed=['Finder']
+[drag-file] finished rc=1
+[drag-file] rc=1 with all 6 trials complete; continuing (recovery false negative recorded)
+[small-text-code] go released 130647; allowed=['Safari']
+[small-text-code] finished rc=0
+[window-copy] go released 131104; allowed=['TextEdit', 'Safari']
+[window-copy] finished rc=0
+{"links-history": true, "multi-select-copy": true, "drag-file": true, "small-text-code": true, "window-copy": true}

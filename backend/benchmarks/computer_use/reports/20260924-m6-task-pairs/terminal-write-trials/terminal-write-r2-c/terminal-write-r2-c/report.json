@@ -1,0 +1,217 @@
+{
+  "label": "terminal-write-r2-c",
+  "scoring_revision": "trial-token-gui-grounding-v5",
+  "metadata": {
+    "agent_name": "computer_use",
+    "engine": null,
+    "extension": null,
+    "config": {
+      "model": "qwen3.7-flash-2026-07-15"
+    },
+    "prompt_revision": "929bdb4162b475c28e0212d3c6c200a5af93366c6f0f279066ba245a53f17945",
+    "comparison_contract": {
+      "variant": "C",
+      "freeze_dir": "/Users/zbcjackson/src/tank/backend/benchmarks/computer_use/reports/20260925-m6-tasks-runtime"
+    },
+    "input_cleanup": true,
+    "budget_record_only": true,
+    "agent_budget_enforced": true,
+    "configured_token_budget": 300000,
+    "spend_budget": {
+      "record_only": true,
+      "cost_status": "unpriced",
+      "batch": {
+        "limit_tokens": 300000,
+        "limit_nano_usd": 8000000000,
+        "charged_tokens": 50278,
+        "charged_nano_usd": 0,
+        "known_tokens": 50278,
+        "known_nano_usd": 0,
+        "reserved_tokens": 0,
+        "reserved_nano_usd": 0,
+        "limit_requests": 31,
+        "admitted_requests": 6
+      },
+      "trials": {
+        "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r2-c/terminal-write-r2-c/trials/terminal-write/1": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 50278,
+          "charged_nano_usd": 0,
+          "known_tokens": 50278,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0
+        }
+      },
+      "stop_reason": null,
+      "requests": {
+        "04b6e5252e724206a7b64540fb16fc38": {
+          "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r2-c/terminal-write-r2-c/trials/terminal-write/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 3833,
+          "output_tokens": 43,
+          "status": "known"
+        },
+        "a5f3dec992764731b89b4cb7c7231747": {
+          "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r2-c/terminal-write-r2-c/trials/terminal-write/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 6293,
+          "output_tokens": 88,
+          "status": "known"
+        },
+        "245e305155c8467c9e8e4801b676b10d": {
+          "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r2-c/terminal-write-r2-c/trials/terminal-write/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 6278,
+          "output_tokens": 23,
+          "status": "known"
+        },
+        "65d20bfddb5d43e391c1ed0141176407": {
+          "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r2-c/terminal-write-r2-c/trials/terminal-write/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 8692,
+          "output_tokens": 64,
+          "status": "known"
+        },
+        "2fe8e3aa669a4770a443059fd4fa324b": {
+          "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r2-c/terminal-write-r2-c/trials/terminal-write/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 11172,
+          "output_tokens": 59,
+          "status": "known"
+        },
+        "40cd37c07e7c4346938a40cb0a7dbb9d": {
+          "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r2-c/terminal-write-r2-c/trials/terminal-write/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 13648,
+          "output_tokens": 85,
+          "status": "known"
+        }
+      }
+    },
+    "request_budget": {
+      "limits": {
+        "planner": 16,
+        "locator": 15,
+        "total": 31
+      },
+      "planner": 6,
+      "locator": 0,
+      "total": 6,
+      "blocked": false
+    },
+    "request_limits": {
+      "planner": 16,
+      "locator": 15,
+      "total": 31
+    },
+    "grounding": {
+      "profile": null,
+      "fallback_profile": null,
+      "protocol": "point",
+      "nullable_style": "integer",
+      "strict": false,
+      "detail": "auto",
+      "status_field": false,
+      "mode": "split",
+      "host_restore": true
+    },
+    "token_budget": 300000,
+    "platform": "macos",
+    "git_revision": "12dde91ea02ed19aea3975ac835264e8625da77a",
+    "task_revision": "9442074589754111c1b5273dc1048298b42e78f3b0d48695373c30fe975004ee",
+    "scoring_revision": "trial-token-gui-grounding-v5",
+    "aborted_cleanup": false,
+    "outcomes": [
+      {
+        "task": "terminal-write",
+        "trial": 1,
+        "stop_reason": null,
+        "cleanup": "confirmed",
+        "scoring": "strict",
+        "success": true,
+        "unknown_calls": 0,
+        "assessment": {}
+      }
+    ],
+    "limits": [
+      {
+        "task": "terminal-write",
+        "tool_call_limit": 15,
+        "timeout_s": 120,
+        "gui_only": true
+      }
+    ]
+  },
+  "smoke": {
+    "trials": 0,
+    "successes": 0
+  },
+  "overall": {
+    "trials": 1,
+    "successes": 1,
+    "success_rate": 1.0,
+    "ci_lo": 0.2065432914738929,
+    "ci_hi": 1.0,
+    "llm": {
+      "calls_total": 6,
+      "ttft_s_median": 2.391536979470402,
+      "call_s_mean": 3.6188332571376427,
+      "total_s": 21.712999542825855
+    }
+  },
+  "tasks": {
+    "terminal-write": {
+      "trials": 1,
+      "successes": 1,
+      "success_rate": 1.0,
+      "ci_lo": 0.2065432914738929,
+      "ci_hi": 1.0,
+      "medians": {
+        "steps": 5.0,
+        "wall_s": 22.026931958971545,
+        "tokens": 50278.0,
+        "screenshots": 4.0,
+        "llm_calls": 6.0,
+        "llm_ttft_s": 2.391536979470402,
+        "llm_call_s": 3.4242772919824347,
+        "llm_total_s": 21.712999542825855,
+        "llm_rtt_s": 0.0,
+        "primitives": 4.0,
+        "model_turns": 6.0,
+        "tool_call_limit": 15.0
+      }
+    }
+  }
+}

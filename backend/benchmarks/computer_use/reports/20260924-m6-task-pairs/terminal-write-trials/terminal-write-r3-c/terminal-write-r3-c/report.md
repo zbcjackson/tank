@@ -1,0 +1,316 @@
+# computer_use benchmark
+
+- Run label: `terminal-write-r3-c`
+- Scoring: trial-token-gui-grounding-v5 (historical reports use a different scoring revision)
+- Smoke (excluded from strict score): 0/0
+- Overall: **1/1** (100%, 95% CI 21%–100%)
+
+| task | pass | rate | 95% CI | tool calls (med) | actions (med) | turns (med) | call limit | wall s (med) | tokens (med) | shots (med) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| terminal-write | 1/1 | 100% | 21%–100% | 12 | 5 | 16 | 15 | 44 | 133290 | 5 |
+
+## LLM latency (per call)
+
+| task | calls (med) | stream ttft s (med) | call s (med) | total s | nonstream RTT s |
+|---|---|---|---|---|---|
+| terminal-write | 16 | 2.0 | 1.9 | 43 | 0.0 |
+
+- API calls total: 16, mean 2.7s/call, median streamed ttft 2.0, LLM time total 43s
+
+## Run metadata
+
+```json
+{
+  "agent_name": "computer_use",
+  "engine": null,
+  "extension": null,
+  "config": {
+    "model": "qwen3.7-flash-2026-07-15"
+  },
+  "prompt_revision": "929bdb4162b475c28e0212d3c6c200a5af93366c6f0f279066ba245a53f17945",
+  "comparison_contract": {
+    "variant": "C",
+    "freeze_dir": "/Users/zbcjackson/src/tank/backend/benchmarks/computer_use/reports/20260925-m6-tasks-runtime"
+  },
+  "input_cleanup": true,
+  "budget_record_only": true,
+  "agent_budget_enforced": true,
+  "configured_token_budget": 300000,
+  "spend_budget": {
+    "record_only": true,
+    "cost_status": "unpriced",
+    "batch": {
+      "limit_tokens": 300000,
+      "limit_nano_usd": 8000000000,
+      "charged_tokens": 133290,
+      "charged_nano_usd": 0,
+      "known_tokens": 133290,
+      "known_nano_usd": 0,
+      "reserved_tokens": 0,
+      "reserved_nano_usd": 0,
+      "limit_requests": 31,
+      "admitted_requests": 16
+    },
+    "trials": {
+      "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1": {
+        "limit_tokens": 300000,
+        "limit_nano_usd": 8000000000,
+        "charged_tokens": 133290,
+        "charged_nano_usd": 0,
+        "known_tokens": 133290,
+        "known_nano_usd": 0,
+        "reserved_tokens": 0,
+        "reserved_nano_usd": 0
+      }
+    },
+    "stop_reason": null,
+    "requests": {
+      "24b88350d8cb45e7bf620adf2bb67541": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 3833,
+        "output_tokens": 43,
+        "status": "known"
+      },
+      "eeec31d81bb24265a6979e2950631c50": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 6288,
+        "output_tokens": 134,
+        "status": "known"
+      },
+      "f7b174db3cbf4d999c114fb84f0291cb": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 2507,
+        "output_tokens": 48,
+        "status": "known"
+      },
+      "3884c82ac2f143318099a29e126f1115": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 6476,
+        "output_tokens": 41,
+        "status": "known"
+      },
+      "64350847994e46dfbe0bed4a45486be1": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 6414,
+        "output_tokens": 23,
+        "status": "known"
+      },
+      "4eec9603b03a4435ba20c43bfe0184c1": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 8821,
+        "output_tokens": 115,
+        "status": "known"
+      },
+      "7556004f42fa428cbfdfebae2426e6c1": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 2510,
+        "output_tokens": 48,
+        "status": "known"
+      },
+      "53c226d974c24304adfb2adad29b4652": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 8996,
+        "output_tokens": 54,
+        "status": "known"
+      },
+      "1a9422ca7acc4d2ea174ef8c3e4abd80": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 9074,
+        "output_tokens": 51,
+        "status": "known"
+      },
+      "e00f59a268834d3b97cf78f2020da7cc": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 9074,
+        "output_tokens": 24,
+        "status": "known"
+      },
+      "0284048b742e4bc9975f69830831c925": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 11467,
+        "output_tokens": 114,
+        "status": "known"
+      },
+      "1f9aa185ee54441bbbab8f469b076ef1": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 2507,
+        "output_tokens": 48,
+        "status": "known"
+      },
+      "13c560cf9d184577935295a0d2e1ae90": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 11640,
+        "output_tokens": 50,
+        "status": "known"
+      },
+      "9511f96fcb5c44809324515af93f543b": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 11752,
+        "output_tokens": 64,
+        "status": "known"
+      },
+      "0e8a45389e424458ad9fbc30948705e3": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 14228,
+        "output_tokens": 62,
+        "status": "known"
+      },
+      "991012e1717b4aae8aa05f36bdd32ea2": {
+        "trial": "/private/tmp/tank-m6-terminal-write-20260925-live/trials/terminal-write-r3-c/terminal-write-r3-c/trials/terminal-write/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 16698,
+        "output_tokens": 86,
+        "status": "known"
+      }
+    }
+  },
+  "request_budget": {
+    "limits": {
+      "planner": 16,
+      "locator": 15,
+      "total": 31
+    },
+    "planner": 13,
+    "locator": 3,
+    "total": 16,
+    "blocked": false
+  },
+  "request_limits": {
+    "planner": 16,
+    "locator": 15,
+    "total": 31
+  },
+  "grounding": {
+    "profile": null,
+    "fallback_profile": null,
+    "protocol": "point",
+    "nullable_style": "integer",
+    "strict": false,
+    "detail": "auto",
+    "status_field": false,
+    "mode": "split",
+    "host_restore": true
+  },
+  "token_budget": 300000,
+  "platform": "macos",
+  "git_revision": "12dde91ea02ed19aea3975ac835264e8625da77a",
+  "task_revision": "9442074589754111c1b5273dc1048298b42e78f3b0d48695373c30fe975004ee",
+  "scoring_revision": "trial-token-gui-grounding-v5",
+  "aborted_cleanup": false,
+  "outcomes": [
+    {
+      "task": "terminal-write",
+      "trial": 1,
+      "stop_reason": null,
+      "cleanup": "confirmed",
+      "scoring": "strict",
+      "success": true,
+      "unknown_calls": 0,
+      "assessment": {}
+    }
+  ],
+  "limits": [
+    {
+      "task": "terminal-write",
+      "tool_call_limit": 15,
+      "timeout_s": 120,
+      "gui_only": true
+    }
+  ]
+}
+```

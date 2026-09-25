@@ -1,0 +1,1275 @@
+{
+  "task_id": "typing-fidelity",
+  "pilot_acceptance": "reviewed-2026-09-24-m6-calc-and-m5-pairs",
+  "enforce_agent_budget": true,
+  "completed": [
+    "typing-fidelity-r1-a",
+    "typing-fidelity-r1-c",
+    "typing-fidelity-r2-c",
+    "typing-fidelity-r2-a",
+    "typing-fidelity-r3-a",
+    "typing-fidelity-r3-c"
+  ],
+  "batches": [
+    {
+      "completed": [
+        "typing-fidelity-r1-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 137823,
+          "charged_nano_usd": 0,
+          "known_tokens": 137823,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 15
+        },
+        "trials": {
+          "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 137823,
+            "charged_nano_usd": 0,
+            "known_tokens": 137823,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "4716f7da4fa74b7f9c55ff92be5aa71f": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5198,
+            "output_tokens": 59,
+            "status": "known"
+          },
+          "3a5a79a967934b82b7c5cb2bfd08d9d0": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5288,
+            "output_tokens": 38,
+            "status": "known"
+          },
+          "7d6415de82484daa954d388a98223a01": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5372,
+            "output_tokens": 71,
+            "status": "known"
+          },
+          "299f5110fd7f4c2dbcf51ee55e5acc4d": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5528,
+            "output_tokens": 25,
+            "status": "known"
+          },
+          "152d9257ac504ac0a86ca1ad63d9a55c": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5574,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "436af78ce58b4310bddde6572f48191f": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7737,
+            "output_tokens": 78,
+            "status": "known"
+          },
+          "76a70618dd784e63ae4562a13403fde1": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7862,
+            "output_tokens": 142,
+            "status": "known"
+          },
+          "f8bab98586ce439f845b71d5a0c004a2": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8103,
+            "output_tokens": 59,
+            "status": "known"
+          },
+          "c0b5cd1df6f64de091f8c16f14a8113f": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8209,
+            "output_tokens": 28,
+            "status": "known"
+          },
+          "ac9685edbc1d4bd4808b163c41b77280": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10389,
+            "output_tokens": 75,
+            "status": "known"
+          },
+          "5a1eb08f80d0421996727536e44da530": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10511,
+            "output_tokens": 21,
+            "status": "known"
+          },
+          "fe6bd8dce3bd46e580c150c90f80f639": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12692,
+            "output_tokens": 72,
+            "status": "known"
+          },
+          "3e1303ee60974dc3b83679590e706b9e": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13833,
+            "output_tokens": 219,
+            "status": "known"
+          },
+          "e86261127eed4387bbdc6360207f6999": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14099,
+            "output_tokens": 28,
+            "status": "known"
+          },
+          "fa875df36de24623b8fc3d4a4b2720e4": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-a/typing-fidelity-r1-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16287,
+            "output_tokens": 213,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "typing-fidelity-r1-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 327668,
+          "charged_nano_usd": 0,
+          "known_tokens": 327668,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 19
+        },
+        "trials": {
+          "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 327668,
+            "charged_nano_usd": 0,
+            "known_tokens": 327668,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "28513922a09b4811b4d4d590a6a022fe": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3927,
+            "output_tokens": 60,
+            "status": "known"
+          },
+          "96b3f9a6bcd4431096f25f766c11e2ff": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6398,
+            "output_tokens": 68,
+            "status": "known"
+          },
+          "08e0a4be6941493fb5cbd28a54d821c4": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8887,
+            "output_tokens": 124,
+            "status": "known"
+          },
+          "a6e137c26bf84c3aa4e2ac7d7c52c8dc": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2506,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "1b73fbb61e8246fa8c3e67d1882b9175": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9106,
+            "output_tokens": 70,
+            "status": "known"
+          },
+          "1ed6381897a94f7cb1be5bac5701912b": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11611,
+            "output_tokens": 107,
+            "status": "known"
+          },
+          "4ffa2fd56e9944fb952c9b570491561d": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14128,
+            "output_tokens": 87,
+            "status": "known"
+          },
+          "37e53b0b9b394aadb5cf23dcca9ee802": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16645,
+            "output_tokens": 67,
+            "status": "known"
+          },
+          "6c5bb22fe5a04a3f903631fe719cff02": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 19127,
+            "output_tokens": 103,
+            "status": "known"
+          },
+          "4ea652c3cd264326b4fa8793041a7855": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 21661,
+            "output_tokens": 90,
+            "status": "known"
+          },
+          "da5f66f14bcf4194837279effbf609dd": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 24165,
+            "output_tokens": 134,
+            "status": "known"
+          },
+          "b4b0dcbb6afe45b78aae43d3ca872dff": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2506,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "b0edb4f578664db4bf9f9d6e39de8d59": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 24390,
+            "output_tokens": 67,
+            "status": "known"
+          },
+          "746cc5bfc38741078e1dd6c8a9b63fab": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 26883,
+            "output_tokens": 264,
+            "status": "known"
+          },
+          "1e67d7cdad2c4b0b8042177ab176bf5f": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 29646,
+            "output_tokens": 83,
+            "status": "known"
+          },
+          "25945453f8bf483d9a303abc6774eff0": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 32141,
+            "output_tokens": 72,
+            "status": "known"
+          },
+          "b64ca787f3c14730bd088aa32531721f": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 34706,
+            "output_tokens": 158,
+            "status": "known"
+          },
+          "f791dc05df3e423094de28cf4f1c0105": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2502,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "746856d0700245b4af3ce79be2e90030": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r1-c/typing-fidelity-r1-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 34957,
+            "output_tokens": 66,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "typing-fidelity-r2-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 104096,
+          "charged_nano_usd": 0,
+          "known_tokens": 104096,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 12
+        },
+        "trials": {
+          "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-c/typing-fidelity-r2-c/trials/typing-fidelity/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 104096,
+            "charged_nano_usd": 0,
+            "known_tokens": 104096,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "00e5f167ac5a482e93c710bc1742361e": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-c/typing-fidelity-r2-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3931,
+            "output_tokens": 43,
+            "status": "known"
+          },
+          "1163b941a2d14704874b401dd47e50dd": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-c/typing-fidelity-r2-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6396,
+            "output_tokens": 35,
+            "status": "known"
+          },
+          "addc12d958344762bfe0066bb9e12b75": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-c/typing-fidelity-r2-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8825,
+            "output_tokens": 156,
+            "status": "known"
+          },
+          "e26fb56ecf8945449477f38a54ec6ffc": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-c/typing-fidelity-r2-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2504,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "5525fcba66ac46c4ad361b4f475b4af7": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-c/typing-fidelity-r2-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9036,
+            "output_tokens": 89,
+            "status": "known"
+          },
+          "35bcc8a6e2744cca9493e3c4782cb51f": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-c/typing-fidelity-r2-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2509,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "7131d8e000e94f879c0523d6af5a4a9f": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-c/typing-fidelity-r2-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9216,
+            "output_tokens": 80,
+            "status": "known"
+          },
+          "c757d364f72441878b2d3c46d71dc3f4": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-c/typing-fidelity-r2-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11718,
+            "output_tokens": 189,
+            "status": "known"
+          },
+          "f2b37c75b5fa47669ff6974a3d3176bf": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-c/typing-fidelity-r2-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14407,
+            "output_tokens": 187,
+            "status": "known"
+          },
+          "fde0611889ba430a90f6b5e4f3fcbf7a": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-c/typing-fidelity-r2-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2507,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "2cafe954bb3642b7be66317a12a5223b": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-c/typing-fidelity-r2-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14685,
+            "output_tokens": 72,
+            "status": "known"
+          },
+          "403f7f529db541d6a727b79de0ae37a1": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-c/typing-fidelity-r2-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 17184,
+            "output_tokens": 175,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "typing-fidelity-r2-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 67366,
+          "charged_nano_usd": 0,
+          "known_tokens": 67366,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 8
+        },
+        "trials": {
+          "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-a/typing-fidelity-r2-a/trials/typing-fidelity/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 67366,
+            "charged_nano_usd": 0,
+            "known_tokens": 67366,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "d92705e7cd764966a8435156b9d679a4": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-a/typing-fidelity-r2-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5198,
+            "output_tokens": 43,
+            "status": "known"
+          },
+          "15a3399bd2c841afae59ffcaa0f6d720": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-a/typing-fidelity-r2-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5272,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "c0743e6a9de04db2a618335bb1cb18d9": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-a/typing-fidelity-r2-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7447,
+            "output_tokens": 133,
+            "status": "known"
+          },
+          "b8e5047949ef450395e98381bc55df96": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-a/typing-fidelity-r2-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7627,
+            "output_tokens": 229,
+            "status": "known"
+          },
+          "d2b7738e9b574bc5bbafeda5205e97c4": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-a/typing-fidelity-r2-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7978,
+            "output_tokens": 44,
+            "status": "known"
+          },
+          "43764a83325e46129ef64620b2614708": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-a/typing-fidelity-r2-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10178,
+            "output_tokens": 128,
+            "status": "known"
+          },
+          "b0dc591646bf41b3a8f2685f98ec0e0f": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-a/typing-fidelity-r2-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10353,
+            "output_tokens": 41,
+            "status": "known"
+          },
+          "f33358bf7155496f9d4a05fe1bf3835e": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r2-a/typing-fidelity-r2-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12554,
+            "output_tokens": 128,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "typing-fidelity-r3-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 127990,
+          "charged_nano_usd": 0,
+          "known_tokens": 127990,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 16
+        },
+        "trials": {
+          "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 127990,
+            "charged_nano_usd": 0,
+            "known_tokens": 127990,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "edb3e53c3fd64a749b3730502ffe573f": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5196,
+            "output_tokens": 43,
+            "status": "known"
+          },
+          "c952e652874d48ee81c0b0271cf7c151": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5270,
+            "output_tokens": 38,
+            "status": "known"
+          },
+          "32bb0c71ff1c4951a2eec6361a3ed8fe": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5354,
+            "output_tokens": 69,
+            "status": "known"
+          },
+          "422300f3da8b4290a6c54a9e32fe49d3": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5506,
+            "output_tokens": 25,
+            "status": "known"
+          },
+          "dc5d26aa831b4c01adaa30d0498adbb1": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5552,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "67ab5a66604040ccaced98efc2d81b26": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5171,
+            "output_tokens": 46,
+            "status": "known"
+          },
+          "a586f40d951743318e1d552758b9efb1": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5248,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "66ee0f8bacf742eb93d672822e8853fe": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7403,
+            "output_tokens": 127,
+            "status": "known"
+          },
+          "1aaa69b7cd5d49a38973052dc83949fa": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7578,
+            "output_tokens": 181,
+            "status": "known"
+          },
+          "06fc7b41f6704e299cc3dc1c3e0487ce": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7780,
+            "output_tokens": 141,
+            "status": "known"
+          },
+          "05018a96288148129326c6b5fde6f29d": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8043,
+            "output_tokens": 40,
+            "status": "known"
+          },
+          "46794333662941e8bfdd1297b8d93b8b": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10235,
+            "output_tokens": 102,
+            "status": "known"
+          },
+          "8a7384f74e3748f6b78d4766588ea9bd": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10385,
+            "output_tokens": 30,
+            "status": "known"
+          },
+          "a78174b7c43a4024ad24cd9ef5eb8033": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12575,
+            "output_tokens": 108,
+            "status": "known"
+          },
+          "5adfb797698c4279b6e2f04dbd627e91": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12731,
+            "output_tokens": 72,
+            "status": "known"
+          },
+          "c0e181f748a54542af91020368d5e82f": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-a/typing-fidelity-r3-a/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12857,
+            "output_tokens": 58,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "typing-fidelity-r3-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 238705,
+          "charged_nano_usd": 0,
+          "known_tokens": 238705,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 17
+        },
+        "trials": {
+          "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 238705,
+            "charged_nano_usd": 0,
+            "known_tokens": 238705,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "2bb35092c09d46d683904af7e267f0cd": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3931,
+            "output_tokens": 45,
+            "status": "known"
+          },
+          "6899b300541b41da873bf1b2421b5703": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6386,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "cb2878e0190747f68da49e2d415dfd85": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8850,
+            "output_tokens": 105,
+            "status": "known"
+          },
+          "3661acb140284981a5b2970efdc8e94c": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11373,
+            "output_tokens": 93,
+            "status": "known"
+          },
+          "5d751054e6a64663882d866a02a1337b": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13887,
+            "output_tokens": 39,
+            "status": "known"
+          },
+          "087d1bad493848acbc731b5a423742ce": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16337,
+            "output_tokens": 167,
+            "status": "known"
+          },
+          "d65e48895c774369ac58c21f8d331060": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2516,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "05da106b629340ae80706b66dd49df46": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16561,
+            "output_tokens": 74,
+            "status": "known"
+          },
+          "271353baf3f34f5799b7a37ad4500ec0": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16532,
+            "output_tokens": 23,
+            "status": "known"
+          },
+          "a6ea7cb5051b44b38b5a0aa37e18148b": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 18929,
+            "output_tokens": 127,
+            "status": "known"
+          },
+          "9287a0fee3c24e528703893fd4632693": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2510,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "c525de28a47e4aff9e8161d08d4811a5": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 19144,
+            "output_tokens": 74,
+            "status": "known"
+          },
+          "3e578f17993541739aebd555a64befcf": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 21648,
+            "output_tokens": 188,
+            "status": "known"
+          },
+          "e2abcb2f34774e03b832fb07af139738": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 24333,
+            "output_tokens": 170,
+            "status": "known"
+          },
+          "56f3da36874e4704bcef2dcc719554db": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2507,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "bf1ed47ed83f4069bc7d72037f687325": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 24592,
+            "output_tokens": 63,
+            "status": "known"
+          },
+          "59bd09e2d05f468eaee68347ffd93ff7": {
+            "trial": "/private/tmp/tank-m6-typing-fidelity-20260925-live/trials/typing-fidelity-r3-c/typing-fidelity-r3-c/trials/typing-fidelity/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 27079,
+            "output_tokens": 218,
+            "status": "known"
+          }
+        }
+      }
+    }
+  ]
+}

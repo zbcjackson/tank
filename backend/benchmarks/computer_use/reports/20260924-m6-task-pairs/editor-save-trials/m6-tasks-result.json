@@ -1,0 +1,1491 @@
+{
+  "task_id": "editor-save",
+  "pilot_acceptance": "reviewed-2026-09-24-m6-calc-and-m5-pairs",
+  "enforce_agent_budget": true,
+  "completed": [
+    "editor-save-r1-a",
+    "editor-save-r1-c",
+    "editor-save-r2-c",
+    "editor-save-r2-a",
+    "editor-save-r3-a",
+    "editor-save-r3-c"
+  ],
+  "batches": [
+    {
+      "completed": [
+        "editor-save-r1-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 154236,
+          "charged_nano_usd": 0,
+          "known_tokens": 154236,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 16
+        },
+        "trials": {
+          "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 154236,
+            "charged_nano_usd": 0,
+            "known_tokens": 154236,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "4b0e4a016f144749830ca12a24e359ce": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5111,
+            "output_tokens": 27,
+            "status": "known"
+          },
+          "f75f7804d02a425897ecc7b84774106e": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5168,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "94cbc02b3d63432faaf1cafedd6bef00": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7343,
+            "output_tokens": 104,
+            "status": "known"
+          },
+          "18242700abcc43f88a0b01f8c0562fdd": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6755,
+            "output_tokens": 47,
+            "status": "known"
+          },
+          "9582af2f11074eb68d1a97d6d444611d": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6882,
+            "output_tokens": 44,
+            "status": "known"
+          },
+          "8854b81275ec4cf2af13dc23bedd31d5": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9082,
+            "output_tokens": 86,
+            "status": "known"
+          },
+          "36a0d90d569245e990c05dce8bb3f409": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9209,
+            "output_tokens": 41,
+            "status": "known"
+          },
+          "688fe2d0a92c4faeaeac9e6e74e63901": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9361,
+            "output_tokens": 113,
+            "status": "known"
+          },
+          "851c07235d53410186b6536beff9355e": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9521,
+            "output_tokens": 127,
+            "status": "known"
+          },
+          "31cea1c73e634d0bb25db2779b8c8177": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9690,
+            "output_tokens": 41,
+            "status": "known"
+          },
+          "b0a6a938bc554545a8ce7b88751bc3d5": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9776,
+            "output_tokens": 25,
+            "status": "known"
+          },
+          "40da2ef8581b4a0c90f7d8e87276211b": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11945,
+            "output_tokens": 126,
+            "status": "known"
+          },
+          "43468141d6e44b899f6330a0b3e9ab0c": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12117,
+            "output_tokens": 87,
+            "status": "known"
+          },
+          "5c74dfe5a17e414f80fb82d70ae3dc4b": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12249,
+            "output_tokens": 20,
+            "status": "known"
+          },
+          "9995228ecc564051a98695b6f9b9d9b0": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14425,
+            "output_tokens": 89,
+            "status": "known"
+          },
+          "b526b16dc90545939ae5a87a138f85c4": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-a/editor-save-r1-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14561,
+            "output_tokens": 51,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "editor-save-r1-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 248339,
+          "charged_nano_usd": 0,
+          "known_tokens": 248339,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 19
+        },
+        "trials": {
+          "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 248339,
+            "charged_nano_usd": 0,
+            "known_tokens": 248339,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "1797a2b57a2045909cac9150a031f193": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3844,
+            "output_tokens": 90,
+            "status": "known"
+          },
+          "b32458fc580942acbc80a3ed18dc060c": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6338,
+            "output_tokens": 77,
+            "status": "known"
+          },
+          "ed400433dc8c4c3a9078026eb219fe72": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6312,
+            "output_tokens": 31,
+            "status": "known"
+          },
+          "bda1e0ba7c1647f3a804ec16a41584c8": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8724,
+            "output_tokens": 109,
+            "status": "known"
+          },
+          "d3b18c66ec2c4805802640d05f2ad348": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2501,
+            "output_tokens": 51,
+            "status": "known"
+          },
+          "7ed57a19ba994bf7b9a0405ee6f6bece": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8924,
+            "output_tokens": 78,
+            "status": "known"
+          },
+          "6d0a75df013b43b9b7148bf55c6cca65": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11468,
+            "output_tokens": 207,
+            "status": "known"
+          },
+          "a3329fc13b6c439b8a814cbb5ae758df": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13414,
+            "output_tokens": 102,
+            "status": "known"
+          },
+          "fbcbbe39a73b46c1a8c999cf5f3b086c": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2502,
+            "output_tokens": 51,
+            "status": "known"
+          },
+          "7eab37d0efdc4ecc92dd031fd4fd2dbf": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13612,
+            "output_tokens": 75,
+            "status": "known"
+          },
+          "cd004104eb124658829cadbb246cea7e": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16185,
+            "output_tokens": 151,
+            "status": "known"
+          },
+          "6ccfd21eff414fc79bde46506b17de20": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16398,
+            "output_tokens": 28,
+            "status": "known"
+          },
+          "f3e1ecba64c34154af8045eba2bca7ab": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 18808,
+            "output_tokens": 143,
+            "status": "known"
+          },
+          "31ba611689ca47e59d0fb28eeab02d81": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2502,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "354669e6922b451eb216f3169544b116": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 19008,
+            "output_tokens": 86,
+            "status": "known"
+          },
+          "c26614231c5841e382bf97e0dda37cf3": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 21388,
+            "output_tokens": 79,
+            "status": "known"
+          },
+          "f573f5b1291b4af396d0e41513f7f2ac": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 23878,
+            "output_tokens": 208,
+            "status": "known"
+          },
+          "0fb7ac3998894f689e203d8776006c79": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 24148,
+            "output_tokens": 36,
+            "status": "known"
+          },
+          "934c6d7db0a447328cc4bac71b7322be": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r1-c/editor-save-r1-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 26562,
+            "output_tokens": 173,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "editor-save-r2-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 213493,
+          "charged_nano_usd": 0,
+          "known_tokens": 213493,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 19
+        },
+        "trials": {
+          "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 213493,
+            "charged_nano_usd": 0,
+            "known_tokens": 213493,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "04224682a65c4487a98ed6505e20a932": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3844,
+            "output_tokens": 89,
+            "status": "known"
+          },
+          "33e787f374824d92b0b2385cbba02e66": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6344,
+            "output_tokens": 91,
+            "status": "known"
+          },
+          "c50c5354da8a499489eaa465cec40cf8": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6332,
+            "output_tokens": 33,
+            "status": "known"
+          },
+          "dade4e1775c646afa2370e94f27e1235": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8753,
+            "output_tokens": 104,
+            "status": "known"
+          },
+          "447aefe950d4442997f028364afa67e9": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2503,
+            "output_tokens": 51,
+            "status": "known"
+          },
+          "d380c904795e439596df291b9cbbb9c5": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8951,
+            "output_tokens": 67,
+            "status": "known"
+          },
+          "a9d6d93ca50942a4a7f2f1beac729d31": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11488,
+            "output_tokens": 147,
+            "status": "known"
+          },
+          "9f2a399a665647de869b938f833d97fd": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2508,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "7787e88d637a46969d5dfbd32c45987a": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11691,
+            "output_tokens": 94,
+            "status": "known"
+          },
+          "6d417e3e27f249da9f0d5d6b5f4848d2": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12543,
+            "output_tokens": 101,
+            "status": "known"
+          },
+          "5e1783880d7346e9bdf54663767dbbd9": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 883,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "e683e19c562d4b6d9f81c398c5d01aa6": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12736,
+            "output_tokens": 65,
+            "status": "known"
+          },
+          "4a8402aa0aff46c8a7ae382ed4b0b432": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15303,
+            "output_tokens": 210,
+            "status": "known"
+          },
+          "dd81da861d3848fcb80e62fa3b00a9a4": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15575,
+            "output_tokens": 80,
+            "status": "known"
+          },
+          "8a1daef6e955438398875fa5ca2752ac": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15541,
+            "output_tokens": 21,
+            "status": "known"
+          },
+          "4b90f68d1f2f4cad9e9f7ddfa6060f99": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 17946,
+            "output_tokens": 183,
+            "status": "known"
+          },
+          "8b39de7de7524229a1204e5702b5b54c": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 18187,
+            "output_tokens": 210,
+            "status": "known"
+          },
+          "a4af9ab7fa314e61b74eb1ad5d7297dc": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 20133,
+            "output_tokens": 200,
+            "status": "known"
+          },
+          "7a811ba64f5a4d56b48ff2a877ef0cd7": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-c/editor-save-r2-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 20364,
+            "output_tokens": 22,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "editor-save-r2-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 150686,
+          "charged_nano_usd": 0,
+          "known_tokens": 150686,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 16
+        },
+        "trials": {
+          "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 150686,
+            "charged_nano_usd": 0,
+            "known_tokens": 150686,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "42dd5a84fff44f0588103398cf4d1d46": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5111,
+            "output_tokens": 27,
+            "status": "known"
+          },
+          "9757f8fe0b3e4b4c8ca148c9a6548407": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5168,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "14f8190ba3f44fe4a4dd367451cb3d5c": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7343,
+            "output_tokens": 107,
+            "status": "known"
+          },
+          "959e2db47c344047ac32c65e6896b3a1": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6790,
+            "output_tokens": 76,
+            "status": "known"
+          },
+          "ed238220f7b94a02a0c71545e7541599": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6891,
+            "output_tokens": 31,
+            "status": "known"
+          },
+          "29ad824f29064beeb99f595e2ead0b95": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9078,
+            "output_tokens": 143,
+            "status": "known"
+          },
+          "93ef7b7aa7484504a3012d6a2f0f3acb": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9328,
+            "output_tokens": 73,
+            "status": "known"
+          },
+          "95b91b9697224f04aad656f1ae5a4886": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9448,
+            "output_tokens": 72,
+            "status": "known"
+          },
+          "17694ed9e9a34c30828f69e5b4d1883a": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9541,
+            "output_tokens": 33,
+            "status": "known"
+          },
+          "d4bc534943a9475cb46b2649d88cd7f5": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9594,
+            "output_tokens": 41,
+            "status": "known"
+          },
+          "1b241d9ee46847388d51e0e7611a8f27": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9678,
+            "output_tokens": 80,
+            "status": "known"
+          },
+          "5c4c101b77c74fcfb5655d90d90bb523": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11902,
+            "output_tokens": 124,
+            "status": "known"
+          },
+          "2f3d68130348465788b5afcdb2778d26": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12137,
+            "output_tokens": 159,
+            "status": "known"
+          },
+          "3afee167c0c04e508d8209d136c490f3": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12343,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "b1643c77bd91497aab4335a5619d6d5d": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12535,
+            "output_tokens": 76,
+            "status": "known"
+          },
+          "fa2b4561b02148cc98224cafeb99c05e": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r2-a/editor-save-r2-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12631,
+            "output_tokens": 32,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "editor-save-r3-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 145822,
+          "charged_nano_usd": 0,
+          "known_tokens": 145822,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 16
+        },
+        "trials": {
+          "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 145822,
+            "charged_nano_usd": 0,
+            "known_tokens": 145822,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "1c2485f3d21549999ada62d41ae2d6bd": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5111,
+            "output_tokens": 51,
+            "status": "known"
+          },
+          "a56d58c0717d49fa8e29f260f75a2d9a": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5192,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "a12d223d5dd34730b24bf44c320a1e52": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 4811,
+            "output_tokens": 54,
+            "status": "known"
+          },
+          "43a7295b378a41d2a2debd5b651336ab": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 4895,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "60c6d07fd9d545a3a7e946bcf9e12a4f": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7062,
+            "output_tokens": 160,
+            "status": "known"
+          },
+          "e5eda2f2a9744243878dd360559079b6": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6530,
+            "output_tokens": 27,
+            "status": "known"
+          },
+          "8ce1e1298a6e4233ad0f15bed5196c3d": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8717,
+            "output_tokens": 61,
+            "status": "known"
+          },
+          "71fc6c6393e341c885c3600f37050fe5": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8826,
+            "output_tokens": 28,
+            "status": "known"
+          },
+          "5f484f9c09b74f36a06a7500c40eff85": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11014,
+            "output_tokens": 88,
+            "status": "known"
+          },
+          "f3bf0d9b7e22446da7aa1365c628ab7c": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11143,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "0a34db4227b94786aa8c64a9cbe0bd1c": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11302,
+            "output_tokens": 294,
+            "status": "known"
+          },
+          "72190622a26140918f18232578fd8c7c": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11643,
+            "output_tokens": 83,
+            "status": "known"
+          },
+          "db3e4e5159254e11bb86870b58138dea": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11837,
+            "output_tokens": 207,
+            "status": "known"
+          },
+          "de85ecd121fb4b4db7637d2625c41264": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12091,
+            "output_tokens": 41,
+            "status": "known"
+          },
+          "54abc403bf764e9fbdba9b52eb564130": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12153,
+            "output_tokens": 47,
+            "status": "known"
+          },
+          "c221a8bd675d4ecaa50525aa76c15660": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-a/editor-save-r3-a/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12220,
+            "output_tokens": 56,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "editor-save-r3-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 250237,
+          "charged_nano_usd": 0,
+          "known_tokens": 250237,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 19
+        },
+        "trials": {
+          "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 250237,
+            "charged_nano_usd": 0,
+            "known_tokens": 250237,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "e7d89d14ba174315b5ebe4724e7dd435": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3844,
+            "output_tokens": 90,
+            "status": "known"
+          },
+          "1b192567d6c749daa1623092dfa12478": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6349,
+            "output_tokens": 133,
+            "status": "known"
+          },
+          "61a532259c10408ea010f74e30ee9873": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8977,
+            "output_tokens": 105,
+            "status": "known"
+          },
+          "47b517faa36549d890ca4bb54ad56d05": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10822,
+            "output_tokens": 93,
+            "status": "known"
+          },
+          "25eeb7cc87c24703b0041a77cefb1163": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2501,
+            "output_tokens": 51,
+            "status": "known"
+          },
+          "70bf85426a4140d69dd5284d8b9d8397": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11011,
+            "output_tokens": 79,
+            "status": "known"
+          },
+          "7b0bcc35448e4e869787b2a4ddc8839f": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13427,
+            "output_tokens": 223,
+            "status": "known"
+          },
+          "4feb14a64d704c92b366fca65af83fb5": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13674,
+            "output_tokens": 99,
+            "status": "known"
+          },
+          "ee11163ff3124fc891a8c8b71ae849d0": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13835,
+            "output_tokens": 33,
+            "status": "known"
+          },
+          "9bcb20f646bd4556be4522adb6f3b132": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16251,
+            "output_tokens": 211,
+            "status": "known"
+          },
+          "f5d40f6b7efd4afabd282d47a239dd2c": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2507,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "cf8972eeb81c432fb24c46318b3d725b": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16521,
+            "output_tokens": 92,
+            "status": "known"
+          },
+          "c55ec5c0eac648b398a4ff7c6238cf5d": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2504,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "38f57903031c489c8ec70861fbdcbe56": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16672,
+            "output_tokens": 86,
+            "status": "known"
+          },
+          "c5b82f4ea7e945c8803c7f72c3df084a": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 19163,
+            "output_tokens": 131,
+            "status": "known"
+          },
+          "785ba85da0784c67bb5581aca3983624": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 21732,
+            "output_tokens": 173,
+            "status": "known"
+          },
+          "8bd11ced34f54ef88fc63c91496927c8": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 21934,
+            "output_tokens": 89,
+            "status": "known"
+          },
+          "98a236f011c5452488b5d70ef45dc1f1": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 22080,
+            "output_tokens": 51,
+            "status": "known"
+          },
+          "a85c090c869342d9b895a1805b1a1b2e": {
+            "trial": "/private/tmp/tank-m6-editor-save-20260925-live/trials/editor-save-r3-c/editor-save-r3-c/trials/editor-save/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 24531,
+            "output_tokens": 67,
+            "status": "known"
+          }
+        }
+      }
+    }
+  ]
+}

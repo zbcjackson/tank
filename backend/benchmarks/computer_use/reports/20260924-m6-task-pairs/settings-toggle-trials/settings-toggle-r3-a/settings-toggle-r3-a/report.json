@@ -1,0 +1,219 @@
+{
+  "label": "settings-toggle-r3-a",
+  "scoring_revision": "trial-token-gui-grounding-v5",
+  "metadata": {
+    "agent_name": "computer_use",
+    "engine": null,
+    "extension": null,
+    "config": {
+      "model": "qwen3.7-flash-2026-07-15"
+    },
+    "prompt_revision": "929bdb4162b475c28e0212d3c6c200a5af93366c6f0f279066ba245a53f17945",
+    "comparison_contract": {
+      "variant": "A",
+      "freeze_dir": "/Users/zbcjackson/src/tank/backend/benchmarks/computer_use/reports/20260925-m6-tasks-runtime"
+    },
+    "input_cleanup": true,
+    "budget_record_only": true,
+    "agent_budget_enforced": true,
+    "configured_token_budget": 300000,
+    "spend_budget": {
+      "record_only": true,
+      "cost_status": "unpriced",
+      "batch": {
+        "limit_tokens": 300000,
+        "limit_nano_usd": 8000000000,
+        "charged_tokens": 57119,
+        "charged_nano_usd": 0,
+        "known_tokens": 57119,
+        "known_nano_usd": 0,
+        "reserved_tokens": 0,
+        "reserved_nano_usd": 0,
+        "limit_requests": 16,
+        "admitted_requests": 7
+      },
+      "trials": {
+        "/private/tmp/tank-m6-settings-toggle-20260925-live/trials/settings-toggle-r3-a/settings-toggle-r3-a/trials/settings-toggle/1": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 57119,
+          "charged_nano_usd": 0,
+          "known_tokens": 57119,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0
+        }
+      },
+      "stop_reason": null,
+      "requests": {
+        "06987ee50b5b4a81b91459655bc627ba": {
+          "trial": "/private/tmp/tank-m6-settings-toggle-20260925-live/trials/settings-toggle-r3-a/settings-toggle-r3-a/trials/settings-toggle/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 5086,
+          "output_tokens": 59,
+          "status": "known"
+        },
+        "2935866f740a4c3b9d122b72d9ebba30": {
+          "trial": "/private/tmp/tank-m6-settings-toggle-20260925-live/trials/settings-toggle-r3-a/settings-toggle-r3-a/trials/settings-toggle/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 5176,
+          "output_tokens": 13,
+          "status": "known"
+        },
+        "83ab9ed3d80447e98f90c80820fa7b4e": {
+          "trial": "/private/tmp/tank-m6-settings-toggle-20260925-live/trials/settings-toggle-r3-a/settings-toggle-r3-a/trials/settings-toggle/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 7351,
+          "output_tokens": 96,
+          "status": "known"
+        },
+        "b5647b7a6d314b8bbe80b799a22bf55b": {
+          "trial": "/private/tmp/tank-m6-settings-toggle-20260925-live/trials/settings-toggle-r3-a/settings-toggle-r3-a/trials/settings-toggle/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 7494,
+          "output_tokens": 30,
+          "status": "known"
+        },
+        "4eff60d15bee47d6983921385261187a": {
+          "trial": "/private/tmp/tank-m6-settings-toggle-20260925-live/trials/settings-toggle-r3-a/settings-toggle-r3-a/trials/settings-toggle/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 9684,
+          "output_tokens": 110,
+          "status": "known"
+        },
+        "06f1f038b50d4be59dc2b36eabc0047c": {
+          "trial": "/private/tmp/tank-m6-settings-toggle-20260925-live/trials/settings-toggle-r3-a/settings-toggle-r3-a/trials/settings-toggle/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 9842,
+          "output_tokens": 27,
+          "status": "known"
+        },
+        "9465d18ed71c4b82bb674347afcefd5b": {
+          "trial": "/private/tmp/tank-m6-settings-toggle-20260925-live/trials/settings-toggle-r3-a/settings-toggle-r3-a/trials/settings-toggle/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 12029,
+          "output_tokens": 122,
+          "status": "known"
+        }
+      }
+    },
+    "request_budget": {
+      "limits": {
+        "planner": 16,
+        "locator": 0,
+        "total": 16
+      },
+      "planner": 7,
+      "locator": 0,
+      "total": 7,
+      "blocked": false
+    },
+    "request_limits": {
+      "planner": 16,
+      "locator": 0,
+      "total": 16
+    },
+    "grounding": null,
+    "token_budget": 300000,
+    "platform": "macos",
+    "git_revision": "12dde91ea02ed19aea3975ac835264e8625da77a",
+    "task_revision": "9442074589754111c1b5273dc1048298b42e78f3b0d48695373c30fe975004ee",
+    "scoring_revision": "trial-token-gui-grounding-v5",
+    "aborted_cleanup": false,
+    "outcomes": [
+      {
+        "task": "settings-toggle",
+        "trial": 1,
+        "stop_reason": null,
+        "cleanup": "confirmed",
+        "scoring": "strict",
+        "success": true,
+        "unknown_calls": 0,
+        "assessment": {}
+      }
+    ],
+    "limits": [
+      {
+        "task": "settings-toggle",
+        "tool_call_limit": 15,
+        "timeout_s": 180,
+        "gui_only": true
+      }
+    ]
+  },
+  "smoke": {
+    "trials": 0,
+    "successes": 0
+  },
+  "overall": {
+    "trials": 1,
+    "successes": 1,
+    "success_rate": 1.0,
+    "ci_lo": 0.2065432914738929,
+    "ci_hi": 1.0,
+    "llm": {
+      "calls_total": 7,
+      "ttft_s_median": 1.5989204170182347,
+      "call_s_mean": 2.6259576607262716,
+      "total_s": 18.3817036250839
+    }
+  },
+  "tasks": {
+    "settings-toggle": {
+      "trials": 1,
+      "successes": 1,
+      "success_rate": 1.0,
+      "ci_lo": 0.2065432914738929,
+      "ci_hi": 1.0,
+      "medians": {
+        "steps": 6.0,
+        "wall_s": 19.107721540960483,
+        "tokens": 57119.0,
+        "screenshots": 3.0,
+        "llm_calls": 7.0,
+        "llm_ttft_s": 1.5989204170182347,
+        "llm_call_s": 2.430629917071201,
+        "llm_total_s": 18.3817036250839,
+        "llm_rtt_s": 0.0,
+        "primitives": 6.0,
+        "model_turns": 7.0,
+        "tool_call_limit": 15.0
+      }
+    }
+  }
+}

@@ -1,0 +1,316 @@
+# computer_use benchmark
+
+- Run label: `small-text-code-r3-c`
+- Scoring: trial-token-gui-grounding-v5 (historical reports use a different scoring revision)
+- Smoke (excluded from strict score): 0/0
+- Overall: **0/1** (0%, 95% CI 0%–79%)
+
+| task | pass | rate | 95% CI | tool calls (med) | actions (med) | turns (med) | call limit | wall s (med) | tokens (med) | shots (med) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| small-text-code | 0/1 | 0% | 0%–79% | 15 | 8 | 16 | 15 | 89 | 290035 | 9 |
+
+## LLM latency (per call)
+
+| task | calls (med) | stream ttft s (med) | call s (med) | total s | nonstream RTT s |
+|---|---|---|---|---|---|
+| small-text-code | 16 | 3.0 | 5.2 | 89 | 0.0 |
+
+- API calls total: 16, mean 5.6s/call, median streamed ttft 3.0, LLM time total 89s
+
+## Run metadata
+
+```json
+{
+  "agent_name": "computer_use",
+  "engine": null,
+  "extension": null,
+  "config": {
+    "model": "qwen3.7-flash-2026-07-15"
+  },
+  "prompt_revision": "929bdb4162b475c28e0212d3c6c200a5af93366c6f0f279066ba245a53f17945",
+  "comparison_contract": {
+    "variant": "C",
+    "freeze_dir": "/Users/zbcjackson/src/tank/backend/benchmarks/computer_use/reports/20260925-m6-tasks-runtime"
+  },
+  "input_cleanup": true,
+  "budget_record_only": true,
+  "agent_budget_enforced": true,
+  "configured_token_budget": 300000,
+  "spend_budget": {
+    "record_only": true,
+    "cost_status": "unpriced",
+    "batch": {
+      "limit_tokens": 300000,
+      "limit_nano_usd": 8000000000,
+      "charged_tokens": 290035,
+      "charged_nano_usd": 0,
+      "known_tokens": 290035,
+      "known_nano_usd": 0,
+      "reserved_tokens": 0,
+      "reserved_nano_usd": 0,
+      "limit_requests": 31,
+      "admitted_requests": 16
+    },
+    "trials": {
+      "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1": {
+        "limit_tokens": 300000,
+        "limit_nano_usd": 8000000000,
+        "charged_tokens": 290035,
+        "charged_nano_usd": 0,
+        "known_tokens": 290035,
+        "known_nano_usd": 0,
+        "reserved_tokens": 0,
+        "reserved_nano_usd": 0
+      }
+    },
+    "stop_reason": null,
+    "requests": {
+      "7b6bc09da336486abb9ffb3348abcda1": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 3885,
+        "output_tokens": 43,
+        "status": "known"
+      },
+      "0ca8f66c8c0b4949b020c44961d382f4": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 6339,
+        "output_tokens": 50,
+        "status": "known"
+      },
+      "8e5313f29bcd46b7b272358fca9c5684": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 8801,
+        "output_tokens": 189,
+        "status": "known"
+      },
+      "f1aec80972a941ef90c43a24439e81d8": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 11413,
+        "output_tokens": 69,
+        "status": "known"
+      },
+      "9b418711df6140fa9f2c83da086828bd": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 13889,
+        "output_tokens": 77,
+        "status": "known"
+      },
+      "1de41924fc774b41b00aee94d460158d": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 16354,
+        "output_tokens": 227,
+        "status": "known"
+      },
+      "189870429d3d40c788c75f2e8304bbfe": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 18665,
+        "output_tokens": 213,
+        "status": "known"
+      },
+      "a7c4673377674791800da38fd4b23612": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 18759,
+        "output_tokens": 27,
+        "status": "known"
+      },
+      "3b8bf258c4014c97a9ed33be0917e9f7": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 21172,
+        "output_tokens": 167,
+        "status": "known"
+      },
+      "318754ebe1c64153916225b1b5716129": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 23076,
+        "output_tokens": 199,
+        "status": "known"
+      },
+      "0edb6616765b4d3da646d27364350710": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 23172,
+        "output_tokens": 164,
+        "status": "known"
+      },
+      "10bea5066ab141e29e1db6c76d53d732": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 23360,
+        "output_tokens": 76,
+        "status": "known"
+      },
+      "d1c26aa059854ba2bb7b12ec620f49af": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 23494,
+        "output_tokens": 341,
+        "status": "known"
+      },
+      "40d08243334b4da0b7e2c8f35ee0f3be": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 23785,
+        "output_tokens": 68,
+        "status": "known"
+      },
+      "951b55006dde428bbb5e639589292ac8": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 25537,
+        "output_tokens": 266,
+        "status": "known"
+      },
+      "52238fbc77144faaabdc99bb1a135d31": {
+        "trial": "/private/tmp/tank-m6-small-text-code-20260925-live/trials/small-text-code-r3-c/small-text-code-r3-c/trials/small-text-code/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 25861,
+        "output_tokens": 297,
+        "status": "known"
+      }
+    }
+  },
+  "request_budget": {
+    "limits": {
+      "planner": 16,
+      "locator": 15,
+      "total": 31
+    },
+    "planner": 16,
+    "locator": 0,
+    "total": 16,
+    "blocked": false
+  },
+  "request_limits": {
+    "planner": 16,
+    "locator": 15,
+    "total": 31
+  },
+  "grounding": {
+    "profile": null,
+    "fallback_profile": null,
+    "protocol": "point",
+    "nullable_style": "integer",
+    "strict": false,
+    "detail": "auto",
+    "status_field": false,
+    "mode": "split",
+    "host_restore": true
+  },
+  "token_budget": 300000,
+  "platform": "macos",
+  "git_revision": "12dde91ea02ed19aea3975ac835264e8625da77a",
+  "task_revision": "9442074589754111c1b5273dc1048298b42e78f3b0d48695373c30fe975004ee",
+  "scoring_revision": "trial-token-gui-grounding-v5",
+  "aborted_cleanup": false,
+  "outcomes": [
+    {
+      "task": "small-text-code",
+      "trial": 1,
+      "stop_reason": null,
+      "cleanup": "confirmed",
+      "scoring": "strict",
+      "success": false,
+      "unknown_calls": 0,
+      "assessment": {}
+    }
+  ],
+  "limits": [
+    {
+      "task": "small-text-code",
+      "tool_call_limit": 15,
+      "timeout_s": 180,
+      "gui_only": true
+    }
+  ]
+}
+```

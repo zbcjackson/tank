@@ -1,0 +1,306 @@
+# computer_use benchmark
+
+- Run label: `links-history-r1-a`
+- Scoring: trial-token-gui-grounding-v5 (historical reports use a different scoring revision)
+- Smoke (excluded from strict score): 0/0
+- Overall: **0/1** (0%, 95% CI 0%–79%)
+
+| task | pass | rate | 95% CI | tool calls (med) | actions (med) | turns (med) | call limit | wall s (med) | tokens (med) | shots (med) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| links-history | 0/1 | 0% | 0%–79% | 15 | 15 | 16 | 15 | 39 | 188118 | 6 |
+
+## LLM latency (per call)
+
+| task | calls (med) | stream ttft s (med) | call s (med) | total s | nonstream RTT s |
+|---|---|---|---|---|---|
+| links-history | 16 | 1.7 | 1.9 | 39 | 0.0 |
+
+- API calls total: 16, mean 2.4s/call, median streamed ttft 1.7, LLM time total 39s
+
+## Run metadata
+
+```json
+{
+  "agent_name": "computer_use",
+  "engine": null,
+  "extension": null,
+  "config": {
+    "model": "qwen3.7-flash-2026-07-15"
+  },
+  "prompt_revision": "929bdb4162b475c28e0212d3c6c200a5af93366c6f0f279066ba245a53f17945",
+  "comparison_contract": {
+    "variant": "A",
+    "freeze_dir": "/Users/zbcjackson/src/tank/backend/benchmarks/computer_use/reports/20260925-m6-tasks-runtime"
+  },
+  "input_cleanup": true,
+  "budget_record_only": true,
+  "agent_budget_enforced": true,
+  "configured_token_budget": 300000,
+  "spend_budget": {
+    "record_only": true,
+    "cost_status": "unpriced",
+    "batch": {
+      "limit_tokens": 300000,
+      "limit_nano_usd": 8000000000,
+      "charged_tokens": 188118,
+      "charged_nano_usd": 0,
+      "known_tokens": 188118,
+      "known_nano_usd": 0,
+      "reserved_tokens": 0,
+      "reserved_nano_usd": 0,
+      "limit_requests": 16,
+      "admitted_requests": 16
+    },
+    "trials": {
+      "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1": {
+        "limit_tokens": 300000,
+        "limit_nano_usd": 8000000000,
+        "charged_tokens": 188118,
+        "charged_nano_usd": 0,
+        "known_tokens": 188118,
+        "known_nano_usd": 0,
+        "reserved_tokens": 0,
+        "reserved_nano_usd": 0
+      }
+    },
+    "stop_reason": null,
+    "requests": {
+      "29240a27f3d94a7a83a74ae4eefe89f9": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 5167,
+        "output_tokens": 42,
+        "status": "known"
+      },
+      "e877c07a6240429b92e041d0a6041e6f": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 5240,
+        "output_tokens": 13,
+        "status": "known"
+      },
+      "9a148dc1149340c1b1c2a686bb987b06": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 7415,
+        "output_tokens": 111,
+        "status": "known"
+      },
+      "2611c7a847ba4a2a88d6619adf74a1cb": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 7571,
+        "output_tokens": 68,
+        "status": "known"
+      },
+      "4703d4d0f8494c81877d1924dd6fa48f": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 7719,
+        "output_tokens": 26,
+        "status": "known"
+      },
+      "2439954e12084f1fbd4b471e9a6aced3": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 7765,
+        "output_tokens": 14,
+        "status": "known"
+      },
+      "c9d774375d984df7bd5ab4230b1dfebc": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 9931,
+        "output_tokens": 200,
+        "status": "known"
+      },
+      "977e9720895b4bc88d8ac3d362b3fd51": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 10178,
+        "output_tokens": 14,
+        "status": "known"
+      },
+      "2ad6dbacc28f4d9296d7014a0cd06a9c": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 12352,
+        "output_tokens": 52,
+        "status": "known"
+      },
+      "592685e3053e462aa7e361542670ce07": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 12425,
+        "output_tokens": 14,
+        "status": "known"
+      },
+      "3182265a1cf7442db591d3c375212602": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 14599,
+        "output_tokens": 71,
+        "status": "known"
+      },
+      "4f72e0bc5efc4dd6b28d6dc815ad6ee9": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 14717,
+        "output_tokens": 14,
+        "status": "known"
+      },
+      "9f5d305b1f174c8a8d71c58eb0f95513": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 16891,
+        "output_tokens": 52,
+        "status": "known"
+      },
+      "e99df9fc354041f3aee9bd498aa2f190": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 16964,
+        "output_tokens": 14,
+        "status": "known"
+      },
+      "e80f672ee2ca4188a9712a63a0cb4e6d": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 19138,
+        "output_tokens": 71,
+        "status": "known"
+      },
+      "2edac0ad375d479d880fadd8a5da1e0b": {
+        "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 19256,
+        "output_tokens": 14,
+        "status": "known"
+      }
+    }
+  },
+  "request_budget": {
+    "limits": {
+      "planner": 16,
+      "locator": 0,
+      "total": 16
+    },
+    "planner": 16,
+    "locator": 0,
+    "total": 16,
+    "blocked": false
+  },
+  "request_limits": {
+    "planner": 16,
+    "locator": 0,
+    "total": 16
+  },
+  "grounding": null,
+  "token_budget": 300000,
+  "platform": "macos",
+  "git_revision": "12dde91ea02ed19aea3975ac835264e8625da77a",
+  "task_revision": "9442074589754111c1b5273dc1048298b42e78f3b0d48695373c30fe975004ee",
+  "scoring_revision": "trial-token-gui-grounding-v5",
+  "aborted_cleanup": false,
+  "outcomes": [
+    {
+      "task": "links-history",
+      "trial": 1,
+      "stop_reason": null,
+      "cleanup": "confirmed",
+      "scoring": "strict",
+      "success": false,
+      "unknown_calls": 0,
+      "assessment": {}
+    }
+  ],
+  "limits": [
+    {
+      "task": "links-history",
+      "tool_call_limit": 15,
+      "timeout_s": 180,
+      "gui_only": true
+    }
+  ]
+}
+```

@@ -1,0 +1,1419 @@
+{
+  "task_id": "links-history",
+  "pilot_acceptance": "reviewed-2026-09-24-m6-calc-and-m5-pairs",
+  "enforce_agent_budget": true,
+  "completed": [
+    "links-history-r1-a",
+    "links-history-r1-c",
+    "links-history-r2-c",
+    "links-history-r2-a",
+    "links-history-r3-a",
+    "links-history-r3-c"
+  ],
+  "batches": [
+    {
+      "completed": [
+        "links-history-r1-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 188118,
+          "charged_nano_usd": 0,
+          "known_tokens": 188118,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 16
+        },
+        "trials": {
+          "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 188118,
+            "charged_nano_usd": 0,
+            "known_tokens": 188118,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "29240a27f3d94a7a83a74ae4eefe89f9": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5167,
+            "output_tokens": 42,
+            "status": "known"
+          },
+          "e877c07a6240429b92e041d0a6041e6f": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5240,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "9a148dc1149340c1b1c2a686bb987b06": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7415,
+            "output_tokens": 111,
+            "status": "known"
+          },
+          "2611c7a847ba4a2a88d6619adf74a1cb": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7571,
+            "output_tokens": 68,
+            "status": "known"
+          },
+          "4703d4d0f8494c81877d1924dd6fa48f": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7719,
+            "output_tokens": 26,
+            "status": "known"
+          },
+          "2439954e12084f1fbd4b471e9a6aced3": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7765,
+            "output_tokens": 14,
+            "status": "known"
+          },
+          "c9d774375d984df7bd5ab4230b1dfebc": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9931,
+            "output_tokens": 200,
+            "status": "known"
+          },
+          "977e9720895b4bc88d8ac3d362b3fd51": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10178,
+            "output_tokens": 14,
+            "status": "known"
+          },
+          "2ad6dbacc28f4d9296d7014a0cd06a9c": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12352,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "592685e3053e462aa7e361542670ce07": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12425,
+            "output_tokens": 14,
+            "status": "known"
+          },
+          "3182265a1cf7442db591d3c375212602": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14599,
+            "output_tokens": 71,
+            "status": "known"
+          },
+          "4f72e0bc5efc4dd6b28d6dc815ad6ee9": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14717,
+            "output_tokens": 14,
+            "status": "known"
+          },
+          "9f5d305b1f174c8a8d71c58eb0f95513": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16891,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "e99df9fc354041f3aee9bd498aa2f190": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16964,
+            "output_tokens": 14,
+            "status": "known"
+          },
+          "e80f672ee2ca4188a9712a63a0cb4e6d": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 19138,
+            "output_tokens": 71,
+            "status": "known"
+          },
+          "2edac0ad375d479d880fadd8a5da1e0b": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-a/links-history-r1-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 19256,
+            "output_tokens": 14,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "links-history-r1-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 225361,
+          "charged_nano_usd": 0,
+          "known_tokens": 225361,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 18
+        },
+        "trials": {
+          "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 225361,
+            "charged_nano_usd": 0,
+            "known_tokens": 225361,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "446273611abf489bb3ba21b79374e3c0": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3902,
+            "output_tokens": 61,
+            "status": "known"
+          },
+          "835c71d8348745c7be47c656b7e907b9": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6377,
+            "output_tokens": 95,
+            "status": "known"
+          },
+          "dcba3eb31b5a4730ad0a9a2f29729220": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8214,
+            "output_tokens": 161,
+            "status": "known"
+          },
+          "84aa3c39742f4cb2bac1a10d48a6fbfc": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2504,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "5352cd7ad4504ef397ca7619cd04fa38": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8467,
+            "output_tokens": 61,
+            "status": "known"
+          },
+          "94d1e820102b4c809407c21b947312ca": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10957,
+            "output_tokens": 73,
+            "status": "known"
+          },
+          "2bdcc7a6a0274cb49e56c23347aee656": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13449,
+            "output_tokens": 93,
+            "status": "known"
+          },
+          "dd8a9f88d89e481ba7b3c1b893711d00": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2505,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "ff6f92c4bca04eea9ae4e69193626d9b": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13634,
+            "output_tokens": 65,
+            "status": "known"
+          },
+          "c62eab3fce79472cbf72f8fe9111acba": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16124,
+            "output_tokens": 61,
+            "status": "known"
+          },
+          "fb620a866e354ea49b57f44c8f637a4e": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 18590,
+            "output_tokens": 94,
+            "status": "known"
+          },
+          "e51e97a0ab9241fda930a050dcf2e5c3": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2505,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "9bd3380c98c540749ff9a712c99a2434": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 18777,
+            "output_tokens": 65,
+            "status": "known"
+          },
+          "b47c5e10e290435a96d793a13b917c0e": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 21263,
+            "output_tokens": 72,
+            "status": "known"
+          },
+          "63079dea5dd04d3ea8acec84b5944465": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 23752,
+            "output_tokens": 96,
+            "status": "known"
+          },
+          "6ac84718bab14f20a68ceae9e9b903b6": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2500,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "49137987e75843a8a7391a756dc3ae8a": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 23942,
+            "output_tokens": 68,
+            "status": "known"
+          },
+          "e468535ba82640ef933345641fa335cf": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r1-c/links-history-r1-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 26434,
+            "output_tokens": 192,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "links-history-r2-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 205156,
+          "charged_nano_usd": 0,
+          "known_tokens": 205156,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 18
+        },
+        "trials": {
+          "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 205156,
+            "charged_nano_usd": 0,
+            "known_tokens": 205156,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "5a75a082c2324018afa08cc382986a30": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3901,
+            "output_tokens": 59,
+            "status": "known"
+          },
+          "013d42f947114605bea87fcf54b1c532": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6378,
+            "output_tokens": 86,
+            "status": "known"
+          },
+          "8b8ddf89f9dd44e6b4b1b24372bcd8d4": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5793,
+            "output_tokens": 36,
+            "status": "known"
+          },
+          "970c0441de784a3f97a77c2c81eb54b9": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8207,
+            "output_tokens": 162,
+            "status": "known"
+          },
+          "d5ca7cdbaf4c4362bb362f02322b0e91": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2504,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "954f44d423cc465a961fa3b975764151": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8460,
+            "output_tokens": 63,
+            "status": "known"
+          },
+          "893993fb29b84fc18046025852f4d8cb": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10957,
+            "output_tokens": 84,
+            "status": "known"
+          },
+          "cdd13852a8ec466e8a0b13ccd15a97f0": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13407,
+            "output_tokens": 72,
+            "status": "known"
+          },
+          "15a91ccff0d045d3ad368ac851d33b83": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15896,
+            "output_tokens": 101,
+            "status": "known"
+          },
+          "d74cebacb473432f901fa28df07c2d79": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2505,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "b928d5cc1f48489e8a16a4ea67a75cb2": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16092,
+            "output_tokens": 63,
+            "status": "known"
+          },
+          "4380050bbde644a786e23fc42a662c36": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 18578,
+            "output_tokens": 178,
+            "status": "known"
+          },
+          "3547ba6aa38143dc851386b91b1a719d": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2505,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "e6e04eb4c585421585212800e96804d8": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 18844,
+            "output_tokens": 62,
+            "status": "known"
+          },
+          "677af77ad9904fee937cb570b7c34a72": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 21326,
+            "output_tokens": 180,
+            "status": "known"
+          },
+          "87b635f52e46490388e03531e2a88f55": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2501,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "79d3e942510341b7bbe35ad284a02546": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 21596,
+            "output_tokens": 63,
+            "status": "known"
+          },
+          "d2ae4e385abb4a31b81e9580bdf069d7": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-c/links-history-r2-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 24083,
+            "output_tokens": 206,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "links-history-r2-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 190730,
+          "charged_nano_usd": 0,
+          "known_tokens": 190730,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 16
+        },
+        "trials": {
+          "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 190730,
+            "charged_nano_usd": 0,
+            "known_tokens": 190730,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "c24507b4e2ff45278582b87024bbdbeb": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5172,
+            "output_tokens": 43,
+            "status": "known"
+          },
+          "198db8066ff84450aac9e2fca04b0585": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5246,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "af596cd21e8742298af165517cf3a5a1": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7421,
+            "output_tokens": 199,
+            "status": "known"
+          },
+          "a00aa8d6687c43b48e012a379e1f7285": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7665,
+            "output_tokens": 75,
+            "status": "known"
+          },
+          "3ab34c773d0144b585460eb1a6193347": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7825,
+            "output_tokens": 29,
+            "status": "known"
+          },
+          "143dfe57ca0943de96241944c8359f9a": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7874,
+            "output_tokens": 14,
+            "status": "known"
+          },
+          "fce34f0256684d6b92d4e38f16a94fa4": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10040,
+            "output_tokens": 211,
+            "status": "known"
+          },
+          "f3afbc0fa30b43c2a77fcd31bdd83cdb": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10298,
+            "output_tokens": 41,
+            "status": "known"
+          },
+          "354aa4997ef44b2c9e4a79e789426986": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12499,
+            "output_tokens": 80,
+            "status": "known"
+          },
+          "d663588fb6954083b988ca27202f07ff": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 12600,
+            "output_tokens": 40,
+            "status": "known"
+          },
+          "c1988982e847436383b6dfb6028b65a5": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14800,
+            "output_tokens": 79,
+            "status": "known"
+          },
+          "37bf67d4b6454e099b9a9bc28feab1d2": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14926,
+            "output_tokens": 42,
+            "status": "known"
+          },
+          "b96c0b680a324f7b8f567ce54395ef5e": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 17128,
+            "output_tokens": 59,
+            "status": "known"
+          },
+          "dd6a554e41c04661bf327fbadc63ce7c": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 17208,
+            "output_tokens": 40,
+            "status": "known"
+          },
+          "8d1ee5433d7c4e92906883d499e11503": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 19408,
+            "output_tokens": 79,
+            "status": "known"
+          },
+          "fad3f07e877b49548b6c181882765001": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r2-a/links-history-r2-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 19534,
+            "output_tokens": 42,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "links-history-r3-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 83811,
+          "charged_nano_usd": 0,
+          "known_tokens": 83811,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 11
+        },
+        "trials": {
+          "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-a/links-history-r3-a/trials/links-history/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 83811,
+            "charged_nano_usd": 0,
+            "known_tokens": 83811,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "df70131518874a7f8112c87f6f765016": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-a/links-history-r3-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5171,
+            "output_tokens": 57,
+            "status": "known"
+          },
+          "0c5fa3c2e56349d18ba2f38510fe56c4": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-a/links-history-r3-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5259,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "0bd5b42fbd134dd7923794163b716079": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-a/links-history-r3-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7434,
+            "output_tokens": 123,
+            "status": "known"
+          },
+          "fd334d0489124e66a5c36f24e97f399a": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-a/links-history-r3-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7604,
+            "output_tokens": 44,
+            "status": "known"
+          },
+          "d3be349c89ba4d489885d5d88f39ea61": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-a/links-history-r3-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7670,
+            "output_tokens": 61,
+            "status": "known"
+          },
+          "d6706bd78f4f4a13b58c6e7a39e460af": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-a/links-history-r3-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7778,
+            "output_tokens": 45,
+            "status": "known"
+          },
+          "d5fcac9b4db54a7ba9f20abd86f1aa02": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-a/links-history-r3-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7845,
+            "output_tokens": 61,
+            "status": "known"
+          },
+          "9d63bcd0f1bd43c6ae94dadfd07a3a6b": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-a/links-history-r3-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7953,
+            "output_tokens": 45,
+            "status": "known"
+          },
+          "f6d0137e70ed4a1ab283b4b69c417282": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-a/links-history-r3-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8020,
+            "output_tokens": 63,
+            "status": "known"
+          },
+          "641031e909e44d20826d13ca1ab6ea15": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-a/links-history-r3-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8130,
+            "output_tokens": 21,
+            "status": "known"
+          },
+          "656623ec01724d9e8ce8cd05a7449a4d": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-a/links-history-r3-a/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10287,
+            "output_tokens": 127,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "links-history-r3-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 310222,
+          "charged_nano_usd": 0,
+          "known_tokens": 310222,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 20
+        },
+        "trials": {
+          "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 310222,
+            "charged_nano_usd": 0,
+            "known_tokens": 310222,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "3354c96b6acc4d86976186c9e02d7567": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3902,
+            "output_tokens": 47,
+            "status": "known"
+          },
+          "2abf1e0e57f4416ebf065863a35fe486": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6370,
+            "output_tokens": 59,
+            "status": "known"
+          },
+          "a7ac890b4db04d0d93af3e983752e37e": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8822,
+            "output_tokens": 244,
+            "status": "known"
+          },
+          "405bae4c9c5f43f689be46e062e06e23": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2504,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "803fb54ca479445aa0364c9831ef9687": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9159,
+            "output_tokens": 62,
+            "status": "known"
+          },
+          "6d2b17d9812e42f1add7dcef20a4dc1e": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11649,
+            "output_tokens": 148,
+            "status": "known"
+          },
+          "80b0641597d245188418bad5a9933542": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14162,
+            "output_tokens": 60,
+            "status": "known"
+          },
+          "d95aa1f7bd3f44278faa43f2973b449f": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16636,
+            "output_tokens": 168,
+            "status": "known"
+          },
+          "8aa986285d8f494cba664e71c8627a57": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2504,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "ad9b3590538f495e8ed4db3c663b4e27": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16902,
+            "output_tokens": 67,
+            "status": "known"
+          },
+          "7165250366054256b11c405d7d77540b": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 19402,
+            "output_tokens": 262,
+            "status": "known"
+          },
+          "ba4e191bf5794d47b81befa6e4c7d2a9": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 22073,
+            "output_tokens": 164,
+            "status": "known"
+          },
+          "52a20838435947d7a48485a42c45b979": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2505,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "dbaba048e9c842e68fd389d7306e47a2": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 22328,
+            "output_tokens": 64,
+            "status": "known"
+          },
+          "97081b354aab45fc86f9cefb95582367": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 24819,
+            "output_tokens": 93,
+            "status": "known"
+          },
+          "6929a91ee3da45d6bda6cffa635073aa": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 27326,
+            "output_tokens": 90,
+            "status": "known"
+          },
+          "13fff0039c734c6db2ab3261e4786ba1": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 29832,
+            "output_tokens": 74,
+            "status": "known"
+          },
+          "2029a0599832497ba24be8196bb609f5": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 32324,
+            "output_tokens": 118,
+            "status": "known"
+          },
+          "1c074b93746649a7a0f359523d5b0a7e": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2501,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "0ed418d0b9284ffbb3e466a06d2d341e": {
+            "trial": "/private/tmp/tank-m6-links-history-20260925-live/trials/links-history-r3-c/links-history-r3-c/trials/links-history/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 32498,
+            "output_tokens": 80,
+            "status": "known"
+          }
+        }
+      }
+    }
+  ]
+}

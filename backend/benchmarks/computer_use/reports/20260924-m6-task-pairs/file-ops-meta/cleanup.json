@@ -1,0 +1,86 @@
+{
+  "pressed_keys": [],
+  "pressed_mouse_buttons": [],
+  "background_closed": true,
+  "hidden_apps_restored": true,
+  "clipboard_restored": true,
+  "cursor_restored": true,
+  "worker_finished": true,
+  "gate_blocked": [
+    {
+      "point": [
+        128,
+        10
+      ],
+      "containers": [
+        [
+          502,
+          205,
+          1422,
+          641
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        134,
+        14
+      ],
+      "containers": [
+        [
+          502,
+          205,
+          1422,
+          641
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        1081,
+        677
+      ],
+      "containers": [
+        [
+          502,
+          205,
+          1422,
+          641
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        257,
+        13
+      ],
+      "containers": [
+        [
+          502,
+          205,
+          1422,
+          641
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        931,
+        677
+      ],
+      "containers": [
+        [
+          502,
+          205,
+          1422,
+          641
+        ]
+      ],
+      "landed": "outside"
+    }
+  ]
+}

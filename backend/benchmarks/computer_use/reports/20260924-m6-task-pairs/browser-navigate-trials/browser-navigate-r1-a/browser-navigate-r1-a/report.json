@@ -1,0 +1,315 @@
+{
+  "label": "browser-navigate-r1-a",
+  "scoring_revision": "trial-token-gui-grounding-v5",
+  "metadata": {
+    "agent_name": "computer_use",
+    "engine": null,
+    "extension": null,
+    "config": {
+      "model": "qwen3.7-flash-2026-07-15"
+    },
+    "prompt_revision": "929bdb4162b475c28e0212d3c6c200a5af93366c6f0f279066ba245a53f17945",
+    "comparison_contract": {
+      "variant": "A",
+      "freeze_dir": "/Users/zbcjackson/src/tank/backend/benchmarks/computer_use/reports/20260924-m6-calc-runtime"
+    },
+    "input_cleanup": true,
+    "budget_record_only": true,
+    "agent_budget_enforced": true,
+    "configured_token_budget": 300000,
+    "spend_budget": {
+      "record_only": true,
+      "cost_status": "unpriced",
+      "batch": {
+        "limit_tokens": 300000,
+        "limit_nano_usd": 8000000000,
+        "charged_tokens": 165800,
+        "charged_nano_usd": 0,
+        "known_tokens": 165800,
+        "known_nano_usd": 0,
+        "reserved_tokens": 0,
+        "reserved_nano_usd": 0,
+        "limit_requests": 16,
+        "admitted_requests": 15
+      },
+      "trials": {
+        "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 165800,
+          "charged_nano_usd": 0,
+          "known_tokens": 165800,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0
+        }
+      },
+      "stop_reason": null,
+      "requests": {
+        "3f6d86d63cd143259fb7dde998afe546": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 5135,
+          "output_tokens": 84,
+          "status": "known"
+        },
+        "e074e42d6a8747678bc1f9b5edd81dc6": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 5250,
+          "output_tokens": 23,
+          "status": "known"
+        },
+        "bac7e7fcb4654f4db2c59c643bc6a232": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 7435,
+          "output_tokens": 59,
+          "status": "known"
+        },
+        "06b62e4757d14c74b4d91922f733fc52": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 7515,
+          "output_tokens": 78,
+          "status": "known"
+        },
+        "4e90016d1e234305a7af9e59897d34a1": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 7672,
+          "output_tokens": 38,
+          "status": "known"
+        },
+        "e8239b2e91374d568a5252416a60c460": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 7730,
+          "output_tokens": 28,
+          "status": "known"
+        },
+        "ee0c157fd40748f8894ac2a723724bf7": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 9910,
+          "output_tokens": 107,
+          "status": "known"
+        },
+        "7cd85a2597fc465db6eb270a711a0eed": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 10064,
+          "output_tokens": 30,
+          "status": "known"
+        },
+        "9d6fb107d5cf4cc794ef9ce166cb7bc9": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 12254,
+          "output_tokens": 75,
+          "status": "known"
+        },
+        "10e46e450b5845a29478a5c9caa89b6d": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 12376,
+          "output_tokens": 22,
+          "status": "known"
+        },
+        "1108ee65292e4d3ea63a088d7371d1ce": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 14558,
+          "output_tokens": 70,
+          "status": "known"
+        },
+        "d55a8631a7974e238c1ffb65888effb7": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 15967,
+          "output_tokens": 251,
+          "status": "known"
+        },
+        "659311b4f25249a5a50253c7e18fbe41": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 15513,
+          "output_tokens": 56,
+          "status": "known"
+        },
+        "27aa632b8c1f48669079b04ec7fac968": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 15616,
+          "output_tokens": 22,
+          "status": "known"
+        },
+        "2fbc2be94eff44e5bb937e22a20a0663": {
+          "trial": "/private/tmp/tank-m6-browser-navigate-20260925-live/trials/browser-navigate-r1-a/browser-navigate-r1-a/trials/browser-navigate/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 17794,
+          "output_tokens": 68,
+          "status": "known"
+        }
+      }
+    },
+    "request_budget": {
+      "limits": {
+        "planner": 16,
+        "locator": 0,
+        "total": 16
+      },
+      "planner": 15,
+      "locator": 0,
+      "total": 15,
+      "blocked": false
+    },
+    "request_limits": {
+      "planner": 16,
+      "locator": 0,
+      "total": 16
+    },
+    "grounding": null,
+    "token_budget": 300000,
+    "platform": "macos",
+    "git_revision": "91877d76c39906ffcd486b37f4c077c32d2587af",
+    "task_revision": "9442074589754111c1b5273dc1048298b42e78f3b0d48695373c30fe975004ee",
+    "scoring_revision": "trial-token-gui-grounding-v5",
+    "aborted_cleanup": false,
+    "outcomes": [
+      {
+        "task": "browser-navigate",
+        "trial": 1,
+        "stop_reason": null,
+        "cleanup": "confirmed",
+        "scoring": "strict",
+        "success": true,
+        "unknown_calls": 0,
+        "assessment": {}
+      }
+    ],
+    "limits": [
+      {
+        "task": "browser-navigate",
+        "tool_call_limit": 15,
+        "timeout_s": 180,
+        "gui_only": true
+      }
+    ]
+  },
+  "smoke": {
+    "trials": 0,
+    "successes": 0
+  },
+  "overall": {
+    "trials": 1,
+    "successes": 1,
+    "success_rate": 1.0,
+    "ci_lo": 0.2065432914738929,
+    "ci_hi": 1.0,
+    "llm": {
+      "calls_total": 15,
+      "ttft_s_median": 1.7898347500013188,
+      "call_s_mean": 2.7550669359819344,
+      "total_s": 41.326004039729014
+    }
+  },
+  "tasks": {
+    "browser-navigate": {
+      "trials": 1,
+      "successes": 1,
+      "success_rate": 1.0,
+      "ci_lo": 0.2065432914738929,
+      "ci_hi": 1.0,
+      "medians": {
+        "steps": 14.0,
+        "wall_s": 41.5537979590008,
+        "tokens": 165800.0,
+        "screenshots": 6.0,
+        "llm_calls": 15.0,
+        "llm_ttft_s": 1.7898347500013188,
+        "llm_call_s": 2.505117875058204,
+        "llm_total_s": 41.326004039729014,
+        "llm_rtt_s": 0.0,
+        "primitives": 13.0,
+        "model_turns": 15.0,
+        "tool_call_limit": 15.0
+      }
+    }
+  }
+}

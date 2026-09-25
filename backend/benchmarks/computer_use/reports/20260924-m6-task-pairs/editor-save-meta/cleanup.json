@@ -1,0 +1,206 @@
+{
+  "pressed_keys": [],
+  "pressed_mouse_buttons": [],
+  "background_closed": true,
+  "hidden_apps_restored": true,
+  "clipboard_restored": true,
+  "cursor_restored": true,
+  "worker_finished": true,
+  "gate_blocked": [
+    {
+      "point": [
+        230,
+        11
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        230,
+        11
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        230,
+        14
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        230,
+        14
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        234,
+        14
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        235,
+        12
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        236,
+        10
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        364,
+        10
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        364,
+        10
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        364,
+        10
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        240,
+        10
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        240,
+        10
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        232,
+        14
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    }
+  ]
+}

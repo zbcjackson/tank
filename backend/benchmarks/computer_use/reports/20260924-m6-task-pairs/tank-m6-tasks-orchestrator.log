@@ -1,0 +1,11 @@
+[open-settings] go released 100427; allowed=['System Settings']
+[open-settings] finished rc=0
+[browser-navigate] go released 100540; allowed=['Safari']
+[browser-navigate] finished rc=0
+[local-form] go released 100749; allowed=['Safari']
+[local-form] finished rc=0
+[typing-fidelity] go released 101231; allowed=['Safari']
+[typing-fidelity] finished rc=0
+[file-ops] go released 101709; allowed=['Finder']
+[file-ops] finished rc=1
+ABORT remaining after file-ops: {'open-settings': True, 'browser-navigate': True, 'local-form': True, 'typing-fidelity': True, 'file-ops': False}

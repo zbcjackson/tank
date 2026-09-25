@@ -1,0 +1,7 @@
+[terminal-write] go released 122542; allowed=['Terminal']
+[terminal-write] finished rc=0
+[settings-toggle] go released 122902; allowed=['System Settings']
+[settings-toggle] finished rc=0
+[editor-save] go released 123318; allowed=['TextEdit']
+[editor-save] finished rc=1
+ABORT remaining after editor-save: {'terminal-write': True, 'settings-toggle': True, 'editor-save': False}

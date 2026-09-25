@@ -1,0 +1,340 @@
+# computer_use benchmark
+
+- Run label: `multi-select-copy-r3-c`
+- Scoring: trial-token-gui-grounding-v5 (historical reports use a different scoring revision)
+- Smoke (excluded from strict score): 0/0
+- Overall: **0/1** (0%, 95% CI 0%–79%)
+
+| task | pass | rate | 95% CI | tool calls (med) | actions (med) | turns (med) | call limit | wall s (med) | tokens (med) | shots (med) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| multi-select-copy | 0/1 | 0% | 0%–79% | 15 | 8 | 18 | 15 | 68 | 248185 | 8 |
+
+## LLM latency (per call)
+
+| task | calls (med) | stream ttft s (med) | call s (med) | total s | nonstream RTT s |
+|---|---|---|---|---|---|
+| multi-select-copy | 18 | 2.6 | 4.0 | 67 | 0.0 |
+
+- API calls total: 18, mean 3.7s/call, median streamed ttft 2.6, LLM time total 67s
+
+## Run metadata
+
+```json
+{
+  "agent_name": "computer_use",
+  "engine": null,
+  "extension": null,
+  "config": {
+    "model": "qwen3.7-flash-2026-07-15"
+  },
+  "prompt_revision": "929bdb4162b475c28e0212d3c6c200a5af93366c6f0f279066ba245a53f17945",
+  "comparison_contract": {
+    "variant": "C",
+    "freeze_dir": "/Users/zbcjackson/src/tank/backend/benchmarks/computer_use/reports/20260925-m6-tasks-runtime"
+  },
+  "input_cleanup": true,
+  "budget_record_only": true,
+  "agent_budget_enforced": true,
+  "configured_token_budget": 300000,
+  "spend_budget": {
+    "record_only": true,
+    "cost_status": "unpriced",
+    "batch": {
+      "limit_tokens": 300000,
+      "limit_nano_usd": 8000000000,
+      "charged_tokens": 248185,
+      "charged_nano_usd": 0,
+      "known_tokens": 248185,
+      "known_nano_usd": 0,
+      "reserved_tokens": 0,
+      "reserved_nano_usd": 0,
+      "limit_requests": 31,
+      "admitted_requests": 18
+    },
+    "trials": {
+      "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1": {
+        "limit_tokens": 300000,
+        "limit_nano_usd": 8000000000,
+        "charged_tokens": 248185,
+        "charged_nano_usd": 0,
+        "known_tokens": 248185,
+        "known_nano_usd": 0,
+        "reserved_tokens": 0,
+        "reserved_nano_usd": 0
+      }
+    },
+    "stop_reason": null,
+    "requests": {
+      "de6b05481f2645cba66dfdb7f0ef3024": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 3871,
+        "output_tokens": 44,
+        "status": "known"
+      },
+      "e00098d49ad444b6ace7f948832d385f": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 6322,
+        "output_tokens": 67,
+        "status": "known"
+      },
+      "ab7c9812ff2a4dcfa58841c1f82bf7a8": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 8803,
+        "output_tokens": 94,
+        "status": "known"
+      },
+      "4e099300dfea43c8a9f017afc6fe7e11": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 8794,
+        "output_tokens": 37,
+        "status": "known"
+      },
+      "42dc52ee7219464ca640cdb0525daba9": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 11214,
+        "output_tokens": 108,
+        "status": "known"
+      },
+      "ac957f8b9e0c4f94b4376c609524a802": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 2505,
+        "output_tokens": 52,
+        "status": "known"
+      },
+      "f656444876274b81a119f571a987015b": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 11415,
+        "output_tokens": 76,
+        "status": "known"
+      },
+      "fb08b8c412bb414880811a35e0c71752": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 13913,
+        "output_tokens": 114,
+        "status": "known"
+      },
+      "152a44d7f8d04cecb51cd00bad872ea4": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 16440,
+        "output_tokens": 108,
+        "status": "known"
+      },
+      "cee18a7b682b4c0f91eb9b1206d42400": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 16472,
+        "output_tokens": 32,
+        "status": "known"
+      },
+      "8cfae0362b104e7bb5e5fd595630a2c7": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 18884,
+        "output_tokens": 161,
+        "status": "known"
+      },
+      "9cd388519f47472ead35df459c1117b5": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 18995,
+        "output_tokens": 99,
+        "status": "known"
+      },
+      "aab63d08ae134ee58a1909b6fd8b0fbd": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 2504,
+        "output_tokens": 48,
+        "status": "known"
+      },
+      "e7781590acea48648f939a4ae176c8a5": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 19153,
+        "output_tokens": 108,
+        "status": "known"
+      },
+      "6a65a51890d6423685b09069d6afd5a1": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 19292,
+        "output_tokens": 68,
+        "status": "known"
+      },
+      "606294fa58ea4920aaae5432598addd8": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 21740,
+        "output_tokens": 182,
+        "status": "known"
+      },
+      "7233f8899eca4f9c9a2171ba90182cf2": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 21953,
+        "output_tokens": 35,
+        "status": "known"
+      },
+      "54c9fc21b5ba46c28518f9c06c5c6943": {
+        "trial": "/private/tmp/tank-m6-multi-select-copy-20260925-live/trials/multi-select-copy-r3-c/multi-select-copy-r3-c/trials/multi-select-copy/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 24373,
+        "output_tokens": 109,
+        "status": "known"
+      }
+    }
+  },
+  "request_budget": {
+    "limits": {
+      "planner": 16,
+      "locator": 15,
+      "total": 31
+    },
+    "planner": 16,
+    "locator": 2,
+    "total": 18,
+    "blocked": false
+  },
+  "request_limits": {
+    "planner": 16,
+    "locator": 15,
+    "total": 31
+  },
+  "grounding": {
+    "profile": null,
+    "fallback_profile": null,
+    "protocol": "point",
+    "nullable_style": "integer",
+    "strict": false,
+    "detail": "auto",
+    "status_field": false,
+    "mode": "split",
+    "host_restore": true
+  },
+  "token_budget": 300000,
+  "platform": "macos",
+  "git_revision": "12dde91ea02ed19aea3975ac835264e8625da77a",
+  "task_revision": "9442074589754111c1b5273dc1048298b42e78f3b0d48695373c30fe975004ee",
+  "scoring_revision": "trial-token-gui-grounding-v5",
+  "aborted_cleanup": false,
+  "outcomes": [
+    {
+      "task": "multi-select-copy",
+      "trial": 1,
+      "stop_reason": null,
+      "cleanup": "confirmed",
+      "scoring": "strict",
+      "success": false,
+      "unknown_calls": 0,
+      "assessment": {}
+    }
+  ],
+  "limits": [
+    {
+      "task": "multi-select-copy",
+      "tool_call_limit": 15,
+      "timeout_s": 180,
+      "gui_only": true
+    }
+  ]
+}
+```

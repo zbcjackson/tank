@@ -1,0 +1,373 @@
+{
+  "label": "drag-file-r2-c",
+  "scoring_revision": "trial-token-gui-grounding-v5",
+  "metadata": {
+    "agent_name": "computer_use",
+    "engine": null,
+    "extension": null,
+    "config": {
+      "model": "qwen3.7-flash-2026-07-15"
+    },
+    "prompt_revision": "929bdb4162b475c28e0212d3c6c200a5af93366c6f0f279066ba245a53f17945",
+    "comparison_contract": {
+      "variant": "C",
+      "freeze_dir": "/Users/zbcjackson/src/tank/backend/benchmarks/computer_use/reports/20260925-m6-tasks-runtime"
+    },
+    "input_cleanup": true,
+    "budget_record_only": true,
+    "agent_budget_enforced": true,
+    "configured_token_budget": 300000,
+    "spend_budget": {
+      "record_only": true,
+      "cost_status": "unpriced",
+      "batch": {
+        "limit_tokens": 300000,
+        "limit_nano_usd": 8000000000,
+        "charged_tokens": 245371,
+        "charged_nano_usd": 0,
+        "known_tokens": 245371,
+        "known_nano_usd": 0,
+        "reserved_tokens": 0,
+        "reserved_nano_usd": 0,
+        "limit_requests": 31,
+        "admitted_requests": 19
+      },
+      "trials": {
+        "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 245371,
+          "charged_nano_usd": 0,
+          "known_tokens": 245371,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0
+        }
+      },
+      "stop_reason": null,
+      "requests": {
+        "a166aa0d108047dcb578e38fc8c3b642": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 3840,
+          "output_tokens": 27,
+          "status": "known"
+        },
+        "21332ee88d704e02b99a3e60cb56f1b9": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 6280,
+          "output_tokens": 84,
+          "status": "known"
+        },
+        "c983cc6eeb5d4d03ac419d27a9d9eea8": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 8775,
+          "output_tokens": 46,
+          "status": "known"
+        },
+        "4db97181cf4844799dc50d5eb73beb20": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 11234,
+          "output_tokens": 66,
+          "status": "known"
+        },
+        "2bb160c0e82d4db59f0e4eb898f39d0c": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 11197,
+          "output_tokens": 60,
+          "status": "known"
+        },
+        "3f1bd14b2b294a56bfd43e70d82a9dde": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 12140,
+          "output_tokens": 66,
+          "status": "known"
+        },
+        "ce8560fc476b47d69d8dab45a2b129d4": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 12268,
+          "output_tokens": 96,
+          "status": "known"
+        },
+        "e28c8d6556594c8897308bb118bb3ce0": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 1003,
+          "output_tokens": 52,
+          "status": "known"
+        },
+        "4cccac2e1e1c4a27a2d5995aec0c977e": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 12453,
+          "output_tokens": 68,
+          "status": "known"
+        },
+        "2019a67895664ec780093740a8b58636": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 14945,
+          "output_tokens": 54,
+          "status": "known"
+        },
+        "0402c52adc114059922ebe466dd93914": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 17416,
+          "output_tokens": 104,
+          "status": "known"
+        },
+        "1267f87fbcf74e60b94181297ee0785a": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 19257,
+          "output_tokens": 88,
+          "status": "known"
+        },
+        "682e72dd9f9d49df8b989757087acc72": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 2501,
+          "output_tokens": 51,
+          "status": "known"
+        },
+        "184d78df5c9d43a9a72a0c07b9604fe2": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 19439,
+          "output_tokens": 78,
+          "status": "known"
+        },
+        "eecdb99ef8be4d039c47b9633b3157c6": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 22020,
+          "output_tokens": 72,
+          "status": "known"
+        },
+        "839af49491de46ae8a79d02903fe1b14": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 22150,
+          "output_tokens": 81,
+          "status": "known"
+        },
+        "95ef454f91714b8e814e46757dd58f0f": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 2502,
+          "output_tokens": 48,
+          "status": "known"
+        },
+        "57e3db1d6b024f438e4c78ea12b5a725": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 22288,
+          "output_tokens": 51,
+          "status": "known"
+        },
+        "c82777b3c8064d13b6c95b2d1408e8b2": {
+          "trial": "/private/tmp/tank-m6-drag-file-20260925-live/trials/drag-file-r2-c/drag-file-r2-c/trials/drag-file/1",
+          "allowance": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "input_nano_usd": 0,
+            "output_nano_usd": 0
+          },
+          "input_tokens": 22397,
+          "output_tokens": 74,
+          "status": "known"
+        }
+      }
+    },
+    "request_budget": {
+      "limits": {
+        "planner": 16,
+        "locator": 15,
+        "total": 31
+      },
+      "planner": 16,
+      "locator": 3,
+      "total": 19,
+      "blocked": false
+    },
+    "request_limits": {
+      "planner": 16,
+      "locator": 15,
+      "total": 31
+    },
+    "grounding": {
+      "profile": null,
+      "fallback_profile": null,
+      "protocol": "point",
+      "nullable_style": "integer",
+      "strict": false,
+      "detail": "auto",
+      "status_field": false,
+      "mode": "split",
+      "host_restore": true
+    },
+    "token_budget": 300000,
+    "platform": "macos",
+    "git_revision": "12dde91ea02ed19aea3975ac835264e8625da77a",
+    "task_revision": "9442074589754111c1b5273dc1048298b42e78f3b0d48695373c30fe975004ee",
+    "scoring_revision": "trial-token-gui-grounding-v5",
+    "aborted_cleanup": false,
+    "outcomes": [
+      {
+        "task": "drag-file",
+        "trial": 1,
+        "stop_reason": null,
+        "cleanup": "confirmed",
+        "scoring": "strict",
+        "success": false,
+        "unknown_calls": 0,
+        "assessment": {}
+      }
+    ],
+    "limits": [
+      {
+        "task": "drag-file",
+        "tool_call_limit": 15,
+        "timeout_s": 180,
+        "gui_only": true
+      }
+    ]
+  },
+  "smoke": {
+    "trials": 0,
+    "successes": 0
+  },
+  "overall": {
+    "trials": 1,
+    "successes": 0,
+    "success_rate": 0.0,
+    "ci_lo": 0.0,
+    "ci_hi": 0.7934567085261071,
+    "llm": {
+      "calls_total": 19,
+      "ttft_s_median": 1.8950346044730395,
+      "call_s_mean": 2.8491540723480284,
+      "total_s": 54.13392737461254
+    }
+  },
+  "tasks": {
+    "drag-file": {
+      "trials": 1,
+      "successes": 0,
+      "success_rate": 0.0,
+      "ci_lo": 0.0,
+      "ci_hi": 0.7934567085261071,
+      "medians": {
+        "steps": 15.0,
+        "wall_s": 54.34000233397819,
+        "tokens": 245371.0,
+        "screenshots": 8.0,
+        "llm_calls": 19.0,
+        "llm_ttft_s": 1.8950346044730395,
+        "llm_call_s": 2.5942324169445783,
+        "llm_total_s": 54.13392737461254,
+        "llm_rtt_s": 0.0,
+        "primitives": 6.0,
+        "model_turns": 19.0,
+        "tool_call_limit": 15.0
+      }
+    }
+  }
+}

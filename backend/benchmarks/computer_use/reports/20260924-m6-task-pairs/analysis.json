@@ -1,0 +1,2109 @@
+[
+  {
+    "task": "open-settings",
+    "trial": "open-settings-r1-a",
+    "variant": "A",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "smoke",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 17682,
+    "locator_tokens": 0,
+    "requests": 3,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "open-settings",
+    "trial": "open-settings-r1-c",
+    "variant": "C",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "smoke",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 10164,
+    "locator_tokens": 0,
+    "requests": 2,
+    "locator_requests": 0,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "open-settings",
+    "trial": "open-settings-r2-a",
+    "variant": "A",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "smoke",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 17745,
+    "locator_tokens": 0,
+    "requests": 3,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "open-settings",
+    "trial": "open-settings-r2-c",
+    "variant": "C",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "smoke",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 10245,
+    "locator_tokens": 0,
+    "requests": 2,
+    "locator_requests": 0,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "open-settings",
+    "trial": "open-settings-r3-a",
+    "variant": "A",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "smoke",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 27180,
+    "locator_tokens": 0,
+    "requests": 5,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "open-settings",
+    "trial": "open-settings-r3-c",
+    "variant": "C",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "smoke",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 10188,
+    "locator_tokens": 0,
+    "requests": 2,
+    "locator_requests": 0,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "browser-navigate",
+    "trial": "browser-navigate-r1-a",
+    "variant": "A",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 165800,
+    "locator_tokens": 0,
+    "requests": 15,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "browser-navigate",
+    "trial": "browser-navigate-r1-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 40178,
+    "locator_tokens": 2554,
+    "requests": 6,
+    "locator_requests": 1,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "browser-navigate",
+    "trial": "browser-navigate-r2-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 35365,
+    "locator_tokens": 0,
+    "requests": 5,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "browser-navigate",
+    "trial": "browser-navigate-r2-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 40110,
+    "locator_tokens": 2554,
+    "requests": 6,
+    "locator_requests": 1,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "browser-navigate",
+    "trial": "browser-navigate-r3-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 35342,
+    "locator_tokens": 0,
+    "requests": 5,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "browser-navigate",
+    "trial": "browser-navigate-r3-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 39796,
+    "locator_tokens": 2554,
+    "requests": 6,
+    "locator_requests": 1,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "local-form",
+    "trial": "local-form-r1-a",
+    "variant": "A",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 138574,
+    "locator_tokens": 0,
+    "requests": 15,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "local-form",
+    "trial": "local-form-r1-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 221622,
+    "locator_tokens": 10211,
+    "requests": 18,
+    "locator_requests": 4,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "local-form",
+    "trial": "local-form-r2-a",
+    "variant": "A",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 136406,
+    "locator_tokens": 0,
+    "requests": 15,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "local-form",
+    "trial": "local-form-r2-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 273741,
+    "locator_tokens": 7682,
+    "requests": 19,
+    "locator_requests": 3,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "local-form",
+    "trial": "local-form-r3-a",
+    "variant": "A",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 136822,
+    "locator_tokens": 0,
+    "requests": 15,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "local-form",
+    "trial": "local-form-r3-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": "budget",
+    "scoring": "strict",
+    "steps": null,
+    "class": "budget-stop",
+    "planner_tokens": 291029,
+    "locator_tokens": 10230,
+    "requests": 20,
+    "locator_requests": 4,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "typing-fidelity",
+    "trial": "typing-fidelity-r1-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 137823,
+    "locator_tokens": 0,
+    "requests": 15,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "typing-fidelity",
+    "trial": "typing-fidelity-r1-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": "budget",
+    "scoring": "strict",
+    "steps": null,
+    "class": "budget-stop",
+    "planner_tokens": 319998,
+    "locator_tokens": 7670,
+    "requests": 19,
+    "locator_requests": 3,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "typing-fidelity",
+    "trial": "typing-fidelity-r2-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 67366,
+    "locator_tokens": 0,
+    "requests": 8,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "typing-fidelity",
+    "trial": "typing-fidelity-r2-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 96424,
+    "locator_tokens": 7672,
+    "requests": 12,
+    "locator_requests": 3,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "typing-fidelity",
+    "trial": "typing-fidelity-r3-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 127990,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "typing-fidelity",
+    "trial": "typing-fidelity-r3-c",
+    "variant": "C",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 231020,
+    "locator_tokens": 7685,
+    "requests": 17,
+    "locator_requests": 3,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "file-ops",
+    "trial": "file-ops-r1-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 116361,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 1
+  },
+  {
+    "task": "file-ops",
+    "trial": "file-ops-r1-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 259392,
+    "locator_tokens": 5111,
+    "requests": 18,
+    "locator_requests": 2,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "file-ops",
+    "trial": "file-ops-r2-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 94459,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "file-ops",
+    "trial": "file-ops-r2-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 247267,
+    "locator_tokens": 7669,
+    "requests": 19,
+    "locator_requests": 3,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "file-ops",
+    "trial": "file-ops-r3-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 189642,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "file-ops",
+    "trial": "file-ops-r3-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "coordinate/out-of-window (gate-blocked clicks)",
+    "planner_tokens": 211338,
+    "locator_tokens": 10240,
+    "requests": 20,
+    "locator_requests": 4,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 3
+  },
+  {
+    "task": "terminal-write",
+    "trial": "terminal-write-r1-a",
+    "variant": "A",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 99652,
+    "locator_tokens": 0,
+    "requests": 12,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "terminal-write",
+    "trial": "terminal-write-r1-c",
+    "variant": "C",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 166491,
+    "locator_tokens": 7932,
+    "requests": 17,
+    "locator_requests": 3,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "terminal-write",
+    "trial": "terminal-write-r2-a",
+    "variant": "A",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 68034,
+    "locator_tokens": 0,
+    "requests": 8,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "terminal-write",
+    "trial": "terminal-write-r2-c",
+    "variant": "C",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 50278,
+    "locator_tokens": 0,
+    "requests": 6,
+    "locator_requests": 0,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "terminal-write",
+    "trial": "terminal-write-r3-a",
+    "variant": "A",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 50554,
+    "locator_tokens": 0,
+    "requests": 7,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "terminal-write",
+    "trial": "terminal-write-r3-c",
+    "variant": "C",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 125622,
+    "locator_tokens": 7668,
+    "requests": 16,
+    "locator_requests": 3,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "settings-toggle",
+    "trial": "settings-toggle-r1-a",
+    "variant": "A",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 65243,
+    "locator_tokens": 0,
+    "requests": 8,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "settings-toggle",
+    "trial": "settings-toggle-r1-c",
+    "variant": "C",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 207383,
+    "locator_tokens": 5113,
+    "requests": 15,
+    "locator_requests": 2,
+    "dispatches": [
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "settings-toggle",
+    "trial": "settings-toggle-r2-a",
+    "variant": "A",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 56943,
+    "locator_tokens": 0,
+    "requests": 7,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "settings-toggle",
+    "trial": "settings-toggle-r2-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 233866,
+    "locator_tokens": 17902,
+    "requests": 23,
+    "locator_requests": 7,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "settings-toggle",
+    "trial": "settings-toggle-r3-a",
+    "variant": "A",
+    "passed": true,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "passed",
+    "planner_tokens": 57119,
+    "locator_tokens": 0,
+    "requests": 7,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "settings-toggle",
+    "trial": "settings-toggle-r3-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "app-launch-failed",
+    "planner_tokens": 261943,
+    "locator_tokens": 5109,
+    "requests": 18,
+    "locator_requests": 2,
+    "dispatches": [
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "launch_app",
+        "succeeded": false
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 1
+  },
+  {
+    "task": "editor-save",
+    "trial": "editor-save-r1-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 154236,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 2
+  },
+  {
+    "task": "editor-save",
+    "trial": "editor-save-r1-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "coordinate/out-of-window (gate-blocked clicks)",
+    "planner_tokens": 240684,
+    "locator_tokens": 7655,
+    "requests": 19,
+    "locator_requests": 3,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      },
+      {
+        "name": "hold_key",
+        "succeeded": false
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 2
+  },
+  {
+    "task": "editor-save",
+    "trial": "editor-save-r2-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 150686,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 4
+  },
+  {
+    "task": "editor-save",
+    "trial": "editor-save-r2-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "coordinate/out-of-window (gate-blocked clicks)",
+    "planner_tokens": 207448,
+    "locator_tokens": 6045,
+    "requests": 19,
+    "locator_requests": 3,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      }
+    ],
+    "gate_blocked": 2
+  },
+  {
+    "task": "editor-save",
+    "trial": "editor-save-r3-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 145822,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 2
+  },
+  {
+    "task": "editor-save",
+    "trial": "editor-save-r3-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 242578,
+    "locator_tokens": 7659,
+    "requests": 19,
+    "locator_requests": 3,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      },
+      {
+        "name": "hold_key",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 1
+  },
+  {
+    "task": "links-history",
+    "trial": "links-history-r1-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 188118,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "links-history",
+    "trial": "links-history-r1-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 215139,
+    "locator_tokens": 10222,
+    "requests": 18,
+    "locator_requests": 4,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "links-history",
+    "trial": "links-history-r2-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 190730,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "links-history",
+    "trial": "links-history-r2-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 194933,
+    "locator_tokens": 10223,
+    "requests": 18,
+    "locator_requests": 4,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": false
+      },
+      {
+        "name": "hold_key",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "links-history",
+    "trial": "links-history-r3-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 83811,
+    "locator_tokens": 0,
+    "requests": 11,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "links-history",
+    "trial": "links-history-r3-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": "budget",
+    "scoring": "strict",
+    "steps": null,
+    "class": "budget-stop",
+    "planner_tokens": 300004,
+    "locator_tokens": 10218,
+    "requests": 20,
+    "locator_requests": 4,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": false
+      },
+      {
+        "name": "hold_key",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "hold_key",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "hold_key",
+        "succeeded": true
+      },
+      {
+        "name": "hold_key",
+        "succeeded": true
+      },
+      {
+        "name": "hold_key",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "multi-select-copy",
+    "trial": "multi-select-copy-r1-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 168139,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 2
+  },
+  {
+    "task": "multi-select-copy",
+    "trial": "multi-select-copy-r1-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "coordinate/out-of-window (gate-blocked clicks)",
+    "planner_tokens": 217230,
+    "locator_tokens": 5119,
+    "requests": 18,
+    "locator_requests": 2,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      }
+    ],
+    "gate_blocked": 2
+  },
+  {
+    "task": "multi-select-copy",
+    "trial": "multi-select-copy-r2-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 131526,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "multi-select-copy",
+    "trial": "multi-select-copy-r2-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 247533,
+    "locator_tokens": 10236,
+    "requests": 20,
+    "locator_requests": 4,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 1
+  },
+  {
+    "task": "multi-select-copy",
+    "trial": "multi-select-copy-r3-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 129809,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "multi-select-copy",
+    "trial": "multi-select-copy-r3-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 243076,
+    "locator_tokens": 5109,
+    "requests": 18,
+    "locator_requests": 2,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "drag-file",
+    "trial": "drag-file-r1-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 129498,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "drag-file",
+    "trial": "drag-file-r1-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 186580,
+    "locator_tokens": 10279,
+    "requests": 20,
+    "locator_requests": 4,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "scroll",
+        "succeeded": false
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "drag-file",
+    "trial": "drag-file-r2-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 65319,
+    "locator_tokens": 0,
+    "requests": 9,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "drag-file",
+    "trial": "drag-file-r2-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 239214,
+    "locator_tokens": 6157,
+    "requests": 19,
+    "locator_requests": 3,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      }
+    ],
+    "gate_blocked": 1
+  },
+  {
+    "task": "drag-file",
+    "trial": "drag-file-r3-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 104074,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "drag-file",
+    "trial": "drag-file-r3-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "coordinate/out-of-window (gate-blocked clicks)",
+    "planner_tokens": 241231,
+    "locator_tokens": 10272,
+    "requests": 20,
+    "locator_requests": 4,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 2
+  },
+  {
+    "task": "small-text-code",
+    "trial": "small-text-code-r1-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 155360,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "small-text-code",
+    "trial": "small-text-code-r1-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 138186,
+    "locator_tokens": 7683,
+    "requests": 14,
+    "locator_requests": 3,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "small-text-code",
+    "trial": "small-text-code-r2-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 38092,
+    "locator_tokens": 0,
+    "requests": 5,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "small-text-code",
+    "trial": "small-text-code-r2-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 105463,
+    "locator_tokens": 5112,
+    "requests": 11,
+    "locator_requests": 2,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "small-text-code",
+    "trial": "small-text-code-r3-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 39490,
+    "locator_tokens": 0,
+    "requests": 5,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "small-text-code",
+    "trial": "small-text-code-r3-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 290035,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "window-copy",
+    "trial": "window-copy-r1-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 188360,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "window-copy",
+    "trial": "window-copy-r1-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 202874,
+    "locator_tokens": 15337,
+    "requests": 22,
+    "locator_requests": 6,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 1
+  },
+  {
+    "task": "window-copy",
+    "trial": "window-copy-r2-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 121074,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "window-copy",
+    "trial": "window-copy-r2-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 266005,
+    "locator_tokens": 5116,
+    "requests": 18,
+    "locator_requests": 2,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 0
+  },
+  {
+    "task": "window-copy",
+    "trial": "window-copy-r3-a",
+    "variant": "A",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 95951,
+    "locator_tokens": 0,
+    "requests": 16,
+    "locator_requests": 0,
+    "dispatches": [],
+    "gate_blocked": 0
+  },
+  {
+    "task": "window-copy",
+    "trial": "window-copy-r3-c",
+    "variant": "C",
+    "passed": false,
+    "stop_reason": null,
+    "scoring": "strict",
+    "steps": null,
+    "class": "task-incomplete (flow/steps exhausted within limits)",
+    "planner_tokens": 230402,
+    "locator_tokens": 12754,
+    "requests": 21,
+    "locator_requests": 5,
+    "dispatches": [
+      {
+        "name": "launch_app",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": false
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "key_press",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      },
+      {
+        "name": "type_text",
+        "succeeded": true
+      },
+      {
+        "name": "click",
+        "succeeded": true
+      }
+    ],
+    "gate_blocked": 1
+  }
+]

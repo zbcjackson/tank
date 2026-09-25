@@ -1,0 +1,1539 @@
+{
+  "task_id": "window-copy",
+  "pilot_acceptance": "reviewed-2026-09-24-m6-calc-and-m5-pairs",
+  "enforce_agent_budget": true,
+  "completed": [
+    "window-copy-r1-a",
+    "window-copy-r1-c",
+    "window-copy-r2-c",
+    "window-copy-r2-a",
+    "window-copy-r3-a",
+    "window-copy-r3-c"
+  ],
+  "batches": [
+    {
+      "completed": [
+        "window-copy-r1-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 188360,
+          "charged_nano_usd": 0,
+          "known_tokens": 188360,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 16
+        },
+        "trials": {
+          "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 188360,
+            "charged_nano_usd": 0,
+            "known_tokens": 188360,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "1910b60c982242e586b230d928d64518": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5168,
+            "output_tokens": 61,
+            "status": "known"
+          },
+          "72626957c6d64373a311073ed2bdb19d": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5259,
+            "output_tokens": 27,
+            "status": "known"
+          },
+          "de8aee3ba6fd4a26ad0979200b00d41c": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5309,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "c99f53a1e91d4d5db22085b14df4f697": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7480,
+            "output_tokens": 74,
+            "status": "known"
+          },
+          "254e593fb6904560b3f2f80f064450d4": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6862,
+            "output_tokens": 27,
+            "status": "known"
+          },
+          "b7756604b3d94128a184f3b5820d33fd": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9049,
+            "output_tokens": 76,
+            "status": "known"
+          },
+          "de56a9ee06264a109a0a940c1d6b5de0": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9172,
+            "output_tokens": 17,
+            "status": "known"
+          },
+          "6e3ffcfa81ce456ca34c234c962d801e": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11349,
+            "output_tokens": 70,
+            "status": "known"
+          },
+          "2d4b8ac9c1b34e30a1989b23bde2f5cb": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11466,
+            "output_tokens": 17,
+            "status": "known"
+          },
+          "91ed3eea0b7145009bd366e6e0674339": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13643,
+            "output_tokens": 85,
+            "status": "known"
+          },
+          "8322194368704fcb95ba2412032e09db": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13762,
+            "output_tokens": 17,
+            "status": "known"
+          },
+          "0db20e7eee824eda95deb27d3be072c5": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15939,
+            "output_tokens": 80,
+            "status": "known"
+          },
+          "7be9824fc14a437ab98e635cf65802ba": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16053,
+            "output_tokens": 17,
+            "status": "known"
+          },
+          "334f3c4760484836846e08912050c229": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 18230,
+            "output_tokens": 78,
+            "status": "known"
+          },
+          "befc34dfdd7844199a892cdbccc61c05": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 18342,
+            "output_tokens": 17,
+            "status": "known"
+          },
+          "4d929adf43f54e2c9a55e875617a72d6": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-a/window-copy-r1-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 20519,
+            "output_tokens": 82,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "window-copy-r1-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 218211,
+          "charged_nano_usd": 0,
+          "known_tokens": 218211,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 22
+        },
+        "trials": {
+          "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 218211,
+            "charged_nano_usd": 0,
+            "known_tokens": 218211,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "76a0619e9c354b638d059a3ef65b3133": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3896,
+            "output_tokens": 88,
+            "status": "known"
+          },
+          "311ca5c005d548e1bc027eab9819e3d1": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6396,
+            "output_tokens": 108,
+            "status": "known"
+          },
+          "33c6ba347e064c059ae9a08b3f902ebe": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8236,
+            "output_tokens": 92,
+            "status": "known"
+          },
+          "83c7ec79aad94f4288062836172d5559": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2506,
+            "output_tokens": 50,
+            "status": "known"
+          },
+          "d59e219feea640c1bc89f882d558902d": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8417,
+            "output_tokens": 71,
+            "status": "known"
+          },
+          "c6b148b747944d0284a2201eb4c4d41b": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10817,
+            "output_tokens": 89,
+            "status": "known"
+          },
+          "4dbc2361225f435eb02db4cf5fdb43e3": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10968,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "185b6b46fd85433bb6c9684b3a44e90d": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2506,
+            "output_tokens": 50,
+            "status": "known"
+          },
+          "e0b437136dfe4fedaabb0cfe4b148906": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11139,
+            "output_tokens": 46,
+            "status": "known"
+          },
+          "8b573c107df84b2ba31cbe17e4aa86c0": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13585,
+            "output_tokens": 90,
+            "status": "known"
+          },
+          "32cbbaa1dbeb44688f9942a750f6a31e": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13733,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "538471040c3149aea7ef314390cd21da": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2504,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "88bc9ebc6c6147d29c13e679ffa21ee7": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13871,
+            "output_tokens": 59,
+            "status": "known"
+          },
+          "ccbdfe3cc54e49d095ddd9d8a855976c": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13981,
+            "output_tokens": 93,
+            "status": "known"
+          },
+          "89bee929817b4ad7b69d168928a84753": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2508,
+            "output_tokens": 51,
+            "status": "known"
+          },
+          "e1d9e9c5f49a44a2bb8c8637f683f4d2": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 14169,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "297369c8d42849129e13a189eff8b584": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16675,
+            "output_tokens": 116,
+            "status": "known"
+          },
+          "009e7d03eed54cac8abeabfb6e9c054b": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2503,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "c3a1e50352a54ffe9714da3ad5415ac9": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16849,
+            "output_tokens": 39,
+            "status": "known"
+          },
+          "77970780814245d6baabd5ce76e07000": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 19298,
+            "output_tokens": 126,
+            "status": "known"
+          },
+          "ffa0f36d453942e1bcf6224959d8a200": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2511,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "e6ff4fff78644208a655edf02e385eea": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r1-c/window-copy-r1-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 19515,
+            "output_tokens": 69,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "window-copy-r2-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 271121,
+          "charged_nano_usd": 0,
+          "known_tokens": 271121,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 18
+        },
+        "trials": {
+          "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 271121,
+            "charged_nano_usd": 0,
+            "known_tokens": 271121,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "fdc39cde2c2d4433979eac4b6dacf24d": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3901,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "bb6b24b81a8a4f959e6160830d01b1aa": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6363,
+            "output_tokens": 109,
+            "status": "known"
+          },
+          "581673b698a04730ac7b98e0b843f64d": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8211,
+            "output_tokens": 59,
+            "status": "known"
+          },
+          "c9efad9622ff4b11960e971510f912eb": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10681,
+            "output_tokens": 39,
+            "status": "known"
+          },
+          "fb6362b3603540cfaf77bcfa6b27ca9b": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13106,
+            "output_tokens": 91,
+            "status": "known"
+          },
+          "f821dc66ff3447c7b59228523224dd37": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13094,
+            "output_tokens": 35,
+            "status": "known"
+          },
+          "910264f3814743c59ccb57b838617d8a": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15515,
+            "output_tokens": 72,
+            "status": "known"
+          },
+          "02f1cc2edf2c4c88af41c7bd3f516ad5": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15611,
+            "output_tokens": 97,
+            "status": "known"
+          },
+          "9d1e1b74767a4690981970d063093450": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2504,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "23317a1f2e4e4830940e1ac0913d23a9": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 15799,
+            "output_tokens": 75,
+            "status": "known"
+          },
+          "db499cd0dadb4f5a99ebcfc2d674fa9f": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 18299,
+            "output_tokens": 134,
+            "status": "known"
+          },
+          "586277e70bcc47c999cf62b3bd43bdf3": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 20514,
+            "output_tokens": 166,
+            "status": "known"
+          },
+          "5255b0efb30d459bb8705503c3d141fe": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 23080,
+            "output_tokens": 121,
+            "status": "known"
+          },
+          "f200565249f548208ad13bf0f2731e04": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 23125,
+            "output_tokens": 32,
+            "status": "known"
+          },
+          "33f885150d294b06acc3d5742953f406": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 25541,
+            "output_tokens": 150,
+            "status": "known"
+          },
+          "94d7c1ed1a344deb9a592c7c5cc2de04": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 25749,
+            "output_tokens": 132,
+            "status": "known"
+          },
+          "aa85210c7c78479a982ae861f8584256": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2508,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "a796c6446d88452c8b6a9b22f9663f93": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-c/window-copy-r2-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 25976,
+            "output_tokens": 80,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "window-copy-r2-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 121074,
+          "charged_nano_usd": 0,
+          "known_tokens": 121074,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 16
+        },
+        "trials": {
+          "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 121074,
+            "charged_nano_usd": 0,
+            "known_tokens": 121074,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "f48925d73d094bb8bf05a231c66b8673": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5163,
+            "output_tokens": 49,
+            "status": "known"
+          },
+          "2c94e7ccaa9c412188b41c29d14da46f": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5242,
+            "output_tokens": 27,
+            "status": "known"
+          },
+          "60b90a4012e841a19f5ab72495145dab": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5292,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "1b046fe40828451e865329fd604ab296": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 4911,
+            "output_tokens": 50,
+            "status": "known"
+          },
+          "378dc2fb921a4d5fbd76df1b344a70de": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 4991,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "37cca31221a74d80a590ef1ca4356980": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7154,
+            "output_tokens": 92,
+            "status": "known"
+          },
+          "4e527943199747ea8e49c605c3b6c961": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6554,
+            "output_tokens": 61,
+            "status": "known"
+          },
+          "7b11022d510c4216a679b49b06cc2098": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6662,
+            "output_tokens": 80,
+            "status": "known"
+          },
+          "04e3ec379e1248cea4d9a66f26fa506f": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6763,
+            "output_tokens": 41,
+            "status": "known"
+          },
+          "af5292db2206480c99866087870e1134": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6845,
+            "output_tokens": 37,
+            "status": "known"
+          },
+          "3e96c4c242f147ce9abab0d96af0a0cd": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6902,
+            "output_tokens": 27,
+            "status": "known"
+          },
+          "c7e132bbcf9f4bbab0f05acc82d1401c": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9073,
+            "output_tokens": 86,
+            "status": "known"
+          },
+          "a1ed8eb6c34e45c9acecff0be57eeee8": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 9193,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "8139c4706bed40c1bb9d666767eba189": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11116,
+            "output_tokens": 81,
+            "status": "known"
+          },
+          "7189dee62cb94066bba43aea39a5a640": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 11231,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "318027a7665d46138f2485b1fccc79ee": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r2-a/window-copy-r2-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13154,
+            "output_tokens": 75,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "window-copy-r3-a"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 95951,
+          "charged_nano_usd": 0,
+          "known_tokens": 95951,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 16,
+          "admitted_requests": 16
+        },
+        "trials": {
+          "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 95951,
+            "charged_nano_usd": 0,
+            "known_tokens": 95951,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "993774a4c8784da0b1b6d522fc32e414": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5159,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "89a7f8cabf774cebbc52392dd118195e": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5237,
+            "output_tokens": 27,
+            "status": "known"
+          },
+          "55437838405f41d6bea40364ebffcae0": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5294,
+            "output_tokens": 54,
+            "status": "known"
+          },
+          "e4ed42b0eb40434990bb7a45e2336bb3": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5371,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "233683e563c04f9fa04a90c15e267dd4": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 4990,
+            "output_tokens": 51,
+            "status": "known"
+          },
+          "caa0eddcba224729b710e075939d13ca": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5071,
+            "output_tokens": 29,
+            "status": "known"
+          },
+          "2dc994cb66f8424193be1d298890290b": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5125,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "af21eb38eb284941b1dc8bda68d20c08": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5212,
+            "output_tokens": 44,
+            "status": "known"
+          },
+          "24b2f7adf24f4cee943f68787b064f1a": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5298,
+            "output_tokens": 25,
+            "status": "known"
+          },
+          "63b3ed3af1ca496cafea6d752d107098": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 5344,
+            "output_tokens": 13,
+            "status": "known"
+          },
+          "117670955d664793b922ba7318935ef6": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7487,
+            "output_tokens": 76,
+            "status": "known"
+          },
+          "79d9b8ea21e54ca1b82be00106591f09": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6871,
+            "output_tokens": 50,
+            "status": "known"
+          },
+          "91973a8c518144e7bc5efed1f03f312f": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7000,
+            "output_tokens": 70,
+            "status": "known"
+          },
+          "1b5e793d7c8a4b4fa5e98955db5289e2": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7149,
+            "output_tokens": 106,
+            "status": "known"
+          },
+          "e45af5fc01f9411585cb11ff309d15be": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7275,
+            "output_tokens": 60,
+            "status": "known"
+          },
+          "cbdf2942e2704961a4ee47ca477c6715": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-a/window-copy-r3-a/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 7359,
+            "output_tokens": 30,
+            "status": "known"
+          }
+        }
+      }
+    },
+    {
+      "completed": [
+        "window-copy-r3-c"
+      ],
+      "spend": {
+        "record_only": true,
+        "cost_status": "unpriced",
+        "batch": {
+          "limit_tokens": 300000,
+          "limit_nano_usd": 8000000000,
+          "charged_tokens": 243156,
+          "charged_nano_usd": 0,
+          "known_tokens": 243156,
+          "known_nano_usd": 0,
+          "reserved_tokens": 0,
+          "reserved_nano_usd": 0,
+          "limit_requests": 31,
+          "admitted_requests": 21
+        },
+        "trials": {
+          "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1": {
+            "limit_tokens": 300000,
+            "limit_nano_usd": 8000000000,
+            "charged_tokens": 243156,
+            "charged_nano_usd": 0,
+            "known_tokens": 243156,
+            "known_nano_usd": 0,
+            "reserved_tokens": 0,
+            "reserved_nano_usd": 0
+          }
+        },
+        "stop_reason": null,
+        "requests": {
+          "a8f994ab09f145eabe8836a08dd53dec": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 3899,
+            "output_tokens": 72,
+            "status": "known"
+          },
+          "73f31fda860d4c68b4c10d6a5f85dd35": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 6382,
+            "output_tokens": 109,
+            "status": "known"
+          },
+          "f0f8267e4c5840299ca0c4ce8ae0672a": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8225,
+            "output_tokens": 91,
+            "status": "known"
+          },
+          "5200b34184814d00b54c59fc51119977": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2501,
+            "output_tokens": 50,
+            "status": "known"
+          },
+          "3958c3a8f4264084845cab93f6c08f8a": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 8409,
+            "output_tokens": 71,
+            "status": "known"
+          },
+          "8619bea605964b9890a6943682b44abc": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10816,
+            "output_tokens": 97,
+            "status": "known"
+          },
+          "118ddb4576b84560a77edb6a36c0e920": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2499,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "95dc94181ca44072a00fea45989228ac": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 10969,
+            "output_tokens": 41,
+            "status": "known"
+          },
+          "6415b812fbf945608a239b41df0edfd7": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13418,
+            "output_tokens": 111,
+            "status": "known"
+          },
+          "db17324aa1ac492495d4e0c479f3d444": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 13559,
+            "output_tokens": 51,
+            "status": "known"
+          },
+          "daac8b163ac94e87bc0c316636283983": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16011,
+            "output_tokens": 65,
+            "status": "known"
+          },
+          "80ef7bac4a624cbd9ecce97bd7aa088e": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16134,
+            "output_tokens": 80,
+            "status": "known"
+          },
+          "3d905d9ad4e849c686d81f1ded421427": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2502,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "760eab3b4e824996938d9de2961b74e0": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 16307,
+            "output_tokens": 75,
+            "status": "known"
+          },
+          "8bc972bfa1c04d06befd2be56e1df115": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 18802,
+            "output_tokens": 109,
+            "status": "known"
+          },
+          "1c2985a3d7724e698aae5fd839229799": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2501,
+            "output_tokens": 48,
+            "status": "known"
+          },
+          "61e2aac94bcb4b9a95657fc61720e096": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 18969,
+            "output_tokens": 53,
+            "status": "known"
+          },
+          "84d540cba0a04e77b4cb84033537dcad": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 21437,
+            "output_tokens": 116,
+            "status": "known"
+          },
+          "86f071eb5d714ebf92d412d803d6bd92": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 2501,
+            "output_tokens": 52,
+            "status": "known"
+          },
+          "1c43fc4701944ae8a2d78678ac5aba54": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 21649,
+            "output_tokens": 76,
+            "status": "known"
+          },
+          "303bfb5e5268443397d0557df4e305a4": {
+            "trial": "/private/tmp/tank-m6-window-copy-20260925-live/trials/window-copy-r3-c/window-copy-r3-c/trials/window-copy/1",
+            "allowance": {
+              "input_tokens": 0,
+              "output_tokens": 0,
+              "input_nano_usd": 0,
+              "output_nano_usd": 0
+            },
+            "input_tokens": 24149,
+            "output_tokens": 50,
+            "status": "known"
+          }
+        }
+      }
+    }
+  ]
+}

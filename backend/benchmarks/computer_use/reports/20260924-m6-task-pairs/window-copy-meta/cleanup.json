@@ -1,0 +1,41 @@
+{
+  "pressed_keys": [],
+  "pressed_mouse_buttons": [],
+  "background_closed": true,
+  "hidden_apps_restored": true,
+  "clipboard_restored": true,
+  "cursor_restored": true,
+  "worker_finished": true,
+  "gate_blocked": [
+    {
+      "point": [
+        134,
+        13
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    },
+    {
+      "point": [
+        134,
+        13
+      ],
+      "containers": [
+        [
+          213,
+          77,
+          816,
+          582
+        ]
+      ],
+      "landed": "outside"
+    }
+  ]
+}
