@@ -1,0 +1,364 @@
+# computer_use benchmark
+
+- Run label: `long-history-r1-c`
+- Scoring: trial-token-gui-grounding-v5 (historical reports use a different scoring revision)
+- Smoke (excluded from strict score): 0/0
+- Overall: **0/1** (0%, 95% CI 0%–79%)
+
+| task | pass | rate | 95% CI | tool calls (med) | actions (med) | turns (med) | call limit | wall s (med) | tokens (med) | shots (med) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| long-history | 0/1 | 0% | 0%–79% | 17 | 9 | 20 | 60 | 81 | 311613 | 9 |
+
+## LLM latency (per call)
+
+| task | calls (med) | stream ttft s (med) | call s (med) | total s | nonstream RTT s |
+|---|---|---|---|---|---|
+| long-history | 20 | 2.0 | 3.6 | 80 | 0.0 |
+
+- API calls total: 20, mean 4.0s/call, median streamed ttft 2.0, LLM time total 80s
+
+## Run metadata
+
+```json
+{
+  "agent_name": "computer_use",
+  "engine": null,
+  "extension": null,
+  "config": {
+    "model": "qwen3.7-flash-2026-07-15"
+  },
+  "prompt_revision": "929bdb4162b475c28e0212d3c6c200a5af93366c6f0f279066ba245a53f17945",
+  "comparison_contract": {
+    "variant": "C",
+    "freeze_dir": "/Users/zbcjackson/src/tank/backend/benchmarks/computer_use/reports/20260924-m6-calc-runtime"
+  },
+  "input_cleanup": true,
+  "budget_record_only": true,
+  "agent_budget_enforced": true,
+  "configured_token_budget": 300000,
+  "spend_budget": {
+    "record_only": true,
+    "cost_status": "unpriced",
+    "batch": {
+      "limit_tokens": 300000,
+      "limit_nano_usd": 8000000000,
+      "charged_tokens": 311613,
+      "charged_nano_usd": 0,
+      "known_tokens": 311613,
+      "known_nano_usd": 0,
+      "reserved_tokens": 0,
+      "reserved_nano_usd": 0,
+      "limit_requests": 120,
+      "admitted_requests": 20
+    },
+    "trials": {
+      "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1": {
+        "limit_tokens": 300000,
+        "limit_nano_usd": 8000000000,
+        "charged_tokens": 311613,
+        "charged_nano_usd": 0,
+        "known_tokens": 311613,
+        "known_nano_usd": 0,
+        "reserved_tokens": 0,
+        "reserved_nano_usd": 0
+      }
+    },
+    "stop_reason": null,
+    "requests": {
+      "801b0cc3faab4a6588a85fdfddc6001a": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 3901,
+        "output_tokens": 60,
+        "status": "known"
+      },
+      "d54aee9a5264419b99cd45a06233991c": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 6377,
+        "output_tokens": 255,
+        "status": "known"
+      },
+      "8586606f60084615b3ce9e8ff4064f44": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 9119,
+        "output_tokens": 307,
+        "status": "known"
+      },
+      "17a7047cd99547c6838641663fbfd198": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 11899,
+        "output_tokens": 135,
+        "status": "known"
+      },
+      "6458862ad1e3424ab405363067c92504": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 13828,
+        "output_tokens": 207,
+        "status": "known"
+      },
+      "45394146a8874291895419d25048dc35": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 1931,
+        "output_tokens": 48,
+        "status": "known"
+      },
+      "a19419dad7ab4e36bffa973ea31d3695": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 14093,
+        "output_tokens": 163,
+        "status": "known"
+      },
+      "b23d6af675854083aae89f0b6acff6d3": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 14206,
+        "output_tokens": 70,
+        "status": "known"
+      },
+      "3218e28099034ddaab93408c6cd992ff": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 16114,
+        "output_tokens": 174,
+        "status": "known"
+      },
+      "704242307fe34ee5b9fb30cb03d12e9d": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 16185,
+        "output_tokens": 122,
+        "status": "known"
+      },
+      "183f059c4ff84cfc8028f317edb097f0": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 18148,
+        "output_tokens": 492,
+        "status": "known"
+      },
+      "7a88b7fd94bd45bdab317dcc1e79ea7f": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 18664,
+        "output_tokens": 145,
+        "status": "known"
+      },
+      "80be96ca5445465b953adb3b2b8607b0": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 2006,
+        "output_tokens": 48,
+        "status": "known"
+      },
+      "a38ae5ab533644f88dbfb4bf4f3d2029": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 18866,
+        "output_tokens": 57,
+        "status": "known"
+      },
+      "073b2437777d4bd1b25b47b0e5b6c7b9": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 21328,
+        "output_tokens": 123,
+        "status": "known"
+      },
+      "e16b2c59400a4e96be2641dcb7270d32": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 23867,
+        "output_tokens": 249,
+        "status": "known"
+      },
+      "d3f888bf8c7f4c55a59d7823f245599b": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 23441,
+        "output_tokens": 197,
+        "status": "known"
+      },
+      "15a24df2ea534e4281794195221a2fdf": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 23667,
+        "output_tokens": 204,
+        "status": "known"
+      },
+      "418ea5624e084d5196539866e8736830": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 23932,
+        "output_tokens": 186,
+        "status": "known"
+      },
+      "73b661ba0e684b4189c2a20d71eecb51": {
+        "trial": "/private/tmp/tank-m6-long-history-20260925-live/trials/long-history-r1-c/long-history-r1-c/trials/long-history/1",
+        "allowance": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "input_nano_usd": 0,
+          "output_nano_usd": 0
+        },
+        "input_tokens": 26587,
+        "output_tokens": 212,
+        "status": "known"
+      }
+    }
+  },
+  "request_budget": {
+    "limits": {
+      "planner": 60,
+      "locator": 60,
+      "total": 120
+    },
+    "planner": 18,
+    "locator": 2,
+    "total": 20,
+    "blocked": false
+  },
+  "request_limits": {
+    "planner": 60,
+    "locator": 60,
+    "total": 120
+  },
+  "grounding": {
+    "profile": null,
+    "fallback_profile": null,
+    "protocol": "point",
+    "nullable_style": "integer",
+    "strict": false,
+    "detail": "auto",
+    "status_field": false,
+    "mode": "split",
+    "host_restore": true
+  },
+  "token_budget": 300000,
+  "platform": "macos",
+  "git_revision": "6f5dc21847f714242f9341b1451d6969a53aa5aa",
+  "task_revision": "9442074589754111c1b5273dc1048298b42e78f3b0d48695373c30fe975004ee",
+  "scoring_revision": "trial-token-gui-grounding-v5",
+  "aborted_cleanup": false,
+  "outcomes": [
+    {
+      "task": "long-history",
+      "trial": 1,
+      "stop_reason": "budget",
+      "cleanup": "confirmed",
+      "scoring": "strict",
+      "success": false,
+      "unknown_calls": 0,
+      "assessment": {}
+    }
+  ],
+  "limits": [
+    {
+      "task": "long-history",
+      "tool_call_limit": 60,
+      "timeout_s": 600,
+      "gui_only": true
+    }
+  ]
+}
+```
