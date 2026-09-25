@@ -28,12 +28,16 @@ class GroundingConfig:
     status_field: bool = True
     mode: str = "split"
     host_restore: bool = True
+    ax_action: str = "quartz"
 
     def __post_init__(self) -> None:
         from ..tools.computer_grounding import GroundingAdapter
 
-        if self.mode not in {"split", "integrated"} or type(self.host_restore) is not bool:
+        if (self.mode not in {"split", "integrated", "ax"}
+                or type(self.host_restore) is not bool):
             raise ValueError("Invalid grounding mode/host_restore")
+        if self.mode == "ax" and self.ax_action not in {"quartz", "ax_press"}:
+            raise ValueError("Invalid grounding ax_action")
         if self.mode == "split" and (not self.host_restore or self.protocol == "legacy"):
             raise ValueError("Split grounding requires image restoration and an adapter")
         if self.mode == "integrated" and (

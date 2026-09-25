@@ -48,7 +48,7 @@ class LocateSession:
         self,
         tools: dict[str, BaseTool],
         llms: dict[str, LLM],
-        adapter: GroundingAdapter,
+        adapter: GroundingAdapter | None,
         context: SubAgentContext,
         session_id: str,
     ) -> None:
@@ -85,7 +85,7 @@ class LocateSession:
     ) -> ToolResult:
         evidence: dict[str, Any] = {
             "call_id": "locate:" + uuid.uuid4().hex, "frame_id": frame_id,
-            "target": target, "backend": backend, "protocol": self.adapter.protocol,
+            "target": target, "backend": backend, "protocol": self._protocol_name(),
             "stage": "preflight",
         }
         self.context.observe("grounding_attempt", **evidence)
@@ -107,11 +107,13 @@ class LocateSession:
                              outcome=evidence["reported_status"])
         return result
 
-    async def _locate(
-        self, frame_id: str, target: str, window_id: int | None, backend: str,
-        evidence: dict[str, Any],
-    ) -> ToolResult:
-        self.context.check()
+    def _protocol_name(self) -> str:
+        return "ax" if self.adapter is None else self.adapter.protocol
+
+    def _clear_locations(self) -> None:
+        self.locations.clear()
+
+    def _prepare_locate(self, target: object, backend: str) -> None:
         if not isinstance(target, str) or not target.strip():
             raise ValueError("target must be a nonempty description")
         if self.attempts >= 3:
@@ -123,7 +125,14 @@ class LocateSession:
                 raise ValueError("Only one grounding backend switch is allowed per step")
             self.backend, self.switched = backend, True
         self.attempts += 1
-        evidence["stage"] = "observation_before"
+
+    async def _locate(
+        self, frame_id: str, target: str, window_id: int | None, backend: str,
+        evidence: dict[str, Any],
+    ) -> ToolResult:
+        self.context.check()
+        self._prepare_locate(target, backend)
+        evidence.update(stage="observation_before")
         observation = await self.screenshot.validate(self.session_id, frame_id, window_id)
         png = self.state.png
         self.context.check()
@@ -131,11 +140,13 @@ class LocateSession:
                         image_size=observation.image_size, model=self.llms[backend].model,
                         stage="request")
         call_id = evidence["call_id"]
+        if self.adapter is None:
+            raise ValueError("Split grounding requires an adapter")
         token = grounding_call_id.set(call_id)
         try:
             response = await self.adapter.request(self.llms[backend], observation, png, target)
         except BaseException:
-            self.locations.clear()
+            self._clear_locations()
             self.context.budget.record_unknown(call_id)
             raise
         finally:
@@ -173,7 +184,7 @@ class LocateSession:
             self.locations[location_id] = LocatedTarget(observation, location.point)
             result["location_id"] = location_id
         else:
-            self.locations.clear()
+            self._clear_locations()
         evidence["stage"] = "resolved"
         return ToolResult(content=json.dumps(result))
 
@@ -201,25 +212,12 @@ class LocateSession:
         ctx = ToolContext(session_id=self.session_id)
         tool = self.tools[name]
         if name == "screenshot":
-            self.locations.clear()
+            self._clear_locations()
             result = await tool.execute(coordinate_space="image", ctx=ctx, **arguments)
             self.observe_screenshot(result)
             return result
         if name in {"click", "mouse_move", "scroll", "drag"}:
-            target = self.target(arguments.pop("location_id"))
-            arguments.update(
-                coordinate_space="image",
-                frame_id=target.observation.frame_id,
-                window_id=target.observation.window_id,
-            )
-            if name == "drag":
-                end = self.target(arguments.pop("end_location_id"))
-                arguments.update(
-                    x1=target.point[0], y1=target.point[1], x2=end.point[0], y2=end.point[1]
-                )
-            else:
-                arguments.update(x=target.point[0], y=target.point[1])
-            result = await tool.execute(ctx=ctx, **arguments)
+            result = await self._dispatch_pointer(name, tool, arguments, ctx)
         else:
             # Legacy keyboard/launch tools use to_thread. Cancelling their await
             # cannot stop native input; join it before Runner releases the desktop.
@@ -236,7 +234,7 @@ class LocateSession:
                              in_batch=not feedback)
         self.context.check()
         if failed or name not in {"click", "mouse_move", "scroll", "drag"}:
-            self.locations.clear()
+            self._clear_locations()
             self.state.observation = None
         if not failed:
             self.attempts, self.backend, self.switched = 0, "primary", False
@@ -259,9 +257,27 @@ class LocateSession:
                 if isinstance(block, ImageBlock):
                     self.context.observe("screenshot", data_url=block.source)
 
+    async def _dispatch_pointer(
+        self, name: str, tool: BaseTool, arguments: dict[str, Any], ctx: ToolContext,
+    ) -> ToolResult | str:
+        target = self.target(arguments.pop("location_id"))
+        arguments.update(
+            coordinate_space="image",
+            frame_id=target.observation.frame_id,
+            window_id=target.observation.window_id,
+        )
+        if name == "drag":
+            end = self.target(arguments.pop("end_location_id"))
+            arguments.update(
+                x1=target.point[0], y1=target.point[1], x2=end.point[0], y2=end.point[1]
+            )
+        else:
+            arguments.update(x=target.point[0], y=target.point[1])
+        return await tool.execute(ctx=ctx, **arguments)
+
     async def feedback(self, detail: dict[str, Any], failed: bool) -> ToolResult:
         self.context.check()
-        self.locations.clear()
+        self._clear_locations()
         shot = await self.screenshot.execute(
             coordinate_space="image",
             ctx=ToolContext(session_id=self.session_id),
