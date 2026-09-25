@@ -501,6 +501,9 @@ class AXSession(LocateSession):
         super()._clear_locations()
         self.ax_locations.clear()
 
+    def _host_arguments(self, name: str) -> set[str]:
+        return {"window_id"} if name == "screenshot" else set()
+
     async def execute(
         self, name: str, arguments: dict[str, Any], *, feedback: bool = True,
     ) -> ToolResult | str:

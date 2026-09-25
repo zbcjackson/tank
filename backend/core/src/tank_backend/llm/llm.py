@@ -743,6 +743,7 @@ class LLM:
                 "turn": turn,
             })
 
+            invalid_calls: dict[int, str] = {}
             if require_complete_tool_calls and tool_calls_data:
                 if finish_reason not in {"tool_calls", "stop"}:
                     raise ValueError(f"Incomplete desktop tool response: {finish_reason}")
@@ -757,10 +758,18 @@ class LLM:
 
                 import json as desktop_json
 
-                for call in tool_calls_data.values():
-                    args = desktop_json.loads(call["arguments"], object_pairs_hook=unique_arguments)
-                    if not isinstance(args, dict):
-                        raise ValueError("Desktop tool arguments must be an object")
+                for index, call in tool_calls_data.items():
+                    try:
+                        args = desktop_json.loads(
+                            call["arguments"], object_pairs_hook=unique_arguments)
+                        if not isinstance(args, dict):
+                            raise ValueError("Desktop tool arguments must be an object")
+                    except ValueError as exc:
+                        # Zero dispatch stays guaranteed for the rejected call; the
+                        # model receives the error and can reissue (live evidence
+                        # 2026-09-25: fatal aborts wasted provider-truncated and
+                        # model-malformed calls alike).
+                        invalid_calls[index] = str(exc)
 
             if tool_calls_data and tool_executor:
                 from openai.types.chat.chat_completion_message_tool_call import (
@@ -769,6 +778,26 @@ class LLM:
                 )
 
                 sorted_indices = sorted(tool_calls_data.keys())
+                for index in sorted(invalid_calls):
+                    call = tool_calls_data[index]
+                    invalid_content = (
+                        f"Error: invalid tool arguments, nothing was dispatched "
+                        f"({invalid_calls[index]}); reissue with a single valid JSON object"
+                    )
+                    yield (
+                        UpdateType.TOOL, invalid_content,
+                        {
+                            "index": index, "name": call["name"],
+                            "arguments": call["arguments"],
+                            "status": "error", "turn": turn,
+                        },
+                    )
+                    working_messages.append({
+                        "role": "tool", "tool_call_id": call["id"],
+                        "name": call["name"], "content": invalid_content,
+                    })
+                    yield (UpdateType.MESSAGE, "", {"message": working_messages[-1]})
+                sorted_indices = [i for i in sorted_indices if i not in invalid_calls]
 
                 # Split into concurrent-safe and sequential tools
                 concurrent_items = [

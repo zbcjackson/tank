@@ -1,0 +1,121 @@
+{
+  "trials": [
+    {
+      "key": "m7-pair-1-a",
+      "success": true,
+      "error": null,
+      "display": {
+        "expression": "7×8",
+        "result": "56"
+      },
+      "steps": 10,
+      "tokens": 98713,
+      "locate_found": 0,
+      "selected_indices": []
+    },
+    {
+      "key": "m7-pair-1-ax-press",
+      "success": false,
+      "error": "Agent error: Expecting value: line 1 column 15 (char 14)",
+      "display": {
+        "result": "0"
+      },
+      "steps": 2,
+      "tokens": 16782,
+      "locate_found": 0,
+      "selected_indices": []
+    },
+    {
+      "key": "m7-pair-1-ax-quartz",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "100"
+      },
+      "steps": 15,
+      "tokens": 211568,
+      "locate_found": 3,
+      "selected_indices": [
+        22,
+        14,
+        22
+      ]
+    },
+    {
+      "key": "m7-pair-2-a",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "7"
+      },
+      "steps": 15,
+      "tokens": 213990,
+      "locate_found": 0,
+      "selected_indices": []
+    },
+    {
+      "key": "m7-pair-2-ax-press",
+      "success": false,
+      "error": "Agent error: Expecting ',' delimiter: line 1 column 16 (char 15)",
+      "display": {
+        "result": "0"
+      },
+      "steps": 3,
+      "tokens": 22649,
+      "locate_found": 0,
+      "selected_indices": []
+    },
+    {
+      "key": "m7-pair-2-ax-quartz",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "100×7"
+      },
+      "steps": 15,
+      "tokens": 246654,
+      "locate_found": 2,
+      "selected_indices": [
+        22,
+        23
+      ]
+    },
+    {
+      "key": "m7-pair-3-a",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "expression": "7÷8",
+        "result": "0.875"
+      },
+      "steps": 15,
+      "tokens": 240908,
+      "locate_found": 0,
+      "selected_indices": []
+    },
+    {
+      "key": "m7-pair-3-ax-press",
+      "success": false,
+      "error": "Agent error: Expecting ',' delimiter: line 1 column 25 (char 24)",
+      "display": {
+        "result": "0"
+      },
+      "steps": 2,
+      "tokens": 16775,
+      "locate_found": 0,
+      "selected_indices": []
+    },
+    {
+      "key": "m7-pair-3-ax-quartz",
+      "success": false,
+      "error": "Agent error: Expecting ',' delimiter: line 1 column 19 (char 18)",
+      "display": {
+        "result": "0"
+      },
+      "steps": 2,
+      "tokens": 16746,
+      "locate_found": 0,
+      "selected_indices": []
+    }
+  ]
+}

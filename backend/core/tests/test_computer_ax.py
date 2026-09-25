@@ -51,6 +51,7 @@ def desktop(monkeypatch):
     monkeypatch.setattr(macos, "_capture_screenshot_macos", lambda **kw: png)
     click = MagicMock()
     monkeypatch.setattr(macos, "_click_macos", click)
+    monkeypatch.setattr(computer_ax, "resolve_frontmost_window", lambda: 7)
     manager = ToolManager.__new__(ToolManager)
     manager.tools = {t.get_info().name: t for t in ComputerUseToolGroup()._create_macos_tools()}
     manager.tool_metadata = {n: t.get_metadata() for n, t in manager.tools.items()}
@@ -189,7 +190,7 @@ async def call(session, name: str, **kwargs) -> ToolResult:
 
 
 async def observe_and_locate(session) -> dict[str, Any]:
-    shot = await call(session, "screenshot", window_id=7)
+    shot = await call(session, "screenshot")
     text = next(b.text for b in shot.to_blocks() if isinstance(b, TextBlock))
     frame = json.loads(text[text.index("{"):])["frame_id"]
     located = await call(session, "locate", frame_id=frame,
@@ -457,6 +458,7 @@ async def test_ax_ambiguous_and_not_found_keep_zero_input(desktop, monkeypatch) 
 
 async def test_ax_requires_window_bound_frame(desktop, monkeypatch) -> None:
     monkeypatch.setattr(computer_ax, "ax_window_candidates", fake_candidates)
+    monkeypatch.setattr(computer_ax, "resolve_frontmost_window", lambda: None)
     session, _, _ = make_session(desktop, "quartz", fake_llm(selection_response("found", 1)))
     shot = await call(session, "screenshot")
     text = next(b.text for b in shot.to_blocks() if isinstance(b, TextBlock))
@@ -527,7 +529,7 @@ async def test_runner_ax_grounding_flow(desktop, monkeypatch, ax_action) -> None
         assert "locate" in schemas and "x" not in schemas["click"]["properties"]
         assert "AX semantic addressing" in body["messages"][0]["content"]
         if planner_turn == 1:
-            return stream("screenshot", {"window_id": 7})
+            return stream("screenshot", {})
         if planner_turn == 2:
             text = next(p["text"] for m in body["messages"]
                         if isinstance(m.get("content"), list) for p in m["content"]
@@ -665,3 +667,21 @@ async def test_ax_screenshot_auto_binds_frontmost_window(desktop, monkeypatch) -
                        location_id=json.loads(content)["location_id"])
     assert not click.error, click.content
     desktop.click.assert_called_once_with(45, 35, "left", 1)
+
+
+async def test_ax_screenshot_schema_hides_window_id(desktop, monkeypatch) -> None:
+    """The model cannot know CGWindowNumbers; live2 showed it passing the
+    frame_id (unquoted) as window_id, killing the agent with invalid JSON."""
+    monkeypatch.setattr(computer_ax, "resolve_frontmost_window", lambda: 7)
+    session, _, _ = make_session(desktop, "quartz", fake_llm(selection_response("found", 1)))
+    schema = LocateTool(session, "screenshot").get_info()
+    assert all(p.name != "window_id" for p in schema.parameters)
+    raw = LocateTool(session, "screenshot").get_raw_schema()
+    assert "window_id" not in raw["properties"]
+    result = await LocateTool(session, "screenshot").execute(window_id=7)
+    assert isinstance(result, ToolResult) and result.error
+    assert "Unknown tool arguments" in str(result.content)
+    # The host still binds automatically; the bound observation still works.
+    await call(session, "screenshot")
+    assert session.state.observation is not None
+    assert session.state.observation.window_id == 7

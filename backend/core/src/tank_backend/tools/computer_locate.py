@@ -194,6 +194,10 @@ class LocateSession:
             raise ValueError("Missing or stale location; observe and locate again")
         return target
 
+    def _host_arguments(self, name: str) -> set[str]:
+        """Argument names the host may inject although the model schema omits them."""
+        return set()
+
     async def execute(
         self,
         name: str,
@@ -203,6 +207,7 @@ class LocateSession:
     ) -> ToolResult | str:
         self.context.check("desktop")
         allowed = {p.name for p in LocateTool(self, name).get_info().parameters}
+        allowed |= self._host_arguments(name)
         if arguments.keys() - allowed:
             raise ValueError("Unknown split-mode arguments; coordinates are not accepted")
         if name == "computer_batch":
@@ -386,14 +391,17 @@ class LocateTool(BaseTool):
                 }
             ]
             if self.name == "screenshot":
-                params.append(
-                    ToolParameter(
-                        name="window_id",
-                        type="integer",
-                        required=False,
-                        description="Main-display window to bind",
+                # AX mode binds the window host-side; a model-visible id only
+                # invited fabricated values (live evidence 2026-09-25).
+                if getattr(self.session, "ax_action", None) is None:
+                    params.append(
+                        ToolParameter(
+                            name="window_id",
+                            type="integer",
+                            required=False,
+                            description="Main-display window to bind",
+                        )
                     )
-                )
             elif self.name in {"click", "scroll", "mouse_move", "drag"}:
                 params.append(
                     ToolParameter(

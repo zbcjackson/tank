@@ -982,7 +982,7 @@ def test_integrated_grounding_config_keeps_factors_independent(tmp_path):
 
 
 @pytest.mark.parametrize("batch", [False, True])
-@pytest.mark.parametrize("ending", ["success", "truncated", "duplicate"])
+@pytest.mark.parametrize("ending", ["success", "truncated", "duplicate", "malformed"])
 @pytest.mark.parametrize("protocol", ["legacy", "point", "pixels", "bbox"])
 @pytest.mark.parametrize("host_restore", [False, True])
 async def test_integrated_runner_uses_one_model_and_independent_host_mapping(
@@ -1004,7 +1004,7 @@ async def test_integrated_runner_uses_one_model_and_independent_host_mapping(
         assert "Use the GUI." in body["messages"][0]["content"]
         if len(requests) == 1:
             return stream("screenshot", {"region": [500, 500, 1000, 1000]})
-        if len(requests) == 2:
+        if len(requests) in (2, 3) and (len(requests) == 2 or ending in ("duplicate", "malformed")):
             text = next(p["text"] for m in body["messages"]
                         if isinstance(m.get("content"), list) for p in m["content"]
                         if p["type"] == "text" and "frame_id" in p["text"])
@@ -1022,11 +1022,18 @@ async def test_integrated_runner_uses_one_model_and_independent_host_mapping(
             arguments = {"frame_id": observation["frame_id"], "location": location}
             name = "computer_batch" if batch else "click"
             payload = {"actions": [{"action": "click", **arguments}]} if batch else arguments
-            if ending == "duplicate":
-                return stream(name, json.dumps(payload).replace(
-                    '"location":', '"location": {}, "location":',
-                ))
-            return stream(name, payload, finish="length" if ending == "truncated" else None)
+            if len(requests) == 2:
+                if ending == "duplicate":
+                    return stream(name, json.dumps(payload).replace(
+                        '"location":', '"location": {}, "location":',
+                    ))
+                if ending == "malformed":
+                    return stream(name, json.dumps(payload).replace(
+                        '"location": ', '"location": '))
+                return stream(name, payload, finish="length" if ending == "truncated" else None)
+            # Recovered turn: the model reissues after the invalid-arguments error.
+            assert "nothing was dispatched" in json.dumps(body["messages"])
+            return stream(name, payload)
         assert "dispatched" in json.dumps(body["messages"])
         return stream(None, {})
 
@@ -1062,10 +1069,19 @@ async def test_integrated_runner_uses_one_model_and_independent_host_mapping(
         assert "omit the earlier screenshot option" in prompt
         assert "screenshot creates a new frame; omit frame_id" in prompt
         assert "JSON arrays, never JSON-encoded strings" in prompt
-    if ending != "success":
+    if ending == "truncated":
+        # A finish_reason other than tool_calls/stop still refuses the whole
+        # response: no dispatch, the run stops with the M5 semantics.
         assert result.error is not None
         click.assert_not_called()
         assert len(requests) == 2 and result.tokens == 10
+        return
+    if ending in ("duplicate", "malformed"):
+        # Invalid arguments are recoverable: zero dispatch for that call, the
+        # model sees the error and reissues; only the valid call dispatches.
+        assert result.error is None, result.error
+        assert len(requests) == 4 and result.screenshots == 2
+        click.assert_called_once_with(*((75, 60) if host_restore else (50, 40)), "left", 1)
         return
     assert result.error is None, result.error
     assert len(requests) == 3 and result.tokens == 15 and result.llm_calls == 3
