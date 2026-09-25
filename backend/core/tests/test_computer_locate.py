@@ -1,5 +1,6 @@
 """Split planner/locator integration; only HTTP and macOS boundaries are fake."""
 
+import asyncio
 import base64
 import hashlib
 import io
@@ -18,9 +19,11 @@ from tank_backend.agents.approval import PendingToolCallStore, ToolApprovalPolic
 from tank_backend.agents.base import AgentOutputType
 from tank_backend.agents.definition import AgentDefinition
 from tank_backend.agents.runner import AgentRunner
+from tank_backend.core.content import TextBlock
 from tank_backend.llm import llm as llm_module
 from tank_backend.pipeline.bus import Bus
 from tank_backend.tools import computer_use_macos as macos
+from tank_backend.tools.base import ToolResult
 from tank_backend.tools.groups import ComputerUseToolGroup
 from tank_backend.tools.manager import ToolManager
 
@@ -1225,3 +1228,33 @@ async def test_integrated_factor_schema_reuses_adapter_and_preserves_tool_allowl
             assert [s["properties"]["action"]["const"] for s in actions] == ["mouse_move"]
             assert actions[0]["properties"]["location"] == schema["properties"]["location"]
         assert schemas[0] == schemas[1]  # host restoration never changes the wire schema
+
+
+async def test_locate_without_window_id_uses_bound_observation_window(desktop):
+    """Omitting locate's optional window_id must validate the bound frame.
+
+    The M2 layer used to treat the explicitly passed None (the default for the
+    optional argument) as a different window, refusing every locate on a
+    window-bound frame unless the model repeated the id.
+    """
+    from tank_backend.agents.subagent import SubAgentAuthorization, SubAgentBudget, SubAgentContext
+    from tank_backend.tools.computer_locate import LocateSession, LocateTool
+
+    manager, _, _ = desktop
+    macos._load_quartz().CGWindowListCopyWindowInfo.return_value = [{
+        "kCGWindowNumber": 7, "kCGWindowOwnerPID": 42, "kCGWindowLayer": 0,
+        "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 100, "Height": 80}}]
+    context = SubAgentContext(SubAgentAuthorization(frozenset({"desktop"})),
+                              SubAgentBudget(), asyncio.Event())
+    session = LocateSession(manager.tools, {"primary": MagicMock()}, None,
+                            context, "locate-windowless")
+    shot = await LocateTool(session, "screenshot").execute(window_id=7)
+    assert isinstance(shot, ToolResult)
+    text = next(b.text for b in shot.to_blocks() if isinstance(b, TextBlock))
+    frame = json.loads(text[text.index("{"):])["frame_id"]
+    observation = session.state.observation
+    assert observation is not None and observation.window_id == 7
+    # Omitted window_id validates; a wrong explicit one still refuses.
+    assert await session.screenshot.validate(session.session_id, frame, None) is observation
+    with pytest.raises(ValueError, match="another window"):
+        await session.screenshot.validate(session.session_id, frame, 8)

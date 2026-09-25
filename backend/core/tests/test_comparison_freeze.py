@@ -307,17 +307,20 @@ toolsets:
         assert hashlib.sha256((first / name).read_bytes()).hexdigest() == digest
     snapshot = json.loads((first / "requests.json").read_text())
     assert set(snapshot) == {"original", "A", "A-control", "B-host-only",
-                             "B-protocol-only", "B-combined", "B-pixels-only", "C", "D"}
+                             "B-protocol-only", "B-combined", "B-pixels-only", "C", "D",
+                                 "AX-quartz", "AX-press"}
     assert snapshot["original"][0]["body"]["max_tokens"] == 40000
     assert "stream_options" not in snapshot["original"][0]["body"]
     assert "enable_thinking" not in snapshot["original"][0]["body"]
     for name, requests in snapshot.items():
-        assert len(requests) == (4 if name in {"C", "D"} else 2)
+        assert len(requests) == (
+            4 if name in {"C", "D", "AX-quartz", "AX-press"} else 2)
         first_request = requests[0]["body"]
         assert requests[0]["public_headers"] == {
             "HTTP-Referer": "http://localhost:3000", "X-Title": "Tank Voice Assistant"}
         tools = {t["function"]["name"] for t in first_request["tools"]}
-        assert ("locate" in tools) == (name in {"C", "D"})
+        assert ("locate" in tools) == (
+            name in {"C", "D", "AX-quartz", "AX-press"})
         assert ("mouse_down" in tools) == (name in {"original", "A"})
         assert "data:image/png;base64," in json.dumps(requests[1]["body"])
         if name != "original":
@@ -1002,3 +1005,105 @@ async def test_m6_longhistory_manifest(runtime_bundle, monkeypatch):
     for _, kwargs in calls:
         assert kwargs["enforce_agent_budget"] is True
         assert kwargs["record_only"] is True
+
+
+@pytest.mark.parametrize("variant", ["AX-quartz", "AX-press"])
+async def test_runtime_contract_accepts_ax_variants(runtime_bundle, variant):
+    from tank_backend.agents.definition import load_agent_definitions
+    from tank_backend.benchmarks.comparison_contract import ComparisonContract
+    from tank_backend.config import AppConfig
+
+    runtime = runtime_bundle / "runtime" / variant.lower()
+    config = AppConfig.load(runtime / "config.yaml")
+    definition = load_agent_definitions([runtime / "agents"])["computer_use"]
+    assert definition.grounding is not None
+    assert definition.grounding.mode == "ax"
+    assert definition.grounding.ax_action == ("quartz" if variant == "AX-quartz"
+                                              else "ax_press")
+    ComparisonContract(runtime_bundle, variant).verify(config, definition)
+
+
+@pytest.mark.parametrize("variant", ["AX-quartz", "AX-press"])
+async def test_ax_variant_snapshot_uses_text_selection_without_images(
+    runtime_bundle, variant,
+):
+    """The frozen AX locate request carries the numbered candidate list as text,
+    never an image; the planner screenshot binds the offline window."""
+    snapshots = json.loads((runtime_bundle / "requests.json").read_text())
+    requests = snapshots[variant]
+    assert len(requests) == 4
+    selection = requests[2]["body"]
+    assert not selection.get("stream")
+    assert selection["tools"][0]["function"]["name"] == "select"
+    assert "image_url" not in json.dumps(selection["messages"])
+    content = selection["messages"][1]["content"]
+    assert "Candidates:" in content and "Target: unique blue button" in content
+    parameters = selection["tools"][0]["function"]["parameters"]["properties"]
+    assert parameters["index"]["maximum"] >= 1
+    assert parameters["status"]["enum"] == ["found", "not_found", "ambiguous"]
+
+
+async def test_m7_ax_schedule_fixes_pairs_and_executor(runtime_bundle, monkeypatch):
+    """The M7 AX proposal: 3 rounds x 3 arms (A / AX-quartz / AX-press), rotated."""
+    from tank_backend.benchmarks import batch
+
+    api = runpy.run_path(str(Path(__file__).resolve().parents[2]
+                             / "scripts/prepare_computer_batch.py"))
+    proposal_dir = runtime_bundle.parent / "m7-proposal"
+    api["prepare_m7_ax"](runtime_bundle, proposal_dir)
+    proposal_path = proposal_dir / "proposal.json"
+    proposal = json.loads(proposal_path.read_text())
+    rows = proposal["trials"]
+    assert len(rows) == 9
+    assert proposal["record_only"] is True
+    assert proposal["enforce_agent_budget"] is True
+    assert proposal["core_requires_pilot_acceptance"] is True
+    variants = [row["variant"] for row in rows]
+    assert set(variants) == {"A", "AX-quartz", "AX-press"}
+    assert all(row["task_id"] == "calc-open" for row in rows)
+    assert all(row["timeout_s"] == 120 and row["max_steps"] == 15 for row in rows)
+    for row in rows:
+        locator = 15 if row["variant"] != "A" else 0
+        assert row["request_limits"] == {"planner": 16, "locator": locator,
+                                         "total": 16 + locator}
+    preflight = api["preflight_m7_ax"](runtime_bundle, proposal_path)
+    assert preflight["offline_checks_passed"] is True
+    assert preflight["effective_agent_token_budget"] == 300000
+    calls: list[tuple[str, dict]] = []
+
+    async def run_batch(entries, **kwargs):
+        calls.append((entries[0].key, kwargs))
+        return {"completed": [entries[0].key], "spend": {}}
+
+    monkeypatch.setattr(batch, "run_batch", run_batch)
+    output = runtime_bundle.parent / "m7-out"
+    with pytest.raises(ValueError, match="authorization"):
+        await api["execute_m7_ax_trials"](runtime_bundle, proposal_path, output)
+    assert calls == []
+    with pytest.raises(ValueError, match="pilot"):
+        await api["execute_m7_ax_trials"](runtime_bundle, proposal_path, output,
+                                          live_authorized=True)
+    assert calls == []
+    await api["execute_m7_ax_trials"](runtime_bundle, proposal_path, output,
+                                      live_authorized=True,
+                                      pilot_acceptance="recorded")
+    assert [key for key, _ in calls] == [row["key"] for row in rows]
+    for (_, kwargs) in calls:
+        assert kwargs["record_only"] is True
+        assert kwargs["enforce_agent_budget"] is True
+        assert kwargs["input_cleanup"] is True
+    record = json.loads((output / "m7-result.json").read_text())
+    assert record["pilot_acceptance"] == "recorded"
+    assert len(record["completed"]) == 9
+    drifted = json.loads(proposal_path.read_text())
+    drifted["trials"][0]["tokens"] = 999999
+    drift_path = runtime_bundle.parent / "m7-drift"
+    drift_path.mkdir()
+    (drift_path / "proposal.json").write_text(json.dumps(drifted))
+    calls.clear()
+    with pytest.raises(ValueError):
+        await api["execute_m7_ax_trials"](runtime_bundle, drift_path / "proposal.json",
+                                          runtime_bundle.parent / "m7-drift-out",
+                                          live_authorized=True,
+                                          pilot_acceptance="recorded")
+    assert calls == []

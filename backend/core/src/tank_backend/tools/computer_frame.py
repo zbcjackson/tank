@@ -320,7 +320,10 @@ class FrameTool(BaseTool):
             raise ValueError("Missing or stale frame")
         if session_id != observation.session_id:
             raise ValueError("Frame belongs to another session")
-        if arguments.get("window_id", observation.window_id) != observation.window_id:
+        window_id = arguments.get("window_id")
+        if window_id is None:
+            window_id = observation.window_id
+        if window_id != observation.window_id:
             raise ValueError("Frame belongs to another window")
         if (
             _window_bounds(observation.window_id, observation.display_geometry)

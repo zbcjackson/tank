@@ -83,6 +83,11 @@ def variants(base: AgentDefinition) -> dict[str, AgentDefinition]:
     for name, protocol, profile in (("C", "point", None), ("D", "bbox", "locator")):
         result[name] = replace(base, model="planner", grounding=GroundingConfig(
             protocol=protocol, profile=profile, status_field=False))
+    # M7 arms: AX semantic addressing with the same fixed planner model; the
+    # only difference between them is the dispatch mode.
+    for name, ax_action in (("AX-quartz", "quartz"), ("AX-press", "ax_press")):
+        result[name] = replace(base, model="planner", grounding=GroundingConfig(
+            mode="ax", ax_action=ax_action))
     return result
 
 
@@ -111,7 +116,20 @@ async def capture(definition: AgentDefinition, profiles: dict[str, Any],
         requests.append({"url": str(request.url), "body": body,
                          "public_headers": {k: request.headers[k] for k in PUBLIC_HEADERS
                                             if k in request.headers}})
+        ax_mode = bool(definition.grounding and definition.grounding.mode == "ax")
         if not body.get("stream"):
+            if ax_mode:
+                # A scripted abstention exercises parsing without any input
+                # dispatch; AX selections never carry images.
+                return httpx.Response(200, json={
+                    "id": "offline-locator", "object": "chat.completion", "created": 1,
+                    "model": body["model"],
+                    "choices": [{"index": 0, "finish_reason": "tool_calls",
+                        "message": {"role": "assistant", "tool_calls": [{"id": "selection",
+                            "type": "function", "function": {"name": "select",
+                            "arguments": json.dumps({"status": "not_found", "index": 0})}}]}}],
+                    "usage": {"prompt_tokens": 2, "completion_tokens": 3,
+                              "total_tokens": 5}})
             # A scripted abstention exercises parsing without any input dispatch.
             protocol = definition.grounding.protocol if definition.grounding else "point"
             coords = {k: None for k in (("left", "top", "right", "bottom")
@@ -125,8 +143,12 @@ async def capture(definition: AgentDefinition, profiles: dict[str, Any],
                 "usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5}})
         turn += 1
         if turn == 1:
-            return response("screenshot", {"region": [100, 100, 800, 800]})
-        if turn == 2 and definition.grounding and definition.grounding.mode == "split":
+            # AX locating requires a window-bound observation.
+            return response("screenshot", ({"window_id": 11} if ax_mode
+                                            else {"region": [100, 100, 800, 800]}))
+        if turn == 2 and definition.grounding and definition.grounding.mode in {
+            "split", "ax"
+        }:
             text = next(p["text"] for m in body["messages"]
                         if isinstance(m.get("content"), list) for p in m["content"]
                         if p["type"] == "text" and "frame_id" in p["text"])
@@ -146,11 +168,24 @@ async def capture(definition: AgentDefinition, profiles: dict[str, Any],
     quartz.CGDisplayBounds.return_value = ((0, 0), (100, 80))
     quartz.CGDisplayModeGetPixelWidth.return_value = 200
     quartz.CGDisplayModeGetPixelHeight.return_value = 160
+    quartz.CGWindowListCopyWindowInfo.return_value = [{
+        "kCGWindowNumber": 11, "kCGWindowOwnerPID": 42, "kCGWindowLayer": 0,
+        "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 100, "Height": 80},
+    }]
+    from tank_backend.tools import computer_ax
+    from tank_backend.tools.computer_ax import AXCandidate, AXElementRef
+
+    offline_candidate = AXCandidate(
+        index=1, role="AXButton", title="", value="", description="blue button",
+        identifier="", actions=(), enabled=True, frame=(40, 30, 20, 20),
+        element=AXElementRef(object(), flip=False, screen_height=80))
     identities = itertools.count(1)
     with (
         quartz_module(quartz),
         patch.object(macos, "_load_quartz", return_value=quartz),
         patch.object(macos, "_capture_screenshot_macos", return_value=png),
+        patch.object(computer_ax, "ax_window_candidates",
+                     lambda window_id, geometry: ([offline_candidate], False)),
         patch("tank_backend.llm.llm.AsyncOpenAI", side_effect=client_factory),
         patch("tank_backend.llm.llm.initialize_langfuse", return_value=None),
         patch("tank_backend.llm.llm.is_tracing_registered", return_value=False),
@@ -180,9 +215,12 @@ async def capture(definition: AgentDefinition, profiles: dict[str, Any],
                 token_budget=300000)]
             if not any(o.type == AgentOutputType.DONE for o in outputs):
                 raise RuntimeError("Offline Runner did not complete")
-            expected = 4 if definition.grounding and definition.grounding.mode == "split" else 2
+            expected = 4 if definition.grounding and definition.grounding.mode in {
+                "split", "ax"} else 2
             if len(requests) != expected:
-                raise RuntimeError("Offline request route differs from the frozen scenario")
+                raise RuntimeError(
+                    f"Offline request route differs from the frozen scenario: "
+                    f"{len(requests)} != {expected}")
         finally:
             for client in clients:
                 await client.close()

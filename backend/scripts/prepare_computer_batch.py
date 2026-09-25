@@ -35,6 +35,9 @@ M6_TASKS = ("open-settings", "browser-navigate", "local-form", "typing-fidelity"
             "window-copy")
 M6_TASK_PHASES = tuple(f"m6-tasks-{name}" for name in M6_TASKS)
 M6_LONGHISTORY_PHASE = "m6-longhistory"
+# M7 AX arms: the same fixed planner model addresses either pixels (A) or
+# numbered AX candidates; AX-quartz/AX-press differ only in dispatch mode.
+M7_AX_PHASES = ("m7-pair-1", "m7-pair-2", "m7-pair-3")
 # Only live scope/endpoint authorization still gates a run: the independent
 # validator, the live environment plus verified cleanup, and the recorded pilot
 # acceptance decision were all satisfied by the 2026-09-24 batches (see the M5
@@ -162,6 +165,40 @@ def _m6_longhistory_spec(freeze: Path) -> dict[str, Any]:
         "enforce_agent_budget": True, "input_cleanup": True,
         "freeze_dir": _relative(freeze), "budget_nano_usd": 8000000000,
         "batch_tokens": 600000, "batch_requests": 180,
+        "core_requires_pilot_acceptance": True, "trials": trials,
+    }
+
+
+def _m7_ax_spec(freeze: Path) -> dict[str, Any]:
+    """M7: three rotated rounds of A vs AX-quartz vs AX-press on calc-open.
+
+    The pure-screenshot baseline A runs under the same freeze and code as the
+    AX arms, so each round is paired and every arm leads exactly once.
+    """
+    rounds = [
+        ("m7-pair-1", ["A", "AX-quartz", "AX-press"]),
+        ("m7-pair-2", ["AX-quartz", "AX-press", "A"]),
+        ("m7-pair-3", ["AX-press", "A", "AX-quartz"]),
+    ]
+    trials = []
+    for phase, variants in rounds:
+        for variant in variants:
+            locator = 0 if variant == "A" else 15
+            trials.append({
+                "key": f"{phase}-{variant.lower()}", "phase": phase, "variant": variant,
+                "suite_dir": _relative(SUITE), "task_id": "calc-open", "platform": "macos",
+                "agent_name": "computer_use",
+                "config_path": _relative(freeze / "runtime" / variant.lower()
+                                         / "config.yaml"),
+                "request_limits": {"planner": 16, "locator": locator,
+                                    "total": 16 + locator},
+                "tokens": 300000, "timeout_s": 120, "max_steps": 15,
+            })
+    return {
+        "schema_version": 7, "live_authorized": False, "record_only": True,
+        "enforce_agent_budget": True, "input_cleanup": True,
+        "freeze_dir": _relative(freeze), "budget_nano_usd": 8000000000,
+        "batch_tokens": 2700000, "batch_requests": 234,
         "core_requires_pilot_acceptance": True, "trials": trials,
     }
 
@@ -705,6 +742,81 @@ async def execute_m6_longhistory(
     )
 
 
+def preflight_m7_ax(freeze: Path, proposal_path: Path) -> dict[str, Any]:
+    """Offline checks for the M7 AX comparison (A / AX-quartz / AX-press)."""
+    proposal = json.loads(proposal_path.read_text())
+    pins = proposal.pop("files")
+    if proposal != _m7_ax_spec(freeze):
+        raise ValueError("Batch proposal differs from the fixed M7 AX schedule or limits")
+    required, evidence = _required(freeze)
+    frozen = FrozenInputs(tuple(FrozenFile(BACKEND / name, digest) for name, digest in pins.items()))
+    frozen.verify(required)
+    evidence.verify()
+    totals = _verify_proposal_runtime(freeze, proposal)
+    return {
+        "offline_checks_passed": True, "live_ready": False, "totals": totals,
+        "blockers": BLOCKERS, "checked_files": len(pins),
+        "token_cost_gate": "record-only", "effective_agent_token_budget": 300000,
+        "input_cleanup": True, "enforce_agent_budget": True,
+    }
+
+
+async def execute_m7_ax_trials(
+    freeze: Path, proposal_path: Path, output: Path, *, live_authorized: bool = False,
+    pilot_acceptance: str | None = None,
+) -> list[BatchResult]:
+    """Run the M7 AX comparison trials: paired, budget enforced, one batch each.
+
+    Each round runs A, AX-quartz and AX-press in the declared rotation under
+    the same freeze and limits; AX locate/selection requests count against the
+    row's locator budget exactly like the split arms.
+    """
+    if live_authorized is not True:
+        raise ValueError("Explicit live screenshot/endpoint authorization is required")
+    if not pilot_acceptance:
+        raise ValueError("M7 AX trials require a recorded pilot acceptance decision")
+    proposal_bytes = proposal_path.read_bytes()
+    preflight_m7_ax(freeze, proposal_path)
+    if proposal_path.read_bytes() != proposal_bytes:
+        raise ValueError("Proposal changed during preflight")
+    proposal = json.loads(proposal_bytes)
+    if proposal.get("core_requires_pilot_acceptance") is not True:
+        raise ValueError("Proposal does not bind core trials to pilot acceptance")
+    rows = [row for row in proposal["trials"] if row["phase"] in M7_AX_PHASES]
+    expected = [row for row in _m7_ax_spec(freeze)["trials"]
+                if row["phase"] in M7_AX_PHASES]
+    if len(rows) != len(expected):
+        raise ValueError(f"Expected {len(expected)} scheduled M7 AX trials, found {len(rows)}")
+    files = tuple(FrozenFile(BACKEND / name, digest)
+                  for name, digest in proposal["files"].items())
+    files += (FrozenFile(proposal_path, hashlib.sha256(proposal_bytes).hexdigest()),)
+    from tank_backend.benchmarks.batch import BatchTrial, run_batch
+    from tank_backend.benchmarks.request_budget import RequestLimits
+    from tank_backend.benchmarks.spend_ledger import SpendLimit
+
+    results: list[BatchResult] = []
+    output.mkdir(parents=True, exist_ok=False)
+    for row in rows:
+        trial_dir = output / row["key"]
+        results.append(await run_batch(
+            (BatchTrial(row["key"], BACKEND / row["suite_dir"], row["task_id"],
+                        row["agent_name"], BACKEND / row["config_path"], row["platform"],
+                        ComparisonContract(freeze, row["variant"])),),
+            out_dir=trial_dir,
+            batch_limit=SpendLimit(row["tokens"], proposal["budget_nano_usd"]),
+            trial_limit=SpendLimit(row["tokens"], proposal["budget_nano_usd"]),
+            request_limits=RequestLimits(**row["request_limits"]), contracts=(),
+            batch_request_limit=row["request_limits"]["total"],
+            frozen_inputs=FrozenInputs(files, trees=(freeze / "runtime",)),
+            record_only=True, input_cleanup=True, enforce_agent_budget=True,
+        ))
+    (output / "m7-result.json").write_text(json.dumps(
+        {"pilot_acceptance": pilot_acceptance, "enforce_agent_budget": True,
+         "completed": [row["key"] for row in rows], "batches": results},
+        indent=2, default=str) + "\n")
+    return results
+
+
 def prepare(freeze: Path, output: Path) -> None:
     required, evidence = _required(freeze)
     evidence.verify()
@@ -756,6 +868,10 @@ def prepare_m6_tasks(freeze: Path, output: Path) -> None:
 
 def prepare_m6_longhistory(freeze: Path, output: Path) -> None:
     _prepare_generic(freeze, output, _m6_longhistory_spec, preflight_m6_longhistory)
+
+
+def prepare_m7_ax(freeze: Path, output: Path) -> None:
+    _prepare_generic(freeze, output, _m7_ax_spec, preflight_m7_ax)
 
 
 if __name__ == "__main__":
