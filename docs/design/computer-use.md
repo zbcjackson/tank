@@ -505,11 +505,15 @@ mouse_move、scroll 明确拒绝），并在派发前检查 AXPress 可用与元
 零输入拒绝；计账/取消/事件结构与 split 模式一致（usage unknown 不计零，
 grounding_call_id 关联 HTTP）。
 
-已知覆盖边界：无 Accessibility 表示的自绘控件（如未开启无障碍的 Electron/
-Chromium 窗口，实测空树）不可寻址；菜单/弹出层可能被“帧在绑定窗口内”
-检查拒绝；AX 自动获得边界不等于模型能选对目标（同名候选留给选择模型
-消歧或报 ambiguous）。本分支成绩单列，不替代纯视觉 A/B/C/D；默认配置
-不变。
+已知覆盖边界：macOS 26 按钮普遍 AXTitle 为空、标签在 AXDescription/
+AXIdentifier，且 AXActions 属性普遍缺失但 AXPress 实测可用（因此 ax_press
+不预检查动作列表，以 PerformAction 返回码为准）；pyobjc 返回的 NSArray
+不是 Python list 子类，子树遍历与动作解析按迭代协议处理（回归覆盖）。
+同名候选（Chromium 内容中常见，如 "Add to Cart" ×9）由选择模型消歧或报
+ambiguous。本分支成绩单列，不替代纯视觉 A/B/C/D；默认配置不变。实测
+覆盖与边界验收（2026-09-25）：全部 benchmark 应用 57–429 候选、100% 有
+frame、无截断；旧引用/窗口不匹配零输入拒绝，见
+[覆盖率报告](../../backend/benchmarks/computer_use/reports/20260925-m7-ax-coverage/README.md)。
 
 
 ### Benchmark 原生输入清理（2026-09-24）

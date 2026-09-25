@@ -1969,6 +1969,35 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 花费：框架配对 1,823,108 tokens；加上此前的 core 五次尝试，core trial 合计
   **12,465,469 tokens**（unpriced；估算 $0.4–$20 区间）。
 
+### 2026-09-25 — M7 批次 2：本机 AX 覆盖率与边界验收
+
+- [x] **发现并修复两个真实边界 bug**（先红后绿，各配回归）：pyobjc
+  `NSArray` 不是 Python `list`/`tuple` 子类，子树从未入队、动作解析丢失
+  （修复为迭代协议）；macOS 26 控件 `AXActions` 普遍缺失但 AXPress 实测
+  可用，`ax_press` 撤销动作预检查、以 PerformAction 返回码为准。批次 1
+  “Electron/Chromium 空树”的结论系前一个 bug 所致，已撤销并更正设计文档。
+- [x] **覆盖率实测**（7 应用，只读，零模型/零截图外发）：Calculator 57、
+  TextEdit 22、Terminal 7、Settings 56、Safari 31、Poe（Electron）14、
+  Arc（Chromium）429 候选；全部 100% 有 frame、无截断；同名组存在于
+  Chromium 内容（"Add to Cart" ×9）与 Safari 页标题，原生应用按 description
+  标签唯一。标签实际在 AXDescription/AXIdentifier（AXTitle 普遍为空）。
+- [x] **边界行为实测**（Calculator，生产 AXSession 派发路径）：quartz 派发
+  `7` → (1036,311)（AX 帧精确中心，经 M2 校验）→ AX 显示 `7`；ax_press 派发
+  `8` → 显示 `78`；退出应用后旧引用 refresh→None、会话零输入拒绝；绑定后
+  移动窗口 → "Window geometry changed" 零输入；结束无按键/鼠标残留、
+  Calculator 关闭、原前台恢复。
+- 现场披露：脚本启动的 Calculator/TextEdit/Terminal 已清理；Settings/Safari
+  归属不确定（运行状态判断受 AppKit 缓存影响 + 期间用户活动 WeChat/Cua
+  Driver），保守未关；TextEdit AppleScript 退出间歇 "User canceled"（M1
+  已知），Cmd+W+按名关闭+killall 兜底；枚举脚本首次运行因该超时崩溃，
+  已改逐应用增量写盘+稳健退出，失败过程保留在报告。
+- [覆盖率与边界报告](../../../backend/benchmarks/computer_use/reports/20260925-m7-ax-coverage/README.md)
+  （enumeration.json / boundaries.json / 脚本均归档）。M7 第 2 项关闭；
+  选择正确性（AX 自动获得边界 ≠ 模型能选对目标）留批次 4 与纯视觉对照。
+- 验证：backend **5091 passed / 1 skipped**（含 2 项新回归）；AX 定向 20 项；
+  web lint/TypeScript、backend/CLI ruff、改动 Python 文件 pyright、后端
+  pane、docs（37 文件）及协议一致性通过。修复+报告提交 `f60f666f`。
+
 ### 2026-09-25 — M7 批次 1：AX 语义寻址会话（离线实现）
 
 - [x] 新增 `tools/computer_ax.py`：HIServices AX C API 懒加载（
@@ -1996,9 +2025,9 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
   unknown usage 不计零、真实 Runner→SDK 两模式全流程（4 规划轮+1 选择请求、
   split 无 adapter fail-closed）。共 **18 项**新增，全部离线 fake 边界。
 - 本机只读冒烟（零模型请求/零输入派发）：真实 HIServices 加载、Finder
-  AX 树可读、AXValueGetValue 解码 CGPoint/CGSize、窗口匹配成功；Electron
-  （Poe）与 Chromium（Arc）窗口 AX 树为空——真实覆盖缺口，留待批次 2
-  系统测量（M7 第 2 项）。
+  AX 树可读、AXValueGetValue 解码 CGPoint/CGSize、窗口匹配成功；当时记录
+  Electron（Poe）与 Chromium（Arc）“空树”——**该结论在批次 2 被撤销**
+  （系 NSArray 类型 bug，修复后 Poe 14 / Arc 429 候选）。
 - 本批无模型请求、无截图外发、无桌面输入；默认配置不变。剩余：批次 2
   本机覆盖率验收、批次 3 冻结三臂材料、批次 4 live 对照与结论。
 - 验证：backend **5089 passed / 1 skipped**；E2E **16 场景 / 63 步**；web
