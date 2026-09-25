@@ -1969,6 +1969,33 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 花费：框架配对 1,823,108 tokens；加上此前的 core 五次尝试，core trial 合计
   **12,465,469 tokens**（unpriced；估算 $0.4–$20 区间）。
 
+### 2026-09-25 — M7 批次 3：三臂对比冻结/提案/启动材料
+
+- [x] 实现变更（先红后绿）：M2 接缝修复——`_validate_observation` 将省略的
+  `window_id` 视为帧绑定值（此前显式 None 被当作另一窗口，拒绝绑定帧上的
+  locate；回归覆盖）；`prepare_computer_comparison.py` 新增 AX 变体与离线
+  快照场景（绑定窗口截图 + **无图片文本 select 请求**）；
+  `ComparisonContract` 允许 `AX-quartz`/`AX-press`；
+  `prepare_computer_batch.py` 新增 `_m7_ax_spec`/`preflight_m7_ax`/
+  `prepare_m7_ax`/`execute_m7_ax_trials`（授权门 + 验收决策门 + 漂移拒绝
+  + 逐行上限）。冻结/快照测试扩到 107 项全过。
+- [x] 生成正式材料：[九变体 runtime/SDK 冻结](../../../backend/benchmarks/computer_use/reports/20260925-m7-ax-runtime/README.md)、
+  [M7 提案](../../../backend/benchmarks/computer_use/reports/20260925-m7-ax-proposal/)
+  （9 trial / 234 HTTP / 2.7M token 声明 / 352 文件预检通过）与
+  [启动材料](../../../backend/benchmarks/computer_use/reports/20260925-m7-ax-ready/README.md)。
+  三臂 = A（纯截图基线）/ AX-quartz / AX-press，同一 planner
+  （qwen3.7-flash），3 轮轮转配对（每臂先行各一次）；AX 臂 select 请求
+  计入 locator 限额 15，record-only + 强制 agent 预算 + 输入清理。
+- [x] 离线验收：gate_check 11 例 / scope_check 5 例通过（launcher sha 一致，
+  对所有臂一致的门禁与单位消歧）；本地预览（0 模型请求/0 图像外发）
+  initial.png 产出、清理 7/7、外层恢复 confirmed、零输入残留。
+- 本批无模型请求、无截图外发；默认配置不变。批次 4（live）前置：新一轮
+  截图外发授权（受控 Calculator 桌面 → DashScope，≤234 请求）+ 发送前
+  复核 initial.png 后放行；成绩单列。
+- 验证：backend **5097 passed / 1 skipped**；E2E **16 场景 / 63 步**；web
+  lint/TypeScript、backend/CLI ruff、六个改动 Python 文件 pyright（0 错误）、
+  后端 pane、docs（37 文件）及协议一致性全部通过。实现+材料提交 `d1e63ff3`。
+
 ### 2026-09-25 — M7 批次 2：本机 AX 覆盖率与边界验收
 
 - [x] **发现并修复两个真实边界 bug**（先红后绿，各配回归）：pyobjc
