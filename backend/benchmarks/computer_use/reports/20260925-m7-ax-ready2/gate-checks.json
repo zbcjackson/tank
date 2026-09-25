@@ -1,0 +1,197 @@
+{
+  "launcher_sha256": "6cf0fc027f43bf2d31b773194218b1de62db00b07b1660e7d312ea9903c2316f",
+  "screen": [
+    1920,
+    1080
+  ],
+  "cases": [
+    {
+      "case": "center_of_target",
+      "point": [
+        1101,
+        310
+      ],
+      "protocol": "pixels",
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "outcome": "pass",
+      "expected": "pass",
+      "detail": null
+    },
+    {
+      "case": "on_window_edge",
+      "point": [
+        600,
+        100
+      ],
+      "protocol": "pixels",
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "outcome": "pass",
+      "expected": "pass",
+      "detail": null
+    },
+    {
+      "case": "just_outside_right",
+      "point": [
+        1275,
+        310
+      ],
+      "protocol": "pixels",
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "outcome": "block",
+      "expected": "block",
+      "detail": "click target (1275, 310) is outside the controlled window (600, 100, 1274, 508);"
+    },
+    {
+      "case": "pixel_overshoot_right",
+      "point": [
+        1290,
+        314
+      ],
+      "protocol": "pixels",
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "outcome": "block",
+      "expected": "block",
+      "detail": "click target (1290, 314) is outside the controlled window (600, 100, 1274, 508);"
+    },
+    {
+      "case": "just_outside_below",
+      "point": [
+        1101,
+        509
+      ],
+      "protocol": "pixels",
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "outcome": "block",
+      "expected": "block",
+      "detail": "click target (1101, 509) is outside the controlled window (600, 100, 1274, 508);"
+    },
+    {
+      "case": "normalized_in_pixel_field",
+      "point": [
+        539,
+        287
+      ],
+      "protocol": "pixels",
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "outcome": "corrected",
+      "expected": "corrected",
+      "detail": [
+        1035,
+        310
+      ]
+    },
+    {
+      "case": "normalized_in_pixel_field_2",
+      "point": [
+        573,
+        241
+      ],
+      "protocol": "pixels",
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "outcome": "corrected",
+      "expected": "corrected",
+      "detail": [
+        1100,
+        260
+      ]
+    },
+    {
+      "case": "normalized_contract_miss",
+      "point": [
+        539,
+        287
+      ],
+      "protocol": null,
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "outcome": "block",
+      "expected": "block",
+      "detail": "click target (539, 287) is outside the controlled window (600, 100, 1274, 508); "
+    },
+    {
+      "case": "normalized_contract_miss_legacy",
+      "point": [
+        539,
+        287
+      ],
+      "protocol": "point",
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "outcome": "block",
+      "expected": "block",
+      "detail": "click target (539, 287) is outside the controlled window (600, 100, 1274, 508); "
+    },
+    {
+      "case": "toolbar_of_another_app",
+      "point": [
+        300,
+        900
+      ],
+      "protocol": "pixels",
+      "container": [
+        600,
+        100,
+        1274,
+        508
+      ],
+      "outcome": "block",
+      "expected": "block",
+      "detail": "click target (300, 900) is outside the controlled window (600, 100, 1274, 508); "
+    },
+    {
+      "case": "target_window_missing",
+      "point": [
+        1101,
+        310
+      ],
+      "protocol": "pixels",
+      "container": null,
+      "outcome": "block",
+      "expected": "block",
+      "detail": "target window is not on screen; observe again before acting"
+    }
+  ]
+}

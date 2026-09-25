@@ -1,0 +1,30 @@
+{
+  "launcher_sha256": "6cf0fc027f43bf2d31b773194218b1de62db00b07b1660e7d312ea9903c2316f",
+  "cases": [
+    {
+      "case": "calculator_only",
+      "accepted": true,
+      "expected": true
+    },
+    {
+      "case": "finder_visible",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "case": "finder_hidden",
+      "accepted": true,
+      "expected": true
+    },
+    {
+      "case": "other_visible",
+      "accepted": false,
+      "expected": false
+    },
+    {
+      "case": "background_absent",
+      "accepted": false,
+      "expected": false
+    }
+  ]
+}
