@@ -1969,6 +1969,41 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 花费：框架配对 1,823,108 tokens；加上此前的 core 五次尝试，core trial 合计
   **12,465,469 tokens**（unpriced；估算 $0.4–$20 区间）。
 
+### 2026-09-25 — M7 批次 1：AX 语义寻址会话（离线实现）
+
+- [x] 新增 `tools/computer_ax.py`：HIServices AX C API 懒加载（
+  AXUIElementCreateApplication/CopyAttributeValue/PerformAction +
+  AXValueGetValue 解码）；`ax_window_candidates` 对绑定的 Quartz 窗口实时枚举
+  候选（深度 12/元素 500/子节点 64 上限，超限截断标注），坐标朝向由 AX 窗口帧
+  与 CG bounds 实测匹配自校准（top-left/bottom-left 不猜）；候选只含观察到的
+  AX 属性，不含评分真值。刷新/AXPress 边界与枚举共用解码。
+- [x] `AXSession`（继承 split LocateSession）：定位走纯文本编号选择协议
+  （select(status,index)，越界/错误状态/非法 JSON 拒绝，错误代码复用
+  GroundingResponseError 语义+invalid_selection），**不发图片**；location_id
+  绑定 AX 元素。派发两模式：`quartz` 派发前刷新元素（stale 拒绝）→ 元素帧
+  中心换算回观察坐标系 → 复用 M2 全部帧/几何/窗口校验；`ax_press` 校验
+  AXPress 可用+帧在窗口内后直接执行 PerformAction，仅支持默认 click。
+  计账/取消/事件与 split 完全一致；LocateSession 重构出
+  `_prepare_locate`/`_dispatch_pointer`/`_clear_locations`/`_protocol_name`，
+  adapter 改为可选（None 时 split 路径 fail-closed）。
+- [x] `GroundingConfig` 新增 `mode: ax` + `ax_action: quartz|ax_press`；
+  Runner 接入（ax 模式注册 locate 工具 + AX_PROMPT 覆盖坐标契约）。
+- [x] 测试（先红后绿）：配置校验、候选列表/请求构造（无 image_url、
+  index 上界）、选择解析严格性（越界/错误字段/哨兵/非整数）、真实枚举逻辑
+  （窗口匹配/朝向翻转校准/角色过滤/同名保留/深度与元素上限）、quartz 派发
+  （帧中心→Quartz (45,35)、事件/计账断言）、ax_press（无指针事件、拒绝
+  drag/button）、stale/窗口移动/歧义/缺失零输入、未绑定窗口帧拒绝、
+  unknown usage 不计零、真实 Runner→SDK 两模式全流程（4 规划轮+1 选择请求、
+  split 无 adapter fail-closed）。共 **18 项**新增，全部离线 fake 边界。
+- 本机只读冒烟（零模型请求/零输入派发）：真实 HIServices 加载、Finder
+  AX 树可读、AXValueGetValue 解码 CGPoint/CGSize、窗口匹配成功；Electron
+  （Poe）与 Chromium（Arc）窗口 AX 树为空——真实覆盖缺口，留待批次 2
+  系统测量（M7 第 2 项）。
+- 本批无模型请求、无截图外发、无桌面输入；默认配置不变。剩余：批次 2
+  本机覆盖率验收、批次 3 冻结三臂材料、批次 4 live 对照与结论。
+- 验证：backend **5089 passed / 1 skipped**；E2E **16 场景 / 63 步**；web
+  lint/TypeScript、backend/CLI ruff、五个改动 Python 文件 pyright（0 错误）、
+  实际后端 pane、docs（37 文件）及协议一致性全部通过。实现提交 `d81d9cc1`。
 ### 2026-09-24 — M6 启动：本地驱动重验与 calc 预算强制批准备
 
 - [x] **M6 第 1 项（本地九点 + Calculator oracle 重验）**：窗口绑定与全屏两种取景各

@@ -480,6 +480,38 @@ error=true 以停止当前 batch，并不表示模型的拒绝判断本身错误
 成功 batch 通过任务 observer 计量实际已派发动作；效果正确性仍需独立评分。
 
 
+## AX 语义寻址（M7，实验分支）
+
+在独立实验 agent 定义中配置：
+
+```yaml
+grounding:
+  mode: ax
+  ax_action: quartz   # 或 ax_press
+```
+
+工具层为 `tools/computer_ax.py`：`locate(frame_id, target, window_id)` 对当前
+绑定的窗口**实时枚举 Accessibility 树**（HIServices C API，经 pyobjc 懒加载，
+含 AXValueGetValue 解码与坐标朝向自校准），生成编号候选列表（角色/标题/
+值/标识/动作/屏幕 frame），以**纯文本请求**（无图片外发）交给定位模型从
+编号中选择（status=found/not_found/ambiguous + index，越界拒绝）。候选
+由本次真实观察发现，不写死应用按钮，不携带评分真值。
+
+派发两种模式：`quartz` 在派发前刷新元素（stale 拒绝）并将元素帧中心换算
+回观察坐标系，复用 M2 帧校验/几何检查后由 Quartz 点击；`ax_press` 直接对
+元素执行 AXUIElementPerformAction，仅支持默认 click（button/clicks、drag、
+mouse_move、scroll 明确拒绝），并在派发前检查 AXPress 可用与元素帧在绑定
+窗口内。旧引用、窗口不匹配、无候选、未绑定窗口帧、歧义/缺失选择均
+零输入拒绝；计账/取消/事件结构与 split 模式一致（usage unknown 不计零，
+grounding_call_id 关联 HTTP）。
+
+已知覆盖边界：无 Accessibility 表示的自绘控件（如未开启无障碍的 Electron/
+Chromium 窗口，实测空树）不可寻址；菜单/弹出层可能被“帧在绑定窗口内”
+检查拒绝；AX 自动获得边界不等于模型能选对目标（同名候选留给选择模型
+消歧或报 ambiguous）。本分支成绩单列，不替代纯视觉 A/B/C/D；默认配置
+不变。
+
+
 ### Benchmark 原生输入清理（2026-09-24）
 
 built-in macOS benchmark 可通过 `input_cleanup=True` 显式启用自动输入清理；
