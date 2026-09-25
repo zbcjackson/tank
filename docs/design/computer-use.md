@@ -515,6 +515,16 @@ ambiguous。本分支成绩单列，不替代纯视觉 A/B/C/D；默认配置不
 frame、无截断；旧引用/窗口不匹配零输入拒绝，见
 [覆盖率报告](../../backend/benchmarks/computer_use/reports/20260925-m7-ax-coverage/README.md)。
 
+真实对照结论（2026-09-25，条件性暂缓）：机制端到端成立——AXSession 截图
+省略 window_id 时宿主自动绑定前台常规应用主窗口；live3 中 AX-quartz 以
+完美选择序列（7/×/8/=）拿到本计划首个 AX 臂 strict 通过。但 qwen3.7-flash
+选择器在 57 行候选列表中反复选错相邻项（off-by-one、误选 All Clear），
+三臂 A 1/3 / AX-quartz 1/3 / AX-press 0/3（n=3），AX 臂 token 成本更高；
+不采用为默认，选择模型复验与 OCR/编号方案登记 backlog。期间修复的三个
+生产缺陷（M2 省略 window_id 验证、AX schema 隐藏窗口 id、非法 JSON 工具
+参数可恢复且零派发保持）见
+[live3 报告](../../backend/benchmarks/computer_use/reports/20260925-m7-ax-live3/README.md)。
+
 
 ### Benchmark 原生输入清理（2026-09-24）
 

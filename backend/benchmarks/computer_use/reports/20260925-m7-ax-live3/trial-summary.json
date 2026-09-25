@@ -1,0 +1,148 @@
+{
+  "trials": [
+    {
+      "key": "m7-pair-1-a",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "0÷"
+      },
+      "steps": 15,
+      "tokens": 206691,
+      "locate_found": 0,
+      "selected_indices": [],
+      "cleanup": "confirmed"
+    },
+    {
+      "key": "m7-pair-1-ax-press",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "7"
+      },
+      "steps": 15,
+      "tokens": 196243,
+      "locate_found": 2,
+      "selected_indices": [
+        22,
+        26
+      ],
+      "cleanup": "confirmed"
+    },
+    {
+      "key": "m7-pair-1-ax-quartz",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "1"
+      },
+      "steps": 15,
+      "tokens": 239356,
+      "locate_found": 3,
+      "selected_indices": [
+        22,
+        13,
+        13
+      ],
+      "cleanup": "confirmed"
+    },
+    {
+      "key": "m7-pair-2-a",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "7×"
+      },
+      "steps": 15,
+      "tokens": 217160,
+      "locate_found": 0,
+      "selected_indices": [],
+      "cleanup": "confirmed"
+    },
+    {
+      "key": "m7-pair-2-ax-press",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "7×8"
+      },
+      "steps": 15,
+      "tokens": 242763,
+      "locate_found": 3,
+      "selected_indices": [
+        23,
+        14,
+        26
+      ],
+      "cleanup": "confirmed"
+    },
+    {
+      "key": "m7-pair-2-ax-quartz",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "7×7"
+      },
+      "steps": 15,
+      "tokens": 239832,
+      "locate_found": 3,
+      "selected_indices": [
+        23,
+        26,
+        23
+      ],
+      "cleanup": "confirmed"
+    },
+    {
+      "key": "m7-pair-3-a",
+      "success": true,
+      "error": null,
+      "display": {
+        "expression": "7×8",
+        "result": "56"
+      },
+      "steps": 9,
+      "tokens": 120110,
+      "locate_found": 0,
+      "selected_indices": [],
+      "cleanup": "confirmed"
+    },
+    {
+      "key": "m7-pair-3-ax-press",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "0"
+      },
+      "steps": 15,
+      "tokens": 237313,
+      "locate_found": 4,
+      "selected_indices": [
+        23,
+        14,
+        23,
+        26
+      ],
+      "cleanup": "confirmed"
+    },
+    {
+      "key": "m7-pair-3-ax-quartz",
+      "success": true,
+      "error": null,
+      "display": {
+        "expression": "7×8",
+        "result": "56"
+      },
+      "steps": 15,
+      "tokens": 256965,
+      "locate_found": 4,
+      "selected_indices": [
+        23,
+        26,
+        24,
+        56
+      ],
+      "cleanup": "confirmed"
+    }
+  ]
+}
