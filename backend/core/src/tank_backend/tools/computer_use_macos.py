@@ -21,7 +21,6 @@ One-time setup: Grant Screen Recording and Accessibility to the host app
 from __future__ import annotations
 
 import base64
-import ctypes
 import importlib
 import logging
 import subprocess
@@ -182,24 +181,27 @@ _KEYSTROKE_SAFE = frozenset(
 
 
 def _ascii_input_source() -> bool:
-    """Read the active input source without changing the user's input method."""
-    carbon = ctypes.CDLL("/System/Library/Frameworks/Carbon.framework/Carbon")
-    core = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
-    carbon.TISCopyCurrentKeyboardInputSource.restype = ctypes.c_void_p
-    carbon.TISGetInputSourceProperty.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
-    carbon.TISGetInputSourceProperty.restype = ctypes.c_void_p
-    core.CFBooleanGetValue.argtypes = [ctypes.c_void_p]
-    core.CFBooleanGetValue.restype = ctypes.c_bool
-    core.CFRelease.argtypes = [ctypes.c_void_p]
-    source = carbon.TISCopyCurrentKeyboardInputSource()
-    if not source:
-        return False
+    """Read the active input source without changing the user's input method.
+
+    The Carbon TIS query runs in a short-lived helper process: calling it
+    in-process off the main thread trips a dispatch queue assertion
+    (SIGTRAP, observed live during the M6 terminal-write batch). Any helper
+    failure is conservative: report non-ASCII so typing takes the paste path.
+    """
+    import json as _json
+    import sys as _sys
+
+    helper = Path(__file__).resolve().parents[1] / "benchmarks" / "_ime_native.py"
     try:
-        key = ctypes.c_void_p.in_dll(carbon, "kTISPropertyInputSourceIsASCIICapable")
-        value = carbon.TISGetInputSourceProperty(source, key)
-        return bool(value and core.CFBooleanGetValue(value))
-    finally:
-        core.CFRelease(source)
+        result = subprocess.run(
+            [_sys.executable, str(helper)],
+            input=_json.dumps({"operation": "ascii"}),
+            capture_output=True, text=True, timeout=5,
+        )
+        payload = _json.loads(result.stdout)
+        return bool(payload.get("ok") and payload.get("ascii"))
+    except (OSError, ValueError, subprocess.TimeoutExpired, subprocess.SubprocessError):
+        return False
 
 
 def _type_macos(text: str, mode: str = "auto") -> str:

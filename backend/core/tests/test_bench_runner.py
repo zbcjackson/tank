@@ -6,6 +6,7 @@ import json
 import tempfile
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -1348,3 +1349,29 @@ def test_ime_native_abort_during_pin_keeps_caller_alive(monkeypatch, tmp_path):
     monkeypatch.setattr(ime, "_saved_source_id", None)
     assert not ime.pin_ascii_input_source()
     assert not ime.save_current_input_source()
+
+
+def test_ime_native_ascii_operation_reports_capability(monkeypatch):
+    """The ascii op answers on the helper's main thread, never the caller's."""
+    import io
+    import json as json_module
+
+    from tank_backend.benchmarks import _ime_native
+
+    carbon, core = MagicMock(), MagicMock()
+    source = 42
+    carbon.TISCopyCurrentKeyboardInputSource.return_value = source
+    carbon.TISGetInputSourceProperty.return_value = 7
+    core.CFBooleanGetValue.return_value = True
+    monkeypatch.setattr(_ime_native, "_load_frameworks",
+                        lambda: (carbon, core))
+    monkeypatch.setattr(_ime_native.ctypes.c_void_p, "in_dll",
+                        staticmethod(lambda dll, name: 123))
+    monkeypatch.setattr(_ime_native.sys, "stdin", io.StringIO('{"operation": "ascii"}'))
+    out = io.StringIO()
+    monkeypatch.setattr(_ime_native.sys, "stdout", out)
+    _ime_native.main()
+    payload = json_module.loads(out.getvalue())
+    assert payload == {"ok": True, "ascii": True}
+    core.CFRelease.assert_called_once()
+    assert int(core.CFRelease.call_args.args[0].value) == source

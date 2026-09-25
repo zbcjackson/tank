@@ -250,23 +250,32 @@ class TestClickTool:
 
 
 class TestTypeTextTool:
-    @pytest.mark.parametrize("source,value,capable", [
-        (1, 2, True), (1, 2, False), (1, None, False), (None, None, False),
+    @pytest.mark.parametrize("stdout,expected", [
+        ('{"ok": true, "ascii": true}\n', True),
+        ('{"ok": true, "ascii": false}\n', False),
+        ('{"ok": false, "ascii": false}\n', False),
+        ("not-json\n", False),
     ])
-    def test_native_input_source_releases_owned_reference(self, source, value, capable):
-        carbon, core = MagicMock(), MagicMock()
-        carbon.TISCopyCurrentKeyboardInputSource.return_value = source
-        carbon.TISGetInputSourceProperty.return_value = value
-        core.CFBooleanGetValue.return_value = capable
-        with (
-            patch(f"{MODULE}.ctypes.CDLL", side_effect=[carbon, core]),
-            patch(f"{MODULE}.ctypes.c_void_p.in_dll", return_value=123),
-        ):
-            assert _native_ascii_input_source() is capable
-        if source:
-            core.CFRelease.assert_called_once_with(source)
-        else:
-            core.CFRelease.assert_not_called()
+    def test_ascii_input_source_uses_subprocess(self, stdout, expected):
+        """Carbon TIS must not load in-process: it SIGTRAPs off the main thread."""
+        completed = MagicMock(stdout=stdout)
+        # The module must not even import ctypes: in-process Carbon TIS calls
+        # trip a dispatch queue assertion (SIGTRAP) off the main thread.
+        import tank_backend.tools.computer_use_macos as module
+
+        assert not hasattr(module, "ctypes")
+        with patch(f"{MODULE}.subprocess.run", return_value=completed) as run:
+            assert _native_ascii_input_source() is expected
+        run.assert_called_once()
+        request = json.loads(run.call_args.kwargs.get("input") or "")
+        assert request == {"operation": "ascii"}
+
+    def test_ascii_input_source_subprocess_failure_is_conservative(self):
+        import subprocess as subprocess_module
+
+        with patch(f"{MODULE}.subprocess.run",
+                   side_effect=subprocess_module.TimeoutExpired("cmd", 5)):
+            assert _native_ascii_input_source() is False
 
     async def test_ascii_text_bypasses_non_ascii_input_source(self, fake_quartz):
         with (

@@ -1,4 +1,5 @@
-"""Private main-thread Carbon helper; invoked only by benchmarks.ime.
+"""Private main-thread Carbon helper for benchmarks.ime and the
+tools.computer_use_macos ASCII-input-source query.
 
 A native SIGTRAP here must not terminate the benchmark's desktop cleanup owner.
 The wire format uses input-source IDs, never process-local CF pointers.
@@ -145,11 +146,31 @@ def _restore_source(source_id: str, carbon: ctypes.CDLL, cf: ctypes.CDLL) -> boo
         _cf_release(int(sources), cf)
 
 
+def _ascii_capable(carbon: ctypes.CDLL, cf: ctypes.CDLL) -> bool:
+    """Whether the current keyboard input source can type ASCII."""
+    try:
+        carbon.TISCopyCurrentKeyboardInputSource.restype = ctypes.c_void_p
+        carbon.TISCopyCurrentKeyboardInputSource.argtypes = []
+        source = carbon.TISCopyCurrentKeyboardInputSource()
+        if not source:
+            return False
+        carbon.TISGetInputSourceProperty.restype = ctypes.c_void_p
+        carbon.TISGetInputSourceProperty.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        cf.CFBooleanGetValue.restype = ctypes.c_bool
+        cf.CFBooleanGetValue.argtypes = [ctypes.c_void_p]
+        key = ctypes.c_void_p.in_dll(carbon, "kTISPropertyInputSourceIsASCIICapable")
+        value = carbon.TISGetInputSourceProperty(source, key)
+        return bool(value and cf.CFBooleanGetValue(value))
+    finally:
+        if source:
+            _cf_release(int(source), cf)
+
+
 def main() -> None:
     request = json.load(sys.stdin)
     frameworks = _load_frameworks()
     if frameworks is None:
-        print(json.dumps({"ok": False, "source_id": None}))
+        print(json.dumps({"ok": False, "source_id": None, "ascii": False}))
         return
     carbon, cf = frameworks
     operation = request["operation"]
@@ -159,6 +180,13 @@ def main() -> None:
         ok = _select_english_source()
     elif operation == "restore":
         ok = _restore_source(request["source_id"], carbon, cf)
+    elif operation == "ascii":
+        # Used by the production type_text auto mode: the same TIS query, kept
+        # on this helper's main thread so a queue assertion cannot kill the
+        # caller. `ok` reflects a successful read; `ascii` is the answer.
+        ascii_capable = _ascii_capable(carbon, cf)
+        print(json.dumps({"ok": True, "ascii": ascii_capable}))
+        return
     else:
         raise ValueError("unsupported IME operation")
     actual = _current_source_id(carbon, cf)
