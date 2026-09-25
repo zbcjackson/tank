@@ -1,0 +1,323 @@
+{
+  "started_at": 1790321733.577409,
+  "apps": [
+    {
+      "app": "Calculator",
+      "launched_by_us": true,
+      "window_id": 27279,
+      "owner": "Calculator",
+      "owner_pid": 89183,
+      "owner_was_running_before": false,
+      "bounds": [
+        599,
+        100,
+        676,
+        408
+      ],
+      "enumeration_seconds": 0.158,
+      "candidate_count": 57,
+      "truncated": false,
+      "enumeration_error": null,
+      "same_title_groups": {},
+      "roles": {
+        "AXButton": 54,
+        "AXStaticText": 2,
+        "AXCheckBox": 1
+      },
+      "with_frame": 57,
+      "pressable": 0,
+      "listing_head": [
+        "1. role=AXButton frame=(618, 118, 16, 16)",
+        "2. role=AXButton frame=(664, 118, 16, 16)",
+        "3. role=AXButton frame=(641, 118, 16, 16)",
+        "4. role=AXButton description=\"Show Sidebar\" frame=(700, 100, 48, 52)",
+        "5. role=AXButton identifier=\"Mode: scientific; unitConversion: false\" description=\"Mode\" frame=(1226, 100, 44, 52)",
+        "6. role=AXStaticText value=\"Rad\" frame=(612, 212, 19, 13)",
+        "7. role=AXButton identifier=\"OpenParenthesis\" description=\"Open Parenthesis\" frame=(610, 233, 60, 48)",
+        "8. role=AXButton identifier=\"CloseParenthesis\" description=\"Close Parenthesis\" frame=(676, 233, 60, 48)",
+        "9. role=AXButton identifier=\"MemoryClear\" description=\"Clear Memory\" frame=(742, 233, 60, 48)",
+        "10. role=AXButton identifier=\"MemoryAdd\" description=\"Add to Memory\" frame=(808, 233, 60, 48)",
+        "11. role=AXButton identifier=\"MemorySubtract\" description=\"Subtract from Memory\" frame=(874, 233, 60, 48)",
+        "12. role=AXButton identifier=\"MemoryRecall\" description=\"Recall Memory\" frame=(940, 233, 60, 48)"
+      ],
+      "cleanup": []
+    },
+    {
+      "app": "TextEdit",
+      "launched_by_us": false,
+      "window_id": 27244,
+      "owner": "TextEdit",
+      "owner_pid": 87579,
+      "owner_was_running_before": true,
+      "bounds": [
+        213,
+        77,
+        603,
+        505
+      ],
+      "enumeration_seconds": 0.041,
+      "candidate_count": 22,
+      "truncated": false,
+      "enumeration_error": null,
+      "same_title_groups": {},
+      "roles": {
+        "AXCheckBox": 8,
+        "AXButton": 4,
+        "AXPopUpButton": 3,
+        "AXColorWell": 2,
+        "AXMenuButton": 2,
+        "AXImage": 1,
+        "AXStaticText": 1,
+        "AXTextArea": 1
+      },
+      "with_frame": 22,
+      "pressable": 0,
+      "listing_head": [
+        "1. role=AXColorWell value=\"rgb 0 0 0 1\" description=\"text color\" frame=(308, 116, 22, 22)",
+        "2. role=AXColorWell value=\"rgb 1 1 1 1\" description=\"text background color\" frame=(333, 116, 22, 22)",
+        "3. role=AXPopUpButton value=\"Helvetica\" description=\"typeface\" frame=(358, 116, 82, 22)",
+        "4. role=AXPopUpButton value=\"Regular\" description=\"style\" frame=(443, 116, 82, 22)",
+        "5. role=AXMenuButton description=\"list style\" frame=(671, 116, 48, 22)",
+        "6. role=AXPopUpButton value=\"1.0\" description=\"line spacing\" frame=(722, 116, 53, 22)",
+        "7. role=AXButton frame=(221, 85, 16, 16)",
+        "8. role=AXButton frame=(267, 85, 16, 16)",
+        "9. role=AXButton frame=(244, 85, 16, 16)",
+        "10. role=AXMenuButton description=\"document actions\" frame=(380, 84, 12, 18)",
+        "11. role=AXImage title=\"Untitled 2.rtf\" frame=(294, 83, 18, 18)",
+        "12. role=AXStaticText value=\"Untitled 2\" frame=(313, 85, 68, 16)"
+      ]
+    },
+    {
+      "app": "Terminal",
+      "launched_by_us": false,
+      "window_id": 27250,
+      "owner": "Terminal",
+      "owner_pid": 87585,
+      "owner_was_running_before": true,
+      "bounds": [
+        1096,
+        472,
+        597,
+        385
+      ],
+      "enumeration_seconds": 0.032,
+      "candidate_count": 7,
+      "truncated": false,
+      "enumeration_error": null,
+      "same_title_groups": {},
+      "roles": {
+        "AXButton": 4,
+        "AXImage": 1,
+        "AXStaticText": 1,
+        "AXTextArea": 1
+      },
+      "with_frame": 7,
+      "pressable": 0,
+      "listing_head": [
+        "1. role=AXButton frame=(1104, 480, 16, 16)",
+        "2. role=AXButton frame=(1150, 480, 16, 16)",
+        "3. role=AXButton frame=(1127, 480, 16, 16)",
+        "4. role=AXImage title=\"zbcjackson\" frame=(1177, 478, 18, 18)",
+        "5. role=AXStaticText value=\"zbcjackson — zbcjackson@Tempest — ~ — -zsh — 80×24\" frame=(1196, 480, 372, 16)",
+        "6. role=AXTextArea value=\"Last login: Fri Sep 25 13:57:59 on ttys005 󰀵 zbcjackson ~   v3.12.3(#backen\" description=\"shell\" frame=(1096, 504, 580, 353)",
+        "7. role=AXButton description=\"Split pane\" frame=(1675, 502, 20, 20)"
+      ]
+    },
+    {
+      "app": "System Settings",
+      "launched_by_us": false,
+      "window_id": 27257,
+      "owner": "System Settings",
+      "owner_pid": 87590,
+      "owner_was_running_before": true,
+      "bounds": [
+        819,
+        221,
+        723,
+        819
+      ],
+      "enumeration_seconds": 0.171,
+      "candidate_count": 56,
+      "truncated": false,
+      "enumeration_error": null,
+      "same_title_groups": {},
+      "roles": {
+        "AXButton": 26,
+        "AXStaticText": 25,
+        "AXMenuButton": 2,
+        "AXValueIndicator": 2,
+        "AXTextField": 1
+      },
+      "with_frame": 56,
+      "pressable": 0,
+      "listing_head": [
+        "1. role=AXButton frame=(837, 239, 16, 16)",
+        "2. role=AXButton frame=(883, 239, 16, 16)",
+        "3. role=AXButton frame=(860, 239, 16, 16)",
+        "4. role=AXStaticText frame=(1127, 221, 403, 52)",
+        "5. role=AXTextField frame=(837, 282, 195, 28)",
+        "6. role=AXMenuButton identifier=\"go back\" description=\"Back\" frame=(1050, 229, 36, 36)",
+        "7. role=AXMenuButton identifier=\"go forward\" description=\"Forward\" frame=(1087, 229, 36, 36)",
+        "8. role=AXButton description=\"Search\" frame=(845, 292, 16, 9)",
+        "9. role=AXValueIndicator frame=(1028, 322, 11, 434)",
+        "10. role=AXButton frame=(1025, 319, 0, 0)",
+        "11. role=AXButton frame=(1025, 319, 0, 0)",
+        "12. role=AXButton frame=(1028, 757, 11, 262)"
+      ]
+    },
+    {
+      "app": "Safari",
+      "launched_by_us": false,
+      "window_id": 27267,
+      "owner": "Safari",
+      "owner_pid": 87666,
+      "owner_was_running_before": true,
+      "bounds": [
+        0,
+        30,
+        1919,
+        1049
+      ],
+      "enumeration_seconds": 0.043,
+      "candidate_count": 31,
+      "truncated": false,
+      "enumeration_error": null,
+      "same_title_groups": {
+        "‎127.0.0.1:8901/trial/-zLTRVPVPZX6n-7mseHtrmIiKfWHmyX0/page_b.html": 2
+      },
+      "roles": {
+        "AXButton": 13,
+        "AXImage": 6,
+        "AXRadioButton": 5,
+        "AXStaticText": 5,
+        "AXMenuButton": 1,
+        "AXTextField": 1
+      },
+      "with_frame": 31,
+      "pressable": 0,
+      "listing_head": [
+        "1. role=AXImage identifier=\"WindowControlShadowView._shadowImageView\" frame=(-2, 28, 102, 56)",
+        "2. role=AXButton frame=(18, 48, 16, 16)",
+        "3. role=AXButton frame=(64, 48, 16, 16)",
+        "4. role=AXButton frame=(41, 48, 16, 16)",
+        "5. role=AXButton description=\"1Password\" frame=(522, 30, 44, 52)",
+        "6. role=AXButton identifier=\"ShareButton\" description=\"Share\" frame=(1794, 30, 41, 52)",
+        "7. role=AXButton identifier=\"NewTabButton\" description=\"New Tab\" frame=(1835, 30, 37, 52)",
+        "8. role=AXButton identifier=\"TabOverviewButton\" description=\"Tab Overview\" frame=(1872, 30, 43, 52)",
+        "9. role=AXRadioButton title=\"验证码校验\" identifier=\"TabBarTab?isPinned=false&isNarrow=false&isActive=true\" description=\"验证码校验\" frame=(8, 82, 379, 32)",
+        "10. role=AXRadioButton title=\"‎127.0.0.1:8901/trial/-zLTRVPVPZX6n-7mseHtrmIiKfWHmyX0/page_b.html\" identifier=\"TabBarTab?isPinned=false&isNarrow=false&isActive=false\" description=\"‎127.0.0.1:8901/trial/-zLTRVPVPZX6n-7mseHtrmIiKfWHmyX0/page_b.html\" frame=(388, 82, 380, 32)",
+        "11. role=AXRadioButton title=\"‎127.0.0.1:8901/trial/-zLTRVPVPZX6n-7mseHtrmIiKfWHmyX0/page_c.html\" identifier=\"TabBarTab?isPinned=false&isNarrow=false&isActive=false\" description=\"‎127.0.0.1:8901/trial/-zLTRVPVPZX6n-7mseHtrmIiKfWHmyX0/page_c.html\" frame=(769, 82, 380, 32)",
+        "12. role=AXRadioButton title=\"‎127.0.0.1:8901/trial/qPUt0eT1k6svu5WWv-6M2ZuT3JjSBtgR/page_a.html\" identifier=\"TabBarTab?isPinned=false&isNarrow=false&isActive=false\" description=\"‎127.0.0.1:8901/trial/qPUt0eT1k6svu5WWv-6M2ZuT3JjSBtgR/page_a.html\" frame=(1150, 82, 380, 32)"
+      ]
+    },
+    {
+      "app": "Poe",
+      "launched_by_us": false,
+      "window_id": 92,
+      "owner": "Poe",
+      "owner_pid": 1067,
+      "owner_was_running_before": true,
+      "bounds": [
+        0,
+        30,
+        1920,
+        1050
+      ],
+      "enumeration_seconds": 0.043,
+      "candidate_count": 14,
+      "truncated": false,
+      "enumeration_error": null,
+      "same_title_groups": {},
+      "roles": {
+        "AXButton": 9,
+        "AXImage": 4,
+        "AXLink": 1
+      },
+      "with_frame": 14,
+      "pressable": 0,
+      "listing_head": [
+        "1. role=AXButton frame=(17, 43, 12, 14)",
+        "2. role=AXButton frame=(57, 43, 12, 14)",
+        "3. role=AXButton frame=(37, 43, 12, 14)",
+        "4. role=AXButton frame=(88, 34, 32, 32)",
+        "5. role=AXButton frame=(120, 34, 32, 32)",
+        "6. role=AXButton frame=(152, 34, 32, 32)",
+        "7. role=AXImage frame=(95, 41, 18, 18)",
+        "8. role=AXImage frame=(127, 41, 18, 18)",
+        "9. role=AXImage frame=(159, 41, 18, 18)",
+        "10. role=AXLink description=\"Poe\" frame=(17, 82, 33, 27)",
+        "11. role=AXButton description=\"Toggle sidebar collapse\" frame=(14, 75, 40, 40)",
+        "12. role=AXImage frame=(22, 83, 24, 24)"
+      ]
+    },
+    {
+      "app": "Arc",
+      "launched_by_us": false,
+      "window_id": 13774,
+      "owner": "Arc",
+      "owner_pid": 2668,
+      "owner_was_running_before": true,
+      "bounds": [
+        0,
+        30,
+        1920,
+        1050
+      ],
+      "enumeration_seconds": 0.925,
+      "candidate_count": 429,
+      "truncated": false,
+      "enumeration_error": null,
+      "same_title_groups": {
+        "OpenClaw": 2,
+        "Add as a preferred source on Google": 2,
+        "Solution": 2,
+        "Customization": 2,
+        "ReSpeaker XVF3800": 2,
+        "Go to slide 1": 2,
+        "Go to slide 2": 2,
+        "Go to slide 3": 2,
+        "Go to slide 4": 2,
+        "Go to slide 5": 2,
+        "reSpeaker XMOS XVF3800 with XIAO ESP32S3 – AI-powered 4-Mic Array for Clear Voic": 2,
+        "Mono Enclosed Speaker - 4R 5W": 2,
+        "Raspberry Pi Al HAT+ 2 | Hailo-10H AI Accelerator 40 TOPS": 2,
+        "reSpeaker Flex XVF3800 Circular-4 | AI Mic Array for Robotics and Embodied AI": 2,
+        "Reachy Mini Wireless - 9-DoF Open Source Desktop Humanoid Robot with Raspberry P": 2,
+        "Acrylic Enclosure for reSpeaker Lite": 2,
+        "reCamera 2002 HQ PoE 64GB - Your Shortest Pathway to Build a Market-ready AI Cam": 2,
+        "Grove - WS2813 RGB LED Strip Waterproof - 30 LED/m - 1m": 2,
+        "Wio Tracker 1110 Dev Kit for Meshtastic": 2,
+        "OpenUC2 10x AI Microscope - Powered by Seeed Studio XIAO ESP32S3 Sense": 2,
+        "Download PDF": 2,
+        "Add to Cart": 9
+      },
+      "roles": {
+        "AXStaticText": 194,
+        "AXButton": 81,
+        "AXLink": 79,
+        "AXImage": 61,
+        "AXRadioButton": 9,
+        "AXValueIndicator": 2,
+        "AXHeading": 1,
+        "AXTextField": 1,
+        "AXIncrementor": 1
+      },
+      "with_frame": 429,
+      "pressable": 0,
+      "listing_head": [
+        "1. role=AXButton frame=(12, 46, 16, 16)",
+        "2. role=AXButton frame=(35, 46, 16, 16)",
+        "3. role=AXButton frame=(58, 46, 16, 16)",
+        "4. role=AXButton frame=(77, 38, 32, 32)",
+        "5. role=AXButton frame=(209, 38, 32, 32)",
+        "6. role=AXButton frame=(243, 38, 32, 32)",
+        "7. role=AXButton frame=(277, 38, 32, 32)",
+        "8. role=AXStaticText value=\"seeedstudio.com\" identifier=\"commandBarPlaceholderTextField\" frame=(20, 85, 283, 18)",
+        "9. role=AXButton identifier=\"sidebarPlusButton\" frame=(275, 1039, 32, 32)",
+        "10. role=AXImage description=\"New Tab\" frame=(319, 542, 32, 26)",
+        "11. role=AXStaticText value=\"New Arc Version Available\" frame=(84, 1002, 147, 15)",
+        "12. role=AXButton description=\"Home\" frame=(8, 1039, 32, 32)"
+      ]
+    }
+  ]
+}

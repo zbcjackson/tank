@@ -17,6 +17,7 @@ import asyncio
 import importlib
 import json
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -147,7 +148,9 @@ def _clean(value: object, limit: int = 80) -> str:
 
 
 def _strings(value: object) -> tuple[str, ...]:
-    if not isinstance(value, (list, tuple)):
+    # pyobjc NSArrays are iterable but not list/tuple subclasses; the
+    # structural Iterable check accepts both them and plain Python lists.
+    if not isinstance(value, Iterable) or isinstance(value, (str, bytes)):
         return ()
     return tuple(item for item in value if isinstance(item, str))
 
@@ -315,8 +318,12 @@ def ax_window_candidates(
             ))
         if depth < MAX_DEPTH:
             children = _attr(api, element, "AXChildren")
-            if isinstance(children, (list, tuple)):
-                queue.extend((child, depth + 1) for child in children[:MAX_CHILDREN])
+            if children is not None:
+                try:
+                    child_list = list(children)[:MAX_CHILDREN]
+                except TypeError:
+                    child_list = []
+                queue.extend((child, depth + 1) for child in child_list)
     return candidates, truncated
 
 
@@ -554,8 +561,9 @@ class AXSession(LocateSession):
         return candidate
 
     def _check_pressable(self, candidate: AXCandidate, observation: Observation) -> None:
-        if "AXPress" not in candidate.actions:
-            raise ValueError("Element has no AXPress action; observe again")
+        # Real controls may accept AXPress without advertising an AXActions
+        # attribute (macOS 26 Calculator buttons); PerformAction's error code
+        # is the authority, so only geometry is pre-checked here.
         if candidate.frame is None:
             raise ValueError("Element frame unknown; observe again")
         x, y, w, h = candidate.frame

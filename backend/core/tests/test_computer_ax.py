@@ -88,8 +88,8 @@ class _AXValue:
 
 
 class _Element:
-    def __init__(self, attrs: dict[str, Any], children: list["_Element"] | None = None) -> None:
-        self.attrs, self.children = dict(attrs), list(children or [])
+    def __init__(self, attrs: dict[str, Any], children: Any = None) -> None:
+        self.attrs, self.children = dict(attrs), children if children is not None else []
 
 
 class _App:
@@ -389,6 +389,25 @@ async def test_ax_press_performs_action_without_pointer(desktop, monkeypatch) ->
     desktop.click.assert_not_called()
 
 
+async def test_ax_press_works_without_advertised_actions(desktop, monkeypatch) -> None:
+    # Real macOS 26 Calculator buttons accept AXPress without an AXActions
+    # attribute; PerformAction's error code is the authority.
+    ref = AXElementRef(object(), flip=False, screen_height=80)
+    bare = AXCandidate(index=1, role="AXButton", title="", value="", description="7",
+                       identifier="", actions=(), enabled=True, frame=(40, 30, 10, 10),
+                       element=ref)
+    monkeypatch.setattr(computer_ax, "ax_window_candidates",
+                        lambda wid, g: ([bare], False))
+    monkeypatch.setattr(computer_ax, "ax_refresh_candidate", lambda r: bare)
+    pressed = []
+    monkeypatch.setattr(computer_ax, "ax_press", lambda r: pressed.append(r))
+    session, _, _ = make_session(desktop, "ax_press", fake_llm(selection_response("found", 1)))
+    result = await observe_and_locate(session)
+    click = await call(session, "click", location_id=result["location_id"])
+    assert not click.error, click.content
+    assert len(pressed) == 1
+
+
 async def test_ax_press_rejects_other_pointer_actions(desktop, monkeypatch) -> None:
     monkeypatch.setattr(computer_ax, "ax_window_candidates", fake_candidates)
     session, _, _ = make_session(desktop, "ax_press", fake_llm(selection_response("found", 1)))
@@ -564,3 +583,32 @@ async def test_ax_session_rejects_missing_frame_adapter(desktop) -> None:
     frame = json.loads(text[text.index("{"):])["frame_id"]
     located = await call(session, "locate", frame_id=frame, target="x", window_id=7)
     assert located.error and "adapter" in str(located.content)
+
+
+class NSArrayLike:
+    """pyobjc returns NSArray subclasses that are not Python list/tuple."""
+
+    def __init__(self, items: list[Any]) -> None:
+        self._items = list(items)
+
+    def __iter__(self):
+        return iter(self._items)
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+
+def test_ax_window_candidates_walks_nsarray_children_and_actions(monkeypatch) -> None:
+    quartz = MagicMock()
+    quartz.CGWindowListCopyWindowInfo.return_value = [WINDOW]
+    monkeypatch.setattr(macos, "_load_quartz", lambda: quartz)
+    seven = button("7", 40, 30)
+    seven.attrs["AXActions"] = NSArrayLike(["AXPress"])
+    window = _Element({"AXRole": "AXWindow",
+                       "AXPosition": _AXValue(x=0, y=0), "AXSize": _AXValue(w=100, h=80)},
+                      NSArrayLike([seven]))
+    monkeypatch.setattr(computer_ax, "_load_ax", lambda: make_api(_App(42, [window])))
+    candidates, truncated = computer_ax.ax_window_candidates(7, (5, 0, 0, 100, 80, 200, 160))
+    assert truncated is False
+    assert [c.title for c in candidates] == ["7"]
+    assert candidates[0].actions == ("AXPress",)
