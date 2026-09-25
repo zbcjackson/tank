@@ -148,6 +148,7 @@ def _restore_source(source_id: str, carbon: ctypes.CDLL, cf: ctypes.CDLL) -> boo
 
 def _ascii_capable(carbon: ctypes.CDLL, cf: ctypes.CDLL) -> bool:
     """Whether the current keyboard input source can type ASCII."""
+    source = 0
     try:
         carbon.TISCopyCurrentKeyboardInputSource.restype = ctypes.c_void_p
         carbon.TISCopyCurrentKeyboardInputSource.argtypes = []

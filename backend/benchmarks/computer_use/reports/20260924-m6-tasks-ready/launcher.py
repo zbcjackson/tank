@@ -18,8 +18,8 @@ from tank_backend.tools import computer_use_macos as macos
 from tank_backend.core.content import ImageBlock
 
 BACKEND = Path('/Users/zbcjackson/src/tank/backend')
-FREEZE = BACKEND / 'benchmarks/computer_use/reports/20260924-m6-calc-runtime'
-TASKS_PROPOSAL = BACKEND / 'benchmarks/computer_use/reports/20260924-m6-tasks-proposal/proposal.json'
+FREEZE = BACKEND / 'benchmarks/computer_use/reports/20260925-m6-tasks-runtime'
+TASKS_PROPOSAL = BACKEND / 'benchmarks/computer_use/reports/20260925-m6-tasks-proposal/proposal.json'
 LH_PROPOSAL = BACKEND / 'benchmarks/computer_use/reports/20260924-m6-longhistory-proposal/proposal.json'
 # Controlled scope per task: the only regular apps allowed on screen.
 TASK_APPS = {
@@ -53,11 +53,17 @@ workspace = AppKit.NSWorkspace.sharedWorkspace()
 original_front = workspace.frontmostApplication()
 original_mouse = Quartz.CGEventGetLocation(Quartz.CGEventCreate(None))
 terminal_names_before = set()
-if TASK == 'terminal-write':
-    listed = subprocess.run(['osascript', '-e',
-                             'tell application "Terminal" to get name of every window'],
-                            capture_output=True, text=True, timeout=10)
-    terminal_names_before = {n.strip() for n in listed.stdout.split(',') if n.strip()}
+if TASK == 'terminal-write' and subprocess.run(['pgrep', '-x', 'Terminal'],
+                                               capture_output=True).returncode == 0:
+    # Only query when Terminal already runs: `tell application "Terminal"`
+    # on a not-running Terminal would launch it (slow, opens a window).
+    try:
+        listed = subprocess.run(['osascript', '-e',
+                                 'tell application "Terminal" to get name of every window'],
+                                capture_output=True, text=True, timeout=10)
+        terminal_names_before = {n.strip() for n in listed.stdout.split(',') if n.strip()}
+    except subprocess.TimeoutExpired:
+        terminal_names_before = set()
 # Safari EULA: the container is TCC-protected, so the EULA is accepted once
 # by the operator (recorded in the README) instead of scripted here.
 hidden = []
