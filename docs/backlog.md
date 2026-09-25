@@ -13,8 +13,11 @@
 
 2026-09-19：提示冲突、输入/评分、截图像素证据、frame/宿主还原、模型适配、
 规划定位分离、AX/定位器与跨应用/长历史工作已立项，统一移入
-[macOS 适配与定位计划](plans/active/computer-use-adaptation-and-grounding.md)。
+[macOS 适配与定位计划](plans/done/computer-use-adaptation-and-grounding.md)。
 移出本表表示已有执行计划，不表示问题已修复；完整历史核对见该计划 §2。
+2026-09-25：该计划已关档（M0–M8 完成或明确处置，结论 = 保留生产基线，
+见 [M8 收口报告](../backend/benchmarks/computer_use/reports/20260925-m8-closeout/README.md)）；
+其条件性条目继续留在本表按触发条件运作。
 
 | 项目 | 触发条件 | 背景/前置 | 来源 |
 |---|---|---|---|
@@ -30,12 +33,13 @@
 
 | macOS 动态几何与高频输入验收 | 产品需要截图后切换主屏/分辨率或无截图高频连点，或这些条件下再次报告错点 | 当前静态主屏九点验收通过；默认尺寸/截图缓存不追踪动态几何，首次校准存在未确定原因的事件缺失；多屏支持沿用上方条目 | [macos-coordinate-chain.md](research/macos-coordinate-chain.md) |
 
-| N2 SDK Linux adapter 与平台验收 | 产品需要 Linux，且有专用 X11/Wayland 实机环境 | 原 M4/M6 未完成：X11 adapter、来源/许可证、中文/修饰键、截图光标/时延与真实取消/清理分别验收；未通过保持 unsupported，不能套用 macOS 结果 | [SDK 原 M4/M6](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划 §2.3](plans/active/computer-use-adaptation-and-grounding.md) |
-| N2 SDK 采用后同进程暂停与恢复 | 产品使用 SDK 且需要暂停/接管/恢复 | 原 M7 未触发：pause_pending/paused、运行实例/trajectory、恢复重新截图/授权/预算/桌面锁、状态与协议展示及停止/过期边界；暂停计入时限，跨重启恢复另立项 | [SDK 原 M7](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划范围](plans/active/computer-use-adaptation-and-grounding.md) |
-| N2/SDK 特定控制与集成补验 | 修改 SDK/共享派发控制、升级 driver，或出现新的 WS/通知/输入释放/进程清理问题 | N2 已有真实 benchmark，SDK 42 个 trial cleanup=confirmed；普通报告不证明每种中途停止与完整主会话 WS。仅针对受影响 seam/动作补验，保留原 M4/M6 细则，不将全套重验设为效果改进前置 | [SDK 原清单](plans/done/plugin-subagents-and-n2-sdk.md)、[效果改进范围](plans/active/computer-use-adaptation-and-grounding.md) |
+| N2 SDK Linux adapter 与平台验收 | 产品需要 Linux，且有专用 X11/Wayland 实机环境 | 原 M4/M6 未完成：X11 adapter、来源/许可证、中文/修饰键、截图光标/时延与真实取消/清理分别验收；未通过保持 unsupported，不能套用 macOS 结果 | [SDK 原 M4/M6](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划 §2.3](plans/done/computer-use-adaptation-and-grounding.md) |
+| N2 SDK 采用后同进程暂停与恢复 | 产品使用 SDK 且需要暂停/接管/恢复 | 原 M7 未触发：pause_pending/paused、运行实例/trajectory、恢复重新截图/授权/预算/桌面锁、状态与协议展示及停止/过期边界；暂停计入时限，跨重启恢复另立项 | [SDK 原 M7](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划范围](plans/done/computer-use-adaptation-and-grounding.md) |
+| N2/SDK 特定控制与集成补验 | 修改 SDK/共享派发控制、升级 driver，或出现新的 WS/通知/输入释放/进程清理问题 | N2 已有真实 benchmark，SDK 42 个 trial cleanup=confirmed；普通报告不证明每种中途停止与完整主会话 WS。仅针对受影响 seam/动作补验，保留原 M4/M6 细则，不将全套重验设为效果改进前置 | [SDK 原清单](plans/done/plugin-subagents-and-n2-sdk.md)、[效果改进范围](plans/done/computer-use-adaptation-and-grounding.md) |
 
-| Computer-use 原生协议与专用定位模型探索 | 明确需要该路线，取得可用端点/部署、协议与授权，并批准独立实验预算 | M3 已完成自定义 point/pixels/bbox 适配；原生点框、Responses computer、UI-TARS 未测试，不能由自定义工具结果推断支持性或收益 | [M3 收尾](plans/active/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |
-| Computer-use 静态候选采用复验 | 决定重新考虑候选/提示配置，且准备新预算与未使用的独立 holdout | 首轮 544 次额度已用完；旧 holdout 歧义拒绝失败，唯一匹配修正仅三次开发 smoke。新冻结需覆盖正例和负例，不能复用旧数据宣称独立验收；既定 M4–M8 集成/真实任务验收仍留 active 计划 | [M3 收尾](plans/active/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |
+| Computer-use 原生协议与专用定位模型探索 | 明确需要该路线，取得可用端点/部署、协议与授权，并批准独立实验预算 | M3 已完成自定义 point/pixels/bbox 适配；原生点框、Responses computer、UI-TARS 未测试，不能由自定义工具结果推断支持性或收益 | [M3 收尾](plans/done/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |
+| Computer-use 静态候选采用复验 | 决定重新考虑候选/提示配置，且准备新预算与未使用的独立 holdout | 首轮 544 次额度已用完；旧 holdout 歧义拒绝失败，唯一匹配修正仅三次开发 smoke。新冻结需覆盖正例和负例，不能复用旧数据宣称独立验收；M4–M8 集成/真实任务验收已在原计划完成（保留基线结论） | [M3 收尾](plans/done/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |
 | AX 语义寻址选择模型复验 | 决定重新考虑 AX 分支为默认/候选，且具备更强选择模型（gpt-5.5 / qwen3.8-max 级）或列表呈现改进方案，并批准新实验预算 | M7 机制闭环已验证（宿主绑定→枚举→文本选择→派发→独立评分，live3 AX-quartz 拿到 strict 通过），但 qwen3.7-flash 选择器在 57 行候选中反复选错相邻项（off-by-one、误选 All Clear），AX 臂成本更高、成绩持平或更差；AXPress 未完成一轮有效任务 | [M7 live3 报告](../backend/benchmarks/computer_use/reports/20260925-m7-ax-live3/README.md) |
-| OCR/控件检测 + 编号方案预检 | AX 分支仍不满足需求，或纯视觉在密集小目标场景再次成为主要失败源 | M7 第 3 项条件分支：本轮 AX 覆盖充足（57–429 候选）非覆盖问题，是选择精度问题，OCR/检测器方案未测试 | [M7 计划第 3 项](plans/active/computer-use-adaptation-and-grounding.md#m7--ax-与视觉解析的独立分支) |
-| 受控遮罩误点后盖住目标窗口 | pair-1/2/3 配对 core trial 开跑前，或再次观察到“窗口消失/全黑”导致的 `launch_app` 重试 | A-control 单轮首次批量点击落到始终置顶的受控黑背景（归一化 x≈850 → 屏幕 x≈1632，窗口右缘约 1270），随后目标窗口被遮罩盖住，模型需 3 次 `launch_app` 才恢复；需先设计对策（如每次动作后重新置顶目标窗口、或让遮罩不参与激活）再改，避免把环境伪影计入模型失败并污染配对对照 | [A-control 单轮证据](../backend/benchmarks/computer_use/reports/20260924-m5-a-control-pumped-pilot/README.md) |
+| OCR/控件检测 + 编号方案预检 | AX 分支仍不满足需求，或纯视觉在密集小目标场景再次成为主要失败源 | M7 第 3 项条件分支：本轮 AX 覆盖充足（57–429 候选）非覆盖问题，是选择精度问题，OCR/检测器方案未测试 | [M7 计划第 3 项](plans/done/computer-use-adaptation-and-grounding.md#m7--ax-与视觉解析的独立分支) |
+| 受控遮罩误点后盖住目标窗口 | pair-1/2/3 配对 core trial 开跑前，或再次观察到“窗口消失/全黑”导致的 `launch_app` 重试 | A-control 单轮首次批量点击落到始终置顶的受控黑背景（归一化 x≈850 → 屏幕 x≈1632，窗口右缘约 1270），随后目标窗口被遮罩盖住，模型需 3 次 `launch_app` 才恢复；材料层已加派发前窗口门禁（窗外点击零派发并记 `gate_blocked`），后续 M5 core/M6/M7 各批遮罩陷阱未再发生；但门禁属 launcher 材料而非生产代码，移除材料或生产环境复现时仍需对策 | [A-control 单轮证据](../backend/benchmarks/computer_use/reports/20260924-m5-a-control-pumped-pilot/README.md)、[门禁材料](../backend/benchmarks/computer_use/reports/20260924-m5-pixels-unified-ready/README.md) |
+| 子代理链路历史压缩机制 | 长任务 routinely 触顶 token 预算（M6 长历史两轮均 300k 处受控停止，27/17 步远未到步数/时限上限），且需要子代理完成更长流程 | M6 第 4 项发现：ContextManager/Compactor 只存在于主助手语音路径，自研子代理链路（SubAgentDriver → AgentRunner → LLMAgent → chat_stream）无压缩；长历史行为验收（当前图引用/失败恢复）已通过，机制引入未做 | [M6 长历史报告](../backend/benchmarks/computer_use/reports/20260924-m6-longhistory/README.md) |

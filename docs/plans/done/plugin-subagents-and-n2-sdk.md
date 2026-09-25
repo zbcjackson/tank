@@ -6,7 +6,7 @@
 
 用户确认 N2 已验证；本次已读取旧 N2 33/42 和 SDK strict 4/36、smoke 2/6
 的真实 benchmark，SDK 报告 42 个 trial 均记录 cleanup=confirmed。
-报告入口和评分边界见[统一效果改进计划 §2.1/R](../active/computer-use-adaptation-and-grounding.md)。
+报告入口和评分边界见[统一效果改进计划 §2.1/R](../done/computer-use-adaptation-and-grounding.md)。
 不再因历史清单未勾选而否定已存在的验证，或要求先重做 N2 接入、迁移采用
 及完整三路跑批。当前工作转为模型适配、规划定位分离和实际效果改进。
 
@@ -19,7 +19,7 @@
 
 2026-09-19 核对：新增的自研 macOS 校准与 GPT-5.5 单任务闭环不是本 SDK
 路径验收，不能勾选 M1/M4/M6 的三路、真实停止/清理和完整 WS 项。
-[适配与定位计划](../active/computer-use-adaptation-and-grounding.md) 当时负责自研后续；
+[适配与定位计划](../done/computer-use-adaptation-and-grounding.md) 当时负责自研后续；
 本计划继续负责 N2/SDK 与平台专项，当前状态及历史结果保留。
 
 ## 1. 决策与成功条件

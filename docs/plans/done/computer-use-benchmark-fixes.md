@@ -5,7 +5,7 @@
 ## 归档处置（2026-09-19）
 
 用户明确本会话目标为改进效果，N2 已验证，可参考既有 benchmark。
-[统一执行计划 §2.1/R](../active/computer-use-adaptation-and-grounding.md) 已读取
+[统一执行计划 §2.1/R](../done/computer-use-adaptation-and-grounding.md) 已读取
 旧 N2 33/42、N2 SDK strict 4/36（smoke 2/6）及自研 7/42 报告。
 本计划不再承担待办，不强制重跑完整三路作为新计划前置；如需同尺效果
 比较，仅补必要任务。不同版本/评分保留原口径，不写成未经测试或全部成功。
@@ -21,7 +21,7 @@
 [统一验证](../../design/computer-use.md)。它们补充了真实主屏证据，但不是
 Part A、旧 N2、N2 SDK 修复后同版本三路全套重跑，本计划继续 active。
 自研模型适配、规划定位分离及跨应用后续见
-[执行计划](../active/computer-use-adaptation-and-grounding.md)；三路比较当时与
+[执行计划](../done/computer-use-adaptation-and-grounding.md)；三路比较当时与
 [SDK 计划](plugin-subagents-and-n2-sdk.md) M1/M6 一起验收。下方保留当时结果。
 
 ## 实施
