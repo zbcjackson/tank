@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
+import os
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -35,9 +36,9 @@ from .computer_observation import Observation
 AX_PROMPT = """Desktop planning uses AX semantic addressing.
 For this run, this tool contract replaces earlier coordinate and tool-call-format
 instructions. All other task-specific instructions remain applicable.
-Observe with screenshot and bind window_id, then call
-locate(frame_id, target, window_id). Describe the unique target in words; the host
-enumerates numbered accessibility candidates of the bound window and selects one.
+Observe with screenshot (the host binds the target window automatically), then call
+locate(frame_id, target). Describe the unique target in words; the host enumerates
+numbered accessibility candidates of the bound window and selects one.
 Never calculate or supply coordinates. Use only returned location_id references
 for click, mouse_move, scroll or drag (drag also requires end_location_id).
 Missing/ambiguous/error means no action; clarify the target, observe again, or
@@ -447,6 +448,29 @@ def parse_ax_selection_response(response: ChatCompletion, count: int) -> AXSelec
         raise GroundingResponseError("invalid_selection", str(exc)) from exc
 
 
+def resolve_frontmost_window() -> int | None:
+    """Host-side binding: the frontmost regular app's main on-screen window.
+
+    Models cannot discover CGWindowNumbers from pixels, so AX mode binds the
+    observation window here instead of asking the planner for an id.
+    """
+    appkit: Any = importlib.import_module("AppKit")
+
+    quartz = macos._load_quartz()
+    front = appkit.NSWorkspace.sharedWorkspace().frontmostApplication()
+    if front is None or front.processIdentifier() == os.getpid():
+        return None
+    for window in quartz.CGWindowListCopyWindowInfo(
+        quartz.kCGWindowListOptionOnScreenOnly, 0
+    ) or []:
+        if (window.get("kCGWindowLayer") == 0
+                and int(window.get("kCGWindowOwnerPID", -1)) == front.processIdentifier()):
+            size = window["kCGWindowBounds"]
+            if int(size["Width"]) > 50 and int(size["Height"]) > 50:
+                return int(window["kCGWindowNumber"])
+    return None
+
+
 def _screen_to_image(observation: Observation, x: float, y: float) -> tuple[float, float]:
     left, top, right, bottom = observation.crop
     width, height = observation.image_size
@@ -476,6 +500,15 @@ class AXSession(LocateSession):
     def _clear_locations(self) -> None:
         super()._clear_locations()
         self.ax_locations.clear()
+
+    async def execute(
+        self, name: str, arguments: dict[str, Any], *, feedback: bool = True,
+    ) -> ToolResult | str:
+        if name == "screenshot" and "window_id" not in arguments:
+            window_id = await asyncio.to_thread(resolve_frontmost_window)
+            if window_id is not None:
+                arguments = {**arguments, "window_id": window_id}
+        return await super().execute(name, arguments, feedback=feedback)
 
     async def _locate(
         self, frame_id: str, target: str, window_id: int | None, backend: str,

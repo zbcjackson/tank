@@ -1,0 +1,168 @@
+{
+  "trials": [
+    {
+      "key": "m7-pair-1-a",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "7×97×"
+      },
+      "steps": 15,
+      "tokens": 229572,
+      "llm_calls": 16,
+      "locates": 0,
+      "locate_outcomes": [],
+      "locate_failure_stage": [],
+      "pointer_dispatches": 0,
+      "keyboard_dispatches": 0
+    },
+    {
+      "key": "m7-pair-1-ax-press",
+      "success": false,
+      "error": "validator failed",
+      "display": {
+        "result": "56"
+      },
+      "steps": 10,
+      "tokens": 122780,
+      "llm_calls": 11,
+      "locates": 1,
+      "locate_outcomes": [
+        "error"
+      ],
+      "locate_failure_stage": [
+        "observation_before"
+      ],
+      "pointer_dispatches": 0,
+      "keyboard_dispatches": 8
+    },
+    {
+      "key": "m7-pair-1-ax-quartz",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "7"
+      },
+      "steps": 15,
+      "tokens": 196821,
+      "llm_calls": 16,
+      "locates": 3,
+      "locate_outcomes": [
+        "error"
+      ],
+      "locate_failure_stage": [
+        "observation_before"
+      ],
+      "pointer_dispatches": 0,
+      "keyboard_dispatches": 4
+    },
+    {
+      "key": "m7-pair-2-a",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "7"
+      },
+      "steps": 15,
+      "tokens": 241377,
+      "llm_calls": 16,
+      "locates": 0,
+      "locate_outcomes": [],
+      "locate_failure_stage": [],
+      "pointer_dispatches": 0,
+      "keyboard_dispatches": 0
+    },
+    {
+      "key": "m7-pair-2-ax-press",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "7"
+      },
+      "steps": 15,
+      "tokens": 195949,
+      "llm_calls": 16,
+      "locates": 3,
+      "locate_outcomes": [
+        "error"
+      ],
+      "locate_failure_stage": [
+        "observation_before"
+      ],
+      "pointer_dispatches": 0,
+      "keyboard_dispatches": 4
+    },
+    {
+      "key": "m7-pair-2-ax-quartz",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "0"
+      },
+      "steps": 15,
+      "tokens": 190749,
+      "llm_calls": 16,
+      "locates": 3,
+      "locate_outcomes": [
+        "error"
+      ],
+      "locate_failure_stage": [
+        "observation_before"
+      ],
+      "pointer_dispatches": 0,
+      "keyboard_dispatches": 1
+    },
+    {
+      "key": "m7-pair-3-a",
+      "success": false,
+      "error": "max_steps(15) reached",
+      "display": {
+        "result": "78"
+      },
+      "steps": 15,
+      "tokens": 266167,
+      "llm_calls": 16,
+      "locates": 0,
+      "locate_outcomes": [],
+      "locate_failure_stage": [],
+      "pointer_dispatches": 0,
+      "keyboard_dispatches": 0
+    },
+    {
+      "key": "m7-pair-3-ax-press",
+      "success": false,
+      "error": "Agent error: Expecting ',' delimiter: line 1 column 19 (char 18)",
+      "display": {
+        "result": "0"
+      },
+      "steps": 2,
+      "tokens": 16818,
+      "llm_calls": 3,
+      "locates": 1,
+      "locate_outcomes": [
+        "error"
+      ],
+      "locate_failure_stage": [
+        "observation_before"
+      ],
+      "pointer_dispatches": 0,
+      "keyboard_dispatches": 0
+    },
+    {
+      "key": "m7-pair-3-ax-quartz",
+      "success": false,
+      "error": "Agent error: Expecting ',' delimiter: line 1 column 90 (char 89)",
+      "display": {
+        "result": "0"
+      },
+      "steps": 1,
+      "tokens": 10493,
+      "llm_calls": 2,
+      "locates": 0,
+      "locate_outcomes": [],
+      "locate_failure_stage": [],
+      "pointer_dispatches": 0,
+      "keyboard_dispatches": 0
+    }
+  ]
+}

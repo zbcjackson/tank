@@ -612,3 +612,56 @@ def test_ax_window_candidates_walks_nsarray_children_and_actions(monkeypatch) ->
     assert truncated is False
     assert [c.title for c in candidates] == ["7"]
     assert candidates[0].actions == ("AXPress",)
+
+
+class _FakeWorkspace:
+    def __init__(self, app: object) -> None:
+        self._app = app
+
+    def frontmostApplication(self) -> object:
+        return self._app
+
+
+def test_resolve_frontmost_window_picks_frontmost_regular_window(monkeypatch) -> None:
+    import types
+
+    app = types.SimpleNamespace(processIdentifier=lambda: 42)
+    fake_appkit = types.SimpleNamespace(
+        NSWorkspace=types.SimpleNamespace(sharedWorkspace=lambda: _FakeWorkspace(app)))
+    monkeypatch.setitem(sys.modules, "AppKit", fake_appkit)
+    quartz = MagicMock()
+    quartz.CGWindowListCopyWindowInfo.return_value = [
+        {"kCGWindowNumber": 3, "kCGWindowOwnerPID": 99, "kCGWindowLayer": 0,
+         "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 100, "Height": 80}},
+        {"kCGWindowNumber": 7, "kCGWindowOwnerPID": 42, "kCGWindowLayer": 0,
+         "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 100, "Height": 80}},
+        {"kCGWindowNumber": 9, "kCGWindowOwnerPID": 42, "kCGWindowLayer": 0,
+         "kCGWindowBounds": {"X": 0, "Y": 0, "Width": 20, "Height": 15}},
+    ]
+    monkeypatch.setattr(macos, "_load_quartz", lambda: quartz)
+    assert computer_ax.resolve_frontmost_window() == 7
+
+
+async def test_ax_screenshot_auto_binds_frontmost_window(desktop, monkeypatch) -> None:
+    """The model cannot know CGWindowNumbers; the host binds the window.
+
+    Live M7 evidence: every AX locate failed at observation_before because the
+    planner screenshot arrived unbound and the locate refused it.
+    """
+    monkeypatch.setattr(computer_ax, "ax_window_candidates", fake_candidates)
+    monkeypatch.setattr(computer_ax, "resolve_frontmost_window", lambda: 7)
+    refreshed = fake_candidates(7, (5, 0, 0, 100, 80, 200, 160))[0][0]
+    monkeypatch.setattr(computer_ax, "ax_refresh_candidate", lambda ref: refreshed)
+    session, _, _ = make_session(desktop, "quartz", fake_llm(selection_response("found", 1)))
+    shot = await call(session, "screenshot")  # no window_id from the model
+    text = next(b.text for b in shot.to_blocks() if isinstance(b, TextBlock))
+    frame = json.loads(text[text.index("{"):])["frame_id"]
+    assert session.state.observation.window_id == 7
+    located = await call(session, "locate", frame_id=frame, target="the seven button")
+    assert not located.error, located.content
+    content = located.content
+    assert isinstance(content, str)
+    click = await call(session, "click",
+                       location_id=json.loads(content)["location_id"])
+    assert not click.error, click.content
+    desktop.click.assert_called_once_with(45, 35, "left", 1)

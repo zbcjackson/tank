@@ -143,8 +143,8 @@ async def capture(definition: AgentDefinition, profiles: dict[str, Any],
                 "usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5}})
         turn += 1
         if turn == 1:
-            # AX locating requires a window-bound observation.
-            return response("screenshot", ({"window_id": 11} if ax_mode
+            # AX mode binds the window host-side; the model sends no window_id.
+            return response("screenshot", ({} if ax_mode
                                             else {"region": [100, 100, 800, 800]}))
         if turn == 2 and definition.grounding and definition.grounding.mode in {
             "split", "ax"
@@ -186,6 +186,7 @@ async def capture(definition: AgentDefinition, profiles: dict[str, Any],
         patch.object(macos, "_capture_screenshot_macos", return_value=png),
         patch.object(computer_ax, "ax_window_candidates",
                      lambda window_id, geometry: ([offline_candidate], False)),
+        patch.object(computer_ax, "resolve_frontmost_window", lambda: 11),
         patch("tank_backend.llm.llm.AsyncOpenAI", side_effect=client_factory),
         patch("tank_backend.llm.llm.initialize_langfuse", return_value=None),
         patch("tank_backend.llm.llm.is_tracing_registered", return_value=False),
