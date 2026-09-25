@@ -1969,6 +1969,28 @@ N2 专项重验不是 M3/M4、M6 或本计划关档的前置。
 - 花费：框架配对 1,823,108 tokens；加上此前的 core 五次尝试，core trial 合计
   **12,465,469 tokens**（unpriced；估算 $0.4–$20 区间）。
 
+### 2026-09-25 — M7 批次 4（live2）：自动绑定生效；两类新发现已修复/确证
+
+- [x] 用户授权后串行 9 trial（94 请求 / 1,084,785 tokens，record-only）；
+  清理 8/8、外层恢复 confirmed、门禁拦 2 次窗外点击。live1+live2 累计 206
+  请求。[证据与选择器选错索引的逐轮归档](../../../backend/benchmarks/computer_use/reports/20260925-m7-ax-live2/README.md)。
+- [x] **宿主自动绑定验证生效**：ax-quartz pair-1/2 locate found 3/2 次、
+  点击全部派发成功；残余 observation_before 错误为前台解析时序、重试自愈。
+- [x] **发现并修复（先红后绿）**：(a) screenshot schema 暴露的 window_id
+  诱使模型把 frame_id（未引号 hex）传入 → 非法 JSON；M5 守卫零派发但抛出
+  杀死 agent（live1 的 2 次"截断"中止同因）——AX schema 隐藏 window_id +
+  宿主注入经 `_host_arguments` 豁免；(b) 非法 JSON 参数改为**可恢复工具错误**
+  （零派发保持、模型重发；非 tool_calls/stop 收尾仍整响应拒绝）。集成流
+  测试扩三种收尾语义；提交见下。
+- [x] **选择器精度确证（真实模型能力数据）**：qwen3.7-flash 在 57 行候选中
+  选错相邻项——目标"7"（23）实选 22（"10 to the X"）×3 与 14（"All Clear"），
+  显示 `100`/`100×7`；一次正确选 23。AXPress 三轮均死于 (a)、未获有效数据。
+  AX 自动获得边界 ≠ 选择模型能选对目标——若 live3 复现则条件性暂缓。
+- 修复后重生成 v3 材料（352 文件预检、gate/scope/预览全过）；live3 为声明
+  新批次（≤234 请求），待授权。
+- 验证：backend **5116 passed / 1 skipped**；lint/pyright（0 错误）/docs/
+  协议通过。
+
 ### 2026-09-25 — M7 批次 4（live1）：AX 寻址未生效，整批无效；已修复待重跑
 
 - [x] 用户授权后串行 9 trial（发送前复核 initial.png：83.8% 黑背景、仅
