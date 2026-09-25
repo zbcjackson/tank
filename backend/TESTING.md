@@ -883,3 +883,32 @@ adds five cases for run-loop refresh, delayed/failed visibility restoration,
 missing Finder launchDate and changed process identity. Real normal, hard-exit
 and timeout recovery now pass; historical loginwindow readings do not prove
 lock state. This does not complete the M6 physical stop matrix.
+
+
+### M6–M8 coverage and closeout
+
+M6 agent-budget enforcement tests in `test_bench_runner.py` keep the ledger
+record-only while forcing the agent `token_budget` through the runner check
+(A arm) or the shared SubAgentContext ledger including locate calls (B/C/D).
+`SubAgentStopped` surfaces as a controlled TOKEN stop with `stop_reason`
+metadata instead of a generic agent error. The physical stop/cleanup matrix
+(planner/locate in-flight cancel, key-hold join, batch and drag mid-action
+cancel) is accepted locally against a loopback mock with a strict ten-second
+zero-event window; it does not model provider latency.
+
+M7 adds `test_computer_ax.py`: candidate enumeration (orientation
+self-calibration, role filter, same-name retention, depth/element caps),
+strict index selection (out-of-range, wrong status, sentinel, non-integer),
+quartz dispatch through the M2 frame checks, AXPress action boundaries,
+stale/window-move/ambiguous/missing zero-input rejections, and real
+Runner→SDK flows for both dispatch modes. The NSArray iteration-protocol fix
+and the AXPress PerformAction return-code regression are included. M7 live
+fixes — omitted-`window_id` frame binding, host-injected AX window id, and
+recoverable invalid tool-call JSON with zero dispatch — have first-red tests
+in `test_computer_locate.py`.
+
+M8 changes no production behavior: the closeout is documentation plus report
+aggregation. The full suite (5116 passed / 1 skipped on 2026-09-25, including
+legacy N2 and SDK regressions) is the deterministic transform/protocol/
+cancel/budget/cleanup evidence cited by the
+[closeout report](benchmarks/computer_use/reports/20260925-m8-closeout/README.md).

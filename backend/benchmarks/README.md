@@ -545,3 +545,25 @@ constructing the batch, and cannot automatically enter another pilot or core.
 The caller supplies credentials and screenshot scope guards; the API does not
 obtain consent or restore the desktop environment. See the
 [B-protocol-only preparation](computer_use/reports/20260924-m5-b-protocol-ready/README.md).
+
+
+### Adoption decision and closeout (M8, 2026-09-25)
+
+The adaptation-and-grounding plan (M0–M8) is closed. The production baseline
+stays unchanged: the default `computer_use` agent has no `grounding`
+frontmatter (integrated planning/locating, legacy normalized coordinates,
+qwen3.7-flash). M2 image coordinates, the M4 split locator, M5 integrated
+adaptation variants and the M7 AX branch all remain explicit opt-in; deleting
+the `grounding:` key restores the original mode.
+
+Evidence layers: no static candidate passed the frozen first-round screen
+(M3 holdout: Max bbox / GPT point hit 96/96 positives but same-name ambiguity
+rejection was 0/16 with executable false positives); real paired tasks kept
+the baseline ahead on the wide set (M6: strict A 10/36 vs split C 5/36, C at
+1.7–2× tokens) while B-combined was the worst arm on calc-open (0/6 merged);
+the AX branch is conditionally deferred (selector precision is the bottleneck).
+The click-offset root cause is **not** claimed solved; attribution stops at the
+service output boundary. Full aggregation (versions, manifests, request/token
+totals, denominators, paired results, unknowns, cost/latency, failure indexes):
+[M8 closeout report](computer_use/reports/20260925-m8-closeout/README.md).
+Condition-triggered follow-ups live in `docs/backlog.md`.

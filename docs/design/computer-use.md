@@ -1,10 +1,14 @@
 # Computer use：macOS 坐标链与验证结论
 
-更新：2026-09-22。本文汇总自研 `computer_use` 与共享 `MacOSDesktopExecutor`
+更新：2026-09-25。本文汇总自研 `computer_use` 与共享 `MacOSDesktopExecutor`
 的现行行为及验证边界；官方 N2 SDK 是另一条路径，不能直接套用结论。
 逐轮原始证据、历史测试数量和异常记录见
 [macOS 调研](../research/macos-coordinate-chain.md)，复现入口见
 [benchmark 文档](../../backend/benchmarks/README.md)。
+适配与定位专项（M0–M8）已于 2026-09-25 关档，[M8 收口报告](../../backend/benchmarks/computer_use/reports/20260925-m8-closeout/README.md)
+给出采用决定：**保留生产基线（A：一体规划定位 + legacy 归一化坐标，
+qwen3.7-flash）**；M2 image 坐标、M4 分离、M5 一体适配、M7 AX 均为显式
+opt-in，默认全程未切换。条件性后续工作见 [backlog](../backlog.md)。
 
 ## 当前结论
 
@@ -23,9 +27,14 @@ GPT-5.5 在独立合成布局上最好；本次真实 calc-open 严格评分 2/3
 新增显式 image/frame 接口由宿主还原 crop，默认 legacy 路径仍由模型换算。[外部实现对照](../research/computer-use-implementation-comparison.md)
 梳理了 Anthropic、UI-TARS、Cua、Peekaboo、OmniParser、OpenAI 和 browser-use，
 建议先修已确认问题，再分别测试宿主坐标还原、AX 元素寻址和反馈检查。
-模型适配、AX 与定位拆分的真实效果仍待验证；统一协议成绩不代表各模型最佳适配表现。
-后续统一按[适配与定位执行计划](../plans/active/computer-use-adaptation-and-grounding.md)
-推进，含历史完成核对、模型适配、规划定位分离四组对照及分阶段验收。
+M3–M7 已分别完成模型适配、四组因果对照、真实闭环/长历史/停止验收与
+AX 独立分支：适配一体+宿主还原（B-combined）在 calc-open 上是最差臂且
+耗 ~2.4× token；拆分架构（C/D）在 calc-open 上与生产基线持平（p=0.43）
+但在 13 任务宽集上 A 10/36 > C 5/36 且 C 耗 1.7–2× token；AX 机制闭环成立
+但选择模型精度是瓶颈，条件性暂缓。统一内部坐标协议与保留各模型外部
+协议并存；单位应匹配模型原生习惯（qwen3.8-max 在 pixels 契约下系统性
+误发归一化值），不能靠换协议普适修复。全部结论见各节及
+[M8 收口报告](../../backend/benchmarks/computer_use/reports/20260925-m8-closeout/README.md)。
 
 ## 截图到点击：默认 legacy 转换
 
@@ -324,7 +333,8 @@ Calculator 重启后位置在 trial 之间变化，新截图后模型适配了�
 本次完整后端 **4484 passed/1 skipped**，E2E **14 场景/55 步**，其余要求
 检查通过。[验收计划](../plans/done/gpt55-computer-use-loop.md) 已完成；
 全套跨应用、长历史及上述剩余问题已纳入
-[后续执行计划](../plans/active/computer-use-adaptation-and-grounding.md)；
+[后续执行计划](../plans/done/computer-use-adaptation-and-grounding.md)（已关档，
+结论见 [M8 收口报告](../../backend/benchmarks/computer_use/reports/20260925-m8-closeout/README.md)）；
 多屏/压力等条件性范围仍见 [backlog](../backlog.md)。
 
 ### 提示职责隔离（2026-09-19）
@@ -553,3 +563,36 @@ Benchmark 的输入源管理通过独立 Python 辅助进程的主线程调用 C
 状态；launchDate 缺失时用系统进程启动时间补齐身份，不以 loginwindow 读数推断锁屏。
 正常退出/硬退出/超时三类本机恢复已通过，记录见
 [回读修复与验收](../../backend/benchmarks/computer_use/reports/20260924-m5-recovery-readback/README.md)。
+
+## 采用决定与关档（M8，2026-09-25）
+
+适配与定位专项（M0–M8）已关档。**生产基线保留不变**：默认 agent 无
+`grounding` frontmatter，即一体规划定位 + legacy 归一化坐标 + 现有
+`computer_use` profile。三层证据（静态 holdout 门槛、真实配对任务、
+AX 独立分支）均不支持切换默认，详见
+[M8 收口报告](../../backend/benchmarks/computer_use/reports/20260925-m8-closeout/README.md)。
+
+研究结论与生产已实现行为分开表述：
+
+- **已进生产且默认启用**：M1 提示职责隔离与输入语义修复（显式 paste 模式、
+  IME/Shift 物理键码、粘贴 Command 成对事件）、M2 Observation 与 image 坐标
+  （作为可选 `coordinate_space`，legacy 仍默认）、M3 共享 GroundingAdapter
+  （供实验/探针路径）、期间修复的生产缺陷（type_text Carbon TIS 移入子进程、
+  M2 省略 window_id 验证接缝、非法 JSON 工具参数可恢复）。
+- **已实现、opt-in、未被采用**：M4 规划/定位分离、M5 一体适配
+  （integrated + host_restore/protocol 变体）、M7 AX 语义寻址。一键回退 =
+  删除 agent frontmatter 的 `grounding:` 键。
+- **调查结论（不改变生产行为）**：适配一体 + 宿主还原（B-combined）在
+  calc-open 上四批皆最差（合并 0/6）且耗 ~2.4× token；拆分架构在 calc-open
+  上与基线持平（split vs A p=0.43，vs B-combined p=0.011）但 13 任务宽集上
+  A 10/36 > C 5/36 且 C 耗 1.7–2× token；单位应匹配模型原生习惯
+  （qwen3.8-max 在 pixels 契约下系统性误发归一化值，gpt-5.5 两种单位均可用）；
+  静态首轮候选（Max bbox / GPT point）因同名歧义拒绝 0/16 未过采用门槛；
+  AX 机制闭环成立但选择器精度不足。点击大偏移根因未解决，只能定位到
+  服务输出边界。
+- **条件性后续工作**：原生协议/专用定位模型、静态候选复验、AX 选择模型
+  复验、OCR/编号方案、子代理历史压缩、多屏/动态几何——见
+  [backlog](../backlog.md)。
+
+全量回归（backend 5116 passed / 1 skipped，含旧 N2/SDK）、E2E 16 场景 63 步、
+停止/清理五场景验收全部通过；无新增清理失败或停止后动作。
