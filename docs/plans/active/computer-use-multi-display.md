@@ -1,8 +1,8 @@
 # Computer-use 多显示器支持
 
 > **Status:** In progress — 2026-09-26 立项，生产工具链、单测与 benchmark 三线并行。
-> 同日实现全部落地；实机双屏验收已全部通过（见 §3 结果）；剩余两项：
-> 单屏环境实跑 skip（需拔副屏）与双屏 1-trial LLM smoke（需机器空闲 + API key）。
+> 同日实现全部落地；实机双屏验收与单屏 skip 实跑均已通过（见 §3 结果）；
+> 唯一剩余：双屏 1-trial LLM smoke（需机器空闲 + API key）。
 > 验收中发现并补齐两个缺口：跨屏拖拽原语（drag 增加 display2）与任务指令
 > 两处修正（Calculator 窗口位置还原行为）。
 > 触发来源：[backlog「Computer-use 多显示器支持」](../../backlog.md)（单屏限制阻碍实际桌面任务；
@@ -171,9 +171,15 @@
 
 仍未做（需要条件）：
 
-- 单屏环境实跑 runner 确认 `multi-display-calc` 被 skip 并记录 skipped_tasks
-  （需拔掉副屏；逻辑已由单测覆盖）。
 - 双屏 1-trial LLM smoke（需机器空闲、API key；效果结论另行评估）。
+
+### 单屏环境实跑结果（2026-09-26，副屏关闭后）
+
+- 真实拓扑（未打桩）下 runner 实跑：`min_displays: 2` 任务被跳过、不进任务统计，
+  `skipped_tasks=[{task, reason: "min_displays=2, active=1"}]` 写入 run metadata
+  与 report.json；`displays.count=1` 携带真实拓扑；普通任务正常运行。
+- 真实套件加载检查：`multi-display-calc` 以 `min_displays=2` 正确解析。
+- 单屏回归：默认截图无 DISPLAYS 段（legacy 文案），坐标动作正常解析。
 
 ## 4. 实施顺序
 
