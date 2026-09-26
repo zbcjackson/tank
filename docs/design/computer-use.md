@@ -1,6 +1,6 @@
 # Computer use：macOS 坐标链与验证结论
 
-更新：2026-09-25。本文汇总自研 `computer_use` 与共享 `MacOSDesktopExecutor`
+更新：2026-09-26（多显示器支持；其余结论截至 2026-09-25）。本文汇总自研 `computer_use` 与共享 `MacOSDesktopExecutor`
 的现行行为及验证边界；官方 N2 SDK 是另一条路径，不能直接套用结论。
 逐轮原始证据、历史测试数量和异常记录见
 [macOS 调研](../research/macos-coordinate-chain.md)，复现入口见
@@ -38,13 +38,18 @@ AX 独立分支：适配一体+宿主还原（B-combined）在 calc-open 上是�
 
 ## 截图到点击：默认 legacy 转换
 
-1. Quartz 读取主屏逻辑尺寸和 backing pixels；`screencapture -m` 仅截主屏。
-   已校准环境为 1920×1080 points、3840×2160 pixels。
-2. Retina 图片通过 `sips --resampleWidth` 缩到逻辑宽度。Pillow 检查实际宽高
-   与逻辑尺寸均一致；缩放失败或命令成功但尺寸错误都返回错误。
-3. 完整 PNG 尺寸更新截图缓存。点击使用该全屏尺寸；未截图时仍有 1920×1080
-   默认值，缓存不会自动绑定显示器身份或追踪随后的几何变化。
-4. 可选 `region=[left,top,right,bottom]` 使用全屏 0–1000：转换为像素裁剪，
+1. Quartz 枚举活跃显示器拓扑（`CGGetActiveDisplayList`，按 id 排序；主屏恒在
+   全局原点 (0,0)，负坐标原点合法）。默认 `screencapture -m` 仅截主屏；显式
+   `display=<CGDirectDisplayID>` 时用该屏全局 bounds 的 `screencapture -R` 矩形
+   精确截取（`-D` 是无文档排序的 1-based 序号，不可用于身份选择；两者均在
+   本机双屏实测：主屏 1920×1080@2x，副屏 1080×1920@2x @ (1920,-602)）。
+2. Retina 图片通过 `sips --resampleWidth` 缩到所选屏逻辑宽度。Pillow 检查实际宽高
+   与该屏逻辑尺寸均一致；缩放失败或命令成功但尺寸错误都返回错误。
+3. 完整 PNG 尺寸按屏更新截图缓存（`display_id → (w, h, 全局原点)`），另记
+   最近截图的屏。坐标动作缺省指向该屏，未传 `display` 且从未截图时仍是主屏
+   1920×1080 默认值与 (0,0) 原点——单屏行为与历史字节级一致。显式传未知
+   `display` 时现场读拓扑解析（等价），不存在则错误并列出活跃屏，零输入。
+4. 可选 `region=[left,top,right,bottom]` 使用所选屏 0–1000：转换为像素裁剪，
    最多放大 3 倍；全屏缓存保持不变。例：右下半屏裁为 960×540，再放大
    2 倍成 1920×1080。生产路径由模型按工具提示恢复全屏归一化坐标：
    `full_x = left + local_x * (right-left)/1000`，y 同理；宿主不自动恢复。
@@ -54,10 +59,17 @@ AX 独立分支：适配一体+宿主还原（B-combined）在 calc-open 上是�
 6. SDK 累积 SSE 工具参数，ToolManager 解析并分派。生产支持 x/y、数字字符串、
    bbox 数组中心；macOS 拒绝非有限数、越界及非法结构，不再把越界值静默夹紧。
    数字合法无法区分模型想表达的是 pixels 还是 normalized。
-7. ClickTool 逐轴计算 `min(W-1, int(nx*W/1000))`；executor 使用
-   `round(nx*(W-1)/1000)`。终点在屏幕内，两条路径的内部取整可相差约 1 point。
+7. ClickTool 逐轴计算 `min(W-1, int(nx*W/1000))` 后**加目标屏全局原点**；
+   executor 使用 `round(nx*(W-1)/1000)`（仅主屏，见 executor 一节）。终点
+   在屏幕内，两条路径的内部取整可相差约 1 point。实机验证：`CGEventPost`
+   到副屏全局坐标逐点精确（含负 y 原点）。
 8. points 直接进入 Quartz mouse down/up 和 `CGEventPost`，不再乘 Retina
    倍率。成功投递不等于命中控件或完成业务，必须再观察实际结果。
+
+多屏截图结果仅在活跃屏 >1 时追加 DISPLAYS 段（各屏 id、主屏标记、尺寸、
+布局与缺省规则）；单屏文案不变，保证 benchmark 前后可比。截图后拔掉显示器
+会让缓存原点过期，动作会落在旧坐标——与旧单屏分辨率变化同类，重截图即恢复。
+旧 DesktopExecutor（旧 N2 插件）保持仅主屏语义不变。
 
 源代码：[macOS 工具](../../backend/core/src/tank_backend/tools/computer_use_macos.py)、
 [共用转换](../../backend/core/src/tank_backend/tools/computer_use_common.py)、
@@ -67,14 +79,18 @@ AX 独立分支：适配一体+宿主还原（B-combined）在 calc-open 上是�
 ## 显式 image/frame 接口（M2）
 
 macOS 工具组提供兼容默认 legacy 的可选 `coordinate_space="image"`。截图
-返回不可变 Observation：会话/frame、主屏/窗口身份、实际图片尺寸、整数裁剪
+返回不可变 Observation：会话/frame、屏幕/窗口身份、实际图片尺寸、整数裁剪
 矩形、显示几何及 PNG hash。`region` 为所选屏幕或窗口内的 0–1000 裁剪范围；
-可选 `window_id` 必须是完整位于主屏的可见 Quartz 窗口。截图不含光标。
+可选 `window_id` 必须是完整位于**恰好一台活跃显示器**内的可见 Quartz 窗口
+（跨屏/出界窗口拒绝，与旧“完整在主屏”同级严格度）；截图捕获包含该窗口的
+显示器，也可显式传 `display` 指定屏（与窗口所在屏冲突时报错）。截图不含光标。
 
 点击、框中心、移动、定位滚动与拖拽使用同一 `frame_id` 和图片内零起点像素
 坐标；允许有限小数，拒绝字符串、布尔值、越界和倒置框。框中心先计算，再按
-实际 `crop` 与 `image_size` 逐轴还原；最终在 Quartz 边界四舍五入（half up），
+实际 `crop` 与 `image_size` 逐轴还原，**再加绑定屏的全局原点**（`display_geometry[1:3]`，
+主屏为 (0,0)）；最终在 Quartz 边界四舍五入（half up），
 末端限制为裁剪区域最后一个有效源像素。Retina 不重复相乘；不使用全局默认尺寸。
+Image 模式的坐标动作拒绝显式 `display`——frame 已固定屏幕。
 
 ToolManager 注入会话身份。缺失/旧/跨会话 frame、窗口不匹配或几何失效时
 零输入并要求重观察。每次坐标动作前检查显示/窗口几何，不额外截屏或比较像素；
@@ -84,7 +100,10 @@ batch 共享 frame，逐步检查，首错即停并返回新截图。
 像素哈希仅保留为观察证据，不是动作准入条件。允许动画、光标闪烁和无关
 应用变化；同一几何内的按钮移动或弹窗也不会由像素校验拦截，规划器须根据
 反馈截图判断效果并在必要时重新观察。几何检查也无法排除检查到投递之间的变化。
-多屏支持、模型效果、跨应用和完整停止验收不在本次通过结论内。旧 normalized 调用及独立 DesktopExecutor 保持旧语义。
+多显示器拓扑、任意屏窗口绑定与跨屏坐标已在 2026-09-26 支持（见上文 legacy
+节与[多显示器计划](../plans/active/computer-use-multi-display.md)）；模型效果、
+跨应用和完整停止验收不在通过结论内。旧 normalized 调用及独立 DesktopExecutor
+保持旧语义（后者仅主屏）。AX 分支接收绑定屏几何但副屏行为未验收（M7 暂缓不变）。
 
 [M2 报告](../../backend/benchmarks/computer_use/reports/20260920-m2-observation/README.md)
 保留初次全屏场景变化拒绝及窗口九点 9/9、每轴 0 point 的实机证据。
@@ -591,8 +610,11 @@ AX 独立分支）均不支持切换默认，详见
   AX 机制闭环成立但选择器精度不足。点击大偏移根因未解决，只能定位到
   服务输出边界。
 - **条件性后续工作**：原生协议/专用定位模型、静态候选复验、AX 选择模型
-  复验、OCR/编号方案、子代理历史压缩、多屏/动态几何——见
-  [backlog](../backlog.md)。
+  复验、OCR/编号方案、子代理历史压缩、动态几何——见
+  [backlog](../backlog.md)。多显示器已于 2026-09-26 立项支持（生产/测试/
+  benchmark，[计划](../plans/active/computer-use-multi-display.md)）：按屏
+  截图与坐标、任意屏窗口绑定、拓扑校验、benchmark min_displays 与
+  multi-display-calc 任务；实机双屏冒烟（拓扑/副屏截图/跨屏事件坐标）通过。
 
 全量回归（backend 5116 passed / 1 skipped，含旧 N2/SDK）、E2E 16 场景 63 步、
 停止/清理五场景验收全部通过；无新增清理失败或停止后动作。

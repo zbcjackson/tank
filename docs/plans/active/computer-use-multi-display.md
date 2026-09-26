@@ -1,6 +1,10 @@
 # Computer-use 多显示器支持
 
 > **Status:** In progress — 2026-09-26 立项，生产工具链、单测与 benchmark 三线并行。
+> 同日实现全部落地：枚举/按屏截图/跨屏坐标（含 frame 路径）、doctor、
+> benchmark min_displays + multi-display-calc；实机双屏冒烟通过（拓扑/副屏
+> 截图 1080×1920/跨屏 CGEvent 坐标逐点精确；未做真实点击与 1-trial 批跑，
+> 待机器空闲时按 §3 实机验收补记）。
 > 触发来源：[backlog「Computer-use 多显示器支持」](../../backlog.md)（单屏限制阻碍实际桌面任务；
 > 本机已具备双显示器验收环境：主屏 1920×1080@2x + 副屏 1080×1920@2x @ (1920,-602)）。
 
