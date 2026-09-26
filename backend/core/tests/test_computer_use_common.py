@@ -102,13 +102,17 @@ COORD_TOOLS = ("ClickTool", "ScrollTool", "MouseMoveTool")
 
 def test_coordinate_descriptions_identical_across_platforms():
     """A1: click/scroll/mouse_move must advertise identical schemas on
-    Linux and macOS — the same model must work unchanged on either."""
+    Linux and macOS — the same model must work unchanged on either.
+
+    The macOS-only optional ``display`` parameter (multi-monitor) is
+    excluded: it is additive, never required, and unused on Linux."""
     from tank_backend.tools import computer_use as linux_mod
     from tank_backend.tools import computer_use_macos as macos_mod
 
     for name in COORD_TOOLS:
         linux_params = _param_map(getattr(linux_mod, name)().get_info())
         macos_params = _param_map(getattr(macos_mod, name)().get_info())
+        macos_params.pop("display", None)
         assert linux_params == macos_params, name
 
 
@@ -131,10 +135,12 @@ async def test_bbox_click_center_end_to_end_both_platforms():
 
     with patch("tank_backend.tools.computer_use_macos._normalized_to_pixel") as n2p:
         n2p.return_value = (150, 150)
+        macos_mod._screen_caches.clear()  # Isolate from other modules' display caches
+        macos_mod._active_display = None
         with patch("tank_backend.tools.computer_use_macos._click_macos") as mac_mock:
             result = await macos_mod.ClickTool().execute(x=[100, 100, 200, 200])
     assert result.error is False
-    n2p.assert_called_once_with(150, 150)
+    n2p.assert_called_once_with(150, 150, None)  # None → main default display
     mac_mock.assert_called_once()
 
 
@@ -160,7 +166,12 @@ def test_click_raw_schema_matches_coordinate_forms_both_platforms():
     from tank_backend.tools import computer_use_macos as macos_mod
 
     linux = linux_mod.ClickTool().get_raw_schema()
-    assert linux is not None and linux == macos_mod.ClickTool().get_raw_schema()
+    macos = macos_mod.ClickTool().get_raw_schema()
+    assert linux is not None and macos is not None
+    # macOS adds only the optional multi-monitor `display` selector.
+    assert set(macos["properties"]) - set(linux["properties"]) == {"display"}
+    macos["properties"].pop("display")
+    assert linux == macos
     assert linux["properties"]["x"]["anyOf"][0]["type"] == "integer"
     assert linux["properties"]["x"]["anyOf"][1]["type"] == "array"
     assert linux["properties"]["bbox"]["minItems"] == 4

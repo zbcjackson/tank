@@ -54,52 +54,129 @@ def _load_quartz() -> Any:
 
 
 # ---------------------------------------------------------------------------
-# Screenshot capture (macOS)
+# Display topology (multi-monitor)
 # ---------------------------------------------------------------------------
 
-def _get_display_scale_factor() -> float:
-    """Get the backing-pixel to logical-point ratio without truncation.
+# Cap for CGGetActiveDisplayList; real desktops stay far below this.
+_MAX_DISPLAYS = 16
 
-    Compares the backing store pixel width (what screencapture produces)
-    to the point width (what CGEvent uses for coordinates).
+
+def _active_displays() -> tuple[tuple[int, ...], ...]:
+    """Active displays as ``(id, ox, oy, w_pts, h_pts, pw_px, ph_px)`` tuples.
+
+    Global CGEvent coordinates are display-local points plus the display
+    origin ``(ox, oy)``. The main display always sits at the origin — that
+    invariant identifies it without a second Quartz round-trip. Entries are
+    sorted by id because CGGetActiveDisplayList order is unspecified.
+    Raises when the topology is not usable (missing main, shifted main,
+    non-positive geometry).
     """
     Quartz = _load_quartz()
 
-    main_display = Quartz.CGMainDisplayID()
-    mode = Quartz.CGDisplayCopyDisplayMode(main_display)
-    backing_width = Quartz.CGDisplayModeGetPixelWidth(mode)
-    point_width = Quartz.CGDisplayModeGetWidth(mode)
-    if point_width and backing_width > point_width:
-        return backing_width / point_width
-    return 1.0
+    err, ids, count = Quartz.CGGetActiveDisplayList(_MAX_DISPLAYS, None, None)
+    if err or not count:
+        raise RuntimeError(f"CGGetActiveDisplayList failed: err={err} count={count}")
+    entries: list[tuple[int, ...]] = []
+    for display in tuple(ids)[:int(count)]:
+        bounds = Quartz.CGDisplayBounds(display)
+        mode = Quartz.CGDisplayCopyDisplayMode(display)
+        entry = (
+            int(display),
+            int(bounds[0][0]), int(bounds[0][1]),
+            int(bounds[1][0]), int(bounds[1][1]),
+            int(Quartz.CGDisplayModeGetPixelWidth(mode)),
+            int(Quartz.CGDisplayModeGetPixelHeight(mode)),
+        )
+        ox, oy, w, h, pw, ph = entry[1:]
+        if w <= 0 or h <= 0 or pw <= 0 or ph <= 0:
+            raise ValueError(f"Display {entry[0]} has invalid geometry {entry[1:]}")
+        entries.append(entry)
+    if not any((e[1], e[2]) == (0, 0) for e in entries):
+        raise ValueError("No display at origin (0,0); main display missing")
+    return tuple(sorted(entries))
 
 
-def _capture_screenshot_macos(*, include_cursor: bool = True) -> bytes:
-    """Capture the screen and return PNG bytes scaled to point-resolution.
+def _display_geometry(
+    display: int, displays: tuple[tuple[int, ...], ...] | None = None,
+) -> tuple[int, ...]:
+    """One display's geometry tuple; raises listing active displays if unknown."""
+    if displays is None:
+        displays = _active_displays()
+    for entry in displays:
+        if entry[0] == display:
+            return entry
+    listing = ", ".join(str(e[0]) for e in displays) or "none"
+    raise ValueError(f"Unknown display {display}; active displays: {listing}")
 
-    macOS screencapture produces Retina (2x) images, but CGEvent uses
-    point coordinates. We resize the screenshot to match point-space
-    so the vision model returns coordinates that map directly to CGEvent.
+
+def _main_geometry(displays: tuple[tuple[int, ...], ...]) -> tuple[int, ...]:
+    """The origin-anchored (main) display entry of a validated topology."""
+    return next(e for e in displays if (e[1], e[2]) == (0, 0))
+
+
+def _displays_note(
+    displays: tuple[tuple[int, ...], ...], captured_id: int | None,
+) -> str:
+    """Multi-display guidance appended to screenshot text; empty when single."""
+    if len(displays) <= 1:
+        return ""
+    listing = "; ".join(
+        f"id={e[0]}{' (main)' if (e[1], e[2]) == (0, 0) else ''} "
+        f"{e[3]}x{e[4]} at ({e[1]},{e[2]})"
+        for e in displays
+    )
+    shown = captured_id if captured_id is not None else "main"
+    return (
+        f" DISPLAYS: {listing}. This image shows display {shown}. Coordinate "
+        "tools (click, scroll, mouse_move, drag) accept display=<id>; the "
+        "default is the display of the most recent screenshot."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Screenshot capture (macOS)
+# ---------------------------------------------------------------------------
+
+def _capture_screenshot_macos(
+    *, include_cursor: bool = True, display: int | None = None,
+) -> bytes:
+    """Capture one display and return PNG bytes scaled to point-resolution.
+
+    ``display=None`` captures the main display with ``-m`` (the calibrated
+    legacy path). An explicit CGDirectDisplayID captures exactly that display
+    via a global-coordinate ``-R`` rect — ``screencapture -D`` takes a
+    1-based index whose ordering is undocumented, so it is not usable for
+    identity-based selection.
+
+    macOS screencapture produces backing-resolution images (2x on Retina),
+    but CGEvent uses point coordinates. We resize the screenshot to match
+    point-space so the vision model returns coordinates that map directly
+    to CGEvent.
     """
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
         tmp_path = f.name
 
     try:
+        displays = _active_displays()
+        geometry = (
+            _display_geometry(display, displays) if display is not None
+            else _main_geometry(displays)
+        )
+        rect = ["-m"] if display is None else [
+            f"-R{geometry[1]},{geometry[2]},{geometry[3]},{geometry[4]}"
+        ]
         result = subprocess.run(
-            ["screencapture", "-x", *(["-C"] if include_cursor else []), "-m", tmp_path],
+            ["screencapture", "-x", *(["-C"] if include_cursor else []), *rect, tmp_path],
             capture_output=True, text=True, timeout=10,
         )
         if result.returncode != 0:
             raise RuntimeError(f"screencapture failed: {result.stderr}")
 
-        scale = _get_display_scale_factor()
-        if scale > 1:
+        if geometry[5] > geometry[3]:
             # Downscale to point-resolution so vision model coordinates
             # map directly to CGEvent points
             result2 = subprocess.run(
-                ["sips", "--resampleWidth",
-                 str(_get_point_width()),
-                 tmp_path],
+                ["sips", "--resampleWidth", str(geometry[3]), tmp_path],
                 capture_output=True, text=True, timeout=10,
             )
             if result2.returncode != 0:
@@ -107,32 +184,22 @@ def _capture_screenshot_macos(*, include_cursor: bool = True) -> bytes:
 
         png_bytes = Path(tmp_path).read_bytes()
         # A successful command is not enough: the image must really match
-        # the main display's logical coordinate space (including its height).
+        # the display's logical coordinate space (including its height).
         import io
 
         from PIL import Image
 
-        Quartz = _load_quartz()
-        mode = Quartz.CGDisplayCopyDisplayMode(Quartz.CGMainDisplayID())
-        expected = (Quartz.CGDisplayModeGetWidth(mode), Quartz.CGDisplayModeGetHeight(mode))
+        expected = (geometry[3], geometry[4])
         with Image.open(io.BytesIO(png_bytes)) as image:
             if image.size != expected:
                 raise RuntimeError(
-                    f"screenshot dimensions {image.size} do not match logical display {expected}"
+                    f"screenshot dimensions {image.size} do not match logical "
+                    f"display {geometry[0]} size {expected}"
                 )
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
     return png_bytes
-
-
-def _get_point_width() -> int:
-    """Get the main display width in points."""
-    Quartz = _load_quartz()
-
-    main_display = Quartz.CGMainDisplayID()
-    mode = Quartz.CGDisplayCopyDisplayMode(main_display)
-    return Quartz.CGDisplayModeGetWidth(mode)
 
 
 # ---------------------------------------------------------------------------
@@ -463,20 +530,49 @@ def _drag_macos(x1: int, y1: int, x2: int, y2: int, button: str = "left") -> Non
 
 
 # ---------------------------------------------------------------------------
-# Coordinate conversion: normalized (0-1000) → pixel
+# Coordinate conversion: normalized (0-1000) → global Quartz points
 # ---------------------------------------------------------------------------
 
-# Last known screen point dimensions for normalized→pixel conversion.
-# Updated each time a screenshot is captured.
-_screen_point_size: tuple[int, int] = (1920, 1080)
+# Last known point size + global origin per display id, updated each time a
+# display is captured. Key None is the un-observed main-display default.
+_screen_caches: dict[int | None, tuple[int, int, int, int]] = {}
+# Display of the most recent screenshot; None → main default. Coordinate
+# tools without an explicit display target this one.
+_active_display: int | None = None
+_DEFAULT_POINT_SIZE = (1920, 1080)
 
 
-def _normalized_to_pixel(x: int, y: int) -> tuple[int, int]:
-    """Convert normalized 0-1000 coordinates to pixel coordinates."""
-    screen_w, screen_h = _screen_point_size
-    px = min(screen_w - 1, int(x * screen_w / 1000))
-    py = min(screen_h - 1, int(y * screen_h / 1000))
+def _normalized_to_pixel(
+    x: int, y: int, display: int | None = None,
+) -> tuple[int, int]:
+    """Convert normalized 0-1000 coordinates to GLOBAL CGEvent points.
+
+    Coordinates are relative to the screenshot the model saw, i.e. the
+    display's local point space; the cached display origin is added so the
+    result lands on that display in the global Quartz coordinate space.
+    """
+    w, h, ox, oy = _screen_caches.get(display) or (*_DEFAULT_POINT_SIZE, 0, 0)
+    px = min(w - 1, int(x * w / 1000)) + ox
+    py = min(h - 1, int(y * h / 1000)) + oy
     return px, py
+
+
+async def _resolve_target_display(display: Any) -> int | None:
+    """Resolve the display a coordinate action targets.
+
+    None → the most recent screenshot's display (or the main default when
+    nothing was captured yet — no Quartz read, matching legacy behavior).
+    An explicit id must be known: either captured before (cache) or still
+    active (live geometry read); unknown ids raise ValueError.
+    """
+    if display is None:
+        return _active_display
+    if isinstance(display, bool) or not isinstance(display, int):
+        raise ValueError("'display' must be a CGDirectDisplayID integer")
+    if display not in _screen_caches:
+        entry = await run_native(_display_geometry, display)
+        _screen_caches[display] = (entry[3], entry[4], entry[1], entry[2])
+    return display
 
 
 # ---------------------------------------------------------------------------
@@ -513,14 +609,45 @@ class ScreenshotTool(BaseTool):
                     description=REGION_DESCRIPTION,
                     required=False,
                 ),
+                ToolParameter(
+                    name="display",
+                    type="integer",
+                    description=(
+                        "Optional CGDirectDisplayID to capture (IDs are listed "
+                        "in multi-display screenshot results). Default: the "
+                        "main display."
+                    ),
+                    required=False,
+                ),
             ],
         )
 
-    async def execute(self, task: str = "", region: Any = None) -> ToolResult:
-        global _screen_point_size
+    async def execute(
+        self, task: str = "", region: Any = None, display: Any = None,
+    ) -> ToolResult:
+        global _active_display
+
+        if display is not None and (isinstance(display, bool) or not isinstance(display, int)):
+            return ToolResult(
+                content="screenshot: 'display' must be a CGDirectDisplayID integer",
+                error=True,
+            )
+        try:
+            displays = await run_native(_active_displays)
+        except Exception:  # noqa: BLE001 — note only; capture reports its own errors
+            displays = ()
+        if display is not None and not any(e[0] == display for e in displays):
+            listing = ", ".join(str(e[0]) for e in displays) or "none"
+            return ToolResult(
+                content=(
+                    f"screenshot: unknown display {display} "
+                    f"(active displays: {listing})"
+                ),
+                error=True,
+            )
 
         try:
-            png_bytes = await run_native(_capture_screenshot_macos)
+            png_bytes = await run_native(_capture_screenshot_macos, display=display)
         except Exception as e:
             return ToolResult(
                 content=f"screenshot: failed to capture screen: {e}",
@@ -528,17 +655,25 @@ class ScreenshotTool(BaseTool):
                 error=True,
             )
 
-        # Get the actual image dimensions and update the module-level cache.
-        # The cache must stay FULL-screen even for zoomed captures — click
-        # coordinates are always full-screen normalized.
+        # Get the actual image dimensions and update the display cache.
+        # The cache must stay FULL-display even for zoomed captures — click
+        # coordinates are always full-display normalized.
         import io
 
         from PIL import Image
         img = Image.open(io.BytesIO(png_bytes))
         width, height = img.width, img.height
-        _screen_point_size = (width, height)
+        entry = (
+            _display_geometry(display, displays) if display is not None and displays
+            else (_main_geometry(displays) if displays else None)
+        )
+        cache_id = entry[0] if entry else None
+        origin = (entry[1], entry[2]) if entry else (0, 0)
+        _screen_caches[cache_id] = (width, height, origin[0], origin[1])
+        _active_display = cache_id
 
         dimension_note = f"Screenshot captured. {COORDINATE_NOTE}"
+        dimension_note += _displays_note(displays, cache_id)
         if region is not None:
             parsed = parse_region(region)
             if parsed is None:
@@ -615,6 +750,15 @@ class ClickTool(BaseTool):
                     required=False,
                     default=1,
                 ),
+                ToolParameter(
+                    name="display",
+                    type="integer",
+                    description=(
+                        "Optional CGDirectDisplayID these coordinates refer to "
+                        "(default: the display of the last screenshot)"
+                    ),
+                    required=False,
+                ),
             ],
         )
 
@@ -623,7 +767,7 @@ class ClickTool(BaseTool):
 
     async def execute(
         self, x: Any = None, y: Any = None, button: str = "left", clicks: int = 1,
-        bbox: Any = None,
+        bbox: Any = None, display: Any = None,
     ) -> ToolResult:
         # 0-1000 normalized input, or a bbox array (Qwen-VL native form).
         if bbox is not None:
@@ -642,18 +786,23 @@ class ClickTool(BaseTool):
                 error=True,
             )
         x, y = point
+        try:
+            target = await _resolve_target_display(display)
+        except (ValueError, RuntimeError, OSError) as e:
+            return ToolResult(content=f"click: {e}", error=True)
 
-        # Convert normalized 0-1000 coordinates to pixel coordinates
-        px, py = _normalized_to_pixel(x, y)
+        # Convert normalized 0-1000 coordinates to global pixel coordinates
+        px, py = _normalized_to_pixel(x, y, target)
 
         try:
             await run_native(_click_macos, px, py, button, clicks)
         except Exception as e:
             return ToolResult(content=f"click: failed: {e}", error=True)
+        where = f", display {target}" if target is not None else ""
         return ToolResult(
             content=(
                 f"Clicked {button} button at normalized ({x}, {y}) "
-                f"→ pixel ({px}, {py}), clicks={clicks}"
+                f"→ pixel ({px}, {py}){where}, clicks={clicks}"
             ),
             display=f"Clicked ({x}, {y})",
         )
@@ -815,11 +964,21 @@ class ScrollTool(BaseTool):
                     description=COORDINATE_Y_DESCRIPTION,
                     required=False,
                 ),
+                ToolParameter(
+                    name="display",
+                    type="integer",
+                    description=(
+                        "Optional CGDirectDisplayID these coordinates refer to "
+                        "(default: the display of the last screenshot)"
+                    ),
+                    required=False,
+                ),
             ],
         )
 
     async def execute(
         self, amount: Any = None, x: Any = None, y: Any = None,
+        display: Any = None,
     ) -> ToolResult:
         try:
             amount = int(amount)  # type: ignore[assignment]
@@ -846,7 +1005,11 @@ class ScrollTool(BaseTool):
                     error=True,
                 )
             x, y = point
-            px, py = _normalized_to_pixel(x, y)
+            try:
+                target = await _resolve_target_display(display)
+            except (ValueError, RuntimeError, OSError) as e:
+                return ToolResult(content=f"scroll: {e}", error=True)
+            px, py = _normalized_to_pixel(x, y, target)
             pos = f" at ({x}, {y})"
 
         try:
@@ -882,10 +1045,21 @@ class MouseMoveTool(BaseTool):
                     name="y", type="integer",
                     description=COORDINATE_Y_DESCRIPTION,
                 ),
+                ToolParameter(
+                    name="display",
+                    type="integer",
+                    description=(
+                        "Optional CGDirectDisplayID these coordinates refer to "
+                        "(default: the display of the last screenshot)"
+                    ),
+                    required=False,
+                ),
             ],
         )
 
-    async def execute(self, x: Any, y: Any = None) -> ToolResult:
+    async def execute(
+        self, x: Any, y: Any = None, display: Any = None,
+    ) -> ToolResult:
         point = normalize_point(x, y, strict=True)
         if point is None:
             return ToolResult(
@@ -897,7 +1071,11 @@ class MouseMoveTool(BaseTool):
             )
         x, y = point
 
-        px, py = _normalized_to_pixel(x, y)
+        try:
+            target = await _resolve_target_display(display)
+        except (ValueError, RuntimeError, OSError) as e:
+            return ToolResult(content=f"mouse_move: {e}", error=True)
+        px, py = _normalized_to_pixel(x, y, target)
         try:
             await run_native(_move_macos, px, py)
         except Exception as e:
@@ -1087,11 +1265,21 @@ class DragTool(BaseTool):
                 ToolParameter(
                     name="y2", type="integer", description="End Y (0-1000 normalized)"
                 ),
+                ToolParameter(
+                    name="display",
+                    type="integer",
+                    description=(
+                        "Optional CGDirectDisplayID these coordinates refer to "
+                        "(default: the display of the last screenshot)"
+                    ),
+                    required=False,
+                ),
             ],
         )
 
     async def execute(
         self, x1: Any, y1: Any = None, x2: Any = None, y2: Any = None,
+        display: Any = None,
     ) -> ToolResult:
         start = normalize_point(x1, y1, strict=True)
         end = normalize_point(x2, y2, strict=True)
@@ -1100,8 +1288,12 @@ class DragTool(BaseTool):
                 content="drag: pass x1/y1/x2/y2 as integers (0-1000 normalized)",
                 error=True,
             )
-        sx, sy = _normalized_to_pixel(*start)
-        ex, ey = _normalized_to_pixel(*end)
+        try:
+            target = await _resolve_target_display(display)
+        except (ValueError, RuntimeError, OSError) as e:
+            return ToolResult(content=f"drag: {e}", error=True)
+        sx, sy = _normalized_to_pixel(*start, target)
+        ex, ey = _normalized_to_pixel(*end, target)
         try:
             await run_native(_drag_macos, sx, sy, ex, ey)
         except Exception as e:

@@ -53,9 +53,11 @@ def ascii_input_source():
 @pytest.fixture(autouse=True)
 def reset_screen_size():
     """Reset the module-level screen-size cache between tests."""
-    cu_macos._screen_point_size = (1920, 1080)
+    cu_macos._screen_caches.clear()
+    cu_macos._active_display = None
     yield
-    cu_macos._screen_point_size = (1920, 1080)
+    cu_macos._screen_caches.clear()
+    cu_macos._active_display = None
 
 
 class _FakeQuartz:
@@ -140,16 +142,16 @@ class TestNormalizedToPixel:
         assert _normalized_to_pixel(0, 0) == (0, 0)
 
     def test_max_maps_inside_screen(self):
-        cu_macos._screen_point_size = (2560, 1600)
+        cu_macos._screen_caches[None] = (2560, 1600, 0, 0)
         assert _normalized_to_pixel(1000, 1000) == (2559, 1599)
 
     def test_center(self):
-        cu_macos._screen_point_size = (2000, 1000)
+        cu_macos._screen_caches[None] = (2000, 1000, 0, 0)
         assert _normalized_to_pixel(500, 500) == (1000, 500)
 
     def test_respects_aspect_ratio(self):
         # Non-square screen: x and y scale independently
-        cu_macos._screen_point_size = (3840, 1200)
+        cu_macos._screen_caches[None] = (3840, 1200, 0, 0)
         px, py = _normalized_to_pixel(250, 750)
         assert px == 960  # 250/1000 * 3840
         assert py == 900  # 750/1000 * 1200
@@ -168,7 +170,9 @@ class TestScreenshotTool:
     @pytest.mark.asyncio
     async def test_returns_image_and_updates_cache(self):
         tool = ScreenshotTool()
-        with patch(f"{MODULE}._capture_screenshot_macos", return_value=make_png(800, 600)):
+        topology = ((2, 0, 0, 1920, 1080, 3840, 2160),)
+        with patch(f"{MODULE}._capture_screenshot_macos", return_value=make_png(800, 600)), \
+             patch(f"{MODULE}._active_displays", return_value=topology):
             result = await tool.execute(task="find the button")
 
         assert result.error is False
@@ -176,9 +180,11 @@ class TestScreenshotTool:
         assert isinstance(blocks, list)
         assert isinstance(blocks[0], TextBlock)
         assert "0-1000" in blocks[0].text
+        assert "DISPLAYS" not in blocks[0].text  # Single display: legacy note verbatim
         assert isinstance(blocks[1], ImageBlock)
         assert blocks[1].source.startswith("data:image/png;base64,")
-        assert cu_macos._screen_point_size == (800, 600)
+        assert cu_macos._screen_caches[2] == (800, 600, 0, 0)
+        assert cu_macos._active_display == 2
 
     @pytest.mark.asyncio
     async def test_capture_failure(self):
@@ -671,17 +677,18 @@ class TestScreenshotZoomMacos:
     @pytest.mark.asyncio
     async def test_region_zooms_and_keeps_full_cache(self):
         tool = ScreenshotTool()
+        topology = ((2, 0, 0, 1920, 1080, 3840, 2160),)
         with patch(
             f"{MODULE}._capture_screenshot_macos",
             return_value=make_png(400, 200),
-        ):
+        ), patch(f"{MODULE}._active_displays", return_value=topology):
             result = await tool.execute(region=[0, 0, 500, 1000])
 
         assert result.error is False
         assert isinstance(result.content, list) and isinstance(result.content[0], TextBlock)
         assert "ZOOMED" in result.content[0].text
         # Cache stays FULL screen (point space) for click conversion.
-        assert cu_macos._screen_point_size == (400, 200)
+        assert cu_macos._screen_caches[2] == (400, 200, 0, 0)
 
     @pytest.mark.asyncio
     async def test_invalid_region_errors(self):
@@ -689,7 +696,7 @@ class TestScreenshotZoomMacos:
         with patch(
             f"{MODULE}._capture_screenshot_macos",
             return_value=make_png(100, 100),
-        ):
+        ), patch(f"{MODULE}._active_displays", return_value=((2, 0, 0, 1920, 1080, 3840, 2160),)):
             result = await tool.execute(region="not-a-region")
         assert result.error is True
         assert "region" in result.content
@@ -703,27 +710,70 @@ def capture_chain(
 
     The sips substitute performs a real Pillow resize. This verifies Tank's
     command contract, not the installed macOS sips or physical event delivery.
+    Param shape: ``(width, height, scale, fail_resize[, extra_display])`` where
+    ``extra_display = (id, ox, oy, w, h)`` adds a second display (same scale
+    factor) to the topology. The resolved topology is exposed as
+    ``quartz.topology`` for assertions.
     """
     from PIL import Image, ImageDraw
 
-    width, height, scale, fail_resize = getattr(request, "param", (1920, 1080, 2, False))
+    param = getattr(request, "param", (1920, 1080, 2, False))
+    width, height, scale, fail_resize = param[:4]
+    extra = param[4] if len(param) > 4 else None
     quartz = MagicMock()
-    quartz.CGDisplayModeGetPixelHeight.return_value = height * scale
-    quartz.CGDisplayModeGetPixelWidth.return_value = width * scale
-    quartz.CGDisplayModeGetWidth.return_value = width
-    quartz.CGDisplayModeGetHeight.return_value = height
+    main_id = 2
+    entries: list[tuple[int, ...]] = [
+        (main_id, 0, 0, width, height, round(width * scale), round(height * scale)),
+    ]
+    if extra is not None:
+        extra_id, ox, oy, extra_w, extra_h = extra
+        entries.append(
+            (extra_id, ox, oy, extra_w, extra_h,
+             round(extra_w * scale), round(extra_h * scale))
+        )
+    # Single mutable source of truth: tests may rewrite quartz.topology to
+    # simulate geometry changes mid-flight.
+    quartz.topology = tuple(sorted(entries))
+
+    def entry_for(display: int) -> tuple[int, ...]:
+        return next(e for e in quartz.topology if e[0] == display)
+
+    quartz.CGGetActiveDisplayList.side_effect = (
+        lambda *a: (0, tuple(e[0] for e in quartz.topology), len(quartz.topology))
+    )
+    quartz.CGMainDisplayID.return_value = main_id
+    quartz.CGDisplayBounds.side_effect = lambda d: (entry_for(d)[1:3], entry_for(d)[3:5])
+    quartz.CGDisplayCopyDisplayMode.side_effect = entry_for
+    quartz.CGDisplayModeGetWidth.side_effect = lambda m: m[3]
+    quartz.CGDisplayModeGetHeight.side_effect = lambda m: m[4]
+    quartz.CGDisplayModeGetPixelWidth.side_effect = lambda m: m[5]
+    quartz.CGDisplayModeGetPixelHeight.side_effect = lambda m: m[6]
     quartz.CGPointMake.side_effect = lambda x, y: (x, y)
     paths: list[Path] = []
+
+    def display_scale(rect: tuple[int, int, int, int]) -> float:
+        ox, oy, w, h = rect
+        for entry in quartz.topology:
+            if (entry[1], entry[2], entry[3], entry[4]) == (ox, oy, w, h):
+                return entry[5] / entry[3]
+        raise AssertionError(f"No display matches rect {rect}")
 
     def run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         path = Path(args[-1])
         if args[0] == "screencapture":
             paths.append(path)
-            img = Image.new("RGB", (round(width * scale), round(height * scale)), "black")
+            if "-m" in args:
+                cap_w, cap_h, cap_scale = width, height, scale
+            else:
+                rect_arg = next(a for a in args if a.startswith("-R"))
+                rect_values = [int(v) for v in rect_arg[2:].split(",")]
+                cap_w, cap_h = rect_values[2], rect_values[3]
+                cap_scale = display_scale(tuple(rect_values))
+            img = Image.new("RGB", (round(cap_w * cap_scale), round(cap_h * cap_scale)), "black")
             # Known target in the lower-right quadrant, away from crop edges.
             ImageDraw.Draw(img).rectangle(
-                (width * scale * 0.7, height * scale * 0.7,
-                 width * scale * 0.8, height * scale * 0.8), fill="red",
+                (cap_w * cap_scale * 0.7, cap_h * cap_scale * 0.7,
+                 cap_w * cap_scale * 0.8, cap_h * cap_scale * 0.8), fill="red",
             )
             img.save(path)
         elif args[0] == "sips":
@@ -773,13 +823,14 @@ async def test_capture_to_wire_to_quartz_preserves_coordinate_space(capture_chai
     result = await ScreenshotTool().execute()
     assert not result.error
     png, note = screenshot_wire_image(result)
+    main = quartz.topology[0]
     with Image.open(io.BytesIO(png)) as img:
         width, height = img.size
-        assert width == quartz.CGDisplayModeGetWidth.return_value
-        assert height == quartz.CGDisplayModeGetHeight.return_value
+        assert (width, height) == main[3:5]
         assert img.getpixel((round(width * 0.75), round(height * 0.75))) == (255, 0, 0)
     assert "0-1000" in note
-    assert cu_macos._screen_point_size == (width, height)
+    assert "DISPLAYS" not in note  # Single display keeps the legacy note byte-identical
+    assert cu_macos._screen_caches[main[0]] == (width, height, 0, 0)
     result = await ClickTool().execute(x=750, y=750)
     assert not result.error
     point = (int(width * 0.75), int(height * 0.75))
@@ -789,7 +840,7 @@ async def test_capture_to_wire_to_quartz_preserves_coordinate_space(capture_chai
         quartz.kCGEventLeftMouseDown, quartz.kCGEventLeftMouseUp,
     ]
     assert quartz.CGEventPost.call_count == 2
-    needs_resize = quartz.CGDisplayModeGetPixelWidth() > width
+    needs_resize = main[5] > width
     assert [call.args[0][0] for call in command.call_args_list] == (
         ["screencapture", "sips"] if needs_resize else ["screencapture"]
     )
@@ -798,7 +849,8 @@ async def test_capture_to_wire_to_quartz_preserves_coordinate_space(capture_chai
 
 async def test_successful_but_wrong_screenshot_dimensions_are_rejected(capture_chain):
     quartz, _ = capture_chain
-    quartz.CGDisplayModeGetHeight.return_value = 1200
+    i, ox, oy, w, h, pw, ph = quartz.topology[0]
+    quartz.topology = ((i, ox, oy, w, 1200, pw, ph),)  # Lie about the logical height
     result = await ScreenshotTool().execute()
     assert result.error
     assert "dimensions" in result.content
@@ -820,7 +872,7 @@ async def test_resize_failure_never_advertises_retina_pixels_as_points(capture_c
         result = await ScreenshotTool().execute()
         assert result.error
         assert "sips" in result.content
-        assert cu_macos._screen_point_size == (1920, 1080)
+        assert not cu_macos._screen_caches  # Failure must not publish a cache
     quartz.CGEventCreateMouseEvent.assert_not_called()
 
 
@@ -837,7 +889,7 @@ async def test_zoom_wire_pixels_and_full_screen_click_mapping(capture_chain):
         assert img.getpixel((1440, 810)) == (0, 0, 0)
     assert "full_x = 500 + (1000-500) * crop_x / 1000" in note
     assert "full_y = 500 + (1000-500) * crop_y / 1000" in note
-    assert cu_macos._screen_point_size == (1920, 1080)
+    assert cu_macos._screen_caches[2] == (1920, 1080, 0, 0)
     # Correct model-side conversion of crop center -> full-screen (750,750).
     await ClickTool().execute(x=750, y=750)
     assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1440, 810)
@@ -856,7 +908,7 @@ async def test_small_crop_caps_zoom_at_three_without_changing_click_space(captur
         # 192x108 crop is capped at 3x, rather than enlarged 10x to full size.
         assert img.size == (576, 324)
         assert img.getpixel((288, 162)) == (255, 0, 0)
-    assert cu_macos._screen_point_size == (1920, 1080)
+    assert cu_macos._screen_caches[2] == (1920, 1080, 0, 0)
     await ClickTool().execute(x=750, y=750)
     assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1440, 810)
 
@@ -873,6 +925,196 @@ async def test_model_arguments_reach_quartz_after_real_capture(capture_chain, kw
     result = await ClickTool().execute(**kwargs)
     assert not result.error
     assert quartz.CGEventCreateMouseEvent.call_args.args[2] == expected
+
+
+# ---------------------------------------------------------------------------
+# Multi-display topology, capture and coordinates
+# ---------------------------------------------------------------------------
+
+
+def _display_quartz(monkeypatch, entries, main_id=2):
+    quartz = MagicMock()
+    quartz.CGGetActiveDisplayList.side_effect = lambda *a: (
+        0, tuple(e[0] for e in entries), len(entries),
+    )
+    quartz.CGMainDisplayID.return_value = main_id
+
+    def entry_for(display):
+        return next(e for e in entries if e[0] == display)
+
+    quartz.CGDisplayBounds.side_effect = lambda d: (entry_for(d)[1:3], entry_for(d)[3:5])
+    quartz.CGDisplayCopyDisplayMode.side_effect = entry_for
+    quartz.CGDisplayModeGetWidth.side_effect = lambda m: m[3]
+    quartz.CGDisplayModeGetHeight.side_effect = lambda m: m[4]
+    quartz.CGDisplayModeGetPixelWidth.side_effect = lambda m: m[5]
+    quartz.CGDisplayModeGetPixelHeight.side_effect = lambda m: m[6]
+    monkeypatch.setattr(cu_macos, "_load_quartz", lambda: quartz)
+    return quartz
+
+
+class TestActiveDisplays:
+    def test_enumerates_sorted_topology(self, monkeypatch):
+        # Enumeration order (5 before 2) must not leak: entries sort by id.
+        _display_quartz(monkeypatch, [
+            (5, 1920, -602, 1080, 1920, 2160, 3840),
+            (2, 0, 0, 1920, 1080, 3840, 2160),
+        ])
+        assert cu_macos._active_displays() == (
+            (2, 0, 0, 1920, 1080, 3840, 2160),
+            (5, 1920, -602, 1080, 1920, 2160, 3840),
+        )
+
+    def test_rejects_topology_without_origin_display(self, monkeypatch):
+        _display_quartz(monkeypatch, [
+            (5, 1920, -602, 1080, 1920, 2160, 3840),
+            (2, 100, 50, 1920, 1080, 3840, 2160),
+        ])
+        with pytest.raises(ValueError, match="origin"):
+            cu_macos._active_displays()
+
+    def test_rejects_nonpositive_geometry(self, monkeypatch):
+        _display_quartz(monkeypatch, [
+            (2, 0, 0, 1920, 1080, 3840, 2160),
+            (5, 1920, -602, 0, 1920, 2160, 3840),
+        ])
+        with pytest.raises(ValueError, match="invalid geometry"):
+            cu_macos._active_displays()
+
+    def test_display_geometry_unknown_id_lists_active(self, monkeypatch):
+        _display_quartz(monkeypatch, [(2, 0, 0, 1920, 1080, 3840, 2160)])
+        with pytest.raises(ValueError, match="active displays: 2"):
+            cu_macos._display_geometry(999)
+
+
+TWO_DISPLAYS = (1920, 1080, 2, False, (5, 1920, -602, 1080, 1920))
+
+
+@pytest.mark.parametrize("capture_chain", [TWO_DISPLAYS], indirect=True)
+async def test_explicit_display_capture_uses_global_rect(capture_chain):
+    from PIL import Image
+
+    quartz, command = capture_chain
+    result = await ScreenshotTool().execute(display=5)
+    assert not result.error
+    png, note = screenshot_wire_image(result)
+    with Image.open(io.BytesIO(png)) as img:
+        assert img.size == (1080, 1920)  # Secondary display point size
+    assert "-R1920,-602,1080,1920" in command.call_args_list[0].args[0]
+    assert "-m" not in command.call_args_list[0].args[0]
+    # sips resamples to THAT display's point width, not the main one.
+    assert command.call_args_list[1].args[0][2] == "1080"
+    assert cu_macos._screen_caches[5] == (1080, 1920, 1920, -602)
+    assert cu_macos._active_display == 5
+    assert "DISPLAYS" in note
+    assert "id=2 (main) 1920x1080 at (0,0)" in note
+    assert "id=5 1080x1920 at (1920,-602)" in note
+    assert "display 5" in note
+
+
+@pytest.mark.parametrize("capture_chain", [TWO_DISPLAYS], indirect=True)
+async def test_unknown_display_rejected_before_any_host_call(capture_chain):
+    quartz, command = capture_chain
+    result = await ScreenshotTool().execute(display=999)
+    assert result.error
+    assert "unknown display 999" in result.content
+    assert "active displays: 2, 5" in result.content
+    command.assert_not_called()
+
+
+@pytest.mark.parametrize("capture_chain", [TWO_DISPLAYS], indirect=True)
+async def test_default_click_targets_last_screenshot_display(capture_chain):
+    quartz, _ = capture_chain
+    assert await ScreenshotTool().execute(display=5)
+    quartz.CGEventCreateMouseEvent.reset_mock()
+    result = await ClickTool().execute(x=100, y=100)
+    assert not result.error
+    # local (min(1079, 100*1080//1000), min(1919, 100*1920//1000)) + origin
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (1920 + 108, -602 + 192)
+    assert "display 5" in result.content
+
+
+@pytest.mark.parametrize("capture_chain", [TWO_DISPLAYS], indirect=True)
+async def test_explicit_display_click_can_cross_back_to_main(capture_chain):
+    quartz, _ = capture_chain
+    assert await ScreenshotTool().execute(display=5)
+    quartz.CGEventCreateMouseEvent.reset_mock()
+    result = await ClickTool().execute(x=500, y=500, display=2)
+    assert not result.error
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (960, 540)
+
+
+@pytest.mark.parametrize("capture_chain", [TWO_DISPLAYS], indirect=True)
+async def test_click_resolves_never_captured_display_live(capture_chain):
+    quartz, _ = capture_chain
+    result = await ClickTool().execute(x=100, y=100, display=5)
+    assert not result.error
+    assert cu_macos._screen_caches[5] == (1080, 1920, 1920, -602)
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (2028, -410)
+
+
+@pytest.mark.parametrize("capture_chain", [TWO_DISPLAYS], indirect=True)
+async def test_unknown_display_click_rejects_without_input(capture_chain):
+    quartz, _ = capture_chain
+    result = await ClickTool().execute(x=100, y=100, display=999)
+    assert result.error
+    assert "Unknown display 999" in result.content
+    quartz.CGEventPost.assert_not_called()
+
+
+@pytest.mark.parametrize("capture_chain", [TWO_DISPLAYS], indirect=True)
+@pytest.mark.parametrize(
+    ("tool", "kwargs"),
+    [
+        ("scroll", {"amount": 3, "x": 500, "y": 500}),
+        ("move", {"x": 500, "y": 500}),
+        ("drag", {"x1": 100, "y1": 100, "x2": 200, "y2": 200}),
+    ],
+)
+async def test_coordinate_tools_apply_display_origin(capture_chain, tool, kwargs):
+    from tank_backend.tools.computer_use_macos import DragTool, MouseMoveTool, ScrollTool
+
+    tools = {"scroll": ScrollTool, "move": MouseMoveTool, "drag": DragTool}
+    quartz, _ = capture_chain
+    assert await ScreenshotTool().execute(display=5)
+    quartz.CGEventCreateMouseEvent.reset_mock()
+    result = await tools[tool]().execute(**kwargs)
+    assert not result.error
+    points = [call.args[2] for call in quartz.CGEventCreateMouseEvent.call_args_list]
+    assert points
+    expected = {
+        # local point + display-5 origin (1920, -602)
+        "scroll": [(1920 + 540, -602 + 960)],
+        "move": [(1920 + 540, -602 + 960)],
+        "drag": [(1920 + 108, -602 + 192), (1920 + 216, -602 + 384)],
+    }
+    if tool == "drag":
+        # Drag posts move, down, stepped drags and up; the release lands on end.
+        assert points[-1] == expected["drag"][-1]
+        assert points[0] == expected["drag"][0]
+    else:
+        assert points[0] == expected[tool][0]
+
+
+@pytest.mark.parametrize("capture_chain", [TWO_DISPLAYS], indirect=True)
+async def test_multi_display_default_capture_still_uses_main_flag(capture_chain):
+    _, command = capture_chain
+    result = await ScreenshotTool().execute()
+    assert not result.error
+    assert "-m" in command.call_args_list[0].args[0]
+    assert cu_macos._active_display == 2
+    assert cu_macos._screen_caches[2] == (1920, 1080, 0, 0)
+
+
+@pytest.mark.parametrize("capture_chain", [TWO_DISPLAYS], indirect=True)
+async def test_non_integer_display_argument_rejected(capture_chain):
+    quartz, _ = capture_chain
+    result = await ScreenshotTool().execute(display="5")
+    assert result.error
+    assert "CGDirectDisplayID integer" in result.content
+    result = await ClickTool().execute(x=1, y=1, display=True)
+    assert result.error
+    assert "CGDirectDisplayID integer" in result.content
+    quartz.CGEventPost.assert_not_called()
 
 
 @pytest.mark.parametrize(("x", "y"), [
@@ -1197,7 +1439,7 @@ async def test_frame_rejects_unusable_observation_without_input(frame_manager, c
     elif change == "session":
         manager.set_session_id("other")
     elif change == "geometry":
-        quartz.CGMainDisplayID.return_value = 6
+        quartz.topology = ((6, 0, 0, 1920, 1080, 3840, 2160),)  # Bound display vanished
     result = await manager.execute_tool(
         "click", coordinate_space="image", frame_id=frame_id, x=100, y=100,
     )
@@ -1248,7 +1490,8 @@ async def test_frame_batch_keeps_owner_and_stops_after_scene_change(
     def post(*args):
         original_post(*args)
         if scene_changes:
-            quartz.CGMainDisplayID.return_value = 6
+            i, ox, oy, w, h, pw, ph = quartz.topology[0]
+            quartz.topology = ((i, ox, oy, w, h + 10, pw, ph),)  # Geometry drifts mid-batch
 
     with patch.object(quartz, "CGEventPost", side_effect=post):
         result = await manager.execute_tool(
@@ -1394,8 +1637,8 @@ async def test_frame_retina_crop_and_edge_rounding(capture_chain, region):
     from tank_backend.tools.computer_frame import FrameState, FrameTool
 
     quartz, _ = capture_chain
-    width = quartz.CGDisplayModeGetWidth()
-    height = quartz.CGDisplayModeGetHeight()
+    width = quartz.topology[0][3]
+    height = quartz.topology[0][4]
     quartz.CGMainDisplayID.return_value = 5
     quartz.CGDisplayBounds.return_value = ((0, 0), (width, height))
     state = FrameState()
@@ -1454,14 +1697,14 @@ async def test_frame_cancel_during_revalidation_never_dispatches(frame_manager):
 
     from tank_backend.tools import computer_frame
 
-    original_geometry = computer_frame._geometry()
+    original_topology = computer_frame._topology()
 
-    def geometry():
+    def topology():
         started.set()
         assert release.wait(5)
-        return original_geometry
+        return original_topology
 
-    with patch.object(computer_frame, "_geometry", side_effect=geometry):
+    with patch.object(computer_frame, "_topology", side_effect=topology):
         pending = asyncio.create_task(
             manager.execute_tool(
                 "click",
