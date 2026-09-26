@@ -1,0 +1,30 @@
+# 多显示器任务：要求真实双屏环境（min_displays: 2）。
+# 单屏环境跑批时该任务被 runner 显式跳过并记录 skipped_tasks，不进成功率分母。
+# 验证 = 业务结果（calc_validator 严格 7×8/56，前台 Calculator AX 显示）
+#       && 窗口位置（display_validator：Calculator 完整位于非主显示器）。
+# 不验证副屏截图像素——那会把「截图过」当「算对过」。
+id: multi-display-calc
+category: multi-window
+difficulty: 2
+platforms: [macos]
+min_displays: 2
+gui_only: true
+instruction: |
+  本机连接了多台显示器。多屏截图结果会列出所有显示器的 display id、
+  主屏标记和各自布局；坐标工具（click/scroll/mouse_move/drag）都接受
+  display=<id> 参数，缺省指向最近一次截图的显示器。
+  请完成：
+  1. 截取非主显示器（记下它的 display id）。
+  2. 点击该显示器桌面的空白区域，把键盘/鼠标焦点切换过去。
+  3. 在该显示器上打开系统计算器 Calculator，用鼠标点击按钮算出 7×8。
+  4. 对该显示器截图，确认 7×8 和 56 显示在屏幕上。
+  全程不要把 Calculator 窗口移回主显示器。
+setup: |
+  pkill -x Calculator 2>/dev/null; python -m tank_backend.benchmarks.calc_validator --reset; true
+validator:
+  kind: shell
+  command: python -m tank_backend.benchmarks.calc_validator && python -m tank_backend.benchmarks.display_validator --calculator-on-secondary
+teardown: |
+  killall Calculator 2>/dev/null || true
+timeout_s: 180
+scoring: strict

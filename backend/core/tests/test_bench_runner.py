@@ -1375,3 +1375,78 @@ def test_ime_native_ascii_operation_reports_capability(monkeypatch):
     assert payload == {"ok": True, "ascii": True}
     core.CFRelease.assert_called_once()
     assert int(core.CFRelease.call_args.args[0].value) == source
+
+
+async def test_run_suite_skips_min_displays_task_and_records_reason(
+    tmp_path, monkeypatch,
+):
+    """A multi-display task is skipped (not failed) on a single-display host."""
+    from tank_backend.benchmarks import runner as runner_module
+
+    suite_dir = _make_suite(tmp_path)
+    work = tmp_path / "bench-work"
+    (suite_dir / "tasks" / "t3.yaml").write_text(
+        TASK_YAML.format(tid="t3", work=work) + "\nmin_displays: 2\n", encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        runner_module, "_display_environment",
+        lambda platform: {"displays": {"count": 1, "topology": [[2, 0, 0, 1920, 1080]]}},
+    )
+    monkeypatch.setattr(runner_module, "save_current_input_source", lambda: None)
+    monkeypatch.setattr(runner_module, "restore_saved_input_source", lambda: None)
+    monkeypatch.setattr(runner_module, "pin_ascii_input_source", lambda: None)
+
+    ran: list[str] = []
+
+    class RecordingDriver(FakeDriver):
+        async def run(self, instruction, trace, *, timeout_s, max_steps):
+            ran.append("t3" if "t3" in instruction else "other")
+            await super().run(instruction, trace, timeout_s=timeout_s, max_steps=max_steps)
+            return DriverResult("done", 1, 0.5, 10, 1, False, None)
+
+    report = await run_suite(
+        suite_dir, lambda: RecordingDriver(), platform="macos",
+        trials=1, out_dir=tmp_path / "out", label="single-display",
+    )
+    assert "t3" not in ran  # never started, never counted
+    assert "t3" not in report.tasks
+    assert report.metadata["skipped_tasks"] == [{
+        "task": "t3", "reason": "min_displays=2, active=1",
+    }]
+    assert report.metadata["displays"]["count"] == 1
+
+
+async def test_run_suite_runs_min_displays_task_when_available(tmp_path, monkeypatch):
+    from tank_backend.benchmarks import runner as runner_module
+
+    suite_dir = _make_suite(tmp_path)
+    work = tmp_path / "bench-work"
+    (suite_dir / "tasks" / "t3.yaml").write_text(
+        TASK_YAML.format(tid="t3", work=work) + "\nmin_displays: 2\n", encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        runner_module, "_display_environment",
+        lambda platform: {"displays": {"count": 2, "topology": [[2, 0, 0, 1920, 1080]]}},
+    )
+    monkeypatch.setattr(runner_module, "save_current_input_source", lambda: None)
+    monkeypatch.setattr(runner_module, "restore_saved_input_source", lambda: None)
+    monkeypatch.setattr(runner_module, "pin_ascii_input_source", lambda: None)
+
+    import asyncio
+
+    class TouchFlagDriver(FakeDriver):
+        async def run(self, instruction, trace, *, timeout_s, max_steps):
+            await super().run(instruction, trace, timeout_s=timeout_s, max_steps=max_steps)
+            tid = "t3" if "t3" in instruction else "t1"
+            proc = await asyncio.create_subprocess_exec(
+                "bash", "-c", f"mkdir -p {work} && touch {work}/{tid}.flag"
+            )
+            await proc.wait()
+            return DriverResult("done", 1, 0.5, 10, 1, False, None)
+
+    report = await run_suite(
+        suite_dir, lambda: TouchFlagDriver(), platform="macos",
+        trials=1, out_dir=tmp_path / "out", label="multi-display",
+    )
+    assert report.metadata["skipped_tasks"] == []
+    assert report.tasks["t3"].trials > 0 and report.tasks["t3"].successes > 0

@@ -38,6 +38,9 @@ class BenchTask:
     max_steps: int = 30
     scoring: str = "strict"
     gui_only: bool = False
+    # Multi-display tasks: skipped (with a recorded reason) when the host
+    # has fewer active displays. macOS only; Linux stays single-display.
+    min_displays: int = 1
 
 
 @dataclass(frozen=True)
@@ -128,6 +131,10 @@ def load_task(
     if not isinstance(gui_only, bool):
         raise TaskError(f"{where}: gui_only must be a boolean")
 
+    min_displays = raw.get("min_displays", merged.get("min_displays", 1))
+    if not isinstance(min_displays, int) or isinstance(min_displays, bool) or min_displays < 1:
+        raise TaskError(f"{where}: min_displays must be an integer >= 1")
+
     return BenchTask(
         id=task_id,
         category=category,
@@ -141,6 +148,7 @@ def load_task(
         max_steps=int(max_steps),
         scoring=scoring,
         gui_only=gui_only,
+        min_displays=int(min_displays),
     )
 
 

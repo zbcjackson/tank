@@ -295,3 +295,40 @@ def test_bench_task_is_frozen():
     )
     with pytest.raises(AttributeError):
         task.id = "y"  # type: ignore[misc]
+
+
+
+# ── min_displays (multi-monitor tasks) ───────────────────────────────
+
+
+MIN_DISPLAYS_YAML = """
+id: {tid}
+category: app
+difficulty: 1
+platforms: [macos]
+instruction: "x"
+validator:
+  kind: shell
+  command: "true"
+{extra}
+"""
+
+
+def test_min_displays_defaults_and_explicit(tmp_path):
+    task = load_task(_write(tmp_path, MIN_DISPLAYS_YAML.format(tid="d1", extra="")),
+                     platform="macos")
+    assert task.min_displays == 1
+
+    task = load_task(
+        _write(tmp_path, MIN_DISPLAYS_YAML.format(tid="d2", extra="min_displays: 2")),
+        platform="macos",
+    )
+    assert task.min_displays == 2
+
+
+@pytest.mark.parametrize("bad", ["min_displays: 0", "min_displays: -1",
+                                 "min_displays: true", "min_displays: \"2\""])
+def test_min_displays_invalid_rejected(tmp_path, bad):
+    with pytest.raises(TaskError, match="min_displays"):
+        load_task(_write(tmp_path, MIN_DISPLAYS_YAML.format(tid="d3", extra=bad)),
+                  platform="macos")

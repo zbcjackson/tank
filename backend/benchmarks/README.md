@@ -51,7 +51,7 @@ uv run python -m tank_backend.benchmarks \
 - 报告与逐 trial trace（JSONL + 每步截图）落在 `benchmarks/<suite>/reports/<时间戳>-<label>/`
 - **绝不在开发机裸跑**（会动真实鼠标键盘）：Linux 在 GUI VM，macOS 在真机/独立环境
 - 跑批期间不动键鼠；环境钉死与安全清单见任务套件目录下 suite.yaml 注释
-  （单显示器、专用账户、关闭敏感 App——agent 会真实操控键鼠且截图上云）
+  （单屏或布局稳定的多屏、专用账户、关闭敏感 App——agent 会真实操控键鼠且截图上云）
 - 为什么这么慢：串行「截图→视觉 LLM→动作」× 每任务多步 × 多 trial，失败 trial 烧满
   超时；并行化/降分辨率/batch 属于被测对象，中途改会让前后数据不可比
 
@@ -143,6 +143,24 @@ Accessibility identifiers locally, never asks an LLM to judge screenshots.
 Unsupported UI structure, missing permission or unreadable state fails closed.
 macOS calc-open is now strict and GUI-only; Linux calc-open remains smoke.
 Task YAML supports `scoring_macos` / `gui_only_macos` platform overrides.
+
+### Multi-display tasks (2026-09-26)
+
+macOS tools select displays by CGDirectDisplayID: `screenshot(display=…)`
+captures one display (global `-R` rect; `-D` indices are undocumented and
+unused), coordinate actions accept `display=…` defaulting to the last
+screenshot's display, and multi-display screenshot results append a
+DISPLAYS listing with ids, main flag, sizes and layout. Tasks may declare
+`min_displays: 2`; the runner skips such tasks (recording them under run
+metadata `skipped_tasks`, outside success-rate denominators) when the host
+has fewer active displays, and macOS run metadata records the full display
+topology under `displays`. `multi-display-calc` (strict, gui-only) requires
+a real two-display environment: focus a secondary display, open Calculator
+there, compute 7×8; validation = strict calc result AND the Calculator
+window wholly on a non-main display (`display_validator`, fail-closed).
+Single-display reports and multi-display reports are different environments
+— do not merge their scores. Windows spanning displays are rejected by the
+frame/window tooling, and the deferred AX branch stays main-display-only.
 
 This checks Calculator's accessibility display, not screenshot pixels or all
 possible overlays. A reset is required before every trial to avoid accepting

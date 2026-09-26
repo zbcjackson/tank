@@ -34,6 +34,33 @@ _VALIDATOR_TIMEOUT_S = 30.0
 _TEARDOWN_TIMEOUT_S = 60.0
 
 
+def _display_environment(platform: str) -> dict[str, Any]:
+    """Display topology for run metadata; unreadable → recorded, not fatal."""
+    if platform != "macos":
+        return {}
+    try:
+        from ..tools.computer_use_macos import _active_displays
+
+        displays = _active_displays()
+    except Exception as e:  # noqa: BLE001 — metadata only
+        return {"displays": {"error": str(e)[:200]}}
+    return {
+        "displays": {
+            "count": len(displays),
+            "topology": [list(entry) for entry in displays],
+        },
+    }
+
+
+def _display_count(platform: str) -> int | None:
+    """Number of active displays, or None when unknown (treated as 1)."""
+    info = _display_environment(platform)
+    displays = info.get("displays")
+    if isinstance(displays, dict) and isinstance(displays.get("count"), int):
+        return int(displays["count"])
+    return None
+
+
 class DriverFactory(Protocol):
     def __call__(self) -> BenchmarkDriver: ...
 
@@ -85,8 +112,17 @@ async def run_suite(
     run_started = time.monotonic()
     aborted = False
     driver_metadata = {}
+    skipped_tasks: list[dict[str, str]] = []
+    display_env = _display_environment(platform)
+    display_count = _display_count(platform)
     try:
         for task in tasks:
+            if task.min_displays > 1 and (display_count or 1) < task.min_displays:
+                active = str(display_count) if display_count is not None else "unknown (assumed 1)"
+                reason = f"min_displays={task.min_displays}, active={active}"
+                logger.info("task=%s skipped: %s", task.id, reason)
+                skipped_tasks.append({"task": task.id, "reason": reason})
+                continue
             driver = driver_factory()
             describe = getattr(driver, "describe", None)
             if describe is not None:
@@ -150,7 +186,8 @@ async def run_suite(
     report = replace(aggregate(records), metadata={
         **driver_metadata, "platform": platform, "git_revision": revision.stdout.strip(),
         "task_revision": task_hash.hexdigest(), "scoring_revision": SCORING_REVISION,
-        "aborted_cleanup": aborted,
+        "aborted_cleanup": aborted, **display_env,
+        "skipped_tasks": skipped_tasks,
         "outcomes": [{"task": r.task_id, "trial": r.trial, "stop_reason": r.stop_reason,
                       "cleanup": r.cleanup, "scoring": r.scoring, "success": r.success,
                       "unknown_calls": r.unknown_calls, "assessment": r.assessment}
