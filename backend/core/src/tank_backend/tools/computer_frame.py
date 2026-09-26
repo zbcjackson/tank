@@ -161,6 +161,7 @@ class FrameTool(BaseTool):
             # The frame already fixes the display; an explicit display is
             # meaningless (and ambiguous) for image-coordinate actions.
             properties.pop("display", None)
+            properties.pop("display2", None)
         required = [p.name for p in info.parameters if p.required]
         if info.name != "screenshot":
             properties["frame_id"] = {"type": "string"}
@@ -348,8 +349,10 @@ class FrameTool(BaseTool):
             raise ValueError("Missing or stale frame")
         if session_id != observation.session_id:
             raise ValueError("Frame belongs to another session")
-        if self.legacy.get_info().name != "screenshot" and "display" in arguments:
-            raise ValueError("The frame fixes the display; omit display")
+        if self.legacy.get_info().name != "screenshot" and (
+            "display" in arguments or "display2" in arguments
+        ):
+            raise ValueError("The frame fixes the display; omit display/display2")
         topology = _topology()
         bound = observation.display_geometry
         if _display_geometry(bound[0], topology) != bound:

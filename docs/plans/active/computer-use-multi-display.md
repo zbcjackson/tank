@@ -1,10 +1,10 @@
 # Computer-use 多显示器支持
 
 > **Status:** In progress — 2026-09-26 立项，生产工具链、单测与 benchmark 三线并行。
-> 同日实现全部落地：枚举/按屏截图/跨屏坐标（含 frame 路径）、doctor、
-> benchmark min_displays + multi-display-calc；实机双屏冒烟通过（拓扑/副屏
-> 截图 1080×1920/跨屏 CGEvent 坐标逐点精确；未做真实点击与 1-trial 批跑，
-> 待机器空闲时按 §3 实机验收补记）。
+> 同日实现全部落地；实机双屏验收已全部通过（见 §3 结果）；剩余两项：
+> 单屏环境实跑 skip（需拔副屏）与双屏 1-trial LLM smoke（需机器空闲 + API key）。
+> 验收中发现并补齐两个缺口：跨屏拖拽原语（drag 增加 display2）与任务指令
+> 两处修正（Calculator 窗口位置还原行为）。
 > 触发来源：[backlog「Computer-use 多显示器支持」](../../backlog.md)（单屏限制阻碍实际桌面任务；
 > 本机已具备双显示器验收环境：主屏 1920×1080@2x + 副屏 1080×1920@2x @ (1920,-602)）。
 
@@ -148,6 +148,32 @@
   frame 模式绑定副屏窗口点击命中；拓扑变化（拔副屏）后动作零输入拒绝。
 - benchmark：单屏环境下 `multi-display-calc` 被 skip 且报告记录原因；双屏环境
   smoke 1-trial 通过链路（效果结论另按 README 可比性规则另行评估，不在本计划宣称）。
+
+### 实机验收结果（2026-09-26，全部在本机双屏完成）
+
+| 项 | 结果 |
+|---|---|
+| doctor 实机 | ✓ `displays: 2 displays: id=2 (main) 1920x1080 at (0,0), id=5 1080×1920 at (1920,-602)`，verdict READY |
+| 副屏截图 | ✓ `screenshot(display=5)` 得 1080×1920 竖屏图，尺寸校验通过，DISPLAYS 段正确 |
+| 副屏归一化点击 | ✓ 跨屏拖拽 Calculator 至副屏后，7/×/8/= 四次归一化点击全部命中，calc_validator 严格通过（7×8 / 56）|
+| 跨屏拖拽 | ✓ `drag(..., display=2, display2=5)` 把窗口从主屏 (600,100) 拖到副屏 (2124,-401)，完整落在副屏 |
+| frame 绑定副屏窗口 | ✓ Observation 绑定 display 5（crop=[204,201,878,609] 局部坐标正确），image 坐标点击 → 全局坐标含原点，calc_validator 再次严格通过 |
+| 拓扑变化零输入拒绝 | ✓ 用 CGConfigureDisplayOrigin 真实移动副屏原点后，陈旧 frame 点击返回 "Display geometry changed"，光标位置不变（零输入），拓扑已还原 |
+| 任务金标 | ✓ 按任务 yaml 原样跑 setup（pkill + reset）+ 人工执行指令流 + 原样 validator（calc_validator && display_validator）exit 0 |
+
+验收中发现的缺口（已修）：
+
+1. Calculator 有窗口位置还原：quit 后重开必回主屏原位，"焦点切屏后重开"不成立
+   → 任务指令改为跨屏拖拽流；顺手发现 suite.yaml v1 注释里“新 App 出现在焦点屏”
+   仅对无还原行为的应用成立。
+2. 原有 drag 工具两端点只能同屏，无法表达跨屏拖窗 → drag 新增可选 `display2`
+   （终点屏），frame 模式拒绝 display/display2。
+
+仍未做（需要条件）：
+
+- 单屏环境实跑 runner 确认 `multi-display-calc` 被 skip 并记录 skipped_tasks
+  （需拔掉副屏；逻辑已由单测覆盖）。
+- 双屏 1-trial LLM smoke（需机器空闲、API key；效果结论另行评估）。
 
 ## 4. 实施顺序
 

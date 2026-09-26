@@ -1269,8 +1269,18 @@ class DragTool(BaseTool):
                     name="display",
                     type="integer",
                     description=(
-                        "Optional CGDirectDisplayID these coordinates refer to "
+                        "Optional CGDirectDisplayID the START coordinates refer to "
                         "(default: the display of the last screenshot)"
+                    ),
+                    required=False,
+                ),
+                ToolParameter(
+                    name="display2",
+                    type="integer",
+                    description=(
+                        "Optional CGDirectDisplayID the END coordinates refer to "
+                        "(e.g. dragging a window to another display). "
+                        "Default: same as the start display."
                     ),
                     required=False,
                 ),
@@ -1279,7 +1289,7 @@ class DragTool(BaseTool):
 
     async def execute(
         self, x1: Any, y1: Any = None, x2: Any = None, y2: Any = None,
-        display: Any = None,
+        display: Any = None, display2: Any = None,
     ) -> ToolResult:
         start = normalize_point(x1, y1, strict=True)
         end = normalize_point(x2, y2, strict=True)
@@ -1290,10 +1300,11 @@ class DragTool(BaseTool):
             )
         try:
             target = await _resolve_target_display(display)
+            end_target = target if display2 is None else await _resolve_target_display(display2)
         except (ValueError, RuntimeError, OSError) as e:
             return ToolResult(content=f"drag: {e}", error=True)
         sx, sy = _normalized_to_pixel(*start, target)
-        ex, ey = _normalized_to_pixel(*end, target)
+        ex, ey = _normalized_to_pixel(*end, end_target)
         try:
             await run_native(_drag_macos, sx, sy, ex, ey)
         except Exception as e:

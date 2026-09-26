@@ -1096,6 +1096,35 @@ async def test_coordinate_tools_apply_display_origin(capture_chain, tool, kwargs
 
 
 @pytest.mark.parametrize("capture_chain", [TWO_DISPLAYS], indirect=True)
+async def test_cross_display_drag_uses_each_endpoint_display(capture_chain):
+    from tank_backend.tools.computer_use_macos import DragTool
+
+    quartz, _ = capture_chain
+    assert await ScreenshotTool().execute()  # cache display 2 (main)
+    assert await ScreenshotTool().execute(display=5)
+    quartz.CGEventCreateMouseEvent.reset_mock()
+    result = await DragTool().execute(
+        x1=500, y1=500, x2=500, y2=500, display=2, display2=5,
+    )
+    assert not result.error
+    points = [call.args[2] for call in quartz.CGEventCreateMouseEvent.call_args_list]
+    # Start in main space (960, 540); release in display-5 space (1920+540, -602+960).
+    assert points[0] == (960, 540)
+    assert points[-1] == (1920 + 540, -602 + 960)
+
+
+@pytest.mark.parametrize("capture_chain", [TWO_DISPLAYS], indirect=True)
+async def test_cross_display_drag_unknown_end_display_rejects(capture_chain):
+    from tank_backend.tools.computer_use_macos import DragTool
+
+    quartz, _ = capture_chain
+    result = await DragTool().execute(x1=1, y1=1, x2=1, y2=1, display2=999)
+    assert result.error
+    assert "Unknown display 999" in result.content
+    quartz.CGEventPost.assert_not_called()
+
+
+@pytest.mark.parametrize("capture_chain", [TWO_DISPLAYS], indirect=True)
 async def test_multi_display_default_capture_still_uses_main_flag(capture_chain):
     _, command = capture_chain
     result = await ScreenshotTool().execute()
@@ -1610,6 +1639,8 @@ async def test_frame_scroll_without_coordinates_needs_no_observation(frame_manag
         {"bbox": [0, 0, 2000, 400]},
         {"bbox": [1, 2, 3, 4], "x": 2, "y": 3},
         {"x": 1, "y": 2, "surprise": 3},
+        {"x": 1, "y": 2, "display": 5},
+        {"x": 1, "y": 2, "display2": 5},
     ],
 )
 async def test_frame_bad_arguments_never_reach_os(frame_manager, bad):

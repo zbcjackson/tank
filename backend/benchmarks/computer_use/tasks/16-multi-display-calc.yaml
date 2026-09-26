@@ -11,12 +11,13 @@ min_displays: 2
 gui_only: true
 instruction: |
   本机连接了多台显示器。多屏截图结果会列出所有显示器的 display id、
-  主屏标记和各自布局；坐标工具（click/scroll/mouse_move/drag）都接受
-  display=<id> 参数，缺省指向最近一次截图的显示器。
+  主屏标记和各自布局；坐标工具都接受 display=<id> 参数，缺省指向最近
+  一次截图的显示器；drag 还接受 display2（拖拽终点所在屏）。
   请完成：
-  1. 截取非主显示器（记下它的 display id）。
-  2. 点击该显示器桌面的空白区域，把键盘/鼠标焦点切换过去。
-  3. 在该显示器上打开系统计算器 Calculator，用鼠标点击按钮算出 7×8。
+  1. 分别截取主屏与非主屏（记下两者的 display id）。
+  2. Calculator 已在主屏打开。用 drag 抓住它的标题栏，把它整体拖到非主
+     显示器上（drag 的起点用主屏坐标，终点用非主屏坐标 + display2）。
+  3. 用鼠标点击按钮算出 7×8（注意点击坐标属于 Calculator 所在的屏）。
   4. 对该显示器截图，确认 7×8 和 56 显示在屏幕上。
   全程不要把 Calculator 窗口移回主显示器。
 setup: |
