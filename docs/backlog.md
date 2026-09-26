@@ -21,6 +21,10 @@
 
 2026-09-26：Computer-use 多显示器支持已立项（本机具备双屏验收环境，生产/测试/benchmark 三线并行），移入
 [多显示器支持计划](plans/done/computer-use-multi-display.md)。
+2026-09-26：用户直接立项[策略阶梯与决策层计划](plans/active/computer-use-strategy-ladder.md)；
+“AX 语义寻址选择模型复验”（列表呈现改进 + 类型化决策选择器归 S1/S4）与
+“OCR/控件检测 + 编号方案预检”（OCR 候选 + 编号选择归 S1）两宗条目被触发移入，
+live 新实验预算按该计划 §8 逐批授权执行。
 
 | 项目 | 触发条件 | 背景/前置 | 来源 |
 |---|---|---|---|
@@ -41,7 +45,5 @@
 
 | Computer-use 原生协议与专用定位模型探索 | 明确需要该路线，取得可用端点/部署、协议与授权，并批准独立实验预算 | M3 已完成自定义 point/pixels/bbox 适配；原生点框、Responses computer、UI-TARS 未测试，不能由自定义工具结果推断支持性或收益 | [M3 收尾](plans/done/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |
 | Computer-use 静态候选采用复验 | 决定重新考虑候选/提示配置，且准备新预算与未使用的独立 holdout | 首轮 544 次额度已用完；旧 holdout 歧义拒绝失败，唯一匹配修正仅三次开发 smoke。新冻结需覆盖正例和负例，不能复用旧数据宣称独立验收；M4–M8 集成/真实任务验收已在原计划完成（保留基线结论） | [M3 收尾](plans/done/computer-use-adaptation-and-grounding.md#m3--具体模型的适配器与独立定位基线) |
-| AX 语义寻址选择模型复验 | 决定重新考虑 AX 分支为默认/候选，且具备更强选择模型（gpt-5.5 / qwen3.8-max 级）或列表呈现改进方案，并批准新实验预算 | M7 机制闭环已验证（宿主绑定→枚举→文本选择→派发→独立评分，live3 AX-quartz 拿到 strict 通过），但 qwen3.7-flash 选择器在 57 行候选中反复选错相邻项（off-by-one、误选 All Clear），AX 臂成本更高、成绩持平或更差；AXPress 未完成一轮有效任务 | [M7 live3 报告](../backend/benchmarks/computer_use/reports/20260925-m7-ax-live3/README.md) |
-| OCR/控件检测 + 编号方案预检 | AX 分支仍不满足需求，或纯视觉在密集小目标场景再次成为主要失败源 | M7 第 3 项条件分支：本轮 AX 覆盖充足（57–429 候选）非覆盖问题，是选择精度问题，OCR/检测器方案未测试 | [M7 计划第 3 项](plans/done/computer-use-adaptation-and-grounding.md#m7--ax-与视觉解析的独立分支) |
 | 受控遮罩误点后盖住目标窗口 | pair-1/2/3 配对 core trial 开跑前，或再次观察到“窗口消失/全黑”导致的 `launch_app` 重试 | A-control 单轮首次批量点击落到始终置顶的受控黑背景（归一化 x≈850 → 屏幕 x≈1632，窗口右缘约 1270），随后目标窗口被遮罩盖住，模型需 3 次 `launch_app` 才恢复；材料层已加派发前窗口门禁（窗外点击零派发并记 `gate_blocked`），后续 M5 core/M6/M7 各批遮罩陷阱未再发生；但门禁属 launcher 材料而非生产代码，移除材料或生产环境复现时仍需对策 | [A-control 单轮证据](../backend/benchmarks/computer_use/reports/20260924-m5-a-control-pumped-pilot/README.md)、[门禁材料](../backend/benchmarks/computer_use/reports/20260924-m5-pixels-unified-ready/README.md) |
 | 子代理链路历史压缩机制 | 长任务 routinely 触顶 token 预算（M6 长历史两轮均 300k 处受控停止，27/17 步远未到步数/时限上限），且需要子代理完成更长流程 | M6 第 4 项发现：ContextManager/Compactor 只存在于主助手语音路径，自研子代理链路（SubAgentDriver → AgentRunner → LLMAgent → chat_stream）无压缩；长历史行为验收（当前图引用/失败恢复）已通过，机制引入未做 | [M6 长历史报告](../backend/benchmarks/computer_use/reports/20260924-m6-longhistory/README.md) |
