@@ -224,12 +224,34 @@ def _check_accessibility_macos() -> CheckResult:
     )
 
 
+def _check_displays_macos() -> CheckResult:
+    """Report the display topology; multi-display is supported, not warned."""
+    from .computer_use_macos import _active_displays
+
+    try:
+        displays = _active_displays()
+    except Exception as e:  # noqa: BLE001 — doctor reports, never crashes
+        return CheckResult(
+            "displays", FAIL, f"topology unreadable: {e}",
+            "Check pyobjc-framework-Quartz is installed and the session "
+            "has a window server connection (run from a GUI login, not SSH)",
+        )
+    listing = ", ".join(
+        f"id={e[0]}{' (main)' if (e[1], e[2]) == (0, 0) else ''} "
+        f"{e[3]}x{e[4]} at ({e[1]},{e[2]})"
+        for e in displays
+    )
+    count = f"{len(displays)} display" + ("s" if len(displays) != 1 else "")
+    return CheckResult("displays", OK, f"{count}: {listing}")
+
+
 def run_doctor() -> DoctorReport:
     """Probe the computer-use stack. Read-only — no input injection."""
     report = DoctorReport(platform=sys.platform)
     report.checks.append(_check_display_server())
     report.checks.append(_check_screenshot())
     if sys.platform == "darwin":
+        report.checks.append(_check_displays_macos())
         report.checks.append(_check_accessibility_macos())
     else:
         report.checks.extend(_check_input_linux())

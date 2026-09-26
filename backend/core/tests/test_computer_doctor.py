@@ -54,3 +54,33 @@ def test_format_report_includes_fix_and_verdict():
     assert "✗ clipboard" in text
     assert "apt install wl-clipboard" in text
     assert "verdict: DEGRADED" in text
+
+
+def test_displays_check_reports_topology(monkeypatch):
+    from tank_backend.tools import computer_doctor as doctor
+    from tank_backend.tools import computer_use_macos as macos
+
+    topology = (
+        (2, 0, 0, 1920, 1080, 3840, 2160),
+        (5, 1920, -602, 1080, 1920, 2160, 3840),
+    )
+    monkeypatch.setattr(macos, "_active_displays", lambda: topology)
+    check = doctor._check_displays_macos()
+    assert check.status == OK
+    assert "2 displays" in check.detail
+    assert "id=2 (main) 1920x1080 at (0,0)" in check.detail
+    assert "id=5 1080x1920 at (1920,-602)" in check.detail
+
+
+def test_displays_check_fails_closed_with_fix(monkeypatch):
+    from tank_backend.tools import computer_doctor as doctor
+    from tank_backend.tools import computer_use_macos as macos
+
+    def broken():
+        raise RuntimeError("no window server")
+
+    monkeypatch.setattr(macos, "_active_displays", broken)
+    check = doctor._check_displays_macos()
+    assert check.status == FAIL
+    assert "topology unreadable" in check.detail
+    assert check.fix and "Quartz" in check.fix
