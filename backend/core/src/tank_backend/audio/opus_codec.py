@@ -37,10 +37,37 @@ __all__ = [
 ]
 
 
+def _ensure_homebrew_libopus_discoverable() -> None:
+    """Let ctypes' dyld search find Homebrew's libopus.
+
+    opuslib resolves libopus via ``ctypes.util.find_library``, whose macOS
+    search covers the SDK and /usr/local but not /opt/homebrew. On a
+    Homebrew host with opus installed, extend the runtime fallback path so
+    the soft import below can succeed (P1-2 otherwise silently degrades to
+    raw PCM on an otherwise-capable dev machine).
+    """
+    import ctypes.util
+    import os
+
+    if ctypes.util.find_library("opus") is not None:
+        return
+    lib_dir = "/opt/homebrew/lib"
+    if os.path.isdir(lib_dir) and any(
+        name.startswith("libopus.") for name in os.listdir(lib_dir)
+    ):
+        fallback = os.environ.get("DYLD_FALLBACK_LIBRARY_PATH", "")
+        paths = [p for p in fallback.split(os.pathsep) if p]
+        if lib_dir not in paths:
+            os.environ["DYLD_FALLBACK_LIBRARY_PATH"] = os.pathsep.join(
+                [*paths, lib_dir]
+            )
+
+
 def _opuslib_importable() -> bool:
     try:
         import ctypes
 
+        _ensure_homebrew_libopus_discoverable()
         import opuslib.api.decoder
         import opuslib.api.encoder
 
