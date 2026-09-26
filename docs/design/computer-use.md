@@ -57,7 +57,8 @@ AX 独立分支：适配一体+宿主还原（B-combined）在 calc-open 上是�
    → 后续 user 消息的 `image_url` → OpenAI SDK HTTP JSON。本地此后没有
    再次缩图。tool 文本占位和前端显示尺寸不是模型图片输入。
 6. SDK 累积 SSE 工具参数，ToolManager 解析并分派。生产支持 x/y、数字字符串、
-   bbox 数组中心；macOS 拒绝非有限数、越界及非法结构，不再把越界值静默夹紧。
+   bbox 数组中心，display/display2 id 同样容忍数字字符串（2026-09-26 实跑
+   发现）；macOS 拒绝非有限数、越界及非法结构，不再把越界值静默夹紧。
    数字合法无法区分模型想表达的是 pixels 还是 normalized。
 7. ClickTool 逐轴计算 `min(W-1, int(nx*W/1000))` 后**加目标屏全局原点**；
    executor 使用 `round(nx*(W-1)/1000)`（仅主屏，见 executor 一节）。终点
@@ -101,7 +102,7 @@ batch 共享 frame，逐步检查，首错即停并返回新截图。
 应用变化；同一几何内的按钮移动或弹窗也不会由像素校验拦截，规划器须根据
 反馈截图判断效果并在必要时重新观察。几何检查也无法排除检查到投递之间的变化。
 多显示器拓扑、任意屏窗口绑定与跨屏坐标已在 2026-09-26 支持（见上文 legacy
-节与[多显示器计划](../plans/active/computer-use-multi-display.md)）；模型效果、
+节与[多显示器计划](../plans/done/computer-use-multi-display.md)）；模型效果、
 跨应用和完整停止验收不在通过结论内。旧 normalized 调用及独立 DesktopExecutor
 保持旧语义（后者仅主屏）。AX 分支接收绑定屏几何但副屏行为未验收（M7 暂缓不变）。
 
@@ -612,7 +613,7 @@ AX 独立分支）均不支持切换默认，详见
 - **条件性后续工作**：原生协议/专用定位模型、静态候选复验、AX 选择模型
   复验、OCR/编号方案、子代理历史压缩、动态几何——见
   [backlog](../backlog.md)。多显示器已于 2026-09-26 立项支持（生产/测试/
-  benchmark，[计划](../plans/active/computer-use-multi-display.md)）：按屏
+  benchmark，[计划](../plans/done/computer-use-multi-display.md)）：按屏
   截图与坐标、任意屏窗口绑定、拓扑校验、benchmark min_displays 与
   multi-display-calc 任务；实机双屏冒烟（拓扑/副屏截图/跨屏事件坐标）通过。
 

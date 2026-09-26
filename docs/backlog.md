@@ -20,7 +20,7 @@
 其条件性条目继续留在本表按触发条件运作。
 
 2026-09-26：Computer-use 多显示器支持已立项（本机具备双屏验收环境，生产/测试/benchmark 三线并行），移入
-[多显示器支持计划](plans/active/computer-use-multi-display.md)。
+[多显示器支持计划](plans/done/computer-use-multi-display.md)。
 
 | 项目 | 触发条件 | 背景/前置 | 来源 |
 |---|---|---|---|
@@ -33,7 +33,7 @@
 | LLM Proxy | 出现需要借用服务端凭据的外部旁路任务 | tank 的摘要在服务端内部直调 LLM client，当前无旁路需求 | [protocol-evolution-plan.md](plans/done/protocol-evolution-plan.md) §6 |
 | memory `pinned_soft_cap_kb` 软上限告警 | **前置已满足**（IMP-1 Dream Consolidation 已落地，默认关闭），可随时立项 | 12 KB pinned 软告警当初因无收敛路径而暂缓；现在 consolidator 可收敛超限 pinned 集，告警有意义了 | [memory-context-improvements.md](plans/done/memory-context-improvements.md) §0 |
 
-| macOS 动态几何与高频输入验收 | 产品需要截图后切换主屏/分辨率或无截图高频连点，或这些条件下再次报告错点 | 当前静态主屏九点验收通过；默认尺寸/截图缓存不追踪动态几何，首次校准存在未确定原因的事件缺失；多屏支持见 [多显示器支持计划](plans/active/computer-use-multi-display.md) | [macos-coordinate-chain.md](research/macos-coordinate-chain.md) |
+| macOS 动态几何与高频输入验收 | 产品需要截图后切换主屏/分辨率或无截图高频连点，或这些条件下再次报告错点 | 当前静态主屏九点验收通过；默认尺寸/截图缓存不追踪动态几何，首次校准存在未确定原因的事件缺失；多屏支持见 [多显示器支持计划](plans/done/computer-use-multi-display.md) | [macos-coordinate-chain.md](research/macos-coordinate-chain.md) |
 
 | N2 SDK Linux adapter 与平台验收 | 产品需要 Linux，且有专用 X11/Wayland 实机环境 | 原 M4/M6 未完成：X11 adapter、来源/许可证、中文/修饰键、截图光标/时延与真实取消/清理分别验收；未通过保持 unsupported，不能套用 macOS 结果 | [SDK 原 M4/M6](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划 §2.3](plans/done/computer-use-adaptation-and-grounding.md) |
 | N2 SDK 采用后同进程暂停与恢复 | 产品使用 SDK 且需要暂停/接管/恢复 | 原 M7 未触发：pause_pending/paused、运行实例/trajectory、恢复重新截图/授权/预算/桌面锁、状态与协议展示及停止/过期边界；暂停计入时限，跨重启恢复另立项 | [SDK 原 M7](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划范围](plans/done/computer-use-adaptation-and-grounding.md) |

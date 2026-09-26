@@ -5,7 +5,7 @@
 
 | 路径 | 类型 | 状态 | 简介 |
 |---|---|---|---|
-| [plans/active/computer-use-multi-display.md](plans/active/computer-use-multi-display.md) | 计划 | 进行中 | Computer-use 多显示器支持:生产工具链、单测与 benchmark 三线并行 |
+| [plans/done/computer-use-multi-display.md](plans/done/computer-use-multi-display.md) | 计划 | 已完成 | Computer-use 多显示器支持:按屏截图/坐标、跨屏拖拽、benchmark min_displays 与 multi-display-calc;双屏/单屏/LLM smoke 实机验收完成 |
 | [plans/done/macos-coordinate-chain-tests.md](plans/done/macos-coordinate-chain-tests.md) | 计划 | 已完成 | macOS 坐标修复、HTTP 链路测试、合成模型隔离与真机校准 |
 | [research/macos-coordinate-chain.md](research/macos-coordinate-chain.md) | 调研 | 主屏校准通过、模型偏差复现 | 尺寸坐标链路、真实证据与验收边界 |
 | [design/computer-use.md](design/computer-use.md) | 设计 | 现行与验证边界 | macOS 坐标链、全部验证结论、模型协议与预算对照、闭环判定 |
