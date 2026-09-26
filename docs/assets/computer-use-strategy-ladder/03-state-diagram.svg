@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1250" viewBox="0 0 1400 1250">
+<rect width="1400" height="1250" fill="#ffffff"/>
+<text x="35" y="56" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="28" fill="#18232e">03  状态图：什么时候换通道，什么时候只读核验</text>
+<text x="35" y="89" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#526171">单个动作步的核心状态 · 所有回路共享同一步预算，重新观察不重置计数</text>
+<circle cx="700" cy="132" r="15" fill="#18232e"/>
+<rect x="545" y="190" width="310" height="92" rx="9" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="668.5" y="225" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#18232e">定位中</text>
+<text x="612.0" y="258" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">根据应用与动作选择通道</text>
+<rect x="60" y="190" width="320" height="92" rx="9" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="124.0" y="225" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#18232e">切换通道 / 补充观察</text>
+<text x="100.0" y="258" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">未找到、通道不可用，且尚未执行</text>
+<rect x="1020" y="190" width="320" height="92" rx="9" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1159.0" y="225" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#18232e">消歧</text>
+<text x="1076.0" y="258" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">补上下文；缺用户意图才询问</text>
+<rect x="545" y="390" width="310" height="92" rx="9" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="668.5" y="425" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#18232e">待执行</text>
+<text x="609.25" y="458" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">唯一目标 + 当前有效引用</text>
+<rect x="545" y="590" width="310" height="92" rx="9" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="668.5" y="625" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#18232e">执行中</text>
+<text x="652.0" y="658" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">提交一次动作</text>
+<rect x="60" y="590" width="320" height="92" rx="9" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="167.5" y="625" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#18232e">确认未派发</text>
+<text x="124.0" y="658" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">判断原因，再选择修复路径</text>
+<rect x="545" y="805" width="310" height="92" rx="9" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="668.5" y="840" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#18232e">核验中</text>
+<text x="652.0" y="873" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">检查预期效果</text>
+<rect x="60" y="805" width="320" height="92" rx="9" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="178.0" y="840" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#18232e">重新规划</text>
+<text x="164.0" y="873" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">确认效果未达成</text>
+<rect x="1020" y="805" width="320" height="92" rx="9" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1138.0" y="840" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#18232e">只读核实</text>
+<text x="1100.0" y="873" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">可能已派发，效果未知</text>
+<rect x="545" y="1030" width="310" height="92" rx="9" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="658.0" y="1065" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#18232e">步骤完成</text>
+<text x="652.0" y="1098" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">更新任务进度</text>
+<rect x="1020" y="1030" width="320" height="92" rx="9" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1117.0" y="1065" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#18232e">报告结果未知</text>
+<text x="1076.0" y="1098" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">核实预算用尽或无法读取证据</text>
+<polyline points="700,147 700,190" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="706.0,177.0 700,190 694.0,177.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="545,217 380,217" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="393.0,223.0 380,217 393.0,211.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="402.75" y="200" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">未找到 / 不可用</text>
+<polyline points="220,190 220,160 600,160 600,190" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="606.0,177.0 600,190 594.0,177.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="349.0" y="144" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">仍有能力与预算</text>
+<polyline points="855,217 1020,217" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="1007.0,211.0 1020,217 1007.0,223.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="905.0" y="200" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">存在歧义</text>
+<polyline points="1180,282 1180,320 805,320 805,282" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="799.0,295.0 805,282 811.0,295.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="884.0" y="353" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">补充证据后重判；仍不明确则等待澄清</text>
+<polyline points="700,282 700,390" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="706.0,377.0 700,390 694.0,377.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="734.0" y="342" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">目标唯一</text>
+<polyline points="545,435 458,435 458,264 545,264" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="532.0,258.0 545,264 532.0,270.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="425.0" y="372" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">引用过期</text>
+<polyline points="700,482 700,590" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="706.0,577.0 700,590 694.0,577.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="755.0" y="547" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">执行前检查通过</text>
+<polyline points="545,630 380,630" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="393.0,636.0 380,630 393.0,624.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="425.5" y="616" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">not_sent</text>
+<polyline points="220,590 220,390 420,390 420,246 380,246" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="393.0,252.0 380,246 393.0,240.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="272.0" y="507" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">确认可恢复</text>
+<polyline points="700,682 700,805" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="706.0,792.0 700,805 694.0,792.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="756.75" y="750" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">sent / unknown</text>
+<polyline points="545,850 380,850" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="393.0,856.0 380,850 393.0,844.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="422.0" y="836" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">明确未达成</text>
+<polyline points="220,897 220,968 25,968 25,305 610,305 610,282" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="604.0,295.0 610,282 616.0,295.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="150.0" y="998" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">重新观察，生成修正动作</text>
+<polyline points="855,845 1020,845" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="1007.0,839.0 1020,845 1007.0,851.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="905.0" y="831" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">效果未知</text>
+<polyline points="1020,882 965,882 965,931 800,931 800,897" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="794.0,910.0 800,897 806.0,910.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1006.0" y="958" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">获得新证据后重判</text>
+<polyline points="1180,897 1180,1030" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="1186.0,1017.0 1180,1030 1174.0,1017.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1242.0" y="1001" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">仍无法确认</text>
+<polyline points="700,897 700,1030" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="706.0,1017.0 700,1030 694.0,1017.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="751.0" y="992" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">完成条件成立</text>
+<text x="35" y="1186" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">任意状态遇到停止、授权撤销或硬预算耗尽：禁止新动作，收束在飞工作，核验清理后结束。</text>
+<text x="35" y="1224" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#526171">切换定位通道不会抹掉歧义、已发生的副作用或未知结果；图中的恢复均要求剩余预算与原任务范围允许。</text>
+</svg>
