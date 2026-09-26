@@ -19,9 +19,11 @@
 见 [M8 收口报告](../backend/benchmarks/computer_use/reports/20260925-m8-closeout/README.md)）；
 其条件性条目继续留在本表按触发条件运作。
 
+2026-09-26：Computer-use 多显示器支持已立项（本机具备双屏验收环境，生产/测试/benchmark 三线并行），移入
+[多显示器支持计划](plans/active/computer-use-multi-display.md)。
+
 | 项目 | 触发条件 | 背景/前置 | 来源 |
 |---|---|---|---|
-| Computer-use 多显示器支持 | 单屏限制阻碍实际桌面任务，且可准备多显示器验收环境 | 现有平台原语和 N2 benchmark 固定单屏；需统一截图布局、显示器身份与坐标变换 | [computer-use-improvement-and-n2-plan.md](plans/done/computer-use-improvement-and-n2-plan.md) A16 / §18 |
 | 旧 DesktopExecutor 动作 hooks / guardrails | SDK 迁移后仍保留旧 N2，且需要对旧 executor 提供逐动作策略或 hooks | 现有旧插件绕过 ToolManager 管线；若旧路径已退役则删除此条，不为退役实现扩建控制层 | [computer-use-improvement-and-n2-plan.md](plans/done/computer-use-improvement-and-n2-plan.md) B4 / §18 |
 | 客户端 token 携带（web/cli/device 连接时发 `?token=`） | 远程部署启动 | P0-2 只落地了服务端校验，三端客户端从未实现携带；需与 token 分发方式一并设计 | [protocol-evolution-plan.md](plans/done/protocol-evolution-plan.md) P0-2 |
 | 认证 token 分发方式定案 | 远程部署设计时 | 配置文件 vs 首次配对流程，计划 §11.2 未决问题 | [protocol-evolution-plan.md](plans/done/protocol-evolution-plan.md) §11 |
@@ -31,7 +33,7 @@
 | LLM Proxy | 出现需要借用服务端凭据的外部旁路任务 | tank 的摘要在服务端内部直调 LLM client，当前无旁路需求 | [protocol-evolution-plan.md](plans/done/protocol-evolution-plan.md) §6 |
 | memory `pinned_soft_cap_kb` 软上限告警 | **前置已满足**（IMP-1 Dream Consolidation 已落地，默认关闭），可随时立项 | 12 KB pinned 软告警当初因无收敛路径而暂缓；现在 consolidator 可收敛超限 pinned 集，告警有意义了 | [memory-context-improvements.md](plans/done/memory-context-improvements.md) §0 |
 
-| macOS 动态几何与高频输入验收 | 产品需要截图后切换主屏/分辨率或无截图高频连点，或这些条件下再次报告错点 | 当前静态主屏九点验收通过；默认尺寸/截图缓存不追踪动态几何，首次校准存在未确定原因的事件缺失；多屏支持沿用上方条目 | [macos-coordinate-chain.md](research/macos-coordinate-chain.md) |
+| macOS 动态几何与高频输入验收 | 产品需要截图后切换主屏/分辨率或无截图高频连点，或这些条件下再次报告错点 | 当前静态主屏九点验收通过；默认尺寸/截图缓存不追踪动态几何，首次校准存在未确定原因的事件缺失；多屏支持见 [多显示器支持计划](plans/active/computer-use-multi-display.md) | [macos-coordinate-chain.md](research/macos-coordinate-chain.md) |
 
 | N2 SDK Linux adapter 与平台验收 | 产品需要 Linux，且有专用 X11/Wayland 实机环境 | 原 M4/M6 未完成：X11 adapter、来源/许可证、中文/修饰键、截图光标/时延与真实取消/清理分别验收；未通过保持 unsupported，不能套用 macOS 结果 | [SDK 原 M4/M6](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划 §2.3](plans/done/computer-use-adaptation-and-grounding.md) |
 | N2 SDK 采用后同进程暂停与恢复 | 产品使用 SDK 且需要暂停/接管/恢复 | 原 M7 未触发：pause_pending/paused、运行实例/trajectory、恢复重新截图/授权/预算/桌面锁、状态与协议展示及停止/过期边界；暂停计入时限，跨重启恢复另立项 | [SDK 原 M7](plans/done/plugin-subagents-and-n2-sdk.md)、[统一计划范围](plans/done/computer-use-adaptation-and-grounding.md) |
