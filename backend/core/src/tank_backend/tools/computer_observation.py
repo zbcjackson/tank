@@ -1,4 +1,4 @@
-"""Immutable screenshot identity and image-pixel → main-display point mapping."""
+"""Immutable screenshot identity and image-pixel → global Quartz point mapping."""
 
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ class Observation:
             )
         left, top, right, bottom = crop
         if not (0 <= left < right <= width and 0 <= top < bottom <= height):
-            raise ValueError("Crop/window must lie inside the main display image")
+            raise ValueError("Crop/window must lie inside the captured display image")
         with Image.open(io.BytesIO(png)) as image:
             scene_hash = hashlib.sha256(image.convert("RGB").crop(crop).tobytes()).hexdigest()
         if crop != (0, 0, width, height):
@@ -81,7 +81,13 @@ class Observation:
         ), png
 
     def map_point(self, x: object, y: object) -> tuple[int, int]:
-        """Zero-based image pixels; round half up once, at the OS boundary."""
+        """Zero-based image pixels → GLOBAL Quartz points; round half up once.
+
+        The image is one display's screenshot; the crop maps into that
+        display's local point space, then the bound display origin
+        (``display_geometry[1:3]``, (0,0) for the main display) translates it
+        into the global CGEvent coordinate space.
+        """
         width, height = self.image_size
         if (isinstance(x, bool) or not isinstance(x, (int, float))
                 or isinstance(y, bool) or not isinstance(y, (int, float))):
@@ -89,7 +95,8 @@ class Observation:
         if not (math.isfinite(x) and math.isfinite(y) and 0 <= x < width and 0 <= y < height):
             raise ValueError("point must be finite coordinates inside the observed image")
         left, top, right, bottom = self.crop
+        ox, oy = self.display_geometry[1:3] if len(self.display_geometry) >= 3 else (0, 0)
         return (
-            min(right - 1, math.floor(left + x * (right - left) / width + 0.5)),
-            min(bottom - 1, math.floor(top + y * (bottom - top) / height + 0.5)),
+            min(right - 1, math.floor(left + x * (right - left) / width + 0.5)) + ox,
+            min(bottom - 1, math.floor(top + y * (bottom - top) / height + 0.5)) + oy,
         )

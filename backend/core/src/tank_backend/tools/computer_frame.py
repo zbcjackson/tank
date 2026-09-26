@@ -27,29 +27,36 @@ class FrameState:
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
-def _geometry() -> tuple[int, ...]:
-    quartz = macos._load_quartz()
-    display = quartz.CGMainDisplayID()
-    bounds = quartz.CGDisplayBounds(display)
-    mode = quartz.CGDisplayCopyDisplayMode(display)
-    values = (
-        display,
-        *bounds[0],
-        *bounds[1],
-        quartz.CGDisplayModeGetPixelWidth(mode),
-        quartz.CGDisplayModeGetPixelHeight(mode),
-    )
-    geometry = tuple(int(v) for v in values)
-    if geometry[0] <= 0 or geometry[1:3] != (0, 0) or min(geometry[3:]) <= 0:
-        raise ValueError("Only a valid main display at origin (0,0) is supported")
-    return geometry
+def _topology() -> tuple[tuple[int, ...], ...]:
+    """Full active display topology, sorted by id (see ``_active_displays``)."""
+    return macos._active_displays()
+
+
+def _display_geometry(
+    display: int, topology: tuple[tuple[int, ...], ...] | None = None,
+) -> tuple[int, ...]:
+    """One display's geometry tuple from the (validated) topology."""
+    if topology is None:
+        topology = _topology()
+    for entry in topology:
+        if entry[0] == display:
+            return entry
+    listing = ", ".join(str(e[0]) for e in topology) or "none"
+    raise ValueError(f"Unknown display {display}; active displays: {listing}")
 
 
 def _window_bounds(
-    window_id: int | None, geometry: tuple[int, ...]
-) -> tuple[int, int, int, int] | None:
+    window_id: int | None, topology: tuple[tuple[int, ...], ...],
+) -> tuple[tuple[int, ...] | None, tuple[int, int, int, int] | None]:
+    """Resolve a window to ``(display_geometry, display-local bounds)``.
+
+    Window bounds are global; a bindable window must lie wholly within
+    exactly one active display (the same strictness the single-display era
+    enforced against the main display). Returns ``(None, None)`` when no
+    window is given.
+    """
     if window_id is None:
-        return None
+        return None, None
     if type(window_id) is not int or window_id <= 0:
         raise ValueError("Invalid window_id")
     quartz = macos._load_quartz()
@@ -57,10 +64,12 @@ def _window_bounds(
     for window in windows or []:
         if window.get("kCGWindowNumber") == window_id:
             rect = window["kCGWindowBounds"]
-            x, y, w, h = (int(rect[k]) for k in ("X", "Y", "Width", "Height"))
-            if x < 0 or y < 0 or w <= 0 or h <= 0 or x + w > geometry[3] or y + h > geometry[4]:
-                raise ValueError("Window must be wholly on the main display")
-            return x, y, x + w, y + h
+            gx, gy, gw, gh = (int(rect[k]) for k in ("X", "Y", "Width", "Height"))
+            for entry in topology:
+                ox, oy, w, h = entry[1:5]
+                if ox <= gx and oy <= gy and gx + gw <= ox + w and gy + gh <= oy + h:
+                    return entry, (gx - ox, gy - oy, gx + gw - ox, gy + gh - oy)
+            raise ValueError("Window must lie wholly within one active display")
     raise ValueError("Window is missing or no longer on screen")
 
 
@@ -103,7 +112,7 @@ class FrameTool(BaseTool):
                         name="window_id",
                         type="integer",
                         required=False,
-                        description="Image mode: bind a main-display Quartz window ID",
+                        description="Image mode: bind a visible Quartz window ID",
                     ),
                 ],
             }
@@ -148,6 +157,10 @@ class FrameTool(BaseTool):
             }
         properties["coordinate_space"] = {"enum": ["image"]}
         properties["window_id"] = {"type": "integer", "minimum": 1}
+        if info.name != "screenshot":
+            # The frame already fixes the display; an explicit display is
+            # meaningless (and ambiguous) for image-coordinate actions.
+            properties.pop("display", None)
         required = [p.name for p in info.parameters if p.required]
         if info.name != "screenshot":
             properties["frame_id"] = {"type": "string"}
@@ -250,11 +263,26 @@ class FrameTool(BaseTool):
             self.state.observation = None
             if frame_id is not None:
                 raise ValueError("Screenshot creates a new frame; omit frame_id")
-            geometry = _geometry()
+            display = arguments.get("display")
+            if display is not None and (isinstance(display, bool) or not isinstance(display, int)):
+                raise ValueError("display must be a CGDirectDisplayID integer")
+            topology = _topology()
             window_id = arguments.get("window_id")
-            bounds = _window_bounds(window_id, geometry)
-            png = macos._capture_screenshot_macos(include_cursor=False)
-            if geometry != _geometry() or bounds != _window_bounds(window_id, geometry):
+            window_geometry, bounds = _window_bounds(window_id, topology)
+            if window_geometry is not None:
+                geometry = window_geometry
+                if display is not None and display != geometry[0]:
+                    raise ValueError("Window is not on the requested display")
+            elif display is not None:
+                geometry = _display_geometry(display, topology)
+            else:
+                geometry = macos._main_geometry(topology)
+            png = macos._capture_screenshot_macos(
+                include_cursor=False, display=geometry[0],
+            )
+            if _topology() != topology or _window_bounds(window_id, _topology()) != (
+                window_geometry, bounds,
+            ):
                 raise ValueError("Display changed during capture")
 
             region = arguments.get("region")
@@ -269,7 +297,7 @@ class FrameTool(BaseTool):
             observation, png = Observation.capture(
                 png,
                 session_id=session_id,
-                display_id=int(macos._load_quartz().CGMainDisplayID()),
+                display_id=geometry[0],
                 region=parsed,
                 window_id=window_id,
                 window_bounds=bounds,
@@ -320,25 +348,23 @@ class FrameTool(BaseTool):
             raise ValueError("Missing or stale frame")
         if session_id != observation.session_id:
             raise ValueError("Frame belongs to another session")
+        if self.legacy.get_info().name != "screenshot" and "display" in arguments:
+            raise ValueError("The frame fixes the display; omit display")
+        topology = _topology()
+        bound = observation.display_geometry
+        if _display_geometry(bound[0], topology) != bound:
+            raise ValueError("Display geometry changed")
         window_id = arguments.get("window_id")
         if window_id is None:
             window_id = observation.window_id
         if window_id != observation.window_id:
             raise ValueError("Frame belongs to another window")
-        if (
-            _window_bounds(observation.window_id, observation.display_geometry)
-            != observation.window_bounds
-        ):
-            raise ValueError("Window geometry changed")
-        if _geometry() != observation.display_geometry:
-            raise ValueError("Display geometry changed")
+        if window_id is not None:
+            geometry, bounds = _window_bounds(window_id, topology)
+            if geometry != observation.display_geometry or bounds != observation.window_bounds:
+                raise ValueError("Window geometry changed")
         # Pixel changes (carets, animation, unrelated apps) do not invalidate
         # coordinate geometry. The agent verifies application effects via feedback.
-        if (
-            _window_bounds(observation.window_id, observation.display_geometry)
-            != observation.window_bounds
-        ):
-            raise ValueError("Window changed during validation")
         return observation
 
     def _dispatch_image(self, observation: Observation, arguments: dict[str, Any]) -> ToolResult:

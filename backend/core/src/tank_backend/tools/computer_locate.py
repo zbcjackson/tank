@@ -399,7 +399,7 @@ class LocateTool(BaseTool):
                             name="window_id",
                             type="integer",
                             required=False,
-                            description="Main-display window to bind",
+                            description="Visible Quartz window to bind (any display)",
                         )
                     )
             elif self.name in {"click", "scroll", "mouse_move", "drag"}:

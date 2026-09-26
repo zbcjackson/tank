@@ -634,7 +634,8 @@ async def test_record_only_enforced_agent_budget_stops_planner_loop(
         for client in clients:
             await client.close()
     # Only the first request's screenshot dispatches; the budget stops the rest.
-    assert host.call_count == 1
+    # Host access = display topology read + one capture for that screenshot.
+    assert host.call_count == 2
 
 
 async def test_record_only_enforced_agent_budget_stops_grounded_context(
@@ -714,7 +715,8 @@ async def test_record_only_enforced_agent_budget_stops_grounded_context(
         trace.close()
         for client in clients:
             await client.close()
-    # Only the first request's screenshot dispatches; the budget stops the rest.
+    # Grounded variant: the frame screenshot's first topology read is the
+    # only host access (the forbidden host aborts before capture, as before).
     assert host.call_count == 1
 
 

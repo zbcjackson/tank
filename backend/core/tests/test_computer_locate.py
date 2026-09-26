@@ -31,6 +31,10 @@ from tank_backend.tools.manager import ToolManager
 @pytest.fixture
 def desktop(monkeypatch):
     quartz = MagicMock()
+    quartz.topology = ((5, 0, 0, 100, 80, 200, 160),)
+    quartz.CGGetActiveDisplayList.side_effect = (
+        lambda *a: (0, tuple(e[0] for e in quartz.topology), len(quartz.topology))
+    )
     quartz.CGMainDisplayID.return_value = 5
     quartz.CGDisplayBounds.return_value = ((0, 0), (100, 80))
     quartz.CGDisplayModeGetPixelWidth.return_value = 200
@@ -598,10 +602,10 @@ async def test_locate_failure_never_produces_executable_reference(locator, monke
         assert result.error
     elif failure == "changed":
 
-        async def change():
-            macos._load_quartz().CGMainDisplayID.return_value = 6
+        async def change_display():
+            macos._load_quartz().topology = ((6, 0, 0, 100, 80, 200, 160),)
 
-        c.during = change
+        c.during = change_display
     elif failure == "unknown_usage":
         c.usage = False
     elif failure == "budget":
@@ -779,7 +783,7 @@ async def test_short_batch_stops_before_changed_display(locator, monkeypatch):
     ref = json.loads((await locate(c, frame)).content)["location_id"]
 
     def changed(*args):
-        macos._load_quartz().CGMainDisplayID.return_value = 6
+        macos._load_quartz().topology = ((6, 0, 0, 100, 80, 200, 160),)
 
     c.click.side_effect = changed
     args = {"actions": [{"action": "click", "location_id": ref}] * 3}
@@ -803,7 +807,7 @@ async def test_stop_during_action_validation_never_dispatches(locator, monkeypat
 
     from tank_backend.tools import computer_frame
 
-    geometry = computer_frame._geometry()
+    topology = computer_frame._topology()
 
     def stop_before_input():
         if stop == "cancel":
@@ -813,9 +817,9 @@ async def test_stop_during_action_validation_never_dispatches(locator, monkeypat
             c.session.tools["click"].check = c.session.context.check
         else:
             c.context.authorization.revoke()
-        return geometry
+        return topology
 
-    monkeypatch.setattr(computer_frame, "_geometry", stop_before_input)
+    monkeypatch.setattr(computer_frame, "_topology", stop_before_input)
     try:
         result = await c.manager.execute_tool("click", location_id=ref)
         assert result.error
@@ -1136,7 +1140,7 @@ async def test_integrated_batch_stops_without_input_on_failed_location(
     if status == "stale":
         await observe(c)
     if status == "changed":
-        macos._load_quartz().CGMainDisplayID.return_value = 6
+        macos._load_quartz().topology = ((6, 0, 0, 100, 80, 200, 160),)
     location = {"status": status if status in {"not_found", "ambiguous"} else "found",
                 "x": 0 if status in {"not_found", "ambiguous"} else 500, "y": 0}
     if status == "invalid":

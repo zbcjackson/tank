@@ -164,6 +164,7 @@ async def capture(definition: AgentDefinition, profiles: dict[str, Any],
         return client
 
     quartz = MagicMock()
+    quartz.CGGetActiveDisplayList.side_effect = lambda *a: (0, (5,), 1)
     quartz.CGMainDisplayID.return_value = 5
     quartz.CGDisplayBounds.return_value = ((0, 0), (100, 80))
     quartz.CGDisplayModeGetPixelWidth.return_value = 200

@@ -38,6 +38,7 @@ WINDOW = {"kCGWindowNumber": 7, "kCGWindowOwnerPID": 42, "kCGWindowLayer": 0,
 @pytest.fixture
 def desktop(monkeypatch):
     quartz = MagicMock()
+    quartz.CGGetActiveDisplayList.side_effect = lambda *a: (0, (5,), 1)
     quartz.CGMainDisplayID.return_value = 5
     quartz.CGDisplayBounds.return_value = ((0, 0), (100, 80))
     quartz.CGDisplayModeGetPixelWidth.return_value = 200
