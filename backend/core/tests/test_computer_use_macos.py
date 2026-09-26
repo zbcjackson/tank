@@ -1137,13 +1137,30 @@ async def test_multi_display_default_capture_still_uses_main_flag(capture_chain)
 @pytest.mark.parametrize("capture_chain", [TWO_DISPLAYS], indirect=True)
 async def test_non_integer_display_argument_rejected(capture_chain):
     quartz, _ = capture_chain
-    result = await ScreenshotTool().execute(display="5")
+    result = await ScreenshotTool().execute(display="abc")
     assert result.error
     assert "CGDirectDisplayID integer" in result.content
     result = await ClickTool().execute(x=1, y=1, display=True)
     assert result.error
     assert "CGDirectDisplayID integer" in result.content
     quartz.CGEventPost.assert_not_called()
+
+
+@pytest.mark.parametrize("capture_chain", [TWO_DISPLAYS], indirect=True)
+async def test_numeric_string_display_is_tolerated(capture_chain):
+    """The live smoke run: qwen sent display as a JSON string on turn 1.
+
+    Coordinates accept numeric strings (2026-09-11 baseline); display ids
+    must follow the same policy or the model's first cross-screen call dies.
+    """
+    quartz, _ = capture_chain
+    result = await ScreenshotTool().execute(display="5")
+    assert not result.error, result.content
+    assert cu_macos._active_display == 5
+    quartz.CGEventCreateMouseEvent.reset_mock()
+    result = await ClickTool().execute(x=100, y=100, display="2")
+    assert not result.error, result.content
+    assert quartz.CGEventCreateMouseEvent.call_args.args[2] == (192, 108)
 
 
 @pytest.mark.parametrize(("x", "y"), [

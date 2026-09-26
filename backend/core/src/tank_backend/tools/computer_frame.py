@@ -265,8 +265,7 @@ class FrameTool(BaseTool):
             if frame_id is not None:
                 raise ValueError("Screenshot creates a new frame; omit frame_id")
             display = arguments.get("display")
-            if display is not None and (isinstance(display, bool) or not isinstance(display, int)):
-                raise ValueError("display must be a CGDirectDisplayID integer")
+            display = macos._display_arg(display)  # numeric strings tolerated
             topology = _topology()
             window_id = arguments.get("window_id")
             window_geometry, bounds = _window_bounds(window_id, topology)

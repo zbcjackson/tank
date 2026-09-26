@@ -557,18 +557,39 @@ def _normalized_to_pixel(
     return px, py
 
 
+def _display_arg(display: Any) -> int | None:
+    """Coerce a model-supplied display argument to a CGDirectDisplayID.
+
+    Models emit numeric strings for coordinates (observed in the baseline
+    traces); the same tolerance applies to display ids. Bools and
+    non-numeric values raise ValueError.
+    """
+    if display is None:
+        return None
+    if isinstance(display, bool):
+        raise ValueError("'display' must be a CGDirectDisplayID integer")
+    if isinstance(display, int):
+        return display
+    if isinstance(display, str):
+        try:
+            return int(display.strip())
+        except ValueError:
+            raise ValueError("'display' must be a CGDirectDisplayID integer") from None
+    raise ValueError("'display' must be a CGDirectDisplayID integer")
+
+
 async def _resolve_target_display(display: Any) -> int | None:
     """Resolve the display a coordinate action targets.
 
     None → the most recent screenshot's display (or the main default when
     nothing was captured yet — no Quartz read, matching legacy behavior).
     An explicit id must be known: either captured before (cache) or still
-    active (live geometry read); unknown ids raise ValueError.
+    active (live geometry read); unknown ids raise ValueError. Numeric
+    strings are accepted like every other model coordinate argument.
     """
+    display = _display_arg(display)
     if display is None:
         return _active_display
-    if isinstance(display, bool) or not isinstance(display, int):
-        raise ValueError("'display' must be a CGDirectDisplayID integer")
     if display not in _screen_caches:
         entry = await run_native(_display_geometry, display)
         _screen_caches[display] = (entry[3], entry[4], entry[1], entry[2])
@@ -627,11 +648,10 @@ class ScreenshotTool(BaseTool):
     ) -> ToolResult:
         global _active_display
 
-        if display is not None and (isinstance(display, bool) or not isinstance(display, int)):
-            return ToolResult(
-                content="screenshot: 'display' must be a CGDirectDisplayID integer",
-                error=True,
-            )
+        try:
+            display = _display_arg(display)
+        except ValueError as e:
+            return ToolResult(content=f"screenshot: {e}", error=True)
         try:
             displays = await run_native(_active_displays)
         except Exception:  # noqa: BLE001 — note only; capture reports its own errors
