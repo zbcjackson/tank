@@ -328,12 +328,17 @@ notifications:
 An agent definition may select `extension: plugin:extension` with a manifest
 `type: subagent`. This is mutually exclusive with the retained `engine` field.
 Factories receive only `subagents.<extension>.config`; runtime authority is
-provided separately in SubAgentContext. Requests contain the task, definition's
-text context and stable worker task_id, not the main conversation's history.
+provided separately in SubAgentContext. Requests contain the task, assembled
+context (definition prompt, applicable workspace and security rules), stable
+worker task_id and optional `task_input`, not the main conversation's history.
+`task_input` is an extension-only JSON object, limited to 64 KiB of compact UTF-8
+JSON and 16 nesting levels. Core validates JSON types and size; the plugin owns
+domain validation. Detached input is persisted independently of chat messages.
 The existing Markdown directory loader supplies the dispatch catalog.
 
 AgentTool parks one task approval listing all manifest permissions (desktop,
-shell, filesystem, network); a one-use token is bound to the original task/type.
+shell, filesystem, network); a one-use token is bound to the original task/type,
+permissions and canonical structured input.
 The token remains inactive until ConfirmActionTool invokes the runtime-only
 on_confirmation callback; rejection invalidates it. Re-entry also checks that
 the manifest permission scope is unchanged. Supervisor passes the explicit grant
@@ -342,9 +347,17 @@ plugins are trusted Python code; these approvals are not a sandbox or substitute
 for OS file/network isolation, and SDK tools do not inherit Tank tool policies.
 
 SubAgentAdapter defers DONE until producer/environment/client cleanup completes.
-Only `stop_reason=final_answer` completes; incomplete or absent/unknown reasons
-fail, timeout maps to timeout, and cooperative cancellation maps to cancelled.
-Cleanup failure overrides any terminal result and quarantines the desktop.
+Legacy `stop_reason=final_answer` still completes. Plugins can instead return
+`TaskResult.to_output()`: a versioned result with completed / partial / unknown /
+needs_input / stopped, summary, reason and opaque JSON details. Its status must
+match stop_reason. These are distinct terminal worker states, persisted and
+returned by agent/agent_status and the REST API, with matching background
+notifications. The existing HUD marks incomplete outcomes as unsuccessful and
+shows their status and summary. Bare unknown or absent terminal reasons still
+fail; timeout maps to timeout, and cooperative cancellation maps to cancelled.
+Cleanup failure overrides completion and quarantines the desktop. If a structured
+result was already received, its evidence survives with status/cleanup unknown.
+Only successful host cleanup sets cleanup=confirmed.
 The budget ledger counts response identities once, independently of observers;
 Runner consumes usage events without adding them again. Observer events support
 API timing and screenshot traces without participating in execution.
@@ -365,4 +378,8 @@ ends the old MCP lease and task session. The plugin preserves the original tool
 failure, blocks further actions and allows only end_session cleanup on the existing
 connection; uncertain cleanup still quarantines the desktop. Actual screen capture
 readiness requires the driver's direct capture permission check.
-Pause/resume/persistent resume remain disabled; waiting still means ask_user.
+Plugin pause/resume/persistent resume remain disabled. `needs_input` returns to
+the parent as a terminal outcome; it does not start a fresh run on agent_reply.
+The legacy chat-history resume path rejects extension agents because it cannot
+restore plugin progress, the original grant or cumulative budgets. Built-in
+LLM agents retain the existing ask_user/waiting behavior.

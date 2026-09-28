@@ -43,5 +43,5 @@
 - [research/computer-use-implementation-comparison.md](research/computer-use-implementation-comparison.md)：模型与宿主责任边界、其它实现的坐标/AX/定位器/反馈设计及实验优先级。
 - [plans/done/computer-use-implementation-research.md](plans/done/computer-use-implementation-research.md)：公开实现对照与改进方案调研（已完成）。
 - [research/computer-use-strategy-ladder.md](research/computer-use-strategy-ladder.md)：策略阶梯调研与复核：DOM/AX/OCR/视觉、M8 证据边界、Jev 官方协议与动作选择、按需 LLM 协作；收益均待验证。
-- [plans/active/computer-use-strategy-ladder.md](plans/active/computer-use-strategy-ladder.md)：目标级 Computer Use 设计与计划（S0–S6 尚未开工）：通用 SubAgent 接入、依赖方向与协议边界、宿主循环、规则/Jev/LLM 路由、统一观察、架构及三种 UML 的 PNG/SVG、恢复预算与实验接线验收；生产默认不变。
+- [plans/active/computer-use-strategy-ladder.md](plans/active/computer-use-strategy-ladder.md)：目标级 Computer Use 设计与计划：S0 首批通用任务输入/结果契约已实现并通过回归；宿主循环、插件、规则/Jev/LLM 路由、观察与共享预算接线待实现；生产默认不变。
 - [plans/done/computer-use-adaptation-and-grounding.md](plans/done/computer-use-adaptation-and-grounding.md)：macOS 适配与定位效果改进计划（M0–M8 已完成，2026-09-25 关档）：保留生产基线 A（一体 legacy 归一化，默认全程未切换）；静态首轮门槛无候选通过；calc-open 拆分显著优于适配一体+宿主还原（p=0.011）但宽任务集 A 10/36 > C 5/36 且 C 耗 1.7–2× token；AX 条件性暂缓；点击大偏移根因未解决（归因止于服务输出边界）；全计划 ≈35.4M tokens（unpriced）。收口汇总见 [M8 收口报告](../backend/benchmarks/computer_use/reports/20260925-m8-closeout/README.md)，触发式后续工作在 [backlog.md](backlog.md)。

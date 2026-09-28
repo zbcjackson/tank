@@ -1,5 +1,5 @@
-> 状态：进行中（2026-09-28 综合讨论、模块边界及依赖方向复核修订；S0–S6 尚未开工）。
-> 目标设计尚未实现、尚未实机验收。生产默认与基线 A 不变，新子代理显式 opt-in。
+> 状态：进行中（2026-09-28：S0 首批通用任务输入/结果契约已实现并通过回归；S0 其余项目及 S1–S6 待实现）。
+> 完整目标设计尚未实现、尚未实机验收。生产默认与基线 A 不变，新子代理显式 opt-in。
 
 # 计划：Computer Use 子代理的宿主循环与策略阶梯（S0–S6）
 
@@ -194,13 +194,15 @@ Advisor 复用 `LLM.complete_response(tools=..., retry=False)`，保留严格解
 
 核心层可能需要修改，但只修改通用契约：
 
-- 通过通用 request.context 传递组装后的任务约束/工作区指令；现有 extension 分支只传
-  agent_def.system_prompt，不能假定已继承内建 LLMAgent 的完整 prompt 组装结果。
+以下输入、上下文和结果外壳已在 S0 首批实现（见 §8 实施记录）；插件恢复仍待实现。
+
+- 通过通用 request.context 传递组装后的任务约束/工作区指令；S0 首批已补齐此前
+  extension 分支只传 agent_def.system_prompt 的缺口。
 - 父代理的可选结构化任务输入通过 `agent.task_input → SubAgentRequest` 传递；
   核心只校验通用类型/大小、保存并绑定审批，Computer Use 校验 GoalContract 内容。
   不要求通用 AgentTool / Runner 理解 PDF 导出、候选或里程碑。
 - Adapter / Supervisor 接收通用任务结果与停止原因，区分执行结束和目标完成。
-  现有 extension 只接受 `final_answer` 为正常终止，须兼容扩展 partial/unknown/needs_input，
+  旧 extension 的 `final_answer` 契约保留，新增版本化 TaskResult 接受 partial/unknown/needs_input，
   不能伪装成 final_answer，或仅因流结束就报告成功；已有插件契约保持兼容。
 - 如支持补用户信息后继续，核心保存通用任务记录、累计预算和授权引用，插件保存并解释
   自己的版本化进度；恢复后由插件重新观察并绑定控件。
@@ -707,6 +709,37 @@ S3 hosted 回放和 S4–S5 live pilot 在材料、数据目的地、模型版�
   生产 A/其它 grounding 模式及既有 SubAgent 插件契约回归不变；
   正常/未知/需信息/停止的终态不混淆，真实 SDK 消息链可审计。
 
+#### S0 首批实施记录（2026-09-28）
+
+已实现的通用接缝：
+
+- `agent.task_input → WorkerStore → Supervisor → Runner → SubAgentRequest`：
+  可选 JSON object，64 KiB UTF-8 / 16 层嵌套上限，拒绝非 JSON 类型及非有限数；
+  拷贝后保存，审批 token 绑定规范化输入，修改参数须重新审批；只接受 extension agent。
+- `request.context` 传入组装后的任务 prompt、匹配的工作区规则和安全规则。
+- 新 `TaskResult` 以版本化元数据返回 completed / partial / unknown / needs_input / stopped，
+  插件细节保持不透明；持久化、前台返回、状态查询、后台通知和现有 HUD 均保留终态区别。
+  旧插件 `final_answer` 继续有效，裸 unknown 或缺失 DONE 仍不构成有效结果。
+- 清理完成后才交付结果；清理失败保留已收到的证据、标记 unknown 并隔离桌面。
+  `needs_input` 当前是返回父代理的终态，不是可恢复暂停；拒绝通过旧聊天历史入口
+  重启 extension，避免重建授权和累计预算。
+- 两个增量迁移新增可空的输入/结果列，兼容已有 worker 记录。
+
+Tests：`test_subagent.py` 覆盖真实 AgentTool/Supervisor/Runner/SQLite 链路、输入
+审批绑定及五种终态；迁移测试从旧 revision 升级；现有 `chat.feature` 增加两条
+隔离契约场景。模型与桌面边界使用 fake，不将这些测试记为 ladder 实机验收。
+验证：后端全量 5190 passed / 1 skipped；最后两项结果边界修正后，相关 92 项
+定向回归全过（含新增清理异常用例）。Cucumber 全量 18 场景 / 71 步通过，
+最后修改后两条契约场景再跑通过。web lint / `tsc -b --noEmit`、backend/CLI ruff、
+改动 Python 文件 pyright、开发服务 reload 日志、docs check 和 diff 检查均通过。
+协议及生成产物未改。初次沙箱运行的端口/网络失败在具备权限的完整复跑中消除；
+旧审批测试改用真实 DispatchResult，生产 A/N2/SDK 回归保留。
+
+S0 尚未完成：Computer Use 插件工厂、领域契约与有限 ActionBuilder、fake 驱动的
+宿主循环、通用插件恢复、模型客户端请求准入/HTTP 捕获和共享预留结算接线。
+下一批从插件与领域契约推进；本批没有新增 Ladder/GroundingConfig 专用 Runner 分支，
+也没有放开 benchmark 对未接线 extension transport 的拒绝。
+
 ### S1：AX 观察、动作候选与一个 OCR 后端
 
 - 扩展 AX 稳定身份、祖先/焦点/值、完整性与作用域；在原范围检查歧义后再截取候选。
@@ -784,7 +817,7 @@ S3 hosted 回放和 S4–S5 live pilot 在材料、数据目的地、模型版�
 ### Tests
 
 复用 `backend/core/tests/` 与既有 feature 文件；新插件的领域测试放在自己的 tests/，
-实现行为按仓库 TDD 规则先写可失败测试。本次文档修订不补形式测试。
+实现行为按仓库 TDD 规则先写可失败测试；各批次已运行的验证见对应实施记录。
 
 - **领域边界/接线**：同一通用 Runner 可运行 Computer Use 与另一 fake SubAgent；
   Controller 经 extension 工厂进入，不依赖 Runner 的 ladder 判断；私有配置由插件校验。
@@ -875,4 +908,4 @@ S3 hosted 回放和 S4–S5 live pilot 在材料、数据目的地、模型版�
 9. `python3 scripts/check_docs.py`
 10. `python3 scripts/check_protocol_sync.py`；改动协议或生成产物时必须执行。
 
-仅改 `docs/` 的本次修订按仓库例外只执行第 9 项；另做 diff 空白/链接/图像可读性检查。
+仅改 `docs/` 的修订按仓库例外只执行第 9 项；另做 diff 空白/链接/图像可读性检查。

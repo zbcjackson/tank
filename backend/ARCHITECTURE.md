@@ -123,8 +123,13 @@ Plugin task agents can declare `extension: plugin:extension` (manifest type
 `subagent`) instead of `engine`. `SubAgentAdapter` converts a task/context request
 into existing AgentOutput events. Tank owns task authorization, one shared token
 ledger, cancellation/deadline and the same-process desktop lock. WorkerSupervisor
-supplies the persisted task_id and treats only explicit final_answer with
-confirmed cleanup as completion. Cleanup failure quarantines the desktop.
+supplies the persisted task_id and bounded structured task_input; request context
+includes assembled workspace/security rules. Plugins may return a versioned
+TaskResult (completed/partial/unknown/needs_input/stopped) or retain legacy
+final_answer. Results are delivered after cleanup; cleanup failure preserves
+received evidence as unknown and quarantines the desktop. Extension agents cannot
+resume through the legacy chat-history path, which would reset task authority
+and budgets.
 `n2_sdk` uses the pinned official SDK/MacOSComputer in the new agent-n2-sdk plugin;
 old `n2`, agent engines and DesktopExecutor remain supported. Linux SDK adapters,
 physical cancellation acceptance and pause/resume are pending. See
