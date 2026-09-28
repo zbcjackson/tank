@@ -11,6 +11,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "agent-computer-use",
     "agent-n2",
     "agent-n2-sdk",
     "asr-assemblyai",
@@ -39,6 +40,17 @@ members = [
 
 [manifest.dependency-groups]
 dev = [{ name = "pyright", specifier = ">=1.1.409" }]
+
+[[package]]
+name = "agent-computer-use"
+version = "0.1.0"
+source = { editable = "plugins/agent-computer-use" }
+dependencies = [
+    { name = "tank-backend" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "tank-backend", editable = "core" }]
 
 [[package]]
 name = "agent-n2"

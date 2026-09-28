@@ -1,0 +1,8 @@
+name: agent-computer-use
+display_name: Computer Use Host Loop
+description: S0 offline host loop; live channels and model transports are not wired yet.
+extensions:
+  - name: agent
+    type: subagent
+    factory: agent_computer_use:create_subagent
+    permissions: [desktop]

@@ -1,0 +1,13 @@
+[project]
+name = "agent-computer-use"
+version = "0.1.0"
+description = "Host-driven computer-use subagent for Tank"
+requires-python = ">=3.10"
+dependencies = ["tank-backend"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+tank-backend = { workspace = true }
