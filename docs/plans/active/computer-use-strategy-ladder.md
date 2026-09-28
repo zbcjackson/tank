@@ -735,6 +735,10 @@ Tests：`test_subagent.py` 覆盖真实 AgentTool/Supervisor/Runner/SQLite 链�
 协议及生成产物未改。初次沙箱运行的端口/网络失败在具备权限的完整复跑中消除；
 旧审批测试改用真实 DispatchResult，生产 A/N2/SDK 回归保留。
 
+后续[三轮代码评审与两轮重构](../done/computer-use-s0-review.md)已完成：补齐清理期间
+停止/超时及多来源异常证据保留，统一公开序列化，修正空摘要状态文案；最终后端
+5220 passed / 1 skipped，E2E 18 场景通过，第三轮独立复审未发现新增可操作问题。
+
 S0 尚未完成：Computer Use 插件工厂、领域契约与有限 ActionBuilder、fake 驱动的
 宿主循环、通用插件恢复、模型客户端请求准入/HTTP 捕获和共享预留结算接线。
 下一批从插件与领域契约推进；本批没有新增 Ladder/GroundingConfig 专用 Runner 分支，

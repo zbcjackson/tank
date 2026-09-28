@@ -1,4 +1,4 @@
-> 状态：进行中（2026-09-28）。评审 S0 通用任务契约，最多三轮评审—重构—验证。
+> 状态：已完成（2026-09-28）。三轮独立评审、两轮重构；四类确认问题均修复，最终复审无新增可操作问题。
 
 # S0 通用任务契约评审与重构
 
@@ -7,7 +7,8 @@
 
 ## 评审方法
 
-使用项目子 Agent `task-contract-reviewer` 独立评审，主 Agent 核实、复现并修改。
+使用项目子 Agent [task-contract-reviewer](../../../.cursor/agents/task-contract-reviewer.md)
+独立评审，主 Agent 核实、复现并修改。
 先检查重复代码/结构、散落的状态与不变量、基本类型滥用、可变状态共享、长方法与
 参数列、过度耦合、无意义转发、不必要抽象和实现耦合测试；再以实际证据评价
 SOLID、Design by Contract、德米特法则、DRY、KISS、YAGNI。
@@ -52,6 +53,29 @@ web lint/typecheck、backend/CLI ruff、改动文件 pyright、reload 日志、d
 第二轮完整回归：后端 5220 passed / 1 skipped；E2E 18 场景 / 71 步全过。
 127 项聚焦回归、backend ruff、改动文件 pyright、reload 日志、docs/diff 检查通过。
 web/CLI 未再修改，沿用第一轮已通过的检查。进入第三轮最终复审。
+
+第三轮：独立子 Agent 复核 R1–R4 及 R2 两条补充路径，35 项相关回归通过；
+未发现需要继续重构的问题。三轮结束，无未解决的确认问题、无新增延期事项。
+
+## 最终重构方案与结论
+
+- R1：独立、有界的清理 task 在 shield 下收束，重复取消不提前释放锁；
+  SubAgentCancelled 传递已收到的结果，Supervisor 保留 cancelled/timeout 生命周期，
+  TaskResult 记录 stopped、原始证据和确认清理；清理失败优先 unknown 并隔离。
+- R2：TaskResult.with_cleanup / SubAgentCleanupError 集中维护失败降级；
+  Adapter 在生产者和清理异常边界保留本地或异常携带的证据，避免重复包装时丢失。
+- R3：旧 runner 返回和日志使用实际状态，空摘要也不把不完整任务描述成 completed。
+- R4：WorkerStore 模块的 worker_to_dict 统一 REST/工具响应，删除两份重复结构；
+  用公开 API handler 和工具行为验证，不将测试绑定到私有序列化函数。
+
+确认的设计问题涉及 Design by Contract 的清理后置条件、结果一致性和 DRY。
+未发现需单独修复的 SOLID/德米特法则违反；保持明确的公开入口校验，不引入新框架，
+不为风格偏好扩大重构。结论限于此次 S0 变更及其离线调用链；未验证真实桌面、
+外部 SDK 的实机副作用或其它 Python 版本，测试通过不构成无缺陷证明。
+
+提交：`e484391c`（评审角色及计划）、`81a646be`（第一轮修复/重构）、
+`d79116ad`（第二轮证据边界修复）。Computer Use 插件与宿主循环仍由
+[原 S0–S6 计划](../active/computer-use-strategy-ladder.md) 继续推进，不包含在本次关档范围。
 
 ## Tests
 
