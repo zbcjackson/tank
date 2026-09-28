@@ -7,8 +7,9 @@
 
 ## 评审方法
 
-使用项目子 Agent [task-contract-reviewer](../../../.cursor/agents/task-contract-reviewer.md)
-独立评审，主 Agent 核实、复现并修改。
+当时使用名为 task-contract-reviewer 的子 Agent 独立评审，主 Agent 核实、复现并修改。
+该角色后续已迁移并泛化为工具无关的 [code-reviewer](../../../agents/code-reviewer.md)；
+本记录中的三轮结论仍对应当时的 S0 代码范围。
 先检查重复代码/结构、散落的状态与不变量、基本类型滥用、可变状态共享、长方法与
 参数列、过度耦合、无意义转发、不必要抽象和实现耦合测试；再以实际证据评价
 SOLID、Design by Contract、德米特法则、DRY、KISS、YAGNI。
