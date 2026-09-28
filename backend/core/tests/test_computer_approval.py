@@ -20,6 +20,7 @@ from tank_backend.agents.approval import (
 )
 from tank_backend.agents.definition import AgentDefinition
 from tank_backend.agents.runner import AgentRunner
+from tank_backend.agents.supervisor import DispatchResult
 from tank_backend.tools.confirm_action import ConfirmActionTool
 
 
@@ -30,12 +31,10 @@ def _policy(computer_mode: str = "require") -> ToolApprovalPolicy:
     return ToolApprovalPolicy(tool_metadata=meta, computer_mode=computer_mode)
 
 
-def _completed_run(output: str):
-    from types import SimpleNamespace
-
-    return SimpleNamespace(
+def _completed_run(output: str) -> DispatchResult:
+    return DispatchResult(
         status="completed", output=output, task_id="task_1",
-        error=None, started_at=0.0, finished_at=1.0,
+        error=None,
     )
 
 
@@ -69,12 +68,12 @@ def _runner(policy: ToolApprovalPolicy) -> AgentRunner:
         definitions={
             "computer_use": AgentDefinition(
                 name="computer_use", description="gui",
-                system_prompt="gui", tool_filter=["click", "type_text"],
+                system_prompt="gui", tool_filter=("click", "type_text"),
                 background=False,
             ),
             "researcher": AgentDefinition(
                 name="researcher", description="res", system_prompt="res",
-                tool_filter=["web_search"], background=False,
+                tool_filter=("web_search",), background=False,
             ),
         },
     )

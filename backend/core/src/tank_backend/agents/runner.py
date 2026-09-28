@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
 import logging
 import time
 import uuid
@@ -21,6 +22,7 @@ from .definition import AgentDefinition
 from .llm_agent import LLMAgent
 from .resources import DESKTOP_RESOURCE, DesktopCleanup, DesktopResource
 from .subagent import (
+    JsonValue,
     SubAgentAuthorization,
     SubAgentBudget,
     SubAgentCleanupError,
@@ -28,6 +30,7 @@ from .subagent import (
     SubAgentObserver,
     SubAgentRequest,
     SubAgentStopped,
+    validate_task_input,
 )
 from .subagent_adapter import SubAgentAdapter
 
@@ -142,7 +145,11 @@ class AgentRunner:
         deadline: float | None = None, observer: SubAgentObserver | None = None,
         max_steps: int | None = None,
         desktop_cleanup: DesktopCleanup | None = None,
+        task_input: dict[str, JsonValue] | None = None,
     ) -> AsyncIterator[AgentOutput]:
+        task_input = validate_task_input(task_input)
+        if task_input is not None and not agent_def.extension:
+            raise ValueError("task_input requires an extension agent")
         context = None
         if agent_def.grounding is not None:
             deadline = deadline if deadline is not None else time.monotonic() + 600
@@ -168,7 +175,7 @@ class AgentRunner:
             context.check()
         outputs = self._run_agent(
             agent_def, messages, parent_agent_id, background, token_budget,
-            allowed_categories, context=context, task_id=task_id,
+            allowed_categories, context=context, task_id=task_id, task_input=task_input,
         )
         uses_desktop = self._uses_desktop(agent_def) or desktop_cleanup is not None
 
@@ -226,6 +233,7 @@ class AgentRunner:
         token_budget: int | None = None,
         allowed_categories: set[str] | None = None,
         *, context: SubAgentContext | None = None, task_id: str | None = None,
+        task_input: dict[str, JsonValue] | None = None,
     ) -> AsyncGenerator[AgentOutput, None]:
         """Run an agent to completion, yielding all outputs.
 
@@ -304,7 +312,12 @@ class AgentRunner:
                 for tool in self._tool_manager.get_openai_tools(exclude=exclude_tools)
                 if tool_filter is None or tool["function"]["name"] in tool_filter
             }
-        system_prompt = self._build_sub_agent_prompt(agent_def, messages, available_tools)
+        context_messages = messages
+        if task_input is not None:
+            context_messages = [*messages, {
+                "role": "user", "content": json.dumps(task_input, ensure_ascii=False),
+            }]
+        system_prompt = self._build_sub_agent_prompt(agent_def, context_messages, available_tools)
         owned_grounders: list[LLM] = []
 
         if agent_def.extension:
@@ -323,7 +336,8 @@ class AgentRunner:
             task = next((m.get("content", "") for m in reversed(messages)
                          if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
             agent = SubAgentAdapter(agent_def.name, plugin, SubAgentRequest(
-                task=task, context=agent_def.system_prompt, task_id=task_id or agent_id,
+                task=task, context=system_prompt, task_id=task_id or agent_id,
+                task_input=task_input,
             ), context)
         elif agent_def.engine:
             # B2 factory branch: plugin agent engine (e.g. agent-n2).

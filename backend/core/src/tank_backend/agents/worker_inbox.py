@@ -25,13 +25,14 @@ import threading
 from dataclasses import dataclass
 
 from ..pipeline.bus import Bus, BusMessage
+from .task_result import INCOMPLETE_TASK_STATUSES
 
 logger = logging.getLogger(__name__)
 
 
 _TERMINAL_EVENTS: frozenset[str] = frozenset(
     {"completed", "failed", "cancelled", "timeout"},
-)
+) | INCOMPLETE_TASK_STATUSES
 
 
 @dataclass(frozen=True)
@@ -53,7 +54,9 @@ class WorkerCompletion:
             body = self.output.strip() or "(no text output)"
             return f"[Worker '{label}' completed: {body}]"
         # failed / cancelled / timeout — surface error text
-        detail = self.error or self.status
+        detail = self.error or (
+            self.output.strip() if self.status in INCOMPLETE_TASK_STATUSES else ""
+        ) or self.status
         return f"[Worker '{label}' {self.status}: {detail}]"
 
 

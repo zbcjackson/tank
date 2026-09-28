@@ -47,6 +47,8 @@ def _run_to_dict(run: WorkerRun, *, include_output: bool = True) -> dict[str, An
     if include_output:
         data["output"] = run.output
         data["error"] = run.error
+        if run.task_result is not None:
+            data["task_result"] = run.task_result
     return data
 
 

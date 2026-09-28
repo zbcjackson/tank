@@ -13,6 +13,7 @@ from .subagent import (
     SubAgentRequest,
     SubAgentStopped,
 )
+from .task_result import TaskResult
 
 CLEANUP_TIMEOUT_S = 10.0
 
@@ -28,6 +29,7 @@ class SubAgentAdapter(Agent):
 
     async def run(self, state: AgentState) -> AsyncIterator[AgentOutput]:
         terminal: AgentOutput | None = None
+        result: TaskResult | None = None
         outputs = self.plugin.run(self.request, self.context)
         try:
             async for output in outputs:
@@ -35,6 +37,10 @@ class SubAgentAdapter(Agent):
                     raise SubAgentStopped("error", "events after DONE")
                 if output.type == AgentOutputType.DONE:
                     terminal = output
+                    if "task_result" in output.metadata:
+                        result = TaskResult.model_validate(output.metadata["task_result"])
+                        if output.metadata.get("stop_reason") != result.status:
+                            raise SubAgentStopped("error", "task result disagrees with stop_reason")
                 else:
                     yield output
         finally:
@@ -52,13 +58,25 @@ class SubAgentAdapter(Agent):
 
                 await asyncio.wait_for(close(), CLEANUP_TIMEOUT_S)
             except Exception as exc:
-                raise SubAgentCleanupError(f"subagent cleanup unconfirmed: {exc}") from exc
+                if result is not None:
+                    result = result.model_copy(update={
+                        "status": "unknown", "reason": "cleanup_unconfirmed", "cleanup": "unknown",
+                    })
+                raise SubAgentCleanupError(
+                    f"subagent cleanup unconfirmed: {exc}", result,
+                ) from exc
         if terminal is None:
             raise SubAgentStopped("error", "plugin ended without DONE")
         reason = terminal.metadata.get("stop_reason")
+        if result is not None:
+            result = result.model_copy(update={"cleanup": "confirmed"})
+            terminal = AgentOutput(
+                AgentOutputType.DONE, result.summary,
+                {**terminal.metadata, "task_result": result.model_dump(mode="json")},
+            )
         if reason == "timeout":
             raise TimeoutError("subagent timeout")
-        if reason != "final_answer":
+        if reason != "final_answer" and "task_result" not in terminal.metadata:
             raise SubAgentStopped(
                 str(reason or "error"),
                 "plugin did not finish the task",

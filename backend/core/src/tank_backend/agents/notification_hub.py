@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from ..pipeline.bus import Bus, BusMessage
+from .task_result import INCOMPLETE_TASK_STATUSES
 
 if TYPE_CHECKING:
     from ..pipeline import Pipeline
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 _TERMINAL_WORKER_EVENTS: frozenset[str] = frozenset(
     {"completed", "failed", "cancelled", "timeout"},
-)
+) | INCOMPLETE_TASK_STATUSES
 
 _WAITING_EVENT: str = "waiting"
 
@@ -212,14 +213,17 @@ class NotificationHub:
             body = output.strip() or "(no text output)"
             summary = f"[Worker '{label}' completed: {body}]"
         else:
-            detail_text = error or status
+            detail_text = error or (
+                output.strip() if status in INCOMPLETE_TASK_STATUSES else ""
+            ) or status
             summary = f"[Worker '{label}' {status}: {detail_text}]"
 
         notification = Notification(
             source="worker",
             event_type=str(event),
             summary=summary,
-            detail=output if status == "completed" else (error or ""),
+            detail=(output if status == "completed" or status in INCOMPLETE_TASK_STATUSES
+                    else (error or "")),
             priority="normal",
             conversation_id=conversation_id,
             timestamp=time.time(),
@@ -228,6 +232,7 @@ class NotificationHub:
                 "agent_def": agent_def,
                 "description": description,
                 "status": status,
+                **({"task_result": payload["task_result"]} if "task_result" in payload else {}),
             },
         )
 

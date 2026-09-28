@@ -52,3 +52,12 @@ Feature: Chat mode
       | contract |
       | dispatch |
       | stop     |
+
+  Scenario Outline: Plugin task delegation preserves structured input and outcomes
+    When the isolated plugin task contract "<contract>" is exercised
+    Then the plugin task contract passes without live model or desktop input
+
+    Examples:
+      | contract |
+      | input    |
+      | outcomes |

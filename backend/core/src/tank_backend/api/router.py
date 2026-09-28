@@ -313,6 +313,10 @@ _WORKER_STATUS_MAP = {
     "failed": "error",
     "cancelled": "error",
     "timeout": "error",
+    "partial": "error",
+    "unknown": "error",
+    "needs_input": "error",
+    "stopped": "error",
 }
 
 
@@ -349,6 +353,8 @@ def _worker_event_to_ws_msg(
         content = payload.get("output", "") or ""
     elif event in ("failed", "cancelled", "timeout"):
         content = payload.get("error", "") or event
+    elif event in ("partial", "unknown", "needs_input", "stopped"):
+        content = f"{event}: {payload.get('output') or ''}"
 
     is_final = event != "started"
 

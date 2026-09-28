@@ -13,6 +13,7 @@ See ``backend/ORCHESTRATION.md`` (Phase 2) for the surrounding design.
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 from dataclasses import dataclass, field
@@ -23,17 +24,19 @@ from sqlalchemy import CursorResult, func, select, update
 
 from ..persistence import Database
 from ..persistence.models import WorkerRunRow
+from .subagent import JsonValue, validate_task_input
+from .task_result import INCOMPLETE_TASK_STATUSES, TaskStatus
 
 logger = logging.getLogger(__name__)
 
 
 WorkerStatus = Literal[
     "running", "waiting", "completed", "failed", "cancelled", "timeout",
-]
+] | TaskStatus
 
 TERMINAL_STATUSES: frozenset[str] = frozenset(
     {"completed", "failed", "cancelled", "timeout"},
-)
+) | INCOMPLETE_TASK_STATUSES
 
 
 # Sentinel for "any parent" in queries that filter by parent_task_id.
@@ -75,6 +78,8 @@ class WorkerRun:
     error: str | None
     question: str = ""
     messages: list[dict[str, Any]] = field(default_factory=list)
+    task_input: dict[str, JsonValue] | None = None
+    task_result: dict[str, JsonValue] | None = None
 
 
 def _row_to_run(row: WorkerRunRow) -> WorkerRun:
@@ -107,6 +112,8 @@ def _row_to_run(row: WorkerRunRow) -> WorkerRun:
         error=row.error,
         question=row.question or "",
         messages=messages,
+        task_input=json.loads(row.task_input_json) if row.task_input_json else None,
+        task_result=json.loads(row.task_result_json) if row.task_result_json else None,
     )
 
 
@@ -140,8 +147,10 @@ class WorkerStore:
         originating_channel: str | None = None,
         parent_msg_id: str | None = None,
         background: bool = False,
+        task_input: dict[str, JsonValue] | None = None,
     ) -> WorkerRun:
         """Insert a new ``running`` row and return its dataclass."""
+        task_input = validate_task_input(task_input)
         started_at = _now()
         with self._db.session() as s:
             row = WorkerRunRow(
@@ -160,6 +169,7 @@ class WorkerStore:
                 output="",
                 error=None,
                 messages_json=None,
+                task_input_json=json.dumps(task_input) if task_input is not None else None,
             )
             s.add(row)
         return WorkerRun(
@@ -178,6 +188,7 @@ class WorkerStore:
             output="",
             error=None,
             messages=[],
+            task_input=copy.deepcopy(task_input),
         )
 
     def finish(
@@ -188,6 +199,7 @@ class WorkerStore:
         output: str = "",
         error: str | None = None,
         messages: list[dict[str, Any]] | None = None,
+        task_result: dict[str, JsonValue] | None = None,
     ) -> bool:
         """Transition a row to a terminal status. Returns False if not found
         or already terminal."""
@@ -206,6 +218,7 @@ class WorkerStore:
             row.completed_at = completed_at
             row.output = output
             row.error = error
+            row.task_result_json = json.dumps(task_result) if task_result is not None else None
             if messages is not None:
                 row.messages_json = json.dumps(messages)
         return True

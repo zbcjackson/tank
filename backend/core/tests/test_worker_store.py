@@ -113,7 +113,8 @@ class TestStatusTransitions:
 
     def test_terminal_statuses_constant(self):
         assert frozenset(
-            {"completed", "failed", "cancelled", "timeout"},
+            {"completed", "failed", "cancelled", "timeout",
+             "partial", "unknown", "needs_input", "stopped"},
         ) == TERMINAL_STATUSES
 
     def test_finish_persists_messages(self, store: WorkerStore):

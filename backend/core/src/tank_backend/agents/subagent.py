@@ -3,13 +3,52 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import math
 import time
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+from pydantic import JsonValue
 
 from .base import AgentOutput
+
+if TYPE_CHECKING:
+    from .task_result import TaskResult
+
+
+def validate_task_input(value: object) -> dict[str, JsonValue] | None:
+    """Detach a bounded JSON object; domain validation belongs to the plugin."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("task_input must be a JSON object")
+
+    def copy_value(item: object, depth: int) -> JsonValue:
+        if depth > 16:
+            raise ValueError("task_input exceeds 16 levels of nesting")
+        if item is None or isinstance(item, (str, bool, int)):
+            return item
+        if isinstance(item, float) and math.isfinite(item):
+            return item
+        if isinstance(item, list):
+            return [copy_value(child, depth + 1) for child in item]
+        if isinstance(item, dict) and all(isinstance(key, str) for key in item):
+            return {key: copy_value(child, depth + 1) for key, child in item.items()}
+        raise ValueError("task_input must contain only JSON values and string keys")
+
+    result = copy_value(value, 0)
+    assert isinstance(result, dict)
+    encoded = json.dumps(result, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+    try:
+        size = len(encoded.encode("utf-8"))
+    except UnicodeError as exc:
+        raise ValueError("task_input must contain valid UTF-8 text") from exc
+    if size > 64 * 1024:
+        raise ValueError("task_input exceeds 65536 UTF-8 bytes")
+    return result
 
 
 class SubAgentStopped(RuntimeError):
@@ -26,12 +65,20 @@ class SubAgentStopped(RuntimeError):
 class SubAgentCleanupError(RuntimeError):
     """Cleanup could not be confirmed; a desktop must be quarantined."""
 
+    def __init__(self, detail: str, task_result: TaskResult | None = None) -> None:
+        self.task_result = task_result
+        super().__init__(detail)
+
 
 @dataclass(frozen=True)
 class SubAgentRequest:
     task: str
     context: str
     task_id: str
+    task_input: dict[str, JsonValue] | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "task_input", validate_task_input(self.task_input))
 
 
 @dataclass(frozen=True)

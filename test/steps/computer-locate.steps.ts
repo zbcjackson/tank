@@ -25,3 +25,22 @@ Then('the split desktop contract passes without live model or desktop input',
   function (this: TankWorld) {
     assert.match(results.get(this) ?? '', /\d+ passed/);
   });
+
+// S0 generic seam coverage: real Tool → Supervisor → Runner → plugin and SQLite.
+// Model/desktop boundaries are fake; this does not claim live ladder acceptance.
+When('the isolated plugin task contract {string} is exercised',
+  async function (this: TankWorld, contract: string) {
+    assert.ok(['input', 'outcomes'].includes(contract));
+    const selection = contract === 'input'
+      ? 'structured_task_input or approval_binds_a_detached or invalid_task_input or assembled_task_constraints'
+      : 'structured_task_result or background_task_outcome or cleanup_failure_retains or cannot_resume_through';
+    const {stdout} = await promisify(execFile)('uv', [
+      'run', '--no-sync', 'pytest', 'core/tests/test_subagent.py', '-q', '-k', selection,
+    ], {cwd: resolve(process.cwd(), '../backend'), timeout: 30000});
+    results.set(this, stdout);
+  });
+
+Then('the plugin task contract passes without live model or desktop input',
+  function (this: TankWorld) {
+    assert.match(results.get(this) ?? '', /\d+ passed/);
+  });

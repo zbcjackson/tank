@@ -91,6 +91,38 @@ def test_run_migrations_is_idempotent(tmp_path: Path) -> None:
     run_migrations(url)
 
 
+def test_worker_input_migration_preserves_legacy_rows(tmp_path: Path) -> None:
+    from alembic import command
+
+    from tank_backend.agents.store import WorkerStore
+    from tank_backend.persistence.migrate import _build_config
+
+    url = f"sqlite+pysqlite:///{tmp_path}/workers.db"
+    command.upgrade(_build_config(url), "d3f5b7a2e9c1")
+    db = Database(url)
+    try:
+        with db.session() as session:
+            session.execute(text(
+                "INSERT INTO worker_runs "
+                "(task_id, agent_def, description, prompt, status, background, started_at, output) "
+                "VALUES ('old', 'fake', '', 'task', 'completed', 0, '2026-09-28', 'done')"
+            ))
+        run_migrations(url)
+        store = WorkerStore(db)
+        old = store.get("old")
+        assert old is not None and old.output == "done" and old.task_input is None
+        assert old.task_result is None
+        store.create(task_id="new", agent_def="fake", prompt="task", task_input={"version": 1})
+        new = store.get("new")
+        assert new is not None and new.task_input == {"version": 1}
+        result = {"schema_version": 1, "status": "unknown", "summary": "save unverified"}
+        store.finish("new", status="unknown", task_result=result)
+        finished = store.get("new")
+        assert finished is not None and finished.task_result == result
+    finally:
+        db.dispose()
+
+
 def test_expand_sqlite_url_expands_tilde() -> None:
     """``~`` in SQLite URLs is expanded to absolute path; parent dir is created."""
     import tempfile

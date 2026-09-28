@@ -35,7 +35,7 @@ from ..tools.base import (
 )
 from .base import AgentOutputType
 from .runner import AgentRunner
-from .subagent import SubAgentAuthorization
+from .subagent import JsonValue, SubAgentAuthorization, validate_task_input
 from .supervisor import (
     ConcurrencyLimitExceeded,
     DepthLimitExceeded,
@@ -64,7 +64,7 @@ class AgentTool(BaseTool):
         self._supervisor = supervisor
         # A5: one-time tokens authorizing a computer-control dispatch the
         # user just approved (round-trips through ConfirmActionTool).
-        self._issued_tokens: dict[str, tuple[str, str, frozenset[str]]] = {}
+        self._issued_tokens: dict[str, tuple[str, str, frozenset[str], str]] = {}
         self._approved_tokens: set[str] = set()
 
     def get_info(self) -> ToolInfo:
@@ -92,6 +92,16 @@ class AgentTool(BaseTool):
                     type="string",
                     description="Clear, specific task description for the agent",
                     required=True,
+                ),
+                ToolParameter(
+                    name="task_input",
+                    type="object",
+                    description=(
+                        "Optional structured input for extension agents only. "
+                        "Follow the selected agent's input contract. JSON object, "
+                        "at most 64 KiB UTF-8 and 16 nesting levels."
+                    ),
+                    required=False,
                 ),
                 ToolParameter(
                     name="subagent_type",
@@ -129,6 +139,12 @@ class AgentTool(BaseTool):
         prompt: str = kwargs["prompt"]
         background = kwargs.get("run_in_background", False)
         description = kwargs.get("description", "")
+        try:
+            task_input = validate_task_input(kwargs.get("task_input"))
+        except ValueError as exc:
+            return ToolResult(content=str(exc), error=True)
+        if task_input is not None:
+            kwargs["task_input"] = task_input
         originating_conversation_id = ctx.session_id if ctx is not None else None
 
         agent_def = self._runner.get_definition(agent_type)
@@ -141,6 +157,9 @@ class AgentTool(BaseTool):
                 }, ensure_ascii=False),
                 error=True,
             )
+
+        if task_input is not None and not agent_def.extension:
+            return ToolResult(content="task_input requires an extension agent", error=True)
 
         permissions = (self._runner.extension_permissions(agent_def)
                        if agent_def.extension else frozenset())
@@ -165,6 +184,7 @@ class AgentTool(BaseTool):
                 originating_conversation_id=originating_conversation_id,
                 allowed_categories=allowed_categories,
                 authorization=authorization,
+                task_input=task_input,
             )
         return await self._execute_via_runner(
             agent_def=agent_def,
@@ -174,6 +194,7 @@ class AgentTool(BaseTool):
             background=background or agent_def.background,
             allowed_categories=allowed_categories,
             authorization=authorization,
+            task_input=task_input,
         )
 
     # ------------------------------------------------------------------
@@ -219,6 +240,7 @@ class AgentTool(BaseTool):
         approved = self._issued_tokens.pop(token)
         return approved == (
             kwargs.get("prompt", ""), kwargs.get("subagent_type", "coder"), permissions,
+            json.dumps(kwargs.get("task_input"), sort_keys=True, ensure_ascii=False),
         )
 
     def _park_dispatch_approval(
@@ -245,7 +267,10 @@ class AgentTool(BaseTool):
             )
 
         token = secrets.token_hex(8)
-        self._issued_tokens[token] = (prompt, kwargs.get("subagent_type", "coder"), permissions)
+        self._issued_tokens[token] = (
+            prompt, kwargs.get("subagent_type", "coder"), permissions,
+            json.dumps(kwargs.get("task_input"), sort_keys=True, ensure_ascii=False),
+        )
         scope = ", ".join(sorted(permissions)) if permissions else "control mouse & keyboard"
         description = f"{scope}: {prompt[:120]}"
         pending = PendingToolCall(
@@ -313,10 +338,13 @@ class AgentTool(BaseTool):
         originating_conversation_id: str | None,
         allowed_categories: set[str] | None = None,
         authorization: SubAgentAuthorization | None = None,
+        task_input: dict[str, JsonValue] | None = None,
     ) -> ToolResult:
         assert self._supervisor is not None  # noqa: S101
         extension_kwargs: dict[str, Any] = ({"authorization": authorization}
                                            if agent_def.extension else {})
+        if task_input is not None:
+            extension_kwargs["task_input"] = task_input
         try:
             if background:
                 task_id = self._supervisor.run_background(
@@ -381,6 +409,7 @@ class AgentTool(BaseTool):
                 "task_id": result.task_id,
                 "status": result.status,
                 "message": message,
+                **({"task_result": result.task_result} if result.task_result is not None else {}),
             }, ensure_ascii=False),
             display=f"Agent '{agent_type}' {result.status}",
         )
@@ -420,6 +449,7 @@ class AgentTool(BaseTool):
         background: bool,
         allowed_categories: set[str] | None = None,
         authorization: SubAgentAuthorization | None = None,
+        task_input: dict[str, JsonValue] | None = None,
     ) -> ToolResult:
         messages: list[dict[str, Any]] = [
             {"role": "user", "content": prompt},
@@ -427,12 +457,14 @@ class AgentTool(BaseTool):
 
         full_text = ""
         tool_calls = 0
+        task_result: dict[str, JsonValue] | None = None
         run_kwargs: dict[str, Any] = {}
         if allowed_categories:
             run_kwargs["allowed_categories"] = allowed_categories
 
         if agent_def.extension:
             run_kwargs["authorization"] = authorization
+            run_kwargs["task_input"] = task_input
         async for output in self._runner.run_agent(
             agent_def=agent_def,
             messages=messages,
@@ -441,6 +473,9 @@ class AgentTool(BaseTool):
         ):
             if output.type == AgentOutputType.TOKEN:
                 full_text += output.content
+            elif output.type == AgentOutputType.DONE and "task_result" in output.metadata:
+                task_result = output.metadata["task_result"]
+                full_text = output.content
             elif output.type in (
                 AgentOutputType.TOOL_EXECUTING,
                 AgentOutputType.TOOL_RESULT,
@@ -452,11 +487,14 @@ class AgentTool(BaseTool):
             agent_type, len(full_text), tool_calls,
         )
 
+        status = str(task_result["status"]) if task_result is not None else "completed"
         return ToolResult(
             content=json.dumps({
                 "agent_type": agent_type,
                 "description": description,
                 "message": full_text or f"Agent '{agent_type}' completed (no text output).",
+                **({"status": status, "task_result": task_result}
+                   if task_result is not None else {}),
             }, ensure_ascii=False),
-            display=f"Agent '{agent_type}' completed",
+            display=f"Agent '{agent_type}' {status}",
         )

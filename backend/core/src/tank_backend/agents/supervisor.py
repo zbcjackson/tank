@@ -35,8 +35,9 @@ from typing import TYPE_CHECKING, Any
 
 from ..pipeline.bus import BusMessage
 from .base import AgentOutputType
-from .store import WorkerRun, WorkerStore
-from .subagent import SubAgentAuthorization, SubAgentStopped
+from .store import WorkerRun, WorkerStatus, WorkerStore
+from .subagent import JsonValue, SubAgentAuthorization, SubAgentCleanupError, SubAgentStopped
+from .task_result import TaskResult
 
 if TYPE_CHECKING:
     from ..pipeline.bus import Bus
@@ -68,6 +69,7 @@ class DispatchResult:
     status: str
     output: str
     error: str | None
+    task_result: dict[str, JsonValue] | None = None
 
 
 class WorkerSupervisorError(Exception):
@@ -128,6 +130,7 @@ class WorkerSupervisor:
         timeout: float | None = None,
         allowed_categories: set[str] | None = None,
         authorization: SubAgentAuthorization | None = None,
+        task_input: dict[str, JsonValue] | None = None,
     ) -> DispatchResult:
         """Dispatch and await an agent worker.
 
@@ -147,6 +150,7 @@ class WorkerSupervisor:
             originating_channel=originating_channel,
             parent_msg_id=parent_msg_id,
             background=False,
+            task_input=task_input,
         )
         return await self._drive_to_completion(
             run=run, agent_def=agent_def, timeout=timeout,
@@ -167,6 +171,7 @@ class WorkerSupervisor:
         timeout: float | None = None,
         allowed_categories: set[str] | None = None,
         authorization: SubAgentAuthorization | None = None,
+        task_input: dict[str, JsonValue] | None = None,
     ) -> str:
         """Dispatch a worker and return its ``task_id`` immediately.
 
@@ -184,6 +189,7 @@ class WorkerSupervisor:
             originating_channel=originating_channel,
             parent_msg_id=parent_msg_id,
             background=True,
+            task_input=task_input,
         )
         task = asyncio.create_task(
             self._drive_to_completion(
@@ -260,7 +266,10 @@ class WorkerSupervisor:
         originating_channel: str | None,
         parent_msg_id: str | None,
         background: bool,
+        task_input: dict[str, JsonValue] | None = None,
     ) -> WorkerRun:
+        if task_input is not None and not agent_def.extension:
+            raise ValueError("task_input requires an extension agent")
         self._enforce_limits(parent_task_id=parent_task_id)
         task_id = self._new_task_id()
         run = self._store.create(
@@ -273,6 +282,7 @@ class WorkerSupervisor:
             originating_channel=originating_channel,
             parent_msg_id=parent_msg_id,
             background=background,
+            task_input=task_input,
         )
         self._post_bus_event("started", run)
         return run
@@ -324,6 +334,19 @@ class WorkerSupervisor:
                 error=error, messages=messages,
             )
             raise
+        except SubAgentCleanupError as e:
+            task_result = e.task_result
+            if task_result is not None:
+                task_result = task_result.model_copy(update={
+                    "status": "unknown", "reason": "cleanup_unconfirmed", "cleanup": "unknown",
+                })
+            return self._finalize(
+                run=run, status=task_result.status if task_result is not None else "failed",
+                output=task_result.summary if task_result is not None else "".join(output_chunks),
+                error=str(e), messages=messages,
+                task_result=(task_result.model_dump(mode="json")
+                             if task_result is not None else None),
+            )
         except Exception as e:  # noqa: BLE001 — failure is the result we return
             logger.exception(
                 "Worker '%s' (task=%s) failed",
@@ -334,6 +357,11 @@ class WorkerSupervisor:
                 error=f"{type(e).__name__}: {e}", messages=messages,
             )
 
+        if isinstance(ask_user, TaskResult):
+            return self._finalize(
+                run=run, status=ask_user.status, output=ask_user.summary,
+                error=None, messages=messages, task_result=ask_user.model_dump(mode="json"),
+            )
         if ask_user is not None:
             self._store.pause(
                 run.task_id,
@@ -362,7 +390,7 @@ class WorkerSupervisor:
         allowed_categories: set[str] | None = None,
         authorization: SubAgentAuthorization | None = None,
         deadline: float | None = None,
-    ) -> _AskUserResult | None:
+    ) -> _AskUserResult | TaskResult | None:
         """Drain ``runner.run_agent`` into ``output_chunks``.
 
         Returns an ``_AskUserResult`` if the sub-agent called ask_user,
@@ -375,8 +403,10 @@ class WorkerSupervisor:
             # Optional so narrow test fakes (and older callers) keep working.
             run_kwargs["allowed_categories"] = allowed_categories
         terminal = False
+        task_result: TaskResult | None = None
         if agent_def.extension:
             run_kwargs.update(task_id=run.task_id, authorization=authorization, deadline=deadline)
+            run_kwargs["task_input"] = run.task_input
         async for event in self._runner.run_agent(
             agent_def=agent_def,
             messages=messages,
@@ -385,7 +415,12 @@ class WorkerSupervisor:
             **run_kwargs,
         ):
             if event.type == AgentOutputType.DONE and agent_def.extension:
-                if event.metadata.get("stop_reason") != "final_answer":
+                if "task_result" in event.metadata:
+                    task_result = TaskResult.model_validate(event.metadata["task_result"])
+                    if (task_result.cleanup != "confirmed"
+                            or event.metadata.get("stop_reason") != task_result.status):
+                        raise SubAgentStopped("error", "unconfirmed task result")
+                elif event.metadata.get("stop_reason") != "final_answer":
                     raise SubAgentStopped(str(event.metadata.get("stop_reason", "error")))
                 terminal = True
             if event.type == AgentOutputType.TOKEN:
@@ -405,6 +440,7 @@ class WorkerSupervisor:
             elif (
                 event.type == AgentOutputType.DONE
                 and ask_user_question is not None
+                and task_result is None
             ):
                 turn_messages = event.metadata.get("turn_messages", [])
                 return _AskUserResult(
@@ -413,32 +449,35 @@ class WorkerSupervisor:
                 )
         if agent_def.extension and not terminal:
             raise SubAgentStopped("error", "extension ended without final_answer")
-        return None
+        return task_result
 
     def _finalize(
         self,
         *,
         run: WorkerRun,
-        status: str,
+        status: WorkerStatus,
         output: str,
         error: str | None,
         messages: list[dict[str, Any]],
+        task_result: dict[str, JsonValue] | None = None,
     ) -> DispatchResult:
         # Round-trip messages so a future ``task_id`` resume can pick
         # up the prompt; the assistant turn lives only in ``output``
         # for now and is appended on next dispatch.
         self._store.finish(
             run.task_id,
-            status=status,  # type: ignore[arg-type]
+            status=status,
             output=output,
             error=error,
             messages=messages,
+            task_result=task_result,
         )
         result = DispatchResult(
             task_id=run.task_id,
             status=status,
             output=output,
             error=error,
+            task_result=task_result,
         )
         self._post_bus_event(_terminal_event_name(status), run, result=result)
         return result
@@ -504,6 +543,8 @@ class WorkerSupervisor:
         if result is not None:
             payload["status"] = result.status
             payload["output"] = _truncate(result.output, _BUS_OUTPUT_MAX_BYTES)
+            if result.task_result is not None:
+                payload["task_result"] = result.task_result
             if result.error is not None:
                 payload["error"] = result.error
         if question is not None:
@@ -555,12 +596,17 @@ class WorkerSupervisor:
         if run is None or run.status != "waiting":
             return False
 
+        agent_def = self._runner.get_definition(run.agent_def)
+        if agent_def is not None and agent_def.extension:
+            # Plugin progress, grants and cumulative budgets cannot be rebuilt
+            # from chat messages. A plugin-aware resume contract is still needed.
+            return False
+
         messages = list(run.messages)
         messages.append({"role": "user", "content": answer})
 
         self._store.resume(task_id)
 
-        agent_def = self._runner.get_definition(run.agent_def)
         if agent_def is None:
             self._store.finish(
                 task_id, status="failed",
@@ -594,12 +640,7 @@ class WorkerSupervisor:
 
 def _terminal_event_name(status: str) -> str:
     """Map terminal status → bus event name."""
-    return {
-        "completed": "completed",
-        "failed": "failed",
-        "cancelled": "cancelled",
-        "timeout": "timeout",
-    }.get(status, "completed")
+    return status
 
 
 def _truncate(text: str, max_bytes: int) -> str:

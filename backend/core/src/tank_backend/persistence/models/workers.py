@@ -46,3 +46,6 @@ class WorkerRunRow(Base):
     question:                    Mapped[str | None] = mapped_column(Text, nullable=True)
     # JSON-encoded list of OpenAI messages; populated for resumable runs.
     messages_json:               Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Optional plugin-defined JSON input, independent of chat history.
+    task_input_json:             Mapped[str | None] = mapped_column(Text, nullable=True)
+    task_result_json:            Mapped[str | None] = mapped_column(Text, nullable=True)
