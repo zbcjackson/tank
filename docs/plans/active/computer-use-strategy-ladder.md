@@ -770,7 +770,15 @@ web lint / `tsc -b --noEmit`、backend/CLI ruff、新 Python 文件 pyright、�
 docs check、diff 检查通过。未改协议，无需协议生成检查。锁文件仅新增本地插件，
 `uv lock --check --offline` 与 frozen offline 安装均通过；未更新已有依赖版本。
 E2E 首轮与红灯测试添加重叠而失败，完成实现后的完整复跑已通过。
-本批验证没有付费模型或真实桌面输入；代码评审结果随后补记。
+本批验证没有付费模型或真实桌面输入。
+
+代码评审：独立 code-reviewer 以 `review-and-refactor` 模式检查基线 `6d736d27`
+至 `958e4c27` 的完整任务差异，第 1 轮未发现可操作问题，依规则立即结束评审，
+没有源码修复或无必要重构。重点复核异步派发前门控、unknown 效果留痕/不重放、
+当前作用域完成核验，以及通用 Adapter 的取消证据和清理归属。
+评审后在最终源码上重跑后端全量：5301 passed / 1 skipped；backend core/插件 ruff
+及插件源码/测试 pyright 通过。未改源码的 web/CLI、E2E、服务日志和锁文件检查
+复用上述通过记录；评审记录补入后再跑 docs check。真实通道和模型边界仍未验证。
 
 真实 AX/OCR/DOM、Jev/LLM SDK、HTTP 请求准入/捕获/共享预留结算和通用恢复留待
 后续批次；本批不完成整个 S0，也不触发付费或桌面实验。
