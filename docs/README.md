@@ -42,6 +42,6 @@
 - [plans/done/gpt55-computer-use-loop.md](plans/done/gpt55-computer-use-loop.md)：验证结论汇总、GPT-5.5 实机 calc-open 2/3 严格通过与 temperature 接入修复（已完成）。
 - [research/computer-use-implementation-comparison.md](research/computer-use-implementation-comparison.md)：模型与宿主责任边界、其它实现的坐标/AX/定位器/反馈设计及实验优先级。
 - [plans/done/computer-use-implementation-research.md](plans/done/computer-use-implementation-research.md)：公开实现对照与改进方案调研（已完成）。
-- [research/computer-use-strategy-ladder.md](research/computer-use-strategy-ladder.md)：策略阶梯调研与复核：DOM/AX/OCR/视觉能力、M8 证据边界、Jev 官方协议及 D2 选择实验；收益均待验证。
-- [plans/active/computer-use-strategy-ladder.md](plans/active/computer-use-strategy-ladder.md)：策略阶梯设计与实施计划（S0–S6 尚未开工）：UML 类图/时序图/状态图及 PNG/SVG、场景路由、派发与效果恢复、共享预算、条件性 D2 实验、配对验收；生产默认不变。
+- [research/computer-use-strategy-ladder.md](research/computer-use-strategy-ladder.md)：策略阶梯调研与复核：DOM/AX/OCR/视觉、M8 证据边界、Jev 官方协议与动作选择、按需 LLM 协作；收益均待验证。
+- [plans/active/computer-use-strategy-ladder.md](plans/active/computer-use-strategy-ladder.md)：目标级 Computer Use 设计与计划（S0–S6 尚未开工）：宿主循环、规则/Jev/LLM 路由、目标与统一观察契约、架构及三种 UML 的 PNG/SVG、执行恢复与共享预算、对照验收及实测调参点；生产默认不变。
 - [plans/done/computer-use-adaptation-and-grounding.md](plans/done/computer-use-adaptation-and-grounding.md)：macOS 适配与定位效果改进计划（M0–M8 已完成，2026-09-25 关档）：保留生产基线 A（一体 legacy 归一化，默认全程未切换）；静态首轮门槛无候选通过；calc-open 拆分显著优于适配一体+宿主还原（p=0.011）但宽任务集 A 10/36 > C 5/36 且 C 耗 1.7–2× token；AX 条件性暂缓；点击大偏移根因未解决（归因止于服务输出边界）；全计划 ≈35.4M tokens（unpriced）。收口汇总见 [M8 收口报告](../backend/benchmarks/computer_use/reports/20260925-m8-closeout/README.md)，触发式后续工作在 [backlog.md](backlog.md)。

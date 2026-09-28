@@ -1,70 +1,75 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1190" viewBox="0 0 1440 1190">
-<rect width="1440" height="1190" fill="#ffffff"/>
-<text x="35" y="56" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="28" fill="#18232e">02  时序图：一次操作，以及回包丢失后的处理</text>
-<text x="35" y="89" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#526171">以“点击提交”为例 · 候选已唯一；所有执行都受共享停止与预算约束</text>
-<rect x="44" y="125" width="172" height="54" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="100.0" y="159" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#18232e">规划器</text>
-<polyline points="130,179 130,1085" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<rect x="274" y="125" width="172" height="54" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="330.0" y="159" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#18232e">调度器</text>
-<polyline points="360,179 360,1085" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<rect x="504" y="125" width="172" height="54" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="540.0" y="159" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#18232e">观察管理器</text>
-<polyline points="590,179 590,1085" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<rect x="734" y="125" width="172" height="54" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="780.0" y="159" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#18232e">定位通道</text>
-<polyline points="820,179 820,1085" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<rect x="964" y="125" width="172" height="54" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="1020.0" y="159" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#18232e">执行器</text>
-<polyline points="1050,179 1050,1085" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<rect x="1194" y="125" width="172" height="54" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="1250.0" y="159" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#18232e">核验器</text>
-<polyline points="1280,179 1280,1085" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="360,225 590,225" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<polyline points="577.0,219.0 590,225 577.0,231.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="391.75" y="211" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">1. 观察当前页面 / 窗口</text>
-<polyline points="590,285 360,285" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="373.0,291.0 360,285 373.0,279.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="360.0" y="271" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">Snapshot：状态 + 身份 + 版本</text>
-<polyline points="360,345 130,345" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<polyline points="143.0,351.0 130,345 143.0,339.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="195.0" y="331" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">2. 请求下一步</text>
-<polyline points="130,405 360,405" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="347.0,399.0 360,405 347.0,411.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="115.25" y="391" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">StepIntent：目标、动作、完成条件</text>
-<polyline points="360,465 820,465" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<polyline points="807.0,459.0 820,465 807.0,471.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="508.0" y="451" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">3. 选择适用通道并定位</text>
-<polyline points="820,525 360,525" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="373.0,531.0 360,525 373.0,519.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="469.75" y="511" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">TargetRef：唯一且绑定当前对象</text>
-<polyline points="360,585 1050,585" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<polyline points="1037.0,579.0 1050,585 1037.0,591.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="575.0" y="571" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">4. 校验引用、权限、预算；提交一次</text>
-<polyline points="1050,645 360,645" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="373.0,651.0 360,645 373.0,639.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="598.5" y="631" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">派发回执：sent 或 unknown</text>
-<rect x="55" y="688" width="1330" height="373" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
-<rect x="55" y="688" width="66" height="36" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="77.25" y="713" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">alt</text>
-<text x="138" y="714" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#176887">[已派发，结果可读取]</text>
-<polyline points="360,768 1280,768" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<polyline points="1267.0,762.0 1280,768 1267.0,774.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="717.5" y="754" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">5a. 检查本次提交的完成条件</text>
-<polyline points="1280,828 360,828" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="373.0,834.0 360,828 373.0,822.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="712.75" y="814" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">achieved：获得对应确认结果</text>
-<polyline points="360,876 130,876" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="143.0,882.0 130,876 143.0,870.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="165.0" y="862" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">更新进度，进入下一步</text>
-<polyline points="55,908 1385,908" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<text x="138" y="937" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#176887">[回包丢失：可能已经执行]</text>
-<polyline points="360,981 1280,981" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<polyline points="1267.0,975.0 1280,981 1267.0,987.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="724.75" y="967" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">5b. 只读复核，不重放提交</text>
-<polyline points="1280,1040 360,1040" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="373.0,1046.0 360,1040 373.0,1034.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="713.5" y="1026" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">已完成 / 继续等待 / 结果未知</text>
-<text x="35" y="1128" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">unknown 不等于失败：无法核实时报告未知。只有确认未派发，或动作满足安全重复条件，才考虑受控重试。</text>
-<text x="35" y="1165" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#526171">停止信号可以在任何阶段到达：拒绝新操作 → 收束在飞工作 → 清理与核验 → 返回部分完成状态。</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1420" viewBox="0 0 1500 1420">
+<rect width="1500" height="1420" fill="#ffffff"/>
+<text x="35" y="56" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="28" fill="#18232e">02  UML 时序图：一个目标内多步推进，LLM 按需介入</text>
+<text x="35" y="89" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#526171">目标设计 · 三条决策分支互斥；Jev 拒绝可转补观察 / Advisor，不产生动作</text>
+<rect x="38" y="125" width="174" height="54" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="95.0" y="160" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#18232e">父代理</text>
+<polyline points="125,179 125,1310" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<rect x="273" y="125" width="174" height="54" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="310.0" y="160" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#18232e">宿主控制器</text>
+<polyline points="360,179 360,1310" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<rect x="513" y="125" width="174" height="54" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="550.0" y="160" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#18232e">观察与候选</text>
+<polyline points="600,179 600,1310" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<rect x="753" y="125" width="174" height="54" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="823.5" y="160" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#18232e">Jev</text>
+<polyline points="840,179 840,1310" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<rect x="993" y="125" width="174" height="54" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1020.75" y="160" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#18232e">LLMAdvisor</text>
+<polyline points="1080,179 1080,1310" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<rect x="1253" y="125" width="174" height="54" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1290.0" y="160" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#18232e">执行与核验</text>
+<polyline points="1340,179 1340,1310" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="125,235 360,235" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="347.0,229.0 360,235 347.0,241.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="186.5" y="222" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">目标契约与授权</text>
+<polyline points="275,285 1445,285 1445,1235 275,1235 275,285" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<rect x="275" y="285" width="68" height="32" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="292.0" y="306" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#18232e">loop</text>
+<text x="360" y="309" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#176887">[目标未完成，预算与授权允许]</text>
+<polyline points="360,365 600,365" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="587.0,359.0 600,365 587.0,371.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="424.0" y="352" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">观察，构造候选</text>
+<polyline points="600,425 360,425" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="373.0,431.0 360,425 373.0,419.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="392.5" y="412" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">Snapshot + ActionSet</text>
+<polyline points="290,465 1425,465 1425,875 290,875 290,465" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<rect x="290" y="465" width="55" height="32" rx="0" fill="#f3f6f8" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="307.5" y="486" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#18232e">alt</text>
+<text x="370" y="498" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#176887">[规则可判] 宿主直接选择确定性动作</text>
+<polyline points="290,530 1425,530" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<text x="380" y="560" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#176887">[结构决策适用]</text>
+<polyline points="360,603 840,603" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="827.0,597.0 840,603 827.0,609.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="509.25" y="590" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">目标状态 + 有限动作候选</text>
+<polyline points="840,663 360,663" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="373.0,669.0 360,663 373.0,657.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="489.5" y="650" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">动作 ID / 拒绝 / 补证据 / 升级</text>
+<polyline points="290,690 1425,690" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<text x="380" y="721" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#176887">[需规划、生成、视觉或拒绝恢复]</text>
+<polyline points="360,769 1080,769" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="1067.0,763.0 1080,769 1067.0,775.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="589.25" y="756" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">缺口 + 同源上下文；只有必要时附图</text>
+<polyline points="1080,830 360,830" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="373.0,836.0 360,830 373.0,824.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="582.75" y="817" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">经校验的目标 / 参数补充，或单步提案</text>
+<text x="380" y="908" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">补信息 → 下轮观察与快速路由；获得合法提案 → 以下执行路径</text>
+<polyline points="360,960 1340,960" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="1327.0,954.0 1340,960 1327.0,966.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="778.0" y="947" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">统一门控；派发一次</text>
+<polyline points="1340,1015 360,1015" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="373.0,1021.0 360,1015 373.0,1009.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="791.25" y="1002" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">回执 + 效果核验</text>
+<text x="380" y="1068" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#176887">opt [已发送但效果未知]</text>
+<polyline points="360,1110 1340,1110" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="1327.0,1104.0 1340,1110 1327.0,1116.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="762.0" y="1097" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">只读协调，禁止盲目重放</text>
+<polyline points="1340,1170 360,1170" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="373.0,1176.0 360,1170 373.0,1164.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="728.75" y="1157" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">效果确认 / 仍未知；更新共享状态</text>
+<polyline points="360,1290 125,1290" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="138.0,1296.0 125,1290 138.0,1284.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="202.5" y="1277" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">带证据返回</text>
+<text x="45" y="1358" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">LLM 不是每轮必经规划器；补充信息后重评规则 / Jev，不永久切换到 LLM 模式。</text>
+<text x="45" y="1395" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#526171">完成 / 部分完成 / 需用户信息 / 停止 / 未知均有明确结果；模型切换不重置授权、预算、动作回执。</text>
 </svg>

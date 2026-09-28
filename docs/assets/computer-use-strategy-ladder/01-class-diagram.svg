@@ -1,99 +1,95 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1370" height="1100" viewBox="0 0 1370 1100">
-<rect width="1370" height="1100" fill="#ffffff"/>
-<text x="35" y="56" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="28" fill="#18232e">01  类图：职责分工</text>
-<text x="35" y="89" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#526171">建议目标设计 · 类名表达职责，不代表这些类已经实现</text>
-<rect x="530" y="120" width="310" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="620.25" y="153" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">TaskSession</text>
-<polyline points="530,168 840,168" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="544" y="200" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">预算、授权、停止、资源归属</text>
-<polyline points="530,217 840,217" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="544" y="247" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">check() / close()</text>
-<rect x="40" y="365" width="330" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="165.75" y="398" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">Planner</text>
-<polyline points="40,413 370,413" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="54" y="445" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">提出下一动作与可验证完成条件</text>
-<polyline points="40,462 370,462" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="54" y="492" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">nextStep(snapshot) → StepIntent</text>
-<rect x="520" y="365" width="330" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="609.25" y="398" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">StepController</text>
-<polyline points="520,413 850,413" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="534" y="445" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">选择通道；驱动执行与恢复</text>
-<polyline points="520,462 850,462" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="534" y="492" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">runStep(intent) → StepOutcome</text>
-<rect x="1000" y="365" width="330" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="1056.25" y="398" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">ObservationManager</text>
-<polyline points="1000,413 1330,413" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="1014" y="445" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">按需提供 DOM / AX / 图像状态</text>
-<polyline points="1000,462 1330,462" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="1014" y="492" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">observe(scope) → Snapshot</text>
-<rect x="40" y="635" width="330" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="109.25" y="668" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">CandidateSelector</text>
-<polyline points="40,683 370,683" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="54" y="715" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">规则优先；模型辅助候选消歧</text>
-<polyline points="40,732 370,732" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="54" y="762" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">select() → id / none / ambiguous</text>
-<rect x="520" y="635" width="330" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="570.75" y="668" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">&lt;&lt;interface&gt;&gt; Channel</text>
-<polyline points="520,683 850,683" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="534" y="715" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">提供目标候选与绑定引用</text>
-<polyline points="520,732 850,732" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="534" y="762" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">locate() → LocateResult</text>
-<rect x="1000" y="635" width="330" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="1085.25" y="668" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">ActionExecutor</text>
-<polyline points="1000,683 1330,683" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="1014" y="715" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">重新校验目标，然后派发动作</text>
-<polyline points="1000,732 1330,732" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="1014" y="762" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">dispatch() → DispatchReceipt</text>
-<rect x="1000" y="120" width="330" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="1094.5" y="153" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">EffectVerifier</text>
-<polyline points="1000,168 1330,168" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="1014" y="200" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">读取证据，判断预期效果</text>
-<polyline points="1000,217 1330,217" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="1014" y="247" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">verify() → VerificationResult</text>
-<polyline points="685,365 685,275" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="679.0,288.0 685,275 691.0,288.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="727.0" y="323" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">检查任务约束</text>
-<polyline points="520,420 370,420" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="383.0,426.0 370,420 383.0,414.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="405.0" y="410" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">请求下一步</text>
-<polyline points="850,420 1000,420" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="987.0,414.0 1000,420 987.0,426.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="893.0" y="410" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">读取观察</text>
-<polyline points="520,480 410,480 410,606 205,606 205,635" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="211.0,622.0 205,635 199.0,622.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="240.0" y="591" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">必要时消歧</text>
-<polyline points="685,520 685,635" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="691.0,622.0 685,635 679.0,622.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="733.75" y="584" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">选择 / 定位</text>
-<polyline points="850,480 920,480 920,585 1165,585 1165,635" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="1171.0,622.0 1165,635 1159.0,622.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="1114.0" y="572" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">执行</text>
-<polyline points="850,390 925,390 925,197 1000,197" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="987.0,191.0 1000,197 987.0,203.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="924.0" y="306" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">核验</text>
-<rect x="40" y="900" width="280" height="92" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="114.75" y="934" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#176887">DOMChannel</text>
-<polyline points="40,947 320,947" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="129.0" y="976" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#526171">网页语义目标</text>
-<polyline points="180,900 180,853" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<rect x="365" y="900" width="280" height="92" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="450.0" y="934" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#176887">AXChannel</text>
-<polyline points="365,947 645,947" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="454.0" y="976" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#526171">原生控件目标</text>
-<polyline points="505,900 505,853" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<rect x="690" y="900" width="280" height="92" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="767.0" y="934" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#176887">OCRChannel</text>
-<polyline points="690,947 970,947" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="779.0" y="976" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#526171">可见文字区域</text>
-<polyline points="830,900 830,853" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<rect x="1015" y="900" width="280" height="92" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="1084.75" y="934" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="20" fill="#176887">VisionChannel</text>
-<polyline points="1015,947 1295,947" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="1095.5" y="976" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#526171">图像与空间目标</text>
-<polyline points="1155,900 1155,853" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="180,853 1155,853" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polyline points="685,853 685,790" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
-<polygon points="685,790 679.0,803.0 691.0,803.0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
-<text x="35" y="1047" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#526171">虚线箭头：依赖 / 调用    空心三角：实现接口    TargetRef 保留 DOM、AX 或图像坐标的原生身份</text>
-<text x="35" y="1080" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#526171">定位、执行与核验共享 TaskSession 的约束；为简洁省略重复依赖线。候选模型只负责选择，不直接派发动作。</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1510" height="1190" viewBox="0 0 1510 1190">
+<rect width="1510" height="1190" fill="#ffffff"/>
+<text x="35" y="56" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="28" fill="#18232e">01  UML 类图：控制循环与可替换的决策能力</text>
+<text x="35" y="89" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="17" fill="#526171">目标设计 · 箭头表示依赖 / 调用；类名是职责，不要求每个类单独建文件</text>
+<polyline points="770,410 770,280" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="764.0,293.0 770,280 776.0,293.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="570,440 510,440 510,205 450,205" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="463.0,211.0 450,205 463.0,199.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="970,440 1035,440 1035,205 1090,205" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="1077.0,199.0 1090,205 1077.0,211.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="570,480 450,480" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="463.0,486.0 450,480 463.0,474.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="478.0" y="470" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">构造候选</text>
+<polyline points="970,480 1090,480" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="1077.0,474.0 1090,480 1077.0,486.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1014.0" y="470" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">核验</text>
+<polyline points="570,530 510,530 510,785 450,785" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="463.0,791.0 450,785 463.0,779.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<polyline points="770,565 770,710" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="776.0,697.0 770,710 764.0,697.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="799.0" y="645" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">路由</text>
+<polyline points="1275,410 1275,280" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="1269.0,293.0 1275,280 1281.0,293.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1314.0" y="356" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">读回</text>
+<polyline points="970,785 1090,785" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="1077.0,779.0 1090,785 1077.0,791.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1006.0" y="773" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">适用时</text>
+<polyline points="970,835 1030,835 1030,1018 1090,1018" fill="none" stroke="#8a98a5" stroke-width="1.5" stroke-dasharray="7 6"/>
+<polyline points="1077.0,1012.0 1090,1018 1077.0,1024.0" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="970" y="987" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">按需</text>
+<rect x="50" y="125" width="400" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="181.5" y="158" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">GoalContract</text>
+<polyline points="50,173 450,173" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="64" y="205" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">目标、输入、里程碑、完成条件</text>
+<polyline points="50,222 450,222" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="64" y="252" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">version / completion / returnConditions</text>
+<rect x="570" y="125" width="400" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="705.25" y="158" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">TaskSession</text>
+<polyline points="570,173 970,173" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="584" y="205" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">授权、预算、取消、资源归属</text>
+<polyline points="570,222 970,222" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="584" y="252" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">check() / close()</text>
+<rect x="1090" y="125" width="370" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1166.25" y="158" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">ObservationManager</text>
+<polyline points="1090,173 1460,173" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1104" y="205" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">按需采集统一观察</text>
+<polyline points="1090,222 1460,222" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1104" y="252" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">observe(scope) → Snapshot</text>
+<rect x="50" y="410" width="400" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="180.0" y="443" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">ActionBuilder</text>
+<polyline points="50,458 450,458" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="64" y="490" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">角色模板 + 目标 + 已知参数</text>
+<polyline points="50,507 450,507" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="64" y="537" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">build(goal, snapshot) → ActionSet</text>
+<rect x="570" y="410" width="400" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="646.0" y="443" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">ComputerUseController</text>
+<polyline points="570,458 970,458" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="584" y="490" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">持有目标状态与整个执行循环</text>
+<polyline points="570,507 970,507" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="584" y="537" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">run() / applyAdvice() / reconcile()</text>
+<rect x="1090" y="410" width="370" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1204.5" y="443" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">EffectVerifier</text>
+<polyline points="1090,458 1460,458" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1104" y="490" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">检查本次效果，未知只读协调</text>
+<polyline points="1090,507 1460,507" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1104" y="537" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">verify() → VerificationResult</text>
+<rect x="50" y="710" width="400" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="170.25" y="743" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">ActionExecutor</text>
+<polyline points="50,758 450,758" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="64" y="790" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">派发前校验，统一副作用出口</text>
+<polyline points="50,807 450,807" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="64" y="837" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">preflight() / dispatch() → Receipt</text>
+<rect x="570" y="710" width="400" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="690.75" y="743" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">DecisionRouter</text>
+<polyline points="570,758 970,758" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="584" y="790" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">规则可判 / Jev 适用 / Advisor</text>
+<polyline points="570,807 970,807" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="584" y="837" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">assess(state, actions) → Route</text>
+<rect x="1090" y="710" width="370" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1213.75" y="743" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">JevDecision</text>
+<polyline points="1090,758 1460,758" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1104" y="790" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">闭集选择完整动作 ID 或拒绝</text>
+<polyline points="1090,807 1460,807" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1104" y="837" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">choose(state, actions) → Decision</text>
+<rect x="1090" y="940" width="370" height="155" rx="0" fill="#ffffff" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1212.75" y="973" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="21" fill="#176887">LLMAdvisor</text>
+<polyline points="1090,988 1460,988" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1104" y="1020" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">规划、生成、视觉及异常辅助</text>
+<polyline points="1090,1037 1460,1037" fill="none" stroke="#8a98a5" stroke-width="1.5"/>
+<text x="1104" y="1067" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="16" fill="#526171">assist(context, reason) → Advice</text>
+<text x="55" y="976" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="22" fill="#176887">共享数据约束</text>
+<text x="55" y="1016" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">ActionSet 绑定目标与观察版本；每条动作绑定 TargetRef、参数、前置条件和预期效果。</text>
+<text x="55" y="1054" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#18232e">TargetRef 保留 DOM / AX / 图像的不同身份；模型不得自由拼接任意 target / action / value。</text>
+<text x="55" y="1133" font-family="Hiragino Sans GB, Noto Sans CJK SC, sans-serif" font-size="18" fill="#526171">执行与核验同样使用 TaskSession；为简洁省略重复依赖线。Jev 和 LLM 均不直接派发 OS 操作。</text>
 </svg>
