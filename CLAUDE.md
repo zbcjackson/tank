@@ -178,6 +178,34 @@ Steps 7 and 8 are critical. Unit tests mock most dependencies, so they miss runt
 
 All applicable steps must pass before considering work complete.
 
+## Post-task Code Review (MANDATORY)
+
+For tasks that change repository files, finish the implementation and pass all applicable
+tests and verification above, then complete this review gate before the final handoff:
+
+1. Delegate to the **`code-reviewer` subagent** in **`review-and-refactor`** mode, using
+   [agents/code-reviewer.md](agents/code-reviewer.md). This rule authorizes delegation
+   and necessary fixes/refactoring within the current task's scope. If the client cannot
+   select a registered role, spawn an equivalent subagent and explicitly load that file.
+2. Give the subagent the task and acceptance criteria, the baseline and complete task diff
+   (including already-committed work), changed files, verification commands/results, and
+   any existing user changes it must preserve. Pass prior findings and the current round
+   when resuming a review; do not reset the round count by re-delegating.
+3. The subagent reviews correctness, code smells, duplication, simplicity and design, then
+   performs the minimum necessary fixes and reruns all applicable verification. It follows
+   this project's Test Failure Policy and Git Commits rules. The coordinating agent waits
+   and must not concurrently edit files in the review scope.
+4. Stop immediately when no actionable or unresolved findings remain. Otherwise, after
+   fixes and passing verification, review again; **at most three review rounds per task**.
+   At the limit, report remaining issues and any last fixes not reviewed again; do not
+   start a fourth round or claim success with failing required checks.
+5. The coordinating agent inspects the resulting diff and verification evidence before
+   reporting findings, refactoring and test results. If subagents are unavailable or a
+   required check is blocked, report that explicitly rather than silently skipping the gate.
+
+The coordinating agent owns this gate. Delegated agents, including `code-reviewer`, must
+not recursively trigger another completion-review gate; the reviewer runs its own bounded loop.
+
 ## Test Failure Policy
 
 Fix ALL failing tests whenever you run the test suite — whether they are caused by your changes or pre-existing. A red test suite is never acceptable. Do not dismiss failures as "pre-existing" or "unrelated".

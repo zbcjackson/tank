@@ -48,4 +48,5 @@
 - [plans/done/portable-code-reviewer.md](plans/done/portable-code-reviewer.md)：通用评审角色已完成：工具无关 Markdown、24 项固定 Code Smell、权限与独立性分离、无问题即停止/最多三轮及项目测试/提交约定。
 - [plans/done/shared-agent-sync.md](plans/done/shared-agent-sync.md)：多 Agent 同步工具已完成：递归发现、格式校验、配置保护、--check；29 项工具回归和完整项目验证通过。
 - [design/shared-agent-definitions.md](design/shared-agent-definitions.md)：通用 Agent 定义格式、批量同步命令、覆盖保护与生成物检查规则。
+- [plans/done/post-task-code-review.md](plans/done/post-task-code-review.md)：任务收尾评审规则已生效：验证通过后委派 code-reviewer 自主评审/必要重构，无问题即停止、最多三轮，已完成首次复核。
 - [plans/done/computer-use-adaptation-and-grounding.md](plans/done/computer-use-adaptation-and-grounding.md)：macOS 适配与定位效果改进计划（M0–M8 已完成，2026-09-25 关档）：保留生产基线 A（一体 legacy 归一化，默认全程未切换）；静态首轮门槛无候选通过；calc-open 拆分显著优于适配一体+宿主还原（p=0.011）但宽任务集 A 10/36 > C 5/36 且 C 耗 1.7–2× token；AX 条件性暂缓；点击大偏移根因未解决（归因止于服务输出边界）；全计划 ≈35.4M tokens（unpriced）。收口汇总见 [M8 收口报告](../backend/benchmarks/computer_use/reports/20260925-m8-closeout/README.md)，触发式后续工作在 [backlog.md](backlog.md)。
