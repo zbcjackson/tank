@@ -43,3 +43,11 @@ class TaskResult(BaseModel):
             AgentOutputType.DONE, self.summary,
             {"stop_reason": self.status, "task_result": self.model_dump(mode="json")},
         )
+
+    def with_cleanup(self, cleanup: Literal["confirmed", "unknown"]) -> TaskResult:
+        """Host cleanup cannot preserve a success claim when cleanup is unknown."""
+        if cleanup == "unknown":
+            return self.model_copy(update={
+                "status": "unknown", "reason": "cleanup_unconfirmed", "cleanup": cleanup,
+            })
+        return self.model_copy(update={"cleanup": cleanup})

@@ -482,17 +482,16 @@ class AgentTool(BaseTool):
             ):
                 tool_calls += 1
 
-        logger.info(
-            "AgentTool: '%s' completed (%d chars, %d tool events)",
-            agent_type, len(full_text), tool_calls,
-        )
-
         status = str(task_result["status"]) if task_result is not None else "completed"
+        logger.info(
+            "AgentTool: '%s' %s (%d chars, %d tool events)",
+            agent_type, status, len(full_text), tool_calls,
+        )
         return ToolResult(
             content=json.dumps({
                 "agent_type": agent_type,
                 "description": description,
-                "message": full_text or f"Agent '{agent_type}' completed (no text output).",
+                "message": full_text or f"Agent '{agent_type}' {status} (no text output).",
                 **({"status": status, "task_result": task_result}
                    if task_result is not None else {}),
             }, ensure_ascii=False),

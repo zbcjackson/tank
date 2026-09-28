@@ -36,7 +36,13 @@ from typing import TYPE_CHECKING, Any
 from ..pipeline.bus import BusMessage
 from .base import AgentOutputType
 from .store import WorkerRun, WorkerStatus, WorkerStore
-from .subagent import JsonValue, SubAgentAuthorization, SubAgentCleanupError, SubAgentStopped
+from .subagent import (
+    JsonValue,
+    SubAgentAuthorization,
+    SubAgentCancelled,
+    SubAgentCleanupError,
+    SubAgentStopped,
+)
 from .task_result import TaskResult
 
 if TYPE_CHECKING:
@@ -320,26 +326,24 @@ class WorkerSupervisor:
                 ),
                 timeout=timeout,
             )
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as exc:
             elapsed = time.monotonic() - start
             error = f"Worker timed out after {elapsed:.1f}s"
             return self._finalize(
                 run=run, status="timeout", output="".join(output_chunks),
                 error=error, messages=messages,
+                task_result=_interrupted_result(exc.__cause__, "timeout"),
             )
-        except asyncio.CancelledError:
+        except asyncio.CancelledError as exc:
             error = "Worker cancelled"
             self._finalize(
                 run=run, status="cancelled", output="".join(output_chunks),
                 error=error, messages=messages,
+                task_result=_interrupted_result(exc, "cancelled"),
             )
             raise
         except SubAgentCleanupError as e:
             task_result = e.task_result
-            if task_result is not None:
-                task_result = task_result.model_copy(update={
-                    "status": "unknown", "reason": "cleanup_unconfirmed", "cleanup": "unknown",
-                })
             return self._finalize(
                 run=run, status=task_result.status if task_result is not None else "failed",
                 output=task_result.summary if task_result is not None else "".join(output_chunks),
@@ -641,6 +645,14 @@ class WorkerSupervisor:
 def _terminal_event_name(status: str) -> str:
     """Map terminal status → bus event name."""
     return status
+
+
+def _interrupted_result(error: BaseException | None, reason: str) -> dict[str, JsonValue] | None:
+    if not isinstance(error, SubAgentCancelled) or error.task_result is None:
+        return None
+    return error.task_result.model_copy(update={
+        "status": "stopped", "reason": reason,
+    }).model_dump(mode="json")
 
 
 def _truncate(text: str, max_bytes: int) -> str:

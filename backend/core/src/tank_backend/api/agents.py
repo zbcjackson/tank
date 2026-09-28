@@ -24,33 +24,12 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from ..agents.store import WorkerRun
+from ..agents.store import worker_to_dict
 from . import deps
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/agents", tags=["agents"], redirect_slashes=False)
-
-
-def _run_to_dict(run: WorkerRun, *, include_output: bool = True) -> dict[str, Any]:
-    """JSON shape for a single worker run."""
-    data: dict[str, Any] = {
-        "task_id": run.task_id,
-        "agent_def": run.agent_def,
-        "description": run.description,
-        "status": run.status,
-        "background": run.background,
-        "started_at": run.started_at,
-        "completed_at": run.completed_at,
-        "originating_conversation_id": run.originating_conversation_id,
-        "originating_channel": run.originating_channel,
-    }
-    if include_output:
-        data["output"] = run.output
-        data["error"] = run.error
-        if run.task_result is not None:
-            data["task_result"] = run.task_result
-    return data
 
 
 @router.get("")
@@ -73,7 +52,7 @@ async def list_agents(
         )
     else:
         runs = store.list_active()
-    return [_run_to_dict(r, include_output=False) for r in runs]
+    return [worker_to_dict(r, include_output=False) for r in runs]
 
 
 @router.get("/{task_id}")
@@ -83,4 +62,4 @@ async def get_agent(task_id: str) -> dict[str, Any]:
     run = store.get(task_id)
     if run is None:
         raise HTTPException(404, f"task_id '{task_id}' not found")
-    return _run_to_dict(run)
+    return worker_to_dict(run)

@@ -358,6 +358,13 @@ fail; timeout maps to timeout, and cooperative cancellation maps to cancelled.
 Cleanup failure overrides completion and quarantines the desktop. If a structured
 result was already received, its evidence survives with status/cleanup unknown.
 Only successful host cleanup sets cleanup=confirmed.
+Cleanup runs as a bounded task that is joined even if the caller is cancelled
+repeatedly. A stop or deadline during cleanup keeps the desktop lock until cleanup
+finishes. On successful cleanup the worker still reports cancelled/timeout, with
+any received TaskResult preserved as stopped and cleanup=confirmed. Cleanup failure
+takes precedence, produces unknown, and quarantines the desktop. If both the
+producer and its cleanup fail, the producer's received evidence is retained.
+REST and worker tools use the same public WorkerRun serializer.
 The budget ledger counts response identities once, independently of observers;
 Runner consumes usage events without adding them again. Observer events support
 API timing and screenshot traces without participating in execution.

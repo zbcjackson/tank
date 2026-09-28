@@ -82,6 +82,27 @@ class WorkerRun:
     task_result: dict[str, JsonValue] | None = None
 
 
+def worker_to_dict(run: WorkerRun, *, include_output: bool = True) -> dict[str, Any]:
+    """Shared public view; omit the prompt, task input and chat history."""
+    data: dict[str, Any] = {
+        "task_id": run.task_id,
+        "agent_def": run.agent_def,
+        "description": run.description,
+        "status": run.status,
+        "background": run.background,
+        "started_at": run.started_at,
+        "completed_at": run.completed_at,
+        "originating_conversation_id": run.originating_conversation_id,
+        "originating_channel": run.originating_channel,
+    }
+    if include_output:
+        data["output"] = run.output
+        data["error"] = run.error
+        if run.task_result is not None:
+            data["task_result"] = run.task_result
+    return data
+
+
 def _row_to_run(row: WorkerRunRow) -> WorkerRun:
     """Convert an ORM row to its frozen domain dataclass."""
     messages: list[dict[str, Any]] = []

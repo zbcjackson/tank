@@ -66,8 +66,16 @@ class SubAgentCleanupError(RuntimeError):
     """Cleanup could not be confirmed; a desktop must be quarantined."""
 
     def __init__(self, detail: str, task_result: TaskResult | None = None) -> None:
-        self.task_result = task_result
+        self.task_result = task_result.with_cleanup("unknown") if task_result is not None else None
         super().__init__(detail)
+
+
+class SubAgentCancelled(asyncio.CancelledError):
+    """Cancellation after cleanup, retaining any already-received task evidence."""
+
+    def __init__(self, task_result: TaskResult | None = None) -> None:
+        self.task_result = task_result
+        super().__init__("subagent cancellation requested")
 
 
 @dataclass(frozen=True)

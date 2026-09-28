@@ -280,7 +280,7 @@ async def test_background_task_outcome_reaches_notifications(stack, monkeypatch,
     from tank_backend.agents.notification_hub import NotificationHub, NotificationHubConfig
     from tank_backend.agents.task_result import TaskResult
     from tank_backend.agents.worker_inbox import WorkerInboxObserver
-    from tank_backend.api.agents import _run_to_dict
+    from tank_backend.api.agents import get_agent
     from tank_backend.api.router import _worker_event_to_ws_msg
 
     fake, runner, supervisor, definition, store = stack
@@ -309,26 +309,30 @@ async def test_background_task_outcome_reaches_notifications(stack, monkeypatch,
     assert len(notifications) == 1 and status in notifications[0].summary
     assert "save remains unverified" in notifications[0].summary
     assert inbox.drain("conversation")[0].status == status
-    assert _run_to_dict(run)["task_result"]["status"] == status
+    monkeypatch.setattr("tank_backend.api.deps.worker_store", lambda: store)
+    assert (await get_agent(task_id))["task_result"]["status"] == status
     message = _worker_event_to_ws_msg(events[-1], "session")
     assert message is not None and message.is_final
     assert status in message.content and "save remains unverified" in message.content
 
 
-async def test_legacy_tool_path_preserves_structured_outcome(stack, monkeypatch):
+@pytest.mark.parametrize("status", ["completed", "partial", "unknown", "needs_input", "stopped"])
+@pytest.mark.parametrize("summary", ["", "save unverified"])
+async def test_legacy_tool_path_preserves_structured_outcome(stack, monkeypatch, status, summary):
     from tank_backend.agents.task_result import TaskResult
 
     fake, runner, supervisor, definition, store = stack
 
     class ResultAgent(FakeSubAgent):
         async def run(self, request, context):
-            yield TaskResult(status="unknown", summary="save unverified").to_output()
+            yield TaskResult(status=status, summary=summary).to_output()
 
     monkeypatch.setattr(sys.modules["_subagent_test"], "create", lambda cfg: ResultAgent())
     result = await AgentTool(runner).execute(prompt="task", subagent_type="fake")
     assert isinstance(result.content, str)
     data = json.loads(result.content)
-    assert data["status"] == "unknown" and data["message"] == "save unverified"
+    assert data["status"] == status
+    assert data["message"] == (summary or f"Agent 'fake' {status} (no text output).")
     assert data["task_result"]["cleanup"] == "confirmed"
 
 
@@ -396,7 +400,9 @@ async def test_invalid_result_envelope_never_completes(stack, monkeypatch, chang
     assert result.status == "failed" and result.task_result is None and plugin.closed
 
 
-async def test_cleanup_exception_cannot_report_success(stack, monkeypatch):
+@pytest.mark.parametrize("close_error", [False, True])
+@pytest.mark.parametrize("status", ["completed", "partial"])
+async def test_cleanup_exception_cannot_report_success(stack, monkeypatch, close_error, status):
     from tank_backend.agents.subagent import SubAgentCleanupError
     from tank_backend.agents.task_result import TaskResult
 
@@ -406,13 +412,78 @@ async def test_cleanup_exception_cannot_report_success(stack, monkeypatch):
         async def run(self, request, context):
             yield AgentOutput(AgentOutputType.TOKEN, "action sent")
             raise SubAgentCleanupError("cleanup failed", TaskResult(
-                status="completed", summary="saved", details={"receipt": "sent"},
+                status=status, summary="saved", details={"receipt": "sent"},
             ))
 
-    monkeypatch.setattr(sys.modules["_subagent_test"], "create", lambda cfg: ErrorAgent())
+    plugin = ErrorAgent()
+    plugin.close_error = close_error
+    monkeypatch.setattr(sys.modules["_subagent_test"], "create", lambda cfg: plugin)
     result = await supervisor.run_foreground(agent_def=definition, prompt="task")
     assert result.status == "unknown" and result.task_result["cleanup"] == "unknown"
     assert result.task_result["details"] == {"receipt": "sent"}
+
+
+@pytest.mark.parametrize("trigger", ["timeout", "stop", "repeat_stop"])
+@pytest.mark.parametrize("close_error", [False, True, "cancel"])
+async def test_interruption_during_cleanup_keeps_lock_and_evidence(
+    stack, monkeypatch, trigger, close_error,
+):
+    from tank_backend.agents.subagent import SubAgentAuthorization
+    from tank_backend.agents.task_result import TaskResult
+
+    fake, runner, supervisor, definition, store = stack
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    class ClosingAgent(FakeSubAgent):
+        async def run(self, request, context):
+            yield TaskResult(
+                status="partial", summary="save sent", details={"receipts": ["sent"]},
+            ).to_output()
+
+        async def aclose(self):
+            entered.set()
+            await release.wait()
+            self.closed = True
+            if close_error == "cancel":
+                raise asyncio.CancelledError("plugin aborted cleanup")
+            if close_error:
+                raise RuntimeError("cleanup failed")
+
+    plugin = ClosingAgent()
+    monkeypatch.setattr(sys.modules["_subagent_test"], "create", lambda cfg: plugin)
+    runner._registry.unregister("fake:agent")
+    runner._registry.register("fake", ExtensionManifest(
+        "agent", "subagent", "_subagent_test:create", permissions=("desktop",),
+    ))
+    task_id = supervisor.run_background(
+        agent_def=definition, prompt="export",
+        authorization=SubAgentAuthorization(frozenset({"desktop"})),
+        timeout=0.1 if trigger == "timeout" else None,
+    )
+    try:
+        await asyncio.wait_for(entered.wait(), 1)
+        if trigger == "timeout":
+            await asyncio.sleep(0.15)
+        else:
+            assert supervisor.stop(task_id)
+            await asyncio.sleep(0.01)
+            if trigger == "repeat_stop":
+                assert supervisor.stop(task_id)
+                await asyncio.sleep(0.01)
+        assert runner._desktop_resource.lock.locked()
+        assert not plugin.closed and store.get(task_id).status == "running"
+    finally:
+        release.set()
+        run = await supervisor.wait(task_id, timeout=2)
+    assert plugin.closed and run is not None
+    assert run.status == ("unknown" if close_error else
+                          "timeout" if trigger == "timeout" else "cancelled")
+    assert run.task_result["details"] == {"receipts": ["sent"]}
+    assert run.task_result["cleanup"] == ("unknown" if close_error else "confirmed")
+    if close_error:
+        with pytest.raises(RuntimeError, match="quarantined"):
+            async with runner._desktop_resource.acquire():
+                pass
 
 
 async def test_close_failure_fails_worker(stack):

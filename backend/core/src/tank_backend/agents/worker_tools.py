@@ -20,36 +20,10 @@ import logging
 from typing import Any
 
 from ..tools.base import BaseTool, ToolInfo, ToolParameter, ToolResult
-from .store import WorkerRun, WorkerStore
+from .store import WorkerStore, worker_to_dict
 from .supervisor import WorkerSupervisor
 
 logger = logging.getLogger(__name__)
-
-
-def _run_to_dict(run: WorkerRun, *, include_output: bool = True) -> dict[str, Any]:
-    """Public-facing JSON shape for a worker run.
-
-    Excludes ``messages`` (large) and ``prompt`` (already known to the
-    caller). ``output`` is included by default but caller can elide
-    it when listing many workers.
-    """
-    data: dict[str, Any] = {
-        "task_id": run.task_id,
-        "agent_def": run.agent_def,
-        "description": run.description,
-        "status": run.status,
-        "background": run.background,
-        "started_at": run.started_at,
-        "completed_at": run.completed_at,
-        "originating_conversation_id": run.originating_conversation_id,
-        "originating_channel": run.originating_channel,
-    }
-    if include_output:
-        data["output"] = run.output
-        data["error"] = run.error
-        if run.task_result is not None:
-            data["task_result"] = run.task_result
-    return data
 
 
 class AgentStatusTool(BaseTool):
@@ -123,7 +97,7 @@ class AgentStatusTool(BaseTool):
                 error=True,
             )
 
-        payload = _run_to_dict(run)
+        payload = worker_to_dict(run)
         return ToolResult(
             content=json.dumps(payload, ensure_ascii=False),
             display=f"Task {task_id}: {run.status}",
@@ -227,7 +201,7 @@ class ListActiveAgentsTool(BaseTool):
 
     async def execute(self, **_kwargs: Any) -> ToolResult:
         runs = self._store.list_active()
-        items = [_run_to_dict(r, include_output=False) for r in runs]
+        items = [worker_to_dict(r, include_output=False) for r in runs]
         if not items:
             return ToolResult(
                 content=json.dumps({"workers": []}, ensure_ascii=False),

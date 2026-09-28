@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 from .base import Agent, AgentOutput, AgentOutputType, AgentState
 from .subagent import (
     SubAgent,
+    SubAgentCancelled,
     SubAgentCleanupError,
     SubAgentContext,
     SubAgentRequest,
@@ -30,6 +31,7 @@ class SubAgentAdapter(Agent):
     async def run(self, state: AgentState) -> AsyncIterator[AgentOutput]:
         terminal: AgentOutput | None = None
         result: TaskResult | None = None
+        cancelled = False
         outputs = self.plugin.run(self.request, self.context)
         try:
             async for output in outputs:
@@ -43,6 +45,12 @@ class SubAgentAdapter(Agent):
                             raise SubAgentStopped("error", "task result disagrees with stop_reason")
                 else:
                     yield output
+        except asyncio.CancelledError:
+            cancelled = True
+            self.context.cancel.set()
+        except SubAgentCleanupError as exc:
+            result = result or exc.task_result
+            raise
         finally:
             # Cleanup errors override success/cancel/timeout. Do not swallow an
             # uncertain desktop cleanup and let the next task use the resource.
@@ -56,20 +64,31 @@ class SubAgentAdapter(Agent):
                     finally:
                         await self.plugin.aclose()
 
-                await asyncio.wait_for(close(), CLEANUP_TIMEOUT_S)
+                cleanup = asyncio.create_task(asyncio.wait_for(close(), CLEANUP_TIMEOUT_S))
+                while True:
+                    try:
+                        await asyncio.shield(cleanup)
+                        break
+                    except asyncio.CancelledError as exc:
+                        if cleanup.cancelled():
+                            raise SubAgentCleanupError(
+                                "plugin cancelled its cleanup", result,
+                            ) from exc
+                        cancelled = True
+                        self.context.cancel.set()
             except Exception as exc:
-                if result is not None:
-                    result = result.model_copy(update={
-                        "status": "unknown", "reason": "cleanup_unconfirmed", "cleanup": "unknown",
-                    })
                 raise SubAgentCleanupError(
                     f"subagent cleanup unconfirmed: {exc}", result,
                 ) from exc
+        if cancelled:
+            if result is not None:
+                result = result.with_cleanup("confirmed")
+            raise SubAgentCancelled(result)
         if terminal is None:
             raise SubAgentStopped("error", "plugin ended without DONE")
         reason = terminal.metadata.get("stop_reason")
         if result is not None:
-            result = result.model_copy(update={"cleanup": "confirmed"})
+            result = result.with_cleanup("confirmed")
             terminal = AgentOutput(
                 AgentOutputType.DONE, result.summary,
                 {**terminal.metadata, "task_result": result.model_dump(mode="json")},
