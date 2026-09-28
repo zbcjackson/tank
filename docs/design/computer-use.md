@@ -619,3 +619,18 @@ AX 独立分支）均不支持切换默认，详见
 
 全量回归（backend 5116 passed / 1 skipped，含旧 N2/SDK）、E2E 16 场景 63 步、
 停止/清理五场景验收全部通过；无新增清理失败或停止后动作。
+
+
+## S0 Computer Use 插件：离线宿主循环（2026-09-28）
+
+[agent-computer-use](../../backend/plugins/agent-computer-use/README.md) 通过既有
+`type: subagent` extension 接缝接入，不在 Runner 或 GroundingConfig 新增策略分支。
+插件内实现严格目标输入、click/fill 有限候选、规则/注入选择器/Advisor 路由、引用门控、
+逐里程碑事实核验和有界只读协调。Advisor 仅补未绑定输入或选择当前候选；
+未知派发不会重放，结果保留观察绑定回执及核验来源，取消证据随通用清理链路保留。
+
+当前默认工厂没有真实通道，返回 `stopped / observation_unavailable`；私有配置暂为空，
+未知配置项拒绝。离线测试注入 fake UI/选择器/Advisor，不代表已接入 Jev、LLM 或真实
+AX/OCR/DOM，也不证明 PDF 产物或不覆盖约束。通道须提供可信语义事实，后续实现具体
+身份、完成条件与派发边界。模型请求准入/捕获/共享预留结算、自然语言目标生成、通用
+恢复仍待实现；生产 A 与现有实验 transport 拒绝条件不变。
