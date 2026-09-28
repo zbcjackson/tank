@@ -44,6 +44,15 @@ SubAgentCleanupError 统一处理，REST/工具共同使用 WorkerRun 公开视�
 web lint/typecheck、backend/CLI ruff、改动文件 pyright、reload 日志、docs check
 及 diff 检查均通过。进入第二轮独立复审。
 
+第二轮：R1/R3/R4 复核通过；R2 补充两条已复现路径：终态已携证据但后续 producer
+异常不携带结果、仅 aclose 异常携带结果。两处都在重新抛出/包装时保留已有结果；
+新增两个先失败再通过的用例。另将超时后停止、停止后超时的清理组合保留为回归测试。
+当前 Python 3.13 的 wait_for 已使用同任务 timeout 上下文，实测六种组合无脱离清理
+问题，因此保留既有 wait_for，不为假定问题重写通用 Supervisor。
+第二轮完整回归：后端 5220 passed / 1 skipped；E2E 18 场景 / 71 步全过。
+127 项聚焦回归、backend ruff、改动文件 pyright、reload 日志、docs/diff 检查通过。
+web/CLI 未再修改，沿用第一轮已通过的检查。进入第三轮最终复审。
+
 ## Tests
 
 - 逻辑缺陷以公开入口的失败用例复现；保留旧插件、内建 agent 和审批契约。

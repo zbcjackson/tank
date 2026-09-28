@@ -423,7 +423,38 @@ async def test_cleanup_exception_cannot_report_success(stack, monkeypatch, close
     assert result.task_result["details"] == {"receipt": "sent"}
 
 
-@pytest.mark.parametrize("trigger", ["timeout", "stop", "repeat_stop"])
+@pytest.mark.parametrize("evidence_source", ["terminal", "cleanup_error"])
+async def test_cleanup_error_preserves_each_evidence_source(stack, monkeypatch, evidence_source):
+    from tank_backend.agents.subagent import SubAgentCleanupError
+    from tank_backend.agents.task_result import TaskResult
+
+    fake, runner, supervisor, definition, store = stack
+    evidence = TaskResult(status="partial", summary="save sent", details={"receipts": ["sent"]})
+
+    class ErrorAgent(FakeSubAgent):
+        async def run(self, request, context):
+            if evidence_source == "terminal":
+                yield evidence.to_output()
+                raise SubAgentCleanupError("producer cleanup failed")
+            yield AgentOutput(AgentOutputType.TOKEN, "action sent")
+
+        async def aclose(self):
+            self.closed = True
+            if evidence_source == "cleanup_error":
+                raise SubAgentCleanupError("environment cleanup failed", evidence)
+
+    plugin = ErrorAgent()
+    monkeypatch.setattr(sys.modules["_subagent_test"], "create", lambda cfg: plugin)
+    result = await supervisor.run_foreground(agent_def=definition, prompt="export")
+    assert plugin.closed and result.status == "unknown"
+    assert result.task_result["cleanup"] == "unknown"
+    assert result.task_result["details"] == {"receipts": ["sent"]}
+    assert store.get(result.task_id).task_result == result.task_result
+
+
+@pytest.mark.parametrize("trigger", [
+    "timeout", "stop", "repeat_stop", "timeout_then_stop", "stop_then_timeout",
+])
 @pytest.mark.parametrize("close_error", [False, True, "cancel"])
 async def test_interruption_during_cleanup_keeps_lock_and_evidence(
     stack, monkeypatch, trigger, close_error,
@@ -458,16 +489,16 @@ async def test_interruption_during_cleanup_keeps_lock_and_evidence(
     task_id = supervisor.run_background(
         agent_def=definition, prompt="export",
         authorization=SubAgentAuthorization(frozenset({"desktop"})),
-        timeout=0.1 if trigger == "timeout" else None,
+        timeout=0.1 if "timeout" in trigger else None,
     )
     try:
         await asyncio.wait_for(entered.wait(), 1)
-        if trigger == "timeout":
+        if trigger in {"timeout", "timeout_then_stop"}:
             await asyncio.sleep(0.15)
-        else:
+        if trigger != "timeout":
             assert supervisor.stop(task_id)
-            await asyncio.sleep(0.01)
-            if trigger == "repeat_stop":
+            await asyncio.sleep(0.15 if trigger == "stop_then_timeout" else 0.01)
+            if trigger in {"repeat_stop", "timeout_then_stop", "stop_then_timeout"}:
                 assert supervisor.stop(task_id)
                 await asyncio.sleep(0.01)
         assert runner._desktop_resource.lock.locked()

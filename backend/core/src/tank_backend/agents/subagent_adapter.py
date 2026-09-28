@@ -50,7 +50,7 @@ class SubAgentAdapter(Agent):
             self.context.cancel.set()
         except SubAgentCleanupError as exc:
             result = result or exc.task_result
-            raise
+            raise SubAgentCleanupError(str(exc), result) from exc
         finally:
             # Cleanup errors override success/cancel/timeout. Do not swallow an
             # uncertain desktop cleanup and let the next task use the resource.
@@ -77,6 +77,8 @@ class SubAgentAdapter(Agent):
                         cancelled = True
                         self.context.cancel.set()
             except Exception as exc:
+                if isinstance(exc, SubAgentCleanupError):
+                    result = result or exc.task_result
                 raise SubAgentCleanupError(
                     f"subagent cleanup unconfirmed: {exc}", result,
                 ) from exc
