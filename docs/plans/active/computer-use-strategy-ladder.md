@@ -1,4 +1,4 @@
-> 状态：进行中（2026-09-28 综合讨论修订；S0–S6 尚未开工）。
+> 状态：进行中（2026-09-28 综合讨论及模块边界复核修订；S0–S6 尚未开工）。
 > 目标设计尚未实现、尚未实机验收。生产默认与基线 A 不变，新子代理显式 opt-in。
 
 # 计划：Computer Use 子代理的宿主循环与策略阶梯（S0–S6）
@@ -22,6 +22,8 @@ Jev 负责选择，宿主负责授权、动作构造、状态、派发和完成�
 本次取代 2026-09-26 版“LLM 每步提出 StepIntent、Jev 仅条件性 D2 实验”的目标架构；
 D2 回放仍作为阶段验收，但不再是最终范围上限。S0 起即建立目标级宿主循环，
 S3 接入 Jev，S4 验证多步目标和 LLM 介入后继续执行，S5 再评价采用收益。
+同日边界复核进一步采用现有通用 SubAgent extension 入口：ladder 是 Computer Use
+内部策略，不再给 AgentRunner / GroundingConfig 新增 ladder 专用分支。
 
 依据：[调研](../../research/computer-use-strategy-ladder.md)、
 [现行设计](../../design/computer-use.md)、
@@ -140,24 +142,97 @@ classDiagram
 和“允许执行的工具”对齐，但列表在一次 run 开始时生成，并非逐界面动态重建。
 现有 grounding 分支围绕 screenshot/locate/reference action；这些不是新循环已经实现的证据。
 
-S0 在 AgentRunner 的内建 opt-in 分支接入控制器，继续复用任务上下文、AgentOutput
-事件、授权与清理生命周期。LLMAdvisor 是有预算的按需调用，不再次启动拥有独立
-预算和副作用出口的子代理。生产 A、split/ax/integrated、N2/SDK 路径保持隔离。
+**采用已有 `extension → SubAgentAdapter → SubAgent` 接缝**，不新增
+`if grounding.mode == "ladder"`。现有实现见
+[Runner](../../../backend/core/src/tank_backend/agents/runner.py)、
+[SubAgent 契约](../../../backend/core/src/tank_backend/agents/subagent.py)、
+[适配器](../../../backend/core/src/tank_backend/agents/subagent_adapter.py)。
+Runner 负责通用工厂、任务上下文、权限、桌面锁、取消、输出和清理；
+Computer Use 内部负责通道、规则/Jev/LLM 路由、候选和核验。
+Runner 可识别 desktop 等能力声明，但不识别 ladder 算法、Jev 或 OCR。
 
-建议落点，以 S0 接缝测试确认：
+拟新增 `backend/plugins/agent-computer-use/`，manifest type 为 `subagent`；
+`ComputerUseSubAgent` 实现 `run(request, context)` / `aclose()`，
+内部组合 `ComputerUseController`。插件名及文件名是待实现草案。
+这是 Tank 进程内的领域实现，不要求另启进程或增加一次 LLM 请求。
+生产 A、split/ax/integrated、N2/SDK 实现保持原路径，不借本次迁移重写它们。
 
-- `agents/computer_use_controller.py`：目标/里程碑状态、路由、返回条件、模型协作。
-- `tools/computer_ladder.py`：共享观察/命令入口、typed refs、单步定位执行与核验接缝。
-- `tools/computer_dom.py`、`tools/computer_ocr.py`：一个 Playwright 路径、一个 Vision OCR 后端。
-- `computer_ax.py`、`computer_frame.py`：稳定身份、当前有效性与既有宿主映射。
-- 小范围决策适配模块：规则、Jev 请求/结果、LLMAdvisor；不建立所有业务通用的 D1–D5 框架。
+```mermaid
+flowchart TD
+    P[父代理 agent 工具] --> S[WorkerSupervisor]
+    S --> R[AgentRunner：通用生命周期]
+    R --> F[ExtensionRegistry：按配置创建 SubAgent]
+    F --> A[SubAgentAdapter：输出与清理契约]
+    A --> C[ComputerUseSubAgent / Controller]
+    C --> O[ObservationManager：AX / OCR / DOM]
+    C --> D[DecisionRouter：规则与决策策略]
+    D --> J[JevDecision：单次决策请求]
+    D --> L[LLMAdvisor：单次生成请求]
+    C --> E[ActionExecutor / EffectVerifier]
+```
+
+插件内部按职责组织：`agent.py` 对接 SubAgent；`controller.py` 持有目标循环；
+`observation.py`、`action_builder.py`、`decision_router.py`、`executor.py`、
+`verifier.py` 提供领域服务；`jev_decision.py` 和 `llm_advisor.py` 适配模型；
+`contracts.py` 放小型数据契约；`channels/` 放新 DOM/OCR 适配器。
+这里只确定职责边界，按实际规模拆文件，不先造通用 D1–D5 框架。
+取消此前 `tools/computer_ladder.py` 作为混合入口的落点：策略控制器不继承 BaseTool，
+不注册成 LLM 工具；只有需要复用 ToolManager 时才增加薄工具适配层。
+
+**复用有边界**：直接复用现有 AX 枚举/刷新/派发、frame/坐标和 GroundingAdapter 能力；
+不整段复用 AXSession 的“枚举后调用 LLM 选编号”，也不沿用总附图的 feedback。
+Advisor 复用 `LLM.complete_response(tools=..., retry=False)`，保留严格解析、
+当前图像装填与共享记账；不复制 `chat_stream`，不嵌套一个自动执行工具的 LLMAgent。
+
+现有 extension 工厂只接收 `factory(config)`，不会自动注入核心 ToolManager、
+命名 LLM profile 或其白名单。首期由插件工厂校验私有配置并创建自有模型客户端和通道，
+复用核心类/函数，依赖通过构造参数提供；运行时使用传入的 SubAgentContext。
+所有动作仍经过同一插件执行门控，不能以“插件”代替权限校验。若以后确需共享宿主服务，
+扩展通用、受范围限制的服务接口，不能把整个 AppConfig/ToolManager 暴露给模型。
+
+核心层可能需要修改，但只修改通用契约：
+
+- 通过通用 request.context 传递组装后的任务约束/工作区指令；现有 extension 分支只传
+  agent_def.system_prompt，不能假定已继承内建 LLMAgent 的完整 prompt 组装结果。
+- 父代理的可选结构化任务输入通过 `agent.task_input → SubAgentRequest` 传递；
+  核心只校验通用类型/大小、保存并绑定审批，Computer Use 校验 GoalContract 内容。
+  不要求通用 AgentTool / Runner 理解 PDF 导出、候选或里程碑。
+- Adapter / Supervisor 接收通用任务结果与停止原因，区分执行结束和目标完成。
+  现有 extension 只接受 `final_answer` 为正常终止，须兼容扩展 partial/unknown/needs_input，
+  不能伪装成 final_answer，或仅因流结束就报告成功；已有插件契约保持兼容。
+- 如支持补用户信息后继续，保存同一任务进度、累计预算和授权引用，重新观察并绑定控件；
+  不能只追加聊天消息重新运行。首期不承诺跨进程恢复，不保存并重用原生 AX 句柄。
+
+Brain 只接通用委派与结果通知。若启用“GUI 统一委派”策略，按 computer 工具类别限制
+主代理的直接调用；不把 Jev/AX 路由写进 Brain，语音回复打断与后台任务停止保持区分。
+
+### 2.4 JevDecision：有预算的单次决策适配
+
+`jev_decision.py` 提供 `choose(goal_state, snapshot, action_set) → DecisionResult`；
+一次 choose 在通过前置校验后最多发送一次 Jev API 请求，拒绝/预算不足时可以零请求。
+它没有 observe-act 循环，也不执行 UI、拆目标或自行改用 LLM。
+
+一次调用负责：
+
+1. 校验输入版本/候选 ID，取已获准外发的有界状态视图，构造 state/questions，
+   显式加入 none/ambiguous/need_more_context/escalate 控制选项。
+2. 使用任务级唯一 request id，检查授权/期限/取消及共享额度，预留后发送一次请求；
+   客户端连接可复用，SDK/HTTP 隐式重试关闭。
+3. 结算真实 usage，解析所需决策类型，校验答案属于本次候选/控制选项，
+   返回模型版本、统计量、用量及原目标/观察/候选版本。
+4. 对无效响应、不可用或未知用量返回明确错误/受控停止；不伪造模型的 ambiguous。
+
+`DecisionRouter` 判断是否适合调用及如何处理拒绝/统计量；
+`ComputerUseController` 决定补观察、升级或终止；
+`ActionExecutor` 在最终派发前再次验证状态和授权。
+HTTP 客户端和领域 payload 首期可放在同一小模块，出现第二个调用方后再抽通用客户端。
 
 ## 3. 提供给 LLM 的接口与一致的数据结构
 
 ### 3.1 工具接口和宿主内部能力
 
 父代理看到的是“委派 computer-use 目标”和既有状态/停止入口，不必逐个调用 OCR、
-Jev 或 Playwright。子代理内 LLMAdvisor 可使用稳定的四类语义命令面，名称为设计草案：
+Jev 或 Playwright。子代理内 LLMAdvisor 可表达稳定的四类语义请求，名称为设计草案：
 
 - `launch_app(app)`：在授权范围打开/激活应用，宿主绑定身份并自动返回初始观察。
 - `observe(scope, focus?, detail=auto)`：只读观察，可请求局部细节；宿主决定传感器与图像附件。
@@ -165,17 +240,23 @@ Jev 或 Playwright。子代理内 LLMAdvisor 可使用稳定的四类语义命�
   提出一个动作，action 为有限枚举，target 为语义目标或本次宿主引用。
 - `wait(scope, condition, timeout)`：有限等待和只读回查；condition 使用支持的条件类型。
 
-上述命令可通过 function calling 表达；模型调用只形成提案，统一命令入口负责实际执行。
+首期使用单次 `LLM.complete_response` 返回结构化 AdvisorResult；
+function calling schema 可以用于表达上述请求，但不会自动注册或执行一个 BaseTool。
+返回 need_observation 时由控制器有限补观察，返回 action_proposal 时经执行器门控；
+返回目标补充时先校验再更新状态。模型回复只是提案，控制器负责调度。
 Advisor 每次调用至多接受一个副作用提案，随后归还宿主循环；补充观察也有次数和时间上限。
 它还可用结构化回复提出 `goal_patch`、`need_observation`、`needs_user_input` 或 `unable`。
 不得提供可绕过约束的 shell、任意页面脚本、裸坐标点击或模型自行调用 Jev 的第二条通路。
 
-工具 schema 首期保持稳定，状态通过 `allowed_next_ops` 与拒绝原因反馈；提示仅辅助模型。
-执行时再次校验工具白名单、参数、当前状态、作用域和授权。即使工具在上轮可用，
+schema 首期保持稳定，状态通过 `allowed_next_ops` 与拒绝原因反馈；提示仅辅助模型。
+控制器/执行器校验请求操作白名单、参数、当前状态、作用域和授权。即使操作上轮可用，
 观察过期或结果待协调时也不能执行。多个副作用调用不并发投递到同一桌面会话。
 
 OCR/AX/Playwright/Jev 默认是内部服务，不必变成主 LLM 的独立工具。
-观察只收集证据，绝不因为识别到按钮就点击；`act` 内部可复用观察、选择和核验服务。
+观察只收集证据，绝不因为识别到按钮就点击；act 提案经控制器调度定位、执行和核验。
+若后续证据要求复用 ToolManager 的工具执行入口，observe/act 可各加薄 BaseTool 适配器，
+只做参数转换和服务调用；不在工具内再启动 Jev/LLM 的第二套任务循环。
+规则/Jev 路径始终可以直接调用同一领域服务，不必伪造 LLM tool_call。
 
 ### 3.2 GoalContract：可验证子目标
 
@@ -481,13 +562,18 @@ stateDiagram-v2
 
 ### 7.1 显式启用与模型配置
 
-新增 `grounding.mode = ladder` 为设计草案，按现有配置校验限制为内建 AgentRunner；
-不扩展到 N2/SDK 路径。通道配置独立于决策策略：
+新增 opt-in Computer Use 子代理定义，使用现有
+`extension: agent-computer-use:agent`（名称草案）；
+私有配置位于 `subagents["agent-computer-use:agent"].config`。
+ladder 属于该子代理内部策略，不加入 GroundingConfig 的 mode 枚举或 Runner 条件分支。
+插件 manifest 声明实际需要的 desktop/network 等权限，数据外发目的地另按配置限制；
+文件读回等能力按任务授权，不能借桌面权限扩大。通道配置独立于决策策略：
 
 - `control_policy = adaptive`：规则优先，适用时 Jev，按需 Advisor，是新架构的目标模式。
 - `control_policy = llm_only`：规则可直接处理的步骤照旧，其余由 Advisor 判断，作为同宿主对照。
-- `decision_profile`：显式 provider/模型版本/端点/凭据引用/数据范围及调用上限。
-- `advisor_profile`：具备所需文本/视觉能力的生成模型配置；与 decision profile 分开。
+- `decision_profile`：插件私有配置对象，显式 provider/模型版本/端点/凭据引用/数据范围及上限。
+- `advisor_profile`：插件私有的生成模型配置对象，校验后复用核心 LLMProfile/LLM 客户端；
+  首期不要求 Runner 解析插件的命名模型引用。
 
 以上均为待实现字段。沿用生产默认，不凭环境变量中有密钥就启用 hosted Jev。
 adaptive 启动须明确决策配置和数据授权；不能把 Jev 当作 ChatCompletion 模型硬塞入现有
@@ -548,12 +634,16 @@ S3 hosted 回放和 S4–S5 live pilot 在材料、数据目的地、模型版�
 
 - 冻结 GoalContract、Snapshot、ActionSet、AdvisorResult、结果/回执、预算与资源契约；
   用 PDF 导出、明确输入、陌生弹窗、未知效果等 fixture 演示目标粒度和退出条件。
-- 在 AgentRunner opt-in 分支接入 ComputerUseController，复用既有输出/事件/取消/授权；
-  用 fake observation、Jev、Advisor、OS 驱动完整状态机，不依赖真实模型才能测试。
+- 建立 type=subagent 插件工厂，经现有 extension 分支接入；Runner 不导入控制器、
+  Jev 或 OCR。复用既有输出/取消/桌面锁，补通用结构化输入、结果与必要的恢复契约；
+  验证清理及模型 HTTP 预算真实接线，不能假定插件自动继承旧 LLMAgent 的门控。
+- 用 fake observation、Jev、Advisor、OS 驱动完整状态机，不依赖真实模型才能测试；
+  Advisor 先单次结构化回复，不为内部领域服务强制增加 BaseTool 包装。
 - 实现有限 ActionBuilder 与门控；先证明无需每步 LLM 生成候选，能携带已知参数推进。
 - **退出条件**：确定性步骤零模型调用；已知多步目标在 fake Jev 下无需 Advisor；
   一次 Advisor 补参数后回到规则/Jev；停止、授权拒绝、旧回复均零越界派发。
-  生产 A/其它 grounding 模式回归不变，真实 SDK 消息链可审计。
+  生产 A/其它 grounding 模式及既有 SubAgent 插件契约回归不变；
+  正常/未知/需信息/停止的终态不混淆，真实 SDK 消息链可审计。
 
 ### S1：AX 观察、动作候选与一个 OCR 后端
 
@@ -631,9 +721,14 @@ S3 hosted 回放和 S4–S5 live pilot 在材料、数据目的地、模型版�
 
 ### Tests
 
-复用 `backend/core/tests/` 与既有 feature 文件；新增模块有实质行为才建对应测试，
+复用 `backend/core/tests/` 与既有 feature 文件；新插件的领域测试放在自己的 tests/，
 实现行为按仓库 TDD 规则先写可失败测试。本次文档修订不补形式测试。
 
+- **领域边界/接线**：同一通用 Runner 可运行 Computer Use 与另一 fake SubAgent；
+  Controller 经 extension 工厂进入，不依赖 Runner 的 ladder 判断；私有配置由插件校验。
+  组装后的任务/工作区约束正确传入，旧插件保持兼容；
+  task_input 审批绑定/持久化、TaskResult 终态、回复恢复预算不重置；
+  schema 不在允许范围时零派发，Advisor 无隐式工具循环，Jev 单次最多一次 HTTP。
 - **目标/控制循环**：规则零模型、结构多步只用 Jev、一次 Advisor 后恢复；
   参数缺失/候选不足/新业务选择升级；GoalPatch 不弱化完成条件、不扩大权限；
   goal 拆分、模型切换与重观察不重置预算，无进展/振荡会终止。

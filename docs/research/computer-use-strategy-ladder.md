@@ -9,6 +9,7 @@
 调整为 **目标级宿主循环：规则可判直接执行，结构决策适用时优先 Jev，需规划/生成/视觉
 理解时调用 LLMAdvisor，随后重新评估快速路径**。Jev 从选控件扩展为选择下一合法动作，
 不是自由生成或直接派发操作。决策者与 DOM/AX/OCR/视觉通道是两个独立维度。
+接入边界采用已有 SubAgent extension；Runner 不识别 ladder 策略，策略控制器不作为 LLM 工具。
 详细目标契约、统一观察、架构/UML、恢复预算与 S0–S6 以
 [修订计划](../plans/active/computer-use-strategy-ladder.md)为准；以下不将目标设计写成已实现能力。
 
@@ -237,12 +238,15 @@ reserve/settle 与 unknown 保留预留/停批；所有规划/定位/决策调�
 
 ## 5. 与现有架构的接缝
 
-- **配置面**：现有 grounding 配置新增 opt-in ladder 模式（待实现），通道与决策策略分开；
+- **配置面**：用已有 extension 机制注册新的 Computer Use 子代理，ladder 配置归插件私有；
   adaptive 明确配置 Jev 和 Advisor，数据外发范围单独授权。保留规则 + Advisor 对照，
   生产默认不变；删配置只影响新会话，旧会话先停止并清理。
-- **控制层**：内建 AgentRunner 接入 ComputerUseController，持有 GoalContract 和执行循环；
-  不再固定每步由 LLMAgent 规划。复用上下文/AgentOutput/取消/白名单，Advisor 按需返回
-  单步提案或目标补充，没有额外预算和副作用出口。LadderSession 管单步通道及引用。
+- **控制层**：ComputerUseSubAgent 通过通用工厂/Adapter 接入，内部 Controller 持有目标循环；
+  Runner 只处理通用生命周期，不新增 ladder / Jev 判断。复用任务上下文和事件，
+  明确补齐结构化输入、结果、必要恢复及实际权限/预算接线，不假定插件自动继承 ToolManager。
+- **模型边界**：JevDecision 单次最多一个请求，只做输入适配、记账和结果校验；
+  路由/恢复属于 Controller。Advisor 复用 LLM.complete_response 返回结构化建议，
+  observe/act 是语义请求，首期不强制注册 BaseTool，更不把整个 ladder 包成 LLM 工具。
 - **执行层**：typed refs 保留 DOM/AX/图像原生身份，定位、派发、核验分离，pointer 复用 M2/M7。
   未知效果只读协调，不能换模型或换通道后重放。
 - **证据面**：增加 goal/observation/candidate 版本、channel/provenance、候选完整性、
