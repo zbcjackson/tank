@@ -1,4 +1,4 @@
-> 状态：进行中（2026-09-28 综合讨论及模块边界复核修订；S0–S6 尚未开工）。
+> 状态：进行中（2026-09-28 综合讨论、模块边界及依赖方向复核修订；S0–S6 尚未开工）。
 > 目标设计尚未实现、尚未实机验收。生产默认与基线 A 不变，新子代理显式 opt-in。
 
 # 计划：Computer Use 子代理的宿主循环与策略阶梯（S0–S6）
@@ -135,6 +135,8 @@ classDiagram
 
 [类图 PNG](../../assets/computer-use-strategy-ladder/01-class-diagram.png)
 · [SVG](../../assets/computer-use-strategy-ladder/01-class-diagram.svg)。
+图中的具体名称说明运行时协作，不要求 Controller/Router 导入这些具体类；
+静态依赖及装配边界以 §2.5 为准。
 
 ### 2.3 现有代码接缝与模块边界
 
@@ -200,7 +202,8 @@ Advisor 复用 `LLM.complete_response(tools=..., retry=False)`，保留严格解
 - Adapter / Supervisor 接收通用任务结果与停止原因，区分执行结束和目标完成。
   现有 extension 只接受 `final_answer` 为正常终止，须兼容扩展 partial/unknown/needs_input，
   不能伪装成 final_answer，或仅因流结束就报告成功；已有插件契约保持兼容。
-- 如支持补用户信息后继续，保存同一任务进度、累计预算和授权引用，重新观察并绑定控件；
+- 如支持补用户信息后继续，核心保存通用任务记录、累计预算和授权引用，插件保存并解释
+  自己的版本化进度；恢复后由插件重新观察并绑定控件。
   不能只追加聊天消息重新运行。首期不承诺跨进程恢复，不保存并重用原生 AX 句柄。
 
 Brain 只接通用委派与结果通知。若启用“GUI 统一委派”策略，按 computer 工具类别限制
@@ -222,10 +225,63 @@ Brain 只接通用委派与结果通知。若启用“GUI 统一委派”策略�
    返回模型版本、统计量、用量及原目标/观察/候选版本。
 4. 对无效响应、不可用或未知用量返回明确错误/受控停止；不伪造模型的 ambiguous。
 
-`DecisionRouter` 判断是否适合调用及如何处理拒绝/统计量；
+`DecisionRouter` 判断是否适合调用及如何处理决策结果；Jev 原始统计字段只在适配层解析，
+由插件装配的校准策略生成带原因的接受/拒绝结果，不在 Router 中写供应商字段分支。
 `ComputerUseController` 决定补观察、升级或终止；
 `ActionExecutor` 在最终派发前再次验证状态和授权。
 HTTP 客户端和领域 payload 首期可放在同一小模块，出现第二个调用方后再抽通用客户端。
+
+### 2.5 依赖方向复核：抽象与具体实现
+
+前版 Runner 新增 ladder 分支属于领域职责泄漏；具体表现是高层生命周期依赖具体策略
+（DIP 问题），并让扩展策略反复修改 Runner（OCP 风险）。OCP 针对预期变化轴，
+不是禁止修改任何代码；实现类、协议适配器和插件装配工厂知道具体实现是正常的。
+本计划只隔离已确定的变化轴，不引入统一所有模型/通道的框架。
+
+以下是设计歧义及接入缺口，不是宣称尚未实现的新模块已经存在代码缺陷：
+
+1. **Router 与模型实现**：Router 依赖小型结构化选择契约 `choose(...) → DecisionResult`；
+   Advisor 保留独立 `assist(...) → AdvisorResult` 契约。JevDecision 与测试 fake 实现前者，
+   LLMAdvisor 实现后者；插件工厂选择并注入实现，不由 Controller/Runner 判断 provider 名称。
+   Jev 请求字段、答案解析和供应商错误归适配器；校准策略由工厂注入，按模型/问题/任务族
+   校准后给出接受/拒绝及原因，Router 处理这些领域结果。原始分布保留作诊断，不能成为
+   高层遍历 `answers.*.confidence` 的依赖；错误、模型弃权和宿主拒绝仍分开记录。
+   规则/结构化选择/生成建议的分支本身是领域策略，可以保留。
+2. **观察与执行能力**：ObservationManager 调度已注册的观察源，ActionExecutor 调度
+   已注册的动作后端；OCR 只实现观察，不强迫它实现无意义的 click。AX/DOM 可同时提供
+   两种能力。Controller/ActionBuilder 读语义角色、动作能力、完整性和引用有效性，不读取
+   AX 原生属性、Playwright locator 内部字段或 OCR 引擎对象。来源标签和不同 typed refs
+   可以保留；仅对应边界适配器解释原生句柄与坐标。首期局部注册映射/构造注入即可，
+   不要求通用插件发现框架；新增实现但语义能力不变时不修改控制循环。
+3. **任务外壳与领域状态**：AgentTool/Runner/Supervisor 只理解通用输入/结果外壳、
+   生命周期和版本化的不透明插件进度；GoalContract、里程碑和界面回执由插件解释。
+   图中的 TaskSession 是引用 SubAgentContext 的领域会话，授权、取消、deadline 和
+   任务累计账本沿用同一对象，不能另复制一套同作用域计数。恢复时核心恢复通用资源与预算，
+   插件恢复领域进度；核心不按 AX/DOM 类型反序列化原生句柄。
+4. **核验与业务流程**：ActionBuilder/EffectVerifier 使用有限动作模板及有明确语义的
+   predicate evaluator；PDF 导出是目标契约与完成条件的用例，不成为 Controller 内的
+   `if app == ...` 流程。确有应用特例时局部实现并装配，不放进通用 Runner 或账本。
+   不支持的完成条件返回 unknown/需补充，不能执行 LLM 生成的任意核验代码。
+5. **协议与共享治理**：现有 LLM 是 Chat Completions 客户端，见
+   [complete_response](../../../backend/core/src/tank_backend/llm/llm.py)；
+   Jev 是独立的 state/questions 协议适配器，不继承 LLM，也不在 LLM 中加 Jev 分支。
+   两者复用已有任务授权、取消、预算和观察事件契约；共享治理不代表共享请求/响应 schema。
+   通用预算接口接收已校验的请求额度与用量，不解析 Jev/ChatCompletion 原始 JSON。
+   插件创建客户端时必须实际接入这些约束，不能仅靠调用后报告 USAGE。
+6. **实验设施与生产依赖**：当前
+   [SpendSession](../../../backend/core/src/tank_backend/benchmarks/spend_http.py) 的请求白名单和
+   usage 解析绑定 Chat Completions；[driver](../../../backend/core/src/tank_backend/benchmarks/driver.py)
+   明确拒绝 extension 的 request_limits，并仅给内建客户端挂 HTTP 捕获；
+   [RequestBudget](../../../backend/core/src/tank_backend/benchmarks/request_budget.py) 仅有 planner/locator。
+   这些是接入缺口，不能删拒绝条件就声称兼容。实验层通过通用接入契约核验每个客户端
+   的请求准入/捕获/结算，具体协议校验由适配器承担，不按新插件名写特殊放行。
+   生产插件不反向导入 benchmarks；若需要复用 SpendLedger 的预留/结算原语，最小下沉到
+   生产可依赖的中立模块，批次/评分/报告留在实验层。任务和实验批次可有各自上限，
+   由同一调用记录关联结算，各账本内不得重复计费。
+
+更换同契约实现应只影响适配器、插件装配/配置及对应测试；新增业务能力或改变契约时，
+修改领域策略是合理的。采用小型 Protocol 或有类型的 callable 验证这些边界，
+不要求每个辅助函数都有 ABC，不为尚不存在的供应商预建实现。
 
 ## 3. 提供给 LLM 的接口与一致的数据结构
 
@@ -330,7 +386,8 @@ OCR 文字框标为 text_region，不能自动变成可点击 control。
   ImagePointRef 保留 session/frame/display/crop/图像点。展示行号不是身份。
 - `DecisionResult`：candidate_id / none / ambiguous / need_more_context / escalate；
   后四项是宿主显式列出的控制选项，不是假定 Jev 原生返回这些状态。
-  保留模型版本、按问题类型定义的分布统计和 usage，不要求所有类型都有 confidence。
+  保留模型版本、按问题类型定义的分布统计和 usage，不要求所有类型都有 confidence；
+  原始统计只供适配/校准及诊断，高层消费校准后的接受/拒绝与原因，不读取供应商字段。
 - `AdvisorResult`：补充证据请求、输入/里程碑补充、一个动作提案或返回原因。
   必须绑定所依据的目标和观察版本；迟到回复重新检查，不能直接派发。
 - `LocateResult`：found / not_found / ambiguous / unavailable / stale / error。
@@ -582,7 +639,8 @@ llm profile。已授权运行中服务不可用时，按明确的 fallback 配�
 
 ### 7.2 共享预算与协议
 
-TaskSession 向 Goal、Action、Operation 分配上限；同一任务中的子目标拆分、
+TaskSession 引用 SubAgentContext 的任务账本，并向 Goal、Action、Operation 分配上限；
+这些是子范围计数，不是重建任务总额度。同一任务中的子目标拆分、
 重观察、模型切换、换通道和恢复均不重置累计计数。模型外部调用、等待、工具执行和清理
 受总 wall time 约束；模型迟到结果不可产生新动作。
 
@@ -596,8 +654,9 @@ Choice/Score/Noul 与各自统计字段分别映射；首期只实现实际需�
 none/ambiguous/escalate 等属于宿主定义的候选控制选项。
 固定模型版本，禁止 SDK 隐式重试；先 fake HTTP 检查真实请求与错误路径。
 
-沿用 SpendSession 的 reserve → request → settle 纪律，但增加 Jev usage.input/output
-适配，不能假定它返回 ChatCompletion 的 usage。模型回复在 usage 结算和协议校验后才可
+沿用 reserve → request → settle 纪律；现有 SpendSession 不是协议无关入口（见 §2.5）。
+Chat Completions 与 Jev 分别校验请求和解析 usage，Jev 使用 input_tokens/output_tokens，
+再向共享预算原语提交已校验用量。协议原始字段不泄漏到账本。模型回复在结算和协议校验后才可
 形成可执行提案；用量未知保留预留、停止实验批次，并保留已有动作效果。
 现有 ledger 的货币记账不等于硬性费用封顶：付费实验须冻结价格/请求上限、
 保守预留和未知用量策略，不能仅凭 token 上限宣称保证某金额。
@@ -639,6 +698,9 @@ S3 hosted 回放和 S4–S5 live pilot 在材料、数据目的地、模型版�
   验证清理及模型 HTTP 预算真实接线，不能假定插件自动继承旧 LLMAgent 的门控。
 - 用 fake observation、Jev、Advisor、OS 驱动完整状态机，不依赖真实模型才能测试；
   Advisor 先单次结构化回复，不为内部领域服务强制增加 BaseTool 包装。
+- 落实 §2.5 的构造注入和状态归属；接通插件全部模型客户端的实验请求准入/HTTP 捕获，
+  分开协议校验与预算原语，消除 production → benchmarks 反向依赖。
+  保留旧实验入口拒绝未接线 transport 的行为，不以插件名称特判绕过。
 - 实现有限 ActionBuilder 与门控；先证明无需每步 LLM 生成候选，能携带已知参数推进。
 - **退出条件**：确定性步骤零模型调用；已知多步目标在 fake Jev 下无需 Advisor；
   一次 Advisor 补参数后回到规则/Jev；停止、授权拒绝、旧回复均零越界派发。
@@ -729,6 +791,11 @@ S3 hosted 回放和 S4–S5 live pilot 在材料、数据目的地、模型版�
   组装后的任务/工作区约束正确传入，旧插件保持兼容；
   task_input 审批绑定/持久化、TaskResult 终态、回复恢复预算不重置；
   schema 不在允许范围时零派发，Advisor 无隐式工具循环，Jev 单次最多一次 HTTP。
+- **替换与依赖方向**：相同语义能力的 fake 选择器/观察源/动作后端可替换实现而不改循环；
+  OCR 无执行能力仍可参与观察；Controller 不读取供应商统计或原生句柄。
+  通用任务恢复不解释插件进度，TaskSession 引用原授权/账本；不同核验条件走领域 evaluator。
+  插件真实 HTTP 在零配额时零发送，Jev/Advisor/定位请求共同受限、关联一次结算；
+  未接线插件仍拒绝实验准入，原 Chat Completions 的请求/usage 校验和生产 A 回归不变。
 - **目标/控制循环**：规则零模型、结构多步只用 Jev、一次 Advisor 后恢复；
   参数缺失/候选不足/新业务选择升级；GoalPatch 不弱化完成条件、不扩大权限；
   goal 拆分、模型切换与重观察不重置预算，无进展/振荡会终止。

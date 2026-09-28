@@ -10,6 +10,8 @@
 理解时调用 LLMAdvisor，随后重新评估快速路径**。Jev 从选控件扩展为选择下一合法动作，
 不是自由生成或直接派发操作。决策者与 DOM/AX/OCR/视觉通道是两个独立维度。
 接入边界采用已有 SubAgent extension；Runner 不识别 ladder 策略，策略控制器不作为 LLM 工具。
+依赖方向复核进一步隔离决策协议、通道原生细节、领域进度与通用治理；现有 benchmark
+HTTP/预算入口不自动支持新插件，具体接入缺口见计划 §2.5。
 详细目标契约、统一观察、架构/UML、恢复预算与 S0–S6 以
 [修订计划](../plans/active/computer-use-strategy-ladder.md)为准；以下不将目标设计写成已实现能力。
 
@@ -235,6 +237,10 @@ S3 接入一个显式 Jev provider；S4 验证目标内多步选择及 Advisor �
 `decision:` call_id 是关联标识，不等于已实现计费。Jev 的请求/usage 与现有
 Chat Completions 不同，须补真实 HTTP allowlist、input/output token 适配、
 reserve/settle 与 unknown 保留预留/停批；所有规划/定位/决策调用共享任务上限。
+JevDecision 独立适配官方 API，LLMAdvisor 复用现有 LLM.complete_response；
+不以共同的“模型”名称强制两者使用聊天消息协议。共用的是任务上下文和预算原语，
+供应商请求/响应解析各自负责。现有 SpendSession 仍含聊天协议假设，不能直接复用为
+Jev HTTP 入口；生产也不能反向依赖 benchmarks 中的批次/报告逻辑。
 
 ## 5. 与现有架构的接缝
 
