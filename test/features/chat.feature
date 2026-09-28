@@ -61,3 +61,12 @@ Feature: Chat mode
       | contract |
       | input    |
       | outcomes |
+
+  Scenario Outline: Computer Use host loop preserves offline task contracts
+    When the isolated computer use host contract "<contract>" is exercised
+    Then the computer use host contract passes without live model or desktop input
+
+    Examples:
+      | contract |
+      | loop     |
+      | plugin   |

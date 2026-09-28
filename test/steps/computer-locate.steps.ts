@@ -44,3 +44,19 @@ Then('the plugin task contract passes without live model or desktop input',
   function (this: TankWorld) {
     assert.match(results.get(this) ?? '', /\d+ passed/);
   });
+
+// S0 domain loop and real extension dispatch; fake UI, no paid model calls.
+When('the isolated computer use host contract {string} is exercised',
+  async function (this: TankWorld, contract: string) {
+    assert.ok(['loop', 'plugin'].includes(contract));
+    const file = contract === 'loop' ? 'test_ladder.py' : 'test_plugin.py';
+    const {stdout} = await promisify(execFile)('uv', [
+      'run', '--no-sync', 'pytest', `plugins/agent-computer-use/tests/${file}`, '-q',
+    ], {cwd: resolve(process.cwd(), '../backend'), timeout: 30000});
+    results.set(this, stdout);
+  });
+
+Then('the computer use host contract passes without live model or desktop input',
+  function (this: TankWorld) {
+    assert.match(results.get(this) ?? '', /\d+ passed/);
+  });
