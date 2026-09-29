@@ -1157,6 +1157,34 @@ web lint/tsc、backend/CLI ruff、4 个改动 Python 文件 pyright、开发服�
 既有 21 项 warning 与 1 项 skipped 保留；验证仍为真实 SDK 加 fake HTTP，
 不证明付费提供方或真实 Computer Use 通道可用。
 
+#### S0 第六批：模型调用记录与有界遥测接线（2026-09-29，回归通过，待评审）
+
+补齐受控模型请求到 Runner/Bus 的普通遥测链路。transport 沿用真实发送与账本的
+同一 call_id，生成不包含凭据、请求/响应正文的开始/终结事件和有界只读记录。
+此批不把普通事件总线当作必需审计；持久化审计及 G2 全迁移仍待后续实施。
+
+1. **Tests**：真实 SDK + fake HTTP 先红后绿覆盖成功、准入拒绝、取消/未知用量、
+   已知用量但回复无效、观察器故障、事件关联与记录容量。
+2. Runner 为 extension 接入核心事件观察器，向现有 Bus 发布调用事件和 normalized
+   llm_usage；使用有界投递，队列满时丢弃普通遥测，不影响权威任务账本。
+   保持已有调用方 observer 行为，复用 TokenUsageObserver 验证去重及统计一致。
+3. 最终执行 §10 完整 Verification Checklist 全部适用项和最多三轮
+   review-and-refactor；更新现行设计、索引及本记录。无协议或生产默认模型变动。
+
+实现：TaskModelTransport 发出 model_call 开始/终结事件，保留最近 128 条不可变
+ModelCallRecord；returned 只代表 HTTP/用量可信，后续语义拒绝不会抹去用量。
+TaskObserver 由 Runner 通用装配，转发 task_model_call 与规范化 llm_usage 并记录
+安全日志；不记录正文/凭据/端点，保持原 observer 接收事件。Bus.post_bounded 在
+当前排队达到 256 时拒绝新增普通遥测，poll 后恢复，不修改控制消息的原 post 行为。
+现有 TokenUsageObserver 验证同一 call_id 去重和未知用量；它仍不拥有任务预算。
+
+Tests：新增 11 项用例并增强原 Runner 集成断言，覆盖调用身份一致、拒绝/取消/未知
+状态、观察器故障/撤权、128 条记录滚动不丢累计计量、满队列恢复、语义回复无效仍
+保留用量。定向 214 passed；后端全量 5436 passed / 1 skipped / 21 warnings；
+E2E 20 场景 / 79 步通过。web lint/tsc、backend/CLI ruff、7 个改动 Python 文件
+pyright、开发服务日志、docs check、diff check 均通过。无协议变动、付费模型或
+真实 Computer Use 通道调用。全局事件治理、必需持久审计及 G2/G3 仍未完成。
+
 ### S1：AX 观察、动作候选与一个 OCR 后端
 
 - 扩展 AX 稳定身份、祖先/焦点/值、完整性与作用域；在原范围检查歧义后再截取候选。
