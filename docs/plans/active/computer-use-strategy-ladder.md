@@ -1130,7 +1130,7 @@ web lint/tsc、backend/CLI ruff、5 个改动文件 pyright、开发服务日志
 diff check 全部通过。首次 E2E 被沙盒 Chromium 启动权限阻止，正常权限复跑通过；
 不将该次环境失败视为产品通过证据。仍未实测付费模型或真实 Computer Use 通道。
 
-#### S0 文本模型调用复用（2026-09-29，回归通过，待评审）
+#### S0 文本模型调用复用（2026-09-29，回归与评审完成）
 
 根据用户复核，TaskModel 保留任务约束和文本结果校验，模型请求构造复用现有
 LLM.complete_response，不再独立调用 SDK。LLM 支持注入宿主持有的 SDK 客户端；
@@ -1149,6 +1149,13 @@ LLM.complete_response，不再独立调用 SDK。LLM 支持注入宿主持有的
 重构后含新增用例 198 项通过；后端全量 5425 passed / 1 skipped，E2E 20 场景 / 79 步。
 web lint/tsc、backend/CLI ruff、4 个改动 Python 文件 pyright、开发服务日志、docs check
 与 diff check 通过；未改协议，无真实模型或 Computer Use 通道调用。
+
+独立评审（review-and-refactor，基线 `e7b89af9`，实现/文档至 `bca336fa`）：
+第 1 轮核对客户端借用与关闭所有权、请求构造复用、零重试及唯一 transport 计量、
+取消与关闭边界、严格文本回复校验和原自建客户端兼容性，未发现可操作问题，立即结束。
+无源码修复；复用上述未变化源码的完整验证证据，评审记录更新后 docs/diff check 通过。
+既有 21 项 warning 与 1 项 skipped 保留；验证仍为真实 SDK 加 fake HTTP，
+不证明付费提供方或真实 Computer Use 通道可用。
 
 ### S1：AX 观察、动作候选与一个 OCR 后端
 
