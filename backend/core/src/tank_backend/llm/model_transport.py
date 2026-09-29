@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import math
+from contextlib import suppress
 from dataclasses import dataclass
 from uuid import uuid4
 
@@ -168,27 +169,46 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
                 inputs, outputs = read_usage(response)
             except BaseException:
                 if sent:
-                    self._ledger.settle(call_id, input_tokens=None, output_tokens=None)
-                    self._context.budget.record_unknown(call_id)
+                    inputs = outputs = None
+                    # Cancellation may win the waiter race after a complete response arrived.
+                    if operation.done() and not operation.cancelled():
+                        with suppress(Exception):
+                            inputs, outputs = read_usage(operation.result())
+                    self._record_usage(call_id, inputs, outputs)
                 else:
                     self._ledger.release_unsent(call_id)
                 raise
-            self._ledger.settle(call_id, input_tokens=inputs, output_tokens=outputs)
-            self._context.budget.record(call_id, inputs, outputs)
+            self._record_usage(call_id, inputs, outputs)
             reason = self._ledger.snapshot()["stop_reason"]
             if reason is not None:
                 raise SpendLimitExceeded(reason)
             response.extensions["tank_call_id"] = call_id
         finally:
             cancelled.cancel()
-            operation.cancel()
-            await asyncio.gather(operation, cancelled, return_exceptions=True)
+            if not operation.cancelling():
+                operation.cancel()
+            cleanup = asyncio.gather(operation, cancelled, return_exceptions=True)
+            interrupted = False
+            while not cleanup.done():
+                try:
+                    await asyncio.shield(cleanup)
+                except asyncio.CancelledError:
+                    interrupted = True
             settled.set()
             self._inflight.pop(operation, None)
+            if interrupted:
+                raise asyncio.CancelledError
         self._context.check("network")
         if self._closed:
             raise SpendLimitExceeded("transport_closed")
         return response
+
+    def _record_usage(self, call_id: str, inputs: int | None, outputs: int | None) -> None:
+        self._ledger.settle(call_id, input_tokens=inputs, output_tokens=outputs)
+        if inputs is None or outputs is None:
+            self._context.budget.record_unknown(call_id)
+        else:
+            self._context.budget.record(call_id, inputs, outputs)
 
     async def aclose(self) -> None:
         if self._closing is None:
@@ -200,7 +220,8 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
     async def _close(self) -> None:
         inflight = tuple(self._inflight.items())
         for operation, _ in inflight:
-            operation.cancel()
+            if not operation.cancelling():
+                operation.cancel()
         try:
             async with asyncio.timeout(5):
                 await asyncio.gather(*(settled.wait() for _, settled in inflight))

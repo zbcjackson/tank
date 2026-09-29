@@ -490,3 +490,60 @@ async def test_revocation_during_request_cleanup_prevents_decision_delivery():
     finally:
         revoker.cancel()
         await asyncio.gather(revoker, return_exceptions=True)
+
+
+async def test_caller_cancel_after_response_preserves_known_usage():
+    pending = asyncio.current_task()
+
+    async def provider(request):
+        assert pending is not None
+        asyncio.get_running_loop().call_soon(pending.cancel)
+        return httpx.Response(200, json=completion())
+
+    context, transport, client = governed(provider)
+    async with client:
+        pending = asyncio.create_task(ask(client))
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        assert transport.snapshot()["batch"]["known_tokens"] == 15
+        assert transport.snapshot()["batch"]["reserved_tokens"] == 0
+        assert context.budget.total_tokens == 15
+        assert context.budget.unknown_calls == set()
+
+
+@pytest.mark.parametrize("close_order", ["after_cleanup", "first", "during_cleanup"])
+async def test_repeated_caller_cancel_joins_cleanup_before_close(close_order):
+    entered, cleaning, release, exited = (asyncio.Event() for _ in range(4))
+
+    async def provider(request):
+        entered.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cleaning.set()
+            await release.wait()
+            exited.set()
+
+    _, transport, client = governed(provider)
+    pending = asyncio.create_task(ask(client))
+    await entered.wait()
+    closing = None
+    if close_order == "first":
+        closing = asyncio.create_task(transport.aclose())
+    else:
+        pending.cancel()
+    await cleaning.wait()
+    if close_order == "during_cleanup":
+        closing = asyncio.create_task(transport.aclose())
+    else:
+        pending.cancel()
+    await asyncio.sleep(0)
+    release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+    assert exited.is_set(), "repeated cancellation must not interrupt transport cleanup"
+    async with asyncio.timeout(1):
+        if closing is not None:
+            await closing
+        await client.close()
+    assert transport.snapshot()["batch"]["reserved_tokens"] == 50
