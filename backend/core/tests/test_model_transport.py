@@ -468,3 +468,25 @@ async def test_revoke_before_http_send_releases_known_unsent_reservation():
     assert saved["sent_requests"] == 0
     assert next(iter(saved["requests"].values()))["status"] == "not_sent"
     assert context.budget.unknown_calls == set()
+
+
+async def test_revocation_during_request_cleanup_prevents_decision_delivery():
+    async def provider(request):
+        return httpx.Response(200, json=completion())
+
+    context, transport, client = governed(provider)
+
+    async def revoke_after_settlement():
+        while context.budget.total_tokens == 0:
+            await asyncio.sleep(0)
+        context.authorization.revoke()
+
+    revoker = asyncio.create_task(revoke_after_settlement())
+    try:
+        async with client:
+            with pytest.raises(APIConnectionError):
+                await ask(client)
+        assert transport.snapshot()["batch"]["known_tokens"] == 15
+    finally:
+        revoker.cancel()
+        await asyncio.gather(revoker, return_exceptions=True)

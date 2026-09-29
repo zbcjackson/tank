@@ -178,17 +178,17 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
             reason = self._ledger.snapshot()["stop_reason"]
             if reason is not None:
                 raise SpendLimitExceeded(reason)
-            self._context.check("network")
-            if self._closed:
-                raise SpendLimitExceeded("transport_closed")
             response.extensions["tank_call_id"] = call_id
-            return response
         finally:
             cancelled.cancel()
             operation.cancel()
             await asyncio.gather(operation, cancelled, return_exceptions=True)
             settled.set()
             self._inflight.pop(operation, None)
+        self._context.check("network")
+        if self._closed:
+            raise SpendLimitExceeded("transport_closed")
+        return response
 
     async def aclose(self) -> None:
         if self._closing is None:
