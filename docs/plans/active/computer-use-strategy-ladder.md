@@ -1053,7 +1053,7 @@ ruff、改动文件 pyright、开发服务日志、docs check、diff check 通�
 通过。没有源码修改，其他验证复用上述通过结果。实现提交 `336f004e`；本次只收敛
 生命周期责任，不代表 G1/G2 完整治理或真实通道验收完成。
 
-#### S0 SubAgent 基类资源管理（2026-09-29，回归通过，待评审）
+#### S0 SubAgent 基类资源管理（2026-09-29，回归与评审通过）
 
 用户确认宿主拥有 runtime、SubAgent 基类拥有插件资源集合、具体子类只登记资源。
 本批将集合、关闭状态及默认清理实现上移至 SubAgent；宿主 runtime 责任保持不变。
@@ -1082,7 +1082,13 @@ SDK/环境/客户端，以及 run 不提前关闭插件资源。直接 SDK 测�
 定向 223 项通过；后端全量 5394 passed / 1 skipped；E2E 20 场景 / 79 步通过。
 web lint/tsc、backend/CLI ruff、全部改动 Python 文件 pyright、开发服务日志、
 docs check、diff check 通过。仍有既有第三方弃用及 coroutine RuntimeWarning；
-无协议修改、无付费模型或真实桌面调用。独立评审待完成。
+无协议修改、无付费模型或真实桌面调用。
+
+独立 code-reviewer 以 review-and-refactor 检查 `766e4df0..6f533a7e` 完整差异，
+第 1 轮未发现可操作问题后结束。复核两个实际子类的继承、部分初始化与 N2 停止顺序、
+全量/E2E 日志及测试契约；独立 diff check 通过，未修改源码，其余检查复用上述结果。
+实现提交 `903e2a03`。最终职责为宿主关闭 runtime、SubAgent 基类统一管理和关闭
+插件资源、具体子类只登记资源及领域释放回调；完整 G1/G2 与真实通道仍按后续计划验收。
 
 ### S1：AX 观察、动作候选与一个 OCR 后端
 
