@@ -653,3 +653,9 @@ profile 名称，插件工厂不接收密钥。当前拒绝非 HTTPS、额外 he
 拒绝新调用。此入口已由通用 fake SubAgent + 真实 Runner/SDK + fake HTTP 验证，
 并不表示 Computer Use 已接通真实 Advisor/Jev 或 N2/LLMAgent 已迁移到公共服务。
 多模型/其它协议、模型事件持久审计及 G1/G2 其余治理仍在活动计划中。
+
+文本请求构造与 SDK 调用复用 `LLM.complete_response(retry=False)`。TaskModel 仅保留
+受控客户端装配、任务检查及严格文本回复校验，不维护第二套补全请求实现。
+LLM 的可选 `client` 参数借用宿主 SDK 客户端，不另建连接或初始化追踪；其
+`aclose()` 只关闭自身创建的客户端。任务客户端仍由 TaskModel/runtime 释放，
+用量仅由 TaskModelTransport 记录，LLM 不再重复计数。

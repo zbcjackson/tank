@@ -1130,6 +1130,26 @@ web lint/tsc、backend/CLI ruff、5 个改动文件 pyright、开发服务日志
 diff check 全部通过。首次 E2E 被沙盒 Chromium 启动权限阻止，正常权限复跑通过；
 不将该次环境失败视为产品通过证据。仍未实测付费模型或真实 Computer Use 通道。
 
+#### S0 文本模型调用复用（2026-09-29，回归通过，待评审）
+
+根据用户复核，TaskModel 保留任务约束和文本结果校验，模型请求构造复用现有
+LLM.complete_response，不再独立调用 SDK。LLM 支持注入宿主持有的 SDK 客户端；
+借用客户端不重复初始化追踪、不另建连接，清理由其原所有者承担。
+
+1. **Tests**：先验证注入客户端实际发送、无额外初始化，以及自建/借用客户端关闭责任。
+2. 将 TaskModel 接入 LLM 单次补全，保留 retry=False、任务 transport 的唯一用量与
+   runtime 清理；回归已有权限、取消、期限、未知用量、无效回复和重定向测试。
+3. 最终执行 §10 完整 Verification Checklist 的全部适用项及最多三轮
+   review-and-refactor；同步现行设计和本记录。此次重构不扩大协议或真实通道范围。
+
+已实现 LLM 的可选借用 client 注入及按所有权关闭；默认自建客户端路径仍初始化
+追踪。TaskModel 懒创建受控 SDK 客户端后注入 LLM，调用 complete_response(retry=False)，
+保留原 transport 记账与严格文本结果校验。新增 4 项测试验证注入无额外初始化、
+自建/借用关闭责任、temperature 省略/数值及两次请求唯一计量。重构前定向 196 项通过，
+重构后含新增用例 198 项通过；后端全量 5425 passed / 1 skipped，E2E 20 场景 / 79 步。
+web lint/tsc、backend/CLI ruff、4 个改动 Python 文件 pyright、开发服务日志、docs check
+与 diff check 通过；未改协议，无真实模型或 Computer Use 通道调用。
+
 ### S1：AX 观察、动作候选与一个 OCR 后端
 
 - 扩展 AX 稳定身份、祖先/焦点/值、完整性与作用域；在原范围检查歧义后再截取候选。
