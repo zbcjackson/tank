@@ -73,7 +73,9 @@ async def test_text_model_stopped_before_http_creation(model_stack, stop):
     assert requests == released == []
 
 
-@pytest.mark.parametrize("invalid", ["choices", "truncated", "refusal", "usage"])
+@pytest.mark.parametrize(
+    "invalid", ["choices", "truncated", "refusal", "usage", "tool_calls", "function_call"],
+)
 async def test_invalid_model_reply_keeps_usage_and_stops(model_stack, invalid):
     context, _, payload, requests, released = model_stack
     model = context.runtime.model
@@ -84,6 +86,12 @@ async def test_invalid_model_reply_keeps_usage_and_stops(model_stack, invalid):
         payload["choices"][0]["finish_reason"] = "length"
     elif invalid == "refusal":
         payload["choices"][0]["message"]["refusal"] = "secret"
+    elif invalid in {"tool_calls", "function_call"}:
+        function = {"name": "unsupported", "arguments": "{}"}
+        payload["choices"][0]["message"][invalid] = (
+            [{"id": "call", "type": "function", "function": function}]
+            if invalid == "tool_calls" else function
+        )
     else:
         payload.pop("usage")
     try:

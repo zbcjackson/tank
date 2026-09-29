@@ -69,6 +69,7 @@ class TaskModel:
                 raise ValueError("expected one completion")
             choice = response.choices[0]
             if (choice.finish_reason != "stop" or choice.message.tool_calls
+                    or choice.message.function_call
                     or choice.message.refusal or not isinstance(choice.message.content, str)):
                 raise ValueError("expected a completed text response")
             return choice.message.content
