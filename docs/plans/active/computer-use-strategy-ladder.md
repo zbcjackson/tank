@@ -1020,7 +1020,7 @@ RuntimeWarning，没有失败项；未改协议。
 实施提交为 `5e5580d3`，领域语义、生产默认与账本政策保持原边界。本批不完成整个 G1/G2。
 下一批继续模型生产装配及 G1 剩余接线，再推进 G2 调用方迁移；真实通道/恢复按后续阶段验收。
 
-#### S0 生命周期职责收敛（2026-09-29，回归通过，待评审）
+#### S0 生命周期职责收敛（2026-09-29，回归与评审通过）
 
 根据用户对 runtime/resources 二选一关闭的反馈，统一关闭责任：核心 Adapter 拥有
 任务 runtime，具体 SubAgent 的 `aclose()` 仅释放自身资源，不关闭借用的 runtime。
@@ -1046,7 +1046,12 @@ Tests：6 项新增用例验证运行前/后插件清理不关闭宿主 runtime�
 runtime 清理失败后插件仍释放且保留 TaskResult。定向回归含 N2 SDK 共 216 项通过。
 全量后端 5387 passed / 1 skipped，E2E 20 场景 / 79 步通过；web lint/tsc、backend/CLI
 ruff、改动文件 pyright、开发服务日志、docs check、diff check 通过。保留现有第三方弃用
-及 coroutine RuntimeWarning；无协议变动、无真实桌面或付费请求。独立评审待完成。
+及 coroutine RuntimeWarning；无协议变动、无真实桌面或付费请求。
+
+独立 code-reviewer 按 review-and-refactor 审查 `adcc02e0..5952aa17` 完整差异，
+第 1 轮无可操作问题后停止；复核 N2 SDK 清理兼容性及全量/E2E 日志，独立 diff check
+通过。没有源码修改，其他验证复用上述通过结果。实现提交 `336f004e`；本次只收敛
+生命周期责任，不代表 G1/G2 完整治理或真实通道验收完成。
 
 ### S1：AX 观察、动作候选与一个 OCR 后端
 
