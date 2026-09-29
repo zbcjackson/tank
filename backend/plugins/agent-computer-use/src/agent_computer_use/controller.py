@@ -15,6 +15,7 @@ from tank_backend.agents.subagent import (
     SubAgentStopped,
 )
 from tank_backend.agents.task_result import TaskResult, TaskStatus
+from tank_backend.agents.task_runtime import TaskOperation
 
 from .action_builder import ActionBuilder
 from .contracts import (
@@ -111,6 +112,8 @@ class ComputerUseController:
         self.generation = -1
         self.advisor_calls = 0
         self.started = False
+        self.observation: TaskOperation[str, Snapshot] | None = None
+        self.dispatch: TaskOperation[tuple[Binding, Action], DispatchReceipt] | None = None
 
     def result(self, status: TaskStatus, reason: str) -> TaskResult:
         if self.pending_effect:
@@ -144,11 +147,8 @@ class ComputerUseController:
         )
 
     async def observe(self, goal: GoalContract, context: SubAgentContext) -> Snapshot:
-        context.check("desktop")
-        if len(self.observation_ids) >= 64:
-            raise SubAgentStopped("observation_limit")
-        snapshot = await self.source.observe(goal.scope, context)
-        context.check("desktop")
+        assert self.observation is not None
+        snapshot = await context.runtime.execute(self.observation, goal.scope)
         if snapshot.scope != goal.scope:
             raise SubAgentStopped("scope_mismatch")
         if snapshot.observation_id in self.observation_ids or snapshot.generation < self.generation:
@@ -157,6 +157,29 @@ class ComputerUseController:
         self.generation = snapshot.generation
         return snapshot
 
+    def register_operations(self, context: SubAgentContext) -> None:
+        async def preflight(value: tuple[Binding, Action]) -> None:
+            if not await self.executor.is_current(*value, context):
+                raise SubAgentStopped("stale_reference")
+
+        async def dispatch(value: tuple[Binding, Action]) -> DispatchReceipt:
+            binding, action = value
+            # Journal at the admitted boundary, before a possible external effect.
+            self.bindings.append(binding)
+            self.receipts.append(DispatchReceipt(action.id, "unknown"))
+            self.pending_effect = True
+            return await self.executor.dispatch(binding, action, context)
+
+        self.observation = TaskOperation(
+            "computer_use.observe", frozenset({"desktop"}), "read",
+            lambda scope: self.source.observe(scope, context),
+        )
+        self.dispatch = TaskOperation(
+            "computer_use.dispatch", frozenset({"desktop"}), "action", dispatch, preflight,
+        )
+        context.runtime.register(self.observation)
+        context.runtime.register(self.dispatch)
+
     async def run(self, request: SubAgentRequest, context: SubAgentContext) -> TaskResult:
         if self.started:
             raise RuntimeError("A controller cannot restart a task or reset its budget")
@@ -164,6 +187,8 @@ class ComputerUseController:
         self.task_id = request.task_id
         try:
             context.check("desktop")
+            context.runtime.bind(request.task_id)
+            self.register_operations(context)
             if request.task_input is None:
                 return self.result("needs_input", "goal_contract_required")
             try:
@@ -305,18 +330,8 @@ class ComputerUseController:
                 if advice.kind != "candidate":
                     return self.result("stopped", "advisor_unable")
                 action = self.candidate(actions, advice.candidate_id)
-            if len(self.receipts) >= min(
-                32, context.max_steps if context.max_steps is not None else 32
-            ):
-                raise SubAgentStopped("action_limit")
-            if not await self.executor.is_current(actions.binding, action, context):
-                raise SubAgentStopped("stale_reference")
-            context.check("desktop")
-            # Journal before the await: cancellation/exception cannot erase a possible effect.
-            self.bindings.append(actions.binding)
-            self.receipts.append(DispatchReceipt(action.id, "unknown"))
-            self.pending_effect = True
-            receipt = await self.executor.dispatch(actions.binding, action, context)
+            assert self.dispatch is not None
+            receipt = await context.runtime.execute(self.dispatch, (actions.binding, action))
             if receipt.action_id != action.id or receipt.status not in {
                 "not_sent",
                 "sent",

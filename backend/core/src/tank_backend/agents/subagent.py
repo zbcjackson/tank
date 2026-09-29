@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import math
 import time
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from collections.abc import AsyncIterator, Awaitable, Callable
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic import JsonValue
@@ -18,6 +19,7 @@ from .base import AgentOutput
 
 if TYPE_CHECKING:
     from .task_result import TaskResult
+    from .task_runtime import ExecutionRecord, TaskRuntime
 
 
 def validate_task_input(value: object) -> dict[str, JsonValue] | None:
@@ -141,8 +143,16 @@ class SubAgentContext:
     deadline: float | None = None
     observer: SubAgentObserver | None = None
     max_steps: int | None = None
+    audit: Callable[[ExecutionRecord], Awaitable[None]] | None = None
+    runtime: TaskRuntime = field(init=False, compare=False, repr=False)
+
+    def __post_init__(self) -> None:
+        from .task_runtime import TaskRuntime
+
+        object.__setattr__(self, "runtime", TaskRuntime(self, audit=self.audit))
 
     def check(self, permission: str | None = None) -> None:
+        self.runtime.check_open()
         self.authorization.check(permission)
         if self.cancel.is_set():
             raise asyncio.CancelledError("subagent cancellation requested")
@@ -152,7 +162,10 @@ class SubAgentContext:
 
     def observe(self, kind: str, **metadata: Any) -> None:
         if self.observer is not None:
-            self.observer.on_event(kind, metadata)
+            try:
+                self.observer.on_event(kind, metadata)
+            except Exception:
+                logging.getLogger(__name__).warning("Subagent observer failed for %s", kind)
 
 
 class SubAgent(ABC):

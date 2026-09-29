@@ -90,6 +90,23 @@ async def ask(client):
     )
 
 
+async def test_closed_task_runtime_rejects_late_sdk_requests():
+    sent = []
+
+    async def provider(request):
+        sent.append(request)
+        return httpx.Response(200, json=completion())
+
+    context, transport, client, ledger = governed(provider)
+    async with client:
+        await context.runtime.aclose()
+        with pytest.raises(APIConnectionError):
+            await ask(client)
+    assert sent == []
+    assert transport.snapshot()["sent_requests"] == 0
+    assert ledger.snapshot()["batch"]["admitted_requests"] == 0
+
+
 async def test_sdk_receives_response_only_after_raw_usage_settles_once():
     sent = []
 

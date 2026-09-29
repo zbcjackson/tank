@@ -27,6 +27,7 @@ class SubAgentAdapter(Agent):
         self.plugin = plugin
         self.request = request
         self.context = context
+        self.context.runtime.bind(request.task_id)
 
     async def run(self, state: AgentState) -> AsyncIterator[AgentOutput]:
         terminal: AgentOutput | None = None
@@ -57,12 +58,16 @@ class SubAgentAdapter(Agent):
             try:
 
                 async def close() -> None:
+                    self.context.runtime.begin_close()
                     try:
                         close_outputs = getattr(outputs, "aclose", None)
                         if close_outputs is not None:
                             await close_outputs()
                     finally:
-                        await self.plugin.aclose()
+                        try:
+                            await self.plugin.aclose()
+                        finally:
+                            await self.context.runtime.aclose()
 
                 cleanup = asyncio.create_task(asyncio.wait_for(close(), CLEANUP_TIMEOUT_S))
                 while True:

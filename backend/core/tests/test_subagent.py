@@ -154,6 +154,31 @@ async def test_full_dispatch_and_shared_usage(stack):
     assert store.get(data["task_id"]).output == "hello"
 
 
+async def test_adapter_owns_runtime_cleanup_even_when_plugin_close_fails(stack, monkeypatch):
+    fake, runner, supervisor, definition, store = stack
+    original = fake.run
+    released = []
+
+    async def release():
+        released.append(True)
+
+    async def run(request, context):
+        context.runtime.own("fake_file", release)
+        async for output in original(request, context):
+            yield output
+
+    monkeypatch.setattr(fake, "run", run)
+    fake.close_error = True
+    result = await AgentTool(runner, supervisor=supervisor).execute(
+        prompt="task", subagent_type="fake",
+    )
+    assert isinstance(result.content, str)
+    assert json.loads(result.content)["status"] == "failed"
+    assert released == [True]
+    with pytest.raises(SubAgentStopped, match="runtime_closed"):
+        fake.context.check()
+
+
 @pytest.mark.parametrize("background", [False, True])
 async def test_structured_task_input_reaches_plugin_and_survives_reload(stack, background):
     fake, runner, supervisor, definition, store = stack

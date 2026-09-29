@@ -144,17 +144,22 @@ class ExportWorld:
 async def test_host_verifies_known_goal_with_no_models() -> None:
     world = ExportWorld()
     controller = ComputerUseController(world, world)
+    ctx = context()
     result = await controller.run(
         SubAgentRequest(
             "Export PDF", "Do not overwrite", "task", export_goal().model_dump(mode="json")
         ),
-        context(),
+        ctx,
     )
     assert result.status == "completed"
     assert result.details["milestones"] == ["name"]
     assert len(world.dispatched) == 1
     assert world.dispatched[0].value == "报告.pdf"
     assert world.observations == 2
+    assert [record.operation for record in ctx.runtime.records] == [
+        "computer_use.observe", "computer_use.dispatch", "computer_use.observe",
+    ]
+    assert all(record.task_id == "task" for record in ctx.runtime.records)
 
 
 class PickFirst:
