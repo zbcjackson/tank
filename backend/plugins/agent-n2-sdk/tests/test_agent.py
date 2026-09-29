@@ -107,9 +107,12 @@ def agent(computer, completions, **config):
 
 
 async def collect(plugin, ctx):
-    return [
-        o async for o in plugin.run(SubAgentRequest("task", "context", "task-id"), ctx)
-    ]
+    try:
+        return [
+            o async for o in plugin.run(SubAgentRequest("task", "context", "task-id"), ctx)
+        ]
+    finally:
+        await plugin.aclose()
 
 
 async def test_real_sdk_tool_events_usage_and_cleanup():
@@ -376,8 +379,83 @@ async def test_cleanup_failure_attempts_other_resources():
     computer, client = Computer(), Completions([reply()])
     computer.aclose.side_effect = RuntimeError("driver did not exit")
     plugin = agent(computer, client)
-    with pytest.raises(SubAgentCleanupError, match="driver did not exit"):
+    # Shared cleanup identifies the failed resource instead of copying vendor error text.
+    with pytest.raises(SubAgentCleanupError, match="computer"):
         await collect(plugin, context())
+    client.aclose.assert_awaited_once()
+
+
+async def test_repeated_close_preserves_cleanup_failure():
+    from tank_backend.agents.subagent import SubAgentCleanupError
+
+    computer, client = Computer(), Completions([reply()])
+    computer.aclose.side_effect = RuntimeError("driver did not exit")
+    plugin = agent(computer, client)
+    with pytest.raises(SubAgentCleanupError):
+        await collect(plugin, context())
+    for _ in range(2):
+        with pytest.raises(SubAgentCleanupError):
+            await plugin.aclose()
+    computer.aclose.assert_awaited_once()
+    client.aclose.assert_awaited_once()
+
+
+async def test_inherited_cleanup_stops_producer_before_sdk_and_clients(monkeypatch):
+    from yutori.navigator.n2 import N2ComputerAgent
+
+    order = []
+    started = asyncio.Event()
+    computer, client = Computer(), Completions([])
+
+    async def blocked(**kwargs):
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            order.append("producer_stopped")
+
+    async def close_computer():
+        order.append("computer")
+
+    async def close_client():
+        order.append("client")
+
+    original_close = N2ComputerAgent.aclose
+
+    async def close_sdk(sdk):
+        order.append("sdk")
+        await original_close(sdk)
+
+    monkeypatch.setattr(N2ComputerAgent, "aclose", close_sdk)
+    client.create = blocked
+    computer.aclose.side_effect = close_computer
+    client.aclose.side_effect = close_client
+    plugin = agent(computer, client)
+    running = asyncio.create_task(collect(plugin, context()))
+    await asyncio.wait_for(started.wait(), 1)
+    running.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await running
+    await plugin.aclose()
+    assert order == ["producer_stopped", "sdk", "computer", "client"]
+
+
+async def test_run_leaves_owned_resource_shutdown_to_the_host():
+    computer, client = Computer(), Completions([reply()])
+    plugin = agent(computer, client)
+    try:
+        outputs = [
+            item async for item in plugin.run(
+                SubAgentRequest("task", "", "task-id"), context(),
+            )
+        ]
+        assert outputs[-1].metadata["stop_reason"] == "final_answer"
+        assert not plugin.closed
+        computer.aclose.assert_not_awaited()
+        client.aclose.assert_not_awaited()
+    finally:
+        await plugin.aclose()
+    computer.aclose.assert_awaited_once()
     client.aclose.assert_awaited_once()
 
 
@@ -410,6 +488,7 @@ async def test_backpressure_consumer_close_does_not_leave_sdk_loop():
     outputs = plugin.run(SubAgentRequest("task", "", "id"), context(limit=1000))
     await anext(outputs)
     await outputs.aclose()
+    await plugin.aclose()
     assert plugin.producer is not None
     assert plugin.producer.done() and computer.aclose.await_count == 1
 

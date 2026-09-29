@@ -114,6 +114,81 @@ class FakeSubAgent(SubAgent):
             raise RuntimeError("cleanup failed")
 
 
+class ResourceOnlyAgent(SubAgent):
+    """A plugin supplies its run loop and release callbacks, not cleanup orchestration."""
+
+    async def run(self, request, context):
+        self.check_open()
+        yield AgentOutput(AgentOutputType.DONE, metadata={"stop_reason": "final_answer"})
+
+
+async def test_base_subagent_owns_and_releases_resources_without_running():
+    plugin = ResourceOnlyAgent()
+    released = []
+
+    async def first():
+        released.append("first")
+
+    async def second():
+        released.append("second")
+
+    plugin.own_resource("first", first)
+    plugin.own_resource("second", second)
+    await plugin.aclose()
+    await plugin.aclose()
+    assert plugin.closed and released == ["second", "first"]
+    with pytest.raises(RuntimeError, match="closed"):
+        plugin.own_resource("late", first)
+
+
+@pytest.mark.parametrize("failure", ["exception", "timeout"])
+async def test_base_cleanup_attempts_other_resources_and_preserves_failure(failure):
+    from tank_backend.agents.subagent import SubAgentCleanupError
+
+    plugin = ResourceOnlyAgent(cleanup_timeout=0.02)
+    released = []
+
+    async def good():
+        released.append("good")
+
+    async def bad():
+        released.append("bad")
+        if failure == "timeout":
+            await asyncio.Event().wait()
+        raise OSError("failed")
+
+    plugin.own_resource("good", good)
+    plugin.own_resource("bad", bad)
+    with pytest.raises(SubAgentCleanupError, match="bad") as first:
+        await plugin.aclose()
+    with pytest.raises(SubAgentCleanupError) as repeated:
+        await plugin.aclose()
+    assert repeated.value is first.value
+    assert plugin.closed and released == ["bad", "good"]
+
+
+async def test_base_cleanup_survives_caller_cancellation():
+    plugin = ResourceOnlyAgent()
+    started, finish = asyncio.Event(), asyncio.Event()
+    released = []
+
+    async def release():
+        started.set()
+        await finish.wait()
+        released.append(True)
+
+    plugin.own_resource("resource", release)
+    caller = asyncio.create_task(plugin.aclose())
+    await started.wait()
+    assert plugin.closed
+    caller.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await caller
+    finish.set()
+    await plugin.aclose()
+    assert released == [True]
+
+
 @pytest.fixture
 def stack(tmp_path, monkeypatch):
     fake = FakeSubAgent()

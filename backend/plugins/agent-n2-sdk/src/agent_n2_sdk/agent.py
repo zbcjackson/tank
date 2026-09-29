@@ -12,7 +12,6 @@ from tank_backend.agents.base import AgentOutput, AgentOutputType
 from tank_backend.agents.subagent import (
     SubAgent,
     SubAgentCapabilities,
-    SubAgentCleanupError,
     SubAgentContext,
     SubAgentRequest,
     SubAgentStopped,
@@ -29,6 +28,13 @@ def create_client(config: N2SdkConfig) -> AsyncYutoriClient:
     return AsyncYutoriClient(api_key=config.api_key, base_url=config.base_url)
 
 
+async def close_resource(resource: Any) -> None:
+    """Adapt SDK/client close spellings and partially initialized resources."""
+    if resource is not None:
+        close = getattr(resource, "aclose", None) or getattr(resource, "close")
+        await close()
+
+
 class N2SdkSubAgent(SubAgent):
     capabilities = SubAgentCapabilities(cancel=True)
 
@@ -39,6 +45,7 @@ class N2SdkSubAgent(SubAgent):
         computer_factory: Callable[[SubAgentContext], Any] = create_computer,
         client_factory: Callable[[N2SdkConfig], Any] = create_client,
     ) -> None:
+        super().__init__(cleanup_timeout=config.cleanup_timeout_s)
         self.config = config
         self.computer_factory, self.client_factory = computer_factory, client_factory
         self.computer: Any = None
@@ -46,13 +53,18 @@ class N2SdkSubAgent(SubAgent):
         self.sdk: N2ComputerAgent | None = None
         self.producer: asyncio.Task[None] | None = None
         self.error: BaseException | None = None
-        self.closing = False
-        self.closed = False
+        # Reverse release order: stop producer, then SDK, environment and client.
+        # Register callbacks before startup so partial initialization is covered.
+        self.own_resource("client", lambda: close_resource(self.client))
+        self.own_resource("computer", lambda: close_resource(self.computer))
+        self.own_resource("sdk", lambda: close_resource(self.sdk))
+        self.own_resource("producer", self._stop_producer)
 
     async def run(
         self, request: SubAgentRequest, context: SubAgentContext
     ) -> AsyncGenerator[AgentOutput, None]:
-        if self.closed or self.producer is not None:
+        self.check_open()
+        if self.producer is not None:
             raise RuntimeError("N2 SDK instance is single-use")
         deadline = min(
             context.deadline or float("inf"), time.monotonic() + self.config.timeout_s
@@ -101,7 +113,7 @@ class N2SdkSubAgent(SubAgent):
                 reason = exc.reason
             except BaseException as exc:
                 self.error = exc
-                if self.closing:
+                if self.closed:
                     return
                 await queue.put(None)
                 return
@@ -144,43 +156,18 @@ class N2SdkSubAgent(SubAgent):
                 await cancellation
             except asyncio.CancelledError:
                 pass
-            await self.aclose()
 
-    async def aclose(self) -> None:
-        if self.closed:
+    async def _stop_producer(self) -> None:
+        """Supplier-specific cancellation; common cleanup is inherited from SubAgent."""
+        if self.producer is None:
             return
-        self.closing = True
-        errors: list[str] = []
-        if self.producer is not None and not self.producer.done():
+        if not self.producer.done():
             if self.computer is not None:
                 self.computer.cancellation.request("user_stop")
-            self.producer.cancel()
-
-        async def cleanup() -> None:
-            if self.producer is not None:
-                try:
-                    await self.producer
-                except asyncio.CancelledError:
-                    pass
-                except Exception as exc:
-                    errors.append(str(exc))
-            for resource in (self.sdk, self.computer, self.client):
-                if resource is None:
-                    continue
-                try:
-                    close = getattr(resource, "aclose", None) or getattr(
-                        resource, "close"
-                    )
-                    await close()
-                except Exception as exc:
-                    errors.append(str(exc))
-
+            if not self.producer.cancelling():
+                self.producer.cancel()
         try:
-            await asyncio.wait_for(cleanup(), self.config.cleanup_timeout_s)
-        except Exception as exc:
-            errors.append(str(exc) or type(exc).__name__)
-        self.closed = True
-        if errors:
-            raise SubAgentCleanupError(
-                "N2 SDK cleanup unconfirmed: " + "; ".join(errors)
-            )
+            await asyncio.shield(self.producer)
+        except asyncio.CancelledError:
+            if not self.producer.cancelled():
+                raise

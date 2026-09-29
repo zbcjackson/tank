@@ -11,7 +11,6 @@ from tank_backend.agents.subagent import (
     SubAgentContext,
     SubAgentRequest,
 )
-from tank_backend.agents.task_resources import TaskResources
 
 from .controller import ComputerUseController
 
@@ -29,19 +28,17 @@ class ComputerUseSubAgent(SubAgent):
         *,
         resources: tuple[OwnedResource, ...] = (),
     ) -> None:
+        super().__init__(cleanup_timeout=2.0)
         self.controller = controller
-        self.resources = TaskResources(timeout=2.0)
         for index, resource in enumerate(resources):
-            self.resources.own(str(index), resource.aclose)
-        self.closed = False
+            self.own_resource(str(index), resource.aclose)
 
     async def run(
         self,
         request: SubAgentRequest,
         context: SubAgentContext,
     ) -> AsyncIterator[AgentOutput]:
-        if self.closed:
-            raise RuntimeError("A closed computer-use plugin cannot run")
+        self.check_open()
         try:
             result = await self.controller.run(request, context)
         except SubAgentCancelled as exc:
@@ -50,7 +47,3 @@ class ComputerUseSubAgent(SubAgent):
                 yield exc.task_result.to_output()
             raise
         yield result.to_output()
-
-    async def aclose(self) -> None:
-        self.closed = True
-        await self.resources.aclose()

@@ -171,16 +171,33 @@ class SubAgentContext:
 class SubAgent(ABC):
     capabilities = SubAgentCapabilities()
 
-    @abstractmethod
-    def run(self, request: SubAgentRequest, context: SubAgentContext) -> AsyncIterator[AgentOutput]:
-        raise NotImplementedError
+    def __init__(self, *, cleanup_timeout: float = 5.0) -> None:
+        from .task_resources import TaskResources
+
+        self._resources = TaskResources(timeout=cleanup_timeout)
+        self.closed = False
+
+    def check_open(self) -> None:
+        if self.closed:
+            raise RuntimeError("A closed subagent cannot run or acquire resources")
+
+    def own_resource(self, name: str, release: Callable[[], Awaitable[None]]) -> None:
+        """Register owned resource release (detach only for borrowed resources)."""
+        self.check_open()
+        self._resources.own(name, release)
 
     @abstractmethod
+    def run(self, request: SubAgentRequest, context: SubAgentContext) -> AsyncIterator[AgentOutput]:
+        """Stream task outputs; call check_open at entry. The caller owns final aclose."""
+        raise NotImplementedError
+
     async def aclose(self) -> None:
         """Release plugin-owned resources even if run never started.
 
         The host owns and closes the task runtime before invoking this hook.
-        Implementations must not close the borrowed context/runtime. Repeated
-        calls must be safe; raise if resource cleanup cannot be confirmed.
+        Subclasses register releases with own_resource instead of overriding this
+        method. Never register the borrowed context/runtime or shared host clients.
+        Repeated callers share the same cleanup outcome, including failures.
         """
-        raise NotImplementedError
+        self.closed = True
+        await self._resources.aclose()
