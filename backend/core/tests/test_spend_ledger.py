@@ -411,3 +411,24 @@ def test_record_only_ignores_token_cost_bounds_but_keeps_request_limit():
     assert snapshot["cost_status"] == "unpriced"
     with pytest.raises(SpendLimitExceeded, match="batch_requests"):
         ledger.reserve("next", TokenAllowance(0, 0, 0, 0))
+
+
+def test_core_ledger_reserves_concurrent_calls_against_one_limit():
+    from tank_backend.core.spend_ledger import (
+        SpendLedger,
+        SpendLimit,
+        SpendLimitExceeded,
+        TokenAllowance,
+    )
+
+    ledger = SpendLedger(SpendLimit(100, 1000), max_pending=2)
+    ledger.start_trial("task", SpendLimit(100, 1000))
+    allowance = TokenAllowance(30, 20, 2, 5)
+    ledger.reserve("one", allowance)
+    ledger.reserve("two", allowance)
+    assert ledger.snapshot()["batch"]["reserved_tokens"] == 100
+    ledger.settle("two", input_tokens=10, output_tokens=5)
+    with pytest.raises(SpendLimitExceeded, match="trial_tokens"):
+        ledger.reserve("three", allowance)
+    ledger.settle("one", input_tokens=10, output_tokens=5)
+    assert ledger.snapshot()["batch"]["known_tokens"] == 30
