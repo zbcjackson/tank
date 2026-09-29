@@ -6,10 +6,11 @@ import math
 from collections.abc import Iterable
 
 import httpx
-from openai import AsyncOpenAI, omit
+from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam
 
 from ..agents.subagent import SubAgentContext, SubAgentStopped
+from .llm import LLM
 from .model_transport import ChatCompletionsRoute, TaskModelTransport
 from .profile import LLMProfile
 
@@ -36,6 +37,7 @@ class TaskModel:
         self._credential = profile.api_key
         self._temperature = profile.temperature
         self._client: AsyncOpenAI | None = None
+        self._llm: LLM | None = None
         self._closed = False
 
     async def complete(self, messages: Iterable[ChatCompletionMessageParam]) -> str:
@@ -43,7 +45,9 @@ class TaskModel:
         self._context.check("network")
         if self._closed:
             raise SubAgentStopped("model_closed")
-        if self._client is None:
+        if self._llm is None:
+            maximum = self._route.max_output_tokens
+            assert maximum is not None
             transport = TaskModelTransport(
                 self._task_id, self._context, routes=(self._route,),
                 credentials={self._route.credential_ref: self._credential},
@@ -51,20 +55,22 @@ class TaskModel:
             )
             http = httpx.AsyncClient(transport=transport, follow_redirects=False, trust_env=False)
             try:
-                self._client = AsyncOpenAI(
+                client = AsyncOpenAI(
                     api_key="host-managed",
                     base_url=self._route.url.removesuffix("chat/completions"),
                     max_retries=0, http_client=http,
                 )
+                self._llm = LLM(
+                    api_key="host-managed", model=self._route.model,
+                    base_url=str(client.base_url), temperature=self._temperature,
+                    max_tokens=maximum, client=client,
+                )
+                self._client = client
             except BaseException:
                 await http.aclose()
                 raise
         try:
-            response = await self._client.chat.completions.create(
-                model=self._route.model, messages=messages,
-                max_tokens=self._route.max_output_tokens, stream=False,
-                temperature=self._temperature if self._temperature is not None else omit,
-            )
+            response = await self._llm.complete_response(list(messages), retry=False)
             if len(response.choices) != 1:
                 raise ValueError("expected one completion")
             choice = response.choices[0]

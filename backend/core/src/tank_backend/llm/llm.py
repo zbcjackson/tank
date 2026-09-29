@@ -358,6 +358,8 @@ class LLM:
         extra_headers: dict[str, str] | None = None,
         stream_options: bool = True,
         extra_body: dict[str, Any] | None = None,
+        *,
+        client: AsyncOpenAI | None = None,
     ):
         self.api_key = api_key
         self.base_url = base_url
@@ -369,14 +371,21 @@ class LLM:
         self._retries_enabled = True
         self.on_response_usage: Callable[[CompletionUsage | None], None] | None = None
 
-        initialize_langfuse()
+        # An injected client is borrowed; its host owns transport, tracing and cleanup.
+        self._owns_client = client is None
+        if client is None:
+            initialize_langfuse()
+            client = AsyncOpenAI(
+                api_key=api_key,
+                base_url=base_url,
+                default_headers=extra_headers or {},
+            )
+        self.client = client
 
-        # Initialize OpenAI client with custom base URL and headers
-        self.client = AsyncOpenAI(
-            api_key=api_key,
-            base_url=base_url,
-            default_headers=extra_headers or {},
-        )
+    async def aclose(self) -> None:
+        """Close only a client created by this LLM; borrowed clients remain host-owned."""
+        if self._owns_client:
+            await self.client.close()
 
     _RETRYABLE_ERRORS = (RateLimitError, APITimeoutError, APIConnectionError, InternalServerError)
 

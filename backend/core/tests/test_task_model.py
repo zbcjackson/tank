@@ -1,6 +1,7 @@
 """Task model service uses the real SDK, replacing only outbound HTTP."""
 
 import asyncio
+import json
 from dataclasses import replace
 
 import httpx
@@ -16,7 +17,7 @@ from tank_backend.llm.profile import LLMProfile
 
 
 @pytest.fixture
-def model_stack(monkeypatch):
+def model_stack(monkeypatch, request):
     requests, released = [], []
     payload = {
         "id": "reply", "object": "chat.completion", "created": 1, "model": "test",
@@ -40,7 +41,10 @@ def model_stack(monkeypatch):
     context = SubAgentContext(
         SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
     )
-    profile = LLMProfile("advisor", "secret", "test", "https://offline.invalid/v1", max_tokens=20)
+    profile = LLMProfile(
+        "advisor", "secret", "test", "https://offline.invalid/v1", max_tokens=20,
+        temperature=getattr(request, "param", 0.7),
+    )
     context.runtime.configure_model("task", profile)
     return context, profile, payload, requests, released
 
@@ -182,3 +186,35 @@ async def test_inflight_model_shutdown_joins_http(model_stack, monkeypatch, stop
     assert events == ["send", "joined", "closed"]
     assert context.budget.total_tokens == (10 if stop == "revoke" else 0)
     assert len(context.budget.unknown_calls) == (0 if stop == "revoke" else 1)
+
+
+@pytest.mark.parametrize("model_stack", [None, 0.25], indirect=True)
+async def test_shared_completion_preserves_task_request_and_single_accounting(
+    model_stack, monkeypatch,
+):
+    from tank_backend.llm import llm as module
+
+    context, profile, _, requests, released = model_stack
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("task requests must borrow the governed client without extra initialization")
+
+    monkeypatch.setattr(module, "initialize_langfuse", forbidden)
+    monkeypatch.setattr(module, "AsyncOpenAI", forbidden)
+    model = context.runtime.model
+    assert model is not None
+    try:
+        for text in ("first", "second"):
+            assert await model.complete([{"role": "user", "content": text}]) == "ready"
+            expected = {
+                "model": "test", "messages": [{"role": "user", "content": text}],
+                "max_tokens": 20, "stream": False,
+            }
+            if profile.temperature is not None:
+                expected["temperature"] = profile.temperature
+            assert json.loads(requests[-1].content) == expected
+        assert context.budget.total_tokens == 20
+        assert not context.budget.unknown_calls
+    finally:
+        await context.runtime.aclose()
+    assert len(requests) == 2 and released == [True]

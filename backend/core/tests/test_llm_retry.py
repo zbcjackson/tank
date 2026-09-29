@@ -283,3 +283,61 @@ async def test_explicit_no_retry_disables_sdk_and_application_attempts(monkeypat
     finally:
         await client.close()
     assert len(sent) == 1
+
+
+async def test_injected_client_is_borrowed_without_extra_initialization(monkeypatch):
+    import httpx
+    from openai import AsyncOpenAI
+
+    from tank_backend.llm import llm as module
+
+    sent = []
+
+    def respond(request):
+        sent.append(request)
+        return httpx.Response(200, json={
+            "id": "reply", "object": "chat.completion", "created": 1, "model": "test",
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": "ready"},
+                         "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10},
+        })
+
+    client = AsyncOpenAI(api_key="test", base_url="https://offline.invalid/v1",
+                         http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("borrowed client must not create clients or initialize tracing")
+
+    monkeypatch.setattr(module, "AsyncOpenAI", forbidden)
+    monkeypatch.setattr(module, "initialize_langfuse", forbidden)
+    try:
+        llm = LLM(api_key="host-managed", model="test", base_url="https://offline.invalid/v1",
+                  client=client, temperature=None, max_tokens=20)
+        response = await llm.complete_response([{"role": "user", "content": "hello"}], retry=False)
+        assert response.choices[0].message.content == "ready"
+        await llm.aclose()
+        assert not client.is_closed()
+        await llm.complete_response([{"role": "user", "content": "again"}], retry=False)
+        assert len(sent) == 2
+    finally:
+        await client.close()
+
+
+async def test_llm_closes_its_own_client(monkeypatch):
+    import httpx
+    from openai import AsyncOpenAI
+
+    from tank_backend.llm import llm as module
+
+    closed = []
+
+    class HTTP(httpx.AsyncBaseTransport):
+        async def aclose(self):
+            closed.append(True)
+
+    client = AsyncOpenAI(api_key="test", http_client=httpx.AsyncClient(transport=HTTP()))
+    monkeypatch.setattr(module, "AsyncOpenAI", lambda **kwargs: client)
+    monkeypatch.setattr(module, "initialize_langfuse", lambda: None)
+    llm = LLM(api_key="test", model="test", base_url="https://offline.invalid/v1")
+    await llm.aclose()
+    assert client.is_closed() and closed == [True]
