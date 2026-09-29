@@ -9,11 +9,13 @@ working desktop agent; real AX/OCR/DOM and HTTP budget wiring are later batches.
 
 The constructor accepts separate observation, action, selector and Advisor
 implementations. Tests inject semantic fake UI boundaries through the actual
-registry, AgentTool, approval, Supervisor, Runner and SQLite path. Owned resources
-are registered with the core task runtime; the generic adapter joins cleanup and
-quarantines the desktop on unconfirmed cleanup. Core cleanup also handles an
-unstarted plugin, attempts other releases after one fails, and shares the outcome
-across repeated close calls. Cancellation retains already-journaled effects.
+registry, AgentTool, approval, Supervisor, Runner and SQLite path. The core Adapter
+owns task shutdown: it closes the runtime and joins in-flight operations before
+calling the plugin's `aclose()`. Plugin cleanup only releases its own resources,
+using the same path whether or not `run()` started; it never closes the borrowed
+runtime. A closed plugin cannot run again. Core `TaskResources` attempts other
+releases after one fails and shares the outcome across repeated close calls.
+Unconfirmed cleanup quarantines the desktop. Cancellation retains journaled effects.
 
 ## Current contract
 

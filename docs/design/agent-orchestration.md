@@ -348,7 +348,16 @@ for OS file/network isolation, and SDK tools do not inherit Tank tool policies.
 
 SubAgentAdapter defers DONE until producer/environment/client cleanup completes.
 It binds `context.runtime` to the original task ID and closes its business gate
-before cleanup. Registered trusted adapters use core `TaskOperation` handles;
+before cleanup. After closing the output iterator, it closes the runtime (joining
+in-flight operations and releasing runtime-owned resources), then calls plugin
+`aclose()` even if runtime cleanup failed. Plugin cleanup releases only its own
+resources; plugins borrow the runtime and must not close it. The same plugin
+cleanup hook works before its first run, with no runtime/resources branch. Factories
+assemble configuration/strategy objects without opening external resources; resource
+injection remains supported for tests and compatibility. Synchronous output iterator
+creation failures also enter the Adapter cleanup path.
+
+Registered trusted adapters use core `TaskOperation` handles;
 arguments cannot select permissions or substitute another operation. The runtime
 checks original authority, cancellation, deadline and read/action quotas before
 and after asynchronous preflight, retains bounded call records, and never replays
