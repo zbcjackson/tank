@@ -1,4 +1,4 @@
-> 状态：实现与验证通过，待独立代码评审（2026-09-29）。
+> 状态：已完成，独立代码评审第 1 轮通过（2026-09-29）。
 
 # Token 用量记录与实验策略边界清理
 
@@ -49,6 +49,22 @@ benchmark 注入零额度零发送、未知预留保留、并发守恒和既有 
   pyright、开发服务 reload 日志、docs check、diff check 通过。协议未改。
 - 新 HTTP transport 仍未接入生产 Runner/plugin 工厂；这次只清理统计/策略边界，
   不宣告 S0 G1/G2 完成，不扩展 GUI 通道或进行真实桌面实验。
+
+## 独立评审记录
+
+- 基线 `3843e3f9`，待审版本 `221b4ac1`；以 review-and-refactor 模式完成第 1 轮，
+  未发现可操作或遗留问题，按规则结束，不启动第 2 轮。未修改源码或测试。
+- 已核对调用 ID 去重、估算/未知向已知修正、共享 context、显式上限及零覆盖、
+  取消后唯一结算、实验策略与核心计数分层。SpendLedger 移回后仅模块说明变化。
+- 独立复跑 `test_subagent.py`、`test_model_transport.py`、`test_spend_ledger.py`、
+  `test_spend_http.py`、`test_orchestrator.py`、`test_agent_graph.py`、
+  `test_pipeline_observers.py`：303 passed，4.44 秒。
+  使用 `UV_CACHE_DIR=/private/tmp/tank-review-uv-cache uv run --no-sync pytest`，
+  避开默认 uv cache 的沙箱访问限制；没有测试失败。
+- 源码未变化，复用上节同一版本的完整后端、E2E、lint/typecheck 和开发服务验证。
+  计划关档后重跑文档一致性及 diff 检查；本次文档关档由评审者自检。
+- 限制保持不变：新 transport 的生产接线及 G1/G2 仍由 strategy-ladder 计划跟踪；
+  Observer 尚未生产装配；无真实桌面或付费模型验收。本计划无新增延期项。
 
 ## 验证清单（最终步骤）
 

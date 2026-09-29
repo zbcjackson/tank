@@ -927,7 +927,7 @@ E2E 首轮与红灯测试添加重叠而失败，完成实现后的完整复跑�
 #### S0 第三批：核心模型请求治理（2026-09-29，基础切片回归与评审通过）
 
 > 后续边界修订：用户指出整份 SpendLedger 下沉混入了 trial/batch。现行实现已按
-> [token 用量与策略边界清理](token-accounting-boundaries.md) 调整：core 使用纯计数
+> [token 用量与策略边界清理](../done/token-accounting-boundaries.md) 调整：core 使用纯计数
 > TokenUsageLedger，SpendLedger 完整回到 benchmarks；下面记录保留首批实施与评审历史，
 > 不再代表当前账本归属或生产默认限额。
 
