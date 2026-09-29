@@ -625,3 +625,138 @@ async def test_transport_close_does_not_close_the_experiment_batch():
     ledger.settle("next-call", input_tokens=10, output_tokens=5)
     assert ledger.snapshot()["batch"]["known_tokens"] == 30
     ledger.close()
+
+
+async def test_model_call_events_share_the_accounting_identity():
+    events = []
+
+    class Observer:
+        def on_event(self, kind, metadata):
+            events.append((kind, metadata))
+
+    context = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+        observer=Observer(),
+    )
+
+    async def provider(request):
+        return httpx.Response(200, json=completion())
+
+    _, transport, client, ledger = governed(provider, context=context)
+    async with client:
+        await ask(client)
+    assert len(events) == 2
+    assert [meta["phase"] for _, meta in events] == ["started", "finished"]
+    record = transport.records[0]
+    assert record.status == "returned"
+    assert record.prompt_tokens == 10 and record.completion_tokens == 5
+    assert record.call_id in context.budget.call_ids
+    assert record.call_id in ledger.snapshot()["requests"]
+    assert all(kind == "model_call" and meta["call_id"] == record.call_id for kind, meta in events)
+    assert record.task_id == "task" and record.elapsed_ms >= 0
+    assert "secret" not in str(events) and "hello" not in str(events)
+
+
+@pytest.mark.parametrize("outcome", ["denied", "unknown", "cancelled", "observer_failure"])
+async def test_model_terminal_records_survive_failed_calls_and_observers(outcome):
+    from tank_backend.agents.task_observer import TaskObserver
+    from tank_backend.pipeline.bus import Bus
+    from tank_backend.pipeline.observers.token_usage import TokenUsageObserver
+
+    events, sent, messages = [], [], []
+    bus = Bus()
+    bus.subscribe_all(messages.append)
+    usage = TokenUsageObserver(bus)
+
+    class Observer:
+        def on_event(self, kind, metadata):
+            events.append(metadata)
+            if outcome == "observer_failure":
+                raise RuntimeError("telemetry unavailable")
+
+    context = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+        observer=TaskObserver(bus, Observer()),
+    )
+
+    async def provider(request):
+        sent.append(request)
+        if outcome == "cancelled":
+            context.cancel.set()
+            await asyncio.Event().wait()
+        return httpx.Response(200, json=completion({} if outcome == "unknown" else None))
+
+    options = {"request_limit": 0} if outcome == "denied" else {}
+    _, transport, client, _ = governed(provider, context=context, **options)
+    async with client:
+        if outcome == "observer_failure":
+            await ask(client)
+        else:
+            with pytest.raises((APIConnectionError, asyncio.CancelledError)):
+                await ask(client)
+    record = transport.records[0]
+    assert record.status == {
+        "denied": "not_sent", "unknown": "unknown", "cancelled": "unknown",
+        "observer_failure": "returned",
+    }[outcome]
+    assert len(sent) == (0 if outcome == "denied" else 1)
+    assert len(events) == 2
+    if outcome in {"unknown", "cancelled"}:
+        assert record.call_id in context.budget.unknown_calls
+    elif outcome == "observer_failure":
+        assert context.budget.total_tokens == 15
+    else:
+        assert context.budget.call_count == 0
+
+    bus.poll()
+    assert usage.total_tokens == context.budget.total_tokens
+    assert usage.summary()["unknown_calls"] == len(context.budget.unknown_calls)
+    usage_events = [message for message in messages if message.type == "llm_usage"]
+    if outcome == "denied":
+        assert usage_events == [] and usage.turn_count == 0
+    else:
+        assert len(usage_events) == 1
+        bus.post(usage_events[0])
+        bus.poll()
+        assert usage.turn_count == 1
+        assert usage.total_tokens == context.budget.total_tokens
+
+
+async def test_model_record_retention_is_bounded_without_losing_usage():
+    async def provider(request):
+        return httpx.Response(200, json=completion())
+
+    context, transport, client, _ = governed(provider, policy=None)
+    async with client:
+        await ask(client)
+        first = transport.records
+        for _ in range(129):
+            await ask(client)
+    assert len(first) == 1 and first[0].status == "returned"
+    assert len(transport.records) == 128
+    assert first[0] not in transport.records
+    assert context.budget.call_count == 130 and context.budget.total_tokens == 1950
+
+
+async def test_observer_revocation_at_start_prevents_send():
+    sent = []
+
+    class Observer:
+        def on_event(self, kind, metadata):
+            if metadata["phase"] == "started":
+                context.authorization.revoke()
+
+    context = SubAgentContext(
+        SubAgentAuthorization(frozenset({"network"})), SubAgentBudget(), asyncio.Event(),
+        observer=Observer(),
+    )
+
+    async def provider(request):
+        sent.append(request)
+        return httpx.Response(200, json=completion())
+
+    _, transport, client, _ = governed(provider, context=context)
+    async with client:
+        with pytest.raises(APIConnectionError):
+            await ask(client)
+    assert sent == [] and transport.records[0].status == "not_sent"

@@ -39,6 +39,20 @@ class Bus:
         with self._lock:
             self._pending.append(message)
 
+    def post_bounded(self, message: BusMessage, *, max_pending: int = 256) -> bool:
+        """Best-effort telemetry only: drop when the pending queue reaches the bound.
+
+        Existing post() semantics remain unchanged for control and lifecycle messages.
+        The capacity check and append share one lock across producer threads.
+        """
+        if max_pending <= 0:
+            raise ValueError("max_pending must be positive")
+        with self._lock:
+            if len(self._pending) >= max_pending:
+                return False
+            self._pending.append(message)
+            return True
+
     def subscribe(self, msg_type: str, handler: Callable[[BusMessage], None]) -> None:
         """Subscribe to messages of a given type."""
         self._subscribers[msg_type].append(handler)

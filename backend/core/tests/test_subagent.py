@@ -1038,16 +1038,30 @@ def test_usage_ledger_rejects_invalid_known_counts_without_turning_them_into_est
     assert not ledger.call_ids
 
 
-async def test_runner_assembles_governed_text_model(stack, monkeypatch):
+@pytest.mark.parametrize("telemetry", ["normal", "full", "observer_failure", "invalid_reply"])
+async def test_runner_assembles_governed_text_model(stack, monkeypatch, telemetry):
     from dataclasses import replace
 
     import httpx
 
     from tank_backend.agents.subagent import SubAgentAuthorization
     from tank_backend.llm.profile import LLMProfile
+    from tank_backend.pipeline.bus import BusMessage
+    from tank_backend.pipeline.observers.token_usage import TokenUsageObserver
 
     _, runner, _, definition, _ = stack
-    sent, closed = [], []
+    events = []
+    runner._bus.subscribe_all(events.append)
+    usage = TokenUsageObserver(runner._bus)
+    sent, closed, delegated = [], [], []
+    if telemetry == "full":
+        for _ in range(256):
+            runner._bus.post(BusMessage("existing", "test"))
+
+    class FailingObserver:
+        def on_event(self, kind, metadata):
+            delegated.append(kind)
+            raise RuntimeError("observer unavailable")
 
     class HTTP(httpx.AsyncBaseTransport):
         async def handle_async_request(self, request):
@@ -1055,7 +1069,9 @@ async def test_runner_assembles_governed_text_model(stack, monkeypatch):
             return httpx.Response(200, json={
                 "id": "reply", "object": "chat.completion", "created": 1, "model": "test",
                 "choices": [{"index": 0, "message": {"role": "assistant", "content": "ready"},
-                             "finish_reason": "stop"}],
+                             "finish_reason": (
+                                 "length" if telemetry == "invalid_reply" else "stop"
+                             )}],
                 "usage": {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10},
             })
 
@@ -1079,12 +1095,31 @@ async def test_runner_assembles_governed_text_model(stack, monkeypatch):
     outputs = [out async for out in runner.run_agent(
         definition, [{"role": "user", "content": "inspect text"}], task_id="bound-task",
         authorization=SubAgentAuthorization(frozenset({"network"})),
+        observer=FailingObserver() if telemetry == "observer_failure" else None,
     )]
+    runner._bus.poll()
+    model_events = [event for event in events if event.type == "task_model_call"]
+    if telemetry == "full":
+        assert model_events == [] and usage.total_tokens == 0
+    else:
+        assert [event.payload["phase"] for event in model_events] == ["started", "finished"]
+        terminal = model_events[-1].payload
+        assert terminal["task_id"] == "bound-task"
+        assert terminal["call_id"] in plugin.context.budget.call_ids
+        assert usage.total_tokens == 10
+    assert plugin.context.budget.total_tokens == 10
+    if telemetry == "observer_failure":
+        assert delegated == ["model_call", "model_call"]
+    assert "host-secret" not in repr(model_events)
+    assert "inspect text" not in repr(model_events)
     assert len(sent) == 1
     assert sent[0].headers["authorization"] == "Bearer host-secret"
     assert json.loads(sent[0].content)["max_tokens"] == 20
-    assert outputs[-1].content == "ready"
-    assert outputs[-1].metadata["total_tokens"] == 10
+    if telemetry == "invalid_reply":
+        assert outputs[-1].metadata["stop_reason"] == "model_error"
+    else:
+        assert outputs[-1].content == "ready"
+        assert outputs[-1].metadata["total_tokens"] == 10
     assert closed == [True] and plugin.closed
     assert "host-secret" not in repr(outputs)
     assert plugin.context.runtime.model is not None

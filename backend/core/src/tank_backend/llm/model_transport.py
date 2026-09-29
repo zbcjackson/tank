@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 import math
+import time
+from collections import deque
 from contextlib import suppress
-from dataclasses import dataclass
-from typing import Protocol, TypedDict
+from dataclasses import asdict, dataclass
+from typing import Literal, Protocol, TypedDict
 from uuid import uuid4
 
 import httpx
@@ -28,6 +30,25 @@ class ModelSnapshot(TypedDict):
     task_id: str
     sent_requests: int
     usage: dict[str, int]
+
+
+@dataclass(frozen=True)
+class ModelCallRecord:
+    """Transport outcome and measured usage, not a claim of semantic completion."""
+
+    task_id: str
+    call_id: str
+    status: Literal["not_sent", "unknown", "returned"]
+    prompt_tokens: int | None
+    completion_tokens: int | None
+    elapsed_ms: float
+
+
+@dataclass
+class _CallState:
+    sent: bool = False
+    inputs: int | None = None
+    outputs: int | None = None
 
 
 @dataclass(frozen=True)
@@ -101,6 +122,7 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
         self._context = context
         self._task_id = task_id
         self._sent_requests = 0
+        self._records: deque[ModelCallRecord] = deque(maxlen=128)
         self._routes = routes
         self._credentials = dict(credentials)
         self._inner = inner
@@ -116,7 +138,35 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
             "sent_requests": self._sent_requests,
         }
 
+    @property
+    def records(self) -> tuple[ModelCallRecord, ...]:
+        """Latest 128 terminal records; authoritative totals remain in the task ledger."""
+        return tuple(self._records)
+
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        self._context.check("network")
+        if self._closed:
+            raise SubAgentStopped("transport_closed")
+        call_id = uuid4().hex
+        started = time.monotonic()
+        state = _CallState()
+        self._context.observe("model_call", task_id=self._task_id, call_id=call_id, phase="started")
+        try:
+            return await self._request(request, call_id, state)
+        finally:
+            record = ModelCallRecord(
+                self._task_id, call_id,
+                "not_sent" if not state.sent else (
+                    "returned" if state.inputs is not None else "unknown"
+                ),
+                state.inputs, state.outputs, (time.monotonic() - started) * 1000,
+            )
+            self._records.append(record)
+            self._context.observe("model_call", phase="finished", **asdict(record))
+
+    async def _request(
+        self, request: httpx.Request, call_id: str, state: _CallState,
+    ) -> httpx.Response:
         self._context.check("network")
         if self._closed:
             raise SubAgentStopped("transport_closed")
@@ -124,22 +174,18 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
         if route is None:
             raise ValueError("model destination not approved")
         route.validate(request)
-        call_id = uuid4().hex
         if self._policy is not None:
             self._policy.reserve(call_id, request)
         request.headers["Accept-Encoding"] = "identity"
         request.headers["Authorization"] = "Bearer " + self._credentials[route.credential_ref]
 
-        sent = False
-
         async def receive() -> httpx.Response:
-            nonlocal sent
             async with asyncio.timeout_at(self._context.deadline):
                 # Task scheduling is an await boundary: recheck immediately before sending.
                 self._context.check("network")
                 if self._closed:
                     raise SubAgentStopped("transport_closed")
-                sent = True
+                state.sent = True
                 self._sent_requests += 1
                 response = await self._inner.handle_async_request(request)
                 body = bytearray()
@@ -171,18 +217,18 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
                 response = operation.result()
                 inputs, outputs = read_usage(response)
             except BaseException:
-                if sent:
+                if state.sent:
                     inputs = outputs = None
                     # Cancellation may win the waiter race after a complete response arrived.
                     if operation.done() and not operation.cancelled():
                         with suppress(Exception):
                             inputs, outputs = read_usage(operation.result())
-                    self._record_usage(call_id, inputs, outputs)
+                    self._record_usage(call_id, state, inputs, outputs)
                 else:
                     if self._policy is not None:
                         self._policy.release_unsent(call_id)
                 raise
-            self._record_usage(call_id, inputs, outputs)
+            self._record_usage(call_id, state, inputs, outputs)
             if self._policy is not None:
                 self._policy.check()
             response.extensions["tank_call_id"] = call_id
@@ -206,7 +252,10 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
             raise SubAgentStopped("transport_closed")
         return response
 
-    def _record_usage(self, call_id: str, inputs: int | None, outputs: int | None) -> None:
+    def _record_usage(
+        self, call_id: str, state: _CallState, inputs: int | None, outputs: int | None,
+    ) -> None:
+        state.inputs, state.outputs = inputs, outputs
         if inputs is None or outputs is None:
             self._context.budget.record_unknown(call_id)
         else:

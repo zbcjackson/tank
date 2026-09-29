@@ -33,6 +33,7 @@ from .subagent import (
     validate_task_input,
 )
 from .subagent_adapter import SubAgentAdapter
+from .task_observer import TaskObserver
 
 if TYPE_CHECKING:
     from ..llm.llm import LLM
@@ -172,7 +173,7 @@ class AgentRunner:
             context = SubAgentContext(
                 authorization, SubAgentBudget(limit=(
                     agent_def.token_budget if token_budget is None else token_budget
-                )), asyncio.Event(), deadline, observer, max_steps,
+                )), asyncio.Event(), deadline, TaskObserver(self._bus, observer), max_steps,
             )
             context.check()
         outputs = self._run_agent(

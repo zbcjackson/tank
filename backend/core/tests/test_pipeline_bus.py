@@ -132,3 +132,21 @@ class TestBus:
 
         bus.poll()
         assert len(received) == 50  # 5 threads * 10 messages each
+
+
+def test_bounded_telemetry_drops_overflow_and_resumes_after_poll():
+    from tank_backend.pipeline.bus import Bus, BusMessage
+
+    bus = Bus()
+    received = []
+    bus.subscribe_all(received.append)
+    for index in range(3):
+        assert bus.post_bounded(BusMessage("telemetry", "test", index), max_pending=3)
+    assert not bus.post_bounded(BusMessage("telemetry", "test", "dropped"), max_pending=3)
+    # Control messages retain their existing reliable enqueue semantics.
+    bus.post(BusMessage("control", "test", "stop"))
+    bus.poll()
+    assert [message.payload for message in received] == [0, 1, 2, "stop"]
+    assert bus.post_bounded(BusMessage("telemetry", "test", "next"), max_pending=3)
+    bus.poll()
+    assert received[-1].payload == "next"
