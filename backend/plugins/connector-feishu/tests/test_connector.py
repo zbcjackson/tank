@@ -405,6 +405,12 @@ def _make_started_connector() -> FeishuConnector:
     return c
 
 
+def _mock_api(connector: FeishuConnector) -> MagicMock:
+    """Narrow the explicitly installed test double, including its dynamic SDK attributes."""
+    assert isinstance(connector._api, MagicMock)  # noqa: SLF001
+    return connector._api  # noqa: SLF001
+
+
 class TestSendText:
     async def test_send_text_happy_path(self) -> None:
         c = _make_started_connector()
@@ -415,7 +421,7 @@ class TestSendText:
         resp.success = MagicMock(return_value=True)
         resp.data = MagicMock()
         resp.data.message_id = "om_sent_1"
-        c._api.im.v1.message.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
+        _mock_api(c).im.v1.message.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
 
         identity = Identity(
             platform="feishu",
@@ -429,7 +435,7 @@ class TestSendText:
 
         # The send call's request body carries the right
         # receive_id_type and the JSON-encoded text content.
-        call = c._api.im.v1.message.acreate.call_args  # noqa: SLF001
+        call = _mock_api(c).im.v1.message.acreate.call_args  # noqa: SLF001
         req = call.args[0]
         # The lark builder produces a request whose internals we
         # inspect via the type's attributes — easier to grep for the
@@ -443,7 +449,7 @@ class TestSendText:
         resp.success = MagicMock(return_value=True)
         resp.data = MagicMock()
         resp.data.message_id = "x"
-        c._api.im.v1.message.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
+        _mock_api(c).im.v1.message.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
 
         long_text = "x" * 50_000
         identity = Identity(
@@ -452,7 +458,7 @@ class TestSendText:
         )
         await c.send(identity=identity, text=long_text)
 
-        req = c._api.im.v1.message.acreate.call_args.args[0]  # noqa: SLF001
+        req = _mock_api(c).im.v1.message.acreate.call_args.args[0]  # noqa: SLF001
         payload = json.loads(req.request_body.content)
         # 30 000-char cap with single-character ellipsis tail.
         assert len(payload["text"]) == 30_000
@@ -466,7 +472,7 @@ class TestSendText:
         resp.success = MagicMock(return_value=True)
         resp.data = MagicMock()
         resp.data.message_id = "x"
-        c._api.im.v1.message.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
+        _mock_api(c).im.v1.message.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
 
         identity = Identity(
             platform="feishu",
@@ -476,7 +482,7 @@ class TestSendText:
         )
         await c.send(identity=identity, text="hi all")
 
-        req = c._api.im.v1.message.acreate.call_args.args[0]  # noqa: SLF001
+        req = _mock_api(c).im.v1.message.acreate.call_args.args[0]  # noqa: SLF001
         # receive_id_type sits on the request-level builder.
         # The lark builder stores it on a field; assert via repr.
         assert "chat_id" in repr(req.receive_id_type)
@@ -489,7 +495,7 @@ class TestSendText:
         resp.success = MagicMock(return_value=False)
         resp.code = 99991663
         resp.msg = "bot not in chat"
-        c._api.im.v1.message.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
+        _mock_api(c).im.v1.message.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
 
         identity = Identity(
             platform="feishu", external_id="feishu:user:ou_a",
@@ -498,12 +504,14 @@ class TestSendText:
         result = await c.send(identity=identity, text="hi")
 
         assert result.ok is False
+        assert result.error is not None
         assert "feishu:99991663" in result.error
+        assert result.error is not None
         assert "bot not in chat" in result.error
 
     async def test_send_text_classifies_raised_exception(self) -> None:
         c = _make_started_connector()
-        c._api.im.v1.message.acreate = AsyncMock(  # noqa: SLF001
+        _mock_api(c).im.v1.message.acreate = AsyncMock(  # noqa: SLF001
             side_effect=RuntimeError("synthetic"),
         )
 
@@ -514,6 +522,7 @@ class TestSendText:
         result = await c.send(identity=identity, text="hi")
 
         assert result.ok is False
+        assert result.error is not None
         assert result.error.startswith("feishu:")
 
     async def test_send_when_not_connected_returns_error(self) -> None:
@@ -529,6 +538,7 @@ class TestSendText:
             text="hi",
         )
         assert result.ok is False
+        assert result.error is not None
         assert "not_connected" in result.error
 
 
@@ -553,14 +563,14 @@ class TestImageUpload:
         resp.success = MagicMock(return_value=True)
         resp.data = MagicMock()
         resp.data.image_key = "img_v3_abc123"
-        c._api.im.v1.image = MagicMock()  # noqa: SLF001
-        c._api.im.v1.image.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
+        _mock_api(c).im.v1.image = MagicMock()  # noqa: SLF001
+        _mock_api(c).im.v1.image.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
 
         key = await c._upload_image(b"\x89PNG_fake_bytes")  # noqa: SLF001
         assert key == "img_v3_abc123"
 
         # The acreate call carried image_type="message" + a BytesIO.
-        req = c._api.im.v1.image.acreate.call_args.args[0]  # noqa: SLF001
+        req = _mock_api(c).im.v1.image.acreate.call_args.args[0]  # noqa: SLF001
         assert req.request_body.image_type == "message"
         # Verify the BytesIO carries our payload — read all bytes.
         req.request_body.image.seek(0)
@@ -571,13 +581,13 @@ class TestImageUpload:
         short-circuit before hitting the lark API. Returns empty
         string so the caller surfaces ``feishu:upload_failed``."""
         c = _make_started_connector()
-        c._api.im.v1.image = MagicMock()  # noqa: SLF001
-        c._api.im.v1.image.acreate = AsyncMock()  # noqa: SLF001
+        _mock_api(c).im.v1.image = MagicMock()  # noqa: SLF001
+        _mock_api(c).im.v1.image.acreate = AsyncMock()  # noqa: SLF001
 
         key = await c._upload_image(b"")  # noqa: SLF001
         assert key == ""
         # acreate not even called.
-        c._api.im.v1.image.acreate.assert_not_awaited()  # noqa: SLF001
+        _mock_api(c).im.v1.image.acreate.assert_not_awaited()  # noqa: SLF001
 
     async def test_upload_image_no_api_returns_empty(self) -> None:
         """Edge: ``_upload_image`` called before ``start()`` has
@@ -599,8 +609,8 @@ class TestImageUpload:
         resp.success = MagicMock(return_value=False)
         resp.code = 230002
         resp.msg = "image too large"
-        c._api.im.v1.image = MagicMock()  # noqa: SLF001
-        c._api.im.v1.image.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
+        _mock_api(c).im.v1.image = MagicMock()  # noqa: SLF001
+        _mock_api(c).im.v1.image.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
 
         key = await c._upload_image(b"x" * 1024)  # noqa: SLF001
         assert key == ""
@@ -610,8 +620,8 @@ class TestImageUpload:
         empty-string return lets the caller surface a clean error
         rather than a 500."""
         c = _make_started_connector()
-        c._api.im.v1.image = MagicMock()  # noqa: SLF001
-        c._api.im.v1.image.acreate = AsyncMock(  # noqa: SLF001
+        _mock_api(c).im.v1.image = MagicMock()  # noqa: SLF001
+        _mock_api(c).im.v1.image.acreate = AsyncMock(  # noqa: SLF001
             side_effect=RuntimeError("network down"),
         )
 
@@ -628,8 +638,8 @@ class TestImageUpload:
         resp.success = MagicMock(return_value=True)
         resp.data = MagicMock()
         resp.data.image_key = None
-        c._api.im.v1.image = MagicMock()  # noqa: SLF001
-        c._api.im.v1.image.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
+        _mock_api(c).im.v1.image = MagicMock()  # noqa: SLF001
+        _mock_api(c).im.v1.image.acreate = AsyncMock(return_value=resp)  # noqa: SLF001
 
         key = await c._upload_image(b"\x89PNG")  # noqa: SLF001
         assert key == ""
@@ -648,15 +658,15 @@ class TestSendImageEndToEnd:
         upload_resp.success = MagicMock(return_value=True)
         upload_resp.data = MagicMock()
         upload_resp.data.image_key = "img_v3_xyz"
-        c._api.im.v1.image = MagicMock()  # noqa: SLF001
-        c._api.im.v1.image.acreate = AsyncMock(return_value=upload_resp)  # noqa: SLF001
+        _mock_api(c).im.v1.image = MagicMock()  # noqa: SLF001
+        _mock_api(c).im.v1.image.acreate = AsyncMock(return_value=upload_resp)  # noqa: SLF001
 
         # Successful message send (image msg_type) returns msg id.
         send_resp = MagicMock()
         send_resp.success = MagicMock(return_value=True)
         send_resp.data = MagicMock()
         send_resp.data.message_id = "om_image_msg"
-        c._api.im.v1.message.acreate = AsyncMock(return_value=send_resp)  # noqa: SLF001
+        _mock_api(c).im.v1.message.acreate = AsyncMock(return_value=send_resp)  # noqa: SLF001
 
         identity = Identity(
             platform="feishu", external_id="feishu:user:ou_a",
@@ -674,9 +684,9 @@ class TestSendImageEndToEnd:
         assert result.message_id == "om_image_msg"
 
         # Image upload happened.
-        c._api.im.v1.image.acreate.assert_awaited_once()  # noqa: SLF001
+        _mock_api(c).im.v1.image.acreate.assert_awaited_once()  # noqa: SLF001
         # Then the message send carried the upload's image_key.
-        send_calls = c._api.im.v1.message.acreate.call_args_list  # noqa: SLF001
+        send_calls = _mock_api(c).im.v1.message.acreate.call_args_list  # noqa: SLF001
         # Last call is the image message; with no caption text, only
         # one call total.
         last_req = send_calls[-1].args[0]
@@ -697,8 +707,8 @@ class TestSendImageEndToEnd:
         upload_resp.success = MagicMock(return_value=True)
         upload_resp.data = MagicMock()
         upload_resp.data.image_key = "img_v3_xyz"
-        c._api.im.v1.image = MagicMock()  # noqa: SLF001
-        c._api.im.v1.image.acreate = AsyncMock(return_value=upload_resp)  # noqa: SLF001
+        _mock_api(c).im.v1.image = MagicMock()  # noqa: SLF001
+        _mock_api(c).im.v1.image.acreate = AsyncMock(return_value=upload_resp)  # noqa: SLF001
 
         text_resp = MagicMock()
         text_resp.success = MagicMock(return_value=True)
@@ -710,7 +720,7 @@ class TestSendImageEndToEnd:
         image_resp.data.message_id = "om_image"
 
         # Two consecutive acreate calls — text, then image.
-        c._api.im.v1.message.acreate = AsyncMock(  # noqa: SLF001
+        _mock_api(c).im.v1.message.acreate = AsyncMock(  # noqa: SLF001
             side_effect=[text_resp, image_resp],
         )
 
@@ -732,7 +742,7 @@ class TestSendImageEndToEnd:
         assert result.message_id == "om_image"
 
         # Two message sends in order: text, then image.
-        send_calls = c._api.im.v1.message.acreate.call_args_list  # noqa: SLF001
+        send_calls = _mock_api(c).im.v1.message.acreate.call_args_list  # noqa: SLF001
         assert len(send_calls) == 2
         text_payload = json.loads(send_calls[0].args[0].request_body.content)
         image_payload = json.loads(send_calls[1].args[0].request_body.content)
@@ -750,8 +760,8 @@ class TestSendImageEndToEnd:
         upload_resp.success = MagicMock(return_value=False)
         upload_resp.code = 230002
         upload_resp.msg = "image too large"
-        c._api.im.v1.image = MagicMock()  # noqa: SLF001
-        c._api.im.v1.image.acreate = AsyncMock(return_value=upload_resp)  # noqa: SLF001
+        _mock_api(c).im.v1.image = MagicMock()  # noqa: SLF001
+        _mock_api(c).im.v1.image.acreate = AsyncMock(return_value=upload_resp)  # noqa: SLF001
 
         identity = Identity(
             platform="feishu", external_id="feishu:user:ou_a",
@@ -764,6 +774,7 @@ class TestSendImageEndToEnd:
             identity=identity, text="", attachments=(attachment,),
         )
         assert result.ok is False
+        assert result.error is not None
         assert "feishu:upload_failed" in result.error
 
 
@@ -785,14 +796,14 @@ class TestUrlImageDownload:
         upload_resp.success = MagicMock(return_value=True)
         upload_resp.data = MagicMock()
         upload_resp.data.image_key = "img_url_xyz"
-        c._api.im.v1.image = MagicMock()  # noqa: SLF001
-        c._api.im.v1.image.acreate = AsyncMock(return_value=upload_resp)  # noqa: SLF001
+        _mock_api(c).im.v1.image = MagicMock()  # noqa: SLF001
+        _mock_api(c).im.v1.image.acreate = AsyncMock(return_value=upload_resp)  # noqa: SLF001
 
         send_resp = MagicMock()
         send_resp.success = MagicMock(return_value=True)
         send_resp.data = MagicMock()
         send_resp.data.message_id = "om_url_img"
-        c._api.im.v1.message.acreate = AsyncMock(return_value=send_resp)  # noqa: SLF001
+        _mock_api(c).im.v1.message.acreate = AsyncMock(return_value=send_resp)  # noqa: SLF001
 
         identity = Identity(
             platform="feishu", external_id="feishu:user:ou_a",
@@ -834,6 +845,7 @@ class TestUrlImageDownload:
         )
 
         assert result.ok is False
+        assert result.error is not None
         assert "url_image_download_failed" in result.error
 
     async def test_non_url_string_returns_error(self) -> None:
@@ -856,6 +868,7 @@ class TestUrlImageDownload:
         )
 
         assert result.ok is False
+        assert result.error is not None
         assert "unsupported_image_source" in result.error
 
 
@@ -876,15 +889,15 @@ class TestSendVoice:
         file_resp.success = MagicMock(return_value=True)
         file_resp.data = MagicMock()
         file_resp.data.file_key = "file_voice_abc"
-        c._api.im.v1.file = MagicMock()  # noqa: SLF001
-        c._api.im.v1.file.acreate = AsyncMock(return_value=file_resp)  # noqa: SLF001
+        _mock_api(c).im.v1.file = MagicMock()  # noqa: SLF001
+        _mock_api(c).im.v1.file.acreate = AsyncMock(return_value=file_resp)  # noqa: SLF001
 
         # Mock message send
         send_resp = MagicMock()
         send_resp.success = MagicMock(return_value=True)
         send_resp.data = MagicMock()
         send_resp.data.message_id = "om_voice_1"
-        c._api.im.v1.message.acreate = AsyncMock(return_value=send_resp)  # noqa: SLF001
+        _mock_api(c).im.v1.message.acreate = AsyncMock(return_value=send_resp)  # noqa: SLF001
 
         identity = Identity(
             platform="feishu", external_id="feishu:user:ou_a",
@@ -895,9 +908,9 @@ class TestSendVoice:
         assert result.ok is True
         assert result.message_id == "om_voice_1"
         # File upload was called
-        c._api.im.v1.file.acreate.assert_awaited_once()  # noqa: SLF001
+        _mock_api(c).im.v1.file.acreate.assert_awaited_once()  # noqa: SLF001
         # Message send carried the file_key as audio
-        req = c._api.im.v1.message.acreate.call_args.args[0]  # noqa: SLF001
+        req = _mock_api(c).im.v1.message.acreate.call_args.args[0]  # noqa: SLF001
         payload = json.loads(req.request_body.content)
         assert payload == {"file_key": "file_voice_abc"}
 
@@ -913,6 +926,7 @@ class TestSendVoice:
             data=b"OggS",
         )
         assert result.ok is False
+        assert result.error is not None
         assert "not_connected" in result.error
 
     async def test_empty_payload_returns_error(self) -> None:
@@ -925,6 +939,7 @@ class TestSendVoice:
             data=b"",
         )
         assert result.ok is False
+        assert result.error is not None
         assert "empty_payload" in result.error
 
     async def test_file_upload_failure_returns_error(self) -> None:
@@ -933,8 +948,8 @@ class TestSendVoice:
         file_resp.success = MagicMock(return_value=False)
         file_resp.code = 230099
         file_resp.msg = "file too large"
-        c._api.im.v1.file = MagicMock()  # noqa: SLF001
-        c._api.im.v1.file.acreate = AsyncMock(return_value=file_resp)  # noqa: SLF001
+        _mock_api(c).im.v1.file = MagicMock()  # noqa: SLF001
+        _mock_api(c).im.v1.file.acreate = AsyncMock(return_value=file_resp)  # noqa: SLF001
 
         identity = Identity(
             platform="feishu", external_id="feishu:user:ou_a",
@@ -943,6 +958,7 @@ class TestSendVoice:
         result = await c.send_voice(identity=identity, data=b"OggS")
 
         assert result.ok is False
+        assert result.error is not None
         assert "feishu:230099" in result.error
 
     async def test_file_upload_no_key_returns_error(self) -> None:
@@ -951,8 +967,8 @@ class TestSendVoice:
         file_resp.success = MagicMock(return_value=True)
         file_resp.data = MagicMock()
         file_resp.data.file_key = ""
-        c._api.im.v1.file = MagicMock()  # noqa: SLF001
-        c._api.im.v1.file.acreate = AsyncMock(return_value=file_resp)  # noqa: SLF001
+        _mock_api(c).im.v1.file = MagicMock()  # noqa: SLF001
+        _mock_api(c).im.v1.file.acreate = AsyncMock(return_value=file_resp)  # noqa: SLF001
 
         identity = Identity(
             platform="feishu", external_id="feishu:user:ou_a",
@@ -961,6 +977,7 @@ class TestSendVoice:
         result = await c.send_voice(identity=identity, data=b"OggS")
 
         assert result.ok is False
+        assert result.error is not None
         assert "audio_upload_no_key" in result.error
 
 
@@ -973,7 +990,7 @@ class TestEdit:
         # capable), not ``apatch`` (card-only). The previous code
         # path 400'd on every streaming text edit with "This message
         # is NOT a card" until we switched.
-        c._api.im.v1.message.aupdate = AsyncMock(return_value=resp)  # noqa: SLF001
+        _mock_api(c).im.v1.message.aupdate = AsyncMock(return_value=resp)  # noqa: SLF001
 
         result = await c.edit(
             identity=Identity(
@@ -988,7 +1005,7 @@ class TestEdit:
 
         # Edit body carries the same JSON-text shape send uses, plus
         # the explicit ``msg_type=text`` the aupdate API requires.
-        req = c._api.im.v1.message.aupdate.call_args.args[0]  # noqa: SLF001
+        req = _mock_api(c).im.v1.message.aupdate.call_args.args[0]  # noqa: SLF001
         payload = json.loads(req.request_body.content)
         assert payload == {"text": "updated"}
         assert req.request_body.msg_type == "text"
@@ -999,7 +1016,7 @@ class TestEdit:
         resp.success = MagicMock(return_value=False)
         resp.code = 230015
         resp.msg = "edit window expired"
-        c._api.im.v1.message.aupdate = AsyncMock(return_value=resp)  # noqa: SLF001
+        _mock_api(c).im.v1.message.aupdate = AsyncMock(return_value=resp)  # noqa: SLF001
 
         result = await c.edit(
             identity=Identity(
@@ -1010,6 +1027,7 @@ class TestEdit:
             text="updated",
         )
         assert result.ok is False
+        assert result.error is not None
         assert "feishu:230015" in result.error
 
     async def test_edit_when_not_connected_returns_error(self) -> None:
@@ -1025,6 +1043,7 @@ class TestEdit:
             text="x",
         )
         assert result.ok is False
+        assert result.error is not None
         assert "not_connected" in result.error
 
     async def test_edit_without_message_id_returns_error(self) -> None:
@@ -1038,6 +1057,7 @@ class TestEdit:
             text="x",
         )
         assert result.ok is False
+        assert result.error is not None
         assert "no_message_id" in result.error
 
 
@@ -1054,7 +1074,7 @@ class TestApprovalPrompt:
 
     async def test_renders_card_with_three_buttons(self) -> None:
         c = _make_started_connector()
-        c._api.im.v1.message.acreate = AsyncMock(  # noqa: SLF001
+        _mock_api(c).im.v1.message.acreate = AsyncMock(  # noqa: SLF001
             return_value=MagicMock(success=MagicMock(return_value=True)),
         )
 
@@ -1075,8 +1095,8 @@ class TestApprovalPrompt:
             preview="hello tank",
         )
 
-        c._api.im.v1.message.acreate.assert_awaited_once()  # noqa: SLF001
-        req = c._api.im.v1.message.acreate.call_args.args[0]  # noqa: SLF001
+        _mock_api(c).im.v1.message.acreate.assert_awaited_once()  # noqa: SLF001
+        req = _mock_api(c).im.v1.message.acreate.call_args.args[0]  # noqa: SLF001
         card = json.loads(req.request_body.content)
 
         # Find the action element + its three buttons.
@@ -1107,7 +1127,7 @@ class TestApprovalPrompt:
 
     async def test_unparseable_admin_identity_is_silent_noop(self) -> None:
         c = _make_started_connector()
-        c._api.im.v1.message.acreate = AsyncMock()  # noqa: SLF001
+        _mock_api(c).im.v1.message.acreate = AsyncMock()  # noqa: SLF001
 
         # external_id with no open_id and no metadata fallback.
         bad_admin = Identity(
@@ -1124,7 +1144,7 @@ class TestApprovalPrompt:
             preview="x",
         )
         # No send attempted — just a warning log.
-        c._api.im.v1.message.acreate.assert_not_awaited()  # noqa: SLF001
+        _mock_api(c).im.v1.message.acreate.assert_not_awaited()  # noqa: SLF001
 
 
 class TestCardAction:
@@ -1163,7 +1183,7 @@ class TestCardAction:
         # ``_on_card_action`` only hops the loop — the dispatch
         # itself runs ``_dispatch_card_action`` which is what we
         # exercise directly.
-        c._api.im.v1.message.apatch = AsyncMock(  # noqa: SLF001
+        _mock_api(c).im.v1.message.apatch = AsyncMock(  # noqa: SLF001
             return_value=MagicMock(success=MagicMock(return_value=True)),
         )
 
@@ -1191,7 +1211,7 @@ class TestCardAction:
         broker.resolve = AsyncMock(return_value=self._make_pending())
         c.set_approval_broker(broker)
 
-        c._api.im.v1.message.apatch = AsyncMock(  # noqa: SLF001
+        _mock_api(c).im.v1.message.apatch = AsyncMock(  # noqa: SLF001
             return_value=MagicMock(success=MagicMock(return_value=True)),
         )
 
@@ -1200,8 +1220,8 @@ class TestCardAction:
         )
         await c._dispatch_card_action(data)  # noqa: SLF001
 
-        c._api.im.v1.message.apatch.assert_awaited_once()  # noqa: SLF001
-        req = c._api.im.v1.message.apatch.call_args.args[0]  # noqa: SLF001
+        _mock_api(c).im.v1.message.apatch.assert_awaited_once()  # noqa: SLF001
+        req = _mock_api(c).im.v1.message.apatch.call_args.args[0]  # noqa: SLF001
         new_card = json.loads(req.request_body.content)
         # Only one element after the edit — the outcome line.
         assert len(new_card["elements"]) == 1
@@ -1217,12 +1237,12 @@ class TestCardAction:
         broker.resolve = AsyncMock(return_value=None)
         c.set_approval_broker(broker)
 
-        c._api.im.v1.message.apatch = AsyncMock()  # noqa: SLF001
+        _mock_api(c).im.v1.message.apatch = AsyncMock()  # noqa: SLF001
 
         data = self._mock_card_event(action_value="approve:deny:abc")
         await c._dispatch_card_action(data)  # noqa: SLF001
 
-        c._api.im.v1.message.apatch.assert_not_awaited()  # noqa: SLF001
+        _mock_api(c).im.v1.message.apatch.assert_not_awaited()  # noqa: SLF001
 
     async def test_malformed_action_payload_is_noop(self) -> None:
         c = _make_started_connector()
@@ -1283,12 +1303,10 @@ class TestLifecycle:
                 assert c._api is api  # noqa: SLF001
                 assert c._ws is ws  # noqa: SLF001
             finally:
-                # Avoid the real ``stop`` (which would try to schedule
-                # _disconnect on a private lark loop) — flip the flags
-                # manually since this is an isolated unit test.
-                c._connected = False  # noqa: SLF001
-                c._api = None  # noqa: SLF001
-                c._ws = None  # noqa: SLF001
+                # Join the spawned task before clearing its client references.
+                # The SDK client is fake, so normal lifecycle cleanup is safe.
+                await c.stop()
+            assert not c._runner.running  # noqa: SLF001
 
     async def test_double_start_is_no_op(self) -> None:
         c = FeishuConnector(
