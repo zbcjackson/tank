@@ -632,5 +632,24 @@ AX 独立分支）均不支持切换默认，详见
 当前默认工厂没有真实通道，返回 `stopped / observation_unavailable`；私有配置暂为空，
 未知配置项拒绝。离线测试注入 fake UI/选择器/Advisor，不代表已接入 Jev、LLM 或真实
 AX/OCR/DOM，也不证明 PDF 产物或不覆盖约束。通道须提供可信语义事实，后续实现具体
-身份、完成条件与派发边界。模型请求准入/捕获/共享预留结算、自然语言目标生成、通用
-恢复仍待实现；生产 A 与现有实验 transport 拒绝条件不变。
+身份、完成条件与派发边界。自然语言目标生成、通用恢复及 Jev/Advisor 领域适配仍待实现；
+生产 A 与现有实验 transport 拒绝条件不变。
+
+### S0 通用文本模型装配（2026-09-29）
+
+Extension agent 显式声明 `model: <llm profile name>` 时，Runner 将 `network` 纳入
+原任务审批范围，并向 `context.runtime.model` 装配一个任务绑定的文本服务。
+未声明时为 None，不创建模型资源；未知 profile 不回退 default。配置只引用宿主
+profile 名称，插件工厂不接收密钥。当前拒绝非 HTTPS、额外 headers/body、非法输出
+上限与 temperature；不支持图像、工具或流式协议。
+
+插件调用 `await context.runtime.model.complete(messages)` 获得完整文本；宿主持有
+真实 SDK/HTTP 客户端，关闭 SDK 隐式重试和重定向，使用既有 TaskModelTransport
+在实际发送边界检查授权、取消、deadline、文本类别和上传上限，并计入原任务账本。
+模型回复无效仍保留已知用量；错误对外只返回固定原因，避免复制提供方响应/凭据。
+默认仍仅记录用量；显式 token_budget 沿用任务限额语义，不引入实验费用政策。
+
+客户端首次调用时创建，runtime 登记统一清理；关闭等待在飞 HTTP 收尾，结束后
+拒绝新调用。此入口已由通用 fake SubAgent + 真实 Runner/SDK + fake HTTP 验证，
+并不表示 Computer Use 已接通真实 Advisor/Jev 或 N2/LLMAgent 已迁移到公共服务。
+多模型/其它协议、模型事件持久审计及 G1/G2 其余治理仍在活动计划中。

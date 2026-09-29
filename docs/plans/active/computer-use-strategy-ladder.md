@@ -1090,6 +1090,36 @@ docs check、diff check 通过。仍有既有第三方弃用及 coroutine Runtim
 实现提交 `903e2a03`。最终职责为宿主关闭 runtime、SubAgent 基类统一管理和关闭
 插件资源、具体子类只登记资源及领域释放回调；完整 G1/G2 与真实通道仍按后续计划验收。
 
+#### S0 第五批：宿主装配文本模型服务（2026-09-29，回归通过，待独立评审）
+
+以现有 extension agent 的显式 `model` profile 引用为准入入口，Runner 为原任务装配
+受控文本模型服务，通过 runtime 提供给插件；没有 model 引用时不创建模型资源。
+仅支持已治理的非流式文本 Chat Completions，不改变内置 agent 与 legacy SDK 路径。
+
+1. 严格解析已声明 profile（不回退 default），在插件工厂和 HTTP 资源创建前验证
+   网络授权、精确 HTTPS 端点、模型、输出上限及兼容配置；凭据仅由宿主解析持有。
+2. 受控客户端关闭 SDK 重试，复用 TaskModelTransport 与原预算；runtime 统一登记
+   清理，插件只获得文本调用面，任务结束后拒绝新增调用。
+3. **Tests**：真实 Runner → 通用 fake SubAgent → 真实 SDK → fake HTTP，先红后绿
+   验证文本请求、唯一用量、无隐式默认/重试、配置/撤权/停止零发送、异常与资源释放。
+4. 最终执行 §10 完整 Verification Checklist 的全部适用项，完成最多三轮
+   review-and-refactor，更新现行设计、索引与本记录。此批不等同 G1/G2 完成；
+   多 provider/协议、持久审计、调用方全迁移与真实通道仍待后续验收。
+
+实现：复用 extension 定义已有的 model 引用；Runner 将网络权限纳入原审批范围，
+严格查找 profile 并在插件工厂前验证。runtime 提供单个 TaskModel 文本调用面，首次
+调用才创建 SDK/HTTP，统一登记清理；客户端不接受调用方自选端点/密钥/工具/图片。
+不隐式回退、不重试、不跟随重定向；无效回复保留 transport 已记录的用量，对外异常
+不复制供应商响应。原任务预算保持唯一，默认只记录用量；生产 A 与旧插件路径未迁移。
+
+Tests：新增 25 项用例覆盖 Runner 装配与审批权限、缺失/不兼容 profile 在工厂前拒绝、
+无新额度/撤权/取消/期限/关闭时零发送、在飞请求收尾、已知/未知用量、无效回复、
+重定向/429/503 零重试、跨任务和重复配置拒绝。定向 196 passed；全量后端
+5419 passed / 1 skipped，E2E 20 场景 / 79 步通过。web lint/tsc、backend/CLI ruff、
+改动文件 pyright、开发服务日志及 docs check 通过；全量后仅做两处行长修正，
+再跑定向/lint/pyright 全通过。保留第三方弃用及 coroutine RuntimeWarning，未改协议。
+无付费模型、真实桌面或浏览器通道调用；G1/G2 完整接线仍未完成。
+
 ### S1：AX 观察、动作候选与一个 OCR 后端
 
 - 扩展 AX 稳定身份、祖先/焦点/值、完整性与作用域；在原范围检查歧义后再截取候选。
