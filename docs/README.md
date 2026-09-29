@@ -43,7 +43,7 @@
 - [research/computer-use-implementation-comparison.md](research/computer-use-implementation-comparison.md)：模型与宿主责任边界、其它实现的坐标/AX/定位器/反馈设计及实验优先级。
 - [plans/done/computer-use-implementation-research.md](plans/done/computer-use-implementation-research.md)：公开实现对照与改进方案调研（已完成）。
 - [research/computer-use-strategy-ladder.md](research/computer-use-strategy-ladder.md)：策略阶梯调研与复核：DOM/AX/OCR/视觉、M8 证据边界、Jev 官方协议与动作选择、按需 LLM 协作；收益均待验证。
-- [plans/active/computer-use-strategy-ladder.md](plans/active/computer-use-strategy-ladder.md)：目标级 Computer Use 设计与计划：S0 前四批基础切片及后续生命周期职责收敛均已通过回归与评审，runtime 关闭由核心统一负责。G1–G3 完整治理与插件迁移尚未完成，生产默认不变。
+- [plans/active/computer-use-strategy-ladder.md](plans/active/computer-use-strategy-ladder.md)：目标级 Computer Use 设计与计划：S0 前四批及生命周期职责收敛已通过回归与评审；SubAgent 基类资源管理与两个插件迁移已通过回归，待评审。G1–G3 完整治理与迁移尚未完成，生产默认不变。
 - [plans/done/computer-use-s0-review.md](plans/done/computer-use-s0-review.md)：S0 通用任务契约三轮评审与两轮重构已完成：修复清理取消/证据丢失/错误完成文案，合并重复序列化；后端 5220 passed、E2E 18 场景通过，最终复审无新增问题。
 - [plans/done/portable-code-reviewer.md](plans/done/portable-code-reviewer.md)：通用评审角色已完成：工具无关 Markdown、24 项固定 Code Smell、权限与独立性分离、无问题即停止/最多三轮及项目测试/提交约定。
 - [plans/done/shared-agent-sync.md](plans/done/shared-agent-sync.md)：多 Agent 同步工具已完成：递归发现、格式校验、配置保护、--check；29 项工具回归和完整项目验证通过。

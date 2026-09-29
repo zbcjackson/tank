@@ -99,6 +99,15 @@ and persistent resume remain false. `agent_status` inspects the persisted worker
 Task cancellation reaches the SDK CancellationLatch and producer task; producer
 shutdown precedes SDK, environment and injected client cleanup. Unconfirmed
 cleanup fails the worker and quarantines the same-process desktop resource.
+Resource ownership and `aclose()` are inherited from `SubAgent`. The plugin
+registers release callbacks before initialization; absent resources are skipped
+and the producer callback performs the SDK-specific cancellation. Shared cleanup
+applies bounded waits per resource, continues after failure, and preserves failed
+outcomes on repeated close calls. Errors identify the registered failed resource
+rather than copying raw provider exception text. The host still owns the runtime.
+`run()` does not close plugin resources itself. Runner/Adapter performs shutdown;
+direct callers must call the inherited `aclose()` in `finally`, including on early
+iteration exit or cancellation.
 An operator can call `DESKTOP_RESOURCE.clear_quarantine()` only after verifying
 that input and owned processes have been released; there is no automatic reset.
 The lock covers Runner-managed computer_use/n2/n2_sdk tasks in one event loop,

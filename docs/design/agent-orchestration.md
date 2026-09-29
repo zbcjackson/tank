@@ -350,9 +350,18 @@ SubAgentAdapter defers DONE until producer/environment/client cleanup completes.
 It binds `context.runtime` to the original task ID and closes its business gate
 before cleanup. After closing the output iterator, it closes the runtime (joining
 in-flight operations and releasing runtime-owned resources), then calls plugin
-`aclose()` even if runtime cleanup failed. Plugin cleanup releases only its own
-resources; plugins borrow the runtime and must not close it. The same plugin
-cleanup hook works before its first run, with no runtime/resources branch. Factories
+`aclose()` even if runtime cleanup failed. `SubAgent` owns the plugin resource
+collection and closed state and provides the cleanup implementation. Subclasses
+call `super().__init__(cleanup_timeout=...)`, register release callbacks through
+`own_resource(name, release)`, and call `check_open()` at run entry; they do not
+implement a cleanup loop or close the borrowed runtime. The inherited cleanup
+works before the first run and shares its outcome, including failures, across
+repeated calls. Computer Use registers its channels; N2 SDK registers producer,
+SDK, environment and client releases, preserving producer-first shutdown. Provider
+release details remain in callbacks; reverse order, timeouts and failure continuation
+belong to the shared implementation. Neither concrete plugin closes its resource
+collection from `run()`; direct consumers outside the Adapter must use `aclose()`
+in `finally`. Factories
 assemble configuration/strategy objects without opening external resources; resource
 injection remains supported for tests and compatibility. Synchronous output iterator
 creation failures also enter the Adapter cleanup path.

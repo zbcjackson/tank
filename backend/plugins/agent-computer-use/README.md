@@ -11,9 +11,10 @@ The constructor accepts separate observation, action, selector and Advisor
 implementations. Tests inject semantic fake UI boundaries through the actual
 registry, AgentTool, approval, Supervisor, Runner and SQLite path. The core Adapter
 owns task shutdown: it closes the runtime and joins in-flight operations before
-calling the plugin's `aclose()`. Plugin cleanup only releases its own resources,
-using the same path whether or not `run()` started; it never closes the borrowed
-runtime. A closed plugin cannot run again. Core `TaskResources` attempts other
+calling the inherited `SubAgent.aclose()`. The base class owns the resource
+collection and closed state; Computer Use only registers its channels with
+`own_resource`. Cleanup uses the same path whether or not `run()` started and
+never closes the borrowed runtime. A closed plugin cannot run again. `TaskResources` attempts other
 releases after one fails and shares the outcome across repeated close calls.
 Unconfirmed cleanup quarantines the desktop. Cancellation retains journaled effects.
 
