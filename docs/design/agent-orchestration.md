@@ -365,9 +365,34 @@ any received TaskResult preserved as stopped and cleanup=confirmed. Cleanup fail
 takes precedence, produces unknown, and quarantines the desktop. If both the
 producer and its cleanup fail, the producer's received evidence is retained.
 REST and worker tools use the same public WorkerRun serializer.
-The budget ledger counts response identities once, independently of observers;
-Runner consumes usage events without adding them again. Observer events support
-API timing and screenshot traces without participating in execution.
+`core.token_usage.TokenUsageLedger` records usage by call ID, distinguishing known,
+estimated and unknown counts. SubAgentBudget is only a compatibility wrapper for
+an explicitly configured cumulative task limit (`0` means recording only). Runner,
+LLMAgent/SDK task contexts, AgentGraph logging and TokenUsageObserver reuse this
+accounting implementation; a task context and its model transports share one ledger.
+Runner does not add context-owned usage again. Session observers have their own
+aggregation scope, never execution authority. Graph logs provider usage, not text
+fragment counts. Legacy events without call IDs receive a local ID; only identified
+repeated events can be deduplicated.
+
+Bundled `backend/agents` definitions no longer set token budgets. User-defined
+positive `token-budget` values remain supported, and an explicit `token_budget=0`
+Runner override disables the definition's limit. These compatibility limits are
+checked after responses, not prepaid hard cost ceilings. Context window/compaction
+budgets and request `max_tokens` are separate capacity constraints.
+
+The opt-in TaskModelTransport records into the supplied context and takes no
+prices, cumulative limits, trial or batch arguments. Optional ModelCallPolicy
+hooks allow the benchmark-owned BenchmarkModelPolicy to reserve/settle against
+`benchmarks.spend_ledger.SpendLedger`; the experiment owns trial/batch/journal
+lifecycle and transport close does not close a batch. Core never imports benchmark
+implementations. Default accounting does not latch a token stop on unknown usage;
+the failed request still fails protocol validation and its usage remains unknown.
+The strict benchmark policy retains unknown reservations and refuses further sends.
+This transport is still not wired into production Runner/plugin construction.
+
+Observer events support API timing and screenshot traces without participating
+in execution.
 
 Runner-managed computer_use, old n2 and n2_sdk tasks share one desktop lock.
 Lock wait counts against the task deadline; authorization precedes locking and

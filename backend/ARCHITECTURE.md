@@ -204,6 +204,11 @@ input. Default desktop calls remain unchanged.
 - Optional Langfuse auto-tracing via monkey-patched `AsyncOpenAI`
 
 **Token Management**:
+- `core.token_usage.TokenUsageLedger` is the shared policy-free usage counter.
+  Task transports share their context's ledger; Runner/Graph/observers reuse its
+  accounting semantics. Built-in agents default to recording only; explicit user
+  task limits remain optional compatibility policy. Experiment trial/batch costs,
+  reservations and journals live exclusively under `benchmarks/`.
 - `tiktoken`-based token counting
 - `max_history_tokens` config (default 8000)
 - Automatic context summarization when history exceeds threshold
