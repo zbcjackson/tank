@@ -33,8 +33,9 @@ class SubAgentAdapter(Agent):
         terminal: AgentOutput | None = None
         result: TaskResult | None = None
         cancelled = False
-        outputs = self.plugin.run(self.request, self.context)
+        outputs: AsyncIterator[AgentOutput] | None = None
         try:
+            outputs = self.plugin.run(self.request, self.context)
             async for output in outputs:
                 if terminal is not None:
                     raise SubAgentStopped("error", "events after DONE")
@@ -65,9 +66,10 @@ class SubAgentAdapter(Agent):
                             await close_outputs()
                     finally:
                         try:
-                            await self.plugin.aclose()
-                        finally:
+                            # Core owns task shutdown; plugin cleanup only releases its resources.
                             await self.context.runtime.aclose()
+                        finally:
+                            await self.plugin.aclose()
 
                 cleanup = asyncio.create_task(asyncio.wait_for(close(), CLEANUP_TIMEOUT_S))
                 while True:

@@ -177,5 +177,10 @@ class SubAgent(ABC):
 
     @abstractmethod
     async def aclose(self) -> None:
-        """Close owned resources, or raise if cleanup is not confirmed."""
+        """Release plugin-owned resources even if run never started.
+
+        The host owns and closes the task runtime before invoking this hook.
+        Implementations must not close the borrowed context/runtime. Repeated
+        calls must be safe; raise if resource cleanup cannot be confirmed.
+        """
         raise NotImplementedError

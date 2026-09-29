@@ -25,6 +25,48 @@ from tank_backend.plugin.registry import ExtensionRegistry
 from .test_ladder import ExportWorld, export_goal
 
 
+@pytest.mark.parametrize("started", [False, True])
+async def test_plugin_close_only_releases_its_resources(started):
+    from agent_computer_use.controller import ComputerUseController
+
+    from tank_backend.agents.subagent import SubAgentRequest
+
+    from .test_ladder import context
+
+    world = ExportWorld()
+    plugin = ComputerUseSubAgent(ComputerUseController(world, world), resources=(world,))
+    ctx = context()
+    request = SubAgentRequest("Export", "", "task", export_goal().model_dump(mode="json"))
+    if started:
+        outputs = [output async for output in plugin.run(request, ctx)]
+        assert outputs[-1].metadata["task_result"]["status"] == "completed"
+    await plugin.aclose()
+    await plugin.aclose()
+    assert world.closed
+    # The caller still owns the task runtime; plugin cleanup cannot close it.
+    ctx.check("desktop")
+    await ctx.runtime.aclose()
+
+
+async def test_closed_unstarted_plugin_cannot_execute():
+    from agent_computer_use.controller import ComputerUseController
+
+    from tank_backend.agents.subagent import SubAgentRequest
+
+    from .test_ladder import context
+
+    world = ExportWorld()
+    plugin = ComputerUseSubAgent(ComputerUseController(world, world), resources=(world,))
+    await plugin.aclose()
+    with pytest.raises(RuntimeError, match="closed"):
+        async for _ in plugin.run(
+            SubAgentRequest("Export", "", "task", export_goal().model_dump(mode="json")),
+            context(),
+        ):
+            pass
+    assert world.observations == 0 and not world.dispatched
+
+
 @pytest.mark.parametrize(
     "outcome", ["completed", "unknown", "stopped", "cleanup_failure", "cancel"]
 )

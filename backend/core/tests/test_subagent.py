@@ -179,6 +179,89 @@ async def test_adapter_owns_runtime_cleanup_even_when_plugin_close_fails(stack, 
         fake.context.check()
 
 
+async def test_adapter_stops_runtime_operations_before_releasing_plugin_resources(
+    stack, monkeypatch,
+):
+    from tank_backend.agents.task_runtime import TaskOperation
+
+    fake, runner, supervisor, definition, store = stack
+    entered = asyncio.Event()
+    order = []
+    operation_task = None
+
+    async def external_operation(value):
+        entered.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            order.append("operation_stopped")
+
+    async def run(request, context):
+        nonlocal operation_task
+        context.runtime.register(operation)
+        operation_task = asyncio.create_task(context.runtime.execute(operation, None))
+        await entered.wait()
+        yield AgentOutput(AgentOutputType.DONE, metadata={"stop_reason": "final_answer"})
+
+    async def release():
+        order.append("resources_released")
+
+    operation = TaskOperation("wait", frozenset({"filesystem"}), "read", external_operation)
+    # The ordinary fake registration carries no permissions; grant this test's read explicitly.
+    from tank_backend.agents.subagent import SubAgentAuthorization
+
+    monkeypatch.setattr(fake, "run", run)
+    monkeypatch.setattr(fake, "aclose", release)
+    try:
+        outputs = [output async for output in runner.run_agent(
+            definition, [{"role": "user", "content": "wait"}],
+            authorization=SubAgentAuthorization(frozenset({"filesystem"})),
+        )]
+        assert outputs[-1].type == AgentOutputType.DONE
+        assert order == ["operation_stopped", "resources_released"]
+    finally:
+        if operation_task is not None:
+            await asyncio.gather(operation_task, return_exceptions=True)
+
+
+async def test_adapter_cleans_up_if_output_iterator_creation_fails(stack, monkeypatch):
+    fake, runner, supervisor, definition, store = stack
+
+    def fail_before_iteration(request, context):
+        fake.context = context
+        raise RuntimeError("iterator creation failed")
+
+    monkeypatch.setattr(fake, "run", fail_before_iteration)
+    result = await supervisor.run_foreground(agent_def=definition, prompt="task")
+    assert result.status == "failed"
+    assert fake.closed
+    with pytest.raises(SubAgentStopped, match="runtime_closed"):
+        fake.context.check()
+
+
+async def test_runtime_cleanup_failure_still_releases_plugin_and_preserves_result(
+    stack, monkeypatch,
+):
+    from tank_backend.agents.task_result import TaskResult
+
+    fake, runner, supervisor, definition, store = stack
+
+    async def failed_release():
+        raise OSError("runtime resource release failed")
+
+    async def run(request, context):
+        context.runtime.own("task_client", failed_release)
+        yield TaskResult(
+            status="partial", summary="save sent", details={"receipts": ["sent"]},
+        ).to_output()
+
+    monkeypatch.setattr(fake, "run", run)
+    result = await supervisor.run_foreground(agent_def=definition, prompt="task")
+    assert fake.closed and result.status == "unknown"
+    assert result.task_result["cleanup"] == "unknown"
+    assert result.task_result["details"] == {"receipts": ["sent"]}
+
+
 @pytest.mark.parametrize("background", [False, True])
 async def test_structured_task_input_reaches_plugin_and_survives_reload(stack, background):
     fake, runner, supervisor, definition, store = stack
