@@ -10,8 +10,10 @@ working desktop agent; real AX/OCR/DOM and HTTP budget wiring are later batches.
 The constructor accepts separate observation, action, selector and Advisor
 implementations. Tests inject semantic fake UI boundaries through the actual
 registry, AgentTool, approval, Supervisor, Runner and SQLite path. Owned resources
-are closed by the plugin; the existing adapter joins cleanup and quarantines the
-desktop on unconfirmed cleanup. Cancellation retains already-journaled effects.
+are registered with the core task runtime; the generic adapter joins cleanup and
+quarantines the desktop on unconfirmed cleanup. Core cleanup also handles an
+unstarted plugin, attempts other releases after one fails, and shares the outcome
+across repeated close calls. Cancellation retains already-journaled effects.
 
 ## Current contract
 
@@ -37,8 +39,14 @@ candidate, request another observation, or return unable/needs-user-input. It
 cannot change scope, completion criteria, existing inputs or permissions. This
 batch does not support natural-language goal synthesis or milestone patches.
 
-Limits are task-local: 32 dispatch attempts (also bounded by host `max_steps`),
-64 observations, four Advisor calls, two readbacks per unresolved effect. The
+Core `TaskRuntime` registers the observation and dispatch adapters, retains bounded
+call records bound to the worker task ID, and rechecks authority after asynchronous
+preflight and before dispatch. Native parameter/reference validation remains in
+the adapter. There is no generic resume or live policy/OS isolation claim.
+
+Limits are task-local: 32 admitted action attempts (including rejected preflights,
+also bounded by host `max_steps`), 64 observations, four Advisor calls, two
+readbacks per unresolved effect. The
 same semantic state is not resubmitted to the selector after abstention. Every
 awaited boundary is followed by an authorization/cancellation/deadline/budget
 check before dispatch. Native adapters must also check at their actual dispatch

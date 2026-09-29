@@ -347,6 +347,26 @@ plugins are trusted Python code; these approvals are not a sandbox or substitute
 for OS file/network isolation, and SDK tools do not inherit Tank tool policies.
 
 SubAgentAdapter defers DONE until producer/environment/client cleanup completes.
+It binds `context.runtime` to the original task ID and closes its business gate
+before cleanup. Registered trusted adapters use core `TaskOperation` handles;
+arguments cannot select permissions or substitute another operation. The runtime
+checks original authority, cancellation, deadline and read/action quotas before
+and after asynchronous preflight, retains bounded call records, and never replays
+an operation with an unknown effect. `returned` means the adapter returned, not
+that its business postcondition succeeded. Computer Use's offline observation and
+dispatch paths use this entry; legacy SDK/LLMAgent execution migration is pending.
+
+Core `TaskResources` handles idempotent reverse-order release, bounded waits and
+continuation after failures. Borrowed leases must register detach callbacks; shared
+host clients are not task-owned. Runtime cleanup joins cooperative in-flight work,
+then releases registered resources even after authorization/deadline expiry. An
+uncooperative callback produces unconfirmed cleanup, not a claim of OS termination.
+An optional host audit callback is required when configured: failure or cancellation
+latches the runtime closed to subsequent business calls. Ordinary observer failures
+are logged without changing execution. Durable audit storage, asynchronous telemetry
+queues, atomic native resource creation/registration, and model factory assembly are
+not provided by this slice; existing unwired extension benchmark refusal remains.
+
 Legacy `stop_reason=final_answer` still completes. Plugins can instead return
 `TaskResult.to_output()`: a versioned result with completed / partial / unknown /
 needs_input / stopped, summary, reason and opaque JSON details. Its status must
