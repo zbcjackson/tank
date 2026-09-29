@@ -8,11 +8,12 @@ import math
 import time
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic import JsonValue
 
+from ..core.token_usage import TokenUsageLedger
 from .base import AgentOutput
 
 if TYPE_CHECKING:
@@ -114,45 +115,18 @@ class SubAgentAuthorization:
 
 
 @dataclass
-class SubAgentBudget:
-    """One shared ledger; event observers never own accounting."""
+class SubAgentBudget(TokenUsageLedger):
+    """Usage accounting with an opt-in legacy task limit; zero means record only."""
 
     limit: int = 0
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-    call_ids: set[str] = field(default_factory=set)
-    unknown_calls: set[str] = field(default_factory=set)
-    _model_transport_claimed: bool = field(default=False, init=False, repr=False)
-
-    def claim_model_transport(self) -> None:
-        """Bind the task's HTTP ledger once, including across close/restart attempts."""
-        if self._model_transport_claimed:
-            raise ValueError("task budget already has a model transport")
-        if self.call_ids or self.unknown_calls:
-            raise ValueError("model transport requires a fresh task budget")
-        self._model_transport_claimed = True
-
-    @property
-    def total_tokens(self) -> int:
-        return self.prompt_tokens + self.completion_tokens
-
-    def record(self, call_id: str, prompt_tokens: int, completion_tokens: int) -> None:
-        if call_id in self.call_ids:
-            return
-        if prompt_tokens < 0 or completion_tokens < 0:
-            raise ValueError("usage must be non-negative")
-        self.call_ids.add(call_id)
-        self.prompt_tokens += prompt_tokens
-        self.completion_tokens += completion_tokens
-
-    def record_unknown(self, call_id: str) -> None:
-        self.unknown_calls.add(call_id)
 
     def check(self) -> None:
         if self.limit > 0 and self.unknown_calls:
             raise SubAgentStopped("budget", "usage unknown")
         if self.limit > 0 and self.total_tokens >= self.limit:
-            raise SubAgentStopped("budget", f"{self.total_tokens}/{self.limit} tokens")
+            raise SubAgentStopped(
+                "budget", f"token budget ({self.total_tokens}/{self.limit} tokens)",
+            )
 
 
 class SubAgentObserver(Protocol):

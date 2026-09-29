@@ -250,7 +250,8 @@ async def prepare(config: Path, output: Path) -> None:
     tool_names = raw["toolsets"]["profiles"]["computer_use"]["tools"]
     if "screenshot" not in tool_names:
         raise ValueError("Comparison requires screenshot in the production toolset")
-    base = parse_agent_file(BACKEND / "agents/computer_use.md")
+    # This frozen experiment owns its shared cap; production defaults are record-only.
+    base = replace(parse_agent_file(BACKEND / "agents/computer_use.md"), token_budget=300000)
     definitions = variants(base)
     buffer = io.BytesIO()
     Image.new("RGB", (100, 80), "blue").save(buffer, "PNG")

@@ -303,7 +303,8 @@ class AgentRunner:
 
         exclude_tools = exclude or None
 
-        effective_budget = token_budget or agent_def.token_budget
+        effective_budget = agent_def.token_budget if token_budget is None else token_budget
+        usage = context.budget if context is not None else SubAgentBudget(limit=effective_budget)
 
         available_tools: set[str] = set()
         if not agent_def.engine and not agent_def.extension:
@@ -483,29 +484,18 @@ class AgentRunner:
         self._post_bus_event("agent_started", agent_id, agent_def.name)
 
         start = time.monotonic()
-        tokens_used = 0
         outputs = agent.run(state)
         try:
             async for output in outputs:
                 # Accumulate token usage (internal, not forwarded)
                 if output.type == AgentOutputType.USAGE:
-                    tokens_used = (context.budget.total_tokens if context is not None
-                                   else tokens_used + output.metadata.get("total_tokens", 0))
+                    if context is None:
+                        call_id = output.metadata.get("call_id") or uuid.uuid4().hex
+                        usage.record_event(call_id, output.metadata)
                     continue
 
-                # Check token budget
-                if context is None and effective_budget > 0 and tokens_used >= effective_budget:
-                    logger.warning(
-                        "Agent '%s' hit token budget (%d/%d tokens)",
-                        agent_def.name, tokens_used, effective_budget,
-                    )
-                    yield AgentOutput(
-                        type=AgentOutputType.TOKEN,
-                        content=f"\n[Agent '{agent_def.name}' reached "
-                                f"token budget ({tokens_used}/{effective_budget} tokens)]",
-                        metadata={"stop_reason": "budget"},
-                    )
-                    break
+                if context is None:
+                    usage.check()
 
                 # Stream all outputs to caller
                 yield output
@@ -541,12 +531,10 @@ class AgentRunner:
                 await close()
             for grounder in owned_grounders:
                 await grounder.client.close()
-            if context is not None:
-                tokens_used = context.budget.total_tokens
             elapsed = time.monotonic() - start
             logger.info(
                 "AgentRunner: '%s' (id=%s) finished in %.1fs, %d tokens used",
-                agent_def.name, agent_id, elapsed, tokens_used,
+                agent_def.name, agent_id, elapsed, usage.total_tokens,
             )
             self._post_bus_event("agent_finished", agent_id, agent_def.name)
 

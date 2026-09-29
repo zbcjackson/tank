@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import uuid
 from collections.abc import AsyncIterator
 from contextvars import ContextVar
@@ -12,23 +11,9 @@ from typing import NoReturn
 
 import httpx
 
+from ..llm.model_transport import json_object, parse_chat_usage
 from .spend_ledger import SpendLedger, SpendLimit, SpendLimitExceeded, TokenAllowance
 from .trace import TraceSink
-
-
-def _json_object(data: str | bytes) -> dict[str, object]:
-    def unique(pairs: list[tuple[str, object]]) -> dict[str, object]:
-        result: dict[str, object] = {}
-        for key, value in pairs:
-            if key in result:
-                raise ValueError("duplicate JSON key")
-            result[key] = value
-        return result
-
-    result = json.loads(data, object_pairs_hook=unique)
-    if not isinstance(result, dict):
-        raise ValueError("JSON object required")
-    return result
 
 
 @dataclass(frozen=True)
@@ -74,7 +59,7 @@ class SpendSession:
         if not self.active or self.control.active is not self:
             raise SpendLimitExceeded("request outside active spend trial")
         try:
-            body = _json_object(request.content)
+            body = json_object(request.content)
         except ValueError:
             self.block("request_contract")
         contract = next(
@@ -169,24 +154,14 @@ class SpendSession:
                 ]
                 if "[DONE]" not in values:
                     raise ValueError("unfinished SSE")
-                records = [_json_object(value) for value in values if value and value != "[DONE]"]
+                records = [json_object(value) for value in values if value and value != "[DONE]"]
                 usages = [r["usage"] for r in records if isinstance(r, dict) and r.get("usage")]
                 if len(usages) != 1:
                     raise ValueError("missing or repeated usage")
                 raw = usages[0]
             else:
-                raw = _json_object(text).get("usage")
-            if not isinstance(raw, dict):
-                raise ValueError("missing usage")
-            counts: list[int] = []
-            for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
-                value = raw.get(key)
-                if type(value) is not int or value < 0:
-                    raise ValueError("invalid usage")
-                counts.append(value)
-            if counts[0] + counts[1] != counts[2]:
-                raise ValueError("invalid usage")
-            inputs, outputs = counts[:2]
+                raw = json_object(text).get("usage")
+            inputs, outputs = parse_chat_usage(raw)
         except (ValueError, TypeError, AttributeError):
             pass
         self.control.ledger.settle(request_id, input_tokens=inputs, output_tokens=outputs)

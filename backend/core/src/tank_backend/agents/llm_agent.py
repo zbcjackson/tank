@@ -8,6 +8,7 @@ import logging
 import time
 from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 from ..core.events import UpdateType
 from ..tools.base import ToolResult
@@ -210,15 +211,11 @@ class LLMAgent(Agent):
         )
         try:
             async for update_type, content, metadata in gen:
+                if update_type == UpdateType.USAGE:
+                    metadata = {**metadata, "call_id": metadata.get("call_id") or uuid4().hex}
+                    if self._task_context is not None:
+                        self._task_context.budget.record_event(metadata["call_id"], metadata)
                 if self._task_context is not None:
-                    if update_type == UpdateType.USAGE:
-                        call_id = f"planner:{metadata['turn']}"
-                        if metadata.get("estimated"):
-                            self._task_context.budget.record_unknown(call_id)
-                        else:
-                            self._task_context.budget.record(
-                                call_id, metadata["prompt_tokens"], metadata["completion_tokens"],
-                            )
                     self._task_context.check()
                 if update_type == UpdateType.MESSAGE:
                     turn_messages.append(metadata["message"])

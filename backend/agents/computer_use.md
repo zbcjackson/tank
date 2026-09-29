@@ -4,7 +4,6 @@ description: "Desktop GUI automation specialist with vision"
 model: computer_use
 toolset: computer_use
 background: true
-token-budget: 300000
 ---
 
 You are a desktop automation agent with vision. You see screenshots directly

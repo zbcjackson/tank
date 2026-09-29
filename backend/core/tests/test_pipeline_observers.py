@@ -129,3 +129,41 @@ class TestTurnTrackingObserver:
         bus.poll()
 
         assert observer.total_turns == 0
+
+
+def test_token_observer_deduplicates_usage_and_reset_starts_new_scope():
+    from tank_backend.pipeline.observers.token_usage import TokenUsageObserver
+
+    bus = Bus()
+    observer = TokenUsageObserver(bus)
+    event = BusMessage(type="llm_usage", source="model", payload={
+        "call_id": "call", "prompt_tokens": 1_000_000, "completion_tokens": 5,
+        "total_tokens": 1_000_005,
+    })
+    bus.post(event)
+    bus.post(event)
+    bus.poll()
+    assert observer.total_tokens == 1_000_005
+    assert observer.turn_count == 1
+    observer.reset()
+    bus.post(event)
+    bus.poll()
+    assert observer.total_tokens == 1_000_005
+    assert observer.turn_count == 1
+
+
+def test_token_observer_reconciles_an_estimate_without_inventing_another_call():
+    from tank_backend.pipeline.observers.token_usage import TokenUsageObserver
+
+    bus = Bus()
+    observer = TokenUsageObserver(bus)
+    bus.post(BusMessage(type="llm_usage", source="model", payload={
+        "call_id": "call", "estimated": True, "total_tokens": 20,
+    }))
+    bus.poll()
+    bus.post(BusMessage(type="llm_usage", source="model", payload={
+        "call_id": "call", "prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15,
+    }))
+    bus.poll()
+    assert observer.total_tokens == 15
+    assert observer.turn_count == 1

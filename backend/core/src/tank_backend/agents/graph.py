@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import AsyncIterator
+from uuid import uuid4
 
+from ..core.token_usage import TokenUsageLedger
 from .base import Agent, AgentOutput, AgentOutputType, AgentState
 
 logger = logging.getLogger(__name__)
@@ -49,7 +51,7 @@ class AgentGraph:
             state.turn = iteration
 
             agent_start = time.monotonic()
-            token_count = 0
+            usage = TokenUsageLedger()
             tool_calls = 0
             agent_name = current_agent.name
 
@@ -84,19 +86,20 @@ class AgentGraph:
                         "AgentGraph [iter %d] agent=%s done "
                         "(%.3fs, %d tokens, %d tool calls, total=%.3fs)",
                         iteration, agent_name, elapsed,
-                        token_count, tool_calls, total,
+                        usage.total_tokens, tool_calls, total,
                     )
                     return
 
                 # Track stats for logging
-                if output.type == AgentOutputType.TOKEN:
-                    token_count += 1
-                elif output.type in (
+                if output.type in (
                     AgentOutputType.TOOL_CALLING,
                     AgentOutputType.TOOL_RESULT,
                 ):
                     tool_calls += 1
                 elif output.type == AgentOutputType.USAGE:
+                    usage.record_event(
+                        output.metadata.get("call_id") or uuid4().hex, output.metadata,
+                    )
                     continue  # internal bookkeeping, don't stream to pipeline
 
                 # Stream everything else through (TOKEN, THOUGHT, TOOL_*)
@@ -109,7 +112,7 @@ class AgentGraph:
                     "AgentGraph [iter %d] agent=%s completed implicitly "
                     "(%.3fs, %d tokens, %d tool calls, total=%.3fs)",
                     iteration, agent_name, elapsed,
-                    token_count, tool_calls, total,
+                    usage.total_tokens, tool_calls, total,
                 )
                 return
 

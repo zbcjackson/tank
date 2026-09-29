@@ -7,31 +7,35 @@ import json
 import math
 from contextlib import suppress
 from dataclasses import dataclass
+from typing import Protocol, TypedDict
 from uuid import uuid4
 
 import httpx
 
-from ..agents.subagent import SubAgentContext
-from ..core.spend_ledger import (
-    SpendLedger,
-    SpendLimit,
-    SpendLimitExceeded,
-    SpendSnapshot,
-    TokenAllowance,
-)
+from ..agents.subagent import SubAgentContext, SubAgentStopped
 
 
-class ModelSnapshot(SpendSnapshot):
+class ModelCallPolicy(Protocol):
+    """Optional caller-owned admission policy, independent of token accounting."""
+
+    def reserve(self, call_id: str, request: httpx.Request) -> None: ...
+    def settle(self, call_id: str, inputs: int | None, outputs: int | None) -> None: ...
+    def release_unsent(self, call_id: str) -> None: ...
+    def check(self) -> None: ...
+
+
+class ModelSnapshot(TypedDict):
     task_id: str
     sent_requests: int
+    usage: dict[str, int]
 
 
 @dataclass(frozen=True)
 class ChatCompletionsRoute:
     url: str
     model: str
-    allowance: TokenAllowance
     credential_ref: str
+    max_output_tokens: int | None = None
     max_upload_bytes: int = 65536
 
     def __post_init__(self) -> None:
@@ -39,6 +43,9 @@ class ChatCompletionsRoute:
         if (
             url.scheme != "https" or not url.host or url.userinfo or url.query or url.fragment
             or not self.model or not self.credential_ref
+            or (self.max_output_tokens is not None and (
+                type(self.max_output_tokens) is not int or self.max_output_tokens <= 0
+            ))
             or type(self.max_upload_bytes) is not int or self.max_upload_bytes <= 0
         ):
             raise ValueError("model route requires an exact HTTPS endpoint and bounded upload")
@@ -50,7 +57,8 @@ class ChatCompletionsRoute:
         maximum = data.get("max_tokens")
         if (
             data.get("model") != self.model or data.get("stream", False) is not False
-            or type(maximum) is not int or not 0 < maximum <= self.allowance.output_tokens
+            or type(maximum) is not int or maximum <= 0
+            or (self.max_output_tokens is not None and maximum > self.max_output_tokens)
             or set(data) - {"model", "messages", "max_tokens", "stream", "temperature"}
         ):
             raise ValueError("model request outside approved protocol")
@@ -81,9 +89,7 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
         task_id: str,
         context: SubAgentContext,
         *,
-        limit: SpendLimit,
-        request_limit: int,
-        max_pending: int = 1,
+        policy: ModelCallPolicy | None = None,
         routes: tuple[ChatCompletionsRoute, ...],
         credentials: dict[str, str],
         inner: httpx.AsyncBaseTransport,
@@ -98,18 +104,14 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
         self._routes = routes
         self._credentials = dict(credentials)
         self._inner = inner
-        if context.budget.limit > 0:
-            limit = SpendLimit(min(limit.tokens, context.budget.limit), limit.nano_usd)
-        self._ledger = SpendLedger(limit, request_limit=request_limit, max_pending=max_pending)
-        context.budget.claim_model_transport()
-        self._ledger.start_trial(task_id, limit)
+        self._policy = policy
         self._closed = False
         self._closing: asyncio.Task[None] | None = None
         self._inflight: dict[asyncio.Task[httpx.Response], asyncio.Event] = {}
 
     def snapshot(self) -> ModelSnapshot:
         return {
-            **self._ledger.snapshot(),
+            "usage": self._context.budget.snapshot(),
             "task_id": self._task_id,
             "sent_requests": self._sent_requests,
         }
@@ -117,13 +119,14 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         self._context.check("network")
         if self._closed:
-            raise SpendLimitExceeded("transport_closed")
+            raise SubAgentStopped("transport_closed")
         route = next((route for route in self._routes if route.url == str(request.url)), None)
         if route is None:
             raise ValueError("model destination not approved")
         route.validate(request)
         call_id = uuid4().hex
-        self._ledger.reserve(call_id, route.allowance)
+        if self._policy is not None:
+            self._policy.reserve(call_id, request)
         request.headers["Accept-Encoding"] = "identity"
         request.headers["Authorization"] = "Bearer " + self._credentials[route.credential_ref]
 
@@ -135,7 +138,7 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
                 # Task scheduling is an await boundary: recheck immediately before sending.
                 self._context.check("network")
                 if self._closed:
-                    raise SpendLimitExceeded("transport_closed")
+                    raise SubAgentStopped("transport_closed")
                 sent = True
                 self._sent_requests += 1
                 response = await self._inner.handle_async_request(request)
@@ -176,12 +179,12 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
                             inputs, outputs = read_usage(operation.result())
                     self._record_usage(call_id, inputs, outputs)
                 else:
-                    self._ledger.release_unsent(call_id)
+                    if self._policy is not None:
+                        self._policy.release_unsent(call_id)
                 raise
             self._record_usage(call_id, inputs, outputs)
-            reason = self._ledger.snapshot()["stop_reason"]
-            if reason is not None:
-                raise SpendLimitExceeded(reason)
+            if self._policy is not None:
+                self._policy.check()
             response.extensions["tank_call_id"] = call_id
         finally:
             cancelled.cancel()
@@ -200,15 +203,16 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
                 raise asyncio.CancelledError
         self._context.check("network")
         if self._closed:
-            raise SpendLimitExceeded("transport_closed")
+            raise SubAgentStopped("transport_closed")
         return response
 
     def _record_usage(self, call_id: str, inputs: int | None, outputs: int | None) -> None:
-        self._ledger.settle(call_id, input_tokens=inputs, output_tokens=outputs)
         if inputs is None or outputs is None:
             self._context.budget.record_unknown(call_id)
         else:
             self._context.budget.record(call_id, inputs, outputs)
+        if self._policy is not None:
+            self._policy.settle(call_id, inputs, outputs)
 
     async def aclose(self) -> None:
         if self._closing is None:
@@ -227,7 +231,6 @@ class TaskModelTransport(httpx.AsyncBaseTransport):
                 await asyncio.gather(*(settled.wait() for _, settled in inflight))
                 await self._inner.aclose()
         finally:
-            self._ledger.close()
             self._credentials.clear()
 
 
@@ -235,7 +238,11 @@ def read_usage(response: httpx.Response) -> tuple[int, int]:
     if not response.is_success:
         raise ValueError("model response status is not successful")
     data = json_object(response.content)
-    usage = data.get("usage") if isinstance(data, dict) else None
+    return parse_chat_usage(data.get("usage"))
+
+
+def parse_chat_usage(usage: object) -> tuple[int, int]:
+    """Validate raw Chat Completions counts before SDK coercion or accounting."""
     if not isinstance(usage, dict):
         raise ValueError("model response has no trustworthy usage")
     counts: list[int] = []
@@ -250,7 +257,7 @@ def read_usage(response: httpx.Response) -> tuple[int, int]:
     return inputs, outputs
 
 
-def json_object(data: bytes) -> dict[str, object]:
+def json_object(data: str | bytes) -> dict[str, object]:
     def unique(pairs: list[tuple[str, object]]) -> dict[str, object]:
         result: dict[str, object] = {}
         for key, value in pairs:

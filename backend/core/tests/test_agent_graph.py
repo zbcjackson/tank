@@ -148,3 +148,23 @@ class TestAgentGraph:
         state = AgentState()
         outputs = [o async for o in graph.run(state)]
         assert len(outputs) == 0
+
+
+async def test_graph_logs_provider_usage_not_stream_fragment_count(caplog):
+    import logging
+
+    class UsageAgent(Agent):
+        async def run(self, state):
+            yield AgentOutput(AgentOutputType.TOKEN, "one fragment")
+            for _ in range(2):
+                yield AgentOutput(AgentOutputType.USAGE, metadata={
+                    "call_id": "call", "prompt_tokens": 50, "completion_tokens": 10,
+                    "total_tokens": 60,
+                })
+            yield AgentOutput(AgentOutputType.DONE)
+
+    graph = AgentGraph({"chat": UsageAgent("chat")})
+    with caplog.at_level(logging.INFO, logger="tank_backend.agents.graph"):
+        outputs = [output async for output in graph.run(AgentState())]
+    assert len(outputs) == 1
+    assert "60 tokens" in caplog.text

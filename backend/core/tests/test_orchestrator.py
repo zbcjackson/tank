@@ -287,6 +287,7 @@ class TestAgentTool:
         tool = AgentTool(runner)
         result = await tool.execute(prompt="hello", subagent_type="nonexistent")
         import json
+        assert isinstance(result.content, str)
         data = json.loads(result.content)
         assert "error" in data
 
@@ -313,6 +314,63 @@ class TestAgentTool:
         tool = AgentTool(runner)
         result = await tool.execute(prompt="write hello world", subagent_type="coder")
         import json
+        assert isinstance(result.content, str)
         data = json.loads(result.content)
         assert "message" in data
         assert data["agent_type"] == "coder"
+
+
+@pytest.mark.parametrize("override,stopped", [(None, True), (0, False)])
+async def test_explicit_zero_override_disables_configured_task_limit(override, stopped):
+    from tank_backend.agents.approval import PendingToolCallStore
+    from tank_backend.agents.definition import AgentDefinition
+    from tank_backend.agents.runner import AgentRunner
+
+    definition = AgentDefinition(
+        name="counting", description="test", system_prompt="count", token_budget=10,
+    )
+    runner = AgentRunner(
+        llm=_make_llm([
+            (UpdateType.USAGE, "", {"prompt_tokens": 20, "completion_tokens": 0,
+                                    "total_tokens": 20, "call_id": "request"}),
+            (UpdateType.TEXT, "continued", {}),
+        ]),
+        tool_manager=_make_tool_manager(), bus=MagicMock(), approval_policy=MagicMock(),
+        pending_store=PendingToolCallStore(), definitions={"counting": definition},
+    )
+    outputs = [output async for output in runner.run_agent(
+        definition, [{"role": "user", "content": "run"}], token_budget=override,
+    )]
+    assert any(output.metadata.get("stop_reason") == "budget" for output in outputs) is stopped
+    assert any(output.content == "continued" for output in outputs) is not stopped
+
+
+def test_bundled_agents_default_to_recording_without_token_limits():
+    from tank_backend.agents.definition import load_agent_definitions
+
+    definitions = load_agent_definitions([Path(__file__).resolve().parents[2] / "agents"])
+    assert definitions
+    assert all(definition.token_budget == 0 for definition in definitions.values())
+
+
+async def test_runner_deduplicates_usage_before_applying_an_explicit_limit():
+    from tank_backend.agents.approval import PendingToolCallStore
+    from tank_backend.agents.definition import AgentDefinition
+    from tank_backend.agents.runner import AgentRunner
+
+    definition = AgentDefinition(
+        name="counting", description="test", system_prompt="count", token_budget=10,
+    )
+    usage = (UpdateType.USAGE, "", {
+        "prompt_tokens": 5, "completion_tokens": 1, "total_tokens": 6, "call_id": "one-call",
+    })
+    runner = AgentRunner(
+        llm=_make_llm([usage, usage, (UpdateType.TEXT, "continued", {})]),
+        tool_manager=_make_tool_manager(), bus=MagicMock(), approval_policy=MagicMock(),
+        pending_store=PendingToolCallStore(), definitions={"counting": definition},
+    )
+    outputs = [output async for output in runner.run_agent(
+        definition, [{"role": "user", "content": "run"}],
+    )]
+    assert any(output.content == "continued" for output in outputs)
+    assert not any(output.metadata.get("stop_reason") == "budget" for output in outputs)

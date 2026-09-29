@@ -413,8 +413,8 @@ def test_record_only_ignores_token_cost_bounds_but_keeps_request_limit():
         ledger.reserve("next", TokenAllowance(0, 0, 0, 0))
 
 
-def test_core_ledger_reserves_concurrent_calls_against_one_limit():
-    from tank_backend.core.spend_ledger import (
+def test_benchmark_ledger_reserves_concurrent_calls_against_one_limit():
+    from tank_backend.benchmarks.spend_ledger import (
         SpendLedger,
         SpendLimit,
         SpendLimitExceeded,

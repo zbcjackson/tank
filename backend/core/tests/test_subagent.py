@@ -809,3 +809,47 @@ async def test_rejected_token_and_changed_permission_scope_require_new_approval(
     )
     wider = await tool.execute(**second.tool_args)
     assert "APPROVAL REQUIRED" in str(wider.content) and fake.request is None
+
+
+def test_usage_ledger_records_without_limits_and_deduplicates_calls():
+    from tank_backend.core.token_usage import TokenUsageLedger
+
+    ledger = TokenUsageLedger()
+    ledger.record("large", 10_000_000, 5_000_000)
+    ledger.record("large", 10_000_000, 5_000_000)
+    ledger.record_unknown("lost")
+    ledger.record("later", 2, 3)
+    assert ledger.total_tokens == 15_000_005
+    assert ledger.unknown_calls == {"lost"}
+    assert ledger.call_ids == {"large", "later"}
+
+
+def test_usage_ledger_reconciles_estimated_and_unknown_usage_once():
+    from tank_backend.core.token_usage import TokenUsageLedger
+
+    ledger = TokenUsageLedger()
+    ledger.record_estimate("estimated", 20)
+    ledger.record_estimate("estimated", 20)
+    ledger.record_unknown("lost")
+    assert ledger.snapshot()["estimated_tokens"] == 20
+    assert ledger.total_tokens == 20
+    ledger.record("estimated", 12, 3)
+    ledger.record("lost", 4, 1)
+    ledger.record_unknown("lost")
+    assert ledger.total_tokens == 20
+    assert ledger.estimated_tokens == 0
+    assert not ledger.unknown_calls
+    assert ledger.snapshot()["known_calls"] == 2
+
+
+@pytest.mark.parametrize("value", [True, -1, "3", 1.5])
+def test_usage_ledger_rejects_invalid_known_counts_without_turning_them_into_estimates(value):
+    from tank_backend.core.token_usage import TokenUsageLedger
+
+    ledger = TokenUsageLedger()
+    with pytest.raises(ValueError):
+        ledger.record_event("bad", {
+            "prompt_tokens": value, "completion_tokens": 1, "total_tokens": 4,
+        })
+    assert ledger.total_tokens == 0
+    assert not ledger.call_ids

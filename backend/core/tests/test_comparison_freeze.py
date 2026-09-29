@@ -37,6 +37,7 @@ async def test_runtime_contract_accepts_resolved_generated_variants(runtime_bund
     config = AppConfig.load(runtime / "config.yaml")
     definition = load_agent_definitions([runtime / "agents"])["computer_use"]
     ComparisonContract(runtime_bundle, variant).verify(config, definition)
+    assert definition.token_budget == 300000  # Explicit experiment cap, not production default.
 
 
 @pytest.mark.parametrize("change", [

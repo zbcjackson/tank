@@ -4,7 +4,6 @@ model: planning
 description: "Search the web and gather information"
 disallowed-tools: [file_write, file_delete, run_command, persistent_shell, manage_process]
 skills: []
-token-budget: 300000
 ---
 
 You are a research agent. Search the web, read pages, and synthesize information.
